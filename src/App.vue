@@ -18,7 +18,11 @@ import { gameState } from './engine/game-state'
 import { gameLoop } from './engine/game-loop'
 import { tutorialManager } from './engine/tutorial-manager'
 import { eventEngine } from './engine/event-engine'
+import { eventBus } from './engine/event-bus'
 import { useToast } from './composables/useToast'
+import { formatNumber } from './engine/format'
+import { getThemeDef } from './data/themes'
+import type { ThemeId } from './types'
 
 const toast = useToast()
 
@@ -91,6 +95,7 @@ function doImport() {
     if (ok) {
       toast.success('Save imported successfully')
       if (!gameLoop.isRunning()) gameLoop.start()
+      eventEngine.initializeCooldowns()
     } else {
       toast.error('Invalid save data')
     }
@@ -117,12 +122,58 @@ function handleKeydown(e: KeyboardEvent) {
   }
 }
 
+function handleRaidResult(e: Event) {
+  const detail = (e as CustomEvent).detail as { won: boolean; spoilsCurrency?: number; themeId: string }
+  if (detail.won) {
+    toast.success(`Raid repelled! Spoils: ${formatNumber(detail.spoilsCurrency || 0)}`)
+  } else {
+    toast.error('Raid failed! Income frozen, assassins lost loyalty')
+  }
+}
+
+function handleAssassinAwakened(e: Event) {
+  const detail = (e as CustomEvent).detail as { themeId: ThemeId }
+  toast.success(`Assassin awakened in ${getThemeDef(detail.themeId)?.name || detail.themeId}!`)
+}
+
+function handleTakeoverStarted(e: Event) {
+  const detail = (e as CustomEvent).detail as { themeId: ThemeId }
+  toast.warning(`Takeover initiated: ${getThemeDef(detail.themeId)?.name || detail.themeId}`)
+}
+
+function handleTakeoverComplete(e: Event) {
+  const detail = (e as CustomEvent).detail as { themeId: ThemeId }
+  toast.success(`Takeover complete: ${getThemeDef(detail.themeId)?.name || detail.themeId} conquered!`)
+}
+
+function handleThemeUnlock(e: Event) {
+  const detail = (e as CustomEvent).detail as { themeId: ThemeId }
+  toast.success(`New theme unlocked: ${getThemeDef(detail.themeId)?.name || detail.themeId}`)
+}
+
+function handleThemeRoyal(e: Event) {
+  const detail = (e as CustomEvent).detail as { themeId: ThemeId }
+  toast.success(`${getThemeDef(detail.themeId)?.name || detail.themeId} has achieved Royal status!`)
+}
+
 onMounted(() => {
   document.addEventListener('keydown', handleKeydown)
+  eventBus.on('raid:result', handleRaidResult)
+  eventBus.on('assassin:awakened', handleAssassinAwakened)
+  eventBus.on('takeover:started', handleTakeoverStarted)
+  eventBus.on('takeover:complete', handleTakeoverComplete)
+  eventBus.on('theme:unlock', handleThemeUnlock)
+  eventBus.on('theme:royal', handleThemeRoyal)
 })
 
 onUnmounted(() => {
   document.removeEventListener('keydown', handleKeydown)
+  eventBus.off('raid:result', handleRaidResult)
+  eventBus.off('assassin:awakened', handleAssassinAwakened)
+  eventBus.off('takeover:started', handleTakeoverStarted)
+  eventBus.off('takeover:complete', handleTakeoverComplete)
+  eventBus.off('theme:unlock', handleThemeUnlock)
+  eventBus.off('theme:royal', handleThemeRoyal)
 })
 
 </script>

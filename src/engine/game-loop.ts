@@ -99,6 +99,7 @@ class GameLoop {
     }
     window.removeEventListener('beforeunload', this.saveHandler)
     this.running = false
+    this.tickCount = 0
   }
 
   isRunning(): boolean {

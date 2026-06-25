@@ -4,7 +4,7 @@ import { gameState } from '../engine/game-state'
 import { STAFF_TYPES } from '../data/staff'
 import { BUILDINGS } from '../data/buildings'
 import { hireStaff, assignStaff, confirmLevelUp, getStaffXpToNext, getStaffLevelUpCost, isStaffUnlocked } from '../engine/staff-manager'
-import { hireAssassin, isAssassinUnlocked, assignAssassin, lendAssassin, sendAssassinToAttack, cancelAssassinAttack } from '../engine/assassin-manager'
+import { hireAssassin, isAssassinUnlocked, assignAssassin, lendAssassin, sendAssassinToAttack, cancelAssassinAttack, confirmAssassinLevelUp, getAssassinXpToNext, getAssassinLevelUpCost } from '../engine/assassin-manager'
 import { ASSASSIN_TYPES } from '../data/assassins'
 import { getTotalDebt, repayDebt, repayAllDebts } from '../engine/debt-manager'
 import { formatNumber } from '../engine/format'
@@ -41,6 +41,10 @@ const assassinList = ref<Array<{
   id: string
   typeName: string
   level: number
+  maxLevel: number
+  xpPercent: number
+  pendingLevelUp: boolean
+  levelUpCost: string
   loyalty: number
   loyaltyPercent: number
   rawAssignedTheme: string | null
@@ -56,6 +60,7 @@ const assassinList = ref<Array<{
 }>>([])
 const assassinOptions = ref<Array<{ id: string; name: string; rank: string; cost: string; affordable: boolean; unlocked: boolean; ability: string }>>([])
 const unlockedThemes = ref<Array<{ id: ThemeId; name: string }>>([])
+const lendableThemes = ref<Array<{ id: ThemeId; name: string }>>([])
 const upgradeList = ref<Array<{ id: string; name: string; description: string; cost: string; affordable: boolean; purchased: boolean }>>([])
 
 function update() {
@@ -111,10 +116,16 @@ function update() {
     const def = ASSASSIN_TYPES.find(d => d.id === a.typeId)
     const lentThemeName = a.lentTo ? (getThemeDef(a.lentTo)?.name || a.lentTo) : ''
     const attackTargetName = a.attackTarget ? (getThemeDef(a.attackTarget)?.name || a.attackTarget) : ''
+    const xpNeeded = getAssassinXpToNext(a.level)
+    const isMaxed = def ? a.level >= def.maxLevel : false
     return {
       id: a.id,
       typeName: def?.name || a.typeId,
       level: a.level,
+      maxLevel: def?.maxLevel || 10,
+      xpPercent: isMaxed ? 100 : Math.min(100, (a.xp / xpNeeded) * 100),
+      pendingLevelUp: a.pendingLevelUp,
+      levelUpCost: formatNumber(getAssassinLevelUpCost(a.typeId, a.level + 1)),
       loyalty: Math.round(a.loyalty),
       loyaltyPercent: Math.min(100, a.loyalty),
       rawAssignedTheme: a.assignedTheme,
@@ -134,6 +145,13 @@ function update() {
     id: tid,
     name: getThemeDef(tid)?.name || tid,
   }))
+
+  lendableThemes.value = state.worldMap.unlockedNodes
+    .filter(tid => tid !== state.activeTheme)
+    .map(tid => ({
+      id: tid,
+      name: getThemeDef(tid)?.name || tid,
+    }))
 
   attackTargets.value = THEMES.filter(t => t.id !== state.activeTheme).map(t => {
     const progress = getTakeoverProgress(t.id)
@@ -216,6 +234,11 @@ function doSendAttack(assassinId: string, targetThemeId: string) {
 
 function doCancelAttack(assassinId: string) {
   cancelAssassinAttack(assassinId)
+  update()
+}
+
+function doAssassinLevelUp(assassinId: string) {
+  confirmAssassinLevelUp(assassinId)
   update()
 }
 
@@ -329,11 +352,14 @@ watch(() => props.visible, (v) => {
         </div>
         <div v-for="a in assassinList" :key="a.id" class="staff-card assassin-card">
           <div class="assassin-card__header">
-            <span class="assassin-card__name">{{ a.typeName }} Lv.{{ a.level }}</span>
+            <span class="assassin-card__name">{{ a.typeName }} Lv.{{ a.level }}/{{ a.maxLevel }}</span>
             <span v-if="a.awakened" class="assassin-card__awakened">AWAKENED</span>
             <span v-if="a.synergyCount > 0" class="assassin-card__synergy">Syn:{{ a.synergyCount }}</span>
           </div>
           <div class="assassin-card__ability">{{ a.ability }}</div>
+          <div class="staff-card__xp-bar">
+            <div class="staff-card__xp-fill" :style="{ width: a.xpPercent + '%' }"></div>
+          </div>
           <div class="assassin-card__loyalty-bar">
             <div class="assassin-card__loyalty-fill" :style="{ width: a.loyaltyPercent + '%' }"></div>
           </div>
@@ -361,8 +387,13 @@ watch(() => props.visible, (v) => {
               class="staff-assign__select"
             >
               <option value="">Lend to...</option>
-              <option v-for="t in unlockedThemes" :key="t.id" :value="t.id">{{ t.name }}</option>
+              <option v-for="t in lendableThemes" :key="t.id" :value="t.id">{{ t.name }}</option>
             </select>
+            <button
+              v-if="a.pendingLevelUp"
+              @click="doAssassinLevelUp(a.id)"
+              class="staff-assign__levelup"
+            >Level Up ({{ a.levelUpCost }})</button>
           </div>
           <div v-if="a.attackTarget" class="assassin-card__attack-status">
             <span class="assassin-card__attack-target">Attacking: {{ a.attackTarget }}</span>

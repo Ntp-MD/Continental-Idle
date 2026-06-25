@@ -2,6 +2,7 @@ import type { ThemeId } from '../types'
 import { gameState } from './game-state'
 import { eventBus } from './event-bus'
 import { THEMES } from '../data/themes'
+import { getAssassinCombatDamage, getAssassinXpMult } from './assassin-manager'
 
 const HQ_HEALTH_BASE = 1000
 const HQ_HEALTH_PER_PRESTIGE = 500
@@ -38,6 +39,9 @@ export function initiateTakeover(themeId: ThemeId): boolean {
   const targetTheme = state.themes[themeId]
   if (!targetTheme) return false
 
+  // Reject if a takeover is already in progress (HQ health already damaged)
+  if (targetTheme.hqHealth < targetTheme.hqMaxHealth && !targetTheme.aiOwnerDefeated) return false
+
   const cost = getTakeoverCost(themeId)
   if (activeTheme.currency < cost) return false
 
@@ -69,15 +73,13 @@ export function tickTakeoverProgress(): void {
         if (assassin.attackTarget !== def.id) return
         if (assassin.loyalty < 10) return
 
-        const baseDamage = 5 + assassin.level * 3
-        const statBonus = assassin.stats.precision * 0.5 + assassin.stats.speed * 0.3
-        const traitMult = assassin.awakened ? 2 : 1
-        const damage = (baseDamage + statBonus) * traitMult
+        const damage = getAssassinCombatDamage(assassin)
+        const xpMult = getAssassinXpMult(assassin)
 
         totalDamage += damage
         attackerCount++
 
-        assassin.xp += damage * 0.5
+        assassin.xp += damage * 0.5 * xpMult
         assassin.loyalty = Math.max(0, assassin.loyalty - 0.2)
       })
     })
@@ -95,6 +97,7 @@ export function tickTakeoverProgress(): void {
           state.worldMap.unlockedNodes.push(def.id)
         }
         targetTheme.takeoverProgress = 0
+        targetTheme.excommunicadoGraceUntil = Date.now() + 30 * 60 * 1000
 
         state.worldMap.unlockedNodes.forEach(sourceThemeId => {
           const sourceTheme = state.themes[sourceThemeId]
@@ -123,22 +126,11 @@ export function getTakeoverProgress(themeId: ThemeId): number {
   return (1 - theme.hqHealth / theme.hqMaxHealth) * 100
 }
 
-export function getHqHealth(themeId: ThemeId): number {
-  const state = gameState.get()
-  const theme = state.themes[themeId]
-  if (!theme) return 0
-  return theme.hqHealth
-}
-
 export function getHqHealthPercent(themeId: ThemeId): number {
   const state = gameState.get()
   const theme = state.themes[themeId]
   if (!theme || theme.hqMaxHealth <= 0) return 0
   return (theme.hqHealth / theme.hqMaxHealth) * 100
-}
-
-export function getConqueredNodes(): ThemeId[] {
-  return gameState.get().worldMap.conqueredNodes
 }
 
 export function getAttackersOnTarget(themeId: ThemeId): number {

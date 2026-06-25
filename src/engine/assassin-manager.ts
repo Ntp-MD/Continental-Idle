@@ -1,5 +1,6 @@
 import type { ThemeId, AssassinEntry, CharacterStats } from '../types'
 import { ASSASSIN_TYPES } from '../data/assassins'
+import { getTraitMultiplier } from '../data/traits'
 import { gameState } from './game-state'
 import { eventBus } from './event-bus'
 import { STAFF_TYPES } from '../data/staff'
@@ -72,6 +73,7 @@ export function hireAssassin(assassinTypeId: string, themeId?: ThemeId): Assassi
     typeId: assassinTypeId,
     level: 1,
     xp: 0,
+    pendingLevelUp: false,
     loyalty: 100,
     assignedTheme: id,
     lentTo: null,
@@ -115,6 +117,9 @@ export function sendAssassinToAttack(assassinId: string, targetThemeId: ThemeId,
   if (!targetTheme) return false
   if (targetTheme.aiOwnerDefeated) return false
   if (targetTheme.hqHealth <= 0) return false
+  // Cannot attack themes that are already unlocked or conquered
+  if (state.worldMap.unlockedNodes.includes(targetThemeId)) return false
+  if (state.worldMap.conqueredNodes.includes(targetThemeId)) return false
 
   assassin.attackTarget = targetThemeId
   eventBus.emit('assassin:attack', { assassinId, targetThemeId })
@@ -142,11 +147,64 @@ export function lendAssassin(assassinId: string, toTheme: ThemeId, durationSecon
   const assassin = theme.assassins[assassinId]
   if (!assassin) return false
   if (assassin.loyalty < 50) return false
+  if (toTheme === id) return false
 
   assassin.lentTo = toTheme
   assassin.lentUntil = Date.now() + durationSeconds * 1000
+  assassin.attackTarget = null
   eventBus.emit('assassin:lent', { assassinId, toTheme })
   return true
+}
+
+export function getAssassinXpToNext(level: number): number {
+  return Math.ceil(200 * Math.pow(1.4, level))
+}
+
+export function confirmAssassinLevelUp(assassinId: string, themeId?: ThemeId): boolean {
+  const state = gameState.get()
+  const id = themeId || state.activeTheme
+  const theme = state.themes[id]
+  if (!theme) return false
+  const assassin = theme.assassins[assassinId]
+  if (!assassin || !assassin.pendingLevelUp) return false
+
+  const def = ASSASSIN_TYPES.find(a => a.id === assassin.typeId)
+  if (!def) return false
+  if (assassin.level >= def.maxLevel) return false
+
+  const cost = Math.ceil(def.hireCost * 0.15 * Math.pow(1.4, assassin.level))
+  if (theme.currency < cost) return false
+
+  theme.currency -= cost
+  assassin.level++
+  assassin.xp = 0
+  assassin.pendingLevelUp = false
+  eventBus.emit('assassin:levelup', { assassinId, level: assassin.level, themeId: id })
+  return true
+}
+
+export function getAssassinLevelUpCost(assassinTypeId: string, newLevel: number): number {
+  const def = ASSASSIN_TYPES.find(a => a.id === assassinTypeId)
+  if (!def) return Infinity
+  return Math.ceil(def.hireCost * 0.15 * Math.pow(1.4, newLevel - 1))
+}
+
+export function getAssassinCombatDamage(assassin: AssassinEntry): number {
+  const baseDamage = 5 + assassin.level * 3
+  const statBonus = assassin.stats.precision * 0.5 + assassin.stats.speed * 0.3
+  const traitMult = getTraitMultiplier(assassin.traits, 'incomeMult')
+  const awakenedMult = assassin.awakened ? 2 : 1
+  return (baseDamage + statBonus) * traitMult * awakenedMult
+}
+
+export function getAssassinRaidPower(assassin: AssassinEntry): number {
+  const base = assassin.level * 5 + assassin.stats.precision * 2 + assassin.stats.speed * 1
+  const traitMult = getTraitMultiplier(assassin.traits, 'incomeMult')
+  return assassin.awakened ? base * 2 * traitMult : base * traitMult
+}
+
+export function getAssassinXpMult(assassin: AssassinEntry): number {
+  return getTraitMultiplier(assassin.traits, 'xpMult')
 }
 
 export function tickAssassinLoyalty(): void {
@@ -162,6 +220,14 @@ export function tickAssassinLoyalty(): void {
       }
       if (assassin.assignedTheme && assassin.assignedTheme !== themeId) {
         assassin.loyalty = Math.max(0, assassin.loyalty - 0.1)
+      }
+      // Auto-level: check XP threshold
+      const def = ASSASSIN_TYPES.find(a => a.id === assassin.typeId)
+      if (def && assassin.level < def.maxLevel && !assassin.pendingLevelUp) {
+        const threshold = getAssassinXpToNext(assassin.level)
+        if (assassin.xp >= threshold) {
+          assassin.pendingLevelUp = true
+        }
       }
       // Awaken at max loyalty after surviving 3+ lends
       if (!assassin.awakened && assassin.loyalty >= 100 && assassin.synergyCount >= 3) {

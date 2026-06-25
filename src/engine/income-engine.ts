@@ -88,7 +88,9 @@ export function getThemeIncomePerSecond(themeId?: ThemeId): number {
   if (hasFreeze && !hasEnforcer(id)) {
     if (getBartenderFreezeImmune(id)) {
       const barIncome = getBuildingIncome(themeState, 'bar')
-      return barIncome * prestigeMult * hqMult * satMult * repMult * buffMult * permBonus
+      const conciergeBonus = getConciergePassiveBonus(id)
+      const skillIncomeMult = getTotalIncomeMult()
+      return barIncome * prestigeMult * hqMult * satMult * repMult * buffMult * permBonus * conciergeBonus * skillIncomeMult
     }
     return 0
   }

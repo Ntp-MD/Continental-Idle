@@ -31,7 +31,6 @@ function createDefaultThemeState(): ThemeState {
     heatLevel: 0,
     excommunicadoGraceUntil: 0,
     guestSatisfaction: 50,
-    conquered: false,
     takeoverProgress: 0,
     hqHealth: 1000,
     hqMaxHealth: 1000,
@@ -250,12 +249,12 @@ class GameStateManager {
         if (!theme.assassins) theme.assassins = {}
         Object.values(theme.assassins).forEach(a => {
           if (a.attackTarget === undefined) a.attackTarget = null
+          if (a.pendingLevelUp === undefined) a.pendingLevelUp = false
         })
         if (!theme.markerDebts) theme.markerDebts = []
         if (theme.heatLevel === undefined) theme.heatLevel = 0
         if (theme.excommunicadoGraceUntil === undefined) theme.excommunicadoGraceUntil = 0
         if (theme.guestSatisfaction === undefined) theme.guestSatisfaction = 50
-        if (theme.conquered === undefined) theme.conquered = false
         if (theme.takeoverProgress === undefined) theme.takeoverProgress = 0
         if (theme.hqHealth === undefined) theme.hqHealth = 1000
         if (theme.hqMaxHealth === undefined) theme.hqMaxHealth = 1000
@@ -299,6 +298,7 @@ class GameStateManager {
         md: v.markerDebts ? v.markerDebts.reduce((s, d) => s + d.amount, 0) : 0,
         b: Object.fromEntries(Object.entries(v.buildings).map(([bk, bv]) => [bk, bv.level])),
         s: Object.values(v.staff).map(s => s.typeId + ':' + s.level).join(','),
+        as: Object.values(v.assassins).map(a => a.typeId + ':' + a.level + ':' + Math.round(a.loyalty) + (a.awakened ? ':1' : ':0')).join(','),
         up: v.upgrades.join(','),
         hl: v.heatLevel, gs: v.guestSatisfaction,
       }])

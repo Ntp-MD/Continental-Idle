@@ -87,7 +87,43 @@ export const EVENTS: EventDefinition[] = [
     ],
     autoResolveTimeout: 60,
     autoResolveAction: 'ignore'
-  }
+  },
+  {
+    id: 'assassinRaid',
+    name: 'Assassin Raid',
+    description: 'Enemy assassins are raiding your Continental branch! Choose how to respond.',
+    themeLock: null,
+    weight: 12,
+    heatModifier: 8,
+    unlockCondition: { type: 'prestige', minPrestige: 3 },
+    choices: [
+      {
+        id: 'fight',
+        label: 'Defend with your assassins',
+        requires: { assassinAssigned: true },
+        rewards: [],
+        penalties: [],
+        reputationChange: 0,
+      },
+      {
+        id: 'payTribute',
+        label: 'Pay them off',
+        rewards: [],
+        penalties: [{ type: 'loseCurrency', value: 0.05, scaling: 'currencyPercent' }],
+        reputationChange: -5,
+        isSafe: true,
+      },
+      {
+        id: 'barricade',
+        label: 'Barricade (income frozen 30s)',
+        rewards: [],
+        penalties: [{ type: 'incomeFreeze', value: 30, scaling: 'static' }],
+        reputationChange: -5,
+      },
+    ],
+    autoResolveTimeout: 60,
+    autoResolveAction: 'safe',
+  },
 ]
 
 export const EVENT_COOLDOWN = 45

@@ -435,6 +435,7 @@ function update() {
 onMounted(() => {
   drawMap()
   eventBus.on('theme:unlock', update)
+  eventBus.on('theme:royal', update)
   eventBus.on('prestige:reset', update)
   eventBus.on('income:update', update)
   eventBus.on('income:tick', updateTakeoverProgress)
@@ -445,6 +446,7 @@ onMounted(() => {
 onUnmounted(() => {
   window.removeEventListener('resize', drawMap)
   eventBus.off('theme:unlock', update)
+  eventBus.off('theme:royal', update)
   eventBus.off('prestige:reset', update)
   eventBus.off('income:update', update)
   eventBus.off('income:tick', updateTakeoverProgress)

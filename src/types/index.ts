@@ -33,6 +33,7 @@ export interface AssassinEntry {
   typeId: string
   level: number
   xp: number
+  pendingLevelUp: boolean
   loyalty: number
   assignedTheme: ThemeId | null
   lentTo: ThemeId | null
@@ -70,7 +71,6 @@ export interface ThemeState {
   heatLevel: number
   excommunicadoGraceUntil: number
   guestSatisfaction: number
-  conquered: boolean
   takeoverProgress: number
   hqHealth: number
   hqMaxHealth: number
@@ -173,6 +173,7 @@ export interface AssassinDefinition {
   hireCost: number
   ability: string
   themeLock: ThemeId | null
+  maxLevel: number
 }
 
 // === Event Definition ===
@@ -180,12 +181,27 @@ export interface AssassinDefinition {
 export interface EventChoice {
   id: string
   label: string
-  requires?: { staffType?: string; minLevel?: number }
+  requires?: { staffType?: string; minLevel?: number; assassinAssigned?: boolean }
   rewards: EventEffect[]
   penalties: EventEffect[]
   reputationChange: number
   isBest?: boolean
   isSafe?: boolean
+}
+
+export interface RaidAttacker {
+  name: string
+  level: number
+  precision: number
+  speed: number
+}
+
+export interface RaidData {
+  attackers: RaidAttacker[]
+  attackerPower: number
+  defenderPower: number
+  winChance: number
+  defenderCount: number
 }
 
 export interface EventEffect {

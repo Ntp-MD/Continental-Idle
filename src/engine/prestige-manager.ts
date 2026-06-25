@@ -97,12 +97,23 @@ export function doPrestige(themeId?: ThemeId): boolean {
 
 function checkThemeUnlocks(): void {
   const state = gameState.get()
+  const graceUntil = Date.now() + 30 * 60 * 1000
   THEMES.forEach(t => {
     if (t.unlockPrestige === 0) return
+    // Unlock: totalPrestige reaches threshold
     if (state.totalPrestige >= t.unlockPrestige && !state.worldMap.unlockedNodes.includes(t.id)) {
       if (t.id === state.hqCountry) return
       state.worldMap.unlockedNodes.push(t.id)
+      const theme = state.themes[t.id]
+      if (theme) {
+        theme.excommunicadoGraceUntil = graceUntil
+      }
       eventBus.emit('theme:unlock', { themeId: t.id })
+    }
+    // Royal: totalPrestige is 10+ above unlock threshold (theme must already be unlocked)
+    if (t.unlockPrestige > 0 && state.totalPrestige >= t.unlockPrestige + 10 && !state.worldMap.royalNodes.includes(t.id)) {
+      state.worldMap.royalNodes.push(t.id)
+      eventBus.emit('theme:royal', { themeId: t.id })
     }
   })
 }

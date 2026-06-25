@@ -4,13 +4,16 @@ import { eventEngine } from '../engine/event-engine'
 import { eventBus } from '../engine/event-bus'
 import { shouldRevealEventOutcomes } from '../engine/abilities'
 import { gameState } from '../engine/game-state'
+import { DEFENDER_LOYALTY_THRESHOLD } from '../engine/event-engine'
+import type { RaidData } from '../types'
 
 const visible = ref(false)
 const eventName = ref('')
 const eventDesc = ref('')
-const choices = ref<Array<{ id: string; label: string; details: string }>>([])
+const choices = ref<Array<{ id: string; label: string; details: string; disabled: boolean }>>([])
 const timer = ref(60)
 const maxTimer = ref(60)
+const raidData = ref<RaidData | null>(null)
 
 let timerInterval: number | null = null
 
@@ -21,17 +24,42 @@ function update() {
     eventName.value = active.definition.name
     eventDesc.value = active.definition.description
     maxTimer.value = active.definition.autoResolveTimeout
+    raidData.value = eventEngine.getRaidData()
+
     const reveal = shouldRevealEventOutcomes(gameState.getActiveThemeId())
+    const theme = gameState.get().themes[active.theme]
+    const allAssigned = theme
+      ? Object.values(theme.assassins).filter(a => a.assignedTheme === active.theme && !a.lentTo && a.attackTarget === null)
+      : []
+    const eligibleDefenders = allAssigned.filter(a => a.loyalty >= DEFENDER_LOYALTY_THRESHOLD)
+    const hasDefenders = eligibleDefenders.length > 0
+    const disloyalCount = allAssigned.length - eligibleDefenders.length
+
     choices.value = active.definition.choices.map(c => {
       let details = ''
-      if (reveal) {
+      const disabled = !!(c.requires?.assassinAssigned && !hasDefenders)
+
+      if (c.id === 'fight' && raidData.value) {
+        const r = raidData.value
+        if (hasDefenders) {
+          let line = `Win chance: ${Math.round(r.winChance * 100)}% | Your power: ${r.defenderPower} vs Enemy: ${r.attackerPower}`
+          if (disloyalCount > 0) {
+            line += ` (${disloyalCount} assassin${disloyalCount > 1 ? 's' : ''} too disloyal to fight)`
+          }
+          details = line
+        } else if (allAssigned.length > 0) {
+          details = `All ${allAssigned.length} assassin${allAssigned.length > 1 ? 's' : ''} too disloyal to defend (need ${DEFENDER_LOYALTY_THRESHOLD}+ loyalty)`
+        } else {
+          details = 'No assassins available to defend'
+        }
+      } else if (reveal) {
         const parts: string[] = []
         if (c.reputationChange !== 0) parts.push(`Rep ${c.reputationChange > 0 ? '+' : ''}${c.reputationChange}`)
         c.rewards.forEach(r => parts.push(`+${r.type}:${r.value}`))
         c.penalties.forEach(p => parts.push(`-${p.type}:${p.value}`))
         details = parts.join(', ')
       }
-      return { id: c.id, label: c.label, details }
+      return { id: c.id, label: c.label, details, disabled }
     })
     const elapsed = (Date.now() - active.triggeredAt) / 1000
     timer.value = Math.max(0, Math.ceil(active.definition.autoResolveTimeout - elapsed))
@@ -50,6 +78,7 @@ function update() {
     }
   } else {
     visible.value = false
+    raidData.value = null
     if (timerInterval) { clearInterval(timerInterval); timerInterval = null }
   }
 }
@@ -85,11 +114,36 @@ onUnmounted(() => {
       <span class="event-prompt__timer">{{ timer }}s</span>
     </div>
     <div class="event-prompt__desc">{{ eventDesc }}</div>
+
+    <div v-if="raidData" class="event-prompt__raid-info">
+      <div class="event-prompt__raid-row">
+        <span class="event-prompt__raid-label">Attackers:</span>
+        <span class="event-prompt__raid-value">{{ raidData.attackers.length }} (Power: {{ raidData.attackerPower }})</span>
+      </div>
+      <div v-for="a in raidData.attackers" :key="a.name" class="event-prompt__raid-attacker">
+        {{ a.name }} — Lv.{{ a.level }} | PRE {{ a.precision }} SPD {{ a.speed }}
+      </div>
+      <div class="event-prompt__raid-row">
+        <span class="event-prompt__raid-label">Your defenders:</span>
+        <span class="event-prompt__raid-value">{{ raidData.defenderCount }} (Power: {{ raidData.defenderPower }})</span>
+      </div>
+      <div v-if="raidData.defenderCount > 0" class="event-prompt__raid-row">
+        <span class="event-prompt__raid-label">Win chance:</span>
+        <span class="event-prompt__raid-value event-prompt__raid-win">{{ Math.round(raidData.winChance * 100) }}%</span>
+      </div>
+    </div>
+
     <div class="event-prompt__timer-bar">
       <div class="event-prompt__timer-fill" :style="{ width: (timer / maxTimer * 100) + '%' }"></div>
     </div>
     <div class="event-prompt__actions">
-      <button v-for="c in choices" :key="c.id" @click="resolve(c.id)">
+      <button
+        v-for="c in choices"
+        :key="c.id"
+        :disabled="c.disabled"
+        :class="{ 'event-prompt__btn--disabled': c.disabled }"
+        @click="!c.disabled && resolve(c.id)"
+      >
         {{ c.label }}
         <span v-if="c.details" class="event-prompt__details">{{ c.details }}</span>
       </button>

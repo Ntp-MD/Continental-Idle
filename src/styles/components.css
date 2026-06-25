@@ -827,6 +827,47 @@
 	font-style: italic;
 }
 
+/* Event Prompt Raid Info */
+.event-prompt__raid-info {
+	margin: 6px 0;
+	padding: 6px 8px;
+	border: 1px solid var(--border-dim);
+	background: var(--bg-primary);
+	font-size: 10px;
+}
+
+.event-prompt__raid-row {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	margin-bottom: 2px;
+}
+
+.event-prompt__raid-label {
+	color: var(--text-secondary);
+}
+
+.event-prompt__raid-value {
+	color: var(--text-primary);
+	font-weight: bold;
+}
+
+.event-prompt__raid-win {
+	color: var(--accent-gold);
+}
+
+.event-prompt__raid-attacker {
+	color: var(--accent-red);
+	font-size: 9px;
+	padding-left: 12px;
+	margin-bottom: 1px;
+}
+
+.event-prompt__btn--disabled {
+	opacity: 0.4;
+	cursor: not-allowed;
+}
+
 /* Prestige Panel */
 .prestige-info {
 	text-align: center;
