@@ -1,0 +1,520 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>Continental Idle - UI Preview</title>
+	<script src="https://d3js.org/d3.v7.min.js"></script>
+	<script src="https://unpkg.com/topojson@3"></script>
+	<link rel="stylesheet" href="preview.css">
+</head>
+
+<body>
+	<div class="container">
+		<div class="header">
+			<h1>CONTINENTAL IDLE</h1>
+			<div class="header-currencies">
+				<div class="currency-bar-primary">
+					<div class="currency currency-gold">
+						<span class="currency-label">Gold</span>
+						<span class="currency-value" id="gold-display">1.25M</span>
+					</div>
+					<div class="currency currency-income">
+						<span class="currency-label">Income</span>
+						<span class="currency-value" id="income-display">1.2M/s</span>
+					</div>
+				</div>
+				<div class="currency-bar-secondary">
+					<div class="currency">
+						<span class="currency-label">Prestige</span>
+						<span class="currency-value" id="prestige-display">12</span>
+					</div>
+					<div class="currency">
+						<span class="currency-label">Favor</span>
+						<span class="currency-value" id="favor-display">0</span>
+					</div>
+					<div class="heat-meter compact">
+						<span class="heat-label">Heat</span>
+						<div class="heat-bar">
+							<div class="heat-bar-fill" id="heat-bar-fill" style="width: 20%;"></div>
+						</div>
+						<span id="heat-display">2/10</span>
+					</div>
+				</div>
+			</div>
+			<div class="heat-countdown" id="heat-countdown">Next decay: 10m</div>
+			<div class="heat-warning" id="heat-warning" style="display:none">âš  At Heat 6+: Excommunicado frequency doubles
+			</div>
+		</div>
+		<div class="theme-tabs">
+			<button class="theme-tab" data-theme="rome" onclick="switchTheme('rome')">â—„ ROME</button>
+			<button class="theme-tab active" data-theme="newYork" onclick="switchTheme('newYork')">â˜… NEW YORK</button>
+			<button class="theme-tab" data-theme="casablanca" onclick="switchTheme('casablanca')">CASABLANCA â–º</button>
+			<button class="theme-tab" data-theme="osaka" onclick="switchTheme('osaka')" disabled>OSAKA</button>
+			<button class="theme-tab" data-theme="paris" onclick="switchTheme('paris')" disabled>PARIS</button>
+			<button class="theme-tab" data-theme="berlin" onclick="switchTheme('berlin')" disabled>BERLIN</button>
+			<button class="theme-tab" data-theme="dubai" onclick="switchTheme('dubai')" disabled>DUBAI</button>
+		</div>
+		<div class="active-buffs-bar" id="active-buffs-bar">
+			<span class="active-buff" id="buff-underground">[+200% Underground]</span>
+			<span class="active-buff" id="buff-staffxp">[Staff XP +100%]</span>
+		</div>
+		<div class="boost-token-bar" id="boost-token-bar">
+			<span class="boost-token" onclick="activateBoostToken('income')">+100% Income</span>
+			<span class="boost-token" onclick="activateBoostToken('staffxp')">+100% Staff XP</span>
+			<span class="boost-token" onclick="activateBoostToken('event')">+50% Event Rewards</span>
+		</div>
+		<div class="event-prompt-bar" id="event-prompt-bar" style="display:none">
+			<span class="event-prompt-icon">â–¸</span>
+			<span class="event-prompt-text" id="event-prompt-text">CONTRACT OPEN: Accept bounty?</span>
+			<div class="event-prompt-actions">
+				<button class="event-prompt-btn" onclick="promptAcceptEvent()">YES</button>
+				<button class="event-prompt-btn" onclick="promptDeclineEvent()">NO</button>
+			</div>
+			<span class="event-prompt-timer" id="event-prompt-timer">28s</span>
+		</div>
+		<div class="horizon-tabs">
+			<div class="horizon-tab-group">
+				<span class="horizon-tab-group-label">Ops</span>
+				<button class="horizon-tab active" type="button" data-nav="buildings"
+					onclick="openPanel('buildings')">Buildings</button>
+				<button class="horizon-tab" type="button" data-nav="staff" onclick="openStaffPanel()">Staff</button>
+				<button class="horizon-tab" type="button" data-nav="bulk" onclick="openBulkStaffPanel()">Bulk</button>
+				<button class="horizon-tab" type="button" data-nav="network" onclick="openAssassinNetwork()">Network</button>
+			</div>
+			<div class="horizon-tab-group">
+				<span class="horizon-tab-group-label">Progress</span>
+				<button class="horizon-tab" type="button" data-nav="prestige" onclick="openPrestigePanel()">Prestige</button>
+				<button class="horizon-tab" type="button" data-nav="skillTree" onclick="openSkillTreePanel()">Skill
+					Tree</button>
+				<button class="horizon-tab" type="button" data-nav="royal" onclick="openRoyalHotelPanel()">Royal</button>
+				<button class="horizon-tab" type="button" data-nav="exchange"
+					onclick="openCurrencyExchangePanel()">Exchange</button>
+				<button class="horizon-tab" type="button" data-nav="roadmap"
+					onclick="openConquestRoadmapPanel()">Roadmap</button>
+			</div>
+			<div class="horizon-tab-group">
+				<span class="horizon-tab-group-label">Records</span>
+				<button class="horizon-tab" type="button" data-nav="contracts" onclick="openContractsPanel()">Contracts</button>
+				<button class="horizon-tab" type="button" data-nav="objectives"
+					onclick="openObjectivesPanel()">Objectives</button>
+				<button class="horizon-tab" type="button" data-nav="awards" onclick="openAchievementsPanel()">Awards</button>
+				<button class="horizon-tab" type="button" data-nav="eventLog" onclick="openEventLogPanel()">Event Log</button>
+				<button class="horizon-tab" type="button" data-nav="ledger"
+					onclick="openStatisticsDashboardPanel()">Ledger</button>
+				<button class="horizon-tab" type="button" data-nav="compare"
+					onclick="openThemeComparisonPanel()">Compare</button>
+			</div>
+		</div>
+		<div class="main-content">
+			<div class="sidebar">
+				<div class="sidebar-section" id="buildings-section">
+					<h3>Buildings</h3>
+					<div class="buy-multipliers">
+						<button class="buy-mult-btn active" onclick="setBuyMult(1)">x1</button>
+						<button class="buy-mult-btn" onclick="setBuyMult(10)">x10</button>
+						<button class="buy-mult-btn" onclick="setBuyMult(100)">x100</button>
+						<button class="buy-mult-btn" onclick="setBuyMult(0)">MAX</button>
+					</div>
+					<div class="building-list" id="building-list"></div>
+				</div>
+				<div class="underworld-section">
+					<div class="underworld-header">
+						<span class="underworld-title">â˜  Underground</span>
+						<span class="underworld-heat">Heat: <span id="heat-level">2</span>/10</span>
+					</div>
+					<div class="underworld-grid">
+						<div class="underworld-resource" onclick="spendResource('armaments')">
+							<div class="underworld-resource-header">
+								<span class="underworld-resource-icon">ðŸ”«</span>
+								<span class="underworld-resource-name">Armaments</span>
+							</div>
+							<div class="underworld-resource-value" id="uw-armaments">340</div>
+							<div class="underworld-resource-rate">+2/s</div>
+							<div class="underworld-resource-bar">
+								<div class="underworld-resource-bar-fill armaments" id="uw-bar-armaments" style="width: 68%;"></div>
+							</div>
+						</div>
+						<div class="underworld-resource" onclick="spendResource('contraband')">
+							<div class="underworld-resource-header">
+								<span class="underworld-resource-icon">ðŸ“¦</span>
+								<span class="underworld-resource-name">Contraband</span>
+							</div>
+							<div class="underworld-resource-value" id="uw-contraband">612</div>
+							<div class="underworld-resource-rate">+3/s</div>
+							<div class="underworld-resource-bar">
+								<div class="underworld-resource-bar-fill contraband" id="uw-bar-contraband" style="width: 61%;"></div>
+							</div>
+						</div>
+						<div class="underworld-resource" onclick="spendResource('troopers')">
+							<div class="underworld-resource-header">
+								<span class="underworld-resource-icon">ðŸ›¡ï¸</span>
+								<span class="underworld-resource-name">Troopers</span>
+							</div>
+							<div class="underworld-resource-value" id="uw-troopers">24</div>
+							<div class="underworld-resource-rate">+1/s</div>
+							<div class="underworld-resource-bar">
+								<div class="underworld-resource-bar-fill troopers" id="uw-bar-troopers" style="width: 48%;"></div>
+							</div>
+						</div>
+						<div class="underworld-resource" onclick="spendResource('intel')">
+							<div class="underworld-resource-header">
+								<span class="underworld-resource-icon">ðŸ“‹</span>
+								<span class="underworld-resource-name">Intel</span>
+							</div>
+							<div class="underworld-resource-value" id="uw-intel">45</div>
+							<div class="underworld-resource-rate">+1/s</div>
+							<div class="underworld-resource-bar">
+								<div class="underworld-resource-bar-fill intel" id="uw-bar-intel" style="width: 22%;"></div>
+							</div>
+						</div>
+						<div class="underworld-resource underworld-resource-global" onclick="spendResource('bloodCoins')">
+							<div class="underworld-resource-header">
+								<span class="underworld-resource-icon">ðŸ©¸</span>
+								<span class="underworld-resource-name">Blood Coins (Global)</span>
+							</div>
+							<div class="underworld-resource-value" id="uw-blood-coins">847</div>
+							<div class="underworld-resource-rate">+0.5/s</div>
+							<div class="underworld-resource-bar">
+								<div class="underworld-resource-bar-fill blood-coins" id="uw-bar-blood-coins" style="width: 85%;"></div>
+							</div>
+						</div>
+					</div>
+					<button class="underworld-shop-btn" onclick="openBlackMarket()">ðŸ©¸ Black Market Shop</button>
+				</div>
+			</div>
+			<div class="map-container">
+				<svg id="world-map"></svg>
+				<div class="search-box">
+					<input type="text" class="search-input" id="country-search" placeholder="Search country..."
+						oninput="handleSearch(this.value)" onfocus="handleSearch(this.value)">
+					<div class="search-results" id="search-results"></div>
+				</div>
+				<div class="map-controls">
+					<button class="map-btn" onclick="zoomIn()">+</button>
+					<button class="map-btn" onclick="zoomOut()">-</button>
+					<button class="map-btn" onclick="resetZoom()">Reset</button>
+				</div>
+				<div class="legend">
+					<div class="legend-item">
+						<div class="legend-color" style="background: #ffd700;"></div>
+						<span>â˜… HQ</span>
+					</div>
+					<div class="legend-item">
+						<div class="legend-color" style="background: #4caf50;"></div>
+						<span>â—„ Active</span>
+					</div>
+					<div class="legend-item">
+						<div class="legend-color" style="background: #666;"></div>
+						<span>â–’ Locked</span>
+					</div>
+					<div class="legend-item">
+						<div class="legend-color" style="background: #9c27b0;"></div>
+						<span>âš” Conquered</span>
+					</div>
+					<div class="legend-item">
+						<div class="legend-color" style="background: #1e88e5;"></div>
+						<span>â™› Royal</span>
+					</div>
+					<div class="legend-item">
+						<div class="legend-color" style="background: #4a90e2;"></div>
+						<span>North America</span>
+					</div>
+					<div class="legend-item">
+						<div class="legend-color" style="background: #50c878;"></div>
+						<span>South America</span>
+					</div>
+					<div class="legend-item">
+						<div class="legend-color" style="background: #9b59b6;"></div>
+						<span>Europe</span>
+					</div>
+					<div class="legend-item">
+						<div class="legend-color" style="background: #e74c3c;"></div>
+						<span>Asia</span>
+					</div>
+					<div class="legend-item">
+						<div class="legend-color" style="background: #f39c12;"></div>
+						<span>Africa</span>
+					</div>
+					<div class="legend-item">
+						<div class="legend-color" style="background: #1abc9c;"></div>
+						<span>Oceania</span>
+					</div>
+				</div>
+				<div class="node-tooltip" id="tooltip">
+					<h4 id="tooltip-title">New York</h4>
+					<div class="stat">State: <span class="value" id="tooltip-state">HQ Active</span></div>
+					<div class="stat">Prestige: <span class="value" id="tooltip-prestige">12</span></div>
+					<div class="stat">Income: <span class="value" id="tooltip-income">1.2M/s</span></div>
+				</div>
+				<div class="node-detail-panel" id="node-detail">
+					<span class="detail-close" onclick="closeNodeDetail()">âœ•</span>
+					<h3 id="detail-title">New York</h3>
+					<div class="detail-row"><span>State</span><span class="detail-value" id="detail-state">HQ Active</span></div>
+					<div class="detail-row"><span>Prestige</span><span class="detail-value" id="detail-prestige">12</span></div>
+					<div class="detail-row"><span>Income</span><span class="detail-value" id="detail-income">1.2M/s</span></div>
+					<div class="detail-row"><span>Reputation</span><span class="detail-value" id="detail-rep">723</span></div>
+					<div class="detail-row"><span>Heat</span><span class="detail-value" id="detail-heat">2/10</span></div>
+					<div class="detail-section">
+						<div class="detail-section-title">Takeover Progress</div>
+						<div class="takeover-bar">
+							<div class="takeover-bar-fill" id="detail-takeover-bar" style="width: 40%;"></div>
+						</div>
+						<div class="detail-row" style="margin-top:6px"><span id="detail-takeover-text">40%</span><span
+								class="detail-value" id="detail-takeover-req">P.5 âœ“ | 1e15 âœ—</span></div>
+					</div>
+					<div class="detail-section">
+						<div class="detail-section-title">Underworld</div>
+						<div class="detail-row"><span>Armaments</span><span class="detail-value" id="detail-uw-arm">340/500</span>
+						</div>
+						<div class="detail-row"><span>Troopers</span><span class="detail-value" id="detail-uw-troop">24/100</span>
+						</div>
+						<div class="detail-row"><span>Contraband</span><span class="detail-value"
+								id="detail-uw-contra">612/1000</span></div>
+						<div class="detail-row"><span>Intel</span><span class="detail-value" id="detail-uw-intel">45/200</span>
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
+		<div class="theme-ticker" id="theme-ticker">
+			<span class="theme-ticker-active">â˜… NEW YORK: 1.2M/s</span>
+			<span class="theme-ticker-idle">ROME: <span>170K/s</span></span>
+			<span class="theme-ticker-idle">CASABLANCA: <span>90K/s</span></span>
+		</div>
+		<div class="status-bar">
+			<span>Nodes: 2/7 Active | Conquered: 0/7 | Royal: 0/7</span>
+			<span>[TAP TO SWITCH | LONG-PRESS FOR DETAILS]</span>
+		</div>
+		<div class="underworld-shop-modal" id="black-market-modal">
+			<div class="underworld-shop-content">
+				<h2>ðŸ©¸ Black Market Shop</h2>
+				<div class="underworld-shop-balance">Balance: <span class="blood-coin-count">0</span> ðŸ©¸ Blood Coins</div>
+				<div id="black-market-list"></div>
+				<button class="underworld-shop-close" onclick="closeBlackMarket()">Close</button>
+			</div>
+		</div>
+		<div class="game-panel" id="staff-panel">
+			<div class="game-panel-content">
+				<h2>Staff & Assassins</h2>
+				<h3 style="color:#888;font-size:11px;margin-bottom:8px">Staff</h3>
+				<div id="staff-list"></div>
+				<h3 style="color:#888;font-size:11px;margin:15px 0 8px">Assassins</h3>
+				<div id="assassin-list"></div>
+				<button class="game-panel-close" onclick="closePanel('staff-panel')">Close</button>
+			</div>
+		</div>
+		<div class="game-panel" id="prestige-panel">
+			<div class="game-panel-content">
+				<h2>High Table Ascension</h2>
+				<div class="prestige-info">
+					<p style="color:#888;font-size:11px">Reset buildings & currency for Table Favor</p>
+					<p style="color:#888;font-size:11px">Current Prestige: <span id="prestige-current">12</span></p>
+					<p style="margin:15px 0">Estimated Favor: <span class="prestige-favor-est" id="prestige-favor-est">47</span>
+					</p>
+					<p style="color:#666;font-size:10px">Staff, assassins, and upgrades are kept</p>
+					<button class="prestige-btn" onclick="doPrestige()">Ascend</button>
+				</div>
+				<button class="game-panel-close" onclick="closePanel('prestige-panel')">Close</button>
+			</div>
+		</div>
+		<div class="game-panel" id="event-panel">
+			<div class="game-panel-content event-popup-content">
+				<h2 id="event-title">Event</h2>
+				<p style="color:#ccc;font-size:12px;margin-bottom:10px" id="event-desc"></p>
+				<div class="event-timer" id="event-timer">30s</div>
+				<div id="event-choices"></div>
+				<button class="game-panel-close" onclick="declineEvent()">Decline</button>
+			</div>
+		</div>
+		<div class="game-panel" id="welcome-back-panel">
+			<div class="game-panel-content welcome-back-content">
+				<h2>Welcome Back</h2>
+				<p style="color:#ccc;font-size:12px;margin-bottom:10px" id="welcome-back-duration"></p>
+				<p style="color:#4caf50;font-size:18px;margin:15px 0" id="welcome-back-earnings"></p>
+				<p style="color:#888;font-size:11px" id="welcome-back-events"></p>
+				<button class="game-panel-close" onclick="closePanel('welcome-back-panel')">Collect</button>
+			</div>
+		</div>
+		<div class="game-panel" id="achievements-panel">
+			<div class="game-panel-content">
+				<h2>Achievements</h2>
+				<div id="achievements-list"></div>
+				<button class="game-panel-close" onclick="closePanel('achievements-panel')">Close</button>
+			</div>
+		</div>
+		<div class="game-panel" id="tutorial-panel">
+			<div class="game-panel-content tutorial-content">
+				<h2>Welcome to the Continental</h2>
+				<div class="tutorial-progress" id="tutorial-progress"></div>
+				<p class="tutorial-step" id="tutorial-text"></p>
+				<button class="game-panel-close" onclick="nextTutorialStep()">Next</button>
+			</div>
+		</div>
+		<div class="game-panel" id="hire-preview-panel">
+			<div class="game-panel-content">
+				<h2>Hire Preview</h2>
+				<button class="game-panel-close" onclick="closePanel('hire-preview-panel')">Close</button>
+			</div>
+		</div>
+		<div class="game-panel" id="contracts-panel">
+			<div class="game-panel-content">
+				<h2>Daily Contract Board</h2>
+				<div class="login-streak" id="login-streak-display">
+					<span class="streak-flame">ðŸ”¥</span>
+					<span>Login Streak: <span class="streak-count" id="streak-count">5</span> days</span>
+					<span class="streak-bonus" id="streak-bonus">Bonus: +10% income for 1h</span>
+				</div>
+				<div id="contracts-list"></div>
+				<p style="color:#555;font-size:10px;margin-top:10px">Refreshes every 24h | Unlocks at Prestige 3</p>
+				<button class="game-panel-close" onclick="closePanel('contracts-panel')">Close</button>
+			</div>
+		</div>
+		<div class="game-panel" id="objectives-panel">
+			<div class="game-panel-content">
+				<h2>Manager's Objectives</h2>
+				<div id="objectives-list"></div>
+				<button class="game-panel-close" onclick="closePanel('objectives-panel')">Close</button>
+			</div>
+		</div>
+		<div class="game-panel" id="assassin-network-panel">
+			<div class="game-panel-content" style="width:560px">
+				<h2>Assassin Network</h2>
+				<div id="assassin-network-list"></div>
+				<div style="display:flex;gap:6px;margin-top:10px">
+					<button class="building-buy-btn" style="flex:1" onclick="assignAllOptimal()">Assign All Optimal</button>
+					<button class="building-buy-btn" style="flex:1" onclick="recallAllAssassins()">Recall All to HQ</button>
+				</div>
+				<button class="game-panel-close" onclick="closePanel('assassin-network-panel')">Close</button>
+			</div>
+		</div>
+		<div class="game-panel" id="event-log-panel">
+			<div class="game-panel-content">
+				<h2>Event History Log</h2>
+				<div id="event-log-list"></div>
+				<button class="game-panel-close" onclick="closePanel('event-log-panel')">Close</button>
+			</div>
+		</div>
+		<div class="game-panel" id="skill-tree-panel">
+			<div class="game-panel-content">
+				<h2>High Table Skill Tree</h2>
+				<div class="skill-tree-favor">Table Favor: <span id="skill-tree-favor">0</span></div>
+				<div class="skill-tree-branches" id="skill-tree-branches"></div>
+				<div class="skill-tree-detail" id="skill-tree-detail">
+					<div class="skill-tree-detail-name" id="skill-tree-detail-name">Select a node</div>
+					<div class="skill-tree-detail-desc" id="skill-tree-detail-desc">Cost and effect will appear here</div>
+					<button class="skill-tree-unlock-btn" id="skill-tree-unlock-btn" onclick="unlockSkillNode()">UNLOCK</button>
+				</div>
+				<button class="game-panel-close" onclick="closePanel('skill-tree-panel')">Close</button>
+			</div>
+		</div>
+		<div class="game-panel" id="royal-hotel-panel">
+			<div class="game-panel-content">
+				<h2>Royal Continental</h2>
+				<div class="royal-balance">Royal Marks: <span id="royal-marks-display">0</span></div>
+				<div class="royal-buildings" id="royal-buildings-list"></div>
+				<div class="royal-decree-section">
+					<h3>Active Royal Decrees</h3>
+					<div id="royal-decree-list"></div>
+				</div>
+				<button class="game-panel-close" onclick="closePanel('royal-hotel-panel')">Close</button>
+			</div>
+		</div>
+		<div class="game-panel" id="currency-exchange-panel">
+			<div class="game-panel-content">
+				<h2>Dual-Currency Exchange</h2>
+				<div class="exchange-rate" id="exchange-rate">Rate: 1 New York Gold = 12.5 Rome Lira</div>
+				<div class="exchange-form">
+					<div class="exchange-row">
+						<label>From</label>
+						<select id="exchange-from" onchange="updateExchangeRate()">
+							<option value="newYork">New York Gold</option>
+							<option value="rome">Rome Lira</option>
+							<option value="casablanca">Casablanca Dirham</option>
+						</select>
+						<input type="number" id="exchange-amount" value="1000" oninput="updateExchangeRate()">
+					</div>
+					<div class="exchange-row">
+						<label>To</label>
+						<select id="exchange-to" onchange="updateExchangeRate()">
+							<option value="rome">Rome Lira</option>
+							<option value="casablanca">Casablanca Dirham</option>
+							<option value="newYork">New York Gold</option>
+						</select>
+						<div class="exchange-result" id="exchange-result">= 12,500 Lira</div>
+					</div>
+					<div class="exchange-fee" id="exchange-fee">Fee: 5% (unlock The Bishop to reduce to 2%)</div>
+					<button class="prestige-btn" onclick="executeTrade()">Execute Trade</button>
+				</div>
+				<button class="game-panel-close" onclick="closePanel('currency-exchange-panel')">Close</button>
+			</div>
+		</div>
+		<div class="game-panel" id="conquest-roadmap-panel">
+			<div class="game-panel-content">
+				<h2>Conquest Roadmap</h2>
+				<div class="roadmap-progress" id="roadmap-progress">Conquered: 0/7</div>
+				<div id="roadmap-list"></div>
+				<button class="game-panel-close" onclick="closePanel('conquest-roadmap-panel')">Close</button>
+			</div>
+		</div>
+		<div class="game-panel" id="statistics-dashboard-panel">
+			<div class="game-panel-content" style="width:560px">
+				<h2>Manager's Ledger</h2>
+				<div class="stats-grid" id="stats-grid"></div>
+				<div class="stats-section">
+					<h3>Ledger Entries</h3>
+					<div id="ledger-entries-list"></div>
+				</div>
+				<button class="game-panel-close" onclick="closePanel('statistics-dashboard-panel')">Close</button>
+			</div>
+		</div>
+		<div class="game-panel" id="theme-comparison-panel">
+			<div class="game-panel-content" style="width:560px">
+				<h2>Theme Comparison</h2>
+				<div class="theme-comparison-table" id="theme-comparison-table"></div>
+				<button class="game-panel-close" onclick="closePanel('theme-comparison-panel')">Close</button>
+			</div>
+		</div>
+		<div class="game-panel" id="bulk-staff-panel">
+			<div class="game-panel-content" style="width:560px">
+				<h2>Bulk Staff Management</h2>
+				<div class="bulk-staff-actions">
+					<button class="building-buy-btn" onclick="assignAllOptimal()">Auto-Assign All</button>
+					<button class="building-buy-btn" onclick="unassignAllStaff()">Unassign All</button>
+					<button class="building-buy-btn" onclick="upgradeAllStaff()">Upgrade All 1 Level</button>
+				</div>
+				<div id="bulk-staff-list"></div>
+				<button class="game-panel-close" onclick="closePanel('bulk-staff-panel')">Close</button>
+			</div>
+		</div>
+		<div class="game-panel" id="error-modal-panel">
+			<div class="game-panel-content" style="border-color:#e74c3c">
+				<h2 style="color:#e74c3c" id="error-modal-title">Error</h2>
+				<p id="error-modal-message" style="color:#ccc;font-size:12px;margin-bottom:10px"></p>
+				<div id="error-modal-actions">
+					<button class="game-panel-close" onclick="closePanel('error-modal-panel')">Close</button>
+				</div>
+			</div>
+		</div>
+		<div class="loading-overlay" id="loading-overlay">
+			<div class="loading-content">
+				<div class="loading-text">CONTINENTAL OS v2.0</div>
+				<div class="loading-bar">
+					<div class="loading-bar-fill" id="loading-bar-fill"></div>
+				</div>
+				<div class="loading-status" id="loading-status">Loading assets...</div>
+			</div>
+		</div>
+		<div class="income-tooltip" id="income-tooltip"></div>
+		<div class="toast-container" id="toast-container"></div>
+		<div class="save-controls">
+			<button class="save-btn" onclick="saveGame()">Save</button>
+			<button class="save-btn" onclick="exportSave()">Export</button>
+			<button class="save-btn" onclick="importSave()">Import</button>
+		</div>
+	</div>
+	<script src="preview.js"></script>
+</body>
+
+</html>
