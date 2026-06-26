@@ -1,24 +1,25 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { ref, onMounted, onUnmounted, watch } from 'vue'
-import { gameState } from '../engine/game-state'
-import { STAFF_TYPES } from '../data/staff'
-import { BUILDINGS } from '../data/buildings'
-import { hireStaff, assignStaff, confirmLevelUp, getStaffXpToNext, getStaffLevelUpCost, isStaffUnlocked } from '../engine/staff-manager'
-import { hireAssassin, isAssassinUnlocked, assignAssassin, lendAssassin, sendAssassinToAttack, cancelAssassinAttack, confirmAssassinLevelUp, getAssassinXpToNext, getAssassinLevelUpCost } from '../engine/assassin-manager'
-import { ASSASSIN_TYPES } from '../data/assassins'
-import { getTotalDebt, repayDebt, repayAllDebts } from '../engine/debt-manager'
-import { formatNumber } from '../engine/format'
-import { eventBus } from '../engine/event-bus'
-import { tutorialManager } from '../engine/tutorial-manager'
-import { getThemeDef, THEMES } from '../data/themes'
-import { canInitiateTakeover, getTakeoverProgress, getHqHealthPercent } from '../engine/takeover-manager'
-import { UPGRADES, purchaseUpgrade, isUpgradePurchased } from '../engine/upgrade-manager'
+import { gameState } from '@/engine/game-state'
+import { STAFF_TYPES } from '@/data/staff'
+import { BUILDINGS } from '@/data/buildings'
+import { hireStaff, assignStaff, confirmLevelUp, getStaffXpToNext, getStaffLevelUpCost, isStaffUnlocked } from '@/engine/staff-manager'
+import { getExtraStaffSlots } from '@/engine/skill-manager'
+import { hireAssassin, isAssassinUnlocked, assignAssassin, lendAssassin, recallAssassin, sendAssassinToAttack, cancelAssassinAttack, confirmAssassinLevelUp, getAssassinXpToNext, getAssassinLevelUpCost } from '@/engine/assassin-manager'
+import { ASSASSIN_TYPES } from '@/data/assassins'
+import { getTotalDebt, repayDebt, repayAllDebts } from '@/engine/debt-manager'
+import { formatNumber } from '@/engine/format'
+import { eventBus } from '@/engine/event-bus'
+import { tutorialManager } from '@/engine/tutorial-manager'
+import { getBranchDef, BRANCHES } from '@/data/branches'
+import { canInitiateTakeover, getTakeoverProgress, getHqHealthPercent } from '@/engine/takeover-manager'
+import { UPGRADES, purchaseUpgrade, isUpgradePurchased } from '@/engine/upgrade-manager'
 
-import type { StaffEntry, ThemeId } from '../types'
+import type { StaffEntry, BranchId } from '@/types'
 
 const props = defineProps<{ visible: boolean }>()
 const emit = defineEmits(['close'])
-const attackTargets = ref<Array<{ id: ThemeId; name: string; hpPercent: number; canAttack: boolean }>>([])
+const attackTargets = ref<Array<{ id: BranchId; name: string; hpPercent: number; canAttack: boolean }>>([])
 
 const staffList = ref<Array<StaffEntry & {
   typeName: string
@@ -33,7 +34,7 @@ const staffList = ref<Array<StaffEntry & {
   veteranPerk: string | null
   bestMatchNames: string
 }>>([])
-const hireOptions = ref<Array<{ id: string; name: string; cost: string; affordable: boolean; unlocked: boolean; maxAbility: string }>>([])
+const hireOptions = ref<Array<{ id: string; name: string; cost: string; affordable: boolean; unlocked: boolean; maxAbility: string; atCap: boolean }>>([])
 const debts = ref<Array<{ createdAt: number; amount: string; canRepay: boolean }>>([])
 const totalDebt = ref('0')
 const canRepayAll = ref(false)
@@ -47,8 +48,8 @@ const assassinList = ref<Array<{
   levelUpCost: string
   loyalty: number
   loyaltyPercent: number
-  rawAssignedTheme: string | null
-  assignedTheme: string
+  rawassignedBranch: string | null
+  assignedBranch: string
   rawAttackTarget: string | null
   attackTarget: string
   statsDisplay: string
@@ -58,18 +59,18 @@ const assassinList = ref<Array<{
   lentTo: string
   ability: string
 }>>([])
-const assassinOptions = ref<Array<{ id: string; name: string; rank: string; cost: string; affordable: boolean; unlocked: boolean; ability: string }>>([])
-const unlockedThemes = ref<Array<{ id: ThemeId; name: string }>>([])
-const lendableThemes = ref<Array<{ id: ThemeId; name: string }>>([])
+const assassinOptions = ref<Array<{ id: string; name: string; rank: string; cost: string; affordable: boolean; unlocked: boolean; ability: string; atCap: boolean }>>([])
+const unlockedBranches = ref<Array<{ id: BranchId; name: string }>>([])
+const lendableBranches = ref<Array<{ id: BranchId; name: string }>>([])
 const upgradeList = ref<Array<{ id: string; name: string; description: string; cost: string; affordable: boolean; purchased: boolean }>>([])
 
 function update() {
   if (!props.visible) return
   const state = gameState.get()
-  const theme = state.themes[state.activeTheme]
-  if (!theme) return
+  const branch = state.branches[state.activeBranch]
+  if (!branch) return
 
-  staffList.value = Object.values(theme.staff).map(s => {
+  staffList.value = Object.values(branch.staff).map(s => {
     const def = STAFF_TYPES.find(d => d.id === s.typeId)
     const xpNeeded = getStaffXpToNext(s.level)
     const isMaxed = def ? s.level >= def.maxLevel : false
@@ -94,28 +95,32 @@ function update() {
     }
   })
 
+  const maxStaff = 5 + getExtraStaffSlots()
+  const staffCount = Object.keys(branch.staff).length
+  const staffAtCap = staffCount >= maxStaff
   hireOptions.value = STAFF_TYPES.map(def => ({
     id: def.id,
     name: def.name,
     cost: formatNumber(def.hireCost),
-    affordable: theme.currency >= def.hireCost && isStaffUnlocked(def.id),
+    affordable: branch.currency >= def.hireCost && isStaffUnlocked(def.id) && !staffAtCap,
     unlocked: isStaffUnlocked(def.id),
     maxAbility: def.maxAbility,
+    atCap: staffAtCap,
   }))
 
   const debtTotal = getTotalDebt()
   totalDebt.value = formatNumber(debtTotal)
-  canRepayAll.value = debtTotal > 0 && theme.currency >= debtTotal
-  debts.value = theme.markerDebts.map(d => ({
+  canRepayAll.value = debtTotal > 0 && branch.currency >= debtTotal
+  debts.value = branch.markerDebts.map(d => ({
     createdAt: d.createdAt,
     amount: formatNumber(d.amount),
-    canRepay: theme.currency >= d.amount,
+    canRepay: branch.currency >= d.amount,
   }))
 
-  assassinList.value = Object.values(theme.assassins).map(a => {
+  assassinList.value = Object.values(branch.assassins).map(a => {
     const def = ASSASSIN_TYPES.find(d => d.id === a.typeId)
-    const lentThemeName = a.lentTo ? (getThemeDef(a.lentTo)?.name || a.lentTo) : ''
-    const attackTargetName = a.attackTarget ? (getThemeDef(a.attackTarget)?.name || a.attackTarget) : ''
+    const lentbranchName = a.lentTo ? (getBranchDef(a.lentTo)?.name || a.lentTo) : ''
+    const attackTargetName = a.attackTarget ? (getBranchDef(a.attackTarget)?.name || a.attackTarget) : ''
     const xpNeeded = getAssassinXpToNext(a.level)
     const isMaxed = def ? a.level >= def.maxLevel : false
     return {
@@ -128,32 +133,32 @@ function update() {
       levelUpCost: formatNumber(getAssassinLevelUpCost(a.typeId, a.level + 1)),
       loyalty: Math.round(a.loyalty),
       loyaltyPercent: Math.min(100, a.loyalty),
-      rawAssignedTheme: a.assignedTheme,
-      assignedTheme: a.assignedTheme ? (getThemeDef(a.assignedTheme)?.name || a.assignedTheme) : '—',
+      rawassignedBranch: a.assignedBranch,
+      assignedBranch: a.assignedBranch ? (getBranchDef(a.assignedBranch)?.name || a.assignedBranch) : '—',
       rawAttackTarget: a.attackTarget,
       attackTarget: attackTargetName,
       statsDisplay: `P:${a.stats.precision} S:${a.stats.speed} C:${a.stats.charisma} L:${a.stats.luck}`,
       traitNames: a.traits,
       synergyCount: a.synergyCount,
       awakened: a.awakened,
-      lentTo: lentThemeName,
+      lentTo: lentbranchName,
       ability: def?.ability || '',
     }
   })
 
-  unlockedThemes.value = state.worldMap.unlockedNodes.map(tid => ({
+  unlockedBranches.value = state.worldMap.unlockedBranches.map(tid => ({
     id: tid,
-    name: getThemeDef(tid)?.name || tid,
+    name: getBranchDef(tid)?.name || tid,
   }))
 
-  lendableThemes.value = state.worldMap.unlockedNodes
-    .filter(tid => tid !== state.activeTheme)
+  lendableBranches.value = state.worldMap.unlockedBranches
+    .filter(tid => tid !== state.activeBranch)
     .map(tid => ({
       id: tid,
-      name: getThemeDef(tid)?.name || tid,
+      name: getBranchDef(tid)?.name || tid,
     }))
 
-  attackTargets.value = THEMES.filter(t => t.id !== state.activeTheme).map(t => {
+  attackTargets.value = BRANCHES.filter(t => t.id !== state.activeBranch).map(t => {
     const progress = getTakeoverProgress(t.id)
     const canAttack = canInitiateTakeover(t.id) || progress > 0
     return {
@@ -169,18 +174,22 @@ function update() {
     name: u.name,
     description: u.description,
     cost: formatNumber(u.cost),
-    affordable: theme.currency >= u.cost && !isUpgradePurchased(u.id),
+    affordable: branch.currency >= u.cost && !isUpgradePurchased(u.id),
     purchased: isUpgradePurchased(u.id),
   }))
 
+  const assassinCount = Object.keys(branch.assassins).length
+  const assassinCap = isUpgradePurchased('armoryExpansion') ? 4 : 3
+  const assassinAtCap = assassinCount >= assassinCap
   assassinOptions.value = ASSASSIN_TYPES.map(def => ({
     id: def.id,
     name: def.name,
     rank: def.rank,
     cost: formatNumber(def.hireCost),
-    affordable: theme.currency >= def.hireCost && isAssassinUnlocked(def.id),
+    affordable: branch.currency >= def.hireCost && isAssassinUnlocked(def.id) && !assassinAtCap,
     unlocked: isAssassinUnlocked(def.id),
     ability: def.ability,
+    atCap: assassinAtCap,
   }))
 }
 
@@ -215,20 +224,25 @@ function doLevelUp(staffId: string) {
   update()
 }
 
-function doAssignAssassin(assassinId: string, themeId: string) {
-  assignAssassin(assassinId, themeId === '' ? null : themeId as ThemeId)
+function doAssignAssassin(assassinId: string, branchId: string) {
+  assignAssassin(assassinId, branchId === '' ? null : branchId as BranchId)
   update()
 }
 
-function doLendAssassin(assassinId: string, toThemeId: string) {
-  if (toThemeId === '') return
-  lendAssassin(assassinId, toThemeId as ThemeId, 300)
+function doLendAssassin(assassinId: string, toBranchId: string) {
+  if (toBranchId === '') return
+  lendAssassin(assassinId, toBranchId as BranchId, 300)
   update()
 }
 
-function doSendAttack(assassinId: string, targetThemeId: string) {
-  if (targetThemeId === '') return
-  sendAssassinToAttack(assassinId, targetThemeId as ThemeId)
+function doRecallAssassin(assassinId: string) {
+  recallAssassin(assassinId)
+  update()
+}
+
+function doSendAttack(assassinId: string, targetBranchId: string) {
+  if (targetBranchId === '') return
+  sendAssassinToAttack(assassinId, targetBranchId as BranchId)
   update()
 }
 
@@ -266,14 +280,14 @@ watch(() => props.visible, (v) => {
     <div class="game-panel__content">
       <h2 class="game-panel__title">Staff & Assassins</h2>
 
-      <div class="section-header">Hire Staff</div>
+      <div class="section-header">Hire Staff <span v-if="hireOptions[0]?.atCap" class="staff-section-note">(Cap reached)</span></div>
       <div class="staff-hire">
         <button
           v-for="opt in hireOptions" :key="opt.id"
           class="staff-hire__btn"
           :disabled="!opt.affordable"
           @click="doHire(opt.id)"
-        >{{ opt.name }} ({{ opt.cost }}){{ !opt.unlocked ? ' [LOCKED]' : '' }}</button>
+        >{{ opt.name }} ({{ opt.cost }}){{ !opt.unlocked ? ' [LOCKED]' : opt.atCap ? ' [CAP]' : '' }}</button>
       </div>
       <div class="staff-hire__abilities">
         <div v-for="opt in hireOptions" :key="opt.id" v-show="opt.unlocked" class="staff-hire__ability">
@@ -322,6 +336,7 @@ watch(() => props.visible, (v) => {
             :value="s.assignedTo || ''"
             @change="doAssign(s.id, ($event.target as HTMLSelectElement).value)"
             class="staff-assign__select"
+            :aria-label="`Assign ${s.typeName} to building`"
           >
             <option value="">Unassigned</option>
             <option v-for="b in BUILDINGS" :key="b.id" :value="b.id">{{ b.name }}</option>
@@ -335,7 +350,7 @@ watch(() => props.visible, (v) => {
       </div>
 
       <template v-if="assassinOptions.length > 0">
-        <div class="section-header staff-section-gap">Hire Assassins <span class="staff-section-note">(Prestige 3+)</span></div>
+        <div class="section-header staff-section-gap">Hire Assassins <span class="staff-section-note">(Prestige 3+)</span> <span v-if="assassinOptions[0]?.atCap" class="staff-section-note">(Cap reached)</span></div>
         <div class="staff-hire">
           <button
             v-for="opt in assassinOptions" :key="opt.id"
@@ -344,7 +359,7 @@ watch(() => props.visible, (v) => {
             @click="doHireAssassin(opt.id)"
           >
             [{{ opt.rank }}] {{ opt.name }} ({{ opt.cost }})
-            {{ !opt.unlocked ? ' [LOCKED]' : '' }}
+            {{ !opt.unlocked ? ' [LOCKED]' : opt.atCap ? ' [CAP]' : '' }}
           </button>
         </div>
         <div class="assassin-abilities">
@@ -365,8 +380,9 @@ watch(() => props.visible, (v) => {
           </div>
           <div class="assassin-card__info">
             <span>Loyalty: {{ a.loyalty }}%</span>
-            <span>Theme: {{ a.assignedTheme }}</span>
+            <span>branch: {{ a.assignedBranch }}</span>
             <span v-if="a.lentTo" class="assassin-card__lent">Lent to: {{ a.lentTo }}</span>
+            <button v-if="a.lentTo" class="assassin-card__recall" @click="doRecallAssassin(a.id)">Recall</button>
           </div>
           <div class="assassin-card__stats">{{ a.statsDisplay }}</div>
           <div v-if="a.traitNames.length > 0" class="staff-card__traits">
@@ -374,20 +390,22 @@ watch(() => props.visible, (v) => {
           </div>
           <div class="assassin-card__actions">
             <select
-              :value="a.rawAssignedTheme || ''"
+              :value="a.rawassignedBranch || ''"
               @change="doAssignAssassin(a.id, ($event.target as HTMLSelectElement).value)"
               class="staff-assign__select"
+              :aria-label="`Assign ${a.typeName} to branch`"
             >
               <option value="">Unassigned</option>
-              <option v-for="t in unlockedThemes" :key="t.id" :value="t.id">{{ t.name }}</option>
+              <option v-for="t in unlockedBranches" :key="t.id" :value="t.id">{{ t.name }}</option>
             </select>
             <select
-              value=""
+              :value="''"
               @change="doLendAssassin(a.id, ($event.target as HTMLSelectElement).value)"
               class="staff-assign__select"
+              :aria-label="`Lend ${a.typeName} to branch`"
             >
               <option value="">Lend to...</option>
-              <option v-for="t in lendableThemes" :key="t.id" :value="t.id">{{ t.name }}</option>
+              <option v-for="t in lendableBranches" :key="t.id" :value="t.id">{{ t.name }}</option>
             </select>
             <button
               v-if="a.pendingLevelUp"
@@ -401,9 +419,10 @@ watch(() => props.visible, (v) => {
           </div>
           <div v-else-if="attackTargets.length > 0" class="assassin-card__attack-actions">
             <select
-              value=""
+              :value="a.rawAttackTarget || ''"
               @change="doSendAttack(a.id, ($event.target as HTMLSelectElement).value)"
               class="staff-assign__select"
+              :aria-label="`Send ${a.typeName} to attack target`"
             >
               <option value="">Send to attack...</option>
               <option v-for="t in attackTargets" :key="t.id" :value="t.id">{{ t.name }} (HP: {{ t.hpPercent.toFixed(0) }}%)</option>

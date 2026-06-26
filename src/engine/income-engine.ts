@@ -1,26 +1,62 @@
-import type { ThemeId, ThemeState } from '../types'
-import { BUILDINGS, BUILDING_INCOME_GROWTH } from '../data/buildings'
-import { STAFF_TYPES } from '../data/staff'
-import { getTraitMultiplier } from '../data/traits'
+﻿import type { BranchId, BranchState } from '@/types'
+import { BUILDINGS, BUILDING_INCOME_GROWTH } from '@/data/buildings'
+import { STAFF_TYPES } from '@/data/staff'
+import { getTraitMultiplier } from '@/data/traits'
 import { getChefAllBuildingBonus, getConciergePassiveBonus, getBartenderFreezeImmune } from './abilities'
 import { hasEnforcer } from './assassin-manager'
 import { getTotalIncomeMult } from './skill-manager'
 import { gameState, setIncomeFunction } from './game-state'
 import { eventBus } from './event-bus'
 
-export function getBuildingIncome(themeState: ThemeState, buildingId: string): number {
+export function checkBuildingUnlocked(unlock: string, branchState: BranchState): boolean {
+  if (unlock === 'start') return true
+  if (unlock.startsWith('building:')) {
+    const parts = unlock.split(':')
+    const buildingId = parts[1]
+    const minLevel = parseInt(parts[2], 10) || 1
+    const b = branchState.buildings[buildingId]
+    return !!b && b.level >= minLevel
+  }
+  if (unlock.startsWith('prestige:')) {
+    const min = parseInt(unlock.split(':')[1], 10) || 0
+    return gameState.get().totalPrestige >= min
+  }
+  if (unlock.startsWith('upgrade:')) {
+    const upgradeId = unlock.split(':')[1]
+    return branchState.upgrades.includes(upgradeId)
+  }
+  return true
+}
+
+export function updateBuildingUnlocks(): void {
+  const state = gameState.get()
+  state.worldMap.unlockedBranches.forEach(branchId => {
+    const branch = state.branches[branchId]
+    if (!branch) return
+    BUILDINGS.forEach(def => {
+      const b = branch.buildings[def.id]
+      if (!b) return
+      if (!b.unlocked && checkBuildingUnlocked(def.unlock, branch)) {
+        b.unlocked = true
+        eventBus.emit('building:unlocked', { branchId, buildingId: def.id })
+      }
+    })
+  })
+}
+
+export function getBuildingIncome(branchState: BranchState, buildingId: string): number {
   const def = BUILDINGS.find(b => b.id === buildingId)
   if (!def) return 0
 
-  const bState = themeState.buildings[buildingId]
-  if (!bState || bState.level === 0) return 0
+  const bState = branchState.buildings[buildingId]
+  if (!bState || bState.level === 0 || !bState.unlocked) return 0
 
   const baseRate = def.baseRate
   const buildingLevelMult = Math.pow(BUILDING_INCOME_GROWTH, bState.level)
 
   let staffMult = 1
   let traitIncomeMult = 1
-  Object.values(themeState.staff).forEach(staff => {
+  Object.values(branchState.staff).forEach(staff => {
     if (staff.assignedTo === buildingId) {
       const staffDef = STAFF_TYPES.find(s => s.id === staff.typeId)
       if (staffDef) {
@@ -35,15 +71,15 @@ export function getBuildingIncome(themeState: ThemeState, buildingId: string): n
   return baseRate * buildingLevelMult * staffMult * traitIncomeMult
 }
 
-export function getThemeIncomePerSecond(themeId?: ThemeId): number {
+export function getBranchIncomePerSecond(branchId?: BranchId): number {
   const state = gameState.get()
-  const id = themeId || state.activeTheme
-  const themeState = state.themes[id]
-  if (!themeState) return 0
+  const id = branchId || state.activeBranch
+  const branchState = state.branches[id]
+  if (!branchState) return 0
 
   let total = 0
   BUILDINGS.forEach(def => {
-    total += getBuildingIncome(themeState, def.id)
+    total += getBuildingIncome(branchState, def.id)
   })
 
   // Chef max ability: +10% to ALL building income
@@ -53,24 +89,24 @@ export function getThemeIncomePerSecond(themeId?: ThemeId): number {
   const prestigeMult = 1 + (state.tableFavor * 0.02)
 
   // HQ multiplier
-  const hqMult = id === state.hqCountry ? 1.2 : 1.0
+  const hqMult = id === state.hqBranch ? 1.2 : 1.0
 
   // Guest satisfaction multiplier
-  const satMult = 0.5 + (themeState.guestSatisfaction / 100)
+  const satMult = 0.5 + (branchState.guestSatisfaction / 100)
 
   // Reputation multiplier
   let repMult = 1.0
-  if (themeState.reputation >= 1000) repMult = 1.95
-  else if (themeState.reputation >= 750) repMult = 1.70
-  else if (themeState.reputation >= 500) repMult = 1.45
-  else if (themeState.reputation >= 300) repMult = 1.20
-  else if (themeState.reputation >= 100) repMult = 1.10
+  if (branchState.reputation >= 1000) repMult = 1.95
+  else if (branchState.reputation >= 750) repMult = 1.70
+  else if (branchState.reputation >= 500) repMult = 1.45
+  else if (branchState.reputation >= 300) repMult = 1.20
+  else if (branchState.reputation >= 100) repMult = 1.10
 
   // Active income multiplier buffs
   let buffMult = 1.0
   state.activeBuffs.forEach(buff => {
     if (buff.type === 'incomeMultiplier' &&
-        (buff.themeId === null || buff.themeId === id) &&
+        (buff.branchId === null || buff.branchId === id) &&
         (buff.expiresAt === null || buff.expiresAt > Date.now())) {
       buffMult *= buff.value
     }
@@ -82,12 +118,12 @@ export function getThemeIncomePerSecond(themeId?: ThemeId): number {
   // Check for income freeze buff (excommunicado)
   const hasFreeze = state.activeBuffs.some(b =>
     b.type === 'incomeFreeze' &&
-    (b.themeId === null || b.themeId === id) &&
+    (b.branchId === null || b.branchId === id) &&
     (b.expiresAt === null || b.expiresAt > Date.now())
   )
   if (hasFreeze && !hasEnforcer(id)) {
     if (getBartenderFreezeImmune(id)) {
-      const barIncome = getBuildingIncome(themeState, 'bar')
+      const barIncome = getBuildingIncome(branchState, 'bar')
       const conciergeBonus = getConciergePassiveBonus(id)
       const skillIncomeMult = getTotalIncomeMult()
       return barIncome * prestigeMult * hqMult * satMult * repMult * buffMult * permBonus * conciergeBonus * skillIncomeMult
@@ -104,11 +140,11 @@ export function getThemeIncomePerSecond(themeId?: ThemeId): number {
   return total * prestigeMult * hqMult * satMult * repMult * buffMult * permBonus * conciergeBonus * skillIncomeMult
 }
 
-export function getBuildingCost(themeState: ThemeState, buildingId: string, count: number = 1): number {
+export function getBuildingCost(branchState: BranchState, buildingId: string, count: number = 1): number {
   const def = BUILDINGS.find(b => b.id === buildingId)
   if (!def) return Infinity
 
-  const bState = themeState.buildings[buildingId]
+  const bState = branchState.buildings[buildingId]
   if (!bState) return Infinity
 
   const currentLevel = bState.level
@@ -119,11 +155,11 @@ export function getBuildingCost(themeState: ThemeState, buildingId: string, coun
   return Math.ceil(totalCost)
 }
 
-export function getAffordableLevels(themeState: ThemeState, buildingId: string): number {
+export function getAffordableLevels(branchState: BranchState, buildingId: string): number {
   const def = BUILDINGS.find(b => b.id === buildingId)
   if (!def) return 0
 
-  const n = themeState.buildings[buildingId]?.level || 0
+  const n = branchState.buildings[buildingId]?.level || 0
   const remaining = def.maxLevel - n
   if (remaining <= 0) return 0
 
@@ -131,7 +167,7 @@ export function getAffordableLevels(themeState: ThemeState, buildingId: string):
   if (def.baseCost === 0) return remaining
 
   const g = def.costGrowth
-  const currency = themeState.currency
+  const currency = branchState.currency
   const baseCostAtN = def.baseCost * Math.pow(g, n)
 
   if (currency < baseCostAtN) return 0
@@ -145,16 +181,17 @@ export function getAffordableLevels(themeState: ThemeState, buildingId: string):
 
 export function purchaseBuilding(buildingId: string, count?: number): boolean {
   const state = gameState.get()
-  const theme = state.themes[state.activeTheme]
+  const branch = state.branches[state.activeBranch]
   const def = BUILDINGS.find(b => b.id === buildingId)
   if (!def) return false
+  if (!branch) return false
 
-  const bState = theme.buildings[buildingId]
+  const bState = branch.buildings[buildingId]
   if (!bState || !bState.unlocked) return false
 
   let buyCount = count || state.buyMultiplier
   if (buyCount === 0) {
-    buyCount = getAffordableLevels(theme, buildingId)
+    buyCount = getAffordableLevels(branch, buildingId)
   }
   if (buyCount <= 0) return false
 
@@ -170,10 +207,10 @@ export function purchaseBuilding(buildingId: string, count?: number): boolean {
     return true
   }
 
-  const cost = getBuildingCost(theme, buildingId, buyCount)
-  if (theme.currency < cost) return false
+  const cost = getBuildingCost(branch, buildingId, buyCount)
+  if (branch.currency < cost) return false
 
-  theme.currency -= cost
+  branch.currency -= cost
   bState.level += buyCount
   eventBus.emit('income:update')
   return true
@@ -181,27 +218,28 @@ export function purchaseBuilding(buildingId: string, count?: number): boolean {
 
 export function tick(): void {
   const state = gameState.get()
-  const activeId = state.activeTheme
-  const activeTheme = state.themes[activeId]
-  if (!activeTheme) return
+  const activeId = state.activeBranch
+  const activeBranch = state.branches[activeId]
+  if (!activeBranch) return
 
   // Clean expired buffs
   const now = Date.now()
   state.activeBuffs = state.activeBuffs.filter(b => b.expiresAt === null || b.expiresAt > now)
 
-  // Active theme full income
-  const activeIncome = getThemeIncomePerSecond(activeId)
-  activeTheme.currency += activeIncome
-  activeTheme.lifetimeEarnings += activeIncome
+  // Active branch full income
+  const activeIncome = getBranchIncomePerSecond(activeId)
+  activeBranch.currency += activeIncome
+  activeBranch.lifetimeEarnings += activeIncome
 
-  // Inactive themes 50% income
-  state.worldMap.unlockedNodes.forEach(themeId => {
-    if (themeId === activeId) return
-    const theme = state.themes[themeId]
-    if (!theme) return
-    const inactiveIncome = getThemeIncomePerSecond(themeId) * 0.5
-    theme.currency += inactiveIncome
-    theme.lifetimeEarnings += inactiveIncome
+  // Inactive BRANCHES 50% income
+  state.worldMap.unlockedBranches.forEach(branchId => {
+    if (branchId === activeId) return
+    const branch = state.branches[branchId]
+    if (!branch) return
+    const inactiveRate = branch.upgrades.includes('continentalCharter') ? 0.6 : 0.5
+    const inactiveIncome = getBranchIncomePerSecond(branchId) * inactiveRate
+    branch.currency += inactiveIncome
+    branch.lifetimeEarnings += inactiveIncome
   })
 
   state.totalPlayTime += 1
@@ -209,4 +247,4 @@ export function tick(): void {
 }
 
 // Register income function with game-state to break circular dependency
-setIncomeFunction(getThemeIncomePerSecond)
+setIncomeFunction(getBranchIncomePerSecond)

@@ -1,15 +1,15 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { gameState } from '../engine/game-state'
-import { getThemeIncomePerSecond } from '../engine/income-engine'
-import { getTotalOfflineEfficiency } from '../engine/skill-manager'
-import { formatNumber, formatTime } from '../engine/format'
-import { getThemeDef } from '../data/themes'
-import type { ThemeId } from '../types'
+import { gameState } from '@/engine/game-state'
+import { getBranchIncomePerSecond } from '@/engine/income-engine'
+import { getTotalOfflineEfficiency } from '@/engine/skill-manager'
+import { formatNumber, formatTime } from '@/engine/format'
+import { getBranchDef } from '@/data/branches'
+import type { BranchId } from '@/types'
 
 interface OfflineEarning {
-  themeId: ThemeId
-  themeName: string
+  branchId: BranchId
+  branchName: string
   amount: string
 }
 
@@ -30,13 +30,13 @@ function check() {
   const offlineRate = 0.5 + getTotalOfflineEfficiency()
   const list: OfflineEarning[] = []
 
-  state.worldMap.unlockedNodes.forEach(themeId => {
-    const income = getThemeIncomePerSecond(themeId)
+  state.worldMap.unlockedBranches.forEach(branchId => {
+    const income = getBranchIncomePerSecond(branchId)
     const earned = income * offlineSeconds * offlineRate
     if (earned > 0) {
       list.push({
-        themeId,
-        themeName: getThemeDef(themeId)?.name || themeId,
+        branchId,
+        branchName: getBranchDef(branchId)?.name || branchId,
         amount: formatNumber(earned),
       })
     }
@@ -66,8 +66,8 @@ onMounted(() => {
         <p class="offline-progress__time">You were away for {{ offlineTimeDisplay }}</p>
         <p class="offline-progress__total">Total earnings: {{ totalEarned }}</p>
         <div class="offline-progress__list">
-          <div v-for="e in earnings" :key="e.themeId" class="offline-progress__row">
-            <span class="offline-progress__theme">{{ e.themeName }}</span>
+          <div v-for="e in earnings" :key="e.branchId" class="offline-progress__row">
+            <span class="offline-progress__branch">{{ e.branchName }}</span>
             <span class="offline-progress__amount">{{ e.amount }}</span>
           </div>
         </div>

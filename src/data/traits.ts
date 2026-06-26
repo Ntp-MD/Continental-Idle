@@ -3,7 +3,6 @@ export interface TraitEffect {
   xpMult?: number
   costMult?: number
   negativeEventProtection?: boolean
-  veteranChance?: number
 }
 
 export const TRAIT_EFFECTS: Record<string, TraitEffect> = {
@@ -15,7 +14,7 @@ export const TRAIT_EFFECTS: Record<string, TraitEffect> = {
   naturalLeader: { incomeMult: 1.05, xpMult: 1.2 },
   shadowTouched: { incomeMult: 1.1, negativeEventProtection: true },
   bloodhound: { xpMult: 1.3 },
-  oldGuard: { veteranChance: 1 },
+  oldGuard: {},
   efficient: { costMult: 0.9 },
 
   lazy: { xpMult: 0.7 },
@@ -31,7 +30,7 @@ export const TRAIT_EFFECTS: Record<string, TraitEffect> = {
   goldenTouch: { incomeMult: 1.4 },
 }
 
-export function getTraitMultiplier(traits: string[], key: keyof TraitEffect): number {
+export function getTraitMultiplier(traits: string[], key: 'incomeMult' | 'xpMult' | 'costMult'): number {
   let mult = 1
   for (const trait of traits) {
     const effect = TRAIT_EFFECTS[trait]

@@ -1,27 +1,27 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { ref, computed, onUnmounted } from 'vue'
 import {
-  STARTER_THEMES, getThemeDef,
+  STARTER_BRANCHES, getBranchDef,
   CONTINENT_LABELS, CONTINENT_COLORS,
-  getThemesByContinent, type Continent
-} from '../data/themes'
-import { gameState } from '../engine/game-state'
-import type { ThemeId } from '../types'
+  getBranchesByContinent, type Continent
+} from '@/data/branches'
+import { gameState } from '@/engine/game-state'
+import type { BranchId } from '@/types'
 
-const emit = defineEmits<{ start: [] }>()
+const emit = defineEmits<{ start: [], quickStart: [] }>()
 
-const selected = ref<ThemeId>('bangkok')
+const selected = ref<BranchId>('bangkok')
 const loading = ref(false)
 const loadingProgress = ref(0)
 const loadingText = ref('Initializing Continental OS...')
 
-const starterOptions = STARTER_THEMES.map(id => getThemeDef(id))
+const starterOptions = STARTER_BRANCHES.map(id => getBranchDef(id))
 
 const continents: Continent[] = ['north-america', 'south-america', 'europe', 'asia', 'africa', 'oceania']
 
-const selectedDef = computed(() => getThemeDef(selected.value))
+const selectedDef = computed(() => getBranchDef(selected.value))
 
-function selectTheme(id: ThemeId) {
+function selectBranch(id: BranchId) {
   selected.value = id
 }
 
@@ -62,6 +62,12 @@ function continueGame() {
   }, 500)
 }
 
+function quickStart() {
+  gameState.reset(selected.value)
+  gameState.save()
+  emit('quickStart')
+}
+
 onUnmounted(() => {
   if (loadingInterval) clearInterval(loadingInterval)
   if (continueTimeout) clearTimeout(continueTimeout)
@@ -86,17 +92,17 @@ onUnmounted(() => {
       <!-- Starter HQ cards -->
       <div class="start-screen__options">
         <div
-          v-for="theme in starterOptions"
-          :key="theme.id"
+          v-for="branch in starterOptions"
+          :key="branch.id"
           class="start-screen__option"
-          :class="{ 'start-screen__option--active': selected === theme.id }"
-          :style="{ '--theme-accent': theme.accentColor }"
-          @click="selectTheme(theme.id)"
+          :class="{ 'start-screen__option--active': selected === branch.id }"
+          :style="{ '--branch-accent': branch.accentColor }"
+          @click="selectBranch(branch.id)"
         >
-          <div class="start-screen__option-name">{{ theme.name }}</div>
-          <div class="start-screen__option-city">{{ theme.city }}</div>
-          <div class="start-screen__option-currency">{{ theme.currency }}</div>
-          <div v-if="selected === theme.id" class="start-screen__option-check">✓ SELECTED</div>
+          <div class="start-screen__option-name">{{ branch.name }}</div>
+          <div class="start-screen__option-city">{{ branch.city }}</div>
+          <div class="start-screen__option-currency">{{ branch.currency }}</div>
+          <div v-if="selected === branch.id" class="start-screen__option-check">✓ SELECTED</div>
         </div>
       </div>
 
@@ -109,19 +115,19 @@ onUnmounted(() => {
           </div>
           <div class="start-screen__continent-nodes">
             <div
-              v-for="theme in getThemesByContinent(cont)"
-              :key="theme.id"
+              v-for="branch in getBranchesByContinent(cont)"
+              :key="branch.id"
               class="start-screen__node"
               :class="{
-                'start-screen__node--active': selected === theme.id,
-                'start-screen__node--starter': theme.unlockPrestige === 0
+                'start-screen__node--active': selected === branch.id,
+                'start-screen__node--starter': branch.unlockPrestige === 0
               }"
-              :style="{ '--theme-accent': theme.accentColor }"
-              @click="selectTheme(theme.id)"
+              :style="{ '--branch-accent': branch.accentColor }"
+              @click="selectBranch(branch.id)"
             >
-              <span class="start-screen__node-dot" :style="{ background: theme.accentColor }"></span>
-              <span class="start-screen__node-name">{{ theme.name }}</span>
-              <span class="start-screen__node-prestige" v-if="theme.unlockPrestige > 0">P{{ theme.unlockPrestige }}</span>
+              <span class="start-screen__node-dot" :style="{ background: branch.accentColor }"></span>
+              <span class="start-screen__node-name">{{ branch.name }}</span>
+              <span class="start-screen__node-prestige" v-if="branch.unlockPrestige > 0">P{{ branch.unlockPrestige }}</span>
               <span class="start-screen__node-prestige start-screen__node-prestige--free" v-else>FREE</span>
             </div>
           </div>
@@ -129,7 +135,7 @@ onUnmounted(() => {
       </div>
 
       <!-- Selected HQ info -->
-      <div class="start-screen__selected-info" :style="{ '--theme-accent': selectedDef.accentColor }">
+      <div class="start-screen__selected-info" :style="{ '--branch-accent': selectedDef.accentColor }">
         <span class="start-screen__selected-name">{{ selectedDef.name }}</span>
         <span class="start-screen__selected-city">{{ selectedDef.city }}</span>
         <span class="start-screen__selected-currency">Currency: {{ selectedDef.currency }}</span>
@@ -142,6 +148,10 @@ onUnmounted(() => {
 
       <button class="start-screen__btn" @click="startGame">
         START NEW GAME
+      </button>
+
+      <button class="start-screen__btn-continue" @click="quickStart">
+        QUICK START + AI AUTOPLAY
       </button>
 
       <button v-if="gameState.hasSave()" class="start-screen__btn-continue" @click="continueGame">

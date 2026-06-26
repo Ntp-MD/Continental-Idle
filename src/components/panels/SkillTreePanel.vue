@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, watch } from 'vue'
-import { gameState } from '../engine/game-state'
-import { upgradeSkill, canUpgradeSkill, getSkillLevel } from '../engine/skill-manager'
-import { SKILL_MAX_LEVEL, getBranchNodes } from '../data/skills'
-import { formatNumber } from '../engine/format'
-import { eventBus } from '../engine/event-bus'
-import type { SkillTreeState } from '../types'
+import { gameState } from '@/engine/game-state'
+import { upgradeSkill, canUpgradeSkill, getSkillLevel } from '@/engine/skill-manager'
+import { SKILL_MAX_LEVEL, getBranchNodes } from '@/data/skills'
+import { formatNumber } from '@/engine/format'
+import { eventBus } from '@/engine/event-bus'
+import type { SkillTreeState } from '@/types'
 
 const props = defineProps<{ visible: boolean }>()
 const emit = defineEmits(['close'])

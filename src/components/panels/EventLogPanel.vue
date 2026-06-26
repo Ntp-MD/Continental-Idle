@@ -1,13 +1,13 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { ref, onMounted, onUnmounted, watch } from 'vue'
-import { gameState } from '../engine/game-state'
-import { getThemeDef } from '../data/themes'
-import { EVENTS } from '../data/events'
-import { eventBus } from '../engine/event-bus'
+import { gameState } from '@/engine/game-state'
+import { getBranchDef } from '@/data/branches'
+import { EVENTS } from '@/data/events'
+import { eventBus } from '@/engine/event-bus'
 
 interface LogEntry {
   time: string
-  themeName: string
+  branchName: string
   eventName: string
   choice: string
   outcome: string
@@ -27,7 +27,7 @@ function update() {
     const date = new Date(e.timestamp)
     return {
       time: date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      themeName: getThemeDef(e.theme)?.name || e.theme,
+      branchName: getBranchDef(e.branch)?.name || e.branch,
       eventName: def?.name || e.eventId,
       choice: choice?.label || e.choiceId,
       outcome: e.outcome,
@@ -57,7 +57,7 @@ watch(() => props.visible, (v) => { if (v) update() })
         <div v-if="entries.length === 0" class="event-log__empty">No events recorded yet</div>
         <div v-for="(e, i) in entries" :key="i" class="event-log__row" :class="e.outcome === 'ignored' ? 'event-log__row--ignored' : ''">
           <span class="event-log__time">{{ e.time }}</span>
-          <span class="event-log__theme">{{ e.themeName }}</span>
+          <span class="event-log__branch">{{ e.branchName }}</span>
           <span class="event-log__name">{{ e.eventName }}</span>
           <span class="event-log__choice">{{ e.choice }}</span>
           <span class="event-log__outcome" :class="e.outcome === 'ignored' ? 'event-log__outcome--ignored' : 'event-log__outcome--resolved'">{{ e.outcome }}</span>

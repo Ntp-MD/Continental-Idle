@@ -868,6 +868,25 @@
 	cursor: not-allowed;
 }
 
+.event-prompt__badge {
+	display: inline-block;
+	font-size: 10px;
+	padding: 1px 4px;
+	border-radius: 2px;
+	margin-left: 4px;
+	font-weight: 700;
+}
+
+.event-prompt__badge--best {
+	background: rgba(255, 215, 0, 0.2);
+	color: #ffd700;
+}
+
+.event-prompt__badge--safe {
+	background: rgba(76, 175, 80, 0.2);
+	color: #4caf50;
+}
+
 /* Prestige Panel */
 .prestige-info {
 	text-align: center;
@@ -1411,6 +1430,20 @@
 
 .assassin-card__cancel-attack:hover {
 	background: var(--accent-red);
+	color: var(--bg-primary);
+}
+
+.assassin-card__recall {
+	font-size: 8px;
+	padding: 2px 6px;
+	border: 1px solid var(--accent-orange);
+	background: transparent;
+	color: var(--accent-orange);
+	cursor: pointer;
+}
+
+.assassin-card__recall:hover {
+	background: var(--accent-orange);
 	color: var(--bg-primary);
 }
 

@@ -1,6 +1,6 @@
 // === Game State Interfaces ===
 
-export type ThemeId =
+export type BranchId =
   | 'bangkok' | 'newYork' | 'rome' | 'casablanca' | 'osaka' | 'paris' | 'berlin' | 'dubai'
   | 'washington' | 'losAngeles' | 'mexicoCity' | 'havana' | 'ottawa'
   | 'brasilia' | 'buenosAires' | 'bogota'
@@ -35,10 +35,10 @@ export interface AssassinEntry {
   xp: number
   pendingLevelUp: boolean
   loyalty: number
-  assignedTheme: ThemeId | null
-  lentTo: ThemeId | null
+  assignedBranch: BranchId | null
+  lentTo: BranchId | null
   lentUntil: number
-  attackTarget: ThemeId | null
+  attackTarget: BranchId | null
   stats: CharacterStats
   traits: string[]
   synergyCount: number
@@ -55,10 +55,10 @@ export interface CharacterStats {
 export interface MarkerDebt {
   amount: number
   createdAt: number
-  theme: ThemeId
+  branch: BranchId
 }
 
-export interface ThemeState {
+export interface BranchState {
   currency: number
   lifetimeEarnings: number
   buildings: Record<string, BuildingState>
@@ -71,16 +71,15 @@ export interface ThemeState {
   heatLevel: number
   excommunicadoGraceUntil: number
   guestSatisfaction: number
-  takeoverProgress: number
   hqHealth: number
   hqMaxHealth: number
   aiOwnerDefeated: boolean
 }
 
 export interface WorldMapState {
-  unlockedNodes: ThemeId[]
-  conqueredNodes: ThemeId[]
-  royalNodes: ThemeId[]
+  unlockedBranches: BranchId[]
+  conqueredBranches: BranchId[]
+  royalBranches: BranchId[]
 }
 
 export interface SkillTreeState {
@@ -108,10 +107,10 @@ export interface GameState {
   tutorialStep: number
   tableFavor: number
   totalPrestige: number
-  hqCountry: ThemeId
-  activeTheme: ThemeId
+  hqBranch: BranchId
+  activeBranch: BranchId
   worldMap: WorldMapState
-  themes: Record<ThemeId, ThemeState>
+  branches: Record<BranchId, BranchState>
   skillTree: SkillTreeState
   settings: GameSettings
   eventLog: EventLogEntry[]
@@ -125,7 +124,7 @@ export interface GameState {
 
 export interface EventLogEntry {
   timestamp: number
-  theme: ThemeId
+  branch: BranchId
   eventId: string
   choiceId: string
   outcome: string
@@ -133,10 +132,10 @@ export interface EventLogEntry {
 
 export interface Buff {
   id: string
-  type: 'incomeMultiplier' | 'incomeFreeze' | 'permanentIncomeBonus'
+  type: 'incomeMultiplier' | 'incomeFreeze'
   value: number
   expiresAt: number | null
-  themeId: ThemeId | null
+  branchId: BranchId | null
 }
 
 // === Building Definition ===
@@ -172,7 +171,7 @@ export interface AssassinDefinition {
   rank: string
   hireCost: number
   ability: string
-  themeLock: ThemeId | null
+  branchLock: BranchId | null
   maxLevel: number
 }
 
@@ -185,6 +184,7 @@ export interface EventChoice {
   rewards: EventEffect[]
   penalties: EventEffect[]
   reputationChange: number
+  heatChange?: number
   isBest?: boolean
   isSafe?: boolean
 }
@@ -205,20 +205,25 @@ export interface RaidData {
 }
 
 export interface EventEffect {
-  type: string
+  type: 'incomeMultiplier' | 'permanentIncomeBonus' | 'reputation' | 'incomeFreeze' | 'loseCurrency' | 'markerDebt'
   value: number
   duration?: number
   scaling: 'static' | 'incomePercent' | 'currencyPercent' | 'prestigeScaled'
 }
 
+export type UnlockCondition =
+  | { type: 'buildingLevel'; buildingId: string; minLevel: number }
+  | { type: 'prestige'; minPrestige: number }
+  | null
+
 export interface EventDefinition {
   id: string
   name: string
   description: string
-  themeLock: ThemeId | null
+  branchLock: BranchId | null
   weight: number
   heatModifier: number
-  unlockCondition: Record<string, unknown> | null
+  unlockCondition: UnlockCondition
   choices: EventChoice[]
   autoResolveTimeout: number
   autoResolveAction: 'ignore' | 'best' | 'safe'

@@ -1,7 +1,7 @@
 import { gameState } from './game-state'
 import { eventBus } from './event-bus'
-import { SKILL_NODES, SKILL_MAX_LEVEL, getSkillNode } from '../data/skills'
-import type { SkillTreeState } from '../types'
+import { SKILL_NODES, SKILL_MAX_LEVEL, getSkillNode } from '@/data/skills'
+import type { SkillTreeState } from '@/types'
 
 type Branch = keyof SkillTreeState
 

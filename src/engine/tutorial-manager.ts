@@ -1,4 +1,4 @@
-import { gameState } from './game-state'
+﻿import { gameState } from './game-state'
 import { eventBus } from './event-bus'
 
 export interface TutorialStep {
@@ -58,14 +58,14 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     hint: 'Staff gain XP while assigned to buildings. When a Level Up button appears, click it to increase their effect. Higher levels cost more.',
   },
   {
-    id: 'theme-switch',
-    title: 'Switch Themes',
-    hint: 'Click nodes on the world map to switch between unlocked Continental branches. Each theme has its own currency and buildings.',
+    id: 'branch-switch',
+    title: 'Switch BRANCHES',
+    hint: 'Click nodes on the world map to switch between unlocked Continental branches. Each branch has its own currency and buildings.',
   },
   {
     id: 'world-map',
     title: 'Explore the World Map',
-    hint: 'Click nodes on the map to switch active themes. Hover over nodes to see their state, prestige requirement, and income. Use +/- to zoom.',
+    hint: 'Click nodes on the map to switch active BRANCHES. Hover over nodes to see their state, prestige requirement, and income. Use +/- to zoom.',
   },
   {
     id: 'events',
@@ -80,7 +80,7 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
   {
     id: 'grace-period',
     title: 'Grace Periods',
-    hint: 'New themes get a 30-minute grace period with no events. Use this time to build up your income before the action starts.',
+    hint: 'New BRANCHES get a 30-minute grace period with no events. Use this time to build up your income before the action starts.',
   },
   {
     id: 'prestige',
@@ -90,14 +90,14 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     action: 'open:prestige',
   },
   {
-    id: 'theme-unlock',
+    id: 'branch-unlock',
     title: 'Unlock New Cities',
     hint: 'Prestiging unlocks new Continental branches worldwide. Each city requires a specific total prestige count to unlock. Build your global empire!',
   },
   {
     id: 'inactive-income',
-    title: 'Inactive Theme Income',
-    hint: 'Unlocked themes you are not actively managing still generate 50% income. Keep all your branches running!',
+    title: 'Inactive branch Income',
+    hint: 'Unlocked BRANCHES you are not actively managing still generate 50% income. Keep all your branches running!',
   },
   {
     id: 'save-system',

@@ -1,17 +1,17 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
-import { gameState } from '../engine/game-state'
-import { getThemeIncomePerSecond } from '../engine/income-engine'
-import { getTotalDebt, getDebtCount } from '../engine/debt-manager'
-import { formatNumber, formatIncome } from '../engine/format'
-import { eventBus } from '../engine/event-bus'
-import { getThemeDef } from '../data/themes'
+import { gameState } from '@/engine/game-state'
+import { getBranchIncomePerSecond } from '@/engine/income-engine'
+import { getTotalDebt, getDebtCount } from '@/engine/debt-manager'
+import { formatNumber, formatIncome } from '@/engine/format'
+import { eventBus } from '@/engine/event-bus'
+import { getBranchDef } from '@/data/branches'
 
 const currency = ref('0')
 const income = ref('0/s')
 const favor = ref('0')
 const prestige = ref(0)
-const themeName = ref('')
+const branchName = ref('')
 const heat = ref(0)
 const debtTotal = ref('0')
 const debtCount = ref(0)
@@ -23,34 +23,40 @@ const permBonus = ref(0)
 const inactiveIncome = ref('0/s')
 const graceMinutes = ref(0)
 
+let lastInactiveUpdate = 0
+
 function update() {
   const state = gameState.get()
-  const theme = state.themes[state.activeTheme]
-  if (!theme) return
-  const def = getThemeDef(state.activeTheme)
+  const branch = state.branches[state.activeBranch]
+  if (!branch) return
+  const def = getBranchDef(state.activeBranch)
 
-  currency.value = formatNumber(theme.currency)
-  income.value = formatIncome(getThemeIncomePerSecond())
+  currency.value = formatNumber(branch.currency)
+  income.value = formatIncome(getBranchIncomePerSecond())
   favor.value = formatNumber(state.tableFavor)
-  prestige.value = theme.prestige
-  themeName.value = def.name
-  heat.value = theme.heatLevel
+  prestige.value = branch.prestige
+  branchName.value = def.name
+  heat.value = branch.heatLevel
   debtTotal.value = formatNumber(getTotalDebt())
   debtCount.value = getDebtCount()
-  reputation.value = Math.floor(theme.reputation)
-  satisfaction.value = Math.floor(theme.guestSatisfaction)
-  isHq.value = state.activeTheme === state.hqCountry
+  reputation.value = Math.floor(branch.reputation)
+  satisfaction.value = Math.floor(branch.guestSatisfaction)
+  isHq.value = state.activeBranch === state.hqBranch
   prestigeMult.value = Math.round(state.tableFavor * 2)
   permBonus.value = Math.round(state.permanentIncomeBonus * 100)
 
-  let inactiveTotal = 0
-  state.worldMap.unlockedNodes.forEach(tid => {
-    if (tid === state.activeTheme) return
-    inactiveTotal += getThemeIncomePerSecond(tid) * 0.5
-  })
-  inactiveIncome.value = formatIncome(inactiveTotal)
+  const now = Date.now()
+  if (now - lastInactiveUpdate > 5000) {
+    lastInactiveUpdate = now
+    let inactiveTotal = 0
+    state.worldMap.unlockedBranches.forEach(tid => {
+      if (tid === state.activeBranch) return
+      inactiveTotal += getBranchIncomePerSecond(tid) * 0.5
+    })
+    inactiveIncome.value = formatIncome(inactiveTotal)
+  }
 
-  const graceMs = theme.excommunicadoGraceUntil - Date.now()
+  const graceMs = branch.excommunicadoGraceUntil - Date.now()
   graceMinutes.value = graceMs > 0 ? Math.ceil(graceMs / 60000) : 0
 }
 
@@ -69,7 +75,7 @@ onUnmounted(() => {
 <template>
   <header class="game-header">
     <h1 class="game-header__title">
-      Continental — {{ themeName }}
+      Continental — {{ branchName }}
       <span v-if="isHq" class="game-header__hq-badge">HQ</span>
     </h1>
     <div class="game-header__currencies">

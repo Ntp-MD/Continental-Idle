@@ -1,9 +1,9 @@
-import type { ThemeId } from '../types'
+import type { BranchId } from '@/types'
 
 export type Continent = 'north-america' | 'south-america' | 'europe' | 'asia' | 'africa' | 'oceania'
 
-export interface ThemeDefinition {
-  id: ThemeId
+export interface BranchDefinition {
+  id: BranchId
   name: string
   city: string
   currency: string
@@ -14,7 +14,7 @@ export interface ThemeDefinition {
   lon: number
 }
 
-export const THEMES: ThemeDefinition[] = [
+export const BRANCHES: BranchDefinition[] = [
   // ── Starter HQs (unlockPrestige 0) ──
   { id: 'bangkok', name: 'Bangkok', city: 'Bangkok, Thailand', currency: 'Baht Coins', accentColor: '#f4c430', unlockPrestige: 0, continent: 'asia', lat: 13.7563, lon: 100.5018 },
   { id: 'newYork', name: 'New York', city: 'NYC, USA', currency: 'Gold Coins', accentColor: '#cccccc', unlockPrestige: 0, continent: 'north-america', lat: 40.7128, lon: -74.0060 },
@@ -69,7 +69,7 @@ export const THEMES: ThemeDefinition[] = [
   { id: 'sydney', name: 'Sydney', city: 'Sydney, Australia', currency: 'Harbor Credits', accentColor: '#3498db', unlockPrestige: 60, continent: 'oceania', lat: -33.8688, lon: 151.2093 },
 ]
 
-export const STARTER_THEMES: ThemeId[] = ['bangkok', 'newYork']
+export const STARTER_BRANCHES: BranchId[] = ['bangkok', 'newYork']
 
 export const CONTINENT_LABELS: Record<Continent, string> = {
   'north-america': 'North America',
@@ -89,16 +89,15 @@ export const CONTINENT_COLORS: Record<Continent, string> = {
   'oceania': '#2ecc71',
 }
 
-export function getThemeDef(id: ThemeId): ThemeDefinition {
-  const def = THEMES.find(t => t.id === id)
+export function getBranchDef(id: BranchId): BranchDefinition {
+  const def = BRANCHES.find(t => t.id === id)
   if (!def) {
-    console.warn(`Unknown theme ID: ${id}, falling back to Bangkok`)
-    return THEMES[0]
+    console.warn(`Unknown branch ID: ${id}, falling back to Bangkok`)
+    return BRANCHES[0]
   }
   return def
 }
 
-export function getThemesByContinent(continent: Continent): ThemeDefinition[] {
-  return THEMES.filter(t => t.continent === continent)
+export function getBranchesByContinent(continent: Continent): BranchDefinition[] {
+  return BRANCHES.filter(t => t.continent === continent)
 }
-

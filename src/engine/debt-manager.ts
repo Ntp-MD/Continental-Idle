@@ -1,4 +1,4 @@
-import type { ThemeId } from '../types'
+﻿import type { BranchId } from '@/types'
 import { gameState } from './game-state'
 import { getTotalDebtReduction } from './skill-manager'
 import { hasRoyalGuard } from './assassin-manager'
@@ -7,39 +7,39 @@ import { eventBus } from './event-bus'
 const DEBT_COLLECTION_RATE = 0.05
 const DEBT_INTEREST_RATE = 0.01
 
-export function getTotalDebt(themeId?: ThemeId): number {
+export function getTotalDebt(branchId?: BranchId): number {
   const state = gameState.get()
-  const id = themeId || state.activeTheme
-  const theme = state.themes[id]
-  if (!theme) return 0
-  return theme.markerDebts.reduce((sum, d) => sum + d.amount, 0)
+  const id = branchId || state.activeBranch
+  const branch = state.branches[id]
+  if (!branch) return 0
+  return branch.markerDebts.reduce((sum, d) => sum + d.amount, 0)
 }
 
-export function getDebtCount(themeId?: ThemeId): number {
+export function getDebtCount(branchId?: BranchId): number {
   const state = gameState.get()
-  const id = themeId || state.activeTheme
-  const theme = state.themes[id]
-  if (!theme) return 0
-  return theme.markerDebts.length
+  const id = branchId || state.activeBranch
+  const branch = state.branches[id]
+  if (!branch) return 0
+  return branch.markerDebts.length
 }
 
-export function collectDebtPayment(themeId?: ThemeId): number {
+export function collectDebtPayment(branchId?: BranchId): number {
   const state = gameState.get()
-  const id = themeId || state.activeTheme
-  const theme = state.themes[id]
-  if (!theme) return 0
+  const id = branchId || state.activeBranch
+  const branch = state.branches[id]
+  if (!branch) return 0
 
   let collected = 0
-  const remaining: typeof theme.markerDebts = []
+  const remaining: typeof branch.markerDebts = []
 
-  for (const debt of theme.markerDebts) {
-    if (theme.currency <= 0) {
+  for (const debt of branch.markerDebts) {
+    if (branch.currency <= 0) {
       remaining.push(debt)
       continue
     }
 
-    const payment = Math.min(theme.currency, debt.amount * DEBT_COLLECTION_RATE)
-    theme.currency -= payment
+    const payment = Math.min(branch.currency, debt.amount * DEBT_COLLECTION_RATE)
+    branch.currency -= payment
     collected += payment
 
     const newAmount = debt.amount - payment
@@ -48,52 +48,52 @@ export function collectDebtPayment(themeId?: ThemeId): number {
     }
   }
 
-  theme.markerDebts = remaining
+  branch.markerDebts = remaining
   return collected
 }
 
-export function repayDebt(debtCreatedAt: number, themeId?: ThemeId): boolean {
+export function repayDebt(debtCreatedAt: number, branchId?: BranchId): boolean {
   const state = gameState.get()
-  const id = themeId || state.activeTheme
-  const theme = state.themes[id]
-  if (!theme) return false
+  const id = branchId || state.activeBranch
+  const branch = state.branches[id]
+  if (!branch) return false
 
-  const idx = theme.markerDebts.findIndex(d => d.createdAt === debtCreatedAt)
+  const idx = branch.markerDebts.findIndex(d => d.createdAt === debtCreatedAt)
   if (idx === -1) return false
-  const debt = theme.markerDebts[idx]
-  if (theme.currency < debt.amount) return false
+  const debt = branch.markerDebts[idx]
+  if (branch.currency < debt.amount) return false
 
-  theme.currency -= debt.amount
-  theme.markerDebts.splice(idx, 1)
-  theme.reputation = Math.min(10000, theme.reputation + 5)
-  eventBus.emit('debt:repaid', { themeId: id, amount: debt.amount })
+  branch.currency -= debt.amount
+  branch.markerDebts.splice(idx, 1)
+  branch.reputation = Math.min(10000, branch.reputation + 5)
+  eventBus.emit('debt:repaid', { branchId: id, amount: debt.amount })
   return true
 }
 
-export function repayAllDebts(themeId?: ThemeId): boolean {
+export function repayAllDebts(branchId?: BranchId): boolean {
   const state = gameState.get()
-  const id = themeId || state.activeTheme
-  const theme = state.themes[id]
-  if (!theme) return false
+  const id = branchId || state.activeBranch
+  const branch = state.branches[id]
+  if (!branch) return false
 
   const total = getTotalDebt(id)
   if (total <= 0) return false
-  if (theme.currency < total) return false
+  if (branch.currency < total) return false
 
-  theme.currency -= total
-  theme.markerDebts = []
-  theme.reputation = Math.min(10000, theme.reputation + 10)
-  eventBus.emit('debt:repaid', { themeId: id, amount: total })
+  branch.currency -= total
+  branch.markerDebts = []
+  branch.reputation = Math.min(10000, branch.reputation + 10)
+  eventBus.emit('debt:repaid', { branchId: id, amount: total })
   return true
 }
 
 export function tickDebtInterest(): void {
   const state = gameState.get()
-  state.worldMap.unlockedNodes.forEach(themeId => {
-    const theme = state.themes[themeId]
-    if (!theme) return
-    theme.markerDebts.forEach(debt => {
-      const royalGuardReduction = hasRoyalGuard(themeId) ? 0.5 : 1
+  state.worldMap.unlockedBranches.forEach(branchId => {
+    const branch = state.branches[branchId]
+    if (!branch) return
+    branch.markerDebts.forEach(debt => {
+      const royalGuardReduction = hasRoyalGuard(branchId) ? 0.5 : 1
       debt.amount *= (1 + DEBT_INTEREST_RATE * (1 - getTotalDebtReduction()) * royalGuardReduction)
     })
   })
@@ -101,5 +101,7 @@ export function tickDebtInterest(): void {
 
 export function tickDebtCollection(): void {
   const state = gameState.get()
-  collectDebtPayment(state.activeTheme)
+  state.worldMap.unlockedBranches.forEach(branchId => {
+    collectDebtPayment(branchId)
+  })
 }

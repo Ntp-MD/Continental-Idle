@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, computed } from 'vue'
-import { tutorialManager, TUTORIAL_STEPS } from '../engine/tutorial-manager'
-import { eventBus } from '../engine/event-bus'
-import type { TutorialStep } from '../engine/tutorial-manager'
+import { tutorialManager, TUTORIAL_STEPS } from '@/engine/tutorial-manager'
+import { eventBus } from '@/engine/event-bus'
+import type { TutorialStep } from '@/engine/tutorial-manager'
 
 const visible = ref(false)
 const step = ref<TutorialStep | null>(null)

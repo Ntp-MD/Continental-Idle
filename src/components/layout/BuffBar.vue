@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
-import { gameState } from '../engine/game-state'
-import { eventBus } from '../engine/event-bus'
+import { gameState } from '@/engine/game-state'
+import { eventBus } from '@/engine/event-bus'
 
 interface BuffDisplay {
   id: string

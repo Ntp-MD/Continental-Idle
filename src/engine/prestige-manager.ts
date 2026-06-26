@@ -1,35 +1,36 @@
-import type { ThemeId } from '../types'
-import { BUILDINGS } from '../data/buildings'
-import { THEMES } from '../data/themes'
+﻿import type { BranchId } from '@/types'
+import { BUILDINGS } from '@/data/buildings'
+import { BRANCHES } from '@/data/branches'
 import { gameState } from './game-state'
 import { getPrestigeReputationKeepRatio } from './abilities'
 import { getTotalPrestigeFavorMult } from './skill-manager'
+import { isUpgradePurchased } from './upgrade-manager'
 import { eventBus } from './event-bus'
 
-export function getPrestigeFavor(themeId?: ThemeId): number {
+export function getPrestigeFavor(branchId?: BranchId): number {
   const state = gameState.get()
-  const id = themeId || state.activeTheme
-  const theme = state.themes[id]
-  if (!theme) return 0
+  const id = branchId || state.activeBranch
+  const branch = state.branches[id]
+  if (!branch) return 0
 
   let scaleConstant = 1e9
   if (state.totalPrestige >= 50) scaleConstant = 1e6
   else if (state.totalPrestige >= 25) scaleConstant = 1e7
   else if (state.totalPrestige >= 10) scaleConstant = 1e8
 
-  return Math.floor(Math.pow(theme.lifetimeEarnings / scaleConstant, 0.5) * getTotalPrestigeFavorMult())
+  return Math.floor(Math.pow(branch.lifetimeEarnings / scaleConstant, 0.5) * getTotalPrestigeFavorMult())
 }
 
-export function canPrestige(themeId?: ThemeId): boolean {
-  const favor = getPrestigeFavor(themeId)
+export function canPrestige(branchId?: BranchId): boolean {
+  const favor = getPrestigeFavor(branchId)
   return favor > 0
 }
 
-export function doPrestige(themeId?: ThemeId): boolean {
+export function doPrestige(branchId?: BranchId): boolean {
   const state = gameState.get()
-  const id = themeId || state.activeTheme
-  const theme = state.themes[id]
-  if (!theme) return false
+  const id = branchId || state.activeBranch
+  const branch = state.branches[id]
+  if (!branch) return false
 
   const favor = getPrestigeFavor(id)
   if (favor <= 0) return false
@@ -38,19 +39,19 @@ export function doPrestige(themeId?: ThemeId): boolean {
   state.tableFavor += favor
 
   // Increment prestige
-  theme.prestige += 1
+  branch.prestige += 1
   state.totalPrestige += 1
 
   // Reset buildings
   BUILDINGS.forEach(def => {
-    const bState = theme.buildings[def.id]
+    const bState = branch.buildings[def.id]
     if (bState) {
       bState.level = 0
     }
   })
 
   // Reset staff levels but mark survivors as veterans
-  Object.values(theme.staff).forEach(staff => {
+  Object.values(branch.staff).forEach(staff => {
     if (staff.level > 1) {
       staff.prestigeSurvivedCount++
       const hasOldGuard = staff.traits.includes('oldGuard')
@@ -66,54 +67,57 @@ export function doPrestige(themeId?: ThemeId): boolean {
   })
 
   // Reset currency
-  theme.currency = 0
-  theme.lifetimeEarnings = 0
+  branch.currency = 0
+  branch.lifetimeEarnings = 0
 
   // Halve reputation (or keep 80% with maxed Adjudicator)
   const keepRatio = getPrestigeReputationKeepRatio(id)
-  theme.reputation = Math.floor(theme.reputation * keepRatio)
+  branch.reputation = Math.floor(branch.reputation * keepRatio)
 
   // Reset heat
-  theme.heatLevel = 0
+  branch.heatLevel = 0
 
   // Reset satisfaction
-  theme.guestSatisfaction = 50
+  branch.guestSatisfaction = 50
 
   // Grace period
-  theme.excommunicadoGraceUntil = Date.now() + 30 * 60 * 1000
+  branch.excommunicadoGraceUntil = Date.now() + 30 * 60 * 1000
 
   // Clear marker debts
-  theme.markerDebts = []
+  branch.markerDebts = []
 
-  // Clear active buffs for this theme (income multipliers/freezes should not persist through reset)
-  state.activeBuffs = state.activeBuffs.filter(b => b.themeId !== id)
+  // Clear active buffs for this branch (income multipliers/freezes should not persist through reset)
+  state.activeBuffs = state.activeBuffs.filter(b => b.branchId !== id)
 
-  // Check theme unlocks
-  checkThemeUnlocks()
+  // Check branch unlocks
+  checkbranchUnlocks()
 
-  eventBus.emit('prestige:reset', { themeId: id, favor })
+  eventBus.emit('prestige:reset', { branchId: id, favor })
   return true
 }
 
-function checkThemeUnlocks(): void {
+function checkbranchUnlocks(): void {
   const state = gameState.get()
   const graceUntil = Date.now() + 30 * 60 * 1000
-  THEMES.forEach(t => {
+  BRANCHES.forEach(t => {
     if (t.unlockPrestige === 0) return
     // Unlock: totalPrestige reaches threshold
-    if (state.totalPrestige >= t.unlockPrestige && !state.worldMap.unlockedNodes.includes(t.id)) {
-      if (t.id === state.hqCountry) return
-      state.worldMap.unlockedNodes.push(t.id)
-      const theme = state.themes[t.id]
-      if (theme) {
-        theme.excommunicadoGraceUntil = graceUntil
+    if (state.totalPrestige >= t.unlockPrestige && !state.worldMap.unlockedBranches.includes(t.id)) {
+      if (t.id === state.hqBranch) return
+      state.worldMap.unlockedBranches.push(t.id)
+      const branch = state.branches[t.id]
+      if (branch) {
+        branch.excommunicadoGraceUntil = graceUntil
+        if (isUpgradePurchased('diplomaticChannels') && branch.reputation < 100) {
+          branch.reputation = 100
+        }
       }
-      eventBus.emit('theme:unlock', { themeId: t.id })
+      eventBus.emit('branch:unlock', { branchId: t.id })
     }
-    // Royal: totalPrestige is 10+ above unlock threshold (theme must already be unlocked)
-    if (t.unlockPrestige > 0 && state.totalPrestige >= t.unlockPrestige + 10 && !state.worldMap.royalNodes.includes(t.id)) {
-      state.worldMap.royalNodes.push(t.id)
-      eventBus.emit('theme:royal', { themeId: t.id })
+    // Royal: totalPrestige is 10+ above unlock threshold (branch must already be unlocked)
+    if (t.unlockPrestige > 0 && state.totalPrestige >= t.unlockPrestige + 10 && !state.worldMap.royalBranches.includes(t.id)) {
+      state.worldMap.royalBranches.push(t.id)
+      eventBus.emit('branch:royal', { branchId: t.id })
     }
   })
 }

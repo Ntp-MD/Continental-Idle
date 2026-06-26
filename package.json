@@ -6,7 +6,9 @@
   "scripts": {
     "dev": "vite",
     "build": "vue-tsc -b && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "tsx tests/test-gameplay.ts",
+    "test:all": "tsx tests/test-all-features.ts"
   },
   "dependencies": {
     "d3": "^7.9.0",

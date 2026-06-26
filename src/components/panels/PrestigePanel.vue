@@ -1,10 +1,10 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { ref, onMounted, onUnmounted, watch } from 'vue'
-import { gameState } from '../engine/game-state'
-import { getPrestigeFavor, canPrestige, doPrestige } from '../engine/prestige-manager'
-import { formatNumber } from '../engine/format'
-import { eventBus } from '../engine/event-bus'
-import { useToast } from '../composables/useToast'
+import { gameState } from '@/engine/game-state'
+import { getPrestigeFavor, canPrestige, doPrestige } from '@/engine/prestige-manager'
+import { formatNumber } from '@/engine/format'
+import { eventBus } from '@/engine/event-bus'
+import { useToast } from '@/composables/useToast'
 
 const toast = useToast()
 
@@ -20,11 +20,11 @@ const confirming = ref(false)
 function update() {
   if (!props.visible) return
   const state = gameState.get()
-  const theme = state.themes[state.activeTheme]
-  if (!theme) return
-  currentPrestige.value = theme.prestige
+  const branch = state.branches[state.activeBranch]
+  if (!branch) return
+  currentPrestige.value = branch.prestige
   estimatedFavor.value = getPrestigeFavor()
-  lifetimeEarnings.value = formatNumber(theme.lifetimeEarnings)
+  lifetimeEarnings.value = formatNumber(branch.lifetimeEarnings)
   canDoPrestige.value = canPrestige()
 }
 
@@ -99,7 +99,7 @@ watch(() => props.visible, (v) => {
           </div>
           <div class="prestige-confirm__section">
             <div class="prestige-confirm__label prestige-confirm__label--keep">You keep:</div>
-            <div class="prestige-confirm__item">- Staff (with XP)</div>
+            <div class="prestige-confirm__item">- Staff (traits & veteran status kept)</div>
             <div class="prestige-confirm__item">- Assassins (with loyalty)</div>
             <div class="prestige-confirm__item">- Upgrades purchased</div>
           </div>

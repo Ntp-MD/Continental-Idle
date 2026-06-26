@@ -1,9 +1,10 @@
-import type { ThemeId, StaffEntry, CharacterStats } from '../types'
-import { STAFF_TYPES } from '../data/staff'
-import { getTraitMultiplier } from '../data/traits'
+﻿import type { BranchId, StaffEntry, CharacterStats } from '@/types'
+import { STAFF_TYPES } from '@/data/staff'
+import { getTraitMultiplier } from '@/data/traits'
 import { getTotalStaffXpMult, getExtraStaffSlots } from './skill-manager'
 import { gameState } from './game-state'
 import { eventBus } from './event-bus'
+import { isUpgradePurchased } from './upgrade-manager'
 
 function generateId(): string {
   return 'staff_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6)
@@ -66,19 +67,19 @@ export function getStaffLevelUpCost(staffTypeId: string, newLevel: number): numb
   return Math.ceil(def.hireCost * 0.1 * Math.pow(1.3, newLevel))
 }
 
-export function isStaffUnlocked(staffTypeId: string, themeId?: ThemeId): boolean {
+export function isStaffUnlocked(staffTypeId: string, branchId?: BranchId): boolean {
   const state = gameState.get()
-  const id = themeId || state.activeTheme
-  const theme = state.themes[id]
+  const id = branchId || state.activeBranch
+  const branch = state.branches[id]
   const def = STAFF_TYPES.find(s => s.id === staffTypeId)
   if (!def) return false
-  if (!theme) return false
+  if (!branch) return false
 
   const unlock = def.unlock
   if (unlock === 'start') return true
 
   // Building-based unlock: check if building exists at level >= 1
-  if (theme.buildings[unlock]?.level >= 1) return true
+  if (branch.buildings[unlock]?.level >= 1) return true
 
   // Prestige-based unlock: 'prestige:N'
   if (unlock.startsWith('prestige:')) {
@@ -88,27 +89,28 @@ export function isStaffUnlocked(staffTypeId: string, themeId?: ThemeId): boolean
 
   // Upgrade-based unlock: 'upgrade:xxx'
   if (unlock.startsWith('upgrade:')) {
-    return theme.upgrades.includes(unlock.split(':')[1])
+    return branch.upgrades.includes(unlock.split(':')[1])
   }
 
   return false
 }
 
-export function hireStaff(staffTypeId: string, themeId?: ThemeId): StaffEntry | null {
+export function hireStaff(staffTypeId: string, branchId?: BranchId): StaffEntry | null {
   const state = gameState.get()
-  const id = themeId || state.activeTheme
-  const theme = state.themes[id]
+  const id = branchId || state.activeBranch
+  const branch = state.branches[id]
   const def = STAFF_TYPES.find(s => s.id === staffTypeId)
   if (!def) return null
+  if (!branch) return null
 
   if (!isStaffUnlocked(staffTypeId, id)) return null
-  if (theme.currency < def.hireCost) return null
+  if (branch.currency < def.hireCost) return null
 
   const baseStaffCap = 5
   const maxStaff = baseStaffCap + getExtraStaffSlots()
-  if (Object.keys(theme.staff).length >= maxStaff) return null
+  if (Object.keys(branch.staff).length >= maxStaff) return null
 
-  theme.currency -= def.hireCost
+  branch.currency -= def.hireCost
 
   const entry: StaffEntry = {
     id: generateId(),
@@ -124,16 +126,17 @@ export function hireStaff(staffTypeId: string, themeId?: ThemeId): StaffEntry | 
     prestigeSurvivedCount: 0,
   }
 
-  theme.staff[entry.id] = entry
-  eventBus.emit('staff:hired', { staff: entry, theme: id })
+  branch.staff[entry.id] = entry
+  eventBus.emit('staff:hired', { staff: entry, branch: id })
   return entry
 }
 
-export function assignStaff(staffId: string, buildingId: string | null, themeId?: ThemeId): boolean {
+export function assignStaff(staffId: string, buildingId: string | null, branchId?: BranchId): boolean {
   const state = gameState.get()
-  const id = themeId || state.activeTheme
-  const theme = state.themes[id]
-  const staff = theme.staff[staffId]
+  const id = branchId || state.activeBranch
+  const branch = state.branches[id]
+  if (!branch) return false
+  const staff = branch.staff[staffId]
   if (!staff) return false
 
   staff.assignedTo = buildingId
@@ -142,11 +145,12 @@ export function assignStaff(staffId: string, buildingId: string | null, themeId?
   return true
 }
 
-export function confirmLevelUp(staffId: string, themeId?: ThemeId): boolean {
+export function confirmLevelUp(staffId: string, branchId?: BranchId): boolean {
   const state = gameState.get()
-  const id = themeId || state.activeTheme
-  const theme = state.themes[id]
-  const staff = theme.staff[staffId]
+  const id = branchId || state.activeBranch
+  const branch = state.branches[id]
+  if (!branch) return false
+  const staff = branch.staff[staffId]
   if (!staff || !staff.pendingLevelUp) return false
 
   const def = STAFF_TYPES.find(s => s.id === staff.typeId)
@@ -156,9 +160,9 @@ export function confirmLevelUp(staffId: string, themeId?: ThemeId): boolean {
   const baseCost = getStaffLevelUpCost(staff.typeId, staff.level + 1)
   const traitCostMult = getTraitMultiplier(staff.traits, 'costMult')
   const cost = Math.ceil(baseCost * traitCostMult)
-  if (theme.currency < cost) return false
+  if (branch.currency < cost) return false
 
-  theme.currency -= cost
+  branch.currency -= cost
   staff.level++
   staff.xp = 0
   staff.pendingLevelUp = false
@@ -167,28 +171,29 @@ export function confirmLevelUp(staffId: string, themeId?: ThemeId): boolean {
   return true
 }
 
-export function tickStaffXp(themeId?: ThemeId): void {
+export function tickStaffXp(branchId?: BranchId): void {
   const state = gameState.get()
 
-  // Tick XP for all unlocked themes, not just active
-  const themesToTick = themeId ? [themeId] : state.worldMap.unlockedNodes
+  // Tick XP for all unlocked BRANCHES, not just active
+  const branchesToTick = branchId ? [branchId] : state.worldMap.unlockedBranches
   
-  themesToTick.forEach(tid => {
-    const theme = state.themes[tid]
-    if (!theme) return
+  branchesToTick.forEach(tid => {
+    const branch = state.branches[tid]
+    if (!branch) return
 
-    Object.values(theme.staff).forEach(staff => {
+    Object.values(branch.staff).forEach(staff => {
       if (!staff.assignedTo) return
 
       const def = STAFF_TYPES.find(s => s.id === staff.typeId)
       if (!def) return
       if (staff.level >= def.maxLevel) return
 
-      // Active theme gets full XP, inactive themes get 50%
-      const xpRate = tid === state.activeTheme ? 1.0 : 0.5
+      // Active branch gets full XP, inactive BRANCHES get 50%
+      const xpRate = tid === state.activeBranch ? 1.0 : 0.5
       const traitXpMult = getTraitMultiplier(staff.traits, 'xpMult')
       const skillXpMult = getTotalStaffXpMult()
-      const xpGain = 0.5 * (1 + staff.level * 0.05) * (1 + staff.stats.speed * 0.01) * xpRate * traitXpMult * skillXpMult
+      const upgradeXpMult = isUpgradePurchased('trainingGrounds') ? 1.2 : 1.0
+      const xpGain = 0.5 * (1 + staff.level * 0.05) * (1 + staff.stats.speed * 0.01) * xpRate * traitXpMult * skillXpMult * upgradeXpMult
       staff.xp += xpGain
 
       const threshold = getStaffXpToNext(staff.level)

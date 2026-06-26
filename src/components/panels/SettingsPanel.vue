@@ -1,7 +1,10 @@
 <script setup lang="ts">
 import { ref, onMounted, watch } from 'vue'
-import { gameState } from '../engine/game-state'
-import type { GameSettings } from '../types'
+import { gameState } from '@/engine/game-state'
+import { useToast } from '@/composables/useToast'
+import type { GameSettings } from '@/types'
+
+const toast = useToast()
 
 const props = defineProps<{ visible: boolean }>()
 const emit = defineEmits(['close'])
@@ -23,7 +26,9 @@ function apply() {
   const state = gameState.get()
   state.settings = { ...settings.value }
   applySettingsToDOM()
-  gameState.save()
+  if (!gameState.save()) {
+    toast.error('Failed to save settings — storage may be full')
+  }
 }
 
 function applySettingsToDOM() {

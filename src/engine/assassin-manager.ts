@@ -1,9 +1,10 @@
-import type { ThemeId, AssassinEntry, CharacterStats } from '../types'
-import { ASSASSIN_TYPES } from '../data/assassins'
-import { getTraitMultiplier } from '../data/traits'
+﻿import type { BranchId, AssassinEntry, CharacterStats } from '@/types'
+import { ASSASSIN_TYPES } from '@/data/assassins'
+import { getTraitMultiplier } from '@/data/traits'
 import { gameState } from './game-state'
 import { eventBus } from './event-bus'
-import { STAFF_TYPES } from '../data/staff'
+import { STAFF_TYPES } from '@/data/staff'
+import { isUpgradePurchased } from './upgrade-manager'
 
 function generateId(): string {
   return 'assassin_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6)
@@ -40,33 +41,33 @@ function rollAssassinTraits(): string[] {
   return traits
 }
 
-export function isAssassinUnlocked(assassinTypeId: string, themeId?: ThemeId): boolean {
+export function isAssassinUnlocked(assassinTypeId: string, branchId?: BranchId): boolean {
   const state = gameState.get()
-  const id = themeId || state.activeTheme
-  const theme = state.themes[id]
-  if (!theme) return false
+  const id = branchId || state.activeBranch
+  const branch = state.branches[id]
+  if (!branch) return false
   const def = ASSASSIN_TYPES.find(a => a.id === assassinTypeId)
   if (!def) return false
 
-  if (def.themeLock && def.themeLock !== id) return false
+  if (def.branchLock && def.branchLock !== id) return false
   return state.totalPrestige >= 3
 }
 
-export function hireAssassin(assassinTypeId: string, themeId?: ThemeId): AssassinEntry | null {
+export function hireAssassin(assassinTypeId: string, branchId?: BranchId): AssassinEntry | null {
   const state = gameState.get()
-  const id = themeId || state.activeTheme
-  const theme = state.themes[id]
+  const id = branchId || state.activeBranch
+  const branch = state.branches[id]
   const def = ASSASSIN_TYPES.find(a => a.id === assassinTypeId)
   if (!def) return null
-  if (!theme) return null
+  if (!branch) return null
 
   if (!isAssassinUnlocked(assassinTypeId, id)) return null
-  if (theme.currency < def.hireCost) return null
+  if (branch.currency < def.hireCost) return null
 
-  const assassinCap = 3
-  if (Object.keys(theme.assassins).length >= assassinCap) return null
+  const assassinCap = isUpgradePurchased('armoryExpansion') ? 4 : 3
+  if (Object.keys(branch.assassins).length >= assassinCap) return null
 
-  theme.currency -= def.hireCost
+  branch.currency -= def.hireCost
 
   const entry: AssassinEntry = {
     id: generateId(),
@@ -75,7 +76,7 @@ export function hireAssassin(assassinTypeId: string, themeId?: ThemeId): Assassi
     xp: 0,
     pendingLevelUp: false,
     loyalty: 100,
-    assignedTheme: id,
+    assignedBranch: id,
     lentTo: null,
     lentUntil: 0,
     attackTarget: null,
@@ -85,53 +86,55 @@ export function hireAssassin(assassinTypeId: string, themeId?: ThemeId): Assassi
     awakened: false,
   }
 
-  theme.assassins[entry.id] = entry
-  eventBus.emit('assassin:hired', { assassin: entry, theme: id })
+  branch.assassins[entry.id] = entry
+  invalidateAssassinCache()
+  eventBus.emit('assassin:hired', { assassin: entry, branch: id })
   return entry
 }
 
-export function assignAssassin(assassinId: string, targetTheme: ThemeId | null, themeId?: ThemeId): boolean {
+export function assignAssassin(assassinId: string, targetBranch: BranchId | null, branchId?: BranchId): boolean {
   const state = gameState.get()
-  const id = themeId || state.activeTheme
-  const theme = state.themes[id]
-  if (!theme) return false
-  const assassin = theme.assassins[assassinId]
+  const id = branchId || state.activeBranch
+  const branch = state.branches[id]
+  if (!branch) return false
+  const assassin = branch.assassins[assassinId]
   if (!assassin) return false
 
-  assassin.assignedTheme = targetTheme
+  assassin.assignedBranch = targetBranch
   assassin.attackTarget = null
-  eventBus.emit('assassin:assign', { assassinId, targetTheme })
+  invalidateAssassinCache()
+  eventBus.emit('assassin:assign', { assassinId, targetBranch })
   return true
 }
 
-export function sendAssassinToAttack(assassinId: string, targetThemeId: ThemeId, themeId?: ThemeId): boolean {
+export function sendAssassinToAttack(assassinId: string, targetBranchId: BranchId, branchId?: BranchId): boolean {
   const state = gameState.get()
-  const id = themeId || state.activeTheme
-  const theme = state.themes[id]
-  if (!theme) return false
-  const assassin = theme.assassins[assassinId]
+  const id = branchId || state.activeBranch
+  const branch = state.branches[id]
+  if (!branch) return false
+  const assassin = branch.assassins[assassinId]
   if (!assassin) return false
   if (assassin.loyalty < 20) return false
 
-  const targetTheme = state.themes[targetThemeId]
-  if (!targetTheme) return false
-  if (targetTheme.aiOwnerDefeated) return false
-  if (targetTheme.hqHealth <= 0) return false
-  // Cannot attack themes that are already unlocked or conquered
-  if (state.worldMap.unlockedNodes.includes(targetThemeId)) return false
-  if (state.worldMap.conqueredNodes.includes(targetThemeId)) return false
+  const targetBranch = state.branches[targetBranchId]
+  if (!targetBranch) return false
+  if (targetBranch.aiOwnerDefeated) return false
+  if (targetBranch.hqHealth <= 0) return false
+  // Cannot attack BRANCHES that are already unlocked or conquered
+  if (state.worldMap.unlockedBranches.includes(targetBranchId)) return false
+  if (state.worldMap.conqueredBranches.includes(targetBranchId)) return false
 
-  assassin.attackTarget = targetThemeId
-  eventBus.emit('assassin:attack', { assassinId, targetThemeId })
+  assassin.attackTarget = targetBranchId
+  eventBus.emit('assassin:attack', { assassinId, targetBranchId })
   return true
 }
 
-export function cancelAssassinAttack(assassinId: string, themeId?: ThemeId): boolean {
+export function cancelAssassinAttack(assassinId: string, branchId?: BranchId): boolean {
   const state = gameState.get()
-  const id = themeId || state.activeTheme
-  const theme = state.themes[id]
-  if (!theme) return false
-  const assassin = theme.assassins[assassinId]
+  const id = branchId || state.activeBranch
+  const branch = state.branches[id]
+  if (!branch) return false
+  const assassin = branch.assassins[assassinId]
   if (!assassin) return false
 
   assassin.attackTarget = null
@@ -139,20 +142,35 @@ export function cancelAssassinAttack(assassinId: string, themeId?: ThemeId): boo
   return true
 }
 
-export function lendAssassin(assassinId: string, toTheme: ThemeId, durationSeconds: number, themeId?: ThemeId): boolean {
+export function lendAssassin(assassinId: string, toBranch: BranchId, durationSeconds: number, branchId?: BranchId): boolean {
   const state = gameState.get()
-  const id = themeId || state.activeTheme
-  const theme = state.themes[id]
-  if (!theme) return false
-  const assassin = theme.assassins[assassinId]
+  const id = branchId || state.activeBranch
+  const branch = state.branches[id]
+  if (!branch) return false
+  const assassin = branch.assassins[assassinId]
   if (!assassin) return false
   if (assassin.loyalty < 50) return false
-  if (toTheme === id) return false
+  if (toBranch === id) return false
 
-  assassin.lentTo = toTheme
+  assassin.lentTo = toBranch
   assassin.lentUntil = Date.now() + durationSeconds * 1000
   assassin.attackTarget = null
-  eventBus.emit('assassin:lent', { assassinId, toTheme })
+  eventBus.emit('assassin:lent', { assassinId, toBranch })
+  return true
+}
+
+export function recallAssassin(assassinId: string, branchId?: BranchId): boolean {
+  const state = gameState.get()
+  const id = branchId || state.activeBranch
+  const branch = state.branches[id]
+  if (!branch) return false
+  const assassin = branch.assassins[assassinId]
+  if (!assassin || !assassin.lentTo) return false
+
+  assassin.lentTo = null
+  assassin.lentUntil = 0
+  assassin.loyalty = Math.max(0, assassin.loyalty - 5)
+  eventBus.emit('assassin:recalled', { assassinId })
   return true
 }
 
@@ -160,12 +178,12 @@ export function getAssassinXpToNext(level: number): number {
   return Math.ceil(200 * Math.pow(1.4, level))
 }
 
-export function confirmAssassinLevelUp(assassinId: string, themeId?: ThemeId): boolean {
+export function confirmAssassinLevelUp(assassinId: string, branchId?: BranchId): boolean {
   const state = gameState.get()
-  const id = themeId || state.activeTheme
-  const theme = state.themes[id]
-  if (!theme) return false
-  const assassin = theme.assassins[assassinId]
+  const id = branchId || state.activeBranch
+  const branch = state.branches[id]
+  if (!branch) return false
+  const assassin = branch.assassins[assassinId]
   if (!assassin || !assassin.pendingLevelUp) return false
 
   const def = ASSASSIN_TYPES.find(a => a.id === assassin.typeId)
@@ -173,13 +191,13 @@ export function confirmAssassinLevelUp(assassinId: string, themeId?: ThemeId): b
   if (assassin.level >= def.maxLevel) return false
 
   const cost = Math.ceil(def.hireCost * 0.15 * Math.pow(1.4, assassin.level))
-  if (theme.currency < cost) return false
+  if (branch.currency < cost) return false
 
-  theme.currency -= cost
+  branch.currency -= cost
   assassin.level++
   assassin.xp = 0
   assassin.pendingLevelUp = false
-  eventBus.emit('assassin:levelup', { assassinId, level: assassin.level, themeId: id })
+  eventBus.emit('assassin:levelup', { assassinId, level: assassin.level, branchId: id })
   return true
 }
 
@@ -192,39 +210,78 @@ export function getAssassinLevelUpCost(assassinTypeId: string, newLevel: number)
 export function getAssassinCombatDamage(assassin: AssassinEntry): number {
   const baseDamage = 5 + assassin.level * 3
   const statBonus = assassin.stats.precision * 0.5 + assassin.stats.speed * 0.3
-  const traitMult = getTraitMultiplier(assassin.traits, 'incomeMult')
   const awakenedMult = assassin.awakened ? 2 : 1
-  return (baseDamage + statBonus) * traitMult * awakenedMult
+  const synergyMult = 1 + assassin.synergyCount * 0.05
+  return (baseDamage + statBonus) * awakenedMult * synergyMult
 }
 
 export function getAssassinRaidPower(assassin: AssassinEntry): number {
   const base = assassin.level * 5 + assassin.stats.precision * 2 + assassin.stats.speed * 1
-  const traitMult = getTraitMultiplier(assassin.traits, 'incomeMult')
-  return assassin.awakened ? base * 2 * traitMult : base * traitMult
+  const synergyMult = 1 + assassin.synergyCount * 0.05
+  return (assassin.awakened ? base * 2 : base) * synergyMult
 }
 
 export function getAssassinXpMult(assassin: AssassinEntry): number {
   return getTraitMultiplier(assassin.traits, 'xpMult')
 }
 
+export function tickAssassinXp(): void {
+  const state = gameState.get()
+  state.worldMap.unlockedBranches.forEach(branchId => {
+    const branch = state.branches[branchId]
+    if (!branch) return
+
+    Object.values(branch.assassins).forEach(assassin => {
+      if (!assassin.assignedBranch) return
+      if (assassin.lentTo) return
+      if (assassin.attackTarget) return
+
+      const def = ASSASSIN_TYPES.find(a => a.id === assassin.typeId)
+      if (!def) return
+      if (assassin.level >= def.maxLevel) return
+
+      const xpRate = branchId === state.activeBranch ? 1.0 : 0.5
+      const traitXpMult = getTraitMultiplier(assassin.traits, 'xpMult')
+      const synergyBonus = 1 + assassin.synergyCount * 0.1
+      const xpGain = 0.3 * (1 + assassin.level * 0.05) * xpRate * traitXpMult * synergyBonus
+      assassin.xp += xpGain
+
+      const threshold = getAssassinXpToNext(assassin.level)
+      if (assassin.xp >= threshold && !assassin.pendingLevelUp) {
+        assassin.pendingLevelUp = true
+      }
+
+      if (assassin.xp > threshold * 2) {
+        assassin.xp = threshold * 2
+      }
+    })
+  })
+}
+
 export function tickAssassinLoyalty(): void {
   const state = gameState.get()
-  state.worldMap.unlockedNodes.forEach(themeId => {
-    const theme = state.themes[themeId]
-    if (!theme) return
-    Object.values(theme.assassins).forEach(assassin => {
+  state.worldMap.unlockedBranches.forEach(branchId => {
+    const branch = state.branches[branchId]
+    if (!branch) return
+    Object.values(branch.assassins).forEach(assassin => {
       if (assassin.lentTo && Date.now() > assassin.lentUntil) {
         assassin.lentTo = null
         assassin.lentUntil = 0
         assassin.loyalty = Math.max(0, assassin.loyalty - 5)
       }
-      if (assassin.assignedTheme && assassin.assignedTheme !== themeId) {
+      if (assassin.assignedBranch && assassin.assignedBranch !== branchId) {
         assassin.loyalty = Math.max(0, assassin.loyalty - 0.1)
+      } else if (!assassin.lentTo && !assassin.attackTarget && assassin.loyalty < 100) {
+        assassin.loyalty = Math.min(100, assassin.loyalty + 0.05)
       }
       // Auto-level: check XP threshold
       const def = ASSASSIN_TYPES.find(a => a.id === assassin.typeId)
       if (def && assassin.level < def.maxLevel && !assassin.pendingLevelUp) {
         const threshold = getAssassinXpToNext(assassin.level)
+        // Cap unconfirmed XP at 200%
+        if (assassin.xp > threshold * 2) {
+          assassin.xp = threshold * 2
+        }
         if (assassin.xp >= threshold) {
           assassin.pendingLevelUp = true
         }
@@ -232,48 +289,68 @@ export function tickAssassinLoyalty(): void {
       // Awaken at max loyalty after surviving 3+ lends
       if (!assassin.awakened && assassin.loyalty >= 100 && assassin.synergyCount >= 3) {
         assassin.awakened = true
-        eventBus.emit('assassin:awakened', { assassinId: assassin.id, themeId })
+        eventBus.emit('assassin:awakened', { assassinId: assassin.id, branchId })
       }
     })
     // Count synergy: assassin + staff assigned to same building
-    const activeStaff = Object.values(theme.staff).filter(s => s.assignedTo !== null)
-    Object.values(theme.assassins).forEach(assassin => {
-      if (assassin.assignedTheme !== themeId) return
-      const synergyBuildings = new Set(
-        activeStaff.filter(s => STAFF_TYPES.find(d => d.id === s.typeId)?.bestMatch.some(b => s.assignedTo === b)).map(s => s.assignedTo!)
-      )
+    const activeStaff = Object.values(branch.staff).filter(s => s.assignedTo !== null)
+    const synergyBuildings = new Set(
+      activeStaff
+        .filter(s => STAFF_TYPES.find(d => d.id === s.typeId)?.bestMatch.some(b => s.assignedTo === b))
+        .map(s => s.assignedTo!)
+    )
+    Object.values(branch.assassins).forEach(assassin => {
+      if (assassin.assignedBranch !== branchId) return
       assassin.synergyCount = synergyBuildings.size
     })
   })
 }
 
-export function hasAssassinType(themeId: ThemeId, assassinTypeId: string): boolean {
+// Per-tick cache: branchId -> Set of assassin typeIds assigned to that branch
+let assassinTypeCache: Map<BranchId, Set<string>> | null = null
+
+function buildAssassinTypeCache(): void {
   const state = gameState.get()
-  return state.worldMap.unlockedNodes.some(tid => {
-    const theme = state.themes[tid]
-    if (!theme) return false
-    return Object.values(theme.assassins).some(a =>
-      a.typeId === assassinTypeId && a.assignedTheme === themeId
-    )
+  const cache = new Map<BranchId, Set<string>>()
+  state.worldMap.unlockedBranches.forEach(sourceId => {
+    const branch = state.branches[sourceId]
+    if (!branch) return
+    Object.values(branch.assassins).forEach(a => {
+      if (a.assignedBranch) {
+        let set = cache.get(a.assignedBranch)
+        if (!set) { set = new Set(); cache.set(a.assignedBranch, set) }
+        set.add(a.typeId)
+      }
+    })
   })
+  assassinTypeCache = cache
 }
 
-export function hasHighTableEnforcer(themeId: ThemeId): boolean {
-  return hasAssassinType(themeId, 'highTableEnforcer')
+export function invalidateAssassinCache(): void {
+  assassinTypeCache = null
 }
 
-export function hasEnforcer(themeId: ThemeId): boolean {
-  return hasAssassinType(themeId, 'enforcer')
+export function hasAssassinType(branchId: BranchId, assassinTypeId: string): boolean {
+  if (!assassinTypeCache) buildAssassinTypeCache()
+  return assassinTypeCache!.get(branchId)?.has(assassinTypeId) ?? false
 }
 
-export function hasShadowBlade(themeId: ThemeId): boolean {
-  return hasAssassinType(themeId, 'shadowBlade')
+export function hasHighTableEnforcer(branchId: BranchId): boolean {
+  return hasAssassinType(branchId, 'highTableEnforcer')
 }
 
-export function hasRoyalGuard(themeId: ThemeId): boolean {
-  return hasAssassinType(themeId, 'royalGuard')
+export function hasEnforcer(branchId: BranchId): boolean {
+  return hasAssassinType(branchId, 'enforcer')
 }
 
-export function hasStreetSamurai(themeId: ThemeId): boolean {
-  return hasAssassinType(themeId, 'streetSamurai')
+export function hasShadowBlade(branchId: BranchId): boolean {
+  return hasAssassinType(branchId, 'shadowBlade')
+}
+
+export function hasRoyalGuard(branchId: BranchId): boolean {
+  return hasAssassinType(branchId, 'royalGuard')
+}
+
+export function hasStreetSamurai(branchId: BranchId): boolean {
+  return hasAssassinType(branchId, 'streetSamurai')
 }

@@ -1,11 +1,13 @@
-import { gameState } from './game-state'
-import { tick as incomeTick } from './income-engine'
+﻿import { gameState } from './game-state'
+import { tick as incomeTick, updateBuildingUnlocks } from './income-engine'
 import { eventEngine } from './event-engine'
 import { tickStaffXp } from './staff-manager'
 import { tickDebtCollection, tickDebtInterest } from './debt-manager'
-import { tickAssassinLoyalty } from './assassin-manager'
+import { tickAssassinLoyalty, tickAssassinXp } from './assassin-manager'
 import { tickTakeoverProgress } from './takeover-manager'
 import { hasVaultKeeperMaxed } from './abilities'
+import { getTotalIncomeMult } from './skill-manager'
+import { isUpgradePurchased } from './upgrade-manager'
 import { eventBus } from './event-bus'
 
 const AUTOSAVE_INTERVAL = 30 // seconds
@@ -26,9 +28,14 @@ class GameLoop {
 
       // Income tick (1s)
       incomeTick()
+      // Check building unlock conditions
+      updateBuildingUnlocks()
 
       // Staff XP tick (1s)
       tickStaffXp()
+
+      // Assassin XP tick (1s)
+      tickAssassinXp()
 
       // Event engine tick (checks every 3s internally)
       eventEngine.tick()
@@ -52,33 +59,34 @@ class GameLoop {
       // Safe House interest (every 60s)
       if (this.tickCount % 60 === 0) {
         const state = gameState.get()
-        state.worldMap.unlockedNodes.forEach(themeId => {
-          const theme = state.themes[themeId]
-          if (!theme) return
-          const safeHouse = theme.buildings['safeHouse']
+        state.worldMap.unlockedBranches.forEach(branchId => {
+          const branch = state.branches[branchId]
+          if (!branch) return
+          const safeHouse = branch.buildings['safeHouse']
           if (!safeHouse || safeHouse.level === 0) return
           const baseInterest = safeHouse.level * 100
-          const vaultKeeperMult = hasVaultKeeperMaxed(themeId) ? 2 : 1
-          const interest = baseInterest * vaultKeeperMult
-          theme.currency += interest
-          theme.lifetimeEarnings += interest
+          const vaultKeeperMult = hasVaultKeeperMaxed(branchId) ? 2 : 1
+          const goldStandardMult = isUpgradePurchased('goldStandard') ? 1.5 : 1
+          const interest = baseInterest * vaultKeeperMult * goldStandardMult * getTotalIncomeMult()
+          branch.currency += interest
+          branch.lifetimeEarnings += interest
         })
       }
 
       // Heat passive decay (every 120 ticks = 2 min, ~0.5/min)
       if (this.tickCount % 120 === 0) {
         const state = gameState.get()
-        state.worldMap.unlockedNodes.forEach(themeId => {
-          const theme = state.themes[themeId]
-          if (theme && theme.heatLevel > 0) {
-            theme.heatLevel = Math.max(0, theme.heatLevel - 1)
+        state.worldMap.unlockedBranches.forEach(branchId => {
+          const branch = state.branches[branchId]
+          if (branch && branch.heatLevel > 0) {
+            branch.heatLevel = Math.max(0, branch.heatLevel - 1)
           }
           // Satisfaction decays toward 50 if above, grows toward 50 if below
-          if (theme) {
-            if (theme.guestSatisfaction > 50) {
-              theme.guestSatisfaction = Math.max(50, theme.guestSatisfaction - 1)
-            } else if (theme.guestSatisfaction < 50) {
-              theme.guestSatisfaction = Math.min(50, theme.guestSatisfaction + 1)
+          if (branch) {
+            if (branch.guestSatisfaction > 50) {
+              branch.guestSatisfaction = Math.max(50, branch.guestSatisfaction - 1)
+            } else if (branch.guestSatisfaction < 50) {
+              branch.guestSatisfaction = Math.min(50, branch.guestSatisfaction + 1)
             }
           }
         })
@@ -86,8 +94,11 @@ class GameLoop {
 
       // Autosave (every 30s)
       if (this.tickCount % AUTOSAVE_INTERVAL === 0) {
-        gameState.save()
-        eventBus.emit('save:complete')
+        if (gameState.save()) {
+          eventBus.emit('save:complete')
+        } else {
+          eventBus.emit('save:failed')
+        }
       }
     }, 1000)
   }

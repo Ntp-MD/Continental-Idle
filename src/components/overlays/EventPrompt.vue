@@ -1,19 +1,23 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
-import { eventEngine } from '../engine/event-engine'
-import { eventBus } from '../engine/event-bus'
-import { shouldRevealEventOutcomes } from '../engine/abilities'
-import { gameState } from '../engine/game-state'
-import { DEFENDER_LOYALTY_THRESHOLD } from '../engine/event-engine'
-import type { RaidData } from '../types'
+import { eventEngine } from '@/engine/event-engine'
+import { eventBus } from '@/engine/event-bus'
+import { gameState } from '@/engine/game-state'
+import { DEFENDER_LOYALTY_THRESHOLD } from '@/engine/event-engine'
+import { shouldRevealEventOutcomes } from '@/engine/abilities'
+import { useToast } from '@/composables/useToast'
+import type { RaidData } from '@/types'
+
+const toast = useToast()
 
 const visible = ref(false)
 const eventName = ref('')
 const eventDesc = ref('')
-const choices = ref<Array<{ id: string; label: string; details: string; disabled: boolean }>>([])
+const choices = ref<Array<{ id: string; label: string; details: string; disabled: boolean; isBest?: boolean; isSafe?: boolean }>>([])
 const timer = ref(60)
 const maxTimer = ref(60)
 const raidData = ref<RaidData | null>(null)
+const revealOutcomes = ref(false)
 
 let timerInterval: number | null = null
 
@@ -26,18 +30,25 @@ function update() {
     maxTimer.value = active.definition.autoResolveTimeout
     raidData.value = eventEngine.getRaidData()
 
-    const reveal = shouldRevealEventOutcomes(gameState.getActiveThemeId())
-    const theme = gameState.get().themes[active.theme]
-    const allAssigned = theme
-      ? Object.values(theme.assassins).filter(a => a.assignedTheme === active.theme && !a.lentTo && a.attackTarget === null)
+    const branch = gameState.get().branches[active.branch]
+    const allAssigned = branch
+      ? Object.values(branch.assassins).filter(a => a.assignedBranch === active.branch && !a.lentTo && a.attackTarget === null)
       : []
     const eligibleDefenders = allAssigned.filter(a => a.loyalty >= DEFENDER_LOYALTY_THRESHOLD)
     const hasDefenders = eligibleDefenders.length > 0
     const disloyalCount = allAssigned.length - eligibleDefenders.length
 
+    revealOutcomes.value = shouldRevealEventOutcomes(active.branch)
+
     choices.value = active.definition.choices.map(c => {
       let details = ''
-      const disabled = !!(c.requires?.assassinAssigned && !hasDefenders)
+      const staffTypeMet = !c.requires?.staffType || (branch
+        ? Object.values(branch.staff).some(s =>
+            s.typeId === c.requires!.staffType &&
+            s.assignedTo !== null &&
+            (!c.requires!.minLevel || s.level >= c.requires!.minLevel))
+        : false)
+      const disabled = !!(c.requires?.assassinAssigned && !hasDefenders) || !staffTypeMet
 
       if (c.id === 'fight' && raidData.value) {
         const r = raidData.value
@@ -52,14 +63,14 @@ function update() {
         } else {
           details = 'No assassins available to defend'
         }
-      } else if (reveal) {
+      } else {
         const parts: string[] = []
         if (c.reputationChange !== 0) parts.push(`Rep ${c.reputationChange > 0 ? '+' : ''}${c.reputationChange}`)
         c.rewards.forEach(r => parts.push(`+${r.type}:${r.value}`))
         c.penalties.forEach(p => parts.push(`-${p.type}:${p.value}`))
         details = parts.join(', ')
       }
-      return { id: c.id, label: c.label, details, disabled }
+      return { id: c.id, label: c.label, details, disabled, isBest: c.isBest, isSafe: c.isSafe }
     })
     const elapsed = (Date.now() - active.triggeredAt) / 1000
     timer.value = Math.max(0, Math.ceil(active.definition.autoResolveTimeout - elapsed))
@@ -87,6 +98,8 @@ function resolve(choiceId: string) {
   const result = eventEngine.resolveEvent(choiceId)
   if (result !== false) {
     visible.value = false
+  } else {
+    toast.warning('Requirements not met for this choice')
   }
 }
 
@@ -141,10 +154,13 @@ onUnmounted(() => {
         v-for="c in choices"
         :key="c.id"
         :disabled="c.disabled"
+        :aria-disabled="c.disabled"
         :class="{ 'event-prompt__btn--disabled': c.disabled }"
         @click="!c.disabled && resolve(c.id)"
       >
         {{ c.label }}
+        <span v-if="revealOutcomes && c.isBest" class="event-prompt__badge event-prompt__badge--best">★ Best</span>
+        <span v-if="revealOutcomes && c.isSafe" class="event-prompt__badge event-prompt__badge--safe">🛡 Safe</span>
         <span v-if="c.details" class="event-prompt__details">{{ c.details }}</span>
       </button>
     </div>

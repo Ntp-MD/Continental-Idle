@@ -1,75 +1,74 @@
-import type { ThemeId } from '../types'
+﻿import type { BranchId } from '@/types'
 import { gameState } from './game-state'
 import { eventBus } from './event-bus'
-import { THEMES } from '../data/themes'
+import { BRANCHES } from '@/data/branches'
 import { getAssassinCombatDamage, getAssassinXpMult } from './assassin-manager'
 
 const HQ_HEALTH_BASE = 1000
 const HQ_HEALTH_PER_PRESTIGE = 500
 
-export function getHqMaxHealth(themeId: ThemeId): number {
-  const def = THEMES.find(t => t.id === themeId)
+export function getHqMaxHealth(branchId: BranchId): number {
+  const def = BRANCHES.find(t => t.id === branchId)
   if (!def) return HQ_HEALTH_BASE
   return HQ_HEALTH_BASE + def.unlockPrestige * HQ_HEALTH_PER_PRESTIGE
 }
 
-export function canInitiateTakeover(themeId: ThemeId): boolean {
+export function canInitiateTakeover(branchId: BranchId): boolean {
   const state = gameState.get()
-  if (themeId === state.hqCountry) return false
-  if (state.worldMap.conqueredNodes.includes(themeId)) return false
-  if (state.worldMap.unlockedNodes.includes(themeId)) return false
+  if (branchId === state.hqBranch) return false
+  if (state.worldMap.conqueredBranches.includes(branchId)) return false
+  if (state.worldMap.unlockedBranches.includes(branchId)) return false
 
-  const def = THEMES.find(t => t.id === themeId)
+  const def = BRANCHES.find(t => t.id === branchId)
   if (!def) return false
   return state.totalPrestige >= def.unlockPrestige
 }
 
-export function getTakeoverCost(themeId: ThemeId): number {
-  const def = THEMES.find(t => t.id === themeId)
+export function getTakeoverCost(branchId: BranchId): number {
+  const def = BRANCHES.find(t => t.id === branchId)
   if (!def) return Infinity
-  return Math.ceil(50_000_000 * Math.pow(1.5, def.unlockPrestige))
+  return Math.ceil(50_000_000 * Math.pow(1.15, def.unlockPrestige))
 }
 
-export function initiateTakeover(themeId: ThemeId): boolean {
+export function initiateTakeover(branchId: BranchId): boolean {
   const state = gameState.get()
-  const activeTheme = state.themes[state.activeTheme]
-  if (!activeTheme) return false
-  if (!canInitiateTakeover(themeId)) return false
+  const activeBranch = state.branches[state.activeBranch]
+  if (!activeBranch) return false
+  if (!canInitiateTakeover(branchId)) return false
 
-  const targetTheme = state.themes[themeId]
-  if (!targetTheme) return false
+  const targetBranch = state.branches[branchId]
+  if (!targetBranch) return false
 
   // Reject if a takeover is already in progress (HQ health already damaged)
-  if (targetTheme.hqHealth < targetTheme.hqMaxHealth && !targetTheme.aiOwnerDefeated) return false
+  if (targetBranch.hqHealth < targetBranch.hqMaxHealth && !targetBranch.aiOwnerDefeated) return false
 
-  const cost = getTakeoverCost(themeId)
-  if (activeTheme.currency < cost) return false
+  const cost = getTakeoverCost(branchId)
+  if (activeBranch.currency < cost) return false
 
-  activeTheme.currency -= cost
-  targetTheme.hqMaxHealth = getHqMaxHealth(themeId)
-  targetTheme.hqHealth = targetTheme.hqMaxHealth
-  targetTheme.aiOwnerDefeated = false
-  eventBus.emit('takeover:started', { themeId })
+  activeBranch.currency -= cost
+  targetBranch.hqMaxHealth = getHqMaxHealth(branchId)
+  targetBranch.hqHealth = targetBranch.hqMaxHealth
+  targetBranch.aiOwnerDefeated = false
+  eventBus.emit('takeover:started', { branchId })
   return true
 }
 
 export function tickTakeoverProgress(): void {
   const state = gameState.get()
 
-  THEMES.forEach(def => {
-    const targetTheme = state.themes[def.id]
-    if (!targetTheme) return
-    if (targetTheme.aiOwnerDefeated) return
-    if (targetTheme.hqHealth <= 0) return
+  BRANCHES.forEach(def => {
+    const targetBranch = state.branches[def.id]
+    if (!targetBranch) return
+    if (targetBranch.aiOwnerDefeated) return
+    if (targetBranch.hqHealth <= 0) return
 
     let totalDamage = 0
-    let attackerCount = 0
 
-    state.worldMap.unlockedNodes.forEach(sourceThemeId => {
-      const sourceTheme = state.themes[sourceThemeId]
-      if (!sourceTheme) return
+    state.worldMap.unlockedBranches.forEach(sourceBranchId => {
+      const sourceBranch = state.branches[sourceBranchId]
+      if (!sourceBranch) return
 
-      Object.values(sourceTheme.assassins).forEach(assassin => {
+      Object.values(sourceBranch.assassins).forEach(assassin => {
         if (assassin.attackTarget !== def.id) return
         if (assassin.loyalty < 10) return
 
@@ -77,7 +76,6 @@ export function tickTakeoverProgress(): void {
         const xpMult = getAssassinXpMult(assassin)
 
         totalDamage += damage
-        attackerCount++
 
         assassin.xp += damage * 0.5 * xpMult
         assassin.loyalty = Math.max(0, assassin.loyalty - 0.2)
@@ -85,24 +83,22 @@ export function tickTakeoverProgress(): void {
     })
 
     if (totalDamage > 0) {
-      targetTheme.hqHealth = Math.max(0, targetTheme.hqHealth - totalDamage)
-      targetTheme.takeoverProgress = (1 - targetTheme.hqHealth / targetTheme.hqMaxHealth) * 100
+      targetBranch.hqHealth = Math.max(0, targetBranch.hqHealth - totalDamage)
 
-      if (targetTheme.hqHealth <= 0) {
-        targetTheme.aiOwnerDefeated = true
-        if (!state.worldMap.conqueredNodes.includes(def.id)) {
-          state.worldMap.conqueredNodes.push(def.id)
+      if (targetBranch.hqHealth <= 0) {
+        targetBranch.aiOwnerDefeated = true
+        if (!state.worldMap.conqueredBranches.includes(def.id)) {
+          state.worldMap.conqueredBranches.push(def.id)
         }
-        if (!state.worldMap.unlockedNodes.includes(def.id)) {
-          state.worldMap.unlockedNodes.push(def.id)
+        if (!state.worldMap.unlockedBranches.includes(def.id)) {
+          state.worldMap.unlockedBranches.push(def.id)
         }
-        targetTheme.takeoverProgress = 0
-        targetTheme.excommunicadoGraceUntil = Date.now() + 30 * 60 * 1000
+        targetBranch.excommunicadoGraceUntil = Date.now() + 30 * 60 * 1000
 
-        state.worldMap.unlockedNodes.forEach(sourceThemeId => {
-          const sourceTheme = state.themes[sourceThemeId]
-          if (!sourceTheme) return
-          Object.values(sourceTheme.assassins).forEach(a => {
+        state.worldMap.unlockedBranches.forEach(sourceBranchId => {
+          const sourceBranch = state.branches[sourceBranchId]
+          if (!sourceBranch) return
+          Object.values(sourceBranch.assassins).forEach(a => {
             if (a.attackTarget === def.id) {
               a.attackTarget = null
               a.loyalty = Math.min(100, a.loyalty + 10)
@@ -110,36 +106,36 @@ export function tickTakeoverProgress(): void {
           })
         })
 
-        eventBus.emit('takeover:complete', { themeId: def.id })
-        eventBus.emit('theme:unlock', { themeId: def.id })
+        eventBus.emit('takeover:complete', { branchId: def.id })
+        eventBus.emit('branch:unlock', { branchId: def.id })
       }
     }
   })
 }
 
-export function getTakeoverProgress(themeId: ThemeId): number {
+export function getTakeoverProgress(branchId: BranchId): number {
   const state = gameState.get()
-  const theme = state.themes[themeId]
-  if (!theme) return 0
-  if (theme.hqHealth <= 0) return 100
-  if (theme.hqMaxHealth <= 0) return 0
-  return (1 - theme.hqHealth / theme.hqMaxHealth) * 100
+  const branch = state.branches[branchId]
+  if (!branch) return 0
+  if (branch.hqHealth <= 0) return 100
+  if (branch.hqMaxHealth <= 0) return 0
+  return (1 - branch.hqHealth / branch.hqMaxHealth) * 100
 }
 
-export function getHqHealthPercent(themeId: ThemeId): number {
+export function getHqHealthPercent(branchId: BranchId): number {
   const state = gameState.get()
-  const theme = state.themes[themeId]
-  if (!theme || theme.hqMaxHealth <= 0) return 0
-  return (theme.hqHealth / theme.hqMaxHealth) * 100
+  const branch = state.branches[branchId]
+  if (!branch || branch.hqMaxHealth <= 0) return 0
+  return (branch.hqHealth / branch.hqMaxHealth) * 100
 }
 
-export function getAttackersOnTarget(themeId: ThemeId): number {
+export function getAttackersOnTarget(branchId: BranchId): number {
   const state = gameState.get()
   let count = 0
-  state.worldMap.unlockedNodes.forEach(sourceId => {
-    const theme = state.themes[sourceId]
-    if (!theme) return
-    count += Object.values(theme.assassins).filter(a => a.attackTarget === themeId).length
+  state.worldMap.unlockedBranches.forEach(sourceId => {
+    const branch = state.branches[sourceId]
+    if (!branch) return
+    count += Object.values(branch.assassins).filter(a => a.attackTarget === branchId).length
   })
   return count
 }

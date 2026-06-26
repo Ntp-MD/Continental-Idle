@@ -1,14 +1,14 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
 import * as d3 from 'd3'
 import * as topojson from 'topojson-client'
-import { gameState } from '../engine/game-state'
-import { THEMES, getThemeDef } from '../data/themes'
-import { eventBus } from '../engine/event-bus'
-import { getThemeIncomePerSecond } from '../engine/income-engine'
-import { canInitiateTakeover, initiateTakeover, getTakeoverCost, getTakeoverProgress, getHqHealthPercent, getAttackersOnTarget } from '../engine/takeover-manager'
-import { formatIncome, formatNumber } from '../engine/format'
-import type { ThemeId } from '../types'
+import { gameState } from '@/engine/game-state'
+import { BRANCHES, getBranchDef } from '@/data/branches'
+import { eventBus } from '@/engine/event-bus'
+import { getBranchIncomePerSecond } from '@/engine/income-engine'
+import { canInitiateTakeover, initiateTakeover, getTakeoverCost, getTakeoverProgress, getHqHealthPercent, getAttackersOnTarget } from '@/engine/takeover-manager'
+import { formatIncome, formatNumber } from '@/engine/format'
+import type { BranchId } from '@/types'
 
 const svgRef = ref<SVGSVGElement | null>(null)
 const tooltipVisible = ref(false)
@@ -23,14 +23,14 @@ const tooltipTakeover = ref('')
 let zoomBehavior: d3.ZoomBehavior<SVGSVGElement, unknown> | null = null
 let svgSel: d3.Selection<SVGSVGElement, unknown, null, undefined> | null = null
 let gSel: d3.Selection<SVGGraphicsElement, unknown, null, undefined> | null = null
-let cachedWorld: any = null
+let cachedWorld: { features: Array<{ type: string; geometry: unknown }> } | null = null
 
-function getNodeState(themeId: ThemeId): string {
+function getNodeState(branchId: BranchId): string {
   const state = gameState.get()
-  if (themeId === state.hqCountry) return 'hq'
-  if (state.worldMap.conqueredNodes.includes(themeId)) return 'conquered'
-  if (state.worldMap.royalNodes.includes(themeId)) return 'royal'
-  if (state.worldMap.unlockedNodes.includes(themeId)) return 'active'
+  if (branchId === state.hqBranch) return 'hq'
+  if (state.worldMap.conqueredBranches.includes(branchId)) return 'conquered'
+  if (state.worldMap.royalBranches.includes(branchId)) return 'royal'
+  if (state.worldMap.unlockedBranches.includes(branchId)) return 'active'
   return 'locked'
 }
 
@@ -74,18 +74,19 @@ function drawMap() {
       .enter()
       .append('path')
       .attr('class', 'land')
-      .attr('d', path as any)
+      .attr('d', path as unknown as (d: unknown) => string)
     drawNodes(projection)
   } else {
     d3.json('https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json')
-      .then((data: any) => {
-        cachedWorld = topojson.feature(data, data.objects.countries) as any
+      .then((data: unknown) => {
+        const topo = data as { objects: { countries: { type: string; geometries: unknown[] } } }
+        cachedWorld = topojson.feature(topo as never, topo.objects.countries as never) as unknown as { features: Array<{ type: string; geometry: unknown }> }
         gSel!.selectAll('path.land')
           .data(cachedWorld.features)
           .enter()
           .append('path')
           .attr('class', 'land')
-          .attr('d', path as any)
+          .attr('d', path as unknown as (d: unknown) => string)
         drawNodes(projection)
       })
       .catch(() => {
@@ -94,11 +95,25 @@ function drawMap() {
   }
 }
 
+interface NodeData {
+  id: BranchId
+  name: string
+  lat: number
+  lon: number
+  accentColor: string
+  unlockPrestige: number
+  nodeState: string
+  income: number
+  takeoverProgress: number
+  hqHealthPercent: number
+  attackerCount: number
+}
+
 function drawNodes(projection: d3.GeoProjection) {
   if (!gSel) return
   const state = gameState.get()
 
-  const nodes = THEMES.map(t => ({
+  const nodes: NodeData[] = BRANCHES.map(t => ({
     id: t.id,
     name: t.name,
     lat: t.lat,
@@ -106,7 +121,7 @@ function drawNodes(projection: d3.GeoProjection) {
     accentColor: t.accentColor,
     unlockPrestige: t.unlockPrestige,
     nodeState: getNodeState(t.id),
-    income: getThemeIncomePerSecond(t.id),
+    income: getBranchIncomePerSecond(t.id),
     takeoverProgress: getTakeoverProgress(t.id),
     hqHealthPercent: getHqHealthPercent(t.id),
     attackerCount: getAttackersOnTarget(t.id),
@@ -115,7 +130,11 @@ function drawNodes(projection: d3.GeoProjection) {
   const activeNodes = nodes.filter(d => d.nodeState === 'hq' || d.nodeState === 'active')
 
   // Connection lines between active nodes
-  const connectionPairs: any[] = []
+  interface ConnectionPair {
+    x1: number; y1: number; x2: number; y2: number;
+    from: string; to: string;
+  }
+  const connectionPairs: ConnectionPair[] = []
   for (let i = 0; i < activeNodes.length; i++) {
     for (let j = i + 1; j < activeNodes.length; j++) {
       const c1 = projection([activeNodes[i].lon, activeNodes[i].lat])
@@ -134,7 +153,7 @@ function drawNodes(projection: d3.GeoProjection) {
     .enter()
     .insert('line', '.node-group')
     .attr('class', d => {
-      const hasHQ = d.from === getThemeDef(state.hqCountry).name || d.to === getThemeDef(state.hqCountry).name
+      const hasHQ = d.from === getBranchDef(state.hqBranch).name || d.to === getBranchDef(state.hqBranch).name
       return 'connection-line' + (hasHQ ? ' active-route' : '')
     })
     .attr('x1', d => d.x1)
@@ -153,6 +172,9 @@ function drawNodes(projection: d3.GeoProjection) {
       return coords ? `translate(${coords[0]},${coords[1]})` : ''
     })
     .style('cursor', d => d.nodeState === 'locked' ? 'not-allowed' : 'pointer')
+    .attr('tabindex', d => d.nodeState === 'locked' ? -1 : 0)
+    .attr('role', 'button')
+    .attr('aria-label', d => `${d.name} — ${d.nodeState}`)
 
   // Pulse rings for HQ and active
   nodeGroups.filter(d => d.nodeState === 'hq' || d.nodeState === 'active')
@@ -178,7 +200,7 @@ function drawNodes(projection: d3.GeoProjection) {
       if (d.nodeState === 'royal') return '#1e88e5'
       return '#555'
     })
-    .style('stroke', d => d.id === state.activeTheme ? '#fff' : 'none')
+    .style('stroke', d => d.id === state.activeBranch ? '#fff' : 'none')
     .style('stroke-width', '2px')
 
   // Node icon
@@ -197,7 +219,7 @@ function drawNodes(projection: d3.GeoProjection) {
     .attr('dy', 16)
     .attr('text-anchor', 'middle')
     .style('font-size', '8px')
-    .style('fill', d => d.nodeState === 'locked' ? '#444' : '#888')
+    .style('fill', d => d.nodeState === 'locked' ? '#666' : '#aaa')
     .style('pointer-events', 'none')
     .text(d => d.name)
 
@@ -231,7 +253,7 @@ function drawNodes(projection: d3.GeoProjection) {
 
   // HQ Health bar for locked nodes with active takeover
   nodeGroups.filter(d => d.takeoverProgress > 0 && d.nodeState === 'locked')
-    .each(function(d: any) {
+    .each(function(this: SVGGElement, d: NodeData) {
       const g = d3.select(this)
       const barWidth = 24
       const barHeight = 3
@@ -269,7 +291,7 @@ function drawNodes(projection: d3.GeoProjection) {
 
   // Interactions
   nodeGroups
-    .on('mouseover', function (_, d: any) {
+    .on('mouseover', function(this: SVGGElement, _, d: NodeData) {
       tooltipVisible.value = true
       tooltipName.value = d.name
       tooltipState.value = d.nodeState.toUpperCase()
@@ -301,12 +323,27 @@ function drawNodes(projection: d3.GeoProjection) {
       tooltipVisible.value = false
       d3.select(this).select('.node-ring').classed('visible', false)
     })
-    .on('click', function (event, d: any) {
+    .on('click', function(this: SVGGElement, event: MouseEvent, d: NodeData) {
       event.stopPropagation()
       const gs = gameState.get()
-      if (gs.worldMap.unlockedNodes.includes(d.id)) {
-        gameState.setActiveTheme(d.id)
-        eventBus.emit('theme:switch', { themeId: d.id })
+      if (gs.worldMap.unlockedBranches.includes(d.id)) {
+        gameState.setActiveBranch(d.id)
+        eventBus.emit('branch:switch', { branchId: d.id })
+        eventBus.emit('income:update')
+        redrawNodes()
+      } else if (canInitiateTakeover(d.id) && getTakeoverProgress(d.id) === 0) {
+        initiateTakeover(d.id)
+        redrawNodes()
+      }
+    })
+    .on('keydown', function(this: SVGGElement, event: KeyboardEvent, d: NodeData) {
+      if (event.key !== 'Enter' && event.key !== ' ') return
+      event.preventDefault()
+      event.stopPropagation()
+      const gs = gameState.get()
+      if (gs.worldMap.unlockedBranches.includes(d.id)) {
+        gameState.setActiveBranch(d.id)
+        eventBus.emit('branch:switch', { branchId: d.id })
         eventBus.emit('income:update')
         redrawNodes()
       } else if (canInitiateTakeover(d.id) && getTakeoverProgress(d.id) === 0) {
@@ -342,7 +379,7 @@ function resetZoom() {
 
 function updateTakeoverProgress() {
   if (!gSel) return
-  gSel.selectAll('.node-group').each(function(d: any) {
+  gSel.selectAll<SVGGElement, NodeData>('.node-group').each(function(d: NodeData) {
     const progress = getTakeoverProgress(d.id)
     const hpPercent = getHqHealthPercent(d.id)
     const attackerCount = getAttackersOnTarget(d.id)
@@ -434,8 +471,8 @@ function update() {
 
 onMounted(() => {
   drawMap()
-  eventBus.on('theme:unlock', update)
-  eventBus.on('theme:royal', update)
+  eventBus.on('branch:unlock', update)
+  eventBus.on('branch:royal', update)
   eventBus.on('prestige:reset', update)
   eventBus.on('income:update', update)
   eventBus.on('income:tick', updateTakeoverProgress)
@@ -445,8 +482,8 @@ onMounted(() => {
 
 onUnmounted(() => {
   window.removeEventListener('resize', drawMap)
-  eventBus.off('theme:unlock', update)
-  eventBus.off('theme:royal', update)
+  eventBus.off('branch:unlock', update)
+  eventBus.off('branch:royal', update)
   eventBus.off('prestige:reset', update)
   eventBus.off('income:update', update)
   eventBus.off('income:tick', updateTakeoverProgress)
@@ -459,9 +496,9 @@ onUnmounted(() => {
     <svg ref="svgRef" class="world-map__svg"></svg>
 
     <div class="world-map__controls">
-      <button class="world-map__btn" @click="zoomIn">+</button>
-      <button class="world-map__btn" @click="zoomOut">-</button>
-      <button class="world-map__btn" @click="resetZoom">Reset</button>
+      <button class="world-map__btn" aria-label="Zoom in" @click="zoomIn">+</button>
+      <button class="world-map__btn" aria-label="Zoom out" @click="zoomOut">-</button>
+      <button class="world-map__btn" aria-label="Reset zoom" @click="resetZoom">Reset</button>
     </div>
 
     <div class="world-map__legend">

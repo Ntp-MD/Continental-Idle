@@ -1,5 +1,49 @@
-# Vue 3 + TypeScript + Vite
+# Continental Idle
 
-This template should help get you started developing with Vue 3 and TypeScript in Vite. The template uses Vue 3 `<script setup>` SFCs, check out the [script setup docs](https://v3.vuejs.org/api/sfc-script-setup.html#sfc-script-setup) to learn more.
+An idle/incremental game built with Vue 3 + TypeScript + Vite.
 
-Learn more about the recommended Project Setup and IDE Support in the [Vue Docs TypeScript Guide](https://vuejs.org/guide/typescript/overview.html#project-setup).
+## Features
+
+- 37 themes across 6 continents
+- Prestige system with favor multipliers
+- Staff & assassin management
+- Takeover mechanics
+- Event system with raids
+- Skill tree with 5 branches
+- Offline progress
+- In-game wiki
+
+## Project Structure
+
+```
+src/
+  components/
+    layout/     # GameHeader, BuildingList, WorldMap, BuffBar
+    panels/     # StaffPanel, PrestigePanel, SkillTreePanel, etc.
+    overlays/   # StartScreen, EventPrompt, TutorialOverlay, etc.
+  composables/  # useToast
+  data/         # Game data (themes, buildings, staff, events, etc.)
+    wiki/       # Wiki content definitions
+  engine/       # Game logic modules
+  styles/       # Global CSS (base, layout, components)
+  types/        # TypeScript type definitions
+tests/          # Test scripts (run with tsx)
+docs/           # Documentation
+```
+
+## Scripts
+
+```bash
+npm run dev        # Start dev server
+npm run build      # Type-check and build for production
+npm run preview    # Preview production build
+npm test           # Run gameplay tests
+npm run test:all   # Run full feature test suite
+```
+
+## Tech Stack
+
+- Vue 3 with `<script setup>` SFCs
+- TypeScript (strict mode)
+- Vite
+- D3.js + topojson-client (world map)

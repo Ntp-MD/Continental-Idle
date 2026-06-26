@@ -1,28 +1,31 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
-import StartScreen from './components/StartScreen.vue'
-import GameHeader from './components/GameHeader.vue'
-import WorldMap from './components/WorldMap.vue'
-import BuildingList from './components/BuildingList.vue'
-import EventPrompt from './components/EventPrompt.vue'
-import StaffPanel from './components/StaffPanel.vue'
-import PrestigePanel from './components/PrestigePanel.vue'
-import SkillTreePanel from './components/SkillTreePanel.vue'
-import SettingsPanel from './components/SettingsPanel.vue'
-import TutorialOverlay from './components/TutorialOverlay.vue'
-import ToastContainer from './components/ToastContainer.vue'
-import BuffBar from './components/BuffBar.vue'
-import OfflineProgress from './components/OfflineProgress.vue'
-import EventLogPanel from './components/EventLogPanel.vue'
-import { gameState } from './engine/game-state'
-import { gameLoop } from './engine/game-loop'
-import { tutorialManager } from './engine/tutorial-manager'
-import { eventEngine } from './engine/event-engine'
-import { eventBus } from './engine/event-bus'
-import { useToast } from './composables/useToast'
-import { formatNumber } from './engine/format'
-import { getThemeDef } from './data/themes'
-import type { ThemeId } from './types'
+import StartScreen from '@/components/overlays/StartScreen.vue'
+import GameHeader from '@/components/layout/GameHeader.vue'
+import WorldMap from '@/components/layout/WorldMap.vue'
+import BuildingList from '@/components/layout/BuildingList.vue'
+import EventPrompt from '@/components/overlays/EventPrompt.vue'
+import StaffPanel from '@/components/panels/StaffPanel.vue'
+import PrestigePanel from '@/components/panels/PrestigePanel.vue'
+import SkillTreePanel from '@/components/panels/SkillTreePanel.vue'
+import SettingsPanel from '@/components/panels/SettingsPanel.vue'
+import TutorialOverlay from '@/components/overlays/TutorialOverlay.vue'
+import ToastContainer from '@/components/overlays/ToastContainer.vue'
+import BuffBar from '@/components/layout/BuffBar.vue'
+import OfflineProgress from '@/components/overlays/OfflineProgress.vue'
+import EventLogPanel from '@/components/panels/EventLogPanel.vue'
+import Wiki from '@/components/panels/Wiki.vue'
+import AutoplayPanel from '@/components/overlays/AutoplayPanel.vue'
+import { autoplayBot } from '@/engine/autoplay'
+import { gameState } from '@/engine/game-state'
+import { gameLoop } from '@/engine/game-loop'
+import { tutorialManager } from '@/engine/tutorial-manager'
+import { eventEngine } from '@/engine/event-engine'
+import { eventBus } from '@/engine/event-bus'
+import { useToast } from '@/composables/useToast'
+import { formatNumber } from '@/engine/format'
+import { getBranchDef } from '@/data/branches'
+import type { BranchId } from '@/types'
 
 const toast = useToast()
 
@@ -34,6 +37,8 @@ const showSettings = ref(false)
 const showBuildings = ref(true)
 const showEventLog = ref(false)
 const showSaveMenu = ref(false)
+const showWiki = ref(false)
+const showAutoplay = ref(false)
 
 function onStart() {
   gameStarted.value = true
@@ -43,6 +48,17 @@ function onStart() {
   applySettings()
   eventEngine.initializeCooldowns()
   tutorialManager.start()
+}
+
+function onQuickStart() {
+  gameStarted.value = true
+  if (!gameLoop.isRunning()) {
+    gameLoop.start()
+  }
+  applySettings()
+  eventEngine.initializeCooldowns()
+  showAutoplay.value = true
+  autoplayBot.start()
 }
 
 function openStaff() {
@@ -63,6 +79,10 @@ function openSettings() {
   showSettings.value = true
 }
 
+function openWiki() {
+  showWiki.value = true
+}
+
 function applySettings() {
   const s = gameState.get().settings
   const root = document.documentElement
@@ -75,12 +95,20 @@ function applySettings() {
 }
 
 function doSave() {
-  gameState.save()
-  toast.success('Game saved')
+  if (gameState.save()) {
+    toast.success('Game saved')
+  } else {
+    toast.error('Save failed — storage quota exceeded')
+  }
 }
 
 function doExport() {
   const json = gameState.exportSave()
+  if (!json) {
+    toast.error('Export failed — save error')
+    showSaveMenu.value = false
+    return
+  }
   navigator.clipboard?.writeText(json).then(() => {
     toast.success('Save copied to clipboard')
   }).catch(() => {
@@ -119,11 +147,12 @@ function handleKeydown(e: KeyboardEvent) {
     if (showSettings.value) { showSettings.value = false; return }
     if (showEventLog.value) { showEventLog.value = false; return }
     if (showSaveMenu.value) { showSaveMenu.value = false; return }
+    if (showWiki.value) { showWiki.value = false; return }
   }
 }
 
 function handleRaidResult(e: Event) {
-  const detail = (e as CustomEvent).detail as { won: boolean; spoilsCurrency?: number; themeId: string }
+  const detail = (e as CustomEvent).detail as { won: boolean; spoilsCurrency?: number; branchId: string }
   if (detail.won) {
     toast.success(`Raid repelled! Spoils: ${formatNumber(detail.spoilsCurrency || 0)}`)
   } else {
@@ -132,28 +161,32 @@ function handleRaidResult(e: Event) {
 }
 
 function handleAssassinAwakened(e: Event) {
-  const detail = (e as CustomEvent).detail as { themeId: ThemeId }
-  toast.success(`Assassin awakened in ${getThemeDef(detail.themeId)?.name || detail.themeId}!`)
+  const detail = (e as CustomEvent).detail as { branchId: BranchId }
+  toast.success(`Assassin awakened in ${getBranchDef(detail.branchId)?.name || detail.branchId}!`)
 }
 
 function handleTakeoverStarted(e: Event) {
-  const detail = (e as CustomEvent).detail as { themeId: ThemeId }
-  toast.warning(`Takeover initiated: ${getThemeDef(detail.themeId)?.name || detail.themeId}`)
+  const detail = (e as CustomEvent).detail as { branchId: BranchId }
+  toast.warning(`Takeover initiated: ${getBranchDef(detail.branchId)?.name || detail.branchId}`)
 }
 
 function handleTakeoverComplete(e: Event) {
-  const detail = (e as CustomEvent).detail as { themeId: ThemeId }
-  toast.success(`Takeover complete: ${getThemeDef(detail.themeId)?.name || detail.themeId} conquered!`)
+  const detail = (e as CustomEvent).detail as { branchId: BranchId }
+  toast.success(`Takeover complete: ${getBranchDef(detail.branchId)?.name || detail.branchId} conquered!`)
 }
 
-function handleThemeUnlock(e: Event) {
-  const detail = (e as CustomEvent).detail as { themeId: ThemeId }
-  toast.success(`New theme unlocked: ${getThemeDef(detail.themeId)?.name || detail.themeId}`)
+function handleBranchUnlock(e: Event) {
+  const detail = (e as CustomEvent).detail as { branchId: BranchId }
+  toast.success(`New branch unlocked: ${getBranchDef(detail.branchId)?.name || detail.branchId}`)
 }
 
-function handleThemeRoyal(e: Event) {
-  const detail = (e as CustomEvent).detail as { themeId: ThemeId }
-  toast.success(`${getThemeDef(detail.themeId)?.name || detail.themeId} has achieved Royal status!`)
+function handleBranchRoyal(e: Event) {
+  const detail = (e as CustomEvent).detail as { branchId: BranchId }
+  toast.success(`${getBranchDef(detail.branchId)?.name || detail.branchId} has achieved Royal status!`)
+}
+
+function handleSaveFailed() {
+  toast.error('Autosave failed — storage may be full')
 }
 
 onMounted(() => {
@@ -162,8 +195,9 @@ onMounted(() => {
   eventBus.on('assassin:awakened', handleAssassinAwakened)
   eventBus.on('takeover:started', handleTakeoverStarted)
   eventBus.on('takeover:complete', handleTakeoverComplete)
-  eventBus.on('theme:unlock', handleThemeUnlock)
-  eventBus.on('theme:royal', handleThemeRoyal)
+  eventBus.on('branch:unlock', handleBranchUnlock)
+  eventBus.on('branch:royal', handleBranchRoyal)
+  eventBus.on('save:failed', handleSaveFailed)
 })
 
 onUnmounted(() => {
@@ -172,14 +206,15 @@ onUnmounted(() => {
   eventBus.off('assassin:awakened', handleAssassinAwakened)
   eventBus.off('takeover:started', handleTakeoverStarted)
   eventBus.off('takeover:complete', handleTakeoverComplete)
-  eventBus.off('theme:unlock', handleThemeUnlock)
-  eventBus.off('theme:royal', handleThemeRoyal)
+  eventBus.off('branch:unlock', handleBranchUnlock)
+  eventBus.off('branch:royal', handleBranchRoyal)
+  eventBus.off('save:failed', handleSaveFailed)
 })
 
 </script>
 
 <template>
-  <StartScreen v-if="!gameStarted" @start="onStart" />
+  <StartScreen v-if="!gameStarted" @start="onStart" @quick-start="onQuickStart" />
   <div v-else class="game-layout">
     <GameHeader />
     <BuffBar />
@@ -198,6 +233,8 @@ onUnmounted(() => {
           <button class="game-map-actions__btn" id="btn-prestige" @click="openPrestige">Prestige</button>
           <button class="game-map-actions__btn" @click="openSkills">Skills</button>
           <button class="game-map-actions__btn" @click="openSettings">Settings</button>
+          <button class="game-map-actions__btn" @click="openWiki">Wiki</button>
+          <button class="game-map-actions__btn" @click="showAutoplay = !showAutoplay">AI Play</button>
           <button class="game-map-actions__btn" @click="showEventLog = true">History</button>
           <div class="game-map-actions__save-wrap">
             <button class="game-map-actions__btn" @click="showSaveMenu = !showSaveMenu">Save ▾</button>
@@ -220,8 +257,10 @@ onUnmounted(() => {
     <SkillTreePanel :visible="showSkills" @close="showSkills = false" />
     <SettingsPanel :visible="showSettings" @close="showSettings = false" />
     <EventLogPanel :visible="showEventLog" @close="showEventLog = false" />
+    <Wiki v-if="showWiki" @close="showWiki = false" />
     <OfflineProgress />
     <TutorialOverlay />
     <ToastContainer />
+    <AutoplayPanel v-if="showAutoplay" />
   </div>
 </template>

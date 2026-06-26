@@ -6,14 +6,14 @@ const store: Record<string, string> = {}
   removeItem: (k: string) => { delete store[k] },
 }
 
-import { gameState } from './src/engine/game-state'
-import { purchaseBuilding, getThemeIncomePerSecond, getBuildingCost, getAffordableLevels, tick } from './src/engine/income-engine'
-import { hireStaff, assignStaff, tickStaffXp, confirmLevelUp, getStaffXpToNext } from './src/engine/staff-manager'
-import { eventEngine } from './src/engine/event-engine'
-import { getPrestigeFavor, doPrestige } from './src/engine/prestige-manager'
-import { formatNumber, formatIncome } from './src/engine/format'
-import { BUILDINGS } from './src/data/buildings'
-import type { EventDefinition } from './src/types'
+import { gameState } from '../src/engine/game-state'
+import { purchaseBuilding, getThemeIncomePerSecond, getBuildingCost, getAffordableLevels, tick } from '../src/engine/income-engine'
+import { hireStaff, assignStaff, tickStaffXp, confirmLevelUp, getStaffXpToNext } from '../src/engine/staff-manager'
+import { eventEngine } from '../src/engine/event-engine'
+import { getPrestigeFavor, doPrestige } from '../src/engine/prestige-manager'
+import { formatNumber, formatIncome } from '../src/engine/format'
+import { BUILDINGS } from '../src/data/buildings'
+import type { EventDefinition } from '../src/types'
 
 let p = 0, f = 0
 const ok = (c: boolean, m: string) => { c ? p++ : f++; console.log(`  ${c ? '✓' : '✗'} ${m}`) }

@@ -47,10 +47,6 @@ export function formatIncome(n: number): string {
   return formatNumber(n) + '/s'
 }
 
-export function formatCost(n: number): string {
-  return formatNumber(n)
-}
-
 export function formatTime(seconds: number): string {
   if (seconds < 60) return `${Math.floor(seconds)}s`
   if (seconds < 3600) return `${Math.floor(seconds / 60)}m ${Math.floor(seconds % 60)}s`

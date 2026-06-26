@@ -1,0 +1,90 @@
+# Continental Idle — Cascade Rules
+
+## Project Info
+- Vue 3 + TypeScript + Vite
+- Idle/incremental game with 37 themes, prestige system, takeover mechanics
+- Engine files in `src/engine/`, components in `src/components/`, data in `src/data/`, types in `src/types/`
+
+## Code Style
+- Use BEM naming with hyphens only (e.g. `building-card__name--active`)
+- Use single commands, do not chain with &&
+- Do not create HTML doctype files
+- Read all instruction files before starting work
+- Do not repeat yourself
+
+## Architecture Rules
+- Engine modules must not import Vue components (one-way dependency: components -> engine)
+- All game state mutations go through `gameState.get()` — never cache state references across ticks
+- Event bus (`eventBus`) is the only inter-module communication channel
+- Save/load logic lives exclusively in `game-state.ts`
+- New state fields must be added to `createDefaultState()` and `migrate()` in `game-state.ts`
+- Checksum in `computeChecksumFor()` must cover all economically relevant fields
+
+## Audit Discipline
+- Always think step-by-step before coding — outline approach first
+- Write production-quality code, not tutorial code
+- Anticipate edge cases and handle them explicitly
+- Prefer explicit over implicit — no magic, no clever one-liners that hurt readability
+- Add comments only where the "why" isn't obvious from the code itself
+- After writing code, review it yourself and fix any issues you spot
+- If you see a better architectural approach than what was asked, mention it briefly
+- Do not stop at the first issue — analyze all files, execution paths, async flows, and state transitions
+
+### Pre-Analysis Protocol (3 Passes)
+- **Pass 1 — Static Analysis:** Read every file cold. Trace imports, type annotations, function signatures, constants, CSS/HTML issues
+- **Pass 2 — Runtime Path Simulation:** Mentally execute the program. Trace async flows, state transitions, external input validation, error boundaries
+- **Pass 3 — Adversarial Review:** Assume hostile input (`null`, `""`, `NaN`, `Infinity`, `{}`, `[]`, 10MB strings), wrong async ordering, corrupted/missing localStorage, spam clicks, 24h uptime, tab close mid-save, injection attempts
+
+### Audit Categories (12)
+1. **Correctness & Logic:** Edge-case failures, off-by-one, operator precedence, state mutation side effects, unhandled exceptions, `==` vs `===`, missing `break`, shadowed variables
+2. **Security:** Injection (XSS, prototype pollution), access control, data leaks, unsafe deserialization (`eval()`, `Function()`, `JSON.parse()` without schema), missing validation
+3. **Concurrency & Async:** Race conditions, deadlocks, missing `await`, error-swallowing `.then()`, `Promise.all` vs `allSettled` misuse, stale closures, `setTimeout`/`setInterval` accumulation
+4. **Performance:** Memory leaks, blocking I/O, infinite loops, O(N²)+, unnecessary re-renders, polling without cleanup
+5. **UI/UX Coverage:** Feature vs Interface checklist table — verify every feature has UI, loading/error/empty states. Flag any engine logic with no user-facing interface
+6. **Game Balance & Economy:** Cost growth curves, income scaling, prestige multipliers, NaN/Infinity/negative values, soft/hard caps, exploit vectors (double-purchase, negative-cost), time simulation (1h/10h/100h)
+7. **Save/Load & Persistence:** Serialization completeness, deserialization safety, schema versioning/migration, corruption recovery, autosave timing, data loss scenarios, state desync after reload
+8. **Accessibility & Responsiveness:** Keyboard navigation, ARIA labels, color contrast (4.5:1 body, 3:1 large), mobile breakpoints (320px/375px/768px), touch targets (44×44px minimum)
+9. **Dead Code & Unused Systems:** Uncalled functions, unrendered components, unused CSS classes, orphaned event listeners, unused constants, commented-out code, orphaned type definitions
+10. **Type Safety:** `any` usage, unsafe `as` casts, missing return types, runtime shape mismatches, absent optional chaining, enum/union exhaustiveness
+11. **Dependency & Supply Chain:** Third-party deps audit — outdated/vulnerable versions, unused imports, replaceable with native APIs, unusual permissions
+12. **Architectural Debt:** Over-engineered systems, scalability limits (10× load), single structural refactor recommendation, missing systems (error boundary, input sanitization, retry logic)
+
+### Anti-Hallucination Contract
+- Every finding must cite exact file + line range + specific token/pattern that is wrong
+- If you cannot cite precisely, classify as "Requires Manual Verification" — never assert as confirmed
+- Do not invent line numbers or cite patterns you assume exist without seeing them
+- If a category is clean, state explicitly with evidence: *"No issues found in [Category]. Verified by tracing [specific path]."*
+
+### Per-Finding Schema
+Every finding must include: Severity (Critical/High/Medium/Low/Info), Location, Confidence (0–100%), Exploitability (Trivial/Moderate/Requires conditions), Blast Radius (Isolated/Feature-level/System-wide/Data loss/Security breach), Description, Root Cause, Proposed Fix (production-ready code), Verification Step
+
+### Completeness Requirement
+- NOT done until every category is addressed (findings or explicit clean verdict with evidence)
+- Feature vs UI Checklist table populated for every feature
+- Architectural Debt section written
+- Every finding has Confidence, Exploitability, and Blast Radius
+
+## Audit-Fix Loop
+- When asked to audit AND fix, run in a continuous loop: audit (3 passes) → report findings → implement fixes → verify build → re-audit
+- After each fix pass, run `npx vue-tsc --noEmit` and `npx vite build` to verify
+- If new issues are found in re-audit, fix those too — repeat until no new findings
+- Only stop when: (a) no new findings, OR (b) user explicitly says to stop
+- Keep a todo_list of all findings and their fix status
+- Summarize after each pass: what was found, what was fixed, what remains
+- No mercy on severity — do not downgrade a Critical finding to spare feelings
+
+## Testing
+- Run `npx vue-tsc --noEmit` to type-check before committing
+- Run `npx vite build` to verify production build
+- Test edge cases: zero currency, max level, prestige reset, save migration
+- Test adversarial inputs: `null`, `""`, `NaN`, `Infinity`, `{}`, `[]`, 10MB strings
+- Test async edge cases: wrong order resolution, tab close mid-save, corrupted localStorage
+- Test long-running sessions: 24h uptime — check for number overflow or negative values
+
+## Game Balance
+- Building cost growth: 1.15 (standard), 1.25 (blackMarket), 1.35 (vault)
+- Building income growth: 1.07/level
+- Inactive theme income: 50% of active
+- Offline cap: 8 hours at 50% rate + skill bonuses
+- permanentIncomeBonus capped at 10x
+- Debt interest: 1%/min, collection: 5%/10s
