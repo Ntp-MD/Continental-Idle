@@ -11,6 +11,8 @@ import { formatIncome, formatNumber } from '@/engine/format'
 import type { BranchId } from '@/types'
 
 const svgRef = ref<SVGSVGElement | null>(null)
+const mapLoading = ref(true)
+const mapError = ref(false)
 const tooltipVisible = ref(false)
 const tooltipX = ref(0)
 const tooltipY = ref(0)
@@ -69,6 +71,7 @@ function drawMap() {
     .attr('height', height)
 
   if (cachedWorld) {
+    mapLoading.value = false
     gSel.selectAll('path.land')
       .data(cachedWorld.features)
       .enter()
@@ -77,19 +80,25 @@ function drawMap() {
       .attr('d', path as unknown as (d: unknown) => string)
     drawNodes(projection)
   } else {
+    mapLoading.value = true
+    mapError.value = false
     d3.json('https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json')
       .then((data: unknown) => {
+        if (!gSel) return
         const topo = data as { objects: { countries: { type: string; geometries: unknown[] } } }
         cachedWorld = topojson.feature(topo as never, topo.objects.countries as never) as unknown as { features: Array<{ type: string; geometry: unknown }> }
-        gSel!.selectAll('path.land')
+        gSel.selectAll('path.land')
           .data(cachedWorld.features)
           .enter()
           .append('path')
           .attr('class', 'land')
           .attr('d', path as unknown as (d: unknown) => string)
         drawNodes(projection)
+        mapLoading.value = false
       })
       .catch(() => {
+        mapError.value = true
+        mapLoading.value = false
         drawNodes(projection)
       })
   }
@@ -494,6 +503,13 @@ onUnmounted(() => {
 <template>
   <div class="world-map">
     <svg ref="svgRef" class="world-map__svg"></svg>
+
+    <div v-if="mapLoading" class="world-map__status world-map__status--loading">
+      Loading world map...
+    </div>
+    <div v-if="mapError" class="world-map__status world-map__status--error">
+      Map data unavailable — showing branches only
+    </div>
 
     <div class="world-map__controls">
       <button class="world-map__btn" aria-label="Zoom in" @click="zoomIn">+</button>

@@ -7,3 +7,7 @@ export const ASSASSIN_TYPES: AssassinDefinition[] = [
   { id: 'royalGuard', name: 'Royal Guard', rank: 'A', hireCost: 10_000_000, ability: 'Halves marker debt accrual rate', branchLock: null, maxLevel: 10 },
   { id: 'highTableEnforcer', name: 'High Table Enforcer', rank: 'S', hireCost: 100_000_000, ability: 'Prevents excommunicado events entirely', branchLock: null, maxLevel: 10 },
 ]
+
+export const ASSASSIN_MAP: Record<string, AssassinDefinition> = Object.fromEntries(
+  ASSASSIN_TYPES.map(a => [a.id, a])
+)

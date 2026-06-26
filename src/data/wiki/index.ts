@@ -1,4 +1,4 @@
-﻿import { BRANCHES } from '@/data/BRANCHES'
+﻿import { BRANCHES } from '@/data/branches'
 import { BUILDINGS } from '@/data/buildings'
 import { STAFF_TYPES } from '@/data/staff'
 import { ASSASSIN_TYPES } from '@/data/assassins'

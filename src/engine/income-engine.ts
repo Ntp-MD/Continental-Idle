@@ -1,6 +1,6 @@
 ﻿import type { BranchId, BranchState } from '@/types'
-import { BUILDINGS, BUILDING_INCOME_GROWTH } from '@/data/buildings'
-import { STAFF_TYPES } from '@/data/staff'
+import { BUILDINGS, BUILDING_MAP, BUILDING_INCOME_GROWTH } from '@/data/buildings'
+import { STAFF_MAP } from '@/data/staff'
 import { getTraitMultiplier } from '@/data/traits'
 import { getChefAllBuildingBonus, getConciergePassiveBonus, getBartenderFreezeImmune } from './abilities'
 import { hasEnforcer } from './assassin-manager'
@@ -45,7 +45,7 @@ export function updateBuildingUnlocks(): void {
 }
 
 export function getBuildingIncome(branchState: BranchState, buildingId: string): number {
-  const def = BUILDINGS.find(b => b.id === buildingId)
+  const def = BUILDING_MAP[buildingId]
   if (!def) return 0
 
   const bState = branchState.buildings[buildingId]
@@ -58,7 +58,7 @@ export function getBuildingIncome(branchState: BranchState, buildingId: string):
   let traitIncomeMult = 1
   Object.values(branchState.staff).forEach(staff => {
     if (staff.assignedTo === buildingId) {
-      const staffDef = STAFF_TYPES.find(s => s.id === staff.typeId)
+      const staffDef = STAFF_MAP[staff.typeId]
       if (staffDef) {
         const isMatch = staffDef.bestMatch.includes(buildingId)
         const effectPerLevel = isMatch ? staffDef.effectPerLevel * 1.25 : staffDef.effectPerLevel
@@ -141,7 +141,7 @@ export function getBranchIncomePerSecond(branchId?: BranchId): number {
 }
 
 export function getBuildingCost(branchState: BranchState, buildingId: string, count: number = 1): number {
-  const def = BUILDINGS.find(b => b.id === buildingId)
+  const def = BUILDING_MAP[buildingId]
   if (!def) return Infinity
 
   const bState = branchState.buildings[buildingId]
@@ -156,7 +156,7 @@ export function getBuildingCost(branchState: BranchState, buildingId: string, co
 }
 
 export function getAffordableLevels(branchState: BranchState, buildingId: string): number {
-  const def = BUILDINGS.find(b => b.id === buildingId)
+  const def = BUILDING_MAP[buildingId]
   if (!def) return 0
 
   const n = branchState.buildings[buildingId]?.level || 0
@@ -182,7 +182,7 @@ export function getAffordableLevels(branchState: BranchState, buildingId: string
 export function purchaseBuilding(buildingId: string, count?: number): boolean {
   const state = gameState.get()
   const branch = state.branches[state.activeBranch]
-  const def = BUILDINGS.find(b => b.id === buildingId)
+  const def = BUILDING_MAP[buildingId]
   if (!def) return false
   if (!branch) return false
 

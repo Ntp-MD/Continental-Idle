@@ -10,3 +10,7 @@ export const STAFF_TYPES: StaffDefinition[] = [
   { id: 'adjudicator', name: 'Adjudicator', hireCost: 250000, unlock: 'prestige:3', maxLevel: 10, effectPerLevel: 0.05, bestMatch: ['vault'], maxAbility: 'Prestige keeps 80% reputation instead of 50%' },
   { id: 'vaultKeeper', name: 'Vault Keeper', hireCost: 500000, unlock: 'vault', maxLevel: 10, effectPerLevel: 0.05, bestMatch: ['safeHouse', 'blackMarket', 'vault'], maxAbility: 'Safe House interest doubles to 4%/min' },
 ]
+
+export const STAFF_MAP: Record<string, StaffDefinition> = Object.fromEntries(
+  STAFF_TYPES.map(s => [s.id, s])
+)

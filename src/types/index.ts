@@ -53,7 +53,9 @@ export interface CharacterStats {
 }
 
 export interface MarkerDebt {
+  id: string
   amount: number
+  originalAmount: number
   createdAt: number
   branch: BranchId
 }

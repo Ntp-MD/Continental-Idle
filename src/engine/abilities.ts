@@ -1,12 +1,12 @@
 ﻿import { gameState } from './game-state'
-import { STAFF_TYPES } from '@/data/staff'
+import { STAFF_MAP } from '@/data/staff'
 import type { BranchId } from '@/types'
 
 export function hasMaxAbilityStaff(branchId: BranchId, staffTypeId: string): boolean {
   const state = gameState.get()
   const branch = state.branches[branchId]
   if (!branch) return false
-  const def = STAFF_TYPES.find(s => s.id === staffTypeId)
+  const def = STAFF_MAP[staffTypeId]
   if (!def) return false
 
   return Object.values(branch.staff).some(s =>

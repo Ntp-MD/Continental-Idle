@@ -1,5 +1,5 @@
 ﻿import type { BranchId, AssassinEntry, CharacterStats } from '@/types'
-import { ASSASSIN_TYPES } from '@/data/assassins'
+import { ASSASSIN_MAP } from '@/data/assassins'
 import { getTraitMultiplier } from '@/data/traits'
 import { gameState } from './game-state'
 import { eventBus } from './event-bus'
@@ -46,7 +46,7 @@ export function isAssassinUnlocked(assassinTypeId: string, branchId?: BranchId):
   const id = branchId || state.activeBranch
   const branch = state.branches[id]
   if (!branch) return false
-  const def = ASSASSIN_TYPES.find(a => a.id === assassinTypeId)
+  const def = ASSASSIN_MAP[assassinTypeId]
   if (!def) return false
 
   if (def.branchLock && def.branchLock !== id) return false
@@ -57,7 +57,7 @@ export function hireAssassin(assassinTypeId: string, branchId?: BranchId): Assas
   const state = gameState.get()
   const id = branchId || state.activeBranch
   const branch = state.branches[id]
-  const def = ASSASSIN_TYPES.find(a => a.id === assassinTypeId)
+  const def = ASSASSIN_MAP[assassinTypeId]
   if (!def) return null
   if (!branch) return null
 
@@ -186,7 +186,7 @@ export function confirmAssassinLevelUp(assassinId: string, branchId?: BranchId):
   const assassin = branch.assassins[assassinId]
   if (!assassin || !assassin.pendingLevelUp) return false
 
-  const def = ASSASSIN_TYPES.find(a => a.id === assassin.typeId)
+  const def = ASSASSIN_MAP[assassin.typeId]
   if (!def) return false
   if (assassin.level >= def.maxLevel) return false
 
@@ -202,7 +202,7 @@ export function confirmAssassinLevelUp(assassinId: string, branchId?: BranchId):
 }
 
 export function getAssassinLevelUpCost(assassinTypeId: string, newLevel: number): number {
-  const def = ASSASSIN_TYPES.find(a => a.id === assassinTypeId)
+  const def = ASSASSIN_MAP[assassinTypeId]
   if (!def) return Infinity
   return Math.ceil(def.hireCost * 0.15 * Math.pow(1.4, newLevel - 1))
 }
@@ -236,7 +236,7 @@ export function tickAssassinXp(): void {
       if (assassin.lentTo) return
       if (assassin.attackTarget) return
 
-      const def = ASSASSIN_TYPES.find(a => a.id === assassin.typeId)
+      const def = ASSASSIN_MAP[assassin.typeId]
       if (!def) return
       if (assassin.level >= def.maxLevel) return
 
@@ -275,7 +275,7 @@ export function tickAssassinLoyalty(): void {
         assassin.loyalty = Math.min(100, assassin.loyalty + 0.05)
       }
       // Auto-level: check XP threshold
-      const def = ASSASSIN_TYPES.find(a => a.id === assassin.typeId)
+      const def = ASSASSIN_MAP[assassin.typeId]
       if (def && assassin.level < def.maxLevel && !assassin.pendingLevelUp) {
         const threshold = getAssassinXpToNext(assassin.level)
         // Cap unconfirmed XP at 200%

@@ -81,7 +81,9 @@ function applyPenalty(effect: EventEffect, branchId: BranchId): void {
     case 'markerDebt': {
       const amount = effect.value * (1 + branch.prestige * 0.1)
       branch.markerDebts.push({
+        id: 'debt_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
         amount,
+        originalAmount: amount,
         createdAt: Date.now(),
         branch: branchId,
       })
@@ -395,7 +397,7 @@ class EventEngine {
       if (this.activeEvent.definition.id === 'markerForgiveness' && choiceId === 'accept') {
         if (branch.markerDebts.length > 0) {
           const cheapest = branch.markerDebts.reduce((min, d) => d.amount < min.amount ? d : min, branch.markerDebts[0])
-          branch.markerDebts = branch.markerDebts.filter(d => d.createdAt !== cheapest.createdAt)
+          branch.markerDebts = branch.markerDebts.filter(d => d.id !== cheapest.id)
         }
       }
     }

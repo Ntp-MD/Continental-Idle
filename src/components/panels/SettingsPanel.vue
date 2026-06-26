@@ -40,7 +40,8 @@ function applySettingsToDOM() {
   root.classList.toggle('reduced-motion', s.reducedMotion)
   root.classList.toggle('one-hand-mode', s.oneHandMode)
   root.classList.remove('cb-deuteranopia', 'cb-protanopia', 'cb-tritanopia')
-  if (s.colorBlindMode !== 'none') {
+  const validModes = ['deuteranopia', 'protanopia', 'tritanopia']
+  if (s.colorBlindMode !== 'none' && validModes.includes(s.colorBlindMode)) {
     root.classList.add(`cb-${s.colorBlindMode}`)
   }
 }
@@ -72,8 +73,8 @@ watch(() => props.visible, (v) => { if (v) update() })
       <div class="section-header">Accessibility</div>
 
       <div class="settings-row">
-        <label class="settings-label">Color Blind Mode</label>
-        <select v-model="settings.colorBlindMode" @change="apply" class="settings-select">
+        <label class="settings-label" for="setting-colorblind">Color Blind Mode</label>
+        <select id="setting-colorblind" v-model="settings.colorBlindMode" @change="apply" class="settings-select">
           <option value="none">None</option>
           <option value="deuteranopia">Deuteranopia</option>
           <option value="protanopia">Protanopia</option>
@@ -82,23 +83,24 @@ watch(() => props.visible, (v) => { if (v) update() })
       </div>
 
       <div class="settings-row">
-        <label class="settings-label">High Contrast</label>
-        <input type="checkbox" v-model="settings.highContrast" @change="apply" class="settings-checkbox" />
+        <label class="settings-label" for="setting-contrast">High Contrast</label>
+        <input id="setting-contrast" type="checkbox" v-model="settings.highContrast" @change="apply" class="settings-checkbox" />
       </div>
 
       <div class="settings-row">
-        <label class="settings-label">Reduced Motion</label>
-        <input type="checkbox" v-model="settings.reducedMotion" @change="apply" class="settings-checkbox" />
+        <label class="settings-label" for="setting-motion">Reduced Motion</label>
+        <input id="setting-motion" type="checkbox" v-model="settings.reducedMotion" @change="apply" class="settings-checkbox" />
       </div>
 
       <div class="settings-row">
-        <label class="settings-label">One-Hand Mode</label>
-        <input type="checkbox" v-model="settings.oneHandMode" @change="apply" class="settings-checkbox" />
+        <label class="settings-label" for="setting-onehand">One-Hand Mode</label>
+        <input id="setting-onehand" type="checkbox" v-model="settings.oneHandMode" @change="apply" class="settings-checkbox" />
       </div>
 
       <div class="settings-row">
-        <label class="settings-label">Font Scale: {{ settings.fontScale.toFixed(1) }}x</label>
+        <label class="settings-label" for="setting-fontscale">Font Scale: {{ settings.fontScale.toFixed(1) }}x</label>
         <input
+          id="setting-fontscale"
           type="range"
           min="0.8"
           max="1.5"

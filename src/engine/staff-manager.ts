@@ -1,10 +1,9 @@
 ﻿import type { BranchId, StaffEntry, CharacterStats } from '@/types'
-import { STAFF_TYPES } from '@/data/staff'
+import { STAFF_MAP } from '@/data/staff'
 import { getTraitMultiplier } from '@/data/traits'
 import { getTotalStaffXpMult, getExtraStaffSlots } from './skill-manager'
 import { gameState } from './game-state'
 import { eventBus } from './event-bus'
-import { isUpgradePurchased } from './upgrade-manager'
 
 function generateId(): string {
   return 'staff_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6)
@@ -62,7 +61,7 @@ export function getStaffXpToNext(level: number): number {
 }
 
 export function getStaffLevelUpCost(staffTypeId: string, newLevel: number): number {
-  const def = STAFF_TYPES.find(s => s.id === staffTypeId)
+  const def = STAFF_MAP[staffTypeId]
   if (!def) return Infinity
   return Math.ceil(def.hireCost * 0.1 * Math.pow(1.3, newLevel))
 }
@@ -71,7 +70,7 @@ export function isStaffUnlocked(staffTypeId: string, branchId?: BranchId): boole
   const state = gameState.get()
   const id = branchId || state.activeBranch
   const branch = state.branches[id]
-  const def = STAFF_TYPES.find(s => s.id === staffTypeId)
+  const def = STAFF_MAP[staffTypeId]
   if (!def) return false
   if (!branch) return false
 
@@ -99,7 +98,7 @@ export function hireStaff(staffTypeId: string, branchId?: BranchId): StaffEntry 
   const state = gameState.get()
   const id = branchId || state.activeBranch
   const branch = state.branches[id]
-  const def = STAFF_TYPES.find(s => s.id === staffTypeId)
+  const def = STAFF_MAP[staffTypeId]
   if (!def) return null
   if (!branch) return null
 
@@ -153,7 +152,7 @@ export function confirmLevelUp(staffId: string, branchId?: BranchId): boolean {
   const staff = branch.staff[staffId]
   if (!staff || !staff.pendingLevelUp) return false
 
-  const def = STAFF_TYPES.find(s => s.id === staff.typeId)
+  const def = STAFF_MAP[staff.typeId]
   if (!def) return false
   if (staff.level >= def.maxLevel) return false
 
@@ -184,7 +183,7 @@ export function tickStaffXp(branchId?: BranchId): void {
     Object.values(branch.staff).forEach(staff => {
       if (!staff.assignedTo) return
 
-      const def = STAFF_TYPES.find(s => s.id === staff.typeId)
+      const def = STAFF_MAP[staff.typeId]
       if (!def) return
       if (staff.level >= def.maxLevel) return
 
@@ -192,7 +191,7 @@ export function tickStaffXp(branchId?: BranchId): void {
       const xpRate = tid === state.activeBranch ? 1.0 : 0.5
       const traitXpMult = getTraitMultiplier(staff.traits, 'xpMult')
       const skillXpMult = getTotalStaffXpMult()
-      const upgradeXpMult = isUpgradePurchased('trainingGrounds') ? 1.2 : 1.0
+      const upgradeXpMult = branch.upgrades.includes('trainingGrounds') ? 1.2 : 1.0
       const xpGain = 0.5 * (1 + staff.level * 0.05) * (1 + staff.stats.speed * 0.01) * xpRate * traitXpMult * skillXpMult * upgradeXpMult
       staff.xp += xpGain
 

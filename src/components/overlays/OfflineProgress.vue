@@ -45,8 +45,7 @@ function check() {
   totalEarned.value = formatNumber(storedEarnings)
   earnings.value = list
 
-  state.lastOfflineEarnings = 0
-  state.lastOfflineSeconds = 0
+  gameState.clearOfflineEarnings()
 }
 
 function dismiss() {

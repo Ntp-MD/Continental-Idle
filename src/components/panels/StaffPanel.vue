@@ -35,7 +35,7 @@ const staffList = ref<Array<StaffEntry & {
   bestMatchNames: string
 }>>([])
 const hireOptions = ref<Array<{ id: string; name: string; cost: string; affordable: boolean; unlocked: boolean; maxAbility: string; atCap: boolean }>>([])
-const debts = ref<Array<{ createdAt: number; amount: string; canRepay: boolean }>>([])
+const debts = ref<Array<{ id: string; amount: string; canRepay: boolean }>>([])
 const totalDebt = ref('0')
 const canRepayAll = ref(false)
 const assassinList = ref<Array<{
@@ -112,7 +112,7 @@ function update() {
   totalDebt.value = formatNumber(debtTotal)
   canRepayAll.value = debtTotal > 0 && branch.currency >= debtTotal
   debts.value = branch.markerDebts.map(d => ({
-    createdAt: d.createdAt,
+    id: d.id,
     amount: formatNumber(d.amount),
     canRepay: branch.currency >= d.amount,
   }))
@@ -193,8 +193,8 @@ function update() {
   }))
 }
 
-function doRepay(createdAt: number) {
-  repayDebt(createdAt)
+function doRepay(debtId: string) {
+  repayDebt(debtId)
   update()
 }
 
@@ -436,11 +436,11 @@ watch(() => props.visible, (v) => {
         <div class="debt-info">
           Total: {{ totalDebt }} — Debts auto-collect 5%/10s and accrue 1% interest/min
         </div>
-        <div v-for="d in debts" :key="d.createdAt" class="staff-card debt-row">
+        <div v-for="d in debts" :key="d.id" class="staff-card debt-row">
           <span class="debt-row__amount">{{ d.amount }}</span>
           <button
             :disabled="!d.canRepay"
-            @click="doRepay(d.createdAt)"
+            @click="doRepay(d.id)"
             class="debt-row__repay"
           >Repay</button>
         </div>

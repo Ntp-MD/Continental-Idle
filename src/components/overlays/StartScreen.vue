@@ -98,6 +98,11 @@ onUnmounted(() => {
           :class="{ 'start-screen__option--active': selected === branch.id }"
           :style="{ '--branch-accent': branch.accentColor }"
           @click="selectBranch(branch.id)"
+          @keydown.enter="selectBranch(branch.id)"
+          tabindex="0"
+          role="button"
+          :aria-label="`Select ${branch.name} as headquarters`"
+          :aria-pressed="selected === branch.id"
         >
           <div class="start-screen__option-name">{{ branch.name }}</div>
           <div class="start-screen__option-city">{{ branch.city }}</div>
@@ -124,6 +129,11 @@ onUnmounted(() => {
               }"
               :style="{ '--branch-accent': branch.accentColor }"
               @click="selectBranch(branch.id)"
+              @keydown.enter="selectBranch(branch.id)"
+              tabindex="0"
+              role="button"
+              :aria-label="`Select ${branch.name}`"
+              :aria-pressed="selected === branch.id"
             >
               <span class="start-screen__node-dot" :style="{ background: branch.accentColor }"></span>
               <span class="start-screen__node-name">{{ branch.name }}</span>

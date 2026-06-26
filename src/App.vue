@@ -16,6 +16,7 @@ import OfflineProgress from '@/components/overlays/OfflineProgress.vue'
 import EventLogPanel from '@/components/panels/EventLogPanel.vue'
 import Wiki from '@/components/panels/Wiki.vue'
 import AutoplayPanel from '@/components/overlays/AutoplayPanel.vue'
+import ErrorBoundary from '@/components/overlays/ErrorBoundary.vue'
 import { autoplayBot } from '@/engine/autoplay'
 import { gameState } from '@/engine/game-state'
 import { gameLoop } from '@/engine/game-loop'
@@ -91,7 +92,8 @@ function applySettings() {
   root.classList.toggle('reduced-motion', s.reducedMotion)
   root.classList.toggle('one-hand-mode', s.oneHandMode)
   root.classList.remove('cb-deuteranopia', 'cb-protanopia', 'cb-tritanopia')
-  if (s.colorBlindMode !== 'none') root.classList.add(`cb-${s.colorBlindMode}`)
+  const validModes = ['deuteranopia', 'protanopia', 'tritanopia']
+  if (s.colorBlindMode !== 'none' && validModes.includes(s.colorBlindMode)) root.classList.add(`cb-${s.colorBlindMode}`)
 }
 
 function doSave() {
@@ -215,7 +217,8 @@ onUnmounted(() => {
 
 <template>
   <StartScreen v-if="!gameStarted" @start="onStart" @quick-start="onQuickStart" />
-  <div v-else class="game-layout">
+  <ErrorBoundary v-else>
+    <div class="game-layout">
     <GameHeader />
     <BuffBar />
     <EventPrompt />
@@ -262,5 +265,6 @@ onUnmounted(() => {
     <TutorialOverlay />
     <ToastContainer />
     <AutoplayPanel v-if="showAutoplay" />
-  </div>
+    </div>
+  </ErrorBoundary>
 </template>

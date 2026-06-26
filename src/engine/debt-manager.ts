@@ -52,13 +52,13 @@ export function collectDebtPayment(branchId?: BranchId): number {
   return collected
 }
 
-export function repayDebt(debtCreatedAt: number, branchId?: BranchId): boolean {
+export function repayDebt(debtId: string, branchId?: BranchId): boolean {
   const state = gameState.get()
   const id = branchId || state.activeBranch
   const branch = state.branches[id]
   if (!branch) return false
 
-  const idx = branch.markerDebts.findIndex(d => d.createdAt === debtCreatedAt)
+  const idx = branch.markerDebts.findIndex(d => d.id === debtId)
   if (idx === -1) return false
   const debt = branch.markerDebts[idx]
   if (branch.currency < debt.amount) return false
@@ -94,7 +94,9 @@ export function tickDebtInterest(): void {
     if (!branch) return
     branch.markerDebts.forEach(debt => {
       const royalGuardReduction = hasRoyalGuard(branchId) ? 0.5 : 1
-      debt.amount *= (1 + DEBT_INTEREST_RATE * (1 - getTotalDebtReduction()) * royalGuardReduction)
+      const newAmount = debt.amount * (1 + DEBT_INTEREST_RATE * (1 - getTotalDebtReduction()) * royalGuardReduction)
+      const cap = (debt.originalAmount || debt.amount) * 10
+      debt.amount = Math.min(newAmount, cap)
     })
   })
 }

@@ -16,3 +16,7 @@ export const BUILDINGS: BuildingDefinition[] = [
 ]
 
 export const BUILDING_INCOME_GROWTH = 1.07
+
+export const BUILDING_MAP: Record<string, BuildingDefinition> = Object.fromEntries(
+  BUILDINGS.map(b => [b.id, b])
+)

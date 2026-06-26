@@ -1,6 +1,8 @@
 ﻿import type { GameState, BranchId, BranchState, BuildingState } from '@/types'
 import { BUILDINGS } from '@/data/buildings'
 import { BRANCHES } from '@/data/branches'
+import { STAFF_TYPES } from '@/data/staff'
+import { ASSASSIN_TYPES } from '@/data/assassins'
 import { getTotalOfflineEfficiency } from './skill-manager'
 
 const CURRENT_VERSION = '1.0'
@@ -99,16 +101,17 @@ class GameStateManager {
     return this.state.branches[id || this.state.activeBranch]
   }
 
-  getActiveBranchId(): BranchId {
-    return this.state.activeBranch
-  }
-
   setActiveBranch(id: BranchId): void {
     this.state.activeBranch = id
   }
 
   setBuyMultiplier(mult: number): void {
     this.state.buyMultiplier = mult
+  }
+
+  clearOfflineEarnings(): void {
+    this.state.lastOfflineEarnings = 0
+    this.state.lastOfflineSeconds = 0
   }
 
   init(hq?: BranchId): void {
@@ -210,8 +213,8 @@ class GameStateManager {
     try {
       const parsed = JSON.parse(json)
       if (!parsed.version || !parsed.hqBranch || !parsed.branches) return false
-      if (typeof parsed.totalPrestige !== 'number') return false
-      if (typeof parsed.tableFavor !== 'number') return false
+      if (typeof parsed.totalPrestige !== 'number' || !isFinite(parsed.totalPrestige)) return false
+      if (typeof parsed.tableFavor !== 'number' || !isFinite(parsed.tableFavor)) return false
       if (!Array.isArray(parsed.worldMap?.unlockedBranches)) return false
 
       // Validate HQ is a known branch
@@ -240,11 +243,76 @@ class GameStateManager {
       parsed.checksum = savedChecksum
 
       // Validate currency non-negative for all BRANCHES
+      const validStaffIds = new Set(STAFF_TYPES.map(s => s.id))
+      const validAssassinIds = new Set(ASSASSIN_TYPES.map(a => a.id))
+      const validBuildingIds = new Set(BUILDINGS.map(b => b.id))
+      const validColorBlindModes = new Set(['none', 'deuteranopia', 'protanopia', 'tritanopia'])
+
       for (const branchId of Object.keys(parsed.branches)) {
         const t = parsed.branches[branchId]
         if (!t) return false
-        if (typeof t.currency !== 'number' || t.currency < 0) return false
-        if (typeof t.lifetimeEarnings !== 'number' || t.lifetimeEarnings < 0) return false
+        if (typeof t.currency !== 'number' || !isFinite(t.currency) || t.currency < 0) return false
+        if (typeof t.lifetimeEarnings !== 'number' || !isFinite(t.lifetimeEarnings) || t.lifetimeEarnings < 0) return false
+        if (typeof t.prestige !== 'number' || !isFinite(t.prestige) || t.prestige < 0) return false
+        if (typeof t.reputation !== 'number' || !isFinite(t.reputation) || t.reputation < 0) return false
+        if (typeof t.heatLevel !== 'number' || !isFinite(t.heatLevel) || t.heatLevel < 0) return false
+        if (typeof t.guestSatisfaction !== 'number' || !isFinite(t.guestSatisfaction)) return false
+
+        // Validate buildings
+        if (t.buildings && typeof t.buildings === 'object') {
+          for (const bId of Object.keys(t.buildings)) {
+            if (!validBuildingIds.has(bId)) continue
+            const b = t.buildings[bId]
+            if (typeof b?.level !== 'number' || !isFinite(b.level) || b.level < 0) return false
+          }
+        }
+
+        // Validate staff entries
+        if (t.staff && typeof t.staff === 'object') {
+          for (const sId of Object.keys(t.staff)) {
+            const s = t.staff[sId]
+            if (!s || typeof s !== 'object') return false
+            if (typeof s.typeId !== 'string' || !validStaffIds.has(s.typeId)) return false
+            if (typeof s.level !== 'number' || !isFinite(s.level) || s.level < 1) return false
+          }
+        }
+
+        // Validate assassin entries
+        if (t.assassins && typeof t.assassins === 'object') {
+          for (const aId of Object.keys(t.assassins)) {
+            const a = t.assassins[aId]
+            if (!a || typeof a !== 'object') return false
+            if (typeof a.typeId !== 'string' || !validAssassinIds.has(a.typeId)) return false
+            if (typeof a.level !== 'number' || !isFinite(a.level) || a.level < 1) return false
+            if (typeof a.loyalty !== 'number' || !isFinite(a.loyalty) || a.loyalty < 0) return false
+          }
+        }
+
+        // Validate marker debts
+        if (Array.isArray(t.markerDebts)) {
+          for (const d of t.markerDebts) {
+            if (!d || typeof d.amount !== 'number' || !isFinite(d.amount) || d.amount < 0) return false
+          }
+        }
+      }
+
+      // Validate skillTree
+      if (parsed.skillTree && typeof parsed.skillTree === 'object') {
+        for (const key of ['commerce', 'personnel', 'shadow', 'diplomacy', 'ascension']) {
+          const val = (parsed.skillTree as Record<string, unknown>)[key]
+          if (val !== undefined && (typeof val !== 'number' || !isFinite(val) || val < 0)) return false
+        }
+      }
+
+      // Validate settings
+      if (parsed.settings && typeof parsed.settings === 'object') {
+        const s = parsed.settings as Record<string, unknown>
+        if (s.colorBlindMode !== undefined && !validColorBlindModes.has(s.colorBlindMode as string)) {
+          s.colorBlindMode = 'none'
+        }
+        if (s.fontScale !== undefined && (typeof s.fontScale !== 'number' || !isFinite(s.fontScale) || s.fontScale < 0.5 || s.fontScale > 3)) {
+          s.fontScale = 1.0
+        }
       }
 
       const migrated = this.migrate(parsed as GameState)
@@ -296,6 +364,10 @@ class GameStateManager {
           if (a.pendingLevelUp === undefined) a.pendingLevelUp = false
         })
         if (!branch.markerDebts) branch.markerDebts = []
+        branch.markerDebts.forEach(d => {
+          if (!d.id) d.id = 'debt_' + d.createdAt.toString(36) + Math.random().toString(36).slice(2, 6)
+          if (d.originalAmount === undefined) d.originalAmount = d.amount
+        })
         if (branch.heatLevel === undefined) branch.heatLevel = 0
         if (branch.excommunicadoGraceUntil === undefined) branch.excommunicadoGraceUntil = 0
         if (branch.guestSatisfaction === undefined) branch.guestSatisfaction = 50
@@ -309,6 +381,8 @@ class GameStateManager {
               branch.buildings[bId].unlocked = true
             }
           }
+        } else {
+          branch.buildings = createDefaultBranchState().buildings
         }
       }
     })
