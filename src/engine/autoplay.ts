@@ -2,14 +2,14 @@
 import { gameLoop } from './game-loop'
 import { eventEngine } from './event-engine'
 import { eventBus } from './event-bus'
-import { tick as incomeTick, updateBuildingUnlocks, purchaseBuilding, getBranchIncomePerSecond, getBuildingCost, getBuildingIncome } from './income-engine'
+import { tick as incomeTick, updateBuildingUnlocks, purchaseBuilding, getBranchIncomePerSecond, getBuildingCost, getBuildingIncome, setSuppressUIEvents } from './income-engine'
 import { tickStaffXp, hireStaff, assignStaff, confirmLevelUp, isStaffUnlocked } from './staff-manager'
 import { tickDebtCollection, tickDebtInterest, getTotalDebt, repayAllDebts } from './debt-manager'
 import { tickAssassinLoyalty, tickAssassinXp, hireAssassin, isAssassinUnlocked, assignAssassin, sendAssassinToAttack, confirmAssassinLevelUp, getAssassinCombatDamage, hasEnforcer, hasHighTableEnforcer, cancelAssassinAttack } from './assassin-manager'
 import { tickTakeoverProgress, initiateTakeover, canInitiateTakeover, getTakeoverCost } from './takeover-manager'
 import { hasVaultKeeperMaxed } from './abilities'
 import { getTotalIncomeMult, getExtraStaffSlots } from './skill-manager'
-import { isUpgradePurchased, purchaseUpgrade, UPGRADES } from './upgrade-manager'
+import { purchaseUpgrade, UPGRADES } from './upgrade-manager'
 import { doPrestige, getPrestigeFavor } from './prestige-manager'
 import { BUILDINGS, BUILDING_INCOME_GROWTH } from '@/data/buildings'
 import { STAFF_TYPES } from '@/data/staff'
@@ -32,7 +32,6 @@ class AutoplayBot {
   private intervalId: number | null = null
   private tickCount = 0
   private running = false
-  private ticking = false
   private speed: AutoplaySpeed = 100
   private log: AutoplayLogEntry[] = []
   private maxLogSize = 50
@@ -47,21 +46,24 @@ class AutoplayBot {
     if (this.wasGameLoopRunning) {
       gameLoop.stop()
     }
+    setSuppressUIEvents(true)
     this.logAction('Autoplay started')
     this.scheduleInterval()
   }
 
   stop(): void {
     if (this.intervalId !== null) {
-      clearInterval(this.intervalId)
+      clearTimeout(this.intervalId)
       this.intervalId = null
     }
     this.running = false
+    setSuppressUIEvents(false)
     if (this.wasGameLoopRunning) {
       gameLoop.start()
     }
     this.logAction('Autoplay stopped')
     eventBus.emit('autoplay:stopped')
+    eventBus.emit('income:update')
   }
 
   isRunning(): boolean {
@@ -86,21 +88,26 @@ class AutoplayBot {
 
   private scheduleInterval(): void {
     if (this.intervalId !== null) {
-      clearInterval(this.intervalId)
+      clearTimeout(this.intervalId)
+      this.intervalId = null
     }
     const ticksPerInterval = this.speed >= 100 ? Math.floor(this.speed / 100) : 1
     const intervalMs = this.speed >= 100 ? 10 : Math.floor(1000 / this.speed)
-    this.intervalId = window.setInterval(() => {
-      if (this.ticking) return
-      this.ticking = true
+    const runBatch = () => {
+      if (!this.running) return
       try {
         for (let i = 0; i < ticksPerInterval; i++) {
           this.tick()
         }
       } finally {
-        this.ticking = false
+        // ensure next batch schedules even if tick throws
       }
-    }, intervalMs)
+      this.flushLogs()
+      // Emit a single UI update per batch so components can refresh
+      eventBus.emit('income:tick', { income: getBranchIncomePerSecond() })
+      this.intervalId = window.setTimeout(runBatch, intervalMs)
+    }
+    this.intervalId = window.setTimeout(runBatch, intervalMs)
   }
 
   private logAction(message: string): void {
@@ -108,7 +115,19 @@ class AutoplayBot {
     if (this.log.length > this.maxLogSize) {
       this.log = this.log.slice(0, this.maxLogSize)
     }
-    eventBus.emit('autoplay:log', message)
+    this._pendingLogEmit = true
+  }
+
+  private _pendingLogEmit = false
+  private _lastLogFlush = 0
+
+  private flushLogs(): void {
+    if (!this._pendingLogEmit) return
+    const now = Date.now()
+    if (now - this._lastLogFlush < 100) return
+    this._lastLogFlush = now
+    this._pendingLogEmit = false
+    eventBus.emit('autoplay:log', this.log[0]?.message || '')
   }
 
   private tick(): void {
@@ -153,7 +172,7 @@ class AutoplayBot {
       if (!safeHouse || safeHouse.level === 0) return
       const baseInterest = safeHouse.level * 100
       const vaultKeeperMult = hasVaultKeeperMaxed(branchId) ? 2 : 1
-      const goldStandardMult = isUpgradePurchased('goldStandard') ? 1.5 : 1
+      const goldStandardMult = branch.upgrades.includes('goldStandard') ? 1.5 : 1
       const interest = baseInterest * vaultKeeperMult * goldStandardMult * getTotalIncomeMult()
       branch.currency += interest
       branch.lifetimeEarnings += interest
@@ -268,15 +287,9 @@ class AutoplayBot {
       // 4. Debt urgency — if debt > 50% of currency, flag it
       const debt = getTotalDebt(branchId)
       if (debt > branch.currency * 0.5 && debt > 0) {
-        const prevActive = state.activeBranch
-        state.activeBranch = branchId
-        try {
-          if (branch.currency >= debt) {
-            repayAllDebts(branchId)
-            this.logAction(`⚠ Emergency debt repayment in ${getBranchDef(branchId).name}`)
-          }
-        } finally {
-          state.activeBranch = prevActive
+        if (branch.currency >= debt) {
+          repayAllDebts(branchId)
+          this.logAction(`⚠ Emergency debt repayment in ${getBranchDef(branchId).name}`)
         }
       }
 
@@ -382,9 +395,9 @@ class AutoplayBot {
     }
   }
 
-  private buyBuildings(): void {
+  private buyBuildings(targetBranch?: BranchId): void {
     const state = gameState.get()
-    const branch = state.branches[state.activeBranch]
+    const branch = state.branches[targetBranch || state.activeBranch]
     if (!branch) return
 
     const reserve = this.calculateReserve()
@@ -482,15 +495,10 @@ class AutoplayBot {
     const branch = state.branches[branchId]
     if (!branch) return
 
-    state.activeBranch = branchId
-    try {
-      this.buyBuildings()
-      this.hireAndAssignStaff()
-      this.reassignStaff()
-      this.purchaseUpgrades()
-    } finally {
-      state.activeBranch = activeId
-    }
+    this.buyBuildings(branchId)
+    this.hireAndAssignStaff(branchId)
+    this.reassignStaff(branchId)
+    this.purchaseUpgrades(branchId)
   }
 
   private manageDebts(): void {
@@ -503,26 +511,19 @@ class AutoplayBot {
       const totalDebt = getTotalDebt(branchId)
       if (totalDebt <= 0) continue
 
-      // Repay if debt is small enough relative to currency (avoid wasting currency on interest)
-      const prevActive = state.activeBranch
-      state.activeBranch = branchId
-      try {
-        // Repay if we have 2x the debt amount (keep some currency for operations)
-        if (branch.currency >= totalDebt * 2) {
-          const ok = repayAllDebts(branchId)
-          if (ok) {
-            this.logAction(`Repaid all debts in ${getBranchDef(branchId).name} (${formatNumber(totalDebt)})`)
-          }
+      // Repay if we have 2x the debt amount (keep some currency for operations)
+      if (branch.currency >= totalDebt * 2) {
+        const ok = repayAllDebts(branchId)
+        if (ok) {
+          this.logAction(`Repaid all debts in ${getBranchDef(branchId).name} (${formatNumber(totalDebt)})`)
         }
-      } finally {
-        state.activeBranch = prevActive
       }
     }
   }
 
-  private hireAndAssignStaff(): void {
+  private hireAndAssignStaff(targetBranch?: BranchId): void {
     const state = gameState.get()
-    const branch = state.branches[state.activeBranch]
+    const branch = state.branches[targetBranch || state.activeBranch]
     if (!branch) return
 
     const baseStaffCap = 5
@@ -620,9 +621,9 @@ class AutoplayBot {
     }
   }
 
-  private reassignStaff(): void {
+  private reassignStaff(targetBranch?: BranchId): void {
     const state = gameState.get()
-    const branch = state.branches[state.activeBranch]
+    const branch = state.branches[targetBranch || state.activeBranch]
     if (!branch) return
 
     // Check if any staff could be reassigned to a better building
@@ -649,9 +650,9 @@ class AutoplayBot {
     }
   }
 
-  private confirmStaffLevelUps(): void {
+  private confirmStaffLevelUps(targetBranch?: BranchId): void {
     const state = gameState.get()
-    const branch = state.branches[state.activeBranch]
+    const branch = state.branches[targetBranch || state.activeBranch]
     if (!branch) return
 
     Object.values(branch.staff).forEach(staff => {
@@ -665,17 +666,18 @@ class AutoplayBot {
     })
   }
 
-  private hireAndAssignAssassins(): void {
+  private hireAndAssignAssassins(targetBranch?: BranchId): void {
     const state = gameState.get()
-    const branch = state.branches[state.activeBranch]
+    const branchId = targetBranch || state.activeBranch
+    const branch = state.branches[branchId]
     if (!branch) return
     if (state.totalPrestige < 3) return
 
-    const assassinCap = isUpgradePurchased('armoryExpansion') ? 4 : 3
+    const assassinCap = branch.upgrades.includes('armoryExpansion') ? 4 : 3
 
     if (Object.keys(branch.assassins).length < assassinCap) {
       // Strategic hiring: assess what threats exist and hire accordingly
-      const threats = this.assessThreats(state.activeBranch)
+      const threats = this.assessThreats(branchId)
       const affordable = ASSASSIN_TYPES
         .filter(def => isAssassinUnlocked(def.id) && branch.currency >= def.hireCost)
         .filter(def => !Object.values(branch.assassins).some(a => a.typeId === def.id))
@@ -740,9 +742,9 @@ class AutoplayBot {
     }
   }
 
-  private confirmAssassinLevelUps(): void {
+  private confirmAssassinLevelUps(targetBranch?: BranchId): void {
     const state = gameState.get()
-    const branch = state.branches[state.activeBranch]
+    const branch = state.branches[targetBranch || state.activeBranch]
     if (!branch) return
 
     Object.values(branch.assassins).forEach(assassin => {
@@ -789,9 +791,10 @@ class AutoplayBot {
       let ok = false
       try {
         ok = initiateTakeover(def.id)
-      } finally {
-        state.activeBranch = prevActive
+      } catch {
+        ok = false
       }
+      state.activeBranch = prevActive
 
       if (ok) {
         this.logAction(`Takeover initiated: ${def.name} (funded by ${getBranchDef(fundedBy).name})`)
@@ -849,9 +852,9 @@ class AutoplayBot {
     }
   }
 
-  private purchaseUpgrades(): void {
+  private purchaseUpgrades(targetBranch?: BranchId): void {
     const state = gameState.get()
-    const branch = state.branches[state.activeBranch]
+    const branch = state.branches[targetBranch || state.activeBranch]
     if (!branch) return
 
     // Priority: unlock upgrades first, then income boosters

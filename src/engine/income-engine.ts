@@ -8,6 +8,12 @@ import { getTotalIncomeMult } from './skill-manager'
 import { gameState, setIncomeFunction } from './game-state'
 import { eventBus } from './event-bus'
 
+let _suppressUIEvents = false
+
+export function setSuppressUIEvents(suppress: boolean): void {
+  _suppressUIEvents = suppress
+}
+
 export function checkBuildingUnlocked(unlock: string, branchState: BranchState): boolean {
   if (unlock === 'start') return true
   if (unlock.startsWith('building:')) {
@@ -203,7 +209,7 @@ export function purchaseBuilding(buildingId: string, count?: number): boolean {
   // Free building (reception at level 0) — cap at 1 per purchase
   if (def.baseCost === 0) {
     bState.level += 1
-    eventBus.emit('income:update')
+    if (!_suppressUIEvents) eventBus.emit('income:update')
     return true
   }
 
@@ -212,7 +218,7 @@ export function purchaseBuilding(buildingId: string, count?: number): boolean {
 
   branch.currency -= cost
   bState.level += buyCount
-  eventBus.emit('income:update')
+  if (!_suppressUIEvents) eventBus.emit('income:update')
   return true
 }
 
@@ -243,7 +249,9 @@ export function tick(): void {
   })
 
   state.totalPlayTime += 1
-  eventBus.emit('income:tick', { income: activeIncome })
+  if (!_suppressUIEvents) {
+    eventBus.emit('income:tick', { income: activeIncome })
+  }
 }
 
 // Register income function with game-state to break circular dependency

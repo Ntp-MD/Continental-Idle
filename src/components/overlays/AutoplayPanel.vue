@@ -1,7 +1,6 @@
 ﻿<script setup lang="ts">
 import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { autoplayBot, type AutoplaySpeed } from '@/engine/autoplay'
-import { eventBus } from '@/engine/event-bus'
 
 const running = ref(autoplayBot.isRunning())
 const speed = ref<AutoplaySpeed>(autoplayBot.getSpeed())
@@ -32,23 +31,14 @@ function changeSpeed(s: AutoplaySpeed) {
   autoplayBot.setSpeed(s)
 }
 
-function onLog(e: CustomEvent) {
-  const message = e.detail as string
-  logEntries.value.unshift(message)
-  if (logEntries.value.length > 30) {
-    logEntries.value = logEntries.value.slice(0, 30)
-  }
-}
-
 onMounted(() => {
-  eventBus.on('autoplay:log', onLog)
   statusInterval = window.setInterval(() => {
     statusUpdate.value++
+    logEntries.value = autoplayBot.getLog().slice(0, 30).map(e => e.message)
   }, 200)
 })
 
 onUnmounted(() => {
-  eventBus.off('autoplay:log', onLog)
   if (statusInterval !== null) clearInterval(statusInterval)
 })
 </script>
