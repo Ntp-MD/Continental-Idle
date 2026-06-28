@@ -1,6 +1,7 @@
 ﻿<script setup lang="ts">
 import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { autoplayBot, type AutoplaySpeed } from '@/engine/autoplay'
+import { eventBus } from '@/engine/event-bus'
 
 const running = ref(autoplayBot.isRunning())
 const speed = ref<AutoplaySpeed>(autoplayBot.getSpeed())
@@ -31,15 +32,23 @@ function changeSpeed(s: AutoplaySpeed) {
   autoplayBot.setSpeed(s)
 }
 
+function syncRunningState() {
+  running.value = autoplayBot.isRunning()
+}
+
 onMounted(() => {
   statusInterval = window.setInterval(() => {
     statusUpdate.value++
     logEntries.value = autoplayBot.getLog().slice(0, 30).map(e => e.message)
   }, 200)
+  eventBus.on('autoplay:started', syncRunningState)
+  eventBus.on('autoplay:stopped', syncRunningState)
 })
 
 onUnmounted(() => {
   if (statusInterval !== null) clearInterval(statusInterval)
+  eventBus.off('autoplay:started', syncRunningState)
+  eventBus.off('autoplay:stopped', syncRunningState)
 })
 </script>
 
@@ -122,16 +131,16 @@ onUnmounted(() => {
   position: fixed;
   bottom: 16px;
   right: 16px;
-  width: 320px;
-  background: rgba(20, 20, 30, 0.95);
+  width: min(320px, calc(100vw - 32px));
+  background: var(--autoplay-bg);
   border: 1px solid rgba(255, 255, 255, 0.15);
   border-radius: 12px;
   padding: 16px;
   z-index: 9000;
   font-family: system-ui, sans-serif;
-  color: #e0e0e0;
+  color: var(--text-primary);
   backdrop-filter: blur(8px);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+  box-shadow: var(--shadow-panel);
 }
 
 .autoplay-panel__header {
@@ -145,7 +154,7 @@ onUnmounted(() => {
   font-size: 16px;
   font-weight: 700;
   margin: 0;
-  color: #fff;
+  color: var(--text-bright);
 }
 
 .autoplay-panel__toggle {
@@ -155,14 +164,14 @@ onUnmounted(() => {
   font-weight: 700;
   font-size: 13px;
   cursor: pointer;
-  background: #2a2a3a;
-  color: #aaa;
+  background: var(--autoplay-toggle);
+  color: var(--text-secondary);
   transition: all 0.2s;
 }
 
 .autoplay-panel__toggle--active {
-  background: #e74c3c;
-  color: #fff;
+  background: var(--accent-red);
+  color: var(--text-bright);
 }
 
 .autoplay-panel__speeds {
@@ -174,25 +183,25 @@ onUnmounted(() => {
 
 .autoplay-panel__label {
   font-size: 12px;
-  color: #888;
+  color: var(--text-dim);
   margin-right: 4px;
 }
 
 .autoplay-panel__speed-btn {
   padding: 3px 10px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.10);
   border-radius: 4px;
   background: transparent;
-  color: #888;
+  color: var(--text-dim);
   font-size: 12px;
   cursor: pointer;
   transition: all 0.15s;
 }
 
 .autoplay-panel__speed-btn--active {
-  background: #4a90e2;
-  color: #fff;
-  border-color: #4a90e2;
+  background: var(--autoplay-speed-active);
+  color: var(--text-bright);
+  border-color: var(--autoplay-speed-active);
 }
 
 .autoplay-panel__stats {
@@ -210,14 +219,14 @@ onUnmounted(() => {
 
 .autoplay-panel__stat-label {
   font-size: 10px;
-  color: #666;
+  color: var(--autoplay-text-dim);
   text-transform: uppercase;
 }
 
 .autoplay-panel__stat-value {
   font-size: 13px;
   font-weight: 600;
-  color: #e0e0e0;
+  color: var(--text-primary);
 }
 
 .autoplay-panel__progress-bar {
@@ -230,7 +239,7 @@ onUnmounted(() => {
 
 .autoplay-panel__progress-fill {
   height: 100%;
-  background: linear-gradient(90deg, #4a90e2, #2ecc71);
+  background: linear-gradient(90deg, var(--autoplay-progress-1), var(--autoplay-progress-2));
   transition: width 0.3s;
 }
 
@@ -241,7 +250,7 @@ onUnmounted(() => {
 
 .autoplay-panel__log-title {
   font-size: 11px;
-  color: #666;
+  color: var(--autoplay-text-dim);
   text-transform: uppercase;
   margin-bottom: 4px;
 }
@@ -254,13 +263,13 @@ onUnmounted(() => {
 }
 
 .autoplay-panel__log-entry {
-  color: #aaa;
+  color: var(--text-secondary);
   padding: 1px 0;
   border-bottom: 1px solid rgba(255, 255, 255, 0.03);
 }
 
 .autoplay-panel__log-empty {
-  color: #555;
+  color: var(--node-locked);
   font-style: italic;
   padding: 8px 0;
 }

@@ -4,7 +4,8 @@ const ALPHA_BASE = 'abcdefghijklmnopqrstuvwxyz'
 const SUFFIXES = ['', 'K', 'M', 'B', 'T']
 
 export function formatNumber(n: number): string {
-  if (!Number.isFinite(n)) return n > 0 ? '∞' : '0'
+  if (Number.isNaN(n)) return '0'
+  if (!Number.isFinite(n)) return n > 0 ? '∞' : '-∞'
   if (n < 0) {
     const result = formatNumber(-n)
     return result === '0' ? '0' : '-' + result

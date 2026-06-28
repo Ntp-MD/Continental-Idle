@@ -91,20 +91,6 @@ export function getTotalPrestigeFavorMult(): number {
   return 1 + mult
 }
 
-export function getTotalOfflineEfficiency(): number {
-  const tree = gameState.get().skillTree
-  let bonus = 0
-  for (const node of SKILL_NODES) {
-    if (node.effect.offlineEfficiency) {
-      if ((node.branch === 'commerce' && tree.commerce >= node.level) ||
-          (node.branch === 'ascension' && tree.ascension >= node.level)) {
-        bonus += node.effect.offlineEfficiency
-      }
-    }
-  }
-  return bonus
-}
-
 export function getTotalBuffDurationMult(): number {
   const tree = gameState.get().skillTree
   let mult = 0
@@ -139,4 +125,15 @@ export function getExtraStaffSlots(): number {
     }
   }
   return slots
+}
+
+export function getTotalOfflineEfficiency(): number {
+  const tree = gameState.get().skillTree
+  let bonus = 0
+  for (const node of SKILL_NODES) {
+    if (node.branch === 'commerce' && tree.commerce >= node.level) {
+      bonus += 0.02
+    }
+  }
+  return Math.min(0.25, bonus)
 }

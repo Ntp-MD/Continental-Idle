@@ -14,6 +14,35 @@ export interface BuildingState {
   unlocked: boolean
 }
 
+export type SupplyRouteType = 'weapons' | 'contraband' | 'luxury'
+
+export interface SupplyRoute {
+  id: string
+  type: SupplyRouteType
+  from: BranchId
+  to: BranchId
+  stability: number
+  establishedAt: number
+  hijacked: boolean
+  incomePerTick: number
+}
+
+export type AITemperament = 'aggressive' | 'diplomatic' | 'shadow' | 'defensive'
+
+export interface AIOwnerState {
+  branchId: BranchId
+  name: string
+  temperament: AITemperament
+  power: number
+  maxPower: number
+  aggression: number
+  lastActionTick: number
+  actionCooldown: number
+  defeated: boolean
+  relations: number
+  threatLevel: number
+}
+
 export interface StaffEntry {
   id: string
   typeId: string
@@ -76,6 +105,7 @@ export interface BranchState {
   hqHealth: number
   hqMaxHealth: number
   aiOwnerDefeated: boolean
+  royalBuildings: Record<string, BuildingState>
 }
 
 export interface WorldMapState {
@@ -92,6 +122,24 @@ export interface SkillTreeState {
   ascension: number
 }
 
+export interface RoyalSkillTreeState {
+  royalIncome: number
+  royalLoyalty: number
+  royalPower: number
+  royalFavor: number
+  royalAscension: number
+}
+
+export interface RoyalDecree {
+  id: string
+  name: string
+  description: string
+  type: 'incomeMultiplier' | 'permanentIncomeBonus' | 'heatReduction' | 'debtReduction' | 'loyaltyBoost'
+  value: number
+  expiresAt: number | null
+  chosenAt: number
+}
+
 export interface GameSettings {
   colorBlindMode: 'none' | 'deuteranopia' | 'protanopia' | 'tritanopia'
   highContrast: boolean
@@ -104,7 +152,6 @@ export interface GameState {
   version: string
   timestamp: number
   totalPlayTime: number
-  totalOfflineTime: number
   tutorialCompleted: boolean
   tutorialStep: number
   tableFavor: number
@@ -119,9 +166,20 @@ export interface GameState {
   activeBuffs: Buff[]
   permanentIncomeBonus: number
   buyMultiplier: number
-  lastOfflineEarnings: number
-  lastOfflineSeconds: number
+  supplyRoutes: SupplyRoute[]
+  aiOwners: Record<BranchId, AIOwnerState>
   checksum: string
+  lastOfflineSeconds: number
+  lastOfflineEarnings: number
+  lastOfflineBreakdown: Record<string, number>
+  achievements: string[]
+  royalMarks: number
+  royalPrestige: number
+  royalSkillTree: RoyalSkillTreeState
+  sovereign: boolean
+  royalDecrees: RoyalDecree[]
+  lastDecreeAt: number
+  sandboxLoops: number
 }
 
 export interface EventLogEntry {

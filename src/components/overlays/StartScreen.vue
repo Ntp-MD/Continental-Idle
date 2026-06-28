@@ -6,6 +6,7 @@ import {
   getBranchesByContinent, type Continent
 } from '@/data/branches'
 import { gameState } from '@/engine/game-state'
+import { getStoryIntro, getStoryContext } from '@/data/story'
 import type { BranchId } from '@/types'
 
 const emit = defineEmits<{ start: [], quickStart: [] }>()
@@ -20,6 +21,8 @@ const starterOptions = STARTER_BRANCHES.map(id => getBranchDef(id))
 const continents: Continent[] = ['north-america', 'south-america', 'europe', 'asia', 'africa', 'oceania']
 
 const selectedDef = computed(() => getBranchDef(selected.value))
+const storyIntro = computed(() => getStoryIntro(selected.value))
+const storyContext = computed(() => getStoryContext(selected.value))
 
 function selectBranch(id: BranchId) {
   selected.value = id
@@ -87,6 +90,16 @@ onUnmounted(() => {
 
     <div v-else class="start-screen__content">
       <h1 class="start-screen__title">CONTINENTAL IDLE</h1>
+      <p class="start-screen__subtitle">The High Table Awaits</p>
+
+      <!-- Story intro -->
+      <div class="start-screen__story">
+        <div class="start-screen__story-icon">☠</div>
+        <div class="start-screen__story-text">
+          <p class="start-screen__story-line" v-for="(line, i) in storyIntro.split('\n\n')" :key="i">{{ line }}</p>
+        </div>
+      </div>
+
       <p class="start-screen__subtitle">Choose Your Headquarters</p>
 
       <!-- Starter HQ cards -->
@@ -152,8 +165,8 @@ onUnmounted(() => {
       </div>
 
       <div class="start-screen__info">
-        <p>Your HQ generates <strong>1.2x income</strong> and is your starting Continental branch.</p>
-        <p>Other locations unlock as you prestige.</p>
+        <p>As the <strong>{{ storyContext.playerTitle }}</strong>, your HQ generates <strong>1.2x income</strong> and is your starting Continental branch.</p>
+        <p>Conquer rival AI controllers, establish supply routes, and claim your seat at the High Table.</p>
       </div>
 
       <button class="start-screen__btn" @click="startGame">

@@ -5,7 +5,9 @@ import { getTraitMultiplier } from '@/data/traits'
 import { getChefAllBuildingBonus, getConciergePassiveBonus, getBartenderFreezeImmune } from './abilities'
 import { hasEnforcer } from './assassin-manager'
 import { getTotalIncomeMult } from './skill-manager'
-import { gameState, setIncomeFunction } from './game-state'
+import { getRoyalBuildingsIncome, getRoyalIncomeMult, getSovereignBuffMult } from './royal-manager'
+import { sovereignManager } from './sovereign-manager'
+import { gameState } from './game-state'
 import { eventBus } from './event-bus'
 
 let _suppressUIEvents = false
@@ -88,6 +90,9 @@ export function getBranchIncomePerSecond(branchId?: BranchId): number {
     total += getBuildingIncome(branchState, def.id)
   })
 
+  // Royal buildings income (only for royal branches)
+  total += getRoyalBuildingsIncome(id)
+
   // Chef max ability: +10% to ALL building income
   total *= getChefAllBuildingBonus(id)
 
@@ -129,10 +134,13 @@ export function getBranchIncomePerSecond(branchId?: BranchId): number {
   )
   if (hasFreeze && !hasEnforcer(id)) {
     if (getBartenderFreezeImmune(id)) {
-      const barIncome = getBuildingIncome(branchState, 'bar')
+      const barIncome = getBuildingIncome(branchState, 'bar') * getChefAllBuildingBonus(id)
       const conciergeBonus = getConciergePassiveBonus(id)
       const skillIncomeMult = getTotalIncomeMult()
-      return barIncome * prestigeMult * hqMult * satMult * repMult * buffMult * permBonus * conciergeBonus * skillIncomeMult
+      const royalIncomeMult = getRoyalIncomeMult()
+      const sovereignMult = getSovereignBuffMult()
+      const decreeIncomeMult = 1 + sovereignManager.getActiveDecreeMult('incomeMultiplier')
+      return barIncome * prestigeMult * hqMult * satMult * repMult * buffMult * sovereignMult * decreeIncomeMult * permBonus * conciergeBonus * skillIncomeMult * royalIncomeMult
     }
     return 0
   }
@@ -143,7 +151,16 @@ export function getBranchIncomePerSecond(branchId?: BranchId): number {
   // Commerce skill tree income multiplier
   const skillIncomeMult = getTotalIncomeMult()
 
-  return total * prestigeMult * hqMult * satMult * repMult * buffMult * permBonus * conciergeBonus * skillIncomeMult
+  // Royal skill tree income multiplier
+  const royalIncomeMult = getRoyalIncomeMult()
+
+  // Sovereign bonus: all buffs doubled
+  const sovereignMult = getSovereignBuffMult()
+
+  // Royal Decree income multiplier (active decrees)
+  const decreeIncomeMult = 1 + sovereignManager.getActiveDecreeMult('incomeMultiplier')
+
+  return total * prestigeMult * hqMult * satMult * repMult * buffMult * sovereignMult * decreeIncomeMult * permBonus * conciergeBonus * skillIncomeMult * royalIncomeMult
 }
 
 export function getBuildingCost(branchState: BranchState, buildingId: string, count: number = 1): number {
@@ -196,6 +213,9 @@ export function purchaseBuilding(buildingId: string, count?: number): boolean {
   if (!bState || !bState.unlocked) return false
 
   let buyCount = count || state.buyMultiplier
+  if (!Number.isFinite(buyCount) || buyCount < 0) {
+    buyCount = 1
+  }
   if (buyCount === 0) {
     buyCount = getAffordableLevels(branch, buildingId)
   }
@@ -253,6 +273,3 @@ export function tick(): void {
     eventBus.emit('income:tick', { income: activeIncome })
   }
 }
-
-// Register income function with game-state to break circular dependency
-setIncomeFunction(getBranchIncomePerSecond)

@@ -3,6 +3,7 @@ import { gameState } from './game-state'
 import { eventBus } from './event-bus'
 import { BRANCHES } from '@/data/branches'
 import { getAssassinCombatDamage, getAssassinXpMult } from './assassin-manager'
+import { defeatAIOwner } from './ai-owner-manager'
 
 const HQ_HEALTH_BASE = 1000
 const HQ_HEALTH_PER_PRESTIGE = 500
@@ -108,6 +109,7 @@ export function tickTakeoverProgress(): void {
 
         eventBus.emit('takeover:complete', { branchId: def.id })
         eventBus.emit('branch:unlock', { branchId: def.id })
+        defeatAIOwner(def.id)
       }
     }
   })
@@ -138,4 +140,32 @@ export function getAttackersOnTarget(branchId: BranchId): number {
     count += Object.values(branch.assassins).filter(a => a.attackTarget === branchId).length
   })
   return count
+}
+
+export interface AttackRoute {
+  from: BranchId
+  to: BranchId
+  attackerCount: number
+}
+
+export function getActiveAttackRoutes(): AttackRoute[] {
+  const state = gameState.get()
+  const routeMap = new Map<string, AttackRoute>()
+
+  state.worldMap.unlockedBranches.forEach(sourceId => {
+    const branch = state.branches[sourceId]
+    if (!branch) return
+    Object.values(branch.assassins).forEach(assassin => {
+      if (!assassin.attackTarget) return
+      const key = `${sourceId}->${assassin.attackTarget}`
+      const existing = routeMap.get(key)
+      if (existing) {
+        existing.attackerCount++
+      } else {
+        routeMap.set(key, { from: sourceId, to: assassin.attackTarget, attackerCount: 1 })
+      }
+    })
+  })
+
+  return Array.from(routeMap.values())
 }

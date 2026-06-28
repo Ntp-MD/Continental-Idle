@@ -107,54 +107,54 @@ function splitBold(text: string): TextSegment[] {
 
 .wiki-table th,
 .wiki-table td {
-  border: 1px solid #e0e0e0;
+  border: 1px solid var(--text-primary);
   padding: 10px;
   text-align: left;
 }
 
 .wiki-table th {
-  background-color: #1a1a1a;
-  color: #ffd700;
+  background-color: var(--bg-card);
+  color: var(--accent-gold);
 }
 
 .wiki-table tr:hover {
-  background-color: #1a1a1a;
+  background-color: var(--bg-card);
 }
 
 .wiki-info {
-  border: 1px solid #2196f3;
+  border: 1px solid var(--wiki-blue);
   padding: 15px;
   margin: 15px 0;
-  background-color: #0f101a;
+  background-color: var(--wiki-blue-bg);
 }
 
 .wiki-info h4 {
-  color: #2196f3;
+  color: var(--wiki-blue);
   margin-bottom: 10px;
 }
 
 .wiki-warning {
-  border: 1px solid #d32f2f;
+  border: 1px solid var(--wiki-red);
   padding: 15px;
   margin: 15px 0;
-  background-color: #1a0f0f;
+  background-color: var(--wiki-red-bg);
 }
 
 .wiki-warning h4 {
-  color: #d32f2f;
+  color: var(--wiki-red);
   margin-bottom: 10px;
 }
 
 code {
-  background-color: #1a1a1a;
+  background-color: var(--bg-card);
   padding: 2px 6px;
-  border: 1px solid #e0e0e0;
+  border: 1px solid var(--text-primary);
   font-family: 'Courier New', monospace;
 }
 
 pre {
-  background-color: #1a1a1a;
-  border: 1px solid #e0e0e0;
+  background-color: var(--bg-card);
+  border: 1px solid var(--text-primary);
   padding: 15px;
   overflow-x: auto;
   margin: 15px 0;

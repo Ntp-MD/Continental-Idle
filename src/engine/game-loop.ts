@@ -5,8 +5,13 @@ import { tickStaffXp } from './staff-manager'
 import { tickDebtCollection, tickDebtInterest } from './debt-manager'
 import { tickAssassinLoyalty, tickAssassinXp } from './assassin-manager'
 import { tickTakeoverProgress } from './takeover-manager'
+import { tickSupplyRoutes } from './supply-route-manager'
+import { tickAIOwners } from './ai-owner-manager'
 import { hasVaultKeeperMaxed } from './abilities'
 import { getTotalIncomeMult } from './skill-manager'
+import { achievementManager } from './achievement-manager'
+import { tickRoyalMarks, getRoyalIncomeMult, getSovereignBuffMult } from './royal-manager'
+import { sovereignManager } from './sovereign-manager'
 import { eventBus } from './event-bus'
 
 const AUTOSAVE_INTERVAL = 30 // seconds
@@ -22,6 +27,7 @@ class GameLoop {
     this.running = true
 
     window.addEventListener('beforeunload', this.saveHandler)
+    achievementManager.start()
 
     this.intervalId = window.setInterval(() => {
       if (this.ticking) return
@@ -65,6 +71,8 @@ class GameLoop {
     // Takeover progress tick (every 5s)
     if (this.tickCount % 5 === 0) {
       tickTakeoverProgress()
+      tickSupplyRoutes()
+      tickAIOwners(this.tickCount)
     }
 
     // Safe House interest (every 60s)
@@ -78,10 +86,12 @@ class GameLoop {
         const baseInterest = safeHouse.level * 100
         const vaultKeeperMult = hasVaultKeeperMaxed(branchId) ? 2 : 1
         const goldStandardMult = branch.upgrades.includes('goldStandard') ? 1.5 : 1
-        const interest = baseInterest * vaultKeeperMult * goldStandardMult * getTotalIncomeMult()
+        const interest = baseInterest * vaultKeeperMult * goldStandardMult * getTotalIncomeMult() * getRoyalIncomeMult() * getSovereignBuffMult() * (1 + sovereignManager.getActiveDecreeMult('incomeMultiplier'))
         branch.currency += interest
         branch.lifetimeEarnings += interest
       })
+      // Royal Marks passive generation
+      tickRoyalMarks()
     }
 
     // Heat passive decay (every 120 ticks = 2 min, ~0.5/min)
@@ -105,6 +115,7 @@ class GameLoop {
 
     // Autosave (every 30s)
     if (this.tickCount % AUTOSAVE_INTERVAL === 0) {
+      sovereignManager.checkVictory()
       if (gameState.save()) {
         eventBus.emit('save:complete')
       } else {
@@ -118,9 +129,9 @@ class GameLoop {
       clearInterval(this.intervalId)
       this.intervalId = null
     }
+    achievementManager.stop()
     window.removeEventListener('beforeunload', this.saveHandler)
     this.running = false
-    this.tickCount = 0
   }
 
   isRunning(): boolean {

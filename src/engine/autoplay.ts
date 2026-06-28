@@ -7,19 +7,25 @@ import { tickStaffXp, hireStaff, assignStaff, confirmLevelUp, isStaffUnlocked } 
 import { tickDebtCollection, tickDebtInterest, getTotalDebt, repayAllDebts } from './debt-manager'
 import { tickAssassinLoyalty, tickAssassinXp, hireAssassin, isAssassinUnlocked, assignAssassin, sendAssassinToAttack, confirmAssassinLevelUp, getAssassinCombatDamage, hasEnforcer, hasHighTableEnforcer, cancelAssassinAttack } from './assassin-manager'
 import { tickTakeoverProgress, initiateTakeover, canInitiateTakeover, getTakeoverCost } from './takeover-manager'
+import { tickSupplyRoutes } from './supply-route-manager'
+import { tickAIOwners } from './ai-owner-manager'
 import { hasVaultKeeperMaxed } from './abilities'
 import { getTotalIncomeMult, getExtraStaffSlots } from './skill-manager'
 import { purchaseUpgrade, UPGRADES } from './upgrade-manager'
 import { doPrestige, getPrestigeFavor } from './prestige-manager'
+import { canEstablishRoute, establishRoute, stabilizeRoute, getSupplyRoutes, getStabilizeCost, canHijackRoute, hijackRoute, getHijackableRoutes } from './supply-route-manager'
 import { BUILDINGS, BUILDING_INCOME_GROWTH } from '@/data/buildings'
 import { STAFF_TYPES } from '@/data/staff'
 import { ASSASSIN_TYPES } from '@/data/assassins'
 import { BRANCHES, getBranchDef } from '@/data/branches'
 import { SKILL_NODES, SKILL_MAX_LEVEL } from '@/data/skills'
 import { upgradeSkill } from './skill-manager'
+import { purchaseRoyalBuilding, canUpgradeRoyalSkill, upgradeRoyalSkill, canRoyalPrestige, getRoyalPrestigeMarks, doRoyalPrestige, getRoyalAffordableLevels } from './royal-manager'
+import { sovereignManager } from './sovereign-manager'
+import { ROYAL_BUILDINGS } from '@/data/royal-buildings'
 import { formatNumber } from './format'
 import { TRAIT_EFFECTS } from '@/data/traits'
-import type { BranchId, SkillTreeState, BranchState, AssassinEntry } from '@/types'
+import type { BranchId, SkillTreeState, BranchState, AssassinEntry, SupplyRouteType } from '@/types'
 
 export type AutoplaySpeed = 1 | 10 | 100 | 1000
 
@@ -42,12 +48,14 @@ class AutoplayBot {
   start(): void {
     if (this.running) return
     this.running = true
+    this._consecutiveErrors = 0
     this.wasGameLoopRunning = gameLoop.isRunning()
     if (this.wasGameLoopRunning) {
       gameLoop.stop()
     }
     setSuppressUIEvents(true)
     this.logAction('Autoplay started')
+    eventBus.emit('autoplay:started')
     this.scheduleInterval()
   }
 
@@ -99,13 +107,24 @@ class AutoplayBot {
         for (let i = 0; i < ticksPerInterval; i++) {
           this.tick()
         }
+        this.flushLogs()
+        eventBus.emit('income:tick', { income: getBranchIncomePerSecond() })
+        this._consecutiveErrors = 0
+      } catch (err) {
+        console.error('Autoplay tick error:', err)
+        this.logAction('⚠ Tick error — continuing')
+        this._consecutiveErrors++
+        if (this._consecutiveErrors >= this.MAX_CONSECUTIVE_ERRORS) {
+          console.error('Autoplay stopped after ' + this.MAX_CONSECUTIVE_ERRORS + ' consecutive errors')
+          this.logAction('⚠ Autoplay stopped — too many consecutive errors')
+          this.stop()
+          return
+        }
       } finally {
-        // ensure next batch schedules even if tick throws
+        if (this.running) {
+          this.intervalId = window.setTimeout(runBatch, intervalMs)
+        }
       }
-      this.flushLogs()
-      // Emit a single UI update per batch so components can refresh
-      eventBus.emit('income:tick', { income: getBranchIncomePerSecond() })
-      this.intervalId = window.setTimeout(runBatch, intervalMs)
     }
     this.intervalId = window.setTimeout(runBatch, intervalMs)
   }
@@ -120,6 +139,8 @@ class AutoplayBot {
 
   private _pendingLogEmit = false
   private _lastLogFlush = 0
+  private _consecutiveErrors = 0
+  private readonly MAX_CONSECUTIVE_ERRORS = 10
 
   private flushLogs(): void {
     if (!this._pendingLogEmit) return
@@ -142,7 +163,11 @@ class AutoplayBot {
     if (this.tickCount % 10 === 0) tickDebtCollection()
     if (this.tickCount % 60 === 0) tickDebtInterest()
     if (this.tickCount % 30 === 0) tickAssassinLoyalty()
-    if (this.tickCount % 5 === 0) tickTakeoverProgress()
+    if (this.tickCount % 5 === 0) {
+      tickTakeoverProgress()
+      tickSupplyRoutes()
+      tickAIOwners(this.tickCount)
+    }
 
     if (this.tickCount % 60 === 0) {
       this.tickSafeHouseInterest()
@@ -214,6 +239,10 @@ class AutoplayBot {
       this.hireAndAssignStaff()
       this.reassignStaff()
       this.upgradeSkills()
+      this.upgradeRoyalSkills()
+      this.purchaseRoyalBuildings()
+      this.doRoyalPrestigeIfWorth()
+      this.issueDecreeIfAvailable()
       this.doPrestigeIfWorth()
     } else if (phase === 'expand') {
       // Mid game: unlock & conquer branches
@@ -224,8 +253,13 @@ class AutoplayBot {
       this.buyBuildings()
       this.reassignStaff()
       this.manageInactiveBranches()
+      this.manageSupplyRoutes()
       this.manageDebts()
       this.upgradeSkills()
+      this.upgradeRoyalSkills()
+      this.purchaseRoyalBuildings()
+      this.doRoyalPrestigeIfWorth()
+      this.issueDecreeIfAvailable()
       this.doPrestigeIfWorth()
     } else {
       // Late game: conquer everything
@@ -236,8 +270,13 @@ class AutoplayBot {
       this.buyBuildings()
       this.reassignStaff()
       this.manageInactiveBranches()
+      this.manageSupplyRoutes()
       this.manageDebts()
       this.upgradeSkills()
+      this.upgradeRoyalSkills()
+      this.purchaseRoyalBuildings()
+      this.doRoyalPrestigeIfWorth()
+      this.issueDecreeIfAvailable()
       this.doPrestigeIfWorth()
     }
   }
@@ -425,11 +464,13 @@ class AutoplayBot {
     })
 
     // Buy 1 level at a time, respecting reserve
+    // Only apply reserve if branch has enough currency to save meaningfully
+    const effectiveReserve = branch.currency >= reserve ? reserve : 0
     for (const c of candidates) {
-      if (c.cost > branch.currency - reserve) continue
+      if (c.cost > branch.currency - effectiveReserve) continue
       const ok = purchaseBuilding(c.def.id, 1)
       if (ok) {
-        this.logAction(`Bought ${c.def.name} → lvl ${c.bState.level + 1}`)
+        this.logAction(`Bought ${c.def.name} → lvl ${c.bState.level}`)
       }
     }
   }
@@ -495,10 +536,18 @@ class AutoplayBot {
     const branch = state.branches[branchId]
     if (!branch) return
 
-    this.buyBuildings(branchId)
-    this.hireAndAssignStaff(branchId)
-    this.reassignStaff(branchId)
-    this.purchaseUpgrades(branchId)
+    // Temporarily switch activeBranch so engine functions operate on the target branch
+    state.activeBranch = branchId
+    try {
+      this.confirmStaffLevelUps(branchId)
+      this.confirmAssassinLevelUps(branchId)
+      this.buyBuildings(branchId)
+      this.hireAndAssignStaff(branchId)
+      this.reassignStaff(branchId)
+      this.purchaseUpgrades(branchId)
+    } finally {
+      state.activeBranch = activeId
+    }
   }
 
   private manageDebts(): void {
@@ -521,6 +570,59 @@ class AutoplayBot {
     }
   }
 
+  private manageSupplyRoutes(): void {
+    const state = gameState.get()
+    const unlocked = state.worldMap.unlockedBranches
+    if (unlocked.length < 2) return
+
+    const routes = getSupplyRoutes()
+
+    // Stabilize routes below 40%
+    for (const route of routes) {
+      if (route.stability < 40) {
+        const cost = getStabilizeCost(route.id)
+        const branch = state.branches[route.from]
+        if (branch && branch.currency >= cost) {
+          stabilizeRoute(route.id)
+          this.logAction(`Stabilized supply route ${getBranchDef(route.from)?.name} → ${getBranchDef(route.to)?.name}`)
+        }
+      }
+    }
+
+    // Try to establish new routes from branches with surplus currency
+    const types: SupplyRouteType[] = ['luxury', 'contraband', 'weapons']
+    for (const fromId of unlocked) {
+      const fromBranch = state.branches[fromId]
+      if (!fromBranch) continue
+      const existingCount = routes.filter(r => r.from === fromId).length
+      if (existingCount >= 3) continue
+
+      // Pick a target branch — prefer the one furthest away for thematic feel
+      const targets = unlocked.filter(t => t !== fromId)
+      if (targets.length === 0) continue
+
+      for (const type of types) {
+        if (canEstablishRoute(fromId, targets[0], type)) {
+          establishRoute(fromId, targets[0], type)
+          this.logAction(`Established ${type} route: ${getBranchDef(fromId)?.name} → ${getBranchDef(targets[0])?.name}`)
+          break
+        }
+      }
+    }
+
+    // Attempt hijack if we have idle assassins and hijackable routes
+    const hijackable = getHijackableRoutes()
+    for (const route of hijackable) {
+      if (canHijackRoute(route.id)) {
+        const result = hijackRoute(route.id)
+        if (result.success) {
+          this.logAction(`Hijacked supply route from ${getBranchDef(route.from)?.name}`)
+        }
+        break
+      }
+    }
+  }
+
   private hireAndAssignStaff(targetBranch?: BranchId): void {
     const state = gameState.get()
     const branch = state.branches[targetBranch || state.activeBranch]
@@ -531,8 +633,9 @@ class AutoplayBot {
 
     if (Object.keys(branch.staff).length < maxStaff) {
       // Evaluate each staff type by strategic value
+      const branchIdResolved = targetBranch || state.activeBranch
       const candidates = STAFF_TYPES
-        .filter(def => isStaffUnlocked(def.id) && branch.currency >= def.hireCost)
+        .filter(def => isStaffUnlocked(def.id, branchIdResolved) && branch.currency >= def.hireCost)
         .filter(def => !Object.values(branch.staff).some(s => s.typeId === def.id))
         .map(def => {
           const coverage = def.bestMatch.filter(bId => {
@@ -542,7 +645,7 @@ class AutoplayBot {
           // Defensive value: cleaner negates negative events, concierge gives passive income
           let defensiveValue = 0
           if (def.id === 'cleaner' && branch.heatLevel >= 5) defensiveValue = 100
-          if (def.id === 'bartender' && !hasEnforcer(state.activeBranch)) defensiveValue = 50
+          if (def.id === 'bartender' && !hasEnforcer(targetBranch || state.activeBranch)) defensiveValue = 50
           if (def.id === 'adjudicator') defensiveValue = 80 // prestige reputation retention
           const score = coverage * 100 + defensiveValue - def.hireCost * 0.0001
           return { def, score }
@@ -551,7 +654,7 @@ class AutoplayBot {
 
       for (const { def } of candidates) {
         if (Object.keys(branch.staff).length >= maxStaff) break
-        const hired = hireStaff(def.id)
+        const hired = hireStaff(def.id, branchIdResolved)
         if (hired) {
           const traitInfo = this.summarizeTraits(hired.traits)
           this.logAction(`Hired ${def.name}${traitInfo}`)
@@ -560,9 +663,10 @@ class AutoplayBot {
     }
 
     // Assign all unassigned staff using trait-aware optimal assignment
+    const branchIdForAssign = targetBranch || state.activeBranch
     const unassigned = Object.values(branch.staff).filter(s => s.assignedTo === null)
     for (const staff of unassigned) {
-      this.assignStaffOptimally(staff.id, branch)
+      this.assignStaffOptimally(staff.id, branch, branchIdForAssign)
     }
   }
 
@@ -582,7 +686,7 @@ class AutoplayBot {
     return s
   }
 
-  private assignStaffOptimally(staffId: string, branch: BranchState): void {
+  private assignStaffOptimally(staffId: string, branch: BranchState, branchId: BranchId): void {
     const staff = branch.staff[staffId]
     if (!staff) return
     const def = STAFF_TYPES.find(s => s.id === staff.typeId)
@@ -600,8 +704,9 @@ class AutoplayBot {
       .sort((a, b) => b.income - a.income)
 
     if (matchingBuildings.length > 0) {
-      assignStaff(staffId, matchingBuildings[0].bId)
-      this.logAction(`Assigned ${def.name} to ${matchingBuildings[0].bId}`)
+      assignStaff(staffId, matchingBuildings[0].bId, branchId)
+      const bldgDef = BUILDINGS.find(b => b.id === matchingBuildings[0].bId)
+      this.logAction(`Assigned ${def.name} to ${bldgDef?.name || matchingBuildings[0].bId}`)
       return
     }
 
@@ -616,8 +721,9 @@ class AutoplayBot {
       .sort((a, b) => b.income - a.income)
 
     if (anyBuildings.length > 0) {
-      assignStaff(staffId, anyBuildings[0].bId)
-      this.logAction(`Assigned ${def.name} to ${anyBuildings[0].bId}`)
+      assignStaff(staffId, anyBuildings[0].bId, branchId)
+      const bldgDef = BUILDINGS.find(b => b.id === anyBuildings[0].bId)
+      this.logAction(`Assigned ${def.name} to ${bldgDef?.name || anyBuildings[0].bId}`)
     }
   }
 
@@ -644,8 +750,10 @@ class AutoplayBot {
       })
 
       if (betterBuilding) {
-        assignStaff(staff.id, betterBuilding)
-        this.logAction(`Reassigned ${def.name} to ${betterBuilding}`)
+        const branchIdForAssign = targetBranch || state.activeBranch
+        assignStaff(staff.id, betterBuilding, branchIdForAssign)
+        const bldgDef = BUILDINGS.find(b => b.id === betterBuilding)
+        this.logAction(`Reassigned ${def.name} to ${bldgDef?.name || betterBuilding}`)
       }
     }
   }
@@ -655,9 +763,10 @@ class AutoplayBot {
     const branch = state.branches[targetBranch || state.activeBranch]
     if (!branch) return
 
+    const branchIdForLevelUp = targetBranch || state.activeBranch
     Object.values(branch.staff).forEach(staff => {
       if (staff.pendingLevelUp) {
-        const ok = confirmLevelUp(staff.id)
+        const ok = confirmLevelUp(staff.id, branchIdForLevelUp)
         if (ok) {
           const def = STAFF_TYPES.find(s => s.id === staff.typeId)
           this.logAction(`Staff ${def?.name || staff.typeId} leveled up to ${staff.level}`)
@@ -679,7 +788,7 @@ class AutoplayBot {
       // Strategic hiring: assess what threats exist and hire accordingly
       const threats = this.assessThreats(branchId)
       const affordable = ASSASSIN_TYPES
-        .filter(def => isAssassinUnlocked(def.id) && branch.currency >= def.hireCost)
+        .filter(def => isAssassinUnlocked(def.id, branchId) && branch.currency >= def.hireCost)
         .filter(def => !Object.values(branch.assassins).some(a => a.typeId === def.id))
         .map(def => {
           let score = 0
@@ -701,7 +810,7 @@ class AutoplayBot {
 
       for (const { def } of affordable) {
         if (Object.keys(branch.assassins).length >= assassinCap) break
-        const hired = hireAssassin(def.id)
+        const hired = hireAssassin(def.id, branchId)
         if (hired) {
           const traitInfo = this.summarizeTraits(hired.traits)
           this.logAction(`Hired ${def.name}${traitInfo}`)
@@ -712,7 +821,7 @@ class AutoplayBot {
     // Assign all unassigned assassins
     Object.values(branch.assassins).forEach(assassin => {
       if (!assassin.assignedBranch) {
-        assignAssassin(assassin.id, state.activeBranch)
+        assignAssassin(assassin.id, branchId)
       }
     })
   }
@@ -747,9 +856,10 @@ class AutoplayBot {
     const branch = state.branches[targetBranch || state.activeBranch]
     if (!branch) return
 
+    const branchIdForLevelUp = targetBranch || state.activeBranch
     Object.values(branch.assassins).forEach(assassin => {
       if (assassin.pendingLevelUp) {
-        const ok = confirmAssassinLevelUp(assassin.id)
+        const ok = confirmAssassinLevelUp(assassin.id, branchIdForLevelUp)
         if (ok) {
           const def = ASSASSIN_TYPES.find(a => a.id === assassin.typeId)
           this.logAction(`Assassin ${def?.name || assassin.typeId} leveled up to ${assassin.level}`)
@@ -854,20 +964,32 @@ class AutoplayBot {
 
   private purchaseUpgrades(targetBranch?: BranchId): void {
     const state = gameState.get()
-    const branch = state.branches[targetBranch || state.activeBranch]
+    const branchId = targetBranch || state.activeBranch
+    const branch = state.branches[branchId]
     if (!branch) return
 
     // Priority: unlock upgrades first, then income boosters
     const priority = ['privateWing', 'armoryExpansion', 'continentalCharter', 'trainingGrounds', 'goldStandard', 'diplomaticChannels']
 
-    for (const id of priority) {
-      if (branch.upgrades.includes(id)) continue
-      const def = UPGRADES.find(u => u.id === id)
-      if (!def) continue
-      if (branch.currency < def.cost) continue
-      const ok = purchaseUpgrade(id)
-      if (ok) {
-        this.logAction(`Purchased upgrade: ${def.name}`)
+    const prevActive = state.activeBranch
+    if (targetBranch && targetBranch !== prevActive) {
+      state.activeBranch = targetBranch
+    }
+
+    try {
+      for (const id of priority) {
+        if (branch.upgrades.includes(id)) continue
+        const def = UPGRADES.find(u => u.id === id)
+        if (!def) continue
+        if (branch.currency < def.cost) continue
+        const ok = purchaseUpgrade(id)
+        if (ok) {
+          this.logAction(`Purchased upgrade: ${def.name}`)
+        }
+      }
+    } finally {
+      if (targetBranch && targetBranch !== prevActive) {
+        state.activeBranch = prevActive
       }
     }
   }
@@ -890,10 +1012,78 @@ class AutoplayBot {
     }
   }
 
+  private upgradeRoyalSkills(): void {
+    const state = gameState.get()
+    if (state.worldMap.royalBranches.length === 0) return
+    const priority = ['royalIncome', 'royalAscension', 'royalFavor', 'royalLoyalty', 'royalPower'] as const
+    for (const branch of priority) {
+      if (!canUpgradeRoyalSkill(branch)) continue
+      const ok = upgradeRoyalSkill(branch)
+      if (ok) {
+        const level = state.royalSkillTree[branch as keyof typeof state.royalSkillTree]
+        this.logAction(`Upgraded royal skill: ${branch} → ${level}`)
+      }
+    }
+  }
+
+  private purchaseRoyalBuildings(): void {
+    const state = gameState.get()
+    const royalBranches = state.worldMap.royalBranches
+    if (royalBranches.length === 0) return
+
+    const prevActive = state.activeBranch
+    for (const branchId of royalBranches) {
+      const branch = state.branches[branchId]
+      if (!branch) continue
+      state.activeBranch = branchId
+      for (const def of ROYAL_BUILDINGS) {
+        const bState = branch.royalBuildings?.[def.id]
+        const currentLevel = bState?.level || 0
+        if (currentLevel >= def.maxLevel) continue
+        const affordable = getRoyalAffordableLevels(branch, def.id)
+        if (affordable <= 0) continue
+        const ok = purchaseRoyalBuilding(def.id, Math.min(affordable, 10))
+        if (ok) {
+          this.logAction(`Purchased ${def.name} x${Math.min(affordable, 10)} in ${getBranchDef(branchId).name}`)
+        }
+      }
+    }
+    state.activeBranch = prevActive
+  }
+
+  private doRoyalPrestigeIfWorth(): void {
+    if (!canRoyalPrestige()) return
+    const marks = getRoyalPrestigeMarks()
+    if (marks <= 0) return
+    const ok = doRoyalPrestige()
+    if (ok) {
+      this.logAction(`Royal Prestige! +${marks} Royal Marks`)
+    }
+  }
+
+  private issueDecreeIfAvailable(): void {
+    if (!sovereignManager.isSovereign()) return
+    if (!sovereignManager.canIssueDecree()) return
+    const choices = sovereignManager.getDecreeChoices()
+    if (choices.length === 0) return
+    // Prioritize: permanentIncomeBonus (permanent) > incomeMultiplier (highest value) > heatReduction > debtReduction > loyaltyBoost
+    const priority: Record<string, number> = { permanentIncomeBonus: 5, incomeMultiplier: 4, heatReduction: 3, debtReduction: 2, loyaltyBoost: 1 }
+    const best = [...choices].sort((a, b) => {
+      const pa = priority[a.type] ?? 0
+      const pb = priority[b.type] ?? 0
+      if (pa !== pb) return pb - pa
+      return b.value - a.value
+    })[0]
+    const ok = sovereignManager.issueDecree(best)
+    if (ok) {
+      this.logAction(`Issued decree: ${best.name}`)
+    }
+  }
+
   private doPrestigeIfWorth(): void {
     const state = gameState.get()
 
-    // Find best prestige candidate across ALL branches
+    // Find best prestige candidate across ALL BRANCHES
     let bestBranch: BranchId | null = null
     let bestFavor = 0
 

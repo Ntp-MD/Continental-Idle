@@ -67,6 +67,17 @@ function buy(buildingId: string) {
   update()
 }
 
+// Debounce utility to prevent rapid-fire clicks
+let lastBuyTime = 0
+const BUY_DEBOUNCE_MS = 200
+
+function debouncedBuy(buildingId: string) {
+  const now = Date.now()
+  if (now - lastBuyTime < BUY_DEBOUNCE_MS) return
+  lastBuyTime = now
+  buy(buildingId)
+}
+
 function setMult(mult: number) {
   gameState.setBuyMultiplier(mult)
   buyMultiplier.value = mult
@@ -132,7 +143,7 @@ onUnmounted(() => {
           :class="{ 'building-card__buy--disabled': !b.affordable }"
           :disabled="!b.affordable"
           :aria-label="`Buy ${b.name}, level ${b.level}, cost ${b.cost}`"
-          @click="buy(b.id)"
+          @click="debouncedBuy(b.id)"
         >BUY</button>
       </div>
     </div>

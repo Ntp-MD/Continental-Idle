@@ -2,6 +2,7 @@
 import { STAFF_MAP } from '@/data/staff'
 import { getTraitMultiplier } from '@/data/traits'
 import { getTotalStaffXpMult, getExtraStaffSlots } from './skill-manager'
+import { getSovereignBuffMult } from './royal-manager'
 import { gameState } from './game-state'
 import { eventBus } from './event-bus'
 
@@ -192,7 +193,7 @@ export function tickStaffXp(branchId?: BranchId): void {
       const traitXpMult = getTraitMultiplier(staff.traits, 'xpMult')
       const skillXpMult = getTotalStaffXpMult()
       const upgradeXpMult = branch.upgrades.includes('trainingGrounds') ? 1.2 : 1.0
-      const xpGain = 0.5 * (1 + staff.level * 0.05) * (1 + staff.stats.speed * 0.01) * xpRate * traitXpMult * skillXpMult * upgradeXpMult
+      const xpGain = 0.5 * (1 + staff.level * 0.05) * (1 + staff.stats.speed * 0.01) * xpRate * traitXpMult * skillXpMult * upgradeXpMult * getSovereignBuffMult()
       staff.xp += xpGain
 
       const threshold = getStaffXpToNext(staff.level)

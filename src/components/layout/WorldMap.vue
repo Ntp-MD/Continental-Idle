@@ -6,7 +6,10 @@ import { gameState } from '@/engine/game-state'
 import { BRANCHES, getBranchDef } from '@/data/branches'
 import { eventBus } from '@/engine/event-bus'
 import { getBranchIncomePerSecond } from '@/engine/income-engine'
-import { canInitiateTakeover, initiateTakeover, getTakeoverCost, getTakeoverProgress, getHqHealthPercent, getAttackersOnTarget } from '@/engine/takeover-manager'
+import { canInitiateTakeover, initiateTakeover, getTakeoverCost, getTakeoverProgress, getHqHealthPercent, getAttackersOnTarget, getActiveAttackRoutes } from '@/engine/takeover-manager'
+import { getAIOwner } from '@/engine/ai-owner-manager'
+import { getSupplyRoutes } from '@/engine/supply-route-manager'
+import { SUPPLY_ROUTE_MAP } from '@/data/supply-routes'
 import { formatIncome, formatNumber } from '@/engine/format'
 import type { BranchId } from '@/types'
 
@@ -21,6 +24,7 @@ const tooltipState = ref('')
 const tooltipPrestige = ref('')
 const tooltipIncome = ref('')
 const tooltipTakeover = ref('')
+const tooltipOwner = ref('')
 
 let zoomBehavior: d3.ZoomBehavior<SVGSVGElement, unknown> | null = null
 let svgSel: d3.Selection<SVGSVGElement, unknown, null, undefined> | null = null
@@ -82,7 +86,11 @@ function drawMap() {
   } else {
     mapLoading.value = true
     mapError.value = false
-    d3.json('https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json')
+    const fetchPromise = d3.json('https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json')
+    const timeoutPromise = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error('Map data fetch timeout')), 10000)
+    )
+    Promise.race([fetchPromise, timeoutPromise])
       .then((data: unknown) => {
         if (!gSel) return
         const topo = data as { objects: { countries: { type: string; geometries: unknown[] } } }
@@ -116,6 +124,160 @@ interface NodeData {
   takeoverProgress: number
   hqHealthPercent: number
   attackerCount: number
+}
+
+function drawAttackLines(projection: d3.GeoProjection) {
+  if (!gSel) return
+  const routes = getActiveAttackRoutes()
+  if (routes.length === 0) return
+
+  gSel.selectAll('.attack-line').remove()
+  gSel.selectAll('.attack-plane').remove()
+
+  const attackLayer = gSel.insert('g', '.node-group').attr('class', 'attack-layer')
+
+  routes.forEach((route, idx) => {
+    const fromDef = BRANCHES.find(b => b.id === route.from)
+    const toDef = BRANCHES.find(b => b.id === route.to)
+    if (!fromDef || !toDef) return
+
+    const fromCoords = projection([fromDef.lon, fromDef.lat])
+    const toCoords = projection([toDef.lon, toDef.lat])
+    if (!fromCoords || !toCoords) return
+
+    const [x1, y1] = fromCoords
+    const [x2, y2] = toCoords
+    const dx = x2 - x1
+    const dy = y2 - y1
+    const dist = Math.sqrt(dx * dx + dy * dy)
+    const midX = (x1 + x2) / 2
+    const midY = (y1 + y2) / 2
+    const offset = Math.min(dist * 0.3, 60)
+    const angle = Math.atan2(dy, dx)
+    const ctrlX = midX + Math.sin(angle) * offset
+    const ctrlY = midY - Math.cos(angle) * offset
+    const pathD = `M ${x1} ${y1} Q ${ctrlX} ${ctrlY} ${x2} ${y2}`
+
+    const routeId = `attack-path-${idx}`
+
+    attackLayer.append('path')
+      .attr('class', 'attack-line')
+      .attr('d', pathD)
+      .attr('id', routeId)
+      .style('fill', 'none')
+      .style('stroke', 'var(--accent-attack)')
+      .style('stroke-width', '1.5px')
+      .style('stroke-dasharray', '6 4')
+      .style('opacity', '0.7')
+      .style('pointer-events', 'none')
+
+    const planeGroup = attackLayer.append('g')
+      .attr('class', 'attack-plane')
+      .style('pointer-events', 'none')
+
+    planeGroup.append('text')
+      .attr('class', 'attack-plane__icon')
+      .attr('text-anchor', 'middle')
+      .attr('dy', 3)
+      .style('font-size', '10px')
+      .style('fill', 'var(--accent-attack)')
+      .text('\u2708')
+
+    if (route.attackerCount > 1) {
+      planeGroup.append('text')
+        .attr('class', 'attack-plane__count')
+        .attr('text-anchor', 'middle')
+        .attr('dy', -6)
+        .style('font-size', '7px')
+        .style('fill', 'var(--accent-attack)')
+        .style('font-weight', 'bold')
+        .text(`x${route.attackerCount}`)
+    }
+
+    const pathEl = document.getElementById(routeId) as SVGPathElement | null
+    if (pathEl) {
+      const duration = Math.max(2000, Math.min(6000, dist * 15))
+
+      planeGroup.append('animateMotion')
+        .attr('dur', `${duration}ms`)
+        .attr('repeatCount', 'indefinite')
+        .attr('rotate', 'auto')
+        .attr('path', pathD)
+    }
+  })
+}
+
+function drawSupplyRoutes(projection: d3.GeoProjection) {
+  if (!gSel) return
+  const supplyRoutes = getSupplyRoutes()
+  if (supplyRoutes.length === 0) return
+
+  gSel.selectAll('.supply-line').remove()
+  gSel.selectAll('.supply-truck').remove()
+
+  const supplyLayer = gSel.insert('g', '.node-group').attr('class', 'supply-layer')
+
+  supplyRoutes.forEach((route, idx) => {
+    const fromDef = BRANCHES.find(b => b.id === route.from)
+    const toDef = BRANCHES.find(b => b.id === route.to)
+    if (!fromDef || !toDef) return
+
+    const fromCoords = projection([fromDef.lon, fromDef.lat])
+    const toCoords = projection([toDef.lon, toDef.lat])
+    if (!fromCoords || !toCoords) return
+
+    const [x1, y1] = fromCoords
+    const [x2, y2] = toCoords
+    const dx = x2 - x1
+    const dy = y2 - y1
+    const dist = Math.sqrt(dx * dx + dy * dy)
+    const midX = (x1 + x2) / 2
+    const midY = (y1 + y2) / 2
+    const offset = Math.min(dist * 0.25, 50)
+    const angle = Math.atan2(dy, dx)
+    const ctrlX = midX - Math.sin(angle) * offset
+    const ctrlY = midY + Math.cos(angle) * offset
+    const pathD = `M ${x1} ${y1} Q ${ctrlX} ${ctrlY} ${x2} ${y2}`
+
+    const routeId = `supply-path-${idx}`
+    const typeDef = SUPPLY_ROUTE_MAP[route.type]
+    const color = typeDef?.color ?? 'var(--text-dim)'
+    const opacity = 0.3 + (route.stability / 100) * 0.5
+
+    supplyLayer.append('path')
+      .attr('class', 'supply-line')
+      .attr('d', pathD)
+      .attr('id', routeId)
+      .style('fill', 'none')
+      .style('stroke', color)
+      .style('stroke-width', '2px')
+      .style('stroke-dasharray', '8 6')
+      .style('opacity', String(opacity))
+      .style('pointer-events', 'none')
+
+    const truckGroup = supplyLayer.append('g')
+      .attr('class', 'supply-truck')
+      .style('pointer-events', 'none')
+
+    truckGroup.append('text')
+      .attr('class', 'supply-truck__icon')
+      .attr('text-anchor', 'middle')
+      .attr('dy', 3)
+      .style('font-size', '9px')
+      .style('fill', color)
+      .text(typeDef?.icon || '\u2693')
+
+    const pathEl = document.getElementById(routeId) as SVGPathElement | null
+    if (pathEl) {
+      const duration = Math.max(3000, Math.min(8000, dist * 20))
+
+      truckGroup.append('animateMotion')
+        .attr('dur', `${duration}ms`)
+        .attr('repeatCount', 'indefinite')
+        .attr('rotate', 'auto')
+        .attr('path', pathD)
+    }
+  })
 }
 
 function drawNodes(projection: d3.GeoProjection) {
@@ -190,27 +352,43 @@ function drawNodes(projection: d3.GeoProjection) {
     .append('circle')
     .attr('class', 'node-pulse')
     .attr('r', 8)
-    .style('stroke', d => d.nodeState === 'hq' ? '#ffd700' : '#4caf50')
+    .style('stroke', d => d.nodeState === 'hq' ? 'var(--accent-gold)' : 'var(--accent-green)')
 
   // Hover ring
   nodeGroups.append('circle')
     .attr('class', 'node-ring')
     .attr('r', 12)
-    .style('stroke', d => d.nodeState === 'hq' ? '#ffd700' : d.nodeState === 'active' ? '#4caf50' : '#666')
+    .style('stroke', d => d.nodeState === 'hq' ? 'var(--accent-gold)' : d.nodeState === 'active' ? 'var(--accent-green)' : 'var(--node-locked)')
 
-  // Node circle
-  nodeGroups.append('circle')
-    .attr('r', 6)
-    .attr('class', 'node-circle')
-    .style('fill', d => {
-      if (d.nodeState === 'hq') return '#ffd700'
-      if (d.nodeState === 'active') return '#4caf50'
-      if (d.nodeState === 'conquered') return '#9c27b0'
-      if (d.nodeState === 'royal') return '#1e88e5'
-      return '#555'
-    })
-    .style('stroke', d => d.id === state.activeBranch ? '#fff' : 'none')
-    .style('stroke-width', '2px')
+  // Node shape - HQ is office rectangle, others are circles
+  nodeGroups.each(function(this: SVGGElement, d: NodeData) {
+    const g = d3.select(this)
+    if (d.nodeState === 'hq') {
+      // Office rectangle for HQ
+      g.append('rect')
+        .attr('class', 'node-office')
+        .attr('x', -8)
+        .attr('y', -6)
+        .attr('width', 16)
+        .attr('height', 12)
+        .style('fill', 'var(--bg-card)')
+        .style('stroke', d.id === state.activeBranch ? 'var(--accent-gold)' : 'var(--border-dim)')
+        .style('stroke-width', '1px')
+    } else {
+      // Circle for other nodes
+      g.append('circle')
+        .attr('r', 6)
+        .attr('class', 'node-circle')
+        .style('fill', () => {
+          if (d.nodeState === 'active') return 'var(--accent-green)'
+          if (d.nodeState === 'conquered') return 'var(--accent-purple)'
+          if (d.nodeState === 'royal') return 'var(--accent-blue)'
+          return 'var(--node-locked)'
+        })
+        .style('stroke', d.id === state.activeBranch ? 'var(--text-bright)' : 'none')
+        .style('stroke-width', '2px')
+    }
+  })
 
   // Node icon
   nodeGroups.append('text')
@@ -218,7 +396,7 @@ function drawNodes(projection: d3.GeoProjection) {
     .attr('dy', 3)
     .attr('text-anchor', 'middle')
     .style('font-size', '9px')
-    .style('fill', '#0a0a0a')
+    .style('fill', 'var(--bg-primary)')
     .style('pointer-events', 'none')
     .text(d => d.nodeState === 'hq' ? '\u2605' : d.nodeState === 'active' ? '' : '')
 
@@ -228,7 +406,7 @@ function drawNodes(projection: d3.GeoProjection) {
     .attr('dy', 16)
     .attr('text-anchor', 'middle')
     .style('font-size', '8px')
-    .style('fill', d => d.nodeState === 'locked' ? '#666' : '#aaa')
+    .style('fill', d => d.nodeState === 'locked' ? 'var(--node-label-locked)' : 'var(--node-label-active)')
     .style('pointer-events', 'none')
     .text(d => d.name)
 
@@ -238,7 +416,7 @@ function drawNodes(projection: d3.GeoProjection) {
     .attr('class', 'node-takeover-ring')
     .attr('r', 9)
     .style('fill', 'none')
-    .style('stroke', '#ff9800')
+    .style('stroke', 'var(--accent-takeover)')
     .style('stroke-width', '2px')
     .style('stroke-dasharray', d => {
       const circumference = 2 * Math.PI * 9
@@ -256,7 +434,7 @@ function drawNodes(projection: d3.GeoProjection) {
     .attr('dy', -12)
     .attr('text-anchor', 'middle')
     .style('font-size', '7px')
-    .style('fill', '#ff9800')
+    .style('fill', 'var(--accent-takeover)')
     .style('pointer-events', 'none')
     .text(d => `${d.takeoverProgress.toFixed(0)}%`)
 
@@ -274,7 +452,7 @@ function drawNodes(projection: d3.GeoProjection) {
         .attr('y', barY)
         .attr('width', barWidth)
         .attr('height', barHeight)
-        .style('fill', '#333')
+        .style('fill', 'var(--hpbar-bg)')
         .style('pointer-events', 'none')
 
       g.append('rect')
@@ -283,7 +461,7 @@ function drawNodes(projection: d3.GeoProjection) {
         .attr('y', barY)
         .attr('width', barWidth * d.hqHealthPercent / 100)
         .attr('height', barHeight)
-        .style('fill', d.hqHealthPercent > 50 ? '#4caf50' : d.hqHealthPercent > 25 ? '#ff9800' : '#f44336')
+        .style('fill', d.hqHealthPercent > 50 ? 'var(--accent-hp-high)' : d.hqHealthPercent > 25 ? 'var(--accent-hp-mid)' : 'var(--accent-hp-low)')
         .style('pointer-events', 'none')
 
       if (d.attackerCount > 0) {
@@ -292,7 +470,7 @@ function drawNodes(projection: d3.GeoProjection) {
           .attr('dy', barY + 10)
           .attr('text-anchor', 'middle')
           .style('font-size', '6px')
-          .style('fill', '#ff5722')
+          .style('fill', 'var(--accent-attack)')
           .style('pointer-events', 'none')
           .text(`\u2694 ${d.attackerCount}`)
       }
@@ -304,6 +482,12 @@ function drawNodes(projection: d3.GeoProjection) {
       tooltipVisible.value = true
       tooltipName.value = d.name
       tooltipState.value = d.nodeState.toUpperCase()
+      if (d.nodeState === 'hq' || d.nodeState === 'active' || d.nodeState === 'conquered' || d.nodeState === 'royal') {
+        tooltipOwner.value = 'You'
+      } else {
+        const owner = getAIOwner(d.id)
+        tooltipOwner.value = owner ? owner.name : 'Unknown'
+      }
       tooltipPrestige.value = d.unlockPrestige === 0 ? 'FREE' : `P${d.unlockPrestige}`
       tooltipIncome.value = d.nodeState === 'locked' ? 'Locked' : formatIncome(d.income)
       if (d.nodeState === 'locked') {
@@ -335,6 +519,16 @@ function drawNodes(projection: d3.GeoProjection) {
     .on('click', function(this: SVGGElement, event: MouseEvent, d: NodeData) {
       event.stopPropagation()
       const gs = gameState.get()
+      if (d.nodeState === 'hq') {
+        if (gs.activeBranch !== d.id) {
+          gameState.setActiveBranch(d.id)
+          eventBus.emit('branch:switch', { branchId: d.id })
+          eventBus.emit('income:update')
+          redrawNodes()
+        }
+        eventBus.emit('hq:office-view')
+        return
+      }
       if (gs.worldMap.unlockedBranches.includes(d.id)) {
         gameState.setActiveBranch(d.id)
         eventBus.emit('branch:switch', { branchId: d.id })
@@ -350,6 +544,16 @@ function drawNodes(projection: d3.GeoProjection) {
       event.preventDefault()
       event.stopPropagation()
       const gs = gameState.get()
+      if (d.nodeState === 'hq') {
+        if (gs.activeBranch !== d.id) {
+          gameState.setActiveBranch(d.id)
+          eventBus.emit('branch:switch', { branchId: d.id })
+          eventBus.emit('income:update')
+          redrawNodes()
+        }
+        eventBus.emit('hq:office-view')
+        return
+      }
       if (gs.worldMap.unlockedBranches.includes(d.id)) {
         gameState.setActiveBranch(d.id)
         eventBus.emit('branch:switch', { branchId: d.id })
@@ -366,11 +570,17 @@ function redrawNodes() {
   if (!gSel) return
   gSel.selectAll('.node-group').remove()
   gSel.selectAll('.connection-line').remove()
+  gSel.selectAll('.attack-line').remove()
+  gSel.selectAll('.attack-plane').remove()
+  gSel.selectAll('.supply-line').remove()
+  gSel.selectAll('.supply-truck').remove()
   const w = svgRef.value?.clientWidth || 800
   const h = svgRef.value?.clientHeight || 400
   const projection = d3.geoMercator()
     .scale(w / 6.5)
     .translate([w / 2, h / 2])
+  drawSupplyRoutes(projection)
+  drawAttackLines(projection)
   drawNodes(projection)
 }
 
@@ -388,6 +598,15 @@ function resetZoom() {
 
 function updateTakeoverProgress() {
   if (!gSel) return
+
+  const w = svgRef.value?.clientWidth || 800
+  const h = svgRef.value?.clientHeight || 400
+  const projection = d3.geoMercator()
+    .scale(w / 6.5)
+    .translate([w / 2, h / 2])
+  drawAttackLines(projection)
+  drawSupplyRoutes(projection)
+
   gSel.selectAll<SVGGElement, NodeData>('.node-group').each(function(d: NodeData) {
     const progress = getTakeoverProgress(d.id)
     const hpPercent = getHqHealthPercent(d.id)
@@ -407,7 +626,7 @@ function updateTakeoverProgress() {
           .attr('class', 'node-takeover-ring')
           .attr('r', 9)
           .style('fill', 'none')
-          .style('stroke', '#ff9800')
+          .style('stroke', 'var(--accent-takeover)')
           .style('stroke-width', '2px')
           .style('stroke-dasharray', `${filled} ${circumference}`)
           .style('stroke-dashoffset', '0')
@@ -419,7 +638,7 @@ function updateTakeoverProgress() {
           .attr('dy', -12)
           .attr('text-anchor', 'middle')
           .style('font-size', '7px')
-          .style('fill', '#ff9800')
+          .style('fill', 'var(--accent-takeover)')
           .style('pointer-events', 'none')
           .text(`${progress.toFixed(0)}%`)
 
@@ -432,7 +651,7 @@ function updateTakeoverProgress() {
           .attr('y', barY)
           .attr('width', barWidth)
           .attr('height', barHeight)
-          .style('fill', '#333')
+          .style('fill', 'var(--hpbar-bg)')
           .style('pointer-events', 'none')
         sel.append('rect')
           .attr('class', 'node-hpbar-fill')
@@ -440,14 +659,14 @@ function updateTakeoverProgress() {
           .attr('y', barY)
           .attr('width', barWidth * hpPercent / 100)
           .attr('height', barHeight)
-          .style('fill', hpPercent > 50 ? '#4caf50' : hpPercent > 25 ? '#ff9800' : '#f44336')
+          .style('fill', hpPercent > 50 ? 'var(--accent-hp-high)' : hpPercent > 25 ? 'var(--accent-hp-mid)' : 'var(--accent-hp-low)')
           .style('pointer-events', 'none')
       } else {
         existingRing.style('stroke-dasharray', `${filled} ${circumference}`)
         existingLabel.text(`${progress.toFixed(0)}%`)
         existingHpFill
           .attr('width', 24 * hpPercent / 100)
-          .style('fill', hpPercent > 50 ? '#4caf50' : hpPercent > 25 ? '#ff9800' : '#f44336')
+          .style('fill', hpPercent > 50 ? 'var(--accent-hp-high)' : hpPercent > 25 ? 'var(--accent-hp-mid)' : 'var(--accent-hp-low)')
       }
 
       if (attackerCount > 0 && existingAttacker.empty()) {
@@ -456,7 +675,7 @@ function updateTakeoverProgress() {
           .attr('dy', 24)
           .attr('text-anchor', 'middle')
           .style('font-size', '6px')
-          .style('fill', '#ff5722')
+          .style('fill', 'var(--accent-attack)')
           .style('pointer-events', 'none')
           .text(`\u2694 ${attackerCount}`)
       } else if (attackerCount > 0) {
@@ -486,10 +705,22 @@ onMounted(() => {
   eventBus.on('income:update', update)
   eventBus.on('income:tick', updateTakeoverProgress)
   eventBus.on('takeover:complete', update)
+  eventBus.on('takeover:started', update)
+  eventBus.on('assassin:attack', update)
+  eventBus.on('assassin:attack-cancel', update)
+  eventBus.on('assassin:recalled', update)
+  eventBus.on('supplyroute:established', update)
+  eventBus.on('supplyroute:hijacked', update)
+  eventBus.on('supplyroute:collapsed', update)
+  eventBus.on('supplyroute:dismantled', update)
   window.addEventListener('resize', drawMap)
 })
 
 onUnmounted(() => {
+  eventBus.off('supplyroute:established', update)
+  eventBus.off('supplyroute:hijacked', update)
+  eventBus.off('supplyroute:collapsed', update)
+  eventBus.off('supplyroute:dismantled', update)
   window.removeEventListener('resize', drawMap)
   eventBus.off('branch:unlock', update)
   eventBus.off('branch:royal', update)
@@ -497,6 +728,10 @@ onUnmounted(() => {
   eventBus.off('income:update', update)
   eventBus.off('income:tick', updateTakeoverProgress)
   eventBus.off('takeover:complete', update)
+  eventBus.off('takeover:started', update)
+  eventBus.off('assassin:attack', update)
+  eventBus.off('assassin:attack-cancel', update)
+  eventBus.off('assassin:recalled', update)
 })
 </script>
 
@@ -519,23 +754,23 @@ onUnmounted(() => {
 
     <div class="world-map__legend">
       <div class="world-map__legend-item">
-        <span class="world-map__legend-dot" style="background: #ffd700;"></span>
+        <span class="world-map__legend-dot" style="background: var(--accent-gold);"></span>
         HQ
       </div>
       <div class="world-map__legend-item">
-        <span class="world-map__legend-dot" style="background: #4caf50;"></span>
+        <span class="world-map__legend-dot" style="background: var(--accent-green);"></span>
         Active
       </div>
       <div class="world-map__legend-item">
-        <span class="world-map__legend-dot" style="background: #9c27b0;"></span>
+        <span class="world-map__legend-dot" style="background: var(--accent-purple);"></span>
         Conquered
       </div>
       <div class="world-map__legend-item">
-        <span class="world-map__legend-dot" style="background: #1e88e5;"></span>
+        <span class="world-map__legend-dot" style="background: var(--accent-blue);"></span>
         Royal
       </div>
       <div class="world-map__legend-item">
-        <span class="world-map__legend-dot" style="background: #555;"></span>
+        <span class="world-map__legend-dot" style="background: var(--node-locked);"></span>
         Locked
       </div>
     </div>
@@ -546,6 +781,7 @@ onUnmounted(() => {
       :style="{ left: tooltipX + 'px', top: tooltipY + 'px' }"
     >
       <div class="world-map__tooltip-name">{{ tooltipName }}</div>
+      <div class="world-map__tooltip-row">Owner: <span class="world-map__tooltip-val">{{ tooltipOwner }}</span></div>
       <div class="world-map__tooltip-row">State: <span class="world-map__tooltip-val">{{ tooltipState }}</span></div>
       <div class="world-map__tooltip-row">Prestige: <span class="world-map__tooltip-val">{{ tooltipPrestige }}</span></div>
       <div class="world-map__tooltip-row">Income: <span class="world-map__tooltip-val">{{ tooltipIncome }}</span></div>

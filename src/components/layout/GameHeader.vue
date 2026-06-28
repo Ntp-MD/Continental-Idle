@@ -51,7 +51,10 @@ function update() {
     let inactiveTotal = 0
     state.worldMap.unlockedBranches.forEach(tid => {
       if (tid === state.activeBranch) return
-      inactiveTotal += getBranchIncomePerSecond(tid) * 0.5
+      const inactiveBranch = state.branches[tid]
+      if (!inactiveBranch) return
+      const rate = inactiveBranch.upgrades.includes('continentalCharter') ? 0.6 : 0.5
+      inactiveTotal += getBranchIncomePerSecond(tid) * rate
     })
     inactiveIncome.value = formatIncome(inactiveTotal)
   }

@@ -3,8 +3,9 @@ import { ASSASSIN_MAP } from '@/data/assassins'
 import { getTraitMultiplier } from '@/data/traits'
 import { gameState } from './game-state'
 import { eventBus } from './event-bus'
+import { getRoyalLoyaltyDecayReduction, getSovereignBuffMult } from './royal-manager'
+import { sovereignManager } from './sovereign-manager'
 import { STAFF_TYPES } from '@/data/staff'
-import { isUpgradePurchased } from './upgrade-manager'
 
 function generateId(): string {
   return 'assassin_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6)
@@ -64,7 +65,7 @@ export function hireAssassin(assassinTypeId: string, branchId?: BranchId): Assas
   if (!isAssassinUnlocked(assassinTypeId, id)) return null
   if (branch.currency < def.hireCost) return null
 
-  const assassinCap = isUpgradePurchased('armoryExpansion') ? 4 : 3
+  const assassinCap = branch.upgrades.includes('armoryExpansion') ? 4 : 3
   if (Object.keys(branch.assassins).length >= assassinCap) return null
 
   branch.currency -= def.hireCost
@@ -243,7 +244,7 @@ export function tickAssassinXp(): void {
       const xpRate = branchId === state.activeBranch ? 1.0 : 0.5
       const traitXpMult = getTraitMultiplier(assassin.traits, 'xpMult')
       const synergyBonus = 1 + assassin.synergyCount * 0.1
-      const xpGain = 0.3 * (1 + assassin.level * 0.05) * xpRate * traitXpMult * synergyBonus
+      const xpGain = 0.3 * (1 + assassin.level * 0.05) * xpRate * traitXpMult * synergyBonus * getSovereignBuffMult()
       assassin.xp += xpGain
 
       const threshold = getAssassinXpToNext(assassin.level)
@@ -270,7 +271,11 @@ export function tickAssassinLoyalty(): void {
         assassin.loyalty = Math.max(0, assassin.loyalty - 5)
       }
       if (assassin.assignedBranch && assassin.assignedBranch !== branchId) {
-        assassin.loyalty = Math.max(0, assassin.loyalty - 0.1)
+        const decayReduction = getRoyalLoyaltyDecayReduction()
+        const sovereignNoDecay = sovereignManager.hasActiveDecree('loyaltyBoost') && sovereignManager.getActiveDecreeMult('loyaltyBoost') === -1
+        if (!sovereignNoDecay) {
+          assassin.loyalty = Math.max(0, assassin.loyalty - 0.1 * (1 - decayReduction))
+        }
       } else if (!assassin.lentTo && !assassin.attackTarget && assassin.loyalty < 100) {
         assassin.loyalty = Math.min(100, assassin.loyalty + 0.05)
       }

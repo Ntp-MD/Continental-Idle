@@ -4,26 +4,6 @@
 	box-sizing: border-box;
 }
 
-:root {
-	--bg-primary: #0a0a0a;
-	--bg-secondary: #0d0d0d;
-	--bg-tertiary: #111111;
-	--bg-card: #1a1a1a;
-	--border-color: #cccccc;
-	--border-dim: #333333;
-	--text-primary: #e0e0e0;
-	--text-secondary: #999999;
-	--text-dim: #888888;
-	--accent-gold: #ffd700;
-	--accent-green: #4caf50;
-	--accent-red: #e74c3c;
-	--accent-orange: #f39c12;
-	--accent-blue: #1e88e5;
-	--accent-purple: #9c27b0;
-	--font-mono: "Courier New", Consolas, Monaco, monospace;
-	--font-scale: 1;
-}
-
 body {
 	font-family: var(--font-mono);
 	background: var(--bg-primary);

@@ -301,6 +301,50 @@
 	stroke-dasharray: none;
 }
 
+/* Attack lines — animated dashes flowing from attacker to target */
+.attack-line {
+	stroke: var(--accent-attack);
+	stroke-width: 1.5px;
+	stroke-dasharray: 6 4;
+	opacity: 0.7;
+	fill: none;
+	animation: attack-dash-flow 1s linear infinite;
+}
+
+@keyframes attack-dash-flow {
+	to {
+		stroke-dashoffset: -10;
+	}
+}
+
+/* Target node under attack — defensive pulse */
+.node-group.node-locked .node-circle[style*="fill: var(--node-locked)"] {
+	animation: node-defend-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes node-defend-pulse {
+	0%, 100% {
+		opacity: 1;
+		r: 6;
+	}
+	50% {
+		opacity: 0.6;
+		r: 8;
+	}
+}
+
+/* Supply route lines — animated dashes flowing between branches */
+.supply-line {
+	stroke-dasharray: 8 6;
+	animation: supply-dash-flow 1.5s linear infinite;
+}
+
+@keyframes supply-dash-flow {
+	to {
+		stroke-dashoffset: -14;
+	}
+}
+
 /* Main Content */
 .game-main {
 	flex: 1;
@@ -335,6 +379,74 @@
 	overflow: hidden;
 }
 
+/* Map Tabs */
+.game-map-tabs {
+	display: flex;
+	gap: 0;
+	flex-shrink: 0;
+	background: var(--bg-secondary);
+	border-bottom: 1px solid var(--border-dim);
+	z-index: 6;
+}
+
+.game-map-tabs__btn {
+	background: transparent;
+	border: none;
+	border-bottom: 2px solid transparent;
+	color: var(--text-dim);
+	font-family: inherit;
+	font-size: 11px;
+	padding: 8px 20px;
+	cursor: pointer;
+	transition: all 0.15s;
+	text-transform: uppercase;
+	letter-spacing: 1px;
+}
+
+.game-map-tabs__btn:hover {
+	color: var(--text-primary);
+	background: var(--bg-tertiary);
+}
+
+.game-map-tabs__btn--active {
+	color: var(--accent-gold);
+	border-bottom-color: var(--accent-gold);
+	background: var(--bg-card);
+}
+
+/* Inline HQ Office in map area */
+.game-map-area .hq-office--inline {
+	flex: 1;
+	display: flex;
+	flex-direction: column;
+	padding: 8px;
+	overflow: hidden;
+	min-height: 0;
+}
+
+.game-map-area .hq-office--inline .hq-office__svg-wrap {
+	flex: 1;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	min-height: 0;
+	overflow: hidden;
+	width: 100%;
+	aspect-ratio: 16 / 10;
+	max-height: 100%;
+}
+
+.game-map-area .hq-office--inline .hq-office__svg {
+	width: 100%;
+	height: 100%;
+}
+
+.game-map-area .hq-office--inline .hq-office__legend {
+	flex-shrink: 0;
+	max-height: 60px;
+	overflow-y: auto;
+}
+
 .game-map-area .world-map {
 	flex: 1;
 	border-bottom: none;
@@ -357,7 +469,7 @@
 }
 
 .game-map-actions__btn {
-	background: rgba(10, 10, 10, 0.85);
+	background: var(--map-action-bg);
 	border: 1px solid var(--border-dim);
 	color: var(--text-secondary);
 	font-family: inherit;
@@ -372,7 +484,7 @@
 .game-map-actions__btn:hover {
 	border-color: var(--accent-gold);
 	color: var(--accent-gold);
-	background: rgba(20, 20, 20, 0.95);
+	background: var(--map-action-bg-hover);
 }
 
 /* Status Bar */
@@ -385,6 +497,27 @@
 	font-size: 10px;
 	color: var(--text-dim);
 	flex-shrink: 0;
+}
+
+@media (max-width: 1024px) {
+	.game-sidebar {
+		width: 260px;
+	}
+
+	.game-header {
+		padding: 8px 16px;
+		gap: 12px;
+	}
+
+	.game-header__currencies {
+		flex-wrap: wrap;
+		gap: 12px;
+	}
+
+	.game-map-actions {
+		flex-wrap: wrap;
+		max-width: 95%;
+	}
 }
 
 @media (max-width: 768px) {

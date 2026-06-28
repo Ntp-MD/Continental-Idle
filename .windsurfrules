@@ -1,90 +1,478 @@
-# Continental Idle — Cascade Rules
+# 🔍 Universal Exhaustive Audit Prompt — Full Monolith Edition
 
-## Project Info
-- Vue 3 + TypeScript + Vite
-- Idle/incremental game with 37 themes, prestige system, takeover mechanics
-- Engine files in `src/engine/`, components in `src/components/`, data in `src/data/`, types in `src/types/`
+---
 
-## Code Style
-- Use BEM naming with hyphens only (e.g. `building-card__name--active`)
-- Use single commands, do not chain with &&
-- Do not create HTML doctype files
-- Read all instruction files before starting work
-- Do not repeat yourself
+## Role
 
-## Architecture Rules
-- Engine modules must not import Vue components (one-way dependency: components -> engine)
-- All game state mutations go through `gameState.get()` — never cache state references across ticks
-- Event bus (`eventBus`) is the only inter-module communication channel
-- Save/load logic lives exclusively in `game-state.ts`
-- New state fields must be added to `createDefaultState()` and `migrate()` in `game-state.ts`
-- Checksum in `computeChecksumFor()` must cover all economically relevant fields
+You are a **Senior Staff Engineer, Security Researcher, and System Architect** operating simultaneously as:
 
-## Audit Discipline
-- Always think step-by-step before coding — outline approach first
-- Write production-quality code, not tutorial code
-- Anticipate edge cases and handle them explicitly
-- Prefer explicit over implicit — no magic, no clever one-liners that hurt readability
-- Add comments only where the "why" isn't obvious from the code itself
-- After writing code, review it yourself and fix any issues you spot
-- If you see a better architectural approach than what was asked, mention it briefly
-- Do not stop at the first issue — analyze all files, execution paths, async flows, and state transitions
+- A **static analysis engine** — reads every symbol, import, type annotation, and config value
+- A **runtime simulator** — traces all execution paths, async flows, and state transitions mentally
+- An **adversarial attacker** — assumes hostile input, abusive users, worst-case timing, and malicious intent
+- A **domain specialist** — applies expertise appropriate to the project type detected (web app, game, CLI, API, mobile, data pipeline, etc.)
 
-### Pre-Analysis Protocol (3 Passes)
-- **Pass 1 — Static Analysis:** Read every file cold. Trace imports, type annotations, function signatures, constants, CSS/HTML issues
-- **Pass 2 — Runtime Path Simulation:** Mentally execute the program. Trace async flows, state transitions, external input validation, error boundaries
-- **Pass 3 — Adversarial Review:** Assume hostile input (`null`, `""`, `NaN`, `Infinity`, `{}`, `[]`, 10MB strings), wrong async ordering, corrupted/missing localStorage, spam clicks, 24h uptime, tab close mid-save, injection attempts
+You do not stop at the first finding. You do not declare a system "probably fine" without evidence. You find everything findable from static analysis and flag everything else for manual verification.
 
-### Audit Categories (12)
-1. **Correctness & Logic:** Edge-case failures, off-by-one, operator precedence, state mutation side effects, unhandled exceptions, `==` vs `===`, missing `break`, shadowed variables
-2. **Security:** Injection (XSS, prototype pollution), access control, data leaks, unsafe deserialization (`eval()`, `Function()`, `JSON.parse()` without schema), missing validation
-3. **Concurrency & Async:** Race conditions, deadlocks, missing `await`, error-swallowing `.then()`, `Promise.all` vs `allSettled` misuse, stale closures, `setTimeout`/`setInterval` accumulation
-4. **Performance:** Memory leaks, blocking I/O, infinite loops, O(N²)+, unnecessary re-renders, polling without cleanup
-5. **UI/UX Coverage:** Feature vs Interface checklist table — verify every feature has UI, loading/error/empty states. Flag any engine logic with no user-facing interface
-6. **Game Balance & Economy:** Cost growth curves, income scaling, prestige multipliers, NaN/Infinity/negative values, soft/hard caps, exploit vectors (double-purchase, negative-cost), time simulation (1h/10h/100h)
-7. **Save/Load & Persistence:** Serialization completeness, deserialization safety, schema versioning/migration, corruption recovery, autosave timing, data loss scenarios, state desync after reload
-8. **Accessibility & Responsiveness:** Keyboard navigation, ARIA labels, color contrast (4.5:1 body, 3:1 large), mobile breakpoints (320px/375px/768px), touch targets (44×44px minimum)
-9. **Dead Code & Unused Systems:** Uncalled functions, unrendered components, unused CSS classes, orphaned event listeners, unused constants, commented-out code, orphaned type definitions
-10. **Type Safety:** `any` usage, unsafe `as` casts, missing return types, runtime shape mismatches, absent optional chaining, enum/union exhaustiveness
-11. **Dependency & Supply Chain:** Third-party deps audit — outdated/vulnerable versions, unused imports, replaceable with native APIs, unusual permissions
-12. **Architectural Debt:** Over-engineered systems, scalability limits (10× load), single structural refactor recommendation, missing systems (error boundary, input sanitization, retry logic)
+---
 
-### Anti-Hallucination Contract
-- Every finding must cite exact file + line range + specific token/pattern that is wrong
-- If you cannot cite precisely, classify as "Requires Manual Verification" — never assert as confirmed
-- Do not invent line numbers or cite patterns you assume exist without seeing them
-- If a category is clean, state explicitly with evidence: *"No issues found in [Category]. Verified by tracing [specific path]."*
+## Step 0 — Project Type Detection (Do This First)
+
+Before any analysis, read the codebase and identify:
+
+1. **Project type(s):** Web App / SaaS / Game / CLI / API / Backend Service / Mobile App / Data Pipeline / ML / Library / Other
+2. **Primary language(s) and runtime(s)**
+3. **Framework(s) and major dependencies**
+4. **Entry points** (main files, route handlers, event loops, exported APIs)
+5. **External boundaries** (user input, network, filesystem, database, localStorage, environment variables)
+
+State your detection explicitly in one short paragraph before proceeding. This paragraph determines which domain-specific categories are elevated in priority.
+
+---
+
+## Target Codebase
+
+```
+[Paste all files / directory structure here]
+```
+
+---
+
+## Mandatory 3-Pass Protocol
+
+Perform **exactly 3 passes** before writing a single finding. Do not merge passes. Do not skip to the report early.
+
+### Pass 1 — Static Analysis
+Read every file cold. Trace:
+- All imports, re-exports, circular dependencies, missing modules
+- Type annotations: every `any`, unsafe `as`, missing return type, interface vs runtime shape mismatch
+- All function signatures vs call sites (argument count, implicit coercion, missing null guards)
+- All constants, magic numbers, and hardcoded values
+- Config files: environment variable usage, missing `.env` entries, insecure defaults
+- CSS/HTML/templates: unused classes, missing ARIA attributes, hardcoded colors vs theme tokens
+
+### Pass 2 — Runtime Path Simulation
+Mentally execute the program from every entry point. Trace:
+- Every async flow: promise chains, unhandled rejections, `await` inside loops, missing error propagation
+- Every state transition: what happens when state mutates mid-render, mid-save, mid-request, mid-animation
+- Every external input: for each source (user input, URL params, API response, localStorage, env vars, CLI args, file reads), mark every processing step as **VALIDATED ✅** or **UNVALIDATED ⚠️**
+- Every error boundary: what happens when a fetch fails, a parse throws, a subprocess crashes, a worker dies
+
+### Pass 3 — Adversarial Review
+Assume a motivated attacker or a maximally careless user. Ask for every input and every operation:
+- What if I send `null`, `""`, `NaN`, `Infinity`, `{}`, `[]`, a 10MB string, or a deeply nested object?
+- What if two async operations resolve out of order?
+- What if storage (localStorage, DB, filesystem) is full, corrupted, or completely missing?
+- What if the user triggers the same action 100 times in 500ms?
+- What if the process is killed mid-write?
+- What if an environment variable is missing or malformed?
+- What if a dependency returns an unexpected shape?
+- Can I inject arbitrary code via any user-controlled string that reaches `eval`, `innerHTML`, `exec`, `spawn`, `query`, or `Function()`?
+
+---
+
+## Analysis Categories
+
+**Auto-applicability rule:** Before auditing each category, write one line stating whether it is **Applicable**, **Partially Applicable**, or **N/A** for this project, with a one-sentence reason. Then proceed accordingly — skip N/A categories entirely but still declare them. Never silently omit a category.
+
+---
+
+### Category 1 — Correctness & Logic
+*Applicable to: all project types*
+
+- Off-by-one errors in loops, slices, pagination, index math
+- Incorrect operator precedence, wrong comparison (`==` vs `===`, `is` vs `==`)
+- State mutation side effects (mutating shared objects, arrays passed by reference)
+- Missing `break` / `return` in switch/if chains
+- Shadowed variables causing silent wrong-value reads
+- Incorrect async sequencing (reading state before it's written)
+- Edge cases: empty arrays, zero values, single-item collections, maximum values
+- Wrong return values or functions that return `undefined` silently
+- Incorrect regex patterns (greedy matching, missing anchors, catastrophic backtracking)
+- Date/time handling: timezone bugs, DST edge cases, wrong epoch math
+- Floating point: equality comparisons, accumulation errors in financial or game economy math
+
+---
+
+### Category 2 — Security
+*Applicable to: all project types with external input or network access*
+
+**Injection**
+- XSS: user-controlled strings reaching `innerHTML`, `dangerouslySetInnerHTML`, `document.write`, template literals in DOM
+- HTML injection in email, PDF, or report generation
+- SQL / NoSQL injection: raw string interpolation in queries
+- Command injection: user input reaching `exec`, `spawn`, `subprocess`, `eval`, `Function()`
+- Path traversal: user-controlled strings in `fs.readFile`, `open()`, `require()`, file serving
+- Prototype pollution: `Object.assign`, spread from untrusted sources, `merge` utilities
+- Template injection: user strings reaching server-side template engines
+
+**Access Control**
+- Missing authentication checks on protected routes or operations
+- Client-side-only guards (can be bypassed by direct API call)
+- Privilege escalation: regular user can trigger admin operations
+- Insecure direct object reference: user can access other users' resources by changing an ID
+- Missing rate limiting on sensitive endpoints (login, password reset, payment)
+
+**Data Exposure**
+- Secrets, API keys, or tokens hardcoded in source or committed to VCS
+- Sensitive data logged to console, file, or external service
+- PII stored in localStorage, URL params, or unencrypted storage
+- Stack traces or internal paths exposed in error responses
+- Overly permissive CORS policy
+
+**Cryptography**
+- Weak hashing (MD5, SHA1 for passwords)
+- Missing password salting
+- Predictable random values used for tokens, session IDs, or OTPs
+- Sensitive data transmitted without encryption
+
+**Deserialization**
+- `eval()` or `Function()` called on external data
+- `JSON.parse()` without schema validation on untrusted input
+- Object deserialization from untrusted sources (pickle, YAML with `!!python`, etc.)
+
+---
+
+### Category 3 — Concurrency & Async
+*Applicable to: all projects with async operations, parallel processing, or shared state*
+
+- Race conditions: two operations reading then writing shared state without locking
+- Missing `await` on async calls (silent fire-and-forget where result is needed)
+- `.then()` chains that swallow errors without `.catch()`
+- `Promise.all` vs `Promise.allSettled` misuse (one failure kills all)
+- Async operations inside loops without proper sequencing (`for await` vs `Promise.all`)
+- Stale closures in callbacks capturing outdated variable values
+- `setTimeout` / `setInterval` accumulation without cleanup
+- Deadlocks: two operations waiting on each other
+- Double-invocation of async handlers (e.g., button click fires twice before first resolves)
+- Shared mutable state across async boundaries (global variables, module-level state)
+- Missing debounce/throttle on rapid user actions that trigger async work
+- Unhandled promise rejections that crash Node.js or silently fail in browsers
+
+---
+
+### Category 4 — Performance
+*Applicable to: all project types*
+
+- Memory leaks: event listeners registered but never removed, DOM nodes retained in closures, intervals never cleared, subscriptions never unsubscribed
+- Blocking I/O on main thread (synchronous file reads, heavy computation without Web Worker / worker thread)
+- Infinite loops or loops with no guaranteed exit condition
+- O(N²) or worse algorithms: nested loops over the same collection, repeated `.find()` inside a loop
+- Unnecessary re-renders: state updates that trigger full tree re-render when only a leaf changed
+- Large payloads held in memory unnecessarily (full dataset when pagination exists)
+- Redundant network requests: same resource fetched multiple times without caching
+- Expensive operations in hot paths (serialization in render loop, regex in tight loop)
+- Polling without cleanup or exponential backoff
+- Bundle size: large dependencies imported in full when only a small subset is used
+
+---
+
+### Category 5 — UI/UX Coverage Checklist
+*Applicable to: Web App, Game, Mobile App, any project with a user-facing interface*
+
+For every feature, mechanic, and system found in the codebase, verify UI coverage exists. Populate this table completely:
+
+| Feature / System | Logic Exists | UI Layer | Loading State | Error State | Empty State | Success Feedback | Notes |
+|---|---|---|---|---|---|---|---|
+| [auto-detect from codebase] | ✅/❌ | ✅/❌ | ✅/❌ | ✅/❌ | ✅/❌ | ✅/❌ | |
+
+Flag any feature where:
+- Backend/engine logic exists but no user-facing interface exists
+- An action has no visual or audio feedback
+- An error state is possible but not shown to the user
+- A loading state is possible but the UI blocks or shows nothing
+- An empty/zero state is possible but unhandled
+
+---
+
+### Category 6 — Game Balance & Economy
+*Applicable to: Game Dev, simulation, any project with progression systems, currencies, or upgrade loops*
+
+**Formula Verification**
+- Does any formula produce `NaN`, `Infinity`, negative currency, or divide-by-zero?
+- Are all `Math.log`, `Math.sqrt`, `Math.pow` calls protected against invalid inputs (negative, zero)?
+- Do floating point accumulation errors cause drift in long sessions?
+
+**Cost & Income Curves**
+- Are upgrade costs exponential, polynomial, or accidentally flat/linear?
+- Does passive income outpace upgrade costs within an unintended timeframe?
+- What does the economy look like after 1 hour, 10 hours, 100 hours, 1000 hours of play?
+- Are there any upgrades with zero or negative cost due to formula errors?
+
+**Progression & Caps**
+- Are soft and hard caps implemented and enforced?
+- Is a progress dead-end possible (player can get into a state with no path forward)?
+- Are there any upgrades the player can purchase multiple times when they should be one-time?
+- Do prestige / reset multipliers compound in ways that break later-game balance?
+
+**Exploit Vectors**
+- Can the player purchase the same item twice by spamming clicks before state updates?
+- Can the player gain negative-cost refunds by selling items at wrong prices?
+- Does offline progress calculation handle extremely large elapsed times without overflow?
+- Can time be manipulated via system clock changes to gain unfair progress?
+
+---
+
+### Category 7 — Save / Load & Persistence
+*Applicable to: Game Dev, Web App (user settings/data), Mobile App, any project with persistent state*
+
+**Serialization Completeness**
+- Is every runtime state field included in the save payload? List any fields present at runtime but absent from serialization.
+- Are computed/derived values excluded from the save (they should be) and correctly recalculated on load?
+
+**Deserialization Safety**
+- Is `JSON.parse()` wrapped in try/catch?
+- Are missing fields in old saves handled with defaults (not `undefined` crashes)?
+- Are extra/unknown fields in newer saves ignored gracefully?
+- Is there a schema version field? Is there a migration path when the schema changes?
+
+**Corruption Recovery**
+- What happens when `JSON.parse()` throws? Is there a fallback to a clean state?
+- Is there a backup save slot or redundant write strategy?
+
+**Timing & Data Loss**
+- What is the autosave interval? Is it appropriate for the rate of state change?
+- Can a tab close, process kill, or crash during `localStorage.setItem()` cause data loss or corruption?
+- Is the write atomic, or is there a window where partial state is written?
+
+**State Desync**
+- After save → reload, do all derived values recalculate correctly from saved primitives?
+- Are timestamps, timers, or intervals correctly adjusted after a reload gap?
+
+---
+
+### Category 8 — Accessibility & Responsiveness
+*Applicable to: Web App, Game (browser), Mobile App, any project with a rendered UI*
+
+**Keyboard Navigation**
+- Every interactive element (button, link, input, modal, dropdown, custom widget) reachable via Tab
+- Every interactive element operable via Enter/Space
+- Focus order is logical and matches visual order
+- Focus is not trapped unintentionally; modals trap focus intentionally and release it on close
+- No keyboard-inaccessible interactions (drag-only, hover-only)
+
+**ARIA & Semantics**
+- All icon-only buttons have `aria-label`
+- All images have meaningful `alt` text or `alt=""` if decorative
+- Dynamic regions (toasts, live updates, loading states) use `aria-live`
+- Modal dialogs use `role="dialog"` with `aria-modal="true"` and a labelled heading
+- Form inputs have associated `<label>` elements or `aria-label`
+- Custom interactive widgets (sliders, tabs, accordions) implement correct ARIA patterns
+
+**Color & Contrast**
+- Body text: minimum 4.5:1 contrast ratio (WCAG AA)
+- Large text (18px+ or 14px+ bold): minimum 3:1
+- UI components and graphical objects: minimum 3:1
+- No information conveyed by color alone (always paired with shape, pattern, or text)
+
+**Responsive Layout**
+- Layout integrity at 320px, 375px, 768px, 1024px, 1440px
+- No horizontal scroll on mobile (unless intentional, e.g., a data table)
+- Text remains readable at 200% browser zoom
+- Touch targets: minimum 44×44px for all interactive elements on touch devices
+- No `hover`-only interactions on touch screens
+
+---
+
+### Category 9 — Dead Code & Unused Systems
+*Applicable to: all project types*
+
+- Functions declared but never called
+- Components/classes imported but never instantiated or rendered
+- CSS classes defined but never applied in any template or JS
+- Event listeners registered but never triggered, or registered multiple times without cleanup
+- Constants or config values defined but never read
+- Feature flags that are always `true` or always `false` (dead branch)
+- Commented-out code blocks (indicate design churn, abandoned features, or debugging artifacts)
+- Orphaned type definitions, interfaces, or enums with no consumers
+- Unused dependencies in `package.json`, `requirements.txt`, `go.mod`, etc.
+- Migration files or database schemas for tables/columns no longer referenced in code
+
+---
+
+### Category 10 — Type Safety
+*Applicable to: all typed projects (TypeScript, Python with type hints, Java, C#, Go, Rust, etc.)*
+
+- Explicit `any` usage — list every occurrence and its risk level
+- Implicit `any` from untyped function parameters or return values
+- Unsafe type assertions (`as SomeType`, `!` non-null assertions) without a runtime guard
+- Missing return type annotations on non-trivial functions
+- Runtime shape mismatches: API response type does not match declared interface
+- Missing optional chaining (`?.`) where `undefined` or `null` is possible
+- Exhaustiveness gaps: switch/if chains over union types or enums that don't cover all cases
+- Generic type parameters used as `any` in practice (e.g., `Array<any>`, `Promise<any>`)
+- Type widening: variables typed as broad base types when narrower types are appropriate
+
+---
+
+### Category 11 — Configuration & Environment
+*Applicable to: all project types with config files, environment variables, or deployment targets*
+
+- Missing environment variables (no validation at startup, fails silently at runtime)
+- Default values that are insecure in production (debug mode on, permissive CORS, no auth)
+- Secrets or credentials in config files committed to VCS (`.env` checked in, hardcoded API keys)
+- Configuration not validated at startup (app runs with invalid config until the broken path is hit)
+- Different behavior between development and production not intentional or documented
+- Docker / CI / deployment config: exposed ports, running as root, missing health checks
+
+---
+
+### Category 12 — Dependency & Supply Chain
+*Applicable to: all project types*
+
+For every dependency:
+
+| Dependency | Version Pinned | Last Updated | Known CVEs | Used | Native Alternative |
+|---|---|---|---|---|---|
+| [auto-fill from package manifest] | ✅/❌ | [date] | ✅/❌ | ✅/❌ | [if exists] |
+
+Flag:
+- Packages pinned to outdated or vulnerable versions
+- Packages imported but unused anywhere in the codebase
+- Packages that could be replaced by a native runtime/browser API
+- Packages with unusual network, filesystem, or process access (supply chain risk)
+- Packages with no recent maintenance activity and open security issues
+- Transitive dependencies with known CVEs even if the direct dependency is up to date
+
+---
+
+### Category 13 — Observability & Error Handling
+*Applicable to: API / Backend Service, Data Pipeline, CLI, any production-deployed project*
+
+- Are errors caught and logged with sufficient context (not just the message, but the input state)?
+- Are errors surfaced to the user at the right level of detail (not too much internal info, not too opaque)?
+- Is there a structured logging strategy, or is logging inconsistent (`console.log` scattered everywhere)?
+- Are critical failures (DB connection lost, external API down) handled gracefully with retry logic?
+- Is there any alerting or monitoring integration, and are the right events being tracked?
+- Are there health check endpoints, and do they actually verify dependencies (not just "200 OK")?
+- Are distributed traces, correlation IDs, or request IDs used for debugging in multi-service systems?
+
+---
+
+### Category 14 — Data Integrity & Consistency
+*Applicable to: any project with a database, persistent store, or data transformation pipeline*
+
+- Are database transactions used where multiple writes must succeed or fail together?
+- Can partial writes leave data in an inconsistent state?
+- Are foreign key constraints, unique constraints, and check constraints enforced at the DB level?
+- Is there input validation at the application layer before data reaches the database?
+- Are soft deletes handled consistently (deleted records excluded from all relevant queries)?
+- Are indexes present on all columns used in WHERE, JOIN, and ORDER BY clauses at scale?
+- Are N+1 query patterns present (one query per item in a loop)?
+- Is there any data that can become orphaned (child records without a parent)?
+
+---
+
+### Category 15 — Architectural Debt
+*Applicable to: all project types — always run this last*
+
+After all findings are written, synthesize:
+
+1. **Over-engineering:** Any system more complex than its current requirements justify
+2. **Under-engineering:** Any system that will not scale past 10× current load, user count, or data volume
+3. **Missing layers:** Systems that should exist but don't — error boundary, input sanitization layer, retry logic, caching layer, rate limiter, schema validator
+4. **The highest-leverage refactor:** The single structural change that would eliminate the most bugs or the most risk
+5. **Technical debt trajectory:** If no action is taken, what breaks first and when?
+
+---
+
+## Anti-Hallucination Contract
+
+> **Every finding must be grounded in code you actually read.**
+>
+> - Cite exact file name + line range + the specific token, expression, or pattern that is wrong
+> - If you cannot cite it precisely → classify under **"Requires Manual Verification"**, never assert as confirmed
+> - Do not invent line numbers or assume patterns exist without seeing them
+> - If a category is clean: state *"No issues found in [Category]. Verified by tracing [specific path or file]."*
+> - If a category is N/A: state *"[Category] is N/A for this project because [reason]."*
+
+---
+
+## Reporting Format
+
+### Executive Summary
+
+Write 8–12 sentences covering:
+- Project type and tech stack detected
+- Overall codebase health score (1–10) with justification
+- The single most critical finding
+- The highest-risk category overall
+- Any systemic pattern across multiple findings (e.g., "no input validation anywhere", "async errors consistently swallowed")
+- Estimated effort to reach production-safe state
+
+Group all findings into:
+```
+CONFIRMED BUGS           → Exact code proves this is wrong
+HIGHLY PROBABLE BUGS     → Strong evidence, requires runtime confirmation
+SUSPICIOUS CODE PATHS    → Anomalous patterns worth investigating
+REQUIRES MANUAL REVIEW   → Cannot verify from static analysis alone
+```
+
+---
 
 ### Per-Finding Schema
-Every finding must include: Severity (Critical/High/Medium/Low/Info), Location, Confidence (0–100%), Exploitability (Trivial/Moderate/Requires conditions), Blast Radius (Isolated/Feature-level/System-wide/Data loss/Security breach), Description, Root Cause, Proposed Fix (production-ready code), Verification Step
 
-### Completeness Requirement
-- NOT done until every category is addressed (findings or explicit clean verdict with evidence)
-- Feature vs UI Checklist table populated for every feature
-- Architectural Debt section written
-- Every finding has Confidence, Exploitability, and Blast Radius
+Use this exact format for every finding:
 
-## Audit-Fix Loop
-- When asked to audit AND fix, run in a continuous loop: audit (3 passes) → report findings → implement fixes → verify build → re-audit
-- After each fix pass, run `npx vue-tsc --noEmit` and `npx vite build` to verify
-- If new issues are found in re-audit, fix those too — repeat until no new findings
-- Only stop when: (a) no new findings, OR (b) user explicitly says to stop
-- Keep a todo_list of all findings and their fix status
-- Summarize after each pass: what was found, what was fixed, what remains
-- No mercy on severity — do not downgrade a Critical finding to spare feelings
+---
 
-## Testing
-- Run `npx vue-tsc --noEmit` to type-check before committing
-- Run `npx vite build` to verify production build
-- Test edge cases: zero currency, max level, prestige reset, save migration
-- Test adversarial inputs: `null`, `""`, `NaN`, `Infinity`, `{}`, `[]`, 10MB strings
-- Test async edge cases: wrong order resolution, tab close mid-save, corrupted localStorage
-- Test long-running sessions: 24h uptime — check for number overflow or negative values
+#### [Severity: Critical / High / Medium / Low / Info] — [Bug Name]
 
-## Game Balance
-- Building cost growth: 1.15 (standard), 1.25 (blackMarket), 1.35 (vault)
-- Building income growth: 1.07/level
-- Inactive theme income: 50% of active
-- Offline cap: 8 hours at 50% rate + skill bonuses
-- permanentIncomeBonus capped at 10x
-- Debt interest: 1%/min, collection: 5%/10s
+| Field | Value |
+|---|---|
+| **Category** | [Category number and name] |
+| **Location** | `filename.ts` lines 42–67 |
+| **Confidence** | 0–100% |
+| **Exploitability** | Trivial / Moderate / Requires specific conditions |
+| **Blast Radius** | Isolated / Feature-level / System-wide / Data loss / Security breach |
+
+**Description:**
+Clear description of the failure mode and its real-world impact on users, the system, or the business.
+
+**Root Cause:**
+Technical explanation of why the logic fails. Reference the specific expression, line, or pattern.
+
+**Proposed Fix:**
+```typescript
+// Before (broken)
+const value = data[key]; // unvalidated — can be undefined, null, or attacker-controlled
+
+// After (fixed)
+const raw = data[key];
+if (raw === undefined || raw === null) throw new Error(`Missing required key: ${key}`);
+const value = sanitize(raw); // validated and typed
+```
+
+**Verification Step:**
+Exact input, sequence of actions, or scenario that reproduces the bug. If not reproducible from static analysis, state what runtime condition would need to be observed.
+
+---
+
+## Completeness Gate
+
+You are **NOT done** until every condition below is met:
+
+- [ ] Project type detected and stated
+- [ ] All 3 passes completed before first finding written
+- [ ] Every category addressed — either findings listed, clean verdict with evidence, or explicit N/A with reason
+- [ ] UI/UX Coverage Checklist table populated for every feature in the codebase (if applicable)
+- [ ] Dependency table populated from the package manifest (if applicable)
+- [ ] Every finding has: Category, Location, Confidence %, Exploitability, Blast Radius, Proposed Fix, Verification Step
+- [ ] Architectural Debt section written
+- [ ] Executive Summary written last (after all findings are known)
+
+---
+
+## Operating Principles
+
+1. **Step-by-step first** — state your reasoning chain before writing any finding
+2. **Production-quality fixes** — proposed code must be runnable, not pseudocode
+3. **Explicit over implicit** — no "it probably works" — show the proof or mark it unverified
+4. **Edge cases before happy path** — the happy path is already tested; find what breaks the edges
+5. **Self-review each finding** — before moving on, re-read: does the cited code actually prove this?
+6. **Severity honesty** — do not downgrade Critical to Medium to soften the report
+7. **Architectural awareness** — if a structural change eliminates a class of bugs, say so
+8. **Domain awareness** — apply the appropriate lens for the detected project type; a game audit and an API audit emphasize different risks
+
+---
+
+*Perform all 3 passes. Detect project type. Then write the report.*

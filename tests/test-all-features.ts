@@ -15,7 +15,7 @@ import { eventEngine } from '../src/engine/event-engine'
 import { getPrestigeFavor, canPrestige, doPrestige } from '../src/engine/prestige-manager'
 import { canInitiateTakeover, getTakeoverCost, initiateTakeover, tickTakeoverProgress, getTakeoverProgress, getHqMaxHealth, getAttackersOnTarget } from '../src/engine/takeover-manager'
 import { getTotalDebt, getDebtCount, collectDebtPayment, repayDebt, repayAllDebts, tickDebtInterest, tickDebtCollection } from '../src/engine/debt-manager'
-import { canUpgradeSkill, upgradeSkill, getSkillLevel, getTotalIncomeMult, getTotalStaffXpMult, getTotalDebtReduction, getTotalReputationMult, getTotalPrestigeFavorMult, getTotalOfflineEfficiency, getTotalBuffDurationMult, getExtraHeatReduction, getExtraStaffSlots } from '../src/engine/skill-manager'
+import { canUpgradeSkill, upgradeSkill, getSkillLevel, getTotalIncomeMult, getTotalStaffXpMult, getTotalDebtReduction, getTotalReputationMult, getTotalPrestigeFavorMult, getTotalBuffDurationMult, getExtraHeatReduction, getExtraStaffSlots } from '../src/engine/skill-manager'
 import { purchaseUpgrade, isUpgradePurchased, UPGRADES } from '../src/engine/upgrade-manager'
 import { hasCleanerMaxed, hasChefMaxed, hasConciergeMaxed, hasAdjudicatorMaxed, hasVaultKeeperMaxed, hasBartenderMaxed, hasIntelOfficerMaxed, hasSommelierMaxed, getChefAllBuildingBonus, getConciergePassiveBonus, getPrestigeReputationKeepRatio, shouldRevealEventOutcomes, getVipFrequencyMultiplier, getBartenderFreezeImmune } from '../src/engine/abilities'
 import { formatNumber, formatIncome, formatTime } from '../src/engine/format'
@@ -636,10 +636,10 @@ ok(s.worldMap.royalBranches.includes('rome'), 'Rome is royal at prestige 11+')
 
 // Theme switching
 gameState.setActiveBranch('rome')
-ok(gameState.getActiveBranchId() === 'rome', 'Switched to Rome')
+ok(gameState.get().activeBranch === 'rome', 'Switched to Rome')
 ok(getBranchIncomePerSecond('rome') >= 0, 'Rome income calculated')
 gameState.setActiveBranch('bangkok')
-ok(gameState.getActiveBranchId() === 'bangkok', 'Switched back to Bangkok')
+ok(gameState.get().activeBranch === 'bangkok', 'Switched back to Bangkok')
 
 // ─────────────────────────────────────────────
 // 13. Takeover System
@@ -710,8 +710,8 @@ gameState.reset('bangkok')
 s = gameState.get()
 s.branches.bangkok.currency = 1_000_000
 s.branches.bangkok.markerDebts = [
-  { amount: 5000, createdAt: Date.now(), branch: 'bangkok' },
-  { amount: 10000, createdAt: Date.now() + 1, branch: 'bangkok' },
+  { id: 'd1', amount: 5000, originalAmount: 5000, createdAt: Date.now(), branch: 'bangkok' },
+  { id: 'd2', amount: 10000, originalAmount: 10000, createdAt: Date.now() + 1, branch: 'bangkok' },
 ]
 ok(getTotalDebt() === 15000, `Total debt = 15000 (${getTotalDebt()})`)
 ok(getDebtCount() === 2, `Debt count = 2`)
@@ -725,29 +725,29 @@ ok(getTotalDebt() < 15000, `Debt reduced after collection (${getTotalDebt()})`)
 // Repay single debt
 s.branches.bangkok.currency = 1_000_000
 s.branches.bangkok.markerDebts = [
-  { amount: 5000, createdAt: Date.now(), branch: 'bangkok' },
-  { amount: 10000, createdAt: Date.now() + 1, branch: 'bangkok' },
+  { id: 'd1', amount: 5000, originalAmount: 5000, createdAt: Date.now(), branch: 'bangkok' },
+  { id: 'd2', amount: 10000, originalAmount: 10000, createdAt: Date.now() + 1, branch: 'bangkok' },
 ]
-ok(repayDebt(Date.now()) === true, 'Single debt repaid')
+ok(repayDebt('d1') === true, 'Single debt repaid')
 ok(s.branches.bangkok.markerDebts.length === 1, '1 debt remaining')
 ok(s.branches.bangkok.reputation > 0, 'Reputation gained from repayment')
 
 // Repay all
 s.branches.bangkok.markerDebts = [
-  { amount: 5000, createdAt: Date.now(), branch: 'bangkok' },
-  { amount: 10000, createdAt: Date.now() + 1, branch: 'bangkok' },
+  { id: 'd1', amount: 5000, originalAmount: 5000, createdAt: Date.now(), branch: 'bangkok' },
+  { id: 'd2', amount: 10000, originalAmount: 10000, createdAt: Date.now() + 1, branch: 'bangkok' },
 ]
 ok(repayAllDebts() === true, 'All debts repaid')
 ok(s.branches.bangkok.markerDebts.length === 0, 'All debts cleared')
 
 // Repay fails without currency
-s.branches.bangkok.markerDebts = [{ amount: 5000, createdAt: Date.now(), branch: 'bangkok' }]
+s.branches.bangkok.markerDebts = [{ id: 'd1', amount: 5000, originalAmount: 5000, createdAt: Date.now(), branch: 'bangkok' }]
 s.branches.bangkok.currency = 100
-ok(repayDebt(Date.now()) === false, 'Repay fails: insufficient funds')
+ok(repayDebt('d1') === false, 'Repay fails: insufficient funds')
 ok(repayAllDebts() === false, 'Repay all fails: insufficient funds')
 
 // Debt interest
-s.branches.bangkok.markerDebts = [{ amount: 10000, createdAt: Date.now(), branch: 'bangkok' }]
+s.branches.bangkok.markerDebts = [{ id: 'd1', amount: 10000, originalAmount: 10000, createdAt: Date.now(), branch: 'bangkok' }]
 const debtBefore = s.branches.bangkok.markerDebts[0].amount
 tickDebtInterest()
 ok(s.branches.bangkok.markerDebts[0].amount > debtBefore, 'Debt interest applied')
@@ -800,7 +800,6 @@ ok(getTotalStaffXpMult() > 1, `Total staff XP mult > 1 (${getTotalStaffXpMult()}
 ok(getTotalDebtReduction() > 0, `Debt reduction > 0 (${getTotalDebtReduction()})`)
 ok(getTotalReputationMult() > 1, `Reputation mult > 1 (${getTotalReputationMult()})`)
 ok(getTotalPrestigeFavorMult() > 1, `Prestige favor mult > 1 (${getTotalPrestigeFavorMult()})`)
-ok(getTotalOfflineEfficiency() > 0, `Offline efficiency > 0 (${getTotalOfflineEfficiency()})`)
 ok(getTotalBuffDurationMult() > 1, `Buff duration mult > 1 (${getTotalBuffDurationMult()})`)
 ok(getExtraHeatReduction() > 0, `Extra heat reduction > 0 (${getExtraHeatReduction()})`)
 ok(getExtraStaffSlots() > 0, `Extra staff slots > 0 (${getExtraStaffSlots()})`)
@@ -952,68 +951,9 @@ delete store['continental_idle_save' + '_backup']
 ok(gameState.load() === null, 'Tampered save rejected (checksum mismatch)')
 
 // ─────────────────────────────────────────────
-// 20. Offline Earnings
+// 20. Number Formatting
 // ─────────────────────────────────────────────
-sec('20. Offline Earnings')
-gameState.reset('bangkok')
-s = gameState.get()
-s.branches.bangkok.currency = 10_000_000
-BUILDINGS.forEach(b => { s.branches.bangkok.buildings[b.id].level = 5 })
-s.branches.bangkok.buildings.reception.unlocked = true
-s.branches.bangkok.buildings.guestRooms.unlocked = true
-s.branches.bangkok.buildings.bar.unlocked = true
-s.branches.bangkok.buildings.kitchen.unlocked = true
-gameState.save()
-// Tamper timestamp in saved data to simulate 1 hour ago
-// (save() overwrites timestamp to Date.now())
-// Must recompute checksum since timestamp is part of the checksum
-const offlineSave = JSON.parse(store['continental_idle_save'])
-offlineSave.timestamp = Date.now() - 3600 * 1000 // 1 hour ago
-offlineSave.checksum = ''
-// Recompute FNV-1a checksum (same algorithm as game-state.ts computeChecksumFor)
-const branchData = Object.fromEntries(
-  Object.entries(offlineSave.branches).map(([k, v]: [string, any]) => [k, {
-    c: v.currency, le: v.lifetimeEarnings, p: v.prestige, r: v.reputation,
-    md: v.markerDebts ? v.markerDebts.reduce((s: number, d: any) => s + d.amount, 0) : 0,
-    b: Object.fromEntries(Object.entries(v.buildings).map(([bk, bv]: [string, any]) => [bk, bv.level + ':' + (bv.unlocked ? 1 : 0)])),
-    s: Object.values(v.staff).map((s: any) => s.typeId + ':' + s.level).join(','),
-    as: Object.values(v.assassins).map((a: any) => a.typeId + ':' + a.level + ':' + Math.round(a.loyalty) + (a.awakened ? ':1' : ':0')).join(','),
-    up: v.upgrades.join(','),
-    hl: v.heatLevel, gs: v.guestSatisfaction,
-    hh: v.hqHealth, hm: v.hqMaxHealth, ad: v.aiOwnerDefeated ? 1 : 0,
-    eg: v.excommunicadoGraceUntil,
-  }])
-)
-const dataObj: Record<string, unknown> = {
-  tp: offlineSave.totalPrestige, tf: offlineSave.tableFavor,
-  hq: offlineSave.hqBranch, at: offlineSave.activeBranch, ts: offlineSave.timestamp,
-  pib: offlineSave.permanentIncomeBonus, th: branchData,
-}
-if (offlineSave.skillTree) dataObj.st = offlineSave.skillTree
-if (offlineSave.worldMap?.unlockedBranches) dataObj.un = offlineSave.worldMap.unlockedBranches
-if (offlineSave.worldMap?.conqueredBranches) dataObj.cn = offlineSave.worldMap.conqueredBranches
-if (offlineSave.worldMap?.royalBranches) dataObj.rn = offlineSave.worldMap.royalBranches
-if (offlineSave.activeBuffs) dataObj.ab = offlineSave.activeBuffs.map((b: any) => b.type + ':' + b.value + ':' + (b.expiresAt ?? 'null') + ':' + (b.branchId ?? 'null'))
-const data = JSON.stringify(dataObj)
-let hash = 0x811c9dc5
-for (let i = 0; i < data.length; i++) { hash ^= data.charCodeAt(i); hash = Math.imul(hash, 0x01000193) }
-offlineSave.checksum = (hash >>> 0).toString(16)
-// Also delete backup so only our tampered save is used
-delete store['continental_idle_save' + '_backup']
-store['continental_idle_save'] = JSON.stringify(offlineSave)
-gameState.reset('bangkok')
-gameState.init('bangkok')
-s = gameState.get()
-const afterOffline = s.branches.bangkok.currency
-ok(afterOffline > 0, 'Offline earnings applied')
-ok(s.lastOfflineEarnings > 0, `Last offline earnings: ${formatNumber(s.lastOfflineEarnings)}`)
-ok(s.lastOfflineSeconds > 0, `Offline seconds: ${s.lastOfflineSeconds}`)
-ok(s.totalOfflineTime > 0, 'Total offline time > 0')
-
-// ─────────────────────────────────────────────
-// 21. Number Formatting
-// ─────────────────────────────────────────────
-sec('21. Number Formatting')
+sec('20. Number Formatting')
 ok(formatNumber(0) === '0', 'format(0) = 0')
 ok(formatNumber(999) === '999', 'format(999) = 999')
 ok(formatNumber(1000) === '1.00K', `format(1K) = ${formatNumber(1000)}`)
@@ -1358,9 +1298,9 @@ sec('31. Marker Forgiveness Event')
 gameState.reset('bangkok')
 s = gameState.get()
 s.branches.bangkok.markerDebts = [
-  { amount: 5000, createdAt: 1000, branch: 'bangkok' },
-  { amount: 10000, createdAt: 2000, branch: 'bangkok' },
-  { amount: 15000, createdAt: 3000, branch: 'bangkok' },
+  { id: 'd1', amount: 5000, originalAmount: 5000, createdAt: 1000, branch: 'bangkok' },
+  { id: 'd2', amount: 10000, originalAmount: 10000, createdAt: 2000, branch: 'bangkok' },
+  { id: 'd3', amount: 15000, originalAmount: 15000, createdAt: 3000, branch: 'bangkok' },
 ]
 const markerForgiveEv = EVENTS.find(e => e.id === 'markerForgiveness')!
 ;(eventEngine as any).lastEventTimes = new Map()
@@ -1631,7 +1571,7 @@ if (rg) {
   assignAssassin(rg.id, 'bangkok')
   invalidateAssassinCache()
   
-  s.branches.bangkok.markerDebts = [{ amount: 10000, createdAt: Date.now(), branch: 'bangkok' }]
+  s.branches.bangkok.markerDebts = [{ id: 'd1', amount: 10000, originalAmount: 10000, createdAt: Date.now(), branch: 'bangkok' }]
   const debtBeforeRG = s.branches.bangkok.markerDebts[0].amount
   tickDebtInterest()
   s = gameState.get()

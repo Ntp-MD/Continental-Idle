@@ -1,5 +1,5 @@
 ﻿<script setup lang="ts">
-import { ref, onMounted, onUnmounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { gameState } from '@/engine/game-state'
 import { STAFF_TYPES } from '@/data/staff'
 import { BUILDINGS } from '@/data/buildings'
@@ -63,6 +63,12 @@ const assassinOptions = ref<Array<{ id: string; name: string; rank: string; cost
 const unlockedBranches = ref<Array<{ id: BranchId; name: string }>>([])
 const lendableBranches = ref<Array<{ id: BranchId; name: string }>>([])
 const upgradeList = ref<Array<{ id: string; name: string; description: string; cost: string; affordable: boolean; purchased: boolean }>>([])
+const unlockedBuildings = computed(() => {
+  const state = gameState.get()
+  const branch = state.branches[state.activeBranch]
+  if (!branch) return []
+  return BUILDINGS.filter(b => branch.buildings[b.id]?.unlocked)
+})
 
 function update() {
   if (!props.visible) return
@@ -193,6 +199,19 @@ function update() {
   }))
 }
 
+// Debounce utility to prevent rapid-fire clicks
+let lastActionTime = 0
+const ACTION_DEBOUNCE_MS = 200
+
+function createDebouncedAction<A extends unknown[]>(fn: (...args: A) => void): (...args: A) => void {
+  return (...args: A) => {
+    const now = Date.now()
+    if (now - lastActionTime < ACTION_DEBOUNCE_MS) return
+    lastActionTime = now
+    fn(...args)
+  }
+}
+
 function doRepay(debtId: string) {
   repayDebt(debtId)
   update()
@@ -261,6 +280,15 @@ function doPurchaseUpgrade(id: string) {
   update()
 }
 
+// Debounced versions for critical actions
+const debouncedDoHire = createDebouncedAction(doHire)
+const debouncedDoHireAssassin = createDebouncedAction(doHireAssassin)
+const debouncedDoLevelUp = createDebouncedAction(doLevelUp)
+const debouncedDoAssassinLevelUp = createDebouncedAction(doAssassinLevelUp)
+const debouncedDoPurchaseUpgrade = createDebouncedAction(doPurchaseUpgrade)
+const debouncedDoRepay = createDebouncedAction(doRepay)
+const debouncedDoRepayAll = createDebouncedAction(doRepayAll)
+
 onMounted(() => {
   update()
   eventBus.on('income:tick', update)
@@ -286,7 +314,7 @@ watch(() => props.visible, (v) => {
           v-for="opt in hireOptions" :key="opt.id"
           class="staff-hire__btn"
           :disabled="!opt.affordable"
-          @click="doHire(opt.id)"
+          @click="debouncedDoHire(opt.id)"
         >{{ opt.name }} ({{ opt.cost }}){{ !opt.unlocked ? ' [LOCKED]' : opt.atCap ? ' [CAP]' : '' }}</button>
       </div>
       <div class="staff-hire__abilities">
@@ -307,7 +335,7 @@ watch(() => props.visible, (v) => {
               v-if="!u.purchased"
               class="upgrade-card__btn"
               :disabled="!u.affordable"
-              @click="doPurchaseUpgrade(u.id)"
+              @click="debouncedDoPurchaseUpgrade(u.id)"
             >{{ u.cost }}</button>
             <span v-else class="upgrade-card__purchased">PURCHASED</span>
           </div>
@@ -339,11 +367,11 @@ watch(() => props.visible, (v) => {
             :aria-label="`Assign ${s.typeName} to building`"
           >
             <option value="">Unassigned</option>
-            <option v-for="b in BUILDINGS" :key="b.id" :value="b.id">{{ b.name }}</option>
+            <option v-for="b in unlockedBuildings" :key="b.id" :value="b.id">{{ b.name }}</option>
           </select>
           <button
             v-if="s.pendingLevelUp"
-            @click="doLevelUp(s.id)"
+            @click="debouncedDoLevelUp(s.id)"
             class="staff-assign__levelup"
           >Level Up ({{ s.levelUpCost }})</button>
         </div>
@@ -356,7 +384,7 @@ watch(() => props.visible, (v) => {
             v-for="opt in assassinOptions" :key="opt.id"
             class="staff-hire__btn"
             :disabled="!opt.affordable"
-            @click="doHireAssassin(opt.id)"
+            @click="debouncedDoHireAssassin(opt.id)"
           >
             [{{ opt.rank }}] {{ opt.name }} ({{ opt.cost }})
             {{ !opt.unlocked ? ' [LOCKED]' : opt.atCap ? ' [CAP]' : '' }}
@@ -409,7 +437,7 @@ watch(() => props.visible, (v) => {
             </select>
             <button
               v-if="a.pendingLevelUp"
-              @click="doAssassinLevelUp(a.id)"
+              @click="debouncedDoAssassinLevelUp(a.id)"
               class="staff-assign__levelup"
             >Level Up ({{ a.levelUpCost }})</button>
           </div>
@@ -440,13 +468,13 @@ watch(() => props.visible, (v) => {
           <span class="debt-row__amount">{{ d.amount }}</span>
           <button
             :disabled="!d.canRepay"
-            @click="doRepay(d.id)"
+            @click="debouncedDoRepay(d.id)"
             class="debt-row__repay"
           >Repay</button>
         </div>
         <button
           v-if="canRepayAll"
-          @click="doRepayAll"
+          @click="debouncedDoRepayAll"
           class="debt-row__repay-all"
         >Repay All ({{ totalDebt }})</button>
       </template>

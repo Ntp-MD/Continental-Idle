@@ -118,7 +118,9 @@ if (triggered) {
   const ev = eventEngine.getActiveEvent()!
   ok(true, `Event: ${ev.definition.name}`)
   ok(ev.definition.choices.length >= 2, `${ev.definition.choices.length} choices`)
-  eventEngine.resolveEvent(ev.definition.choices[0].id)
+  // Pick first choice without unmet requirements
+  const validChoice = ev.definition.choices.find((c: { requires?: unknown }) => !c.requires) || ev.definition.choices[0]
+  eventEngine.resolveEvent(validChoice.id)
   ok(eventEngine.getActiveEvent() === null, 'Event resolved')
   ok(s.eventLog.length > 0, 'Event logged')
 } else {

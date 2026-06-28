@@ -11,7 +11,6 @@ export interface SkillNode {
     heatReduction?: number
     reputationMult?: number
     prestigeFavorMult?: number
-    offlineEfficiency?: number
     buffDurationMult?: number
     unlockSlot?: number
   }
@@ -24,7 +23,7 @@ export const SKILL_NODES: SkillNode[] = [
   { branch: 'commerce', level: 2, name: 'Market Control', description: '+10% income per level', favorCost: 25, effect: { incomeMult: 0.10 } },
   { branch: 'commerce', level: 3, name: 'Monopoly', description: '+15% income per level', favorCost: 50, effect: { incomeMult: 0.15 } },
   { branch: 'commerce', level: 4, name: 'Global Empire', description: '+20% income per level', favorCost: 100, effect: { incomeMult: 0.20 } },
-  { branch: 'commerce', level: 5, name: 'Continental Trust', description: '+25% income, +10% offline efficiency', favorCost: 200, effect: { incomeMult: 0.25, offlineEfficiency: 0.10 } },
+  { branch: 'commerce', level: 5, name: 'Continental Trust', description: '+25% income per level', favorCost: 200, effect: { incomeMult: 0.25 } },
 
   { branch: 'personnel', level: 1, name: 'Training Program', description: '+10% staff XP per level', favorCost: 10, effect: { staffXpMult: 0.10 } },
   { branch: 'personnel', level: 2, name: 'Loyalty System', description: '+15% staff XP per level', favorCost: 25, effect: { staffXpMult: 0.15 } },
@@ -48,7 +47,7 @@ export const SKILL_NODES: SkillNode[] = [
   { branch: 'ascension', level: 2, name: 'Ascension Rite', description: '+15% prestige favor per level', favorCost: 35, effect: { prestigeFavorMult: 0.15 } },
   { branch: 'ascension', level: 3, name: 'Eternal Cycle', description: '+20% prestige favor per level', favorCost: 75, effect: { prestigeFavorMult: 0.20 } },
   { branch: 'ascension', level: 4, name: 'Transcendence', description: '+25% prestige favor per level', favorCost: 150, effect: { prestigeFavorMult: 0.25 } },
-  { branch: 'ascension', level: 5, name: 'Continental Ascension', description: '+30% prestige favor, +15% offline efficiency', favorCost: 300, effect: { prestigeFavorMult: 0.30, offlineEfficiency: 0.15 } },
+  { branch: 'ascension', level: 5, name: 'Continental Ascension', description: '+30% prestige favor per level', favorCost: 300, effect: { prestigeFavorMult: 0.30 } },
 ]
 
 export function getSkillNode(branch: string, level: number): SkillNode | undefined {

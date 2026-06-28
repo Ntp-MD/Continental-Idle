@@ -4,9 +4,12 @@ import { hasTraitEffect } from '@/data/traits'
 import { hasCleanerMaxed, getVipFrequencyMultiplier } from './abilities'
 import { hasHighTableEnforcer, hasShadowBlade, hasStreetSamurai, getAssassinRaidPower, getAssassinXpMult } from './assassin-manager'
 import { getTotalReputationMult, getExtraHeatReduction, getTotalBuffDurationMult } from './skill-manager'
+import { getRoyalAssassinPowerMult, getRoyalBuffDurationMult } from './royal-manager'
+import { sovereignManager } from './sovereign-manager'
 import { gameState } from './game-state'
 import { getBranchIncomePerSecond } from './income-engine'
 import { eventBus } from './event-bus'
+import { getActiveAIOwners, generateAIEvent, getAIOwner, pickAIEvent, getPlayerPower } from './ai-owner-manager'
 
 function generateBuffId(): string {
   return 'buff_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6)
@@ -19,7 +22,7 @@ function applyEffect(effect: EventEffect, branchId: BranchId): void {
 
   switch (effect.type) {
     case 'incomeMultiplier': {
-      const buffDurMult = getTotalBuffDurationMult()
+      const buffDurMult = getTotalBuffDurationMult() * getRoyalBuffDurationMult()
       const multValue = effect.scaling === 'incomePercent'
         ? 1 + effect.value
         : effect.value
@@ -79,7 +82,9 @@ function applyPenalty(effect: EventEffect, branchId: BranchId): void {
       break
     }
     case 'markerDebt': {
-      const amount = effect.value * (1 + branch.prestige * 0.1)
+      const amount = effect.scaling === 'prestigeScaled'
+        ? effect.value * (1 + branch.prestige * 0.1)
+        : effect.value
       branch.markerDebts.push({
         id: 'debt_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
         amount,
@@ -100,11 +105,14 @@ function applyPenalty(effect: EventEffect, branchId: BranchId): void {
       break
     }
     case 'incomeMultiplier': {
-      const buffDurMult = getTotalBuffDurationMult()
+      const buffDurMult = getTotalBuffDurationMult() * getRoyalBuffDurationMult()
+      const multValue = effect.scaling === 'incomePercent'
+        ? 1 + effect.value
+        : effect.value
       state.activeBuffs.push({
         id: generateBuffId(),
         type: 'incomeMultiplier',
-        value: effect.value,
+        value: multValue,
         expiresAt: effect.duration ? Date.now() + effect.duration * 1000 * buffDurMult : null,
         branchId,
       })
@@ -174,6 +182,7 @@ function generateRaid(branchId: BranchId): RaidData {
   defenders.forEach(a => {
     defenderPower += getAssassinRaidPower(a)
   })
+  defenderPower *= getRoyalAssassinPowerMult()
 
   const winChance = defenderPower > 0
     ? Math.max(0.05, Math.min(0.95, defenderPower / (defenderPower + attackerPower)))
@@ -249,8 +258,8 @@ class EventEngine {
     const vipMult = getVipFrequencyMultiplier(state.activeBranch)
     let totalWeight = 0
     const weighted = eligible.map(e => {
-      // Sommelier VIP boost only applies to positive events (contractOpen = VIP guest arrival)
-      const isVipEvent = e.id === 'contractOpen'
+      // Sommelier VIP boost only applies to VIP guest arrival events
+      const isVipEvent = e.id === 'vipArrival'
       const w = Math.max(1, (e.weight + e.heatModifier * heat) * (isVipEvent ? vipMult : 1))
       totalWeight += w
       return { event: e, weight: w }
@@ -413,7 +422,10 @@ class EventEngine {
 
     // Apply custom heat change from choice (e.g. heatWave "Lay low" = -5)
     if (choice.heatChange) {
-      branch.heatLevel = Math.max(0, Math.min(10, branch.heatLevel + choice.heatChange))
+      const heatImmune = sovereignManager.hasActiveDecree('heatReduction') && sovereignManager.getActiveDecreeMult('heatReduction') === -1
+      if (!heatImmune || choice.heatChange < 0) {
+        branch.heatLevel = Math.max(0, Math.min(10, branch.heatLevel + choice.heatChange))
+      }
     }
 
     // Log
@@ -438,7 +450,10 @@ class EventEngine {
     const branch = state.branches[this.activeEvent.branch]
     if (!branch) return
 
-    branch.heatLevel = Math.min(10, branch.heatLevel + 1)
+    const heatImmune = sovereignManager.hasActiveDecree('heatReduction') && sovereignManager.getActiveDecreeMult('heatReduction') === -1
+    if (!heatImmune) {
+      branch.heatLevel = Math.min(10, branch.heatLevel + 1)
+    }
     branch.reputation = Math.max(0, branch.reputation - 15)
     branch.guestSatisfaction = Math.max(0, branch.guestSatisfaction - 5)
 
@@ -455,10 +470,48 @@ class EventEngine {
     this.activeEvent = null
   }
 
+  private checkForAIEvent(): void {
+    if (this.activeEvent) return
+
+    const state = gameState.get()
+    const now = Date.now() / 1000
+    const lastTime = this.lastEventTimes.get(state.activeBranch) || 0
+    if (now - lastTime < EVENT_COOLDOWN) return
+
+    const branch = state.branches[state.activeBranch]
+    if (!branch) return
+    if (Date.now() < branch.excommunicadoGraceUntil) return
+
+    // Find AI owners who want to act on this branch
+    const activeOwners = getActiveAIOwners()
+    if (activeOwners.length === 0) return
+
+    // Pick a random active AI owner to potentially trigger an event
+    const owner = activeOwners[Math.floor(Math.random() * activeOwners.length)]
+    if (!owner) return
+
+    // Check cooldown on AI owner
+    const aiOwnerState = getAIOwner(owner.branchId)
+    if (!aiOwnerState || aiOwnerState.defeated) return
+
+    // Low probability per check
+    const rollChance = 0.015 * aiOwnerState.aggression
+    if (Math.random() > rollChance) return
+
+    // Pick event type using the shared logic from ai-owner-manager
+    const playerPower = getPlayerPower()
+    const eventType = pickAIEvent(aiOwnerState, playerPower)
+    if (!eventType) return
+
+    const def = generateAIEvent(aiOwnerState, eventType, state.activeBranch)
+    this.triggerEvent(def)
+  }
+
   tick(): void {
     this.tickCount++
     if (this.tickCount % 3 === 0) {
       this.checkForEvent()
+      this.checkForAIEvent()
     }
 
     // Auto-resolve timeout

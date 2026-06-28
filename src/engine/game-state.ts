@@ -3,16 +3,13 @@ import { BUILDINGS } from '@/data/buildings'
 import { BRANCHES } from '@/data/branches'
 import { STAFF_TYPES } from '@/data/staff'
 import { ASSASSIN_TYPES } from '@/data/assassins'
+import { initAIOwners } from './ai-owner-manager'
+import { getBranchIncomePerSecond } from './income-engine'
 import { getTotalOfflineEfficiency } from './skill-manager'
+import { useToast } from '@/composables/useToast'
 
 const CURRENT_VERSION = '1.0'
 const SAVE_KEY = 'continental_idle_save'
-
-// Deferred import to break circular dependency with income-engine
-let _getBranchIncomePerSecond: ((branchId?: BranchId) => number) | null = null
-export function setIncomeFunction(fn: (branchId?: BranchId) => number): void {
-  _getBranchIncomePerSecond = fn
-}
 
 function createDefaultBranchState(): BranchState {
   const buildings: Record<string, BuildingState> = {}
@@ -36,6 +33,7 @@ function createDefaultBranchState(): BranchState {
     hqHealth: 1000,
     hqMaxHealth: 1000,
     aiOwnerDefeated: false,
+    royalBuildings: {},
   }
 }
 
@@ -49,7 +47,6 @@ function createDefaultState(hq: BranchId = 'bangkok'): GameState {
     version: CURRENT_VERSION,
     timestamp: Date.now(),
     totalPlayTime: 0,
-    totalOfflineTime: 0,
     tutorialCompleted: false,
     tutorialStep: 0,
     tableFavor: 0,
@@ -80,14 +77,34 @@ function createDefaultState(hq: BranchId = 'bangkok'): GameState {
     activeBuffs: [],
     permanentIncomeBonus: 0,
     buyMultiplier: 1,
-    lastOfflineEarnings: 0,
-    lastOfflineSeconds: 0,
+    supplyRoutes: [],
+    aiOwners: initAIOwners(),
     checksum: '',
+    lastOfflineSeconds: 0,
+    lastOfflineEarnings: 0,
+    lastOfflineBreakdown: {},
+    achievements: [],
+    royalMarks: 0,
+    royalPrestige: 0,
+    royalSkillTree: {
+      royalIncome: 0,
+      royalLoyalty: 0,
+      royalPower: 0,
+      royalFavor: 0,
+      royalAscension: 0,
+    },
+    sovereign: false,
+    royalDecrees: [],
+    lastDecreeAt: 0,
+    sandboxLoops: 0,
   }
 }
 
 class GameStateManager {
   private state: GameState
+  private _mutationLock = false
+  private _pendingSave = false
+  private toast = useToast()
 
   constructor() {
     this.state = createDefaultState()
@@ -97,7 +114,26 @@ class GameStateManager {
     return this.state
   }
 
-  getBranch(id?: BranchId): BranchState {
+  withLock<T>(fn: () => T): T {
+    if (this._mutationLock) {
+      // Skip if already locked — prevents re-entrant mutations
+      return fn()
+    }
+    this._mutationLock = true
+    try {
+      const result = fn()
+      // Process pending save after mutation completes
+      if (this._pendingSave) {
+        this._pendingSave = false
+        this.save()
+      }
+      return result
+    } finally {
+      this._mutationLock = false
+    }
+  }
+
+  getBranch(id?: BranchId): BranchState | undefined {
     return this.state.branches[id || this.state.activeBranch]
   }
 
@@ -109,16 +145,12 @@ class GameStateManager {
     this.state.buyMultiplier = mult
   }
 
-  clearOfflineEarnings(): void {
-    this.state.lastOfflineEarnings = 0
-    this.state.lastOfflineSeconds = 0
-  }
-
   init(hq?: BranchId): void {
     const saved = this.load()
     if (saved) {
       this.state = saved
-      this.applyOfflineEarnings()
+      // Calculate offline earnings
+      this.calculateOfflineProgress()
     } else if (hq) {
       this.state = createDefaultState(hq)
     } else if (this.hasSave()) {
@@ -149,23 +181,33 @@ class GameStateManager {
   }
 
   save(): boolean {
+    if (this._mutationLock) {
+      this._pendingSave = true
+      return false
+    }
     this.state.timestamp = Date.now()
     this.state.checksum = this.computeChecksum()
     const json = JSON.stringify(this.state)
     try {
-      // Backup previous save before overwriting
-      const prev = localStorage.getItem(SAVE_KEY)
-      if (prev) localStorage.setItem(SAVE_KEY + '_backup', prev)
+      // Write main save first — if this fails, backup is preserved
       localStorage.setItem(SAVE_KEY, json)
+      // Then backup — use the same json to avoid cross-tab race
+      localStorage.setItem(SAVE_KEY + '_backup', json)
       return true
     } catch {
       console.error('Failed to save game — storage quota exceeded or unavailable')
+      this.toast.error('Failed to save game — storage may be full')
       return false
     }
   }
 
   load(): GameState | null {
-    const raw = localStorage.getItem(SAVE_KEY)
+    let raw: string | null
+    try {
+      raw = localStorage.getItem(SAVE_KEY)
+    } catch {
+      return null
+    }
     if (!raw) return null
     const result = this.tryParseSave(raw)
     if (result) return result
@@ -185,19 +227,27 @@ class GameStateManager {
 
   private tryParseSave(raw: string): GameState | null {
     try {
-      const parsed = JSON.parse(raw) as GameState
+      const parsed = JSON.parse(raw)
+
+      // Validate minimal shape before casting
+      if (!parsed || typeof parsed !== 'object') return null
+      if (!parsed.branches || typeof parsed.branches !== 'object') return null
+      if (!parsed.worldMap || typeof parsed.worldMap !== 'object') return null
+      if (typeof parsed.hqBranch !== 'string') return null
+
+      const typed = parsed as GameState
 
       // Validate checksum before accepting
-      const savedChecksum = parsed.checksum
-      parsed.checksum = ''
-      const expected = this.computeChecksumFor(parsed)
+      const savedChecksum = typed.checksum
+      typed.checksum = ''
+      const expected = this.computeChecksumFor(typed)
       if (!savedChecksum || savedChecksum !== expected) {
         console.error('Save checksum missing or mismatched — rejecting tampered save')
         return null
       }
-      parsed.checksum = savedChecksum
+      typed.checksum = savedChecksum
 
-      const migrated = this.migrate(parsed)
+      const migrated = this.migrate(typed)
       return migrated
     } catch {
       return null
@@ -304,6 +354,58 @@ class GameStateManager {
         }
       }
 
+      // Validate supplyRoutes
+      if (Array.isArray(parsed.supplyRoutes)) {
+        for (const r of parsed.supplyRoutes) {
+          if (!r || typeof r !== 'object') return false
+          if (typeof r.type !== 'string' || !['luxury', 'contraband', 'weapons'].includes(r.type)) return false
+          if (typeof r.from !== 'string' || !validIds.has(r.from as BranchId)) return false
+          if (typeof r.to !== 'string' || !validIds.has(r.to as BranchId)) return false
+          if (typeof r.stability !== 'number' || !isFinite(r.stability) || r.stability < 0 || r.stability > 100) return false
+          if (typeof r.incomePerTick !== 'number' || !isFinite(r.incomePerTick) || r.incomePerTick < 0) return false
+        }
+      }
+
+      // Validate aiOwners
+      if (parsed.aiOwners && typeof parsed.aiOwners === 'object') {
+        const validTemperaments = new Set(['aggressive', 'diplomatic', 'shadow', 'defensive'])
+        for (const key of Object.keys(parsed.aiOwners)) {
+          if (!validIds.has(key as BranchId)) continue
+          const o = parsed.aiOwners[key]
+          if (!o || typeof o !== 'object') return false
+          if (typeof o.power !== 'number' || !isFinite(o.power) || o.power < 0) return false
+          if (typeof o.aggression !== 'number' || !isFinite(o.aggression) || o.aggression < 0) return false
+          if (typeof o.defeated !== 'boolean') return false
+          if (o.temperament !== undefined && !validTemperaments.has(o.temperament)) return false
+        }
+      }
+
+      // Validate buyMultiplier
+      if (parsed.buyMultiplier !== undefined && (typeof parsed.buyMultiplier !== 'number' || !isFinite(parsed.buyMultiplier) || parsed.buyMultiplier < 0)) {
+        parsed.buyMultiplier = 1
+      }
+
+      // Validate royal system fields
+      if (parsed.royalMarks !== undefined && (typeof parsed.royalMarks !== 'number' || !isFinite(parsed.royalMarks) || parsed.royalMarks < 0)) return false
+      if (parsed.royalPrestige !== undefined && (typeof parsed.royalPrestige !== 'number' || !isFinite(parsed.royalPrestige) || parsed.royalPrestige < 0)) return false
+      if (parsed.sovereign !== undefined && typeof parsed.sovereign !== 'boolean') return false
+      if (parsed.sandboxLoops !== undefined && (typeof parsed.sandboxLoops !== 'number' || !isFinite(parsed.sandboxLoops) || parsed.sandboxLoops < 0)) return false
+      if (parsed.lastDecreeAt !== undefined && (typeof parsed.lastDecreeAt !== 'number' || !isFinite(parsed.lastDecreeAt) || parsed.lastDecreeAt < 0)) return false
+      if (parsed.royalSkillTree && typeof parsed.royalSkillTree === 'object') {
+        for (const key of ['royalIncome', 'royalLoyalty', 'royalPower', 'royalFavor', 'royalAscension']) {
+          const val = (parsed.royalSkillTree as Record<string, unknown>)[key]
+          if (val !== undefined && (typeof val !== 'number' || !isFinite(val) || val < 0)) return false
+        }
+      }
+      if (parsed.royalDecrees !== undefined) {
+        if (!Array.isArray(parsed.royalDecrees)) return false
+        for (const d of parsed.royalDecrees) {
+          if (!d || typeof d !== 'object') return false
+          if (typeof d.type !== 'string' || !['incomeMultiplier', 'permanentIncomeBonus', 'heatReduction', 'debtReduction', 'loyaltyBoost'].includes(d.type)) return false
+          if (typeof d.value !== 'number' || !isFinite(d.value)) return false
+        }
+      }
+
       // Validate settings
       if (parsed.settings && typeof parsed.settings === 'object') {
         const s = parsed.settings as Record<string, unknown>
@@ -343,10 +445,60 @@ class GameStateManager {
 
   deleteSave(): void {
     localStorage.removeItem(SAVE_KEY)
+    localStorage.removeItem(SAVE_KEY + '_backup')
   }
 
   hasSave(): boolean {
-    return localStorage.getItem(SAVE_KEY) !== null
+    return localStorage.getItem(SAVE_KEY) !== null ||
+           localStorage.getItem(SAVE_KEY + '_backup') !== null
+  }
+
+  clearOfflineEarnings(): void {
+    this.state.lastOfflineSeconds = 0
+    this.state.lastOfflineEarnings = 0
+    this.state.lastOfflineBreakdown = {}
+  }
+
+  private calculateOfflineProgress(): void {
+    const now = Date.now()
+    const lastSaved = this.state.timestamp
+    const elapsedMs = now - lastSaved
+    if (elapsedMs < 10_000) {
+      this.clearOfflineEarnings()
+      return
+    }
+
+    // Cap at 24 hours to prevent overflow
+    const cappedSeconds = Math.min(Math.floor(elapsedMs / 1000), 86400)
+    const efficiency = 0.5 + getTotalOfflineEfficiency()
+
+    const breakdown: Record<string, number> = {}
+    let totalEarnings = 0
+
+    this.state.worldMap.unlockedBranches.forEach(branchId => {
+      const branch = this.state.branches[branchId]
+      if (!branch) return
+
+      // Use the actual income calculation which accounts for staff, buffs, skills, etc.
+      const baseIncome = getBranchIncomePerSecond(branchId)
+
+      // Active branch gets full rate, inactive get 50% (or 60% with continentalCharter)
+      const isActive = branchId === this.state.activeBranch
+      const inactiveRate = isActive ? 1.0 : (branch.upgrades.includes('continentalCharter') ? 0.6 : 0.5)
+      const branchIncome = baseIncome * inactiveRate
+
+      const earnings = Math.floor(branchIncome * cappedSeconds * efficiency)
+      if (earnings > 0) {
+        breakdown[branchId] = earnings
+        totalEarnings += earnings
+        branch.currency += earnings
+        branch.lifetimeEarnings += earnings
+      }
+    })
+
+    this.state.lastOfflineSeconds = cappedSeconds
+    this.state.lastOfflineEarnings = totalEarnings
+    this.state.lastOfflineBreakdown = breakdown
   }
 
   private migrate(save: GameState): GameState {
@@ -371,14 +523,18 @@ class GameStateManager {
         if (branch.heatLevel === undefined) branch.heatLevel = 0
         if (branch.excommunicadoGraceUntil === undefined) branch.excommunicadoGraceUntil = 0
         if (branch.guestSatisfaction === undefined) branch.guestSatisfaction = 50
+        // Clamp values to valid ranges to prevent tampered saves
+        branch.heatLevel = Math.max(0, Math.min(10, branch.heatLevel))
+        branch.guestSatisfaction = Math.max(0, Math.min(100, branch.guestSatisfaction))
         if (branch.hqHealth === undefined) branch.hqHealth = 1000
         if (branch.hqMaxHealth === undefined) branch.hqMaxHealth = 1000
         if (branch.aiOwnerDefeated === undefined) branch.aiOwnerDefeated = false
         // Ensure all buildings have the unlocked field (added in v1.0)
         if (branch.buildings) {
+          const defaults = createDefaultBranchState()
           for (const bId of Object.keys(branch.buildings)) {
             if (branch.buildings[bId].unlocked === undefined) {
-              branch.buildings[bId].unlocked = true
+              branch.buildings[bId].unlocked = defaults.buildings[bId]?.unlocked ?? false
             }
           }
         } else {
@@ -393,16 +549,31 @@ class GameStateManager {
     if (!save.skillTree) save.skillTree = { commerce: 0, personnel: 0, shadow: 0, diplomacy: 0, ascension: 0 }
     if (!save.settings) save.settings = { colorBlindMode: 'none', highContrast: false, reducedMotion: false, fontScale: 1.0, oneHandMode: false }
     if (save.totalPlayTime === undefined) save.totalPlayTime = 0
-    if (save.totalOfflineTime === undefined) save.totalOfflineTime = 0
     if (save.tutorialCompleted === undefined) save.tutorialCompleted = false
     if (save.tutorialStep === undefined) save.tutorialStep = 0
     if (save.buyMultiplier === undefined) save.buyMultiplier = 1
-    if (save.lastOfflineEarnings === undefined) save.lastOfflineEarnings = 0
-    if (save.lastOfflineSeconds === undefined) save.lastOfflineSeconds = 0
+    if (!save.supplyRoutes) save.supplyRoutes = []
+    if (!save.aiOwners) save.aiOwners = initAIOwners()
     if (!save.worldMap) save.worldMap = { unlockedBranches: [save.hqBranch], conqueredBranches: [], royalBranches: [] }
     if (!save.worldMap.conqueredBranches) save.worldMap.conqueredBranches = []
     if (!save.worldMap.royalBranches) save.worldMap.royalBranches = []
     if (!save.eventLog) save.eventLog = []
+    if (save.lastOfflineSeconds === undefined) save.lastOfflineSeconds = 0
+    if (save.lastOfflineEarnings === undefined) save.lastOfflineEarnings = 0
+    if (!save.lastOfflineBreakdown) save.lastOfflineBreakdown = {}
+    if (!save.achievements) save.achievements = []
+    if (save.royalMarks === undefined) save.royalMarks = 0
+    if (save.royalPrestige === undefined) save.royalPrestige = 0
+    if (!save.royalSkillTree) save.royalSkillTree = { royalIncome: 0, royalLoyalty: 0, royalPower: 0, royalFavor: 0, royalAscension: 0 }
+    if (save.sovereign === undefined) save.sovereign = false
+    if (!save.royalDecrees) save.royalDecrees = []
+    if (save.lastDecreeAt === undefined) save.lastDecreeAt = 0
+    if (save.sandboxLoops === undefined) save.sandboxLoops = 0
+
+    // Migrate branches missing royalBuildings
+    Object.values(save.branches).forEach(branch => {
+      if (!branch.royalBuildings) branch.royalBuildings = {}
+    })
 
     // Cap eventLog to prevent unbounded growth
     if (save.eventLog.length > 200) {
@@ -428,6 +599,7 @@ class GameStateManager {
         hl: v.heatLevel, gs: v.guestSatisfaction,
         hh: v.hqHealth, hm: v.hqMaxHealth, ad: v.aiOwnerDefeated ? 1 : 0,
         eg: v.excommunicadoGraceUntil,
+        rb: v.royalBuildings ? Object.entries(v.royalBuildings).map(([k, b]) => k + ':' + b.level).join(',') : '',
       }])
     )
     const dataObj: Record<string, unknown> = {
@@ -437,13 +609,25 @@ class GameStateManager {
       at: state.activeBranch,
       ts: state.timestamp,
       pib: state.permanentIncomeBonus,
+      bm: state.buyMultiplier,
       th: branchData,
     }
     if (state.skillTree) dataObj.st = state.skillTree
+    if (state.settings) dataObj.se = state.settings
     if (state.worldMap?.unlockedBranches) dataObj.un = state.worldMap.unlockedBranches
     if (state.worldMap?.conqueredBranches) dataObj.cn = state.worldMap.conqueredBranches
     if (state.worldMap?.royalBranches) dataObj.rn = state.worldMap.royalBranches
     if (state.activeBuffs) dataObj.ab = state.activeBuffs.map(b => b.type + ':' + b.value + ':' + (b.expiresAt ?? 'null') + ':' + (b.branchId ?? 'null'))
+    if (state.supplyRoutes) dataObj.sr = state.supplyRoutes.map(r => r.type + ':' + r.from + ':' + r.to + ':' + Math.round(r.stability) + ':' + (r.hijacked ? 1 : 0) + ':' + Math.round(r.incomePerTick))
+    if (state.aiOwners) dataObj.ao = Object.values(state.aiOwners).filter(o => !o.defeated).map(o => o.branchId + ':' + Math.round(o.power) + ':' + Math.round(o.relations) + ':' + Math.round(o.threatLevel)).join(',')
+    if (state.achievements) dataObj.ac = state.achievements.join(',')
+    if (state.royalMarks !== undefined) dataObj.rm = state.royalMarks
+    if (state.royalPrestige !== undefined) dataObj.rp = state.royalPrestige
+    if (state.sovereign !== undefined) dataObj.sv = state.sovereign ? 1 : 0
+    if (state.sandboxLoops !== undefined) dataObj.sl = state.sandboxLoops
+    if (state.royalSkillTree) dataObj.rst = JSON.stringify(state.royalSkillTree)
+    if (state.royalDecrees) dataObj.rd = state.royalDecrees.map(d => d.type + ':' + d.value + ':' + (d.expiresAt ?? 'null')).join(',')
+    if (state.lastDecreeAt !== undefined) dataObj.ld = state.lastDecreeAt
     const data = JSON.stringify(dataObj)
     // FNV-1a hash — stronger than DJB2, covers all economically relevant fields
     let hash = 0x811c9dc5
@@ -454,35 +638,6 @@ class GameStateManager {
     return (hash >>> 0).toString(16)
   }
 
-  private applyOfflineEarnings(): void {
-    const now = Date.now()
-    const lastSave = this.state.timestamp
-    const offlineSeconds = Math.floor((now - lastSave) / 1000)
-
-    if (offlineSeconds < 10) return
-
-    const cappedSeconds = Math.min(offlineSeconds, 8 * 3600)
-    const offlineRate = 0.5 + getTotalOfflineEfficiency()
-
-    const incomeFn = _getBranchIncomePerSecond
-    if (!incomeFn) return
-
-    let totalEarned = 0
-    this.state.worldMap.unlockedBranches.forEach(branchId => {
-      const branch = this.state.branches[branchId]
-      if (!branch) return
-
-      const onlineIncome = incomeFn(branchId)
-      const earned = onlineIncome * cappedSeconds * offlineRate
-      branch.currency += earned
-      branch.lifetimeEarnings += earned
-      totalEarned += earned
-    })
-
-    this.state.totalOfflineTime += cappedSeconds
-    this.state.lastOfflineEarnings = totalEarned
-    this.state.lastOfflineSeconds = cappedSeconds
-  }
 }
 
 export const gameState = new GameStateManager()

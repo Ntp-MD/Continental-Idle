@@ -1,0 +1,80 @@
+/* ───────────────────────────────────────────────
+   Continental Idle — Color & Theme Variables
+   Single source of truth for all design tokens.
+   ─────────────────────────────────────────────── */
+
+:root {
+  /* ── Background ── */
+  --bg-primary:   #0a0a0a;
+  --bg-secondary: #0d0d0d;
+  --bg-tertiary:  #111111;
+  --bg-card:      #1a1a1a;
+  --bg-overlay:   rgba(0, 0, 0, 0.85);
+
+  /* ── Text ── */
+  --text-primary:   #e0e0e0;
+  --text-secondary: #999999;
+  --text-dim:       #888888;
+  --text-bright:    #ffffff;
+
+  /* ── Borders ── */
+  --border-color: #cccccc;
+  --border-dim:   #333333;
+
+  /* ── Accent Colors ── */
+  --accent-gold:   #ffd700;
+  --accent-green:  #4caf50;
+  --accent-red:    #e74c3c;
+  --accent-orange: #f39c12;
+  --accent-blue:   #1e88e5;
+  --accent-purple: #9c27b0;
+  --accent-attack: #ff5722;
+
+  /* ── Map Action Button Backgrounds ── */
+  --map-action-bg:        rgba(10, 10, 10, 0.85);
+  --map-action-bg-hover:  rgba(20, 20, 20, 0.95);
+
+  /* ── Shadows ── */
+  --shadow-panel: 0 8px 32px rgba(0, 0, 0, 0.5);
+  --shadow-gold:  0 4px 24px rgba(255, 215, 0, 0.15);
+
+  /* ── Wiki-Specific ── */
+  --wiki-blue:      #2196f3;
+  --wiki-blue-bg:   #0f101a;
+  --wiki-red:       #d32f2f;
+  --wiki-red-bg:    #1a0f0f;
+  --wiki-green-bg:  #0f1a0f;
+
+  /* ── Branch Badge Colors ── */
+  --branch-new-york:    #cccccc;
+  --branch-rome:        #d4a574;
+  --branch-casablanca:  #74d4a5;
+  --branch-osaka:       #d474a5;
+  --branch-paris:       #a574d4;
+  --branch-berlin:      #d47474;
+  --branch-dubai:       #74c2d4;
+
+  /* ── Autoplay Panel ── */
+  --autoplay-bg:          rgba(20, 20, 30, 0.95);
+  --autoplay-toggle:      #2a2a3a;
+  --autoplay-speed-active: #4a90e2;
+  --autoplay-progress-1:  #4a90e2;
+  --autoplay-progress-2:  #2ecc71;
+  --autoplay-text-dim:    #666;
+
+  /* ── Locked Node ── */
+  --node-locked: #555;
+  --node-label-locked: #666;
+  --node-label-active: #aaa;
+
+  /* ── Takeover / HQ Health ── */
+  --accent-takeover: #ff9800;
+  --accent-hp-high: #4caf50;
+  --accent-hp-mid: #ff9800;
+  --accent-hp-low: #f44336;
+  --hpbar-bg: #333;
+
+  /* ── Fonts ── */
+  --font-mono: "Courier New", Consolas, Monaco, monospace;
+  --font-scale: 1;
+}

@@ -12,10 +12,15 @@ import SettingsPanel from '@/components/panels/SettingsPanel.vue'
 import TutorialOverlay from '@/components/overlays/TutorialOverlay.vue'
 import ToastContainer from '@/components/overlays/ToastContainer.vue'
 import BuffBar from '@/components/layout/BuffBar.vue'
-import OfflineProgress from '@/components/overlays/OfflineProgress.vue'
 import EventLogPanel from '@/components/panels/EventLogPanel.vue'
 import Wiki from '@/components/panels/Wiki.vue'
 import AutoplayPanel from '@/components/overlays/AutoplayPanel.vue'
+import SupplyRoutePanel from '@/components/panels/SupplyRoutePanel.vue'
+import PowerBalancePanel from '@/components/panels/PowerBalancePanel.vue'
+import AchievementsPanel from '@/components/panels/AchievementsPanel.vue'
+import RoyalPanel from '@/components/panels/RoyalPanel.vue'
+import SovereignPanel from '@/components/panels/SovereignPanel.vue'
+import HQOfficeView from '@/components/overlays/HQOfficeView.vue'
 import ErrorBoundary from '@/components/overlays/ErrorBoundary.vue'
 import { autoplayBot } from '@/engine/autoplay'
 import { gameState } from '@/engine/game-state'
@@ -40,6 +45,13 @@ const showEventLog = ref(false)
 const showSaveMenu = ref(false)
 const showWiki = ref(false)
 const showAutoplay = ref(false)
+const showSupplyRoutes = ref(false)
+const showPowerBalance = ref(false)
+const showAchievements = ref(false)
+const showRoyal = ref(false)
+const showSovereign = ref(false)
+const showHQOffice = ref(false)
+const mapTab = ref<'world' | 'hq'>('world')
 
 function onStart() {
   gameStarted.value = true
@@ -150,6 +162,13 @@ function handleKeydown(e: KeyboardEvent) {
     if (showEventLog.value) { showEventLog.value = false; return }
     if (showSaveMenu.value) { showSaveMenu.value = false; return }
     if (showWiki.value) { showWiki.value = false; return }
+    if (showSupplyRoutes.value) { showSupplyRoutes.value = false; return }
+    if (showPowerBalance.value) { showPowerBalance.value = false; return }
+    if (showAchievements.value) { showAchievements.value = false; return }
+    if (showRoyal.value) { showRoyal.value = false; return }
+    if (showSovereign.value) { showSovereign.value = false; return }
+    if (showHQOffice.value) { showHQOffice.value = false; return }
+    if (showAutoplay.value) { showAutoplay.value = false; return }
   }
 }
 
@@ -191,6 +210,54 @@ function handleSaveFailed() {
   toast.error('Autosave failed — storage may be full')
 }
 
+function handleSupplyRouteEstablished(e: Event) {
+  const detail = (e as CustomEvent).detail as { from: BranchId; to: BranchId; type: string }
+  toast.success(`Supply route established: ${getBranchDef(detail.from)?.name} → ${getBranchDef(detail.to)?.name}`)
+}
+
+function handleSupplyRouteHijacked() {
+  toast.success(`Supply route hijacked! Underworld connection seized.`)
+}
+
+function handleSupplyRouteCollapsed() {
+  toast.warning(`A supply route has collapsed — stability reached zero`)
+}
+
+function handleAIAction(e: Event) {
+  const detail = (e as CustomEvent).detail as { ownerName: string; eventType: string; branchId: BranchId }
+  toast.warning(`${detail.ownerName} is taking action: ${detail.eventType}`)
+}
+
+function handleAIDefeated(e: Event) {
+  const detail = (e as CustomEvent).detail as { ownerName: string; branchId: BranchId }
+  toast.success(`AI Controller ${detail.ownerName} defeated in ${getBranchDef(detail.branchId)?.name}!`)
+}
+
+function handleSovereignAchieved() {
+  toast.success('You have achieved the Sovereign of the High Table! All buffs doubled.')
+  showSovereign.value = true
+}
+
+function handleDecreeIssued(e: Event) {
+  const detail = (e as CustomEvent).detail as { name: string; description: string }
+  toast.success(`Royal Decree: ${detail.name} — ${detail.description}`)
+}
+
+function handleSandboxLoop(e: Event) {
+  const detail = (e as CustomEvent).detail as { loop: number; marks: number }
+  toast.success(`Sandbox+ Loop ${detail.loop} completed! +${detail.marks} Royal Marks`)
+}
+
+function handleRoyalSkillUpgraded(e: Event) {
+  const detail = (e as CustomEvent).detail as { branch: string; level: number }
+  toast.success(`Royal skill upgraded to Lv.${detail.level}`)
+}
+
+function handleRoyalPrestige(e: Event) {
+  const detail = (e as CustomEvent).detail as { branchId: BranchId; marks: number }
+  toast.success(`Royal Prestige! +${detail.marks} Royal Marks`)
+}
+
 onMounted(() => {
   document.addEventListener('keydown', handleKeydown)
   eventBus.on('raid:result', handleRaidResult)
@@ -199,8 +266,23 @@ onMounted(() => {
   eventBus.on('takeover:complete', handleTakeoverComplete)
   eventBus.on('branch:unlock', handleBranchUnlock)
   eventBus.on('branch:royal', handleBranchRoyal)
+  eventBus.on('supplyroute:established', handleSupplyRouteEstablished)
+  eventBus.on('supplyroute:hijacked', handleSupplyRouteHijacked)
+  eventBus.on('supplyroute:collapsed', handleSupplyRouteCollapsed)
+  eventBus.on('ai:action', handleAIAction)
+  eventBus.on('ai:defeated', handleAIDefeated)
+  eventBus.on('sovereign:achieved', handleSovereignAchieved)
+  eventBus.on('decree:issued', handleDecreeIssued)
+  eventBus.on('sandbox:loop', handleSandboxLoop)
+  eventBus.on('royal:skill-upgraded', handleRoyalSkillUpgraded)
+  eventBus.on('royal:prestige', handleRoyalPrestige)
   eventBus.on('save:failed', handleSaveFailed)
+  eventBus.on('hq:office-view', handleHQOfficeView)
 })
+
+function handleHQOfficeView() {
+  mapTab.value = 'hq'
+}
 
 onUnmounted(() => {
   document.removeEventListener('keydown', handleKeydown)
@@ -210,7 +292,18 @@ onUnmounted(() => {
   eventBus.off('takeover:complete', handleTakeoverComplete)
   eventBus.off('branch:unlock', handleBranchUnlock)
   eventBus.off('branch:royal', handleBranchRoyal)
+  eventBus.off('supplyroute:established', handleSupplyRouteEstablished)
+  eventBus.off('supplyroute:hijacked', handleSupplyRouteHijacked)
+  eventBus.off('supplyroute:collapsed', handleSupplyRouteCollapsed)
+  eventBus.off('ai:action', handleAIAction)
+  eventBus.off('ai:defeated', handleAIDefeated)
+  eventBus.off('sovereign:achieved', handleSovereignAchieved)
+  eventBus.off('decree:issued', handleDecreeIssued)
+  eventBus.off('sandbox:loop', handleSandboxLoop)
+  eventBus.off('royal:skill-upgraded', handleRoyalSkillUpgraded)
+  eventBus.off('royal:prestige', handleRoyalPrestige)
   eventBus.off('save:failed', handleSaveFailed)
+  eventBus.off('hq:office-view', handleHQOfficeView)
 })
 
 </script>
@@ -227,18 +320,28 @@ onUnmounted(() => {
         <BuildingList />
       </aside>
       <main class="game-map-area">
-        <WorldMap />
+        <div class="game-map-tabs">
+          <button class="game-map-tabs__btn" :class="{ 'game-map-tabs__btn--active': mapTab === 'world' }" @click="mapTab = 'world'">World Map</button>
+          <button class="game-map-tabs__btn" :class="{ 'game-map-tabs__btn--active': mapTab === 'hq' }" @click="mapTab = 'hq'">HQ Office</button>
+        </div>
+        <WorldMap v-show="mapTab === 'world'" />
+        <HQOfficeView v-if="mapTab === 'hq'" inline />
         <div class="game-map-actions">
-          <button class="game-map-actions__btn" @click="showBuildings = !showBuildings">
+          <button class="game-map-actions__btn" @click="showBuildings = !showBuildings" :aria-label="showBuildings ? 'Hide buildings panel' : 'Show buildings panel'">
             {{ showBuildings ? '\u25C0 Hide' : '\u25B6 Buildings' }}
           </button>
-          <button class="game-map-actions__btn" id="btn-staff" @click="openStaff">Staff</button>
-          <button class="game-map-actions__btn" id="btn-prestige" @click="openPrestige">Prestige</button>
-          <button class="game-map-actions__btn" @click="openSkills">Skills</button>
-          <button class="game-map-actions__btn" @click="openSettings">Settings</button>
-          <button class="game-map-actions__btn" @click="openWiki">Wiki</button>
-          <button class="game-map-actions__btn" @click="showAutoplay = !showAutoplay">AI Play</button>
-          <button class="game-map-actions__btn" @click="showEventLog = true">History</button>
+          <button class="game-map-actions__btn" id="btn-staff" @click="openStaff" aria-label="Open staff panel">Staff</button>
+          <button class="game-map-actions__btn" id="btn-prestige" @click="openPrestige" aria-label="Open prestige panel">Prestige</button>
+          <button class="game-map-actions__btn" @click="openSkills" aria-label="Open skill tree panel">Skills</button>
+          <button class="game-map-actions__btn" @click="openSettings" aria-label="Open settings panel">Settings</button>
+          <button class="game-map-actions__btn" @click="openWiki" aria-label="Open wiki">Wiki</button>
+          <button class="game-map-actions__btn" @click="showSupplyRoutes = true" aria-label="Open supply routes panel">Routes</button>
+          <button class="game-map-actions__btn" @click="showPowerBalance = true" aria-label="Open power balance panel">Power</button>
+          <button class="game-map-actions__btn" @click="showAutoplay = !showAutoplay" :aria-label="showAutoplay ? 'Close autoplay panel' : 'Open autoplay panel'">AI Play</button>
+          <button class="game-map-actions__btn" @click="showEventLog = true" aria-label="Open event history panel">History</button>
+          <button class="game-map-actions__btn" @click="showAchievements = true" aria-label="Open achievements panel">Awards</button>
+          <button class="game-map-actions__btn" @click="showRoyal = true" aria-label="Open royal continental panel" :disabled="!gameState.get().worldMap.royalBranches.length">Royal</button>
+          <button class="game-map-actions__btn" @click="showSovereign = true" aria-label="Open sovereign panel">Throne</button>
           <div class="game-map-actions__save-wrap">
             <button class="game-map-actions__btn" @click="showSaveMenu = !showSaveMenu">Save ▾</button>
             <div v-if="showSaveMenu" class="game-map-actions__save-menu">
@@ -261,10 +364,15 @@ onUnmounted(() => {
     <SettingsPanel :visible="showSettings" @close="showSettings = false" />
     <EventLogPanel :visible="showEventLog" @close="showEventLog = false" />
     <Wiki v-if="showWiki" @close="showWiki = false" />
-    <OfflineProgress />
     <TutorialOverlay />
     <ToastContainer />
     <AutoplayPanel v-if="showAutoplay" />
+    <SupplyRoutePanel :visible="showSupplyRoutes" @close="showSupplyRoutes = false" />
+    <PowerBalancePanel :visible="showPowerBalance" @close="showPowerBalance = false" />
+    <AchievementsPanel :visible="showAchievements" @close="showAchievements = false" />
+    <RoyalPanel :visible="showRoyal" @close="showRoyal = false" />
+    <SovereignPanel :visible="showSovereign" @close="showSovereign = false" />
+    <HQOfficeView v-if="showHQOffice" @close="showHQOffice = false" />
     </div>
   </ErrorBoundary>
 </template>

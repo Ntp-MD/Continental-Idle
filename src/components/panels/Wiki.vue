@@ -54,7 +54,7 @@ function scrollToSection(id: string) {
   left: 0;
   right: 0;
   bottom: 0;
-  background-color: rgba(0, 0, 0, 0.9);
+  background-color: var(--bg-overlay);
   z-index: 1000;
   overflow-y: auto;
   padding: 20px;
@@ -62,8 +62,8 @@ function scrollToSection(id: string) {
 
 .wiki-container {
   font-family: 'Courier New', monospace;
-  background-color: #0a0a0a;
-  color: #e0e0e0;
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
   line-height: 1.6;
   padding: 20px;
   max-width: 1200px;
@@ -71,48 +71,48 @@ function scrollToSection(id: string) {
 }
 
 .wiki-header {
-  border: 1px solid #ffd700;
+  border: 1px solid var(--accent-gold);
   padding: 20px;
   margin-bottom: 20px;
-  background-color: #111;
+  background-color: var(--bg-tertiary);
 }
 
 .wiki-title {
   font-size: 2.5em;
-  color: #ffd700;
-  border-bottom: 1px solid #ffd700;
+  color: var(--accent-gold);
+  border-bottom: 1px solid var(--accent-gold);
   padding-bottom: 10px;
   margin-bottom: 10px;
 }
 
 .wiki-subtitle {
-  color: #888;
+  color: var(--text-dim);
   font-size: 1.1em;
 }
 
 .wiki-section {
-  border: 1px solid #e0e0e0;
+  border: 1px solid var(--text-primary);
   padding: 20px;
   margin-bottom: 20px;
-  background-color: #111;
+  background-color: var(--bg-tertiary);
 }
 
 .wiki-section h2 {
-  color: #ffd700;
-  border-bottom: 1px solid #ffd700;
+  color: var(--accent-gold);
+  border-bottom: 1px solid var(--accent-gold);
   padding-bottom: 10px;
   margin-bottom: 15px;
   font-size: 1.8em;
 }
 
 .wiki-section h3 {
-  color: #e0e0e0;
+  color: var(--text-primary);
   margin: 20px 0 10px 0;
   font-size: 1.4em;
 }
 
 .wiki-section h4 {
-  color: #888;
+  color: var(--text-dim);
   margin: 15px 0 8px 0;
   font-size: 1.2em;
 }
@@ -143,65 +143,65 @@ function scrollToSection(id: string) {
 
 .wiki-table th,
 .wiki-table td {
-  border: 1px solid #e0e0e0;
+  border: 1px solid var(--text-primary);
   padding: 10px;
   text-align: left;
 }
 
 .wiki-table th {
-  background-color: #1a1a1a;
-  color: #ffd700;
+  background-color: var(--bg-card);
+  color: var(--accent-gold);
 }
 
 .wiki-table tr:hover {
-  background-color: #1a1a1a;
+  background-color: var(--bg-card);
 }
 
 .wiki-box {
-  border: 1px solid #4caf50;
+  border: 1px solid var(--accent-green);
   padding: 15px;
   margin: 15px 0;
-  background-color: #0f1a0f;
+  background-color: var(--wiki-green-bg);
 }
 
 .wiki-box h4 {
-  color: #4caf50;
+  color: var(--accent-green);
   margin-bottom: 10px;
 }
 
 .wiki-warning {
-  border: 1px solid #d32f2f;
+  border: 1px solid var(--wiki-red);
   padding: 15px;
   margin: 15px 0;
-  background-color: #1a0f0f;
+  background-color: var(--wiki-red-bg);
 }
 
 .wiki-warning h4 {
-  color: #d32f2f;
+  color: var(--wiki-red);
   margin-bottom: 10px;
 }
 
 .wiki-info {
-  border: 1px solid #2196f3;
+  border: 1px solid var(--wiki-blue);
   padding: 15px;
   margin: 15px 0;
-  background-color: #0f101a;
+  background-color: var(--wiki-blue-bg);
 }
 
 .wiki-info h4 {
-  color: #2196f3;
+  color: var(--wiki-blue);
   margin-bottom: 10px;
 }
 
 .toc {
-  border: 1px solid #e0e0e0;
+  border: 1px solid var(--text-primary);
   padding: 15px;
   margin-bottom: 20px;
-  background-color: #111;
+  background-color: var(--bg-tertiary);
 }
 
 .toc h3 {
-  color: #ffd700;
+  color: var(--accent-gold);
   margin-bottom: 10px;
 }
 
@@ -214,7 +214,7 @@ function scrollToSection(id: string) {
 }
 
 .toc a {
-  color: #e0e0e0;
+  color: var(--text-primary);
   text-decoration: none;
   cursor: pointer;
 }
@@ -227,21 +227,21 @@ function scrollToSection(id: string) {
   display: inline-block;
   padding: 3px 8px;
   margin: 2px;
-  border: 1px solid #e0e0e0;
+  border: 1px solid var(--text-primary);
   font-size: 0.9em;
 }
 
-.branch-badge.new-york { border-color: #cccccc; color: #cccccc; }
-.branch-badge.rome { border-color: #d4a574; color: #d4a574; }
-.branch-badge.casablanca { border-color: #74d4a5; color: #74d4a5; }
-.branch-badge.osaka { border-color: #d474a5; color: #d474a5; }
-.branch-badge.paris { border-color: #a574d4; color: #a574d4; }
-.branch-badge.berlin { border-color: #d47474; color: #d47474; }
-.branch-badge.dubai { border-color: #74c2d4; color: #74c2d4; }
+.branch-badge.new-york { border-color: var(--branch-new-york); color: var(--branch-new-york); }
+.branch-badge.rome { border-color: var(--branch-rome); color: var(--branch-rome); }
+.branch-badge.casablanca { border-color: var(--branch-casablanca); color: var(--branch-casablanca); }
+.branch-badge.osaka { border-color: var(--branch-osaka); color: var(--branch-osaka); }
+.branch-badge.paris { border-color: var(--branch-paris); color: var(--branch-paris); }
+.branch-badge.berlin { border-color: var(--branch-berlin); color: var(--branch-berlin); }
+.branch-badge.dubai { border-color: var(--branch-dubai); color: var(--branch-dubai); }
 
 .stat-box {
   display: inline-block;
-  border: 1px solid #ffd700;
+  border: 1px solid var(--accent-gold);
   padding: 10px 15px;
   margin: 5px;
   text-align: center;
@@ -249,16 +249,16 @@ function scrollToSection(id: string) {
 
 .stat-box .label {
   font-size: 0.8em;
-  color: #888;
+  color: var(--text-dim);
 }
 
 .stat-box .value {
   font-size: 1.2em;
-  color: #ffd700;
+  color: var(--accent-gold);
 }
 
 a {
-  color: #4caf50;
+  color: var(--accent-green);
   text-decoration: none;
   cursor: pointer;
 }
@@ -268,15 +268,15 @@ a:hover {
 }
 
 code {
-  background-color: #1a1a1a;
+  background-color: var(--bg-card);
   padding: 2px 6px;
-  border: 1px solid #e0e0e0;
+  border: 1px solid var(--text-primary);
   font-family: 'Courier New', monospace;
 }
 
 pre {
-  background-color: #1a1a1a;
-  border: 1px solid #e0e0e0;
+  background-color: var(--bg-card);
+  border: 1px solid var(--text-primary);
   padding: 15px;
   overflow-x: auto;
   margin: 15px 0;
@@ -285,5 +285,67 @@ pre {
 pre code {
   border: none;
   padding: 0;
+}
+
+@media (max-width: 768px) {
+  .wiki-overlay {
+    padding: 10px;
+  }
+
+  .wiki-container {
+    padding: 12px;
+  }
+
+  .wiki-title {
+    font-size: 1.6em;
+  }
+
+  .wiki-subtitle {
+    font-size: 0.95em;
+  }
+
+  .wiki-section {
+    padding: 14px;
+  }
+
+  .wiki-section h2 {
+    font-size: 1.4em;
+  }
+
+  .wiki-section h3 {
+    font-size: 1.2em;
+  }
+
+  .wiki-table {
+    display: block;
+    overflow-x: auto;
+  }
+
+  .wiki-header {
+    padding: 14px;
+  }
+}
+
+@media (max-width: 480px) {
+  .wiki-container {
+    padding: 8px;
+  }
+
+  .wiki-title {
+    font-size: 1.3em;
+    letter-spacing: 1px;
+  }
+
+  .wiki-section {
+    padding: 10px;
+  }
+
+  .wiki-section h2 {
+    font-size: 1.2em;
+  }
+
+  .wiki-header {
+    padding: 10px;
+  }
 }
 </style>

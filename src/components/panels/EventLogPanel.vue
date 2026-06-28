@@ -6,6 +6,7 @@ import { EVENTS } from '@/data/events'
 import { eventBus } from '@/engine/event-bus'
 
 interface LogEntry {
+  id: string
   time: string
   branchName: string
   eventName: string
@@ -18,18 +19,61 @@ const emit = defineEmits(['close'])
 
 const entries = ref<LogEntry[]>([])
 
+function getEventName(eventId: string): string {
+  const def = EVENTS.find(ev => ev.id === eventId)
+  if (def) return def.name
+  if (eventId.startsWith('ai_')) {
+    const parts = eventId.split('_')
+    const eventType = parts[1]
+    const labels: Record<string, string> = {
+      raid: 'AI Raid',
+      tribute: 'AI Tribute Demand',
+      sabotage: 'AI Sabotage',
+      spy: 'AI Spy Caught',
+      provocation: 'AI Provocation',
+      truce: 'AI Truce Offer',
+    }
+    return labels[eventType] || eventId
+  }
+  return eventId
+}
+
+function getChoiceLabel(eventId: string, choiceId: string): string {
+  const def = EVENTS.find(ev => ev.id === eventId)
+  const choice = def?.choices.find(c => c.id === choiceId)
+  if (choice) return choice.label
+  if (eventId.startsWith('ai_')) {
+    const labels: Record<string, string> = {
+      fight: 'Defend with assassins',
+      pay: 'Pay tribute',
+      ignore: 'Ignore',
+      refuse: 'Refuse',
+      repair: 'Repair',
+      retaliate: 'Retaliate',
+      endure: 'Endure',
+      interrogate: 'Interrogate',
+      release: 'Release',
+      stand: 'Stand firm',
+      back: 'Back down',
+      accept: 'Accept',
+      reject: 'Reject',
+    }
+    return labels[choiceId] || choiceId
+  }
+  return choiceId
+}
+
 function update() {
   if (!props.visible) return
   const state = gameState.get()
-  entries.value = [...state.eventLog].reverse().slice(0, 50).map(e => {
-    const def = EVENTS.find(ev => ev.id === e.eventId)
-    const choice = def?.choices.find(c => c.id === e.choiceId)
+  entries.value = [...state.eventLog].reverse().slice(0, 50).map((e, i) => {
     const date = new Date(e.timestamp)
     return {
+      id: `${e.timestamp}-${e.eventId}-${i}`,
       time: date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       branchName: getBranchDef(e.branch)?.name || e.branch,
-      eventName: def?.name || e.eventId,
-      choice: choice?.label || e.choiceId,
+      eventName: getEventName(e.eventId),
+      choice: getChoiceLabel(e.eventId, e.choiceId),
       outcome: e.outcome,
     }
   })
@@ -55,7 +99,7 @@ watch(() => props.visible, (v) => { if (v) update() })
       <h2 class="game-panel__title">Event History</h2>
       <div class="event-log">
         <div v-if="entries.length === 0" class="event-log__empty">No events recorded yet</div>
-        <div v-for="(e, i) in entries" :key="i" class="event-log__row" :class="e.outcome === 'ignored' ? 'event-log__row--ignored' : ''">
+        <div v-for="e in entries" :key="e.id" class="event-log__row" :class="e.outcome === 'ignored' ? 'event-log__row--ignored' : ''">
           <span class="event-log__time">{{ e.time }}</span>
           <span class="event-log__branch">{{ e.branchName }}</span>
           <span class="event-log__name">{{ e.eventName }}</span>
@@ -63,7 +107,7 @@ watch(() => props.visible, (v) => { if (v) update() })
           <span class="event-log__outcome" :class="e.outcome === 'ignored' ? 'event-log__outcome--ignored' : 'event-log__outcome--resolved'">{{ e.outcome }}</span>
         </div>
       </div>
-      <button class="game-panel__close" @click="emit('close')">Close</button>
+      <button class="game-panel__close" @click="emit('close')" aria-label="Close event history panel">✕</button>
     </div>
   </div>
 </template>

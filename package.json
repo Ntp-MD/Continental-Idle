@@ -9,6 +9,7 @@
     "preview": "vite preview",
     "test": "tsx tests/test-gameplay.ts",
     "test:all": "tsx tests/test-all-features.ts",
+    "test:ai-events": "tsx tests/test-ai-events.ts",
     "typecheck:test": "tsc --noEmit -p tsconfig.test.json"
   },
   "dependencies": {

@@ -4,6 +4,7 @@ import { BRANCHES } from '@/data/branches'
 import { gameState } from './game-state'
 import { getPrestigeReputationKeepRatio } from './abilities'
 import { getTotalPrestigeFavorMult } from './skill-manager'
+import { getRoyalFavorMult, getSovereignBuffMult } from './royal-manager'
 import { isUpgradePurchased } from './upgrade-manager'
 import { eventBus } from './event-bus'
 
@@ -18,7 +19,7 @@ export function getPrestigeFavor(branchId?: BranchId): number {
   else if (state.totalPrestige >= 25) scaleConstant = 1e7
   else if (state.totalPrestige >= 10) scaleConstant = 1e8
 
-  return Math.floor(Math.pow(branch.lifetimeEarnings / scaleConstant, 0.5) * getTotalPrestigeFavorMult())
+  return Math.floor(Math.pow(branch.lifetimeEarnings / scaleConstant, 0.5) * getTotalPrestigeFavorMult() * getRoyalFavorMult() * getSovereignBuffMult())
 }
 
 export function canPrestige(branchId?: BranchId): boolean {
@@ -88,6 +89,11 @@ export function doPrestige(branchId?: BranchId): boolean {
 
   // Clear active buffs for this branch (income multipliers/freezes should not persist through reset)
   state.activeBuffs = state.activeBuffs.filter(b => b.branchId !== id)
+
+  // Remove supply routes involving this branch (prestige resets the branch economy)
+  const removedRoutes = state.supplyRoutes.filter(r => r.from === id || r.to === id)
+  state.supplyRoutes = state.supplyRoutes.filter(r => r.from !== id && r.to !== id)
+  removedRoutes.forEach(r => eventBus.emit('supplyroute:collapsed', { routeId: r.id }))
 
   // Check branch unlocks
   checkbranchUnlocks()
