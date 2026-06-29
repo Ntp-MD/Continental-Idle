@@ -19,6 +19,7 @@ const aiPower = ref(0)
 const ratio = ref(0)
 
 function refresh() {
+  if (!props.visible) return
   owners.value = [...getAllAIOwners()].sort((a, b) => b.power - a.power)
   const balance = getPowerBalance()
   playerPower.value = balance.player

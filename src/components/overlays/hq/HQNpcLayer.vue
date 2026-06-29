@@ -13,6 +13,7 @@ export interface NpcDot {
   level: number
   rarity: Rarity
   isVisitor?: boolean
+  floor?: string
 }
 
 const props = defineProps<{

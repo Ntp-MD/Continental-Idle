@@ -24,6 +24,7 @@ const message = ref('')
 const messageType = ref<'success' | 'error' | 'warning'>('success')
 
 function refresh() {
+  if (!props.visible) return
   routes.value = [...getSupplyRoutes()]
   hijackableRoutes.value = [...getHijackableRoutes()]
   const state = gameState.get()

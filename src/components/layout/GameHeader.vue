@@ -34,18 +34,18 @@ function update() {
   if (!branch) return
   const def = getBranchDef(state.activeBranch)
 
+  const incomePerSec = getBranchIncomePerSecond()
+  const totalDebtNum = getTotalDebt()
   currency.value = formatNumber(branch.currency)
   goldenCoins.value = formatNumber(Math.floor(state.goldenCoins))
   royalMarks.value = formatNumber(Math.floor(state.royalMarks))
-  income.value = formatIncome(getBranchIncomePerSecond())
+  income.value = formatIncome(incomePerSec)
   favor.value = formatNumber(state.tableFavor)
   prestige.value = branch.prestige
   branchName.value = def.name
   heat.value = branch.heatLevel
-  debtTotal.value = formatNumber(getTotalDebt())
+  debtTotal.value = formatNumber(totalDebtNum)
   debtCount.value = getDebtCount()
-  const totalDebtNum = getTotalDebt()
-  const incomePerSec = getBranchIncomePerSecond()
   const debtInterestPerSec = totalDebtNum * 0.01 / 60
   debtWarning.value = debtCount.value > 0 && debtInterestPerSec > incomePerSec
   reputation.value = Math.floor(branch.reputation)

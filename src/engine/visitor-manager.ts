@@ -7,6 +7,7 @@ import { eventBus } from './event-bus'
 import { eventEngine } from './event-engine'
 import { hireStaff, assignStaff } from './staff-manager'
 import { hireAssassin } from './assassin-manager'
+import { getExtraStaffSlots } from './skill-manager'
 
 const VISITOR_TIMEOUT_MS = 2 * 60 * 60 * 1000
 const RANDOM_SPAWN_CHANCE = 0.02
@@ -177,8 +178,8 @@ export function hireVisitor(visitorId: string, branchId?: BranchId): boolean {
     const cost = Math.ceil(def.hireCost * getRarityCostMult(visitor.rarity))
     if (branch.currency < cost) return false
 
-    const baseStaffCap = 5
-    if (Object.keys(branch.staff).length >= baseStaffCap) return false
+    const maxStaff = 5 + getExtraStaffSlots()
+    if (Object.keys(branch.staff).length >= maxStaff) return false
 
     branch.currency -= cost
     const hired = hireStaff(visitor.typeId, id)

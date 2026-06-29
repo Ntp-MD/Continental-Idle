@@ -16,6 +16,22 @@ export function setSuppressUIEvents(suppress: boolean): void {
   _suppressUIEvents = suppress
 }
 
+// Tick-scoped cache: avoids redundant getBranchIncomePerSecond() recalculations
+// when UI components read income values after the tick() already computed them.
+let _tickCache: Map<BranchId, number> | null = null
+
+export function beginTickCache(): void {
+  _tickCache = new Map()
+}
+
+export function endTickCache(): void {
+  _tickCache = null
+}
+
+export function getCachedBranchIncome(branchId: BranchId): number | null {
+  return _tickCache?.get(branchId) ?? null
+}
+
 export function checkBuildingUnlocked(unlock: string, branchState: BranchState): boolean {
   if (unlock === 'start') return true
   if (unlock.startsWith('building:')) {
@@ -82,6 +98,15 @@ export function getBuildingIncome(branchState: BranchState, buildingId: string):
 export function getBranchIncomePerSecond(branchId?: BranchId): number {
   const state = gameState.get()
   const id = branchId || state.activeBranch
+  const cached = getCachedBranchIncome(id)
+  if (cached !== null) return cached
+  const result = _computeBranchIncomePerSecond(id)
+  if (_tickCache) _tickCache.set(id, result)
+  return result
+}
+
+function _computeBranchIncomePerSecond(id: BranchId): number {
+  const state = gameState.get()
   const branchState = state.branches[id]
   if (!branchState) return 0
 
@@ -248,6 +273,8 @@ export function tick(): void {
   const activeBranch = state.branches[activeId]
   if (!activeBranch) return
 
+  beginTickCache()
+
   // Clean expired buffs
   const now = Date.now()
   state.activeBuffs = state.activeBuffs.filter(b => b.expiresAt === null || b.expiresAt > now)
@@ -272,4 +299,6 @@ export function tick(): void {
   if (!_suppressUIEvents) {
     eventBus.emit('income:tick', { income: activeIncome })
   }
+
+  endTickCache()
 }

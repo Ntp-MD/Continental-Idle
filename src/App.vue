@@ -51,7 +51,6 @@ const showPowerBalance = ref(false)
 const showAchievements = ref(false)
 const showRoyal = ref(false)
 const showSovereign = ref(false)
-const showHQOffice = ref(false)
 const mapTab = ref<'world' | 'hq'>('world')
 const hasRoyalBranches = ref(false)
 
@@ -169,7 +168,6 @@ function handleKeydown(e: KeyboardEvent) {
     if (showAchievements.value) { showAchievements.value = false; return }
     if (showRoyal.value) { showRoyal.value = false; return }
     if (showSovereign.value) { showSovereign.value = false; return }
-    if (showHQOffice.value) { showHQOffice.value = false; return }
     if (showAutoplay.value) { showAutoplay.value = false; return }
   }
   if (showSaveMenu.value && !((e.target as HTMLElement)?.closest('.game-map-actions__save-wrap'))) {
@@ -321,6 +319,7 @@ function handleHQOfficeView() {
   mapTab.value = 'hq'
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function handleOutsideClick(e: MouseEvent) {
   if (showSaveMenu.value && !((e.target as HTMLElement)?.closest('.game-map-actions__save-wrap'))) {
     showSaveMenu.value = false
@@ -420,7 +419,6 @@ onUnmounted(() => {
     <AchievementsPanel :visible="showAchievements" @close="showAchievements = false" />
     <RoyalPanel :visible="showRoyal" @close="showRoyal = false" />
     <SovereignPanel :visible="showSovereign" @close="showSovereign = false" />
-    <HQOfficeView v-if="showHQOffice" @close="showHQOffice = false" />
     <OfflineProgress />
     </div>
   </ErrorBoundary>

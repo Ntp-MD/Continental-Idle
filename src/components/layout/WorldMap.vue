@@ -596,7 +596,12 @@ function resetZoom() {
   if (svgSel && zoomBehavior) svgSel.transition().call(zoomBehavior.transform, d3.zoomIdentity)
 }
 
+let lastTakeoverUpdate = 0
+
 function updateTakeoverProgress() {
+  const now = Date.now()
+  if (now - lastTakeoverUpdate < 5000) return
+  lastTakeoverUpdate = now
   if (!gSel) return
 
   const w = svgRef.value?.clientWidth || 800

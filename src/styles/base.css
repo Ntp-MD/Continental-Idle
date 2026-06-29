@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&display=swap');
+
 * {
 	margin: 0;
 	padding: 0;
@@ -10,7 +12,10 @@ body {
 	color: var(--text-primary);
 	overflow: auto;
 	font-size: calc(12px * var(--font-scale));
-	letter-spacing: 0.5px;
+	letter-spacing: 0.3px;
+	line-height: 1.5;
+	-webkit-font-smoothing: antialiased;
+	-moz-osx-font-smoothing: grayscale;
 }
 
 #app {
@@ -25,53 +30,91 @@ button {
 	font-family: var(--font-mono);
 	cursor: pointer;
 	border: 1px solid var(--border-dim);
-	background: transparent;
+	background: var(--bg-card);
 	color: var(--text-secondary);
 	padding: var(--gap-xs) var(--gap-sm);
 	text-transform: uppercase;
-	letter-spacing: 1px;
-	font-size: 11px;
-	transition: all 0.2s;
+	letter-spacing: 0.8px;
+	font-size: 10px;
+	font-weight: 500;
+	border-radius: var(--radius-sm);
+	transition: all var(--duration-fast) var(--ease-out);
+	position: relative;
+	overflow: hidden;
+}
+
+button::after {
+	content: '';
+	position: absolute;
+	inset: 0;
+	background: currentColor;
+	opacity: 0;
+	transition: opacity var(--duration-fast);
+	pointer-events: none;
 }
 
 button:hover {
 	border-color: var(--accent-gold);
 	color: var(--accent-gold);
+	background: var(--bg-card-hover);
+	box-shadow: var(--shadow-glow-gold);
+	transform: translateY(-1px);
+}
+
+button:hover::after {
+	opacity: 0.04;
 }
 
 button:active {
 	background: var(--accent-gold);
 	color: var(--bg-primary);
+	transform: translateY(0);
+	box-shadow: none;
 }
 
 button:disabled {
-	opacity: 0.3;
+	opacity: 0.35;
 	cursor: not-allowed;
+	transform: none;
+	box-shadow: none;
 }
 
 button:disabled:hover {
 	border-color: var(--border-dim);
 	color: var(--text-secondary);
+	background: var(--bg-card);
+	box-shadow: none;
+	transform: none;
 }
 
 ::-webkit-scrollbar {
-	width: 6px;
+	width: 5px;
 }
 
 ::-webkit-scrollbar-track {
-	background: var(--bg-tertiary);
+	background: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
 	background: var(--border-dim);
-	border-radius: 3px;
+	border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+	background: var(--text-dim);
 }
 
 button:focus-visible,
 select:focus-visible,
 input:focus-visible {
 	outline: 2px solid var(--accent-gold);
-	outline-offset: 1px;
+	outline-offset: 2px;
+	border-radius: var(--radius-sm);
+}
+
+::selection {
+	background: rgba(240, 192, 64, 0.25);
+	color: var(--text-bright);
 }
 
 @media (prefers-reduced-motion: reduce) {

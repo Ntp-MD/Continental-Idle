@@ -98,7 +98,7 @@ function npcInBand(band: Band): SimpleDot[] {
         <!-- NPCs -->
         <g v-for="dot in npcInBand(band)" :key="dot.id">
           <circle :cx="ELEVATOR_W + 20 + (dot.x % 700)" :cy="dot.y" r="3" :fill="dot.color" stroke="#fff" stroke-width="0.5"/>
-          <text v-if="props.showLabels" :cx="ELEVATOR_W + 20 + (dot.x % 700)" :y="dot.y - 5" text-anchor="middle" font-size="6" :fill="GOLD">{{ dot.name }}</text>
+          <text v-if="props.showLabels" :x="ELEVATOR_W + 20 + (dot.x % 700)" :y="dot.y - 5" text-anchor="middle" font-size="6" :fill="GOLD">{{ dot.name }}</text>
         </g>
       </template>
       <text v-else :x="FALLOUT_W / 2" :y="band.y + BAND_H / 2" text-anchor="middle" font-size="12" :fill="GOLD_DARK">🔒</text>

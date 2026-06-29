@@ -1,5 +1,5 @@
 ﻿<script setup lang="ts">
-import { ref, onMounted, onUnmounted, nextTick, markRaw, computed } from 'vue'
+import { ref, shallowRef, onMounted, onUnmounted, nextTick, markRaw, triggerRef, computed } from 'vue'
 import { gameState } from '@/engine/game-state'
 import { getBranchDef } from '@/data/branches'
 import { BUILDINGS } from '@/data/buildings'
@@ -39,10 +39,10 @@ const visitors = ref<VisitorEntry[]>([])
 const hqName = ref('')
 const hqOwner = ref('')
 
-const staffDots = ref<NpcDot[]>([])
-const assassinDots = ref<NpcDot[]>([])
-const guestDots = ref<NpcDot[]>([])
-const visitorDots = ref<NpcDot[]>([])
+const staffDots = shallowRef<NpcDot[]>([])
+const assassinDots = shallowRef<NpcDot[]>([])
+const guestDots = shallowRef<NpcDot[]>([])
+const visitorDots = shallowRef<NpcDot[]>([])
 
 let rafId: number | null = null
 
@@ -88,13 +88,16 @@ const goldenCoins = computed(() => gameState.get().goldenCoins)
 const royalMarks = computed(() => gameState.get().royalMarks)
 const branchCurrency = computed(() => hqBranchState.value?.currency || 0)
 
-const npcDotsByFloor = computed(() => {
+const npcDotsByFloor = shallowRef<Record<FloorId, { x: number; y: number; color: string }[]>>({} as Record<FloorId, { x: number; y: number; color: string }[]>)
+let sidebarUpdateTimer: number | null = null
+
+function updateSidebarDots(): void {
   const result = {} as Record<FloorId, { x: number; y: number; color: string }[]>
   FLOOR_IDS.forEach(f => { result[f] = [] })
   const allDots: { x: number; y: number; color: string; floor: FloorId }[] = [
-    ...staffDots.value.map(d => ({ x: d.x, y: d.y, color: d.color, floor: getNpcFloor(d.id) })),
-    ...assassinDots.value.map(d => ({ x: d.x, y: d.y, color: d.color, floor: getNpcFloor(d.id) })),
-    ...guestDots.value.map(d => ({ x: d.x, y: d.y, color: d.color, floor: getNpcFloor(d.id) })),
+    ...staffDots.value.map(d => ({ x: d.x, y: d.y, color: d.color, floor: (d.floor as FloorId) || '1' })),
+    ...assassinDots.value.map(d => ({ x: d.x, y: d.y, color: d.color, floor: (d.floor as FloorId) || '1' })),
+    ...guestDots.value.map(d => ({ x: d.x, y: d.y, color: d.color, floor: (d.floor as FloorId) || '1' })),
   ]
   allDots.forEach(d => {
     if (result[d.floor]) {
@@ -106,17 +109,7 @@ const npcDotsByFloor = computed(() => {
       result['1'].push({ x: d.x, y: d.y, color: d.color })
     })
   }
-  return result
-})
-
-function getNpcFloor(id: string): FloorId {
-  const s = animStaff.value.find(d => d.id === id)
-  if (s) return s.floor
-  const a = animAssassins.value.find(d => d.id === id)
-  if (a) return a.floor
-  const g = animGuests.value.find(d => d.id === id)
-  if (g) return g.floor
-  return '1'
+  npcDotsByFloor.value = result
 }
 
 function randAnchor(floor: FloorId, roomId: string): [number, number] {
@@ -158,6 +151,7 @@ function initStaff(): void {
       color: STAFF_COLORS[staff.typeId] || '#aaa',
       name: def.name, profession: def.name,
       level: staff.level, rarity: staff.rarity,
+      floor,
     })
     anims.push({
       id: staff.id, x, y,
@@ -168,7 +162,6 @@ function initStaff(): void {
     })
   })
 
-  dots.forEach(d => markRaw(d))
   anims.forEach(a => markRaw(a))
   staffDots.value = dots
   animStaff.value = anims
@@ -195,6 +188,7 @@ function initAssassins(): void {
       color: ASSASSIN_COLORS[assassin.typeId] || '#ff1744',
       name: def.name, profession: def.name,
       level: assassin.level, rarity: assassin.rarity,
+      floor,
     })
     anims.push({
       id: assassin.id, x, y,
@@ -205,7 +199,6 @@ function initAssassins(): void {
     })
   })
 
-  dots.forEach(d => markRaw(d))
   anims.forEach(a => markRaw(a))
   assassinDots.value = dots
   animAssassins.value = anims
@@ -219,7 +212,10 @@ function initGuests(): void {
   const dots: NpcDot[] = []
   const anims: AnimDot[] = []
 
-  for (let i = 0; i < 15; i++) {
+  const PATRON_NAMES = ['Mr. Smith', 'Ms. Chen', 'Mr. Volkov', 'Ms. Dubois', 'Mr. Okafor', 'Ms. Rossi', 'Mr. Lindqvist', 'Ms. Yamamoto', 'Mr. Reyes', 'Ms. Novak', 'Mr. Almasi', 'Ms. Park']
+  const totalGuests = 30
+
+  for (let i = 0; i < totalGuests; i++) {
     const floor = floors[Math.floor(Math.random() * floors.length)] as FloorId
     const rooms = getRoomsOnFloor(floor)
     const room = rooms[Math.floor(Math.random() * rooms.length)]
@@ -231,8 +227,10 @@ function initGuests(): void {
     dots.push({
       id: 'guest_' + i, x, y,
       color: GUEST_COLORS[i % GUEST_COLORS.length],
-      name: 'Guest', profession: 'Visitor',
+      name: i < PATRON_NAMES.length ? PATRON_NAMES[i] : 'Guest',
+      profession: i < PATRON_NAMES.length ? 'Patron' : 'Visitor',
       level: 1, rarity: 'C',
+      floor,
     })
     anims.push({
       id: 'guest_' + i, x, y,
@@ -243,10 +241,47 @@ function initGuests(): void {
     })
   }
 
-  dots.forEach(d => markRaw(d))
+  initAmbientPatrons(dots, anims)
+
   anims.forEach(a => markRaw(a))
   guestDots.value = dots
   animGuests.value = anims
+}
+
+function initAmbientPatrons(dots: NpcDot[], anims: AnimDot[]): void {
+  const AMBIENT_NAMES = ['Mr. Watanabe', 'Ms. Costa', 'Mr. Petrov', 'Ms. Adebayo', 'Mr. Kowalski', 'Ms. Nakamura', 'Mr. Fontaine', 'Ms. Eriksson']
+  const ambientFloors: FloorId[] = ['1', '2']
+  const ambientRooms: Partial<Record<FloorId, string[]>> = {
+    '1': ['reception', 'lounge', 'concierge'],
+    '2': ['kitchen', 'bar'],
+  }
+
+  for (let i = 0; i < 8; i++) {
+    const floor = ambientFloors[Math.floor(Math.random() * ambientFloors.length)] as FloorId
+    if (!isFloorUnlocked(floor, buildingsUnlocked.value)) continue
+    const roomIds = ambientRooms[floor]
+    if (!roomIds) continue
+    const roomId = roomIds[Math.floor(Math.random() * roomIds.length)]
+    const [x, y] = randAnchor(floor, roomId)
+    const dest = randAnchor(floor, roomId)
+
+    dots.push({
+      id: 'ambient_' + i, x, y,
+      color: GUEST_COLORS[(i + 2) % GUEST_COLORS.length],
+      name: AMBIENT_NAMES[i % AMBIENT_NAMES.length],
+      profession: 'Patron',
+      level: 1, rarity: 'D',
+      floor,
+    })
+    anims.push({
+      id: 'ambient_' + i, x, y,
+      targetX: dest[0], targetY: dest[1],
+      speed: 0.1 + Math.random() * 0.25,
+      pathIdx: 0, path: [[x, y], dest],
+      pauseTimer: Math.floor(Math.random() * 100),
+      floor,
+    })
+  }
 }
 
 function initVisitors(): void {
@@ -259,9 +294,9 @@ function initVisitors(): void {
       name: def?.name || v.typeId,
       profession: v.isAssassin ? 'Assassin' : 'Staff',
       level: 1, rarity: v.rarity, isVisitor: true,
+      floor: '1' as const,
     }
   })
-  dots.forEach(d => markRaw(d))
   visitorDots.value = dots
 }
 
@@ -298,6 +333,15 @@ function animate(): void {
   updateDots(animStaff.value, staffDots.value)
   updateDots(animAssassins.value, assassinDots.value)
   updateDots(animGuests.value, guestDots.value)
+  triggerRef(staffDots)
+  triggerRef(assassinDots)
+  triggerRef(guestDots)
+  if (sidebarUpdateTimer === null) {
+    sidebarUpdateTimer = window.setTimeout(() => {
+      updateSidebarDots()
+      sidebarUpdateTimer = null
+    }, 200)
+  }
   rafId = requestAnimationFrame(animate)
 }
 
@@ -353,9 +397,9 @@ const selectedNpc = computed(() => {
 const currentFloorDots = computed(() => {
   const floor = selectedFloor.value
   return [
-    ...staffDots.value.filter(d => getNpcFloor(d.id) === floor),
-    ...assassinDots.value.filter(d => getNpcFloor(d.id) === floor),
-    ...guestDots.value.filter(d => getNpcFloor(d.id) === floor),
+    ...staffDots.value.filter(d => (d.floor as FloorId) === floor),
+    ...assassinDots.value.filter(d => (d.floor as FloorId) === floor),
+    ...guestDots.value.filter(d => (d.floor as FloorId) === floor),
     ...(floor === '1' ? visitorDots.value : []),
   ]
 })
@@ -371,6 +415,7 @@ onMounted(() => {
   const owner = getAIOwner(state.hqBranch)
   hqOwner.value = owner ? owner.name : 'Unknown'
   initStaff(); initAssassins(); initGuests(); initVisitors()
+  updateSidebarDots()
   eventBus.on('visitor:arrived', refreshVisitors)
   eventBus.on('visitor:left', refreshVisitors)
   eventBus.on('visitor:hired', refreshVisitors)
@@ -379,7 +424,8 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
-  if (rafId) cancelAnimationFrame(rafId)
+  if (rafId !== null) cancelAnimationFrame(rafId)
+  if (sidebarUpdateTimer !== null) { clearTimeout(sidebarUpdateTimer); sidebarUpdateTimer = null }
   eventBus.off('visitor:arrived', refreshVisitors)
   eventBus.off('visitor:left', refreshVisitors)
   eventBus.off('visitor:hired', refreshVisitors)

@@ -20,6 +20,8 @@ const buildings = ref<Array<{
 
 const buyMultiplier = ref(1)
 
+let lastTickUpdateTime = 0
+
 function update() {
   const state = gameState.get()
   const branch = state.branches[state.activeBranch]
@@ -84,16 +86,23 @@ function setMult(mult: number) {
   update()
 }
 
+function updateOnTick() {
+  const now = Date.now()
+  if (now - lastTickUpdateTime < 2000) return
+  lastTickUpdateTime = now
+  update()
+}
+
 onMounted(() => {
   update()
-  eventBus.on('income:tick', update)
+  eventBus.on('income:tick', updateOnTick)
   eventBus.on('income:update', update)
   eventBus.on('branch:switch', update)
   eventBus.on('prestige:reset', update)
 })
 
 onUnmounted(() => {
-  eventBus.off('income:tick', update)
+  eventBus.off('income:tick', updateOnTick)
   eventBus.off('income:update', update)
   eventBus.off('branch:switch', update)
   eventBus.off('prestige:reset', update)

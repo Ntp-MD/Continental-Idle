@@ -107,7 +107,7 @@ function applyPenalty(effect: EventEffect, branchId: BranchId): void {
     case 'incomeMultiplier': {
       const buffDurMult = getTotalBuffDurationMult() * getRoyalBuffDurationMult()
       const multValue = effect.scaling === 'incomePercent'
-        ? 1 + effect.value
+        ? Math.max(0, 1 - effect.value)
         : effect.value
       state.activeBuffs.push({
         id: generateBuffId(),
@@ -566,6 +566,10 @@ class EventEngine {
           this.ignoreEvent()
         } else {
           const choices = this.activeEvent.definition.choices
+          if (!choices || choices.length === 0) {
+            this.ignoreEvent()
+            return
+          }
           const flag = action === 'best' ? 'isBest' : 'isSafe'
           const preferred = choices.find(c => c[flag])
 
