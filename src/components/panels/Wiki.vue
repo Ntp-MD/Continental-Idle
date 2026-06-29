@@ -1,4 +1,4 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 import { wikiSections } from '@/data/wiki'
 import WikiContentRenderer from '@/components/panels/WikiContentRenderer.vue'
 
@@ -16,9 +16,9 @@ function scrollToSection(id: string) {
 
 <template>
   <div class="wiki-overlay" @click.self="emit('close')">
-    <div class="wiki-container">
+    <div class="wiki-container" role="dialog" aria-modal="true" aria-labelledby="wiki-title">
       <div class="wiki-header">
-        <h1 class="wiki-title">Continental Idle</h1>
+        <h1 class="wiki-title" id="wiki-title">Continental Idle</h1>
         <p class="wiki-subtitle">An idle/incremental game set in the Continental Hotel universe</p>
       </div>
 
@@ -57,7 +57,7 @@ function scrollToSection(id: string) {
   background-color: var(--bg-overlay);
   z-index: 1000;
   overflow-y: auto;
-  padding: 20px;
+  padding: var(--gap-md);
 }
 
 .wiki-container {
@@ -65,15 +65,16 @@ function scrollToSection(id: string) {
   background-color: var(--bg-primary);
   color: var(--text-primary);
   line-height: 1.6;
-  padding: 20px;
-  max-width: 1200px;
+  padding: var(--gap-md);
+  width: 100%;
+  max-width: 100%;
   margin: 0 auto;
 }
 
 .wiki-header {
   border: 1px solid var(--accent-gold);
-  padding: 20px;
-  margin-bottom: 20px;
+  padding: var(--gap-md);
+  margin-bottom: var(--gap-md);
   background-color: var(--bg-tertiary);
 }
 
@@ -81,8 +82,8 @@ function scrollToSection(id: string) {
   font-size: 2.5em;
   color: var(--accent-gold);
   border-bottom: 1px solid var(--accent-gold);
-  padding-bottom: 10px;
-  margin-bottom: 10px;
+  padding-bottom: var(--gap-sm);
+  margin-bottom: var(--gap-sm);
 }
 
 .wiki-subtitle {
@@ -92,59 +93,59 @@ function scrollToSection(id: string) {
 
 .wiki-section {
   border: 1px solid var(--text-primary);
-  padding: 20px;
-  margin-bottom: 20px;
+  padding: var(--gap-md);
+  margin-bottom: var(--gap-md);
   background-color: var(--bg-tertiary);
 }
 
 .wiki-section h2 {
   color: var(--accent-gold);
   border-bottom: 1px solid var(--accent-gold);
-  padding-bottom: 10px;
-  margin-bottom: 15px;
+  padding-bottom: var(--gap-sm);
+  margin-bottom: var(--gap-md);
   font-size: 1.8em;
 }
 
 .wiki-section h3 {
   color: var(--text-primary);
-  margin: 20px 0 10px 0;
+  margin: var(--gap-md) 0 var(--gap-sm) 0;
   font-size: 1.4em;
 }
 
 .wiki-section h4 {
   color: var(--text-dim);
-  margin: 15px 0 8px 0;
+  margin: var(--gap-md) 0 var(--gap-sm) 0;
   font-size: 1.2em;
 }
 
 .wiki-section p {
-  margin-bottom: 15px;
+  margin-bottom: var(--gap-md);
 }
 
 .wiki-section ul {
-  margin-left: 20px;
-  margin-bottom: 15px;
+  margin-left: var(--gap-md);
+  margin-bottom: var(--gap-md);
 }
 
 .wiki-section li {
-  margin-bottom: 8px;
+  margin-bottom: var(--gap-sm);
 }
 
 .wiki-section ol {
-  margin-left: 20px;
-  margin-bottom: 15px;
+  margin-left: var(--gap-md);
+  margin-bottom: var(--gap-md);
 }
 
 .wiki-table {
   width: 100%;
   border-collapse: collapse;
-  margin: 15px 0;
+  margin: var(--gap-md) 0;
 }
 
 .wiki-table th,
 .wiki-table td {
   border: 1px solid var(--text-primary);
-  padding: 10px;
+  padding: var(--gap-sm);
   text-align: left;
 }
 
@@ -159,50 +160,50 @@ function scrollToSection(id: string) {
 
 .wiki-box {
   border: 1px solid var(--accent-green);
-  padding: 15px;
-  margin: 15px 0;
+  padding: var(--gap-md);
+  margin: var(--gap-md) 0;
   background-color: var(--wiki-green-bg);
 }
 
 .wiki-box h4 {
   color: var(--accent-green);
-  margin-bottom: 10px;
+  margin-bottom: var(--gap-sm);
 }
 
 .wiki-warning {
   border: 1px solid var(--wiki-red);
-  padding: 15px;
-  margin: 15px 0;
+  padding: var(--gap-md);
+  margin: var(--gap-md) 0;
   background-color: var(--wiki-red-bg);
 }
 
 .wiki-warning h4 {
   color: var(--wiki-red);
-  margin-bottom: 10px;
+  margin-bottom: var(--gap-sm);
 }
 
 .wiki-info {
   border: 1px solid var(--wiki-blue);
-  padding: 15px;
-  margin: 15px 0;
+  padding: var(--gap-md);
+  margin: var(--gap-md) 0;
   background-color: var(--wiki-blue-bg);
 }
 
 .wiki-info h4 {
   color: var(--wiki-blue);
-  margin-bottom: 10px;
+  margin-bottom: var(--gap-sm);
 }
 
 .toc {
   border: 1px solid var(--text-primary);
-  padding: 15px;
-  margin-bottom: 20px;
+  padding: var(--gap-md);
+  margin-bottom: var(--gap-md);
   background-color: var(--bg-tertiary);
 }
 
 .toc h3 {
   color: var(--accent-gold);
-  margin-bottom: 10px;
+  margin-bottom: var(--gap-sm);
 }
 
 .toc ul {
@@ -210,7 +211,7 @@ function scrollToSection(id: string) {
 }
 
 .toc li {
-  padding: 5px 0;
+  padding: var(--gap-xs) 0;
 }
 
 .toc a {
@@ -225,8 +226,8 @@ function scrollToSection(id: string) {
 
 .branch-badge {
   display: inline-block;
-  padding: 3px 8px;
-  margin: 2px;
+  padding: var(--gap-xs) var(--gap-sm);
+  margin: var(--gap-xs);
   border: 1px solid var(--text-primary);
   font-size: 0.9em;
 }
@@ -242,8 +243,8 @@ function scrollToSection(id: string) {
 .stat-box {
   display: inline-block;
   border: 1px solid var(--accent-gold);
-  padding: 10px 15px;
-  margin: 5px;
+  padding: var(--gap-sm) var(--gap-md);
+  margin: var(--gap-xs);
   text-align: center;
 }
 
@@ -269,7 +270,7 @@ a:hover {
 
 code {
   background-color: var(--bg-card);
-  padding: 2px 6px;
+  padding: var(--gap-xs) var(--gap-xs);
   border: 1px solid var(--text-primary);
   font-family: 'Courier New', monospace;
 }
@@ -277,9 +278,9 @@ code {
 pre {
   background-color: var(--bg-card);
   border: 1px solid var(--text-primary);
-  padding: 15px;
+  padding: var(--gap-md);
   overflow-x: auto;
-  margin: 15px 0;
+  margin: var(--gap-md) 0;
 }
 
 pre code {
@@ -289,11 +290,11 @@ pre code {
 
 @media (max-width: 768px) {
   .wiki-overlay {
-    padding: 10px;
+    padding: var(--gap-sm);
   }
 
   .wiki-container {
-    padding: 12px;
+    padding: var(--gap-sm);
   }
 
   .wiki-title {
@@ -305,7 +306,7 @@ pre code {
   }
 
   .wiki-section {
-    padding: 14px;
+    padding: var(--gap-sm);
   }
 
   .wiki-section h2 {
@@ -322,13 +323,13 @@ pre code {
   }
 
   .wiki-header {
-    padding: 14px;
+    padding: var(--gap-sm);
   }
 }
 
 @media (max-width: 480px) {
   .wiki-container {
-    padding: 8px;
+    padding: var(--gap-sm);
   }
 
   .wiki-title {
@@ -337,7 +338,7 @@ pre code {
   }
 
   .wiki-section {
-    padding: 10px;
+    padding: var(--gap-sm);
   }
 
   .wiki-section h2 {
@@ -345,7 +346,7 @@ pre code {
   }
 
   .wiki-header {
-    padding: 10px;
+    padding: var(--gap-sm);
   }
 }
 </style>

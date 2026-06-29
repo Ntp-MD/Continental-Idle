@@ -1,5 +1,9 @@
 // === Game State Interfaces ===
 
+export type Rarity = 'D' | 'C' | 'B' | 'A' | 'S'
+
+export type FloorId = 'G' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9' | '10' | '11'
+
 export type BranchId =
   | 'bangkok' | 'newYork' | 'rome' | 'casablanca' | 'osaka' | 'paris' | 'berlin' | 'dubai'
   | 'washington' | 'losAngeles' | 'mexicoCity' | 'havana' | 'ottawa'
@@ -25,6 +29,7 @@ export interface SupplyRoute {
   establishedAt: number
   hijacked: boolean
   incomePerTick: number
+  aiOwned: boolean
 }
 
 export type AITemperament = 'aggressive' | 'diplomatic' | 'shadow' | 'defensive'
@@ -55,6 +60,7 @@ export interface StaffEntry {
   veteran: boolean
   veteranPerk: string | null
   prestigeSurvivedCount: number
+  rarity: Rarity
 }
 
 export interface AssassinEntry {
@@ -72,6 +78,7 @@ export interface AssassinEntry {
   traits: string[]
   synergyCount: number
   awakened: boolean
+  rarity: Rarity
 }
 
 export interface CharacterStats {
@@ -180,6 +187,9 @@ export interface GameState {
   royalDecrees: RoyalDecree[]
   lastDecreeAt: number
   sandboxLoops: number
+  goldenCoins: number
+  visitors: VisitorEntry[]
+  lastSandboxLoopAt: number
 }
 
 export interface EventLogEntry {
@@ -233,6 +243,20 @@ export interface AssassinDefinition {
   ability: string
   branchLock: BranchId | null
   maxLevel: number
+}
+
+// === Visitor Entry ===
+
+export interface VisitorEntry {
+  id: string
+  typeId: string
+  isAssassin: boolean
+  rarity: Rarity
+  level: number
+  stats: CharacterStats
+  traits: string[]
+  arrivedAt: number
+  expiresAt: number
 }
 
 // === Event Definition ===

@@ -21,6 +21,7 @@ import AchievementsPanel from '@/components/panels/AchievementsPanel.vue'
 import RoyalPanel from '@/components/panels/RoyalPanel.vue'
 import SovereignPanel from '@/components/panels/SovereignPanel.vue'
 import HQOfficeView from '@/components/overlays/HQOfficeView.vue'
+import OfflineProgress from '@/components/overlays/OfflineProgress.vue'
 import ErrorBoundary from '@/components/overlays/ErrorBoundary.vue'
 import { autoplayBot } from '@/engine/autoplay'
 import { gameState } from '@/engine/game-state'
@@ -52,6 +53,7 @@ const showRoyal = ref(false)
 const showSovereign = ref(false)
 const showHQOffice = ref(false)
 const mapTab = ref<'world' | 'hq'>('world')
+const hasRoyalBranches = ref(false)
 
 function onStart() {
   gameStarted.value = true
@@ -170,6 +172,9 @@ function handleKeydown(e: KeyboardEvent) {
     if (showHQOffice.value) { showHQOffice.value = false; return }
     if (showAutoplay.value) { showAutoplay.value = false; return }
   }
+  if (showSaveMenu.value && !((e.target as HTMLElement)?.closest('.game-map-actions__save-wrap'))) {
+    showSaveMenu.value = false
+  }
 }
 
 function handleRaidResult(e: Event) {
@@ -203,11 +208,37 @@ function handleBranchUnlock(e: Event) {
 
 function handleBranchRoyal(e: Event) {
   const detail = (e as CustomEvent).detail as { branchId: BranchId }
+  hasRoyalBranches.value = gameState.get().worldMap.royalBranches.length > 0
   toast.success(`${getBranchDef(detail.branchId)?.name || detail.branchId} has achieved Royal status!`)
 }
 
 function handleSaveFailed() {
   toast.error('Autosave failed — storage may be full')
+}
+
+function handleVisitorArrived(e: Event) {
+  const detail = (e as CustomEvent).detail as { count: number; random?: boolean; royalMark?: boolean }
+  if (detail.royalMark) {
+    toast.success(`Royal Mark scroll used — a special visitor has arrived!`)
+  } else if (detail.random) {
+    toast.info(`A visitor has arrived at your Continental`)
+  } else {
+    toast.success(`${detail.count} visitors have arrived — check HQ Office to hire them`)
+  }
+}
+
+function handleVisitorLeft() {
+  toast.warning(`A visitor has left without being hired`)
+}
+
+function handleDiplomacyGift(e: Event) {
+  const detail = (e as CustomEvent).detail as { ownerName: string; gain: number }
+  toast.success(`Gift sent to ${detail.ownerName} — relations improved by ${detail.gain}`)
+}
+
+function handleDiplomacyTruce(e: Event) {
+  const detail = (e as CustomEvent).detail as { ownerName: string }
+  toast.success(`Truce proposed with ${detail.ownerName} — relations improved by 20`)
 }
 
 function handleSupplyRouteEstablished(e: Event) {
@@ -260,6 +291,8 @@ function handleRoyalPrestige(e: Event) {
 
 onMounted(() => {
   document.addEventListener('keydown', handleKeydown)
+  document.addEventListener('click', handleOutsideClick)
+  hasRoyalBranches.value = gameState.get().worldMap.royalBranches.length > 0
   eventBus.on('raid:result', handleRaidResult)
   eventBus.on('assassin:awakened', handleAssassinAwakened)
   eventBus.on('takeover:started', handleTakeoverStarted)
@@ -277,6 +310,10 @@ onMounted(() => {
   eventBus.on('royal:skill-upgraded', handleRoyalSkillUpgraded)
   eventBus.on('royal:prestige', handleRoyalPrestige)
   eventBus.on('save:failed', handleSaveFailed)
+  eventBus.on('visitor:arrived', handleVisitorArrived)
+  eventBus.on('visitor:left', handleVisitorLeft)
+  eventBus.on('diplomacy:gift', handleDiplomacyGift)
+  eventBus.on('diplomacy:truce', handleDiplomacyTruce)
   eventBus.on('hq:office-view', handleHQOfficeView)
 })
 
@@ -284,8 +321,15 @@ function handleHQOfficeView() {
   mapTab.value = 'hq'
 }
 
+function handleOutsideClick(e: MouseEvent) {
+  if (showSaveMenu.value && !((e.target as HTMLElement)?.closest('.game-map-actions__save-wrap'))) {
+    showSaveMenu.value = false
+  }
+}
+
 onUnmounted(() => {
   document.removeEventListener('keydown', handleKeydown)
+  document.removeEventListener('click', handleOutsideClick)
   eventBus.off('raid:result', handleRaidResult)
   eventBus.off('assassin:awakened', handleAssassinAwakened)
   eventBus.off('takeover:started', handleTakeoverStarted)
@@ -303,6 +347,10 @@ onUnmounted(() => {
   eventBus.off('royal:skill-upgraded', handleRoyalSkillUpgraded)
   eventBus.off('royal:prestige', handleRoyalPrestige)
   eventBus.off('save:failed', handleSaveFailed)
+  eventBus.off('visitor:arrived', handleVisitorArrived)
+  eventBus.off('visitor:left', handleVisitorLeft)
+  eventBus.off('diplomacy:gift', handleDiplomacyGift)
+  eventBus.off('diplomacy:truce', handleDiplomacyTruce)
   eventBus.off('hq:office-view', handleHQOfficeView)
 })
 
@@ -340,7 +388,7 @@ onUnmounted(() => {
           <button class="game-map-actions__btn" @click="showAutoplay = !showAutoplay" :aria-label="showAutoplay ? 'Close autoplay panel' : 'Open autoplay panel'">AI Play</button>
           <button class="game-map-actions__btn" @click="showEventLog = true" aria-label="Open event history panel">History</button>
           <button class="game-map-actions__btn" @click="showAchievements = true" aria-label="Open achievements panel">Awards</button>
-          <button class="game-map-actions__btn" @click="showRoyal = true" aria-label="Open royal continental panel" :disabled="!gameState.get().worldMap.royalBranches.length">Royal</button>
+          <button class="game-map-actions__btn" @click="showRoyal = true" aria-label="Open royal continental panel" :disabled="!hasRoyalBranches">Royal</button>
           <button class="game-map-actions__btn" @click="showSovereign = true" aria-label="Open sovereign panel">Throne</button>
           <div class="game-map-actions__save-wrap">
             <button class="game-map-actions__btn" @click="showSaveMenu = !showSaveMenu">Save ▾</button>
@@ -373,6 +421,7 @@ onUnmounted(() => {
     <RoyalPanel :visible="showRoyal" @close="showRoyal = false" />
     <SovereignPanel :visible="showSovereign" @close="showSovereign = false" />
     <HQOfficeView v-if="showHQOffice" @close="showHQOffice = false" />
+    <OfflineProgress />
     </div>
   </ErrorBoundary>
 </template>

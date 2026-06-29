@@ -60,6 +60,7 @@ export function establishRoute(from: BranchId, to: BranchId, type: SupplyRouteTy
     establishedAt: Date.now(),
     hijacked: false,
     incomePerTick: def.baseIncome,
+    aiOwned: false,
   }
 
   state.supplyRoutes.push(route)
@@ -72,8 +73,8 @@ export function canHijackRoute(routeId: string): boolean {
   const route = state.supplyRoutes.find(r => r.id === routeId)
   if (!route) return false
 
-  // Cannot hijack routes that involve the active branch
-  if (route.from === state.activeBranch || route.to === state.activeBranch) return false
+  // Cannot hijack player routes that involve the active branch
+  if (!route.aiOwned && (route.from === state.activeBranch || route.to === state.activeBranch)) return false
 
   const def = getRouteTypeDef(route.type)
   if (!def) return false
@@ -97,8 +98,8 @@ export function hijackRoute(routeId: string): { success: boolean; reason?: strin
   const route = state.supplyRoutes.find(r => r.id === routeId)
   if (!route) return { success: false, reason: 'Route not found' }
 
-  // Cannot hijack routes that involve the active branch
-  if (route.from === state.activeBranch || route.to === state.activeBranch) {
+  // Cannot hijack player routes that involve the active branch
+  if (!route.aiOwned && (route.from === state.activeBranch || route.to === state.activeBranch)) {
     return { success: false, reason: 'Cannot hijack your own route' }
   }
 
@@ -125,6 +126,7 @@ export function hijackRoute(routeId: string): { success: boolean; reason?: strin
   if (success) {
     route.from = state.activeBranch
     route.hijacked = true
+    route.aiOwned = false
     route.stability = Math.max(20, route.stability * 0.5)
     route.incomePerTick = def.baseIncome * 0.8
     assassin.loyalty = Math.max(0, assassin.loyalty - HIJACK_ASSASSIN_LOYALTY_COST)
@@ -185,6 +187,13 @@ export function tickSupplyRoutes(): void {
     const def = getRouteTypeDef(route.type)
     if (!def) { toRemove.push(route.id); return }
 
+    // AI-owned routes decay but don't generate player income
+    if (route.aiOwned) {
+      route.stability -= def.stabilityDecayPerTick * 0.5
+      if (route.stability <= 0) toRemove.push(route.id)
+      return
+    }
+
     route.stability -= def.stabilityDecayPerTick
 
     if (route.stability <= 0) {
@@ -225,7 +234,10 @@ export function getMaxRoutesPerBranch(): number {
 
 export function getHijackableRoutes(): SupplyRoute[] {
   const state = gameState.get()
-  return state.supplyRoutes.filter(r => r.from !== state.activeBranch && r.to !== state.activeBranch)
+  return state.supplyRoutes.filter(r =>
+    r.aiOwned ||
+    (r.from !== state.activeBranch && r.to !== state.activeBranch)
+  )
 }
 
 export function getHijackSuccessChance(routeId: string): number {
@@ -233,8 +245,7 @@ export function getHijackSuccessChance(routeId: string): number {
   const route = state.supplyRoutes.find(r => r.id === routeId)
   if (!route) return 0
 
-  // Cannot hijack routes that involve the active branch
-  if (route.from === state.activeBranch || route.to === state.activeBranch) return 0
+  if (!route.aiOwned && (route.from === state.activeBranch || route.to === state.activeBranch)) return 0
 
   const branch = state.branches[state.activeBranch]
   if (!branch) return 0
@@ -248,4 +259,46 @@ export function getHijackSuccessChance(routeId: string): number {
 
   const assassinBonus = (assassin.level - 1) * 0.05
   return Math.min(0.9, HIJACK_SUCCESS_BASE_CHANCE + assassinBonus)
+}
+
+const AI_ROUTE_TYPES: SupplyRouteType[] = ['weapons', 'contraband', 'luxury']
+
+export function tickAISupplyRoutes(): void {
+  const state = gameState.get()
+  const activeOwners = Object.values(state.aiOwners).filter(o =>
+    !o.defeated &&
+    !state.worldMap.unlockedBranches.includes(o.branchId) &&
+    o.branchId !== state.hqBranch
+  )
+  if (activeOwners.length < 2) return
+
+  const aiRoutes = state.supplyRoutes.filter(r => r.aiOwned)
+  if (aiRoutes.length >= 8) return
+
+  if (Math.random() > 0.02) return
+
+  const fromOwner = activeOwners[Math.floor(Math.random() * activeOwners.length)]
+  const toOwner = activeOwners[Math.floor(Math.random() * activeOwners.length)]
+  if (!fromOwner || !toOwner || fromOwner.branchId === toOwner.branchId) return
+
+  const type = AI_ROUTE_TYPES[Math.floor(Math.random() * AI_ROUTE_TYPES.length)]
+  const def = getRouteTypeDef(type)
+  if (!def) return
+
+  const exists = state.supplyRoutes.some(r =>
+    r.aiOwned && r.from === fromOwner.branchId && r.to === toOwner.branchId && r.type === type
+  )
+  if (exists) return
+
+  state.supplyRoutes.push({
+    id: `ai_route_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+    type,
+    from: fromOwner.branchId,
+    to: toOwner.branchId,
+    stability: def.baseStability,
+    establishedAt: Date.now(),
+    hijacked: false,
+    incomePerTick: def.baseIncome * 0.6,
+    aiOwned: true,
+  })
 }

@@ -226,9 +226,9 @@ export function purchaseBuilding(buildingId: string, count?: number): boolean {
   buyCount = Math.min(buyCount, maxPurchasable)
   if (buyCount <= 0) return false
 
-  // Free building (reception at level 0) — cap at 1 per purchase
+  // Free building (reception at level 0)
   if (def.baseCost === 0) {
-    bState.level += 1
+    bState.level += buyCount
     if (!_suppressUIEvents) eventBus.emit('income:update')
     return true
   }

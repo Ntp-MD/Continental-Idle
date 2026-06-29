@@ -52,8 +52,8 @@ watch(() => props.visible, (v) => {
 
 <template>
   <div v-if="visible" class="game-panel" @click.self="emit('close')">
-    <div class="game-panel__content game-panel__content--wide">
-      <h2 class="game-panel__title">Achievements</h2>
+    <div class="game-panel__content game-panel__content--wide" role="dialog" aria-modal="true" aria-labelledby="panel-title-achievements">
+      <h2 id="panel-title-achievements" class="game-panel__title">Achievements</h2>
 
       <div class="ach-progress">
         <div class="ach-progress__bar">

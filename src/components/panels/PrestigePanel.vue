@@ -16,6 +16,11 @@ const estimatedFavor = ref(0)
 const lifetimeEarnings = ref('')
 const canDoPrestige = ref(false)
 const confirming = ref(false)
+const totalFavor = ref(0)
+const totalPrestige = ref(0)
+const conqueredCount = ref(0)
+const royalCount = ref(0)
+const aiDefeatedCount = ref(0)
 
 function update() {
   if (!props.visible) return
@@ -26,6 +31,11 @@ function update() {
   estimatedFavor.value = getPrestigeFavor()
   lifetimeEarnings.value = formatNumber(branch.lifetimeEarnings)
   canDoPrestige.value = canPrestige()
+  totalFavor.value = state.tableFavor
+  totalPrestige.value = state.totalPrestige
+  conqueredCount.value = state.worldMap.conqueredBranches.length
+  royalCount.value = state.worldMap.royalBranches.length
+  aiDefeatedCount.value = Object.values(state.aiOwners).filter(o => o.defeated).length
 }
 
 function requestPrestige() {
@@ -65,8 +75,8 @@ watch(() => props.visible, (v) => {
 
 <template>
   <div v-if="visible" class="game-panel" @click.self="emit('close')">
-    <div class="game-panel__content">
-      <h2 class="game-panel__title">High Table Ascension</h2>
+    <div class="game-panel__content" role="dialog" aria-modal="true" aria-labelledby="panel-title-prestige">
+      <h2 id="panel-title-prestige" class="game-panel__title">High Table Ascension</h2>
 
       <template v-if="!confirming">
         <div class="prestige-info">
@@ -80,6 +90,14 @@ watch(() => props.visible, (v) => {
             :disabled="!canDoPrestige"
             @click="requestPrestige"
           >ASCEND</button>
+        </div>
+        <div class="prestige-overview">
+          <div class="prestige-overview__title">Global Overview</div>
+          <div class="prestige-overview__row">Total Table Favor: <span class="prestige-overview__val">{{ formatNumber(totalFavor) }}</span></div>
+          <div class="prestige-overview__row">Total Prestiges: <span class="prestige-overview__val">{{ totalPrestige }}</span></div>
+          <div class="prestige-overview__row">Branches Conquered: <span class="prestige-overview__val">{{ conqueredCount }}/36</span></div>
+          <div class="prestige-overview__row">Royal Continentals: <span class="prestige-overview__val">{{ royalCount }}/36</span></div>
+          <div class="prestige-overview__row">AI Defeated: <span class="prestige-overview__val">{{ aiDefeatedCount }}/36</span></div>
         </div>
       </template>
 

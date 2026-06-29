@@ -178,6 +178,53 @@ export function worsenRelations(branchId: BranchId, amount: number): void {
   owner.relations = Math.max(-100, owner.relations - amount)
 }
 
+const GIFT_COST = 500_000
+const TRUCE_COST = 5
+
+export function canSendGift(branchId: BranchId): boolean {
+  const state = gameState.get()
+  const owner = state.aiOwners[branchId]
+  if (!owner || owner.defeated) return false
+  const branch = state.branches[state.activeBranch]
+  if (!branch) return false
+  return branch.currency >= GIFT_COST
+}
+
+export function sendGift(branchId: BranchId): boolean {
+  const state = gameState.get()
+  const owner = state.aiOwners[branchId]
+  if (!owner || owner.defeated) return false
+  const branch = state.branches[state.activeBranch]
+  if (!branch || branch.currency < GIFT_COST) return false
+
+  branch.currency -= GIFT_COST
+  const gain = owner.relations < 0 ? 12 : 6
+  improveRelations(branchId, gain)
+  eventBus.emit('diplomacy:gift', { branchId, ownerName: owner.name, gain })
+  return true
+}
+
+export function canProposeTruce(branchId: BranchId): boolean {
+  const state = gameState.get()
+  const owner = state.aiOwners[branchId]
+  if (!owner || owner.defeated) return false
+  if (owner.relations >= 0) return false
+  return state.goldenCoins >= TRUCE_COST
+}
+
+export function proposeTruce(branchId: BranchId): boolean {
+  const state = gameState.get()
+  const owner = state.aiOwners[branchId]
+  if (!owner || owner.defeated) return false
+  if (state.goldenCoins < TRUCE_COST) return false
+  if (owner.relations >= 0) return false
+
+  state.goldenCoins -= TRUCE_COST
+  improveRelations(branchId, 20)
+  eventBus.emit('diplomacy:truce', { branchId, ownerName: owner.name })
+  return true
+}
+
 export function generateAIEvent(
   owner: AIOwnerState,
   eventType: AIEventType,

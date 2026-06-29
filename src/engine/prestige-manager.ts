@@ -43,6 +43,9 @@ export function doPrestige(branchId?: BranchId): boolean {
   branch.prestige += 1
   state.totalPrestige += 1
 
+  // Grant Golden Coins (10 per prestige)
+  state.goldenCoins += 10
+
   // Reset buildings
   BUILDINGS.forEach(def => {
     const bState = branch.buildings[def.id]
@@ -96,13 +99,13 @@ export function doPrestige(branchId?: BranchId): boolean {
   removedRoutes.forEach(r => eventBus.emit('supplyroute:collapsed', { routeId: r.id }))
 
   // Check branch unlocks
-  checkbranchUnlocks()
+  checkBranchUnlocks()
 
   eventBus.emit('prestige:reset', { branchId: id, favor })
   return true
 }
 
-function checkbranchUnlocks(): void {
+function checkBranchUnlocks(): void {
   const state = gameState.get()
   const graceUntil = Date.now() + 30 * 60 * 1000
   BRANCHES.forEach(t => {

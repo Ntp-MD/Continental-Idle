@@ -3,7 +3,8 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { getBranchDef } from '@/data/branches'
 import { AI_TEMPERAMENTS } from '@/data/ai-owners'
 import {
-  getAllAIOwners, getPowerBalance, getThreatLevel
+  getAllAIOwners, getPowerBalance, getThreatLevel,
+  sendGift, canSendGift, proposeTruce, canProposeTruce
 } from '@/engine/ai-owner-manager'
 import { formatNumber } from '@/engine/format'
 import { eventBus } from '@/engine/event-bus'
@@ -91,6 +92,53 @@ function getRelationsColor(relations: number): string {
   return '#f44336'
 }
 
+function doSendGift(branchId: BranchId) {
+  if (sendGift(branchId)) {
+    refresh()
+  }
+}
+
+function doProposeTruce(branchId: BranchId) {
+  if (proposeTruce(branchId)) {
+    refresh()
+  }
+}
+
+interface RelationLogEntry {
+  id: number
+  text: string
+  time: string
+  type: 'gift' | 'truce' | 'ai'
+}
+
+const relationLog = ref<RelationLogEntry[]>([])
+let logCounter = 0
+const MAX_LOG_ENTRIES = 10
+
+function addRelationLog(text: string, type: 'gift' | 'truce' | 'ai') {
+  const now = new Date()
+  const time = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`
+  relationLog.value.unshift({ id: ++logCounter, text, time, type })
+  if (relationLog.value.length > MAX_LOG_ENTRIES) {
+    relationLog.value = relationLog.value.slice(0, MAX_LOG_ENTRIES)
+  }
+}
+
+function handleDiplomacyGiftLog(e: Event) {
+  const detail = (e as CustomEvent).detail as { ownerName: string; gain: number }
+  addRelationLog(`Gift to ${detail.ownerName} (+${detail.gain})`, 'gift')
+}
+
+function handleDiplomacyTruceLog(e: Event) {
+  const detail = (e as CustomEvent).detail as { ownerName: string }
+  addRelationLog(`Truce with ${detail.ownerName} (+20)`, 'truce')
+}
+
+function handleAIActionLog(e: Event) {
+  const detail = (e as CustomEvent).detail as { ownerName: string; eventType: string }
+  addRelationLog(`${detail.ownerName}: ${detail.eventType}`, 'ai')
+}
+
 onMounted(() => {
   refresh()
   eventBus.on('income:tick', refresh)
@@ -98,6 +146,11 @@ onMounted(() => {
   eventBus.on('ai:defeated', refresh)
   eventBus.on('takeover:complete', refresh)
   eventBus.on('branch:unlock', refresh)
+  eventBus.on('diplomacy:gift', refresh)
+  eventBus.on('diplomacy:truce', refresh)
+  eventBus.on('diplomacy:gift', handleDiplomacyGiftLog)
+  eventBus.on('diplomacy:truce', handleDiplomacyTruceLog)
+  eventBus.on('ai:action', handleAIActionLog)
 })
 
 onUnmounted(() => {
@@ -106,6 +159,11 @@ onUnmounted(() => {
   eventBus.off('ai:defeated', refresh)
   eventBus.off('takeover:complete', refresh)
   eventBus.off('branch:unlock', refresh)
+  eventBus.off('diplomacy:gift', refresh)
+  eventBus.off('diplomacy:truce', refresh)
+  eventBus.off('diplomacy:gift', handleDiplomacyGiftLog)
+  eventBus.off('diplomacy:truce', handleDiplomacyTruceLog)
+  eventBus.off('ai:action', handleAIActionLog)
 })
 </script>
 
@@ -175,6 +233,18 @@ onUnmounted(() => {
                 :style="{ width: getPowerPercent(owner) + '%', background: getTemperamentColor(owner.temperament) }">
               </div>
             </div>
+            <div class="power-balance__diplomacy">
+              <button
+                class="power-balance__diplo-btn"
+                :disabled="!canSendGift(owner.branchId)"
+                @click="doSendGift(owner.branchId)"
+              >Send Gift (500K)</button>
+              <button
+                class="power-balance__diplo-btn"
+                :disabled="!canProposeTruce(owner.branchId)"
+                @click="doProposeTruce(owner.branchId)"
+              >Propose Truce (5 GC)</button>
+            </div>
           </div>
         </div>
       </section>
@@ -186,6 +256,17 @@ onUnmounted(() => {
           <span v-for="owner in defeatedOwners" :key="owner.branchId" class="power-balance__defeated-item">
             {{ getTemperamentIcon(owner.temperament) }} {{ owner.name }} ({{ getBranchDef(owner.branchId)?.name }})
           </span>
+        </div>
+      </section>
+
+      <!-- Relations Log -->
+      <section v-if="relationLog.length > 0" class="power-balance__section">
+        <h3 class="power-balance__heading">Relations Log</h3>
+        <div class="power-balance__log">
+          <div v-for="entry in relationLog" :key="entry.id" class="power-balance__log-entry" :class="'power-balance__log-entry--' + entry.type">
+            <span class="power-balance__log-time">{{ entry.time }}</span>
+            <span class="power-balance__log-text">{{ entry.text }}</span>
+          </div>
         </div>
       </section>
 

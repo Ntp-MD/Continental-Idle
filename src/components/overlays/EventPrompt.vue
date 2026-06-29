@@ -120,10 +120,10 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div v-if="visible" class="event-prompt">
+  <div v-if="visible" class="event-prompt" role="dialog" aria-modal="true" aria-labelledby="event-prompt-title">
     <div class="event-prompt__header">
       <span class="event-prompt__icon">⚠</span>
-      <span class="event-prompt__text">{{ eventName }}</span>
+      <span class="event-prompt__text" id="event-prompt-title">{{ eventName }}</span>
       <span class="event-prompt__timer">{{ timer }}s</span>
     </div>
     <div class="event-prompt__desc">{{ eventDesc }}</div>

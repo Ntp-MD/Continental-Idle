@@ -1,27 +1,28 @@
 ﻿import { gameState } from './game-state'
 import { gameLoop } from './game-loop'
+import { runGameTick } from './tick-engine'
 import { eventEngine } from './event-engine'
 import { eventBus } from './event-bus'
-import { tick as incomeTick, updateBuildingUnlocks, purchaseBuilding, getBranchIncomePerSecond, getBuildingCost, getBuildingIncome, setSuppressUIEvents } from './income-engine'
-import { tickStaffXp, hireStaff, assignStaff, confirmLevelUp, isStaffUnlocked } from './staff-manager'
-import { tickDebtCollection, tickDebtInterest, getTotalDebt, repayAllDebts } from './debt-manager'
-import { tickAssassinLoyalty, tickAssassinXp, hireAssassin, isAssassinUnlocked, assignAssassin, sendAssassinToAttack, confirmAssassinLevelUp, getAssassinCombatDamage, hasEnforcer, hasHighTableEnforcer, cancelAssassinAttack } from './assassin-manager'
-import { tickTakeoverProgress, initiateTakeover, canInitiateTakeover, getTakeoverCost } from './takeover-manager'
-import { tickSupplyRoutes } from './supply-route-manager'
-import { tickAIOwners } from './ai-owner-manager'
-import { hasVaultKeeperMaxed } from './abilities'
-import { getTotalIncomeMult, getExtraStaffSlots } from './skill-manager'
-import { purchaseUpgrade, UPGRADES } from './upgrade-manager'
-import { doPrestige, getPrestigeFavor } from './prestige-manager'
+import { purchaseBuilding, getBranchIncomePerSecond, getBuildingCost, getBuildingIncome, setSuppressUIEvents } from './income-engine'
+import { hireStaff, assignStaff, confirmLevelUp, isStaffUnlocked } from './staff-manager'
+import { getTotalDebt, repayAllDebts } from './debt-manager'
+import { hireAssassin, isAssassinUnlocked, assignAssassin, sendAssassinToAttack, confirmAssassinLevelUp, getAssassinCombatDamage, hasEnforcer, hasHighTableEnforcer, cancelAssassinAttack, lendAssassin, recallAssassin } from './assassin-manager'
+import { callVisitor, hireVisitor, dismissVisitor, royalMarkScroll, canUseRoyalMarkScroll } from './visitor-manager'
+import { getRarityCostMult } from '@/data/rarity'
+import { initiateTakeover, canInitiateTakeover, getTakeoverCost } from './takeover-manager'
+import { canLayLow, layLow, canHostEvent, hostEvent, canBribeOfficial, bribeOfficial, canGoldenCoinIncomeBoost, goldenCoinIncomeBoost } from './actions-manager'
 import { canEstablishRoute, establishRoute, stabilizeRoute, getSupplyRoutes, getStabilizeCost, canHijackRoute, hijackRoute, getHijackableRoutes } from './supply-route-manager'
 import { BUILDINGS, BUILDING_INCOME_GROWTH } from '@/data/buildings'
 import { STAFF_TYPES } from '@/data/staff'
 import { ASSASSIN_TYPES } from '@/data/assassins'
 import { BRANCHES, getBranchDef } from '@/data/branches'
 import { SKILL_NODES, SKILL_MAX_LEVEL } from '@/data/skills'
-import { upgradeSkill } from './skill-manager'
+import { upgradeSkill, getExtraStaffSlots } from './skill-manager'
+import { purchaseUpgrade, UPGRADES } from './upgrade-manager'
+import { doPrestige, getPrestigeFavor } from './prestige-manager'
 import { purchaseRoyalBuilding, canUpgradeRoyalSkill, upgradeRoyalSkill, canRoyalPrestige, getRoyalPrestigeMarks, doRoyalPrestige, getRoyalAffordableLevels } from './royal-manager'
 import { sovereignManager } from './sovereign-manager'
+import { achievementManager } from './achievement-manager'
 import { ROYAL_BUILDINGS } from '@/data/royal-buildings'
 import { formatNumber } from './format'
 import { TRAIT_EFFECTS } from '@/data/traits'
@@ -54,6 +55,7 @@ class AutoplayBot {
       gameLoop.stop()
     }
     setSuppressUIEvents(true)
+    achievementManager.start()
     this.logAction('Autoplay started')
     eventBus.emit('autoplay:started')
     this.scheduleInterval()
@@ -66,6 +68,7 @@ class AutoplayBot {
     }
     this.running = false
     setSuppressUIEvents(false)
+    achievementManager.stop()
     if (this.wasGameLoopRunning) {
       gameLoop.start()
     }
@@ -154,28 +157,7 @@ class AutoplayBot {
   private tick(): void {
     this.tickCount++
 
-    incomeTick()
-    updateBuildingUnlocks()
-    tickStaffXp()
-    tickAssassinXp()
-    eventEngine.tick()
-
-    if (this.tickCount % 10 === 0) tickDebtCollection()
-    if (this.tickCount % 60 === 0) tickDebtInterest()
-    if (this.tickCount % 30 === 0) tickAssassinLoyalty()
-    if (this.tickCount % 5 === 0) {
-      tickTakeoverProgress()
-      tickSupplyRoutes()
-      tickAIOwners(this.tickCount)
-    }
-
-    if (this.tickCount % 60 === 0) {
-      this.tickSafeHouseInterest()
-    }
-
-    if (this.tickCount % 120 === 0) {
-      this.tickHeatDecay()
-    }
+    runGameTick(this.tickCount)
 
     this.decisionCounter++
     if (this.decisionCounter >= 5) {
@@ -184,38 +166,9 @@ class AutoplayBot {
     }
 
     if (this.tickCount % 300 === 0) {
+      sovereignManager.checkVictory()
       gameState.save()
     }
-  }
-
-  private tickSafeHouseInterest(): void {
-    const state = gameState.get()
-    state.worldMap.unlockedBranches.forEach(branchId => {
-      const branch = state.branches[branchId]
-      if (!branch) return
-      const safeHouse = branch.buildings['safeHouse']
-      if (!safeHouse || safeHouse.level === 0) return
-      const baseInterest = safeHouse.level * 100
-      const vaultKeeperMult = hasVaultKeeperMaxed(branchId) ? 2 : 1
-      const goldStandardMult = branch.upgrades.includes('goldStandard') ? 1.5 : 1
-      const interest = baseInterest * vaultKeeperMult * goldStandardMult * getTotalIncomeMult()
-      branch.currency += interest
-      branch.lifetimeEarnings += interest
-    })
-  }
-
-  private tickHeatDecay(): void {
-    const state = gameState.get()
-    state.worldMap.unlockedBranches.forEach(branchId => {
-      const branch = state.branches[branchId]
-      if (!branch) return
-      if (branch.heatLevel > 0) branch.heatLevel = Math.max(0, branch.heatLevel - 1)
-      if (branch.guestSatisfaction > 50) {
-        branch.guestSatisfaction = Math.max(50, branch.guestSatisfaction - 1)
-      } else if (branch.guestSatisfaction < 50) {
-        branch.guestSatisfaction = Math.min(50, branch.guestSatisfaction + 1)
-      }
-    })
   }
 
   private makeDecisions(): void {
@@ -238,6 +191,8 @@ class AutoplayBot {
       this.buyBuildings()
       this.hireAndAssignStaff()
       this.reassignStaff()
+      this.manageVisitors()
+      this.manageGoldenCoinActions()
       this.upgradeSkills()
       this.upgradeRoyalSkills()
       this.purchaseRoyalBuildings()
@@ -254,6 +209,9 @@ class AutoplayBot {
       this.reassignStaff()
       this.manageInactiveBranches()
       this.manageSupplyRoutes()
+      this.manageAssassinLending()
+      this.manageVisitors()
+      this.manageGoldenCoinActions()
       this.manageDebts()
       this.upgradeSkills()
       this.upgradeRoyalSkills()
@@ -271,6 +229,9 @@ class AutoplayBot {
       this.reassignStaff()
       this.manageInactiveBranches()
       this.manageSupplyRoutes()
+      this.manageAssassinLending()
+      this.manageVisitors()
+      this.manageGoldenCoinActions()
       this.manageDebts()
       this.upgradeSkills()
       this.upgradeRoyalSkills()
@@ -623,6 +584,133 @@ class AutoplayBot {
     }
   }
 
+  private manageVisitors(): void {
+    const state = gameState.get()
+    const vis = state.visitors
+    if (vis.length === 0) {
+      if (canUseRoyalMarkScroll()) {
+        royalMarkScroll()
+        this.logAction('Used royal mark scroll for high-rarity visitor')
+      } else if (state.goldenCoins >= 10) {
+        callVisitor()
+        this.logAction('Called visitors (10 golden coins)')
+      }
+      return
+    }
+
+    const branch = state.branches[state.activeBranch]
+    if (!branch) return
+
+    for (const visitor of [...vis]) {
+      const def = visitor.isAssassin
+        ? ASSASSIN_TYPES.find(a => a.id === visitor.typeId)
+        : STAFF_TYPES.find(s => s.id === visitor.typeId)
+      if (!def) {
+        dismissVisitor(visitor.id)
+        continue
+      }
+
+      const cost = Math.ceil((def as { hireCost: number }).hireCost * getRarityCostMult(visitor.rarity))
+      if (branch.currency < cost) continue
+
+      if (visitor.isAssassin) {
+        const cap = branch.upgrades.includes('armoryExpansion') ? 4 : 3
+        if (Object.keys(branch.assassins).length >= cap) {
+          dismissVisitor(visitor.id)
+          continue
+        }
+      } else {
+        if (Object.keys(branch.staff).length >= 5 + getExtraStaffSlots()) {
+          dismissVisitor(visitor.id)
+          continue
+        }
+      }
+
+      if (hireVisitor(visitor.id, state.activeBranch)) {
+        this.logAction(`Hired visitor: ${def.name} (${visitor.rarity})`)
+      }
+    }
+  }
+
+  private manageGoldenCoinActions(): void {
+    const state = gameState.get()
+    const branch = state.branches[state.activeBranch]
+    if (!branch) return
+
+    if (branch.heatLevel >= 8 && canBribeOfficial()) {
+      bribeOfficial()
+      this.logAction('Bribed official to reduce critical heat')
+    } else if (branch.heatLevel >= 5 && canLayLow()) {
+      layLow()
+      this.logAction('Laid low to reduce heat')
+    }
+
+    if (branch.guestSatisfaction < 50 && canHostEvent()) {
+      hostEvent()
+      this.logAction('Hosted event to boost guest satisfaction')
+    }
+
+    if (canGoldenCoinIncomeBoost()) {
+      const hasBoost = state.activeBuffs.some(b => b.type === 'incomeMultiplier' && b.value >= 1.5 && (b.expiresAt || 0) > Date.now())
+      if (!hasBoost) {
+        goldenCoinIncomeBoost()
+        this.logAction('Activated golden coin income boost')
+      }
+    }
+  }
+
+  private manageAssassinLending(): void {
+    const state = gameState.get()
+    const unlocked = state.worldMap.unlockedBranches
+    if (unlocked.length < 2) return
+
+    for (const branchId of unlocked) {
+      const branch = state.branches[branchId]
+      if (!branch) continue
+
+      const idleAssassins = Object.values(branch.assassins).filter(a =>
+        a.assignedBranch === branchId &&
+        !a.attackTarget &&
+        !a.lentTo &&
+        a.loyalty >= 50
+      )
+
+      if (idleAssassins.length === 0) continue
+
+      for (const otherId of unlocked) {
+        if (otherId === branchId) continue
+        const otherBranch = state.branches[otherId]
+        if (!otherBranch) continue
+
+        const otherDefenders = Object.values(otherBranch.assassins).filter(a =>
+          a.assignedBranch === otherId && !a.attackTarget && !a.lentTo
+        ).length
+
+        const otherLent = Object.values(unlocked).filter(id => {
+          if (id === branchId) return false
+          const b = state.branches[id as BranchId]
+          return b && Object.values(b.assassins).some(a => a.lentTo === otherId)
+        }).length
+
+        if (otherDefenders + otherLent === 0 && idleAssassins.length > 0) {
+          const assassin = idleAssassins[0]
+          if (assassin.id) {
+            lendAssassin(assassin.id, otherId, 3600, branchId)
+            this.logAction(`Lent assassin to ${getBranchDef(otherId)?.name} for defense`)
+            return
+          }
+        }
+      }
+
+      // Recall lent assassins whose lend period expired
+      for (const assassin of Object.values(branch.assassins)) {
+        if (assassin.lentTo && Date.now() > (assassin.lentUntil || 0)) {
+          recallAssassin(assassin.id, branchId)
+        }
+      }
+    }
+  }
+
   private hireAndAssignStaff(targetBranch?: BranchId): void {
     const state = gameState.get()
     const branch = state.branches[targetBranch || state.activeBranch]
@@ -903,8 +991,9 @@ class AutoplayBot {
         ok = initiateTakeover(def.id)
       } catch {
         ok = false
+      } finally {
+        state.activeBranch = prevActive
       }
-      state.activeBranch = prevActive
 
       if (ok) {
         this.logAction(`Takeover initiated: ${def.name} (funded by ${getBranchDef(fundedBy).name})`)
@@ -1032,23 +1121,26 @@ class AutoplayBot {
     if (royalBranches.length === 0) return
 
     const prevActive = state.activeBranch
-    for (const branchId of royalBranches) {
-      const branch = state.branches[branchId]
-      if (!branch) continue
-      state.activeBranch = branchId
-      for (const def of ROYAL_BUILDINGS) {
-        const bState = branch.royalBuildings?.[def.id]
-        const currentLevel = bState?.level || 0
-        if (currentLevel >= def.maxLevel) continue
-        const affordable = getRoyalAffordableLevels(branch, def.id)
-        if (affordable <= 0) continue
-        const ok = purchaseRoyalBuilding(def.id, Math.min(affordable, 10))
-        if (ok) {
-          this.logAction(`Purchased ${def.name} x${Math.min(affordable, 10)} in ${getBranchDef(branchId).name}`)
+    try {
+      for (const branchId of royalBranches) {
+        const branch = state.branches[branchId]
+        if (!branch) continue
+        state.activeBranch = branchId
+        for (const def of ROYAL_BUILDINGS) {
+          const bState = branch.royalBuildings?.[def.id]
+          const currentLevel = bState?.level || 0
+          if (currentLevel >= def.maxLevel) continue
+          const affordable = getRoyalAffordableLevels(branch, def.id)
+          if (affordable <= 0) continue
+          const ok = purchaseRoyalBuilding(def.id, Math.min(affordable, 10))
+          if (ok) {
+            this.logAction(`Purchased ${def.name} x${Math.min(affordable, 10)} in ${getBranchDef(branchId).name}`)
+          }
         }
       }
+    } finally {
+      state.activeBranch = prevActive
     }
-    state.activeBranch = prevActive
   }
 
   private doRoyalPrestigeIfWorth(): void {

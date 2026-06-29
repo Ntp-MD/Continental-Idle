@@ -15,6 +15,8 @@ import {
   purchaseRoyalBuilding, getRoyalBuildingCost, getRoyalAffordableLevels,
   canUpgradeRoyalSkill, upgradeRoyalSkill,
   canRoyalPrestige, getRoyalPrestigeMarks, doRoyalPrestige,
+  getRoyalIncomeMult, getRoyalLoyaltyDecayReduction, getRoyalAssassinPowerMult,
+  getRoyalFavorMult, getRoyalPrestigeMult, getRoyalBuffDurationMult,
 } from '@/engine/royal-manager'
 import type { BranchId } from '@/types'
 
@@ -29,6 +31,7 @@ const royalPrestige = ref(0)
 const isRoyal = ref(false)
 const branchName = ref('')
 const confirmingRoyal = ref(false)
+const skillEffects = ref({ incomeMult: 1, loyaltyDecayReduction: 0, assassinPowerMult: 1, favorMult: 1, prestigeMult: 1, buffDurationMult: 1 })
 
 const royalBranchList = computed(() => {
   const state = gameState.get()
@@ -45,6 +48,14 @@ function update() {
   royalPrestige.value = state.royalPrestige
   isRoyal.value = state.worldMap.royalBranches.includes(state.activeBranch)
   branchName.value = getBranchDef(state.activeBranch)?.name || state.activeBranch
+  skillEffects.value = {
+    incomeMult: getRoyalIncomeMult(),
+    loyaltyDecayReduction: getRoyalLoyaltyDecayReduction(),
+    assassinPowerMult: getRoyalAssassinPowerMult(),
+    favorMult: getRoyalFavorMult(),
+    prestigeMult: getRoyalPrestigeMult(),
+    buffDurationMult: getRoyalBuffDurationMult(),
+  }
 }
 
 function buyRoyalBuilding(buildingId: string) {
@@ -131,8 +142,8 @@ watch(() => props.visible, (v) => {
 
 <template>
   <div v-if="visible" class="game-panel" @click.self="emit('close')">
-    <div class="game-panel__content game-panel__content--wide">
-      <h2 class="game-panel__title">Royal Continental</h2>
+    <div class="game-panel__content game-panel__content--wide" role="dialog" aria-modal="true" aria-labelledby="panel-title-royal">
+      <h2 id="panel-title-royal" class="game-panel__title">Royal Continental</h2>
 
       <div class="royal-header">
         <div class="royal-header__marks">Royal Marks: <span class="royal-header__val">{{ formatNumber(royalMarks) }}</span></div>
@@ -172,6 +183,35 @@ watch(() => props.visible, (v) => {
 
       <!-- Royal Skill Tree -->
       <div v-if="activeTab === 'skills'" class="royal-section">
+        <div class="royal-skill-summary">
+          <div class="royal-skill-summary__title">Active Skill Effects</div>
+          <div class="royal-skill-summary__grid">
+            <div class="royal-skill-summary__item">
+              <span class="royal-skill-summary__label">Income Mult</span>
+              <span class="royal-skill-summary__val">x{{ skillEffects.incomeMult.toFixed(2) }}</span>
+            </div>
+            <div class="royal-skill-summary__item">
+              <span class="royal-skill-summary__label">Loyalty Decay</span>
+              <span class="royal-skill-summary__val">-{{ (skillEffects.loyaltyDecayReduction * 100).toFixed(0) }}%</span>
+            </div>
+            <div class="royal-skill-summary__item">
+              <span class="royal-skill-summary__label">Assassin Power</span>
+              <span class="royal-skill-summary__val">x{{ skillEffects.assassinPowerMult.toFixed(2) }}</span>
+            </div>
+            <div class="royal-skill-summary__item">
+              <span class="royal-skill-summary__label">Favor Mult</span>
+              <span class="royal-skill-summary__val">x{{ skillEffects.favorMult.toFixed(2) }}</span>
+            </div>
+            <div class="royal-skill-summary__item">
+              <span class="royal-skill-summary__label">Prestige Mult</span>
+              <span class="royal-skill-summary__val">x{{ skillEffects.prestigeMult.toFixed(2) }}</span>
+            </div>
+            <div class="royal-skill-summary__item">
+              <span class="royal-skill-summary__label">Buff Duration</span>
+              <span class="royal-skill-summary__val">x{{ skillEffects.buffDurationMult.toFixed(2) }}</span>
+            </div>
+          </div>
+        </div>
         <div v-for="branch in ['royalIncome', 'royalLoyalty', 'royalPower', 'royalFavor', 'royalAscension']" :key="branch" class="royal-skill-branch">
           <div class="royal-skill-branch__title">{{ branch.replace('royal', '') }}</div>
           <div class="royal-skill-branch__nodes">

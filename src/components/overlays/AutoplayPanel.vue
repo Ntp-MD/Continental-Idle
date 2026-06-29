@@ -1,4 +1,4 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { autoplayBot, type AutoplaySpeed } from '@/engine/autoplay'
 import { eventBus } from '@/engine/event-bus'
@@ -135,7 +135,7 @@ onUnmounted(() => {
   background: var(--autoplay-bg);
   border: 1px solid rgba(255, 255, 255, 0.15);
   border-radius: 12px;
-  padding: 16px;
+  padding: var(--gap-md);
   z-index: 9000;
   font-family: system-ui, sans-serif;
   color: var(--text-primary);
@@ -147,7 +147,7 @@ onUnmounted(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 12px;
+  margin-bottom: var(--gap-sm);
 }
 
 .autoplay-panel__title {
@@ -158,7 +158,7 @@ onUnmounted(() => {
 }
 
 .autoplay-panel__toggle {
-  padding: 6px 20px;
+  padding: var(--gap-xs) var(--gap-md);
   border: none;
   border-radius: 6px;
   font-weight: 700;
@@ -177,18 +177,18 @@ onUnmounted(() => {
 .autoplay-panel__speeds {
   display: flex;
   align-items: center;
-  gap: 4px;
-  margin-bottom: 12px;
+  gap: var(--gap-xs);
+  margin-bottom: var(--gap-sm);
 }
 
 .autoplay-panel__label {
   font-size: 12px;
   color: var(--text-dim);
-  margin-right: 4px;
+  margin-right: var(--gap-xs);
 }
 
 .autoplay-panel__speed-btn {
-  padding: 3px 10px;
+  padding: var(--gap-xs) var(--gap-sm);
   border: 1px solid rgba(255, 255, 255, 0.10);
   border-radius: 4px;
   background: transparent;
@@ -207,14 +207,14 @@ onUnmounted(() => {
 .autoplay-panel__stats {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 6px;
-  margin-bottom: 10px;
+  gap: var(--gap-xs);
+  margin-bottom: var(--gap-sm);
 }
 
 .autoplay-panel__stat {
   display: flex;
   flex-direction: column;
-  gap: 1px;
+  gap: var(--gap-xs);
 }
 
 .autoplay-panel__stat-label {
@@ -234,7 +234,7 @@ onUnmounted(() => {
   background: rgba(255, 255, 255, 0.08);
   border-radius: 2px;
   overflow: hidden;
-  margin-bottom: 10px;
+  margin-bottom: var(--gap-sm);
 }
 
 .autoplay-panel__progress-fill {
@@ -245,14 +245,14 @@ onUnmounted(() => {
 
 .autoplay-panel__log {
   border-top: 1px solid rgba(255, 255, 255, 0.08);
-  padding-top: 8px;
+  padding-top: var(--gap-sm);
 }
 
 .autoplay-panel__log-title {
   font-size: 11px;
   color: var(--autoplay-text-dim);
   text-transform: uppercase;
-  margin-bottom: 4px;
+  margin-bottom: var(--gap-xs);
 }
 
 .autoplay-panel__log-list {
@@ -264,14 +264,14 @@ onUnmounted(() => {
 
 .autoplay-panel__log-entry {
   color: var(--text-secondary);
-  padding: 1px 0;
+  padding: var(--gap-xs) 0;
   border-bottom: 1px solid rgba(255, 255, 255, 0.03);
 }
 
 .autoplay-panel__log-empty {
   color: var(--node-locked);
   font-style: italic;
-  padding: 8px 0;
+  padding: var(--gap-sm) 0;
 }
 
 .autoplay-panel__log-list::-webkit-scrollbar {

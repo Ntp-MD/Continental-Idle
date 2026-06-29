@@ -1,4 +1,4 @@
-﻿import type { BranchId, AssassinEntry, CharacterStats } from '@/types'
+﻿import type { BranchId, AssassinEntry, CharacterStats, Rarity } from '@/types'
 import { ASSASSIN_MAP } from '@/data/assassins'
 import { getTraitMultiplier } from '@/data/traits'
 import { gameState } from './game-state'
@@ -6,15 +6,17 @@ import { eventBus } from './event-bus'
 import { getRoyalLoyaltyDecayReduction, getSovereignBuffMult } from './royal-manager'
 import { sovereignManager } from './sovereign-manager'
 import { STAFF_TYPES } from '@/data/staff'
+import { RARITY_CONFIG, rollRarityFromConfig, getRarityCostMult } from '@/data/rarity'
 
 function generateId(): string {
   return 'assassin_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6)
 }
 
-function rollAssassinStats(): CharacterStats {
-  const budget = 24
-  const min = 3
-  const max = 12
+function rollAssassinStats(rarity: Rarity): CharacterStats {
+  const cfg = RARITY_CONFIG[rarity]
+  const budget = cfg.statBudget + 4
+  const min = cfg.statMin + 1
+  const max = cfg.statMax + 2
   const stats = { precision: min, speed: min, charisma: min, luck: min }
   let remaining = budget - (min * 4)
   const keys: (keyof CharacterStats)[] = ['precision', 'speed', 'charisma', 'luck']
@@ -29,14 +31,15 @@ function rollAssassinStats(): CharacterStats {
   return stats
 }
 
-function rollAssassinTraits(): string[] {
+function rollAssassinTraits(rarity: Rarity): string[] {
+  const cfg = RARITY_CONFIG[rarity]
   const traits: string[] = []
   const rarePool = ['legendary', 'untouchable', 'mentor', 'shadowBond', 'goldenTouch']
   const positivePool = ['workaholic', 'nightOwl', 'silverTongue', 'luckyCharm', 'perfectionist', 'naturalLeader', 'shadowTouched', 'bloodhound', 'oldGuard', 'efficient']
   const roll = Math.random()
-  if (roll < 0.15) {
+  if (roll < cfg.traitRareChance) {
     traits.push(rarePool[Math.floor(Math.random() * rarePool.length)])
-  } else if (roll < 0.65) {
+  } else if (roll < cfg.traitRareChance + cfg.traitPositiveChance) {
     traits.push(positivePool[Math.floor(Math.random() * positivePool.length)])
   }
   return traits
@@ -70,6 +73,7 @@ export function hireAssassin(assassinTypeId: string, branchId?: BranchId): Assas
 
   branch.currency -= def.hireCost
 
+  const rarity = rollRarityFromConfig()
   const entry: AssassinEntry = {
     id: generateId(),
     typeId: assassinTypeId,
@@ -81,10 +85,11 @@ export function hireAssassin(assassinTypeId: string, branchId?: BranchId): Assas
     lentTo: null,
     lentUntil: 0,
     attackTarget: null,
-    stats: rollAssassinStats(),
-    traits: rollAssassinTraits(),
+    stats: rollAssassinStats(rarity),
+    traits: rollAssassinTraits(rarity),
     synergyCount: 0,
     awakened: false,
+    rarity,
   }
 
   branch.assassins[entry.id] = entry
@@ -175,6 +180,23 @@ export function recallAssassin(assassinId: string, branchId?: BranchId): boolean
   return true
 }
 
+export function fireAssassin(assassinId: string, branchId?: BranchId): boolean {
+  const state = gameState.get()
+  const id = branchId || state.activeBranch
+  const branch = state.branches[id]
+  if (!branch) return false
+  const assassin = branch.assassins[assassinId]
+  if (!assassin) return false
+
+  assassin.assignedBranch = null
+  assassin.attackTarget = null
+  assassin.lentTo = null
+  delete branch.assassins[assassinId]
+  invalidateAssassinCache()
+  eventBus.emit('assassin:fired', { assassinId, branch: id })
+  return true
+}
+
 export function getAssassinXpToNext(level: number): number {
   return Math.ceil(200 * Math.pow(1.4, level))
 }
@@ -191,7 +213,7 @@ export function confirmAssassinLevelUp(assassinId: string, branchId?: BranchId):
   if (!def) return false
   if (assassin.level >= def.maxLevel) return false
 
-  const cost = Math.ceil(def.hireCost * 0.15 * Math.pow(1.4, assassin.level))
+  const cost = Math.ceil(def.hireCost * 0.15 * Math.pow(1.4, assassin.level) * getRarityCostMult(assassin.rarity))
   if (branch.currency < cost) return false
 
   branch.currency -= cost

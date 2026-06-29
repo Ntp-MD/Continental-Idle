@@ -73,8 +73,8 @@ watch(() => props.visible, (v) => { if (v) update() })
 
 <template>
   <div v-if="visible" class="game-panel" @click.self="emit('close')">
-    <div class="game-panel__content">
-      <h2 class="game-panel__title">Skill Tree</h2>
+    <div class="game-panel__content" role="dialog" aria-modal="true" aria-labelledby="panel-title-skills">
+      <h2 id="panel-title-skills" class="game-panel__title">Skill Tree</h2>
       <div class="skill-tree__favor">Table Favor: {{ formatNumber(favor) }}</div>
 
       <div v-for="branch in branches" :key="branch.key" class="skill-branch">

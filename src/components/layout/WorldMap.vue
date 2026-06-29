@@ -778,6 +778,7 @@ onUnmounted(() => {
     <div
       v-if="tooltipVisible"
       class="world-map__tooltip"
+      role="tooltip"
       :style="{ left: tooltipX + 'px', top: tooltipY + 'px' }"
     >
       <div class="world-map__tooltip-name">{{ tooltipName }}</div>

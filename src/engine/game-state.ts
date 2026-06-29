@@ -6,6 +6,7 @@ import { ASSASSIN_TYPES } from '@/data/assassins'
 import { initAIOwners } from './ai-owner-manager'
 import { getBranchIncomePerSecond } from './income-engine'
 import { getTotalOfflineEfficiency } from './skill-manager'
+import { sovereignManager } from './sovereign-manager'
 import { useToast } from '@/composables/useToast'
 
 const CURRENT_VERSION = '1.0'
@@ -97,6 +98,9 @@ function createDefaultState(hq: BranchId = 'bangkok'): GameState {
     royalDecrees: [],
     lastDecreeAt: 0,
     sandboxLoops: 0,
+    goldenCoins: 0,
+    visitors: [],
+    lastSandboxLoopAt: 0,
   }
 }
 
@@ -114,15 +118,14 @@ class GameStateManager {
     return this.state
   }
 
-  withLock<T>(fn: () => T): T {
+  withLock<T>(fn: () => T): T | undefined {
     if (this._mutationLock) {
-      // Skip if already locked — prevents re-entrant mutations
-      return fn()
+      this._pendingSave = true
+      return undefined
     }
     this._mutationLock = true
     try {
       const result = fn()
-      // Process pending save after mutation completes
       if (this._pendingSave) {
         this._pendingSave = false
         this.save()
@@ -186,6 +189,7 @@ class GameStateManager {
       return false
     }
     this.state.timestamp = Date.now()
+    sovereignManager.cleanupExpiredDecrees()
     this.state.checksum = this.computeChecksum()
     const json = JSON.stringify(this.state)
     try {
@@ -236,6 +240,16 @@ class GameStateManager {
       if (typeof parsed.hqBranch !== 'string') return null
 
       const typed = parsed as GameState
+
+      // Validate critical numeric fields before accepting
+      if (typeof typed.totalPrestige !== 'number' || !isFinite(typed.totalPrestige) || typed.totalPrestige < 0) return null
+      if (typeof typed.tableFavor !== 'number' || !isFinite(typed.tableFavor) || typed.tableFavor < 0) return null
+      for (const branchId of Object.keys(typed.branches) as BranchId[]) {
+        const b = typed.branches[branchId]
+        if (!b) return null
+        if (typeof b.currency !== 'number' || !isFinite(b.currency) || b.currency < 0) return null
+        if (typeof b.heatLevel !== 'number' || !isFinite(b.heatLevel) || b.heatLevel < 0) return null
+      }
 
       // Validate checksum before accepting
       const savedChecksum = typed.checksum
@@ -390,6 +404,24 @@ class GameStateManager {
       if (parsed.royalPrestige !== undefined && (typeof parsed.royalPrestige !== 'number' || !isFinite(parsed.royalPrestige) || parsed.royalPrestige < 0)) return false
       if (parsed.sovereign !== undefined && typeof parsed.sovereign !== 'boolean') return false
       if (parsed.sandboxLoops !== undefined && (typeof parsed.sandboxLoops !== 'number' || !isFinite(parsed.sandboxLoops) || parsed.sandboxLoops < 0)) return false
+      if (parsed.goldenCoins !== undefined && (typeof parsed.goldenCoins !== 'number' || !isFinite(parsed.goldenCoins) || parsed.goldenCoins < 0)) return false
+      // Validate rarity if present
+      const validRaritySet = new Set(['D', 'C', 'B', 'A', 'S'])
+      for (const branchId of Object.keys(parsed.branches)) {
+        const t = parsed.branches[branchId]
+        if (t.staff && typeof t.staff === 'object') {
+          for (const sId of Object.keys(t.staff)) {
+            const s = t.staff[sId]
+            if (s.rarity !== undefined && !validRaritySet.has(s.rarity)) return false
+          }
+        }
+        if (t.assassins && typeof t.assassins === 'object') {
+          for (const aId of Object.keys(t.assassins)) {
+            const a = t.assassins[aId]
+            if (a.rarity !== undefined && !validRaritySet.has(a.rarity)) return false
+          }
+        }
+      }
       if (parsed.lastDecreeAt !== undefined && (typeof parsed.lastDecreeAt !== 'number' || !isFinite(parsed.lastDecreeAt) || parsed.lastDecreeAt < 0)) return false
       if (parsed.royalSkillTree && typeof parsed.royalSkillTree === 'object') {
         for (const key of ['royalIncome', 'royalLoyalty', 'royalPower', 'royalFavor', 'royalAscension']) {
@@ -472,6 +504,10 @@ class GameStateManager {
     const cappedSeconds = Math.min(Math.floor(elapsedMs / 1000), 86400)
     const efficiency = 0.5 + getTotalOfflineEfficiency()
 
+    // Strip expired buffs before calculating offline income
+    // so buffs that expired during offline don't apply to the full duration
+    this.state.activeBuffs = this.state.activeBuffs.filter(b => b.expiresAt === null || b.expiresAt > now)
+
     const breakdown: Record<string, number> = {}
     let totalEarnings = 0
 
@@ -519,6 +555,7 @@ class GameStateManager {
         branch.markerDebts.forEach(d => {
           if (!d.id) d.id = 'debt_' + d.createdAt.toString(36) + Math.random().toString(36).slice(2, 6)
           if (d.originalAmount === undefined) d.originalAmount = d.amount
+          if (d.originalAmount < d.amount) d.originalAmount = d.amount
         })
         if (branch.heatLevel === undefined) branch.heatLevel = 0
         if (branch.excommunicadoGraceUntil === undefined) branch.excommunicadoGraceUntil = 0
@@ -569,6 +606,29 @@ class GameStateManager {
     if (!save.royalDecrees) save.royalDecrees = []
     if (save.lastDecreeAt === undefined) save.lastDecreeAt = 0
     if (save.sandboxLoops === undefined) save.sandboxLoops = 0
+    if (save.goldenCoins === undefined) save.goldenCoins = 0
+    if (!save.visitors) save.visitors = []
+    if (save.lastSandboxLoopAt === undefined) save.lastSandboxLoopAt = 0
+
+    // Migrate supply routes missing aiOwned field
+    if (save.supplyRoutes) {
+      save.supplyRoutes.forEach(r => {
+        if (r.aiOwned === undefined) r.aiOwned = false
+      })
+    }
+
+    // Migrate rarity and clamp levels for all staff and assassins
+    const validRarities = new Set(['D', 'C', 'B', 'A', 'S'])
+    Object.values(save.branches).forEach(branch => {
+      Object.values(branch.staff).forEach(staff => {
+        if (!validRarities.has(staff.rarity)) staff.rarity = 'C'
+        if (staff.level > 10) staff.level = 10
+      })
+      Object.values(branch.assassins).forEach(assassin => {
+        if (!validRarities.has(assassin.rarity)) assassin.rarity = 'C'
+        if (assassin.level > 10) assassin.level = 10
+      })
+    })
 
     // Migrate branches missing royalBuildings
     Object.values(save.branches).forEach(branch => {
@@ -593,8 +653,8 @@ class GameStateManager {
         c: v.currency, le: v.lifetimeEarnings, p: v.prestige, r: v.reputation,
         md: v.markerDebts ? v.markerDebts.reduce((s, d) => s + d.amount, 0) : 0,
         b: Object.fromEntries(Object.entries(v.buildings).map(([bk, bv]) => [bk, bv.level + ':' + (bv.unlocked ? 1 : 0)])),
-        s: Object.values(v.staff).map(s => s.typeId + ':' + s.level).join(','),
-        as: Object.values(v.assassins).map(a => a.typeId + ':' + a.level + ':' + Math.round(a.loyalty) + (a.awakened ? ':1' : ':0')).join(','),
+        s: Object.values(v.staff).map(s => s.typeId + ':' + s.level + ':' + s.rarity + ':' + s.stats.precision + ':' + s.stats.speed + ':' + s.stats.charisma + ':' + s.stats.luck + ':' + s.traits.join('.') + ':' + (s.veteran ? 1 : 0) + ':' + s.prestigeSurvivedCount).join(','),
+        as: Object.values(v.assassins).map(a => a.typeId + ':' + a.level + ':' + Math.round(a.loyalty) + (a.awakened ? ':1' : ':0') + ':' + a.rarity + ':' + a.stats.precision + ':' + a.stats.speed + ':' + a.stats.charisma + ':' + a.stats.luck + ':' + a.traits.join('.') + ':' + a.synergyCount + ':' + (a.assignedBranch || 'null') + ':' + (a.lentTo || 'null') + ':' + (a.attackTarget || 'null')).join(','),
         up: v.upgrades.join(','),
         hl: v.heatLevel, gs: v.guestSatisfaction,
         hh: v.hqHealth, hm: v.hqMaxHealth, ad: v.aiOwnerDefeated ? 1 : 0,
@@ -625,9 +685,12 @@ class GameStateManager {
     if (state.royalPrestige !== undefined) dataObj.rp = state.royalPrestige
     if (state.sovereign !== undefined) dataObj.sv = state.sovereign ? 1 : 0
     if (state.sandboxLoops !== undefined) dataObj.sl = state.sandboxLoops
+    if (state.goldenCoins !== undefined) dataObj.gc = state.goldenCoins
     if (state.royalSkillTree) dataObj.rst = JSON.stringify(state.royalSkillTree)
     if (state.royalDecrees) dataObj.rd = state.royalDecrees.map(d => d.type + ':' + d.value + ':' + (d.expiresAt ?? 'null')).join(',')
     if (state.lastDecreeAt !== undefined) dataObj.ld = state.lastDecreeAt
+    if (state.visitors) dataObj.vi = state.visitors.map(v => v.typeId + ':' + v.rarity + ':' + v.isAssassin + ':' + v.level + ':' + v.stats.precision + ':' + v.stats.speed + ':' + v.stats.charisma + ':' + v.stats.luck + ':' + v.traits.join('.')).join(',')
+    if (state.lastSandboxLoopAt !== undefined) dataObj.ls = state.lastSandboxLoopAt
     const data = JSON.stringify(dataObj)
     // FNV-1a hash — stronger than DJB2, covers all economically relevant fields
     let hash = 0x811c9dc5

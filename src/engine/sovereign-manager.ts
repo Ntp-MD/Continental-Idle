@@ -6,6 +6,7 @@ import type { RoyalDecree } from '@/types'
 import type { RoyalDecreeTemplate } from '@/data/royal-decrees'
 
 const DECREE_COOLDOWN = 24 * 3600 * 1000 // 24h in ms
+const SANDBOX_LOOP_COOLDOWN = 3600 * 1000 // 1h in ms
 
 class SovereignManager {
   checkVictory(): boolean {
@@ -113,6 +114,15 @@ class SovereignManager {
     })
   }
 
+  cleanupExpiredDecrees(): void {
+    const state = gameState.get()
+    const now = Date.now()
+    state.royalDecrees = state.royalDecrees.filter(d => {
+      if (d.expiresAt === null) return true
+      return d.expiresAt > now
+    })
+  }
+
   getActiveDecreeMult(type: RoyalDecree['type']): number {
     const active = this.getActiveDecrees().filter(d => d.type === type)
     if (active.length === 0) return 0
@@ -126,13 +136,16 @@ class SovereignManager {
   // Sandbox+ mode: after sovereign, can reset for increasing rewards
   canSandboxLoop(): boolean {
     const state = gameState.get()
-    return state.sovereign
+    if (!state.sovereign) return false
+    return Date.now() - state.lastSandboxLoopAt >= SANDBOX_LOOP_COOLDOWN
   }
 
   doSandboxLoop(): boolean {
     const state = gameState.get()
     if (!state.sovereign) return false
+    if (Date.now() - state.lastSandboxLoopAt < SANDBOX_LOOP_COOLDOWN) return false
 
+    state.lastSandboxLoopAt = Date.now()
     state.sandboxLoops += 1
     const loopMult = 1 + 0.10 * state.sandboxLoops
 

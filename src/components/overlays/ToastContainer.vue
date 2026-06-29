@@ -5,7 +5,7 @@ const { toasts } = useToast()
 </script>
 
 <template>
-  <div class="toast-container" role="alert" aria-live="polite">
+  <div class="toast-container" aria-live="polite">
     <div
       v-for="t in toasts"
       :key="t.id"

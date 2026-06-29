@@ -1237,5 +1237,172 @@ export const wikiSections: WikiSection[] = [
         ]
       }
     ]
+  },
+  {
+    id: 'hq-renovation',
+    title: 'HQ Renovation',
+    content: [
+      {
+        type: 'paragraph',
+        text: 'The HQ view has been renovated into an 11-floor hotel with two toggleable views: Bird\'s Eye (top-down architectural floor plan) and Fallout Shelter (side-view cross-section).'
+      },
+      {
+        type: 'heading',
+        level: 3,
+        text: 'Floor Layout'
+      },
+      {
+        type: 'table',
+        headers: ['Floor', 'Buildings', 'Description'],
+        rows: [
+          ['G', 'blackMarket, vault, underground', 'Basement — hidden trading, secure vault'],
+          ['1', 'reception (lobby)', 'Main floor — entrance, reception, visitor spawns'],
+          ['2', 'kitchen, bar', 'Restaurant & bar'],
+          ['3', 'laundry, guestRooms (Standard), Staff Room', 'Standard rooms (level 1-12) + staff room'],
+          ['4', 'guestRooms (Deluxe)', 'Deluxe rooms (level 13-25)'],
+          ['5', 'guestRooms (Executive)', 'Executive rooms (level 26-38)'],
+          ['6', 'guestRooms (Presidential)', 'Presidential suites (level 39-50)'],
+          ['7', 'vip (VIP Suites)', 'VIP guest suites'],
+          ['8', 'vip (Penthouse)', 'Presidential penthouse'],
+          ['9', 'armory, safeHouse', 'Security — assassins reside here'],
+          ['10', 'intelNetwork, Manager\'s Office', 'Intel + manager (visual only)'],
+          ['11', 'Rooftop', 'Helipad (visual only)'],
+        ]
+      },
+      {
+        type: 'info-box',
+        title: 'Views',
+        content: [
+          'Bird\'s Eye: Top-down 2D floor plan with floor selector thumbnails',
+          'Fallout: Side-view cross-section with 8 compressed bands',
+          'Toggle via the toolbar at the top of the HQ view',
+        ]
+      },
+    ]
+  },
+  {
+    id: 'rarity-system',
+    title: 'Rarity System',
+    content: [
+      {
+        type: 'paragraph',
+        text: 'All staff and assassins have a rarity tier from D to S. Rarity affects stat budgets, trait probabilities, and hire/level-up costs.'
+      },
+      {
+        type: 'table',
+        headers: ['Rarity', 'Stat Budget', 'Stat Range', 'Cost Mult', 'Color'],
+        rows: [
+          ['D', '12', '1-5', '0.5x', 'Grey'],
+          ['C', '16', '2-7', '1.0x', 'Green'],
+          ['B', '20', '3-9', '1.5x', 'Blue'],
+          ['A', '26', '4-12', '2.5x', 'Purple'],
+          ['S', '32', '5-15', '4.0x', 'Gold'],
+        ]
+      },
+      {
+        type: 'info-box',
+        title: 'Rarity Effects',
+        content: [
+          'Higher rarity = more stat points to distribute',
+          'Higher rarity = better trait rolls (more rare/positive traits, fewer negative)',
+          'Higher rarity = higher hire and level-up costs',
+          'Max level for all staff and assassins is 10',
+          'Existing saves default to C rarity on migration',
+        ]
+      },
+    ]
+  },
+  {
+    id: 'currencies',
+    title: 'Currencies',
+    content: [
+      {
+        type: 'paragraph',
+        text: 'The game has 3 currencies with different uses and sources.'
+      },
+      {
+        type: 'table',
+        headers: ['Currency', 'Scope', 'Use', 'Source'],
+        rows: [
+          ['Branch Currency', 'Per-branch', 'Buildings, staff hire/level, upgrades', 'Income per tick'],
+          ['Golden Coin', 'Global', 'Call Visitor (5 random visitors)', '1% of income per tick + events + 10 per prestige'],
+          ['Royal Mark', 'Global', 'Scroll: roll 1 character rarity B+', 'Royal/sovereign system'],
+        ]
+      },
+      {
+        type: 'info-box',
+        title: 'Golden Coins',
+        content: [
+          'Accumulate passively at 1% of total income across all branches',
+          'Also earned from event rewards and prestige (10 per prestige)',
+          'Used to Call Visitors: costs 10 Golden Coins for 5 random visitors',
+        ]
+      },
+      {
+        type: 'warning-box',
+        title: 'Royal Mark Scroll',
+        content: [
+          'Costs 1 Royal Mark per use',
+          'Spawns 1 visitor with rarity B or higher (B=70%, A=25%, S=5%)',
+          'Only available when sovereign',
+        ]
+      },
+    ]
+  },
+  {
+    id: 'visitor-system',
+    title: 'Visitor System',
+    content: [
+      {
+        type: 'paragraph',
+        text: 'Visitors are potential recruits who arrive at the HQ reception desk. You can view their stats and hire them.'
+      },
+      {
+        type: 'heading',
+        level: 3,
+        text: 'Visitor Sources'
+      },
+      {
+        type: 'list',
+        items: [
+          'Random spawn: 2% chance per tick, spawns 1 visitor',
+          'Call Visitor: 10 Golden Coins, spawns 5 visitors simultaneously',
+          'Royal Mark Scroll: 1 Royal Mark, spawns 1 visitor (B+ rarity only)',
+        ]
+      },
+      {
+        type: 'heading',
+        level: 3,
+        text: 'RNG Rates'
+      },
+      {
+        type: 'table',
+        headers: ['Source', 'D', 'C', 'B', 'A', 'S', 'Staff/Assassin'],
+        rows: [
+          ['Call Visitor', '35%', '35%', '20%', '8%', '2%', '70/30'],
+          ['Royal Mark', '-', '-', '70%', '25%', '5%', '70/30'],
+          ['Random Spawn', '40%', '30%', '20%', '8%', '2%', '70/30'],
+        ]
+      },
+      {
+        type: 'info-box',
+        title: 'Hiring & Assignment',
+        content: [
+          'Click a visitor to view their stats card',
+          'Hire cost = base hireCost × rarity cost multiplier (uses branch currency)',
+          'Hired staff auto-assign to their role\'s best match building',
+          'Hired assassins go to floor 9 (armory)',
+          'Visitors leave after 2 hours if not hired',
+        ]
+      },
+      {
+        type: 'warning-box',
+        title: 'Firing',
+        content: [
+          'Staff and assassins can be fired from the Staff Panel or HQ stats panel',
+          'Firing removes the character permanently — no refund',
+        ]
+      },
+    ]
   }
 ]

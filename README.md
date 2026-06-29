@@ -47,3 +47,6 @@ npm run test:all   # Run full feature test suite
 - TypeScript (strict mode)
 - Vite
 - D3.js + topojson-client (world map)
+
+
+

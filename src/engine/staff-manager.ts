@@ -1,19 +1,21 @@
-﻿import type { BranchId, StaffEntry, CharacterStats } from '@/types'
+﻿import type { BranchId, StaffEntry, CharacterStats, Rarity } from '@/types'
 import { STAFF_MAP } from '@/data/staff'
 import { getTraitMultiplier } from '@/data/traits'
 import { getTotalStaffXpMult, getExtraStaffSlots } from './skill-manager'
 import { getSovereignBuffMult } from './royal-manager'
 import { gameState } from './game-state'
 import { eventBus } from './event-bus'
+import { RARITY_CONFIG, rollRarityFromConfig, getRarityCostMult } from '@/data/rarity'
 
 function generateId(): string {
   return 'staff_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6)
 }
 
-function rollStats(): CharacterStats {
-  const budget = 20
-  const min = 2
-  const max = 10
+function rollStats(rarity: Rarity): CharacterStats {
+  const cfg = RARITY_CONFIG[rarity]
+  const budget = cfg.statBudget
+  const min = cfg.statMin
+  const max = cfg.statMax
   const stats = { precision: min, speed: min, charisma: min, luck: min }
   let remaining = budget - (min * 4)
 
@@ -30,27 +32,25 @@ function rollStats(): CharacterStats {
   return stats
 }
 
-function rollTraits(): string[] {
+function rollTraits(rarity: Rarity): string[] {
+  const cfg = RARITY_CONFIG[rarity]
   const traits: string[] = []
   const positivePool = ['workaholic', 'nightOwl', 'silverTongue', 'luckyCharm', 'perfectionist', 'naturalLeader', 'shadowTouched', 'bloodhound', 'oldGuard', 'efficient']
   const negativePool = ['lazy', 'hotHeaded', 'clumsy', 'superstitious', 'greedy']
   const rarePool = ['legendary', 'untouchable', 'mentor', 'shadowBond', 'goldenTouch']
 
-  // 10% rare chance (replaces one positive)
-  if (Math.random() < 0.10) {
+  if (Math.random() < cfg.traitRareChance) {
     traits.push(rarePool[Math.floor(Math.random() * rarePool.length)])
   } else {
-    // Roll up to 2 positive traits (60% each)
     for (let i = 0; i < 2; i++) {
-      if (Math.random() < 0.60) {
+      if (Math.random() < cfg.traitPositiveChance) {
         const t = positivePool[Math.floor(Math.random() * positivePool.length)]
         if (!traits.includes(t)) traits.push(t)
       }
     }
   }
 
-  // 30% chance for 1 negative
-  if (Math.random() < 0.30) {
+  if (Math.random() < cfg.traitNegativeChance) {
     traits.push(negativePool[Math.floor(Math.random() * negativePool.length)])
   }
 
@@ -112,6 +112,7 @@ export function hireStaff(staffTypeId: string, branchId?: BranchId): StaffEntry 
 
   branch.currency -= def.hireCost
 
+  const rarity = rollRarityFromConfig()
   const entry: StaffEntry = {
     id: generateId(),
     typeId: staffTypeId,
@@ -119,11 +120,12 @@ export function hireStaff(staffTypeId: string, branchId?: BranchId): StaffEntry 
     xp: 0,
     pendingLevelUp: false,
     assignedTo: null,
-    stats: rollStats(),
-    traits: rollTraits(),
+    stats: rollStats(rarity),
+    traits: rollTraits(rarity),
     veteran: false,
     veteranPerk: null,
     prestigeSurvivedCount: 0,
+    rarity,
   }
 
   branch.staff[entry.id] = entry
@@ -159,7 +161,8 @@ export function confirmLevelUp(staffId: string, branchId?: BranchId): boolean {
 
   const baseCost = getStaffLevelUpCost(staff.typeId, staff.level + 1)
   const traitCostMult = getTraitMultiplier(staff.traits, 'costMult')
-  const cost = Math.ceil(baseCost * traitCostMult)
+  const rarityCostMult = getRarityCostMult(staff.rarity)
+  const cost = Math.ceil(baseCost * traitCostMult * rarityCostMult)
   if (branch.currency < cost) return false
 
   branch.currency -= cost
@@ -167,6 +170,21 @@ export function confirmLevelUp(staffId: string, branchId?: BranchId): boolean {
   staff.xp = 0
   staff.pendingLevelUp = false
   eventBus.emit('staff:levelup', { staffId, level: staff.level })
+  eventBus.emit('income:update')
+  return true
+}
+
+export function fireStaff(staffId: string, branchId?: BranchId): boolean {
+  const state = gameState.get()
+  const id = branchId || state.activeBranch
+  const branch = state.branches[id]
+  if (!branch) return false
+  const staff = branch.staff[staffId]
+  if (!staff) return false
+
+  staff.assignedTo = null
+  delete branch.staff[staffId]
+  eventBus.emit('staff:fired', { staffId, branch: id })
   eventBus.emit('income:update')
   return true
 }

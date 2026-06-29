@@ -9,7 +9,7 @@ import { sovereignManager } from './sovereign-manager'
 import { gameState } from './game-state'
 import { getBranchIncomePerSecond } from './income-engine'
 import { eventBus } from './event-bus'
-import { getActiveAIOwners, generateAIEvent, getAIOwner, pickAIEvent, getPlayerPower } from './ai-owner-manager'
+import { getActiveAIOwners, generateAIEvent, getAIOwner, pickAIEvent, getPlayerPower, improveRelations, worsenRelations } from './ai-owner-manager'
 
 function generateBuffId(): string {
   return 'buff_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6)
@@ -130,6 +130,7 @@ interface ActiveEvent {
   triggeredAt: number
   branch: BranchId
   raidData?: RaidData
+  aiOwnerBranch?: BranchId | null
 }
 
 const RAID_NAMES = ['Phantom', 'Viper', 'Wraith', 'Knell', 'Razor', 'Talon', 'Shade', 'Specter', 'Cipher', 'Echo']
@@ -199,6 +200,10 @@ class EventEngine {
 
   getActiveEvent(): ActiveEvent | null {
     return this.activeEvent
+  }
+
+  hasActiveEvent(): boolean {
+    return this.activeEvent !== null
   }
 
   getRaidData(): RaidData | null {
@@ -279,7 +284,7 @@ class EventEngine {
     }
   }
 
-  private triggerEvent(def: EventDefinition): void {
+  private triggerEvent(def: EventDefinition, aiOwnerBranch?: BranchId | null): void {
     const state = gameState.get()
     const raidData = def.id === 'assassinRaid' ? generateRaid(state.activeBranch) : undefined
     this.activeEvent = {
@@ -287,6 +292,7 @@ class EventEngine {
       triggeredAt: Date.now(),
       branch: state.activeBranch,
       raidData,
+      aiOwnerBranch: aiOwnerBranch ?? null,
     }
     this.lastEventTimes.set(state.activeBranch, Date.now() / 1000)
     if (def.id === 'assassinRaid') {
@@ -428,13 +434,45 @@ class EventEngine {
       }
     }
 
+    // Update AI relations based on event choice
+    if (this.activeEvent.aiOwnerBranch) {
+      const ownerBranch = this.activeEvent.aiOwnerBranch
+      const eventId = this.activeEvent.definition.id
+      if (eventId.startsWith('ai_')) {
+        const eventType = eventId.split('_')[1]
+        if (eventType === 'truce' && choiceId === 'accept') {
+          improveRelations(ownerBranch, 15)
+        } else if (eventType === 'tribute' && choiceId === 'pay') {
+          improveRelations(ownerBranch, 5)
+        } else if (eventType === 'tribute' && choiceId === 'refuse') {
+          worsenRelations(ownerBranch, 10)
+        } else if (eventType === 'spy' && choiceId === 'release') {
+          improveRelations(ownerBranch, 10)
+        } else if (eventType === 'spy' && choiceId === 'interrogate') {
+          worsenRelations(ownerBranch, 8)
+        } else if (eventType === 'raid' && choiceId === 'fight') {
+          worsenRelations(ownerBranch, 15)
+        } else if (eventType === 'raid' && choiceId === 'pay') {
+          improveRelations(ownerBranch, 3)
+        } else if (eventType === 'provocation' && choiceId === 'stand') {
+          worsenRelations(ownerBranch, 5)
+        } else if (eventType === 'provocation' && choiceId === 'back') {
+          improveRelations(ownerBranch, 5)
+        } else if (eventType === 'sabotage' && choiceId === 'retaliate') {
+          worsenRelations(ownerBranch, 12)
+        }
+      }
+    }
+
     // Log
     state.eventLog.push({
       timestamp: Date.now(),
       branch: this.activeEvent.branch,
       eventId: this.activeEvent.definition.id,
       choiceId,
-      outcome: 'resolved',
+      outcome: (this.activeEvent.definition.id === 'assassinRaid' && choiceId === 'fight')
+        ? (raidWon ? 'raid_won' : 'raid_lost')
+        : 'resolved',
     })
     if (state.eventLog.length > 200) state.eventLog = state.eventLog.slice(-200)
 
@@ -456,6 +494,11 @@ class EventEngine {
     }
     branch.reputation = Math.max(0, branch.reputation - 15)
     branch.guestSatisfaction = Math.max(0, branch.guestSatisfaction - 5)
+
+    // Ignoring AI events worsens relations slightly
+    if (this.activeEvent.aiOwnerBranch) {
+      worsenRelations(this.activeEvent.aiOwnerBranch, 5)
+    }
 
     state.eventLog.push({
       timestamp: Date.now(),
@@ -504,7 +547,7 @@ class EventEngine {
     if (!eventType) return
 
     const def = generateAIEvent(aiOwnerState, eventType, state.activeBranch)
-    this.triggerEvent(def)
+    this.triggerEvent(def, aiOwnerState.branchId)
   }
 
   tick(): void {

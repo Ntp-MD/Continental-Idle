@@ -9,11 +9,11 @@
 .game-header {
 	background: var(--bg-tertiary);
 	border-bottom: 1px solid var(--border-dim);
-	padding: 10px 20px;
+	padding: var(--gap-sm) var(--gap-md);
 	display: flex;
 	justify-content: space-between;
 	align-items: center;
-	gap: 16px;
+	gap: var(--gap-md);
 	flex-shrink: 0;
 }
 
@@ -27,14 +27,14 @@
 
 .game-header__currencies {
 	display: flex;
-	gap: 20px;
+	gap: var(--gap-md);
 	align-items: baseline;
 }
 
 .game-header__currency {
 	display: flex;
 	align-items: baseline;
-	gap: 6px;
+	gap: var(--gap-xs);
 }
 
 .game-header__currency-label {
@@ -87,7 +87,7 @@
 }
 
 .theme-tabs__tab {
-	padding: 8px 16px;
+	padding: var(--gap-sm) var(--gap-md);
 	border: none;
 	border-bottom: 2px solid transparent;
 	background: transparent;
@@ -133,7 +133,7 @@
 	right: 8px;
 	display: flex;
 	flex-direction: column;
-	gap: 3px;
+	gap: var(--gap-xs);
 }
 
 .world-map__btn {
@@ -142,7 +142,7 @@
 	color: var(--text-secondary);
 	font-family: inherit;
 	font-size: 12px;
-	padding: 2px 8px;
+	padding: var(--gap-xs) var(--gap-sm);
 	cursor: pointer;
 	transition: all 0.15s;
 }
@@ -158,7 +158,7 @@
 	top: 50%;
 	left: 50%;
 	transform: translate(-50%, -50%);
-	padding: 12px 24px;
+	padding: var(--gap-sm) var(--gap-md);
 	font-size: 12px;
 	text-transform: uppercase;
 	letter-spacing: 1px;
@@ -182,7 +182,7 @@
 	bottom: 8px;
 	left: 8px;
 	display: flex;
-	gap: 12px;
+	gap: var(--gap-sm);
 	font-size: 9px;
 	color: var(--text-dim);
 }
@@ -190,7 +190,7 @@
 .world-map__legend-item {
 	display: flex;
 	align-items: center;
-	gap: 4px;
+	gap: var(--gap-xs);
 }
 
 .world-map__legend-dot {
@@ -203,7 +203,7 @@
 	position: absolute;
 	background: var(--bg-card);
 	border: 1px solid var(--accent-gold);
-	padding: 8px 12px;
+	padding: var(--gap-sm) var(--gap-sm);
 	font-size: 10px;
 	pointer-events: none;
 	z-index: 10;
@@ -214,12 +214,12 @@
 	color: var(--accent-gold);
 	font-weight: bold;
 	text-transform: uppercase;
-	margin-bottom: 4px;
+	margin-bottom: var(--gap-xs);
 }
 
 .world-map__tooltip-row {
 	color: var(--text-dim);
-	margin: 2px 0;
+	margin: var(--gap-xs) 0;
 }
 
 .world-map__tooltip-val {
@@ -323,10 +323,13 @@
 }
 
 @keyframes node-defend-pulse {
-	0%, 100% {
+
+	0%,
+	100% {
 		opacity: 1;
 		r: 6;
 	}
+
 	50% {
 		opacity: 0.6;
 		r: 8;
@@ -357,7 +360,7 @@
 	width: 320px;
 	background: var(--bg-tertiary);
 	border-right: 1px solid var(--border-dim);
-	padding: 15px;
+	padding: var(--gap-md);
 	overflow-y: auto;
 	flex-shrink: 0;
 	transition: width 0.2s, padding 0.2s;
@@ -396,7 +399,7 @@
 	color: var(--text-dim);
 	font-family: inherit;
 	font-size: 11px;
-	padding: 8px 20px;
+	padding: var(--gap-sm) var(--gap-md);
 	cursor: pointer;
 	transition: all 0.15s;
 	text-transform: uppercase;
@@ -419,7 +422,7 @@
 	flex: 1;
 	display: flex;
 	flex-direction: column;
-	padding: 8px;
+	padding: var(--gap-sm);
 	overflow: hidden;
 	min-height: 0;
 }
@@ -464,7 +467,7 @@
 	left: 50%;
 	transform: translateX(-50%);
 	display: flex;
-	gap: 6px;
+	gap: var(--gap-xs);
 	z-index: 5;
 }
 
@@ -474,7 +477,7 @@
 	color: var(--text-secondary);
 	font-family: inherit;
 	font-size: 11px;
-	padding: 6px 14px;
+	padding: var(--gap-xs) var(--gap-sm);
 	cursor: pointer;
 	transition: all 0.15s;
 	text-transform: uppercase;
@@ -491,12 +494,19 @@
 .game-status {
 	background: var(--bg-tertiary);
 	border-top: 1px solid var(--border-dim);
-	padding: 6px 20px;
+	padding: var(--gap-xs) var(--gap-md);
 	display: flex;
 	justify-content: space-between;
 	font-size: 10px;
 	color: var(--text-dim);
 	flex-shrink: 0;
+}
+
+@media (max-width: 1280px) {
+	.game-map-actions {
+		flex-wrap: wrap;
+		max-width: 95%;
+	}
 }
 
 @media (max-width: 1024px) {
@@ -505,31 +515,100 @@
 	}
 
 	.game-header {
-		padding: 8px 16px;
-		gap: 12px;
+		padding: var(--gap-sm) var(--gap-md);
+		gap: var(--gap-sm);
 	}
 
 	.game-header__currencies {
 		flex-wrap: wrap;
-		gap: 12px;
+		gap: var(--gap-sm);
+	}
+}
+
+@media (min-width: 1440px) {
+	.game-sidebar {
+		width: 360px;
 	}
 
-	.game-map-actions {
-		flex-wrap: wrap;
-		max-width: 95%;
+	.game-header {
+		padding: var(--gap-sm) var(--gap-md);
+	}
+
+	.game-header__title {
+		font-size: 18px;
+	}
+
+	.game-header__currency-value {
+		font-size: 15px;
+	}
+
+	.game-map-actions__btn {
+		padding: var(--gap-sm) var(--gap-md);
+		font-size: 12px;
+	}
+
+	.building-card__name {
+		font-size: 13px;
+	}
+
+	.building-card__rate {
+		font-size: 12px;
+	}
+}
+
+@media (min-width: 1920px) {
+	.game-sidebar {
+		width: 420px;
+	}
+
+	.game-header {
+		padding: var(--gap-sm) var(--gap-lg);
+	}
+
+	.game-header__title {
+		font-size: 20px;
+	}
+
+	.game-header__currency-value {
+		font-size: 16px;
+	}
+
+	.game-map-actions__btn {
+		padding: var(--gap-sm) var(--gap-md);
+		font-size: 13px;
+	}
+
+	.game-panel__content {
+		width: 90vw;
+		max-width: 90vw;
+	}
+
+	.game-panel__content--wide {
+		width: 92vw;
+		max-width: 92vw;
+	}
+
+	.supply-route-panel {
+		width: 92vw;
+		max-width: 92vw;
+	}
+
+	.power-balance-panel {
+		width: 92vw;
+		max-width: 92vw;
 	}
 }
 
 @media (max-width: 768px) {
 	.game-header {
 		flex-wrap: wrap;
-		padding: 8px 12px;
-		gap: 8px;
+		padding: var(--gap-sm) var(--gap-sm);
+		gap: var(--gap-sm);
 	}
 
 	.game-header__currencies {
 		flex-wrap: wrap;
-		gap: 10px;
+		gap: var(--gap-sm);
 	}
 
 	.game-main {
@@ -555,7 +634,7 @@
 	}
 
 	.game-map-actions__btn {
-		padding: 4px 10px;
+		padding: var(--gap-xs) var(--gap-sm);
 		font-size: 10px;
 	}
 }
@@ -567,7 +646,7 @@
 	}
 
 	.game-header__currencies {
-		gap: 8px;
+		gap: var(--gap-sm);
 	}
 
 	.game-header__currency-label {
@@ -584,7 +663,7 @@
 
 	.game-map-actions {
 		flex-direction: column;
-		gap: 3px;
+		gap: var(--gap-xs);
 	}
 
 	.game-map-actions__btn {

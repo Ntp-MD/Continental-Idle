@@ -102,13 +102,13 @@ function splitBold(text: string): TextSegment[] {
 .wiki-table {
   width: 100%;
   border-collapse: collapse;
-  margin: 15px 0;
+  margin: var(--gap-md) 0;
 }
 
 .wiki-table th,
 .wiki-table td {
   border: 1px solid var(--text-primary);
-  padding: 10px;
+  padding: var(--gap-sm);
   text-align: left;
 }
 
@@ -123,31 +123,31 @@ function splitBold(text: string): TextSegment[] {
 
 .wiki-info {
   border: 1px solid var(--wiki-blue);
-  padding: 15px;
-  margin: 15px 0;
+  padding: var(--gap-md);
+  margin: var(--gap-md) 0;
   background-color: var(--wiki-blue-bg);
 }
 
 .wiki-info h4 {
   color: var(--wiki-blue);
-  margin-bottom: 10px;
+  margin-bottom: var(--gap-sm);
 }
 
 .wiki-warning {
   border: 1px solid var(--wiki-red);
-  padding: 15px;
-  margin: 15px 0;
+  padding: var(--gap-md);
+  margin: var(--gap-md) 0;
   background-color: var(--wiki-red-bg);
 }
 
 .wiki-warning h4 {
   color: var(--wiki-red);
-  margin-bottom: 10px;
+  margin-bottom: var(--gap-sm);
 }
 
 code {
   background-color: var(--bg-card);
-  padding: 2px 6px;
+  padding: var(--gap-xs) var(--gap-xs);
   border: 1px solid var(--text-primary);
   font-family: 'Courier New', monospace;
 }
@@ -155,9 +155,9 @@ code {
 pre {
   background-color: var(--bg-card);
   border: 1px solid var(--text-primary);
-  padding: 15px;
+  padding: var(--gap-md);
   overflow-x: auto;
-  margin: 15px 0;
+  margin: var(--gap-md) 0;
 }
 
 pre code {

@@ -251,7 +251,7 @@ export function tickRoyalMarks(): void {
     // 1 Royal Mark per 1B royal building income per tick
     totalMarks += royalIncome / 1_000_000_000
   })
-  state.royalMarks += totalMarks * 0.1 // 10% of calculated rate per tick
+  state.royalMarks = Math.round((state.royalMarks + totalMarks * 0.1) * 100) / 100
 }
 
 // === Sovereign Bonus ===

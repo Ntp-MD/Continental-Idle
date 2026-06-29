@@ -3,19 +3,21 @@ import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { gameState } from '@/engine/game-state'
 import { STAFF_TYPES } from '@/data/staff'
 import { BUILDINGS } from '@/data/buildings'
-import { hireStaff, assignStaff, confirmLevelUp, getStaffXpToNext, getStaffLevelUpCost, isStaffUnlocked } from '@/engine/staff-manager'
+import { hireStaff, assignStaff, confirmLevelUp, getStaffXpToNext, getStaffLevelUpCost, isStaffUnlocked, fireStaff } from '@/engine/staff-manager'
 import { getExtraStaffSlots } from '@/engine/skill-manager'
-import { hireAssassin, isAssassinUnlocked, assignAssassin, lendAssassin, recallAssassin, sendAssassinToAttack, cancelAssassinAttack, confirmAssassinLevelUp, getAssassinXpToNext, getAssassinLevelUpCost } from '@/engine/assassin-manager'
+import { hireAssassin, isAssassinUnlocked, assignAssassin, lendAssassin, recallAssassin, sendAssassinToAttack, cancelAssassinAttack, confirmAssassinLevelUp, getAssassinXpToNext, getAssassinLevelUpCost, fireAssassin } from '@/engine/assassin-manager'
 import { ASSASSIN_TYPES } from '@/data/assassins'
 import { getTotalDebt, repayDebt, repayAllDebts } from '@/engine/debt-manager'
 import { formatNumber } from '@/engine/format'
 import { eventBus } from '@/engine/event-bus'
 import { tutorialManager } from '@/engine/tutorial-manager'
 import { getBranchDef, BRANCHES } from '@/data/branches'
+import { getRarityColor } from '@/data/rarity'
 import { canInitiateTakeover, getTakeoverProgress, getHqHealthPercent } from '@/engine/takeover-manager'
+import { canLayLow, layLow, canHostEvent, hostEvent, canBribeOfficial, bribeOfficial, canGoldenCoinIncomeBoost, goldenCoinIncomeBoost, getLayLowCost, getHostEventCost, getBribeOfficialCost, getGoldenCoinIncomeBoostCost, getGoldenCoinIncomeBoostDuration } from '@/engine/actions-manager'
 import { UPGRADES, purchaseUpgrade, isUpgradePurchased } from '@/engine/upgrade-manager'
 
-import type { StaffEntry, BranchId } from '@/types'
+import type { StaffEntry, BranchId, Rarity } from '@/types'
 
 const props = defineProps<{ visible: boolean }>()
 const emit = defineEmits(['close'])
@@ -56,8 +58,10 @@ const assassinList = ref<Array<{
   traitNames: string[]
   synergyCount: number
   awakened: boolean
+  awakeningProgress: string
   lentTo: string
   ability: string
+  rarity: Rarity
 }>>([])
 const assassinOptions = ref<Array<{ id: string; name: string; rank: string; cost: string; affordable: boolean; unlocked: boolean; ability: string; atCap: boolean }>>([])
 const unlockedBranches = ref<Array<{ id: BranchId; name: string }>>([])
@@ -90,7 +94,7 @@ function update() {
       typeName: def?.name || s.typeId,
       xpPercent: Math.min(100, (s.xp / xpNeeded) * 100),
       levelUpCost: formatNumber(getStaffLevelUpCost(s.typeId, s.level + 1)),
-      maxLevel: def?.maxLevel || 20,
+      maxLevel: def?.maxLevel || 10,
       isMaxed,
       maxAbility: def?.maxAbility || '',
       traitNames,
@@ -147,8 +151,10 @@ function update() {
       traitNames: a.traits,
       synergyCount: a.synergyCount,
       awakened: a.awakened,
+      awakeningProgress: a.awakened ? 'AWAKENED' : `Loyalty ${Math.round(a.loyalty)}/100, Synergy ${a.synergyCount}/3`,
       lentTo: lentbranchName,
       ability: def?.ability || '',
+      rarity: a.rarity,
     }
   })
 
@@ -243,6 +249,16 @@ function doLevelUp(staffId: string) {
   update()
 }
 
+function doFireStaff(staffId: string) {
+  fireStaff(staffId)
+  update()
+}
+
+function doFireAssassin(assassinId: string) {
+  fireAssassin(assassinId)
+  update()
+}
+
 function doAssignAssassin(assassinId: string, branchId: string) {
   assignAssassin(assassinId, branchId === '' ? null : branchId as BranchId)
   update()
@@ -280,6 +296,22 @@ function doPurchaseUpgrade(id: string) {
   update()
 }
 
+function doLayLow() {
+  if (layLow()) update()
+}
+
+function doHostEvent() {
+  if (hostEvent()) update()
+}
+
+function doBribeOfficial() {
+  if (bribeOfficial()) update()
+}
+
+function doGoldenCoinIncomeBoost() {
+  if (goldenCoinIncomeBoost()) update()
+}
+
 // Debounced versions for critical actions
 const debouncedDoHire = createDebouncedAction(doHire)
 const debouncedDoHireAssassin = createDebouncedAction(doHireAssassin)
@@ -305,8 +337,8 @@ watch(() => props.visible, (v) => {
 
 <template>
   <div v-if="visible" class="game-panel" @click.self="emit('close')">
-    <div class="game-panel__content">
-      <h2 class="game-panel__title">Staff & Assassins</h2>
+    <div class="game-panel__content" role="dialog" aria-modal="true" aria-labelledby="panel-title-staff">
+      <h2 id="panel-title-staff" class="game-panel__title">Staff & Assassins</h2>
 
       <div class="section-header">Hire Staff <span v-if="hireOptions[0]?.atCap" class="staff-section-note">(Cap reached)</span></div>
       <div class="staff-hire">
@@ -346,6 +378,7 @@ watch(() => props.visible, (v) => {
       <div v-for="s in staffList" :key="s.id" class="staff-card">
         <div class="staff-card__header">
           <span class="staff-card__name">{{ s.typeName }} Lv.{{ s.level }}/{{ s.maxLevel }}</span>
+          <span class="staff-card__rarity" :style="{ color: getRarityColor(s.rarity) }">{{ s.rarity }}</span>
           <span v-if="s.isVeteran" class="staff-card__veteran">VETERAN</span>
           <span v-if="s.isMaxed" class="staff-card__maxed">MAX</span>
         </div>
@@ -374,6 +407,7 @@ watch(() => props.visible, (v) => {
             @click="debouncedDoLevelUp(s.id)"
             class="staff-assign__levelup"
           >Level Up ({{ s.levelUpCost }})</button>
+          <button @click="doFireStaff(s.id)" class="staff-assign__fire">Fire</button>
         </div>
       </div>
 
@@ -396,10 +430,12 @@ watch(() => props.visible, (v) => {
         <div v-for="a in assassinList" :key="a.id" class="staff-card assassin-card">
           <div class="assassin-card__header">
             <span class="assassin-card__name">{{ a.typeName }} Lv.{{ a.level }}/{{ a.maxLevel }}</span>
+            <span class="staff-card__rarity" :style="{ color: getRarityColor(a.rarity) }">{{ a.rarity }}</span>
             <span v-if="a.awakened" class="assassin-card__awakened">AWAKENED</span>
             <span v-if="a.synergyCount > 0" class="assassin-card__synergy">Syn:{{ a.synergyCount }}</span>
           </div>
           <div class="assassin-card__ability">{{ a.ability }}</div>
+          <div v-if="!a.awakened" class="assassin-card__awakening-progress">Awakening: {{ a.awakeningProgress }}</div>
           <div class="staff-card__xp-bar">
             <div class="staff-card__xp-fill" :style="{ width: a.xpPercent + '%' }"></div>
           </div>
@@ -440,6 +476,7 @@ watch(() => props.visible, (v) => {
               @click="debouncedDoAssassinLevelUp(a.id)"
               class="staff-assign__levelup"
             >Level Up ({{ a.levelUpCost }})</button>
+            <button @click="doFireAssassin(a.id)" class="staff-assign__fire">Fire</button>
           </div>
           <div v-if="a.attackTarget" class="assassin-card__attack-status">
             <span class="assassin-card__attack-target">Attacking: {{ a.attackTarget }}</span>
@@ -456,6 +493,16 @@ watch(() => props.visible, (v) => {
               <option v-for="t in attackTargets" :key="t.id" :value="t.id">{{ t.name }} (HP: {{ t.hpPercent.toFixed(0) }}%)</option>
             </select>
           </div>
+        </div>
+      </template>
+
+      <template v-if="debts.length > 0 || canLayLow() || canHostEvent() || canBribeOfficial() || canGoldenCoinIncomeBoost()">
+        <div class="section-header staff-section-gap">Golden Coin Actions</div>
+        <div class="golden-coin-actions">
+          <button v-if="canLayLow()" class="golden-coin-btn" @click="doLayLow">Lay Low ({{ getLayLowCost() }} GC, -3 Heat)</button>
+          <button v-if="canHostEvent()" class="golden-coin-btn" @click="doHostEvent">Host Event ({{ getHostEventCost() }} GC, +15 Guests)</button>
+          <button v-if="canBribeOfficial()" class="golden-coin-btn" @click="doBribeOfficial">Bribe Official ({{ getBribeOfficialCost() }} GC, -5 Heat)</button>
+          <button v-if="canGoldenCoinIncomeBoost()" class="golden-coin-btn" @click="doGoldenCoinIncomeBoost">Income Boost ({{ getGoldenCoinIncomeBoostCost() }} GC, 1.5x for {{ getGoldenCoinIncomeBoostDuration() }}s)</button>
         </div>
       </template>
 

@@ -60,7 +60,10 @@ export function getStoryContext(hqBranch: BranchId): StoryContext {
   // The killer is the AI owner of the nearest rival branch
   // Pick the first non-HQ, non-starter branch as the killer's base
   const allBranches = Object.keys(FATHER_NAMES) as BranchId[]
-  const killerBranchId = allBranches.find(id => id !== hqBranch && id !== 'newYork' && id !== 'bangkok') || 'rome'
+  const candidates = allBranches.filter(id => id !== hqBranch && id !== 'newYork' && id !== 'bangkok')
+  const killerBranchId = candidates.length > 0
+    ? candidates[Math.floor(Math.random() * candidates.length)]
+    : 'rome'
   const killerName = getAIName(killerBranchId)
   const killerTemperament = getAITemperamentForBranch(killerBranchId)
   const killerBranchName = getBranchDef(killerBranchId).name

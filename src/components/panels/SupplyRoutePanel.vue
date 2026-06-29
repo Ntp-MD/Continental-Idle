@@ -137,6 +137,14 @@ function getRouteIncome(route: SupplyRoute): number {
   return route.incomePerTick * (route.stability / 100)
 }
 
+const totalRouteIncome = computed(() => {
+  return routes.value
+    .filter(r => !r.aiOwned)
+    .reduce((sum, r) => sum + getRouteIncome(r), 0)
+})
+
+const aiRouteCount = computed(() => routes.value.filter(r => r.aiOwned).length)
+
 onMounted(() => {
   refresh()
   eventBus.on('supplyroute:established', refresh)
@@ -172,6 +180,11 @@ onUnmounted(() => {
       <!-- Active Routes -->
       <section class="supply-route__section">
         <h3 class="supply-route__heading">Active Routes ({{ routes.length }})</h3>
+        <div v-if="routes.length > 0" class="supply-route__summary">
+          <span class="supply-route__summary-item">Total Income: {{ formatNumber(totalRouteIncome) }}/tick</span>
+          <span class="supply-route__summary-item">Player Routes: {{ routes.filter(r => !r.aiOwned).length }}</span>
+          <span v-if="aiRouteCount > 0" class="supply-route__summary-item">AI Routes: {{ aiRouteCount }} (hijackable)</span>
+        </div>
         <div v-if="routes.length === 0" class="supply-route__empty">
           No supply routes established yet.
         </div>

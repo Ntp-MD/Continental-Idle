@@ -15,7 +15,7 @@ const isSovereign = ref(false)
 const sandboxLoops = ref(0)
 const canDecree = ref(false)
 const decreeChoices = ref<RoyalDecreeTemplate[]>([])
-const activeDecrees = ref<{ name: string; description: string; expiresAt: number | null }[]>([])
+const activeDecrees = ref<{ name: string; description: string; expiresAt: number | null; timeLeft: string }[]>([])
 const timeUntilDecree = ref('')
 
 const conqueredCount = computed(() => gameState.get().worldMap.conqueredBranches.length)
@@ -28,11 +28,27 @@ function update() {
   isSovereign.value = state.sovereign
   sandboxLoops.value = state.sandboxLoops
   canDecree.value = sovereignManager.canIssueDecree()
-  activeDecrees.value = sovereignManager.getActiveDecrees().map(d => ({
-    name: d.name,
-    description: d.description,
-    expiresAt: d.expiresAt,
-  }))
+  activeDecrees.value = sovereignManager.getActiveDecrees().map(d => {
+    let timeLeft = ''
+    if (d.expiresAt !== null) {
+      const remaining = d.expiresAt - Date.now()
+      if (remaining > 0) {
+        const hours = Math.floor(remaining / (3600 * 1000))
+        const mins = Math.floor((remaining % (3600 * 1000)) / (60 * 1000))
+        timeLeft = hours > 0 ? `${hours}h ${mins}m` : `${mins}m`
+      } else {
+        timeLeft = 'expiring'
+      }
+    } else {
+      timeLeft = 'permanent'
+    }
+    return {
+      name: d.name,
+      description: d.description,
+      expiresAt: d.expiresAt,
+      timeLeft,
+    }
+  })
 
   if (!canDecree.value && state.sovereign) {
     const remaining = (24 * 3600 * 1000) - (Date.now() - state.lastDecreeAt)
@@ -94,8 +110,8 @@ watch(() => props.visible, (v) => {
 
 <template>
   <div v-if="visible" class="game-panel" @click.self="emit('close')">
-    <div class="game-panel__content game-panel__content--wide">
-      <h2 class="game-panel__title">Sovereign of the High Table</h2>
+    <div class="game-panel__content game-panel__content--wide" role="dialog" aria-modal="true" aria-labelledby="panel-title-sovereign">
+      <h2 id="panel-title-sovereign" class="game-panel__title">Sovereign of the High Table</h2>
 
       <template v-if="!isSovereign">
         <div class="sov-locked">
@@ -142,6 +158,7 @@ watch(() => props.visible, (v) => {
             <div v-for="(d, i) in activeDecrees" :key="i" class="sov-active-decree">
               <span class="sov-active-decree__name">{{ d.name }}</span>
               <span class="sov-active-decree__desc">{{ d.description }}</span>
+              <span class="sov-active-decree__timer" :class="{ 'sov-active-decree__timer--permanent': d.expiresAt === null }">{{ d.timeLeft }}</span>
             </div>
           </div>
         </div>

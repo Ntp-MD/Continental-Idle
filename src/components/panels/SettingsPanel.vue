@@ -67,8 +67,8 @@ watch(() => props.visible, (v) => { if (v) update() })
 
 <template>
   <div v-if="visible" class="game-panel" @click.self="emit('close')">
-    <div class="game-panel__content">
-      <h2 class="game-panel__title">Settings</h2>
+    <div class="game-panel__content" role="dialog" aria-modal="true" aria-labelledby="panel-title-settings">
+      <h2 id="panel-title-settings" class="game-panel__title">Settings</h2>
 
       <div class="section-header">Accessibility</div>
 
