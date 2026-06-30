@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HQ Floor Plan Preview</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #0d0d0d; color: #c9a84c; font-family: Georgia, serif; padding: 20px; }
+  h1 { text-align: center; font-size: 18px; letter-spacing: 4px; margin-bottom: 20px; color: #c9a84c; }
+  .floors { display: flex; flex-direction: column; gap: 24px; max-width: 1240px; margin: 0 auto; }
+  .floor-section { border: 1px solid #333; border-radius: 8px; overflow: hidden; }
+  .floor-header { padding: 8px 16px; background: #1a1a1a; font-size: 12px; letter-spacing: 2px; color: #c9a84c; border-bottom: 1px solid #333; }
+  svg { display: block; width: 100%; height: auto; background: #0d0d0d; }
+</style>
+</head>
+<body>
+<h1>CONTINENTAL HQ — FLOOR PLAN PREVIEW</h1>
+<div class="floors" id="floors"></div>
+<script>
+// === Layout data (copied from hq-layout.ts) ===
+const SVG_W = 1200, SVG_H = 600;
+const ELEVATOR_X = 600, ELEVATOR_Y = 300, ELEVATOR_R = 42;
+const GOLD = '#c9a84c', GOLD_DIM = '#8a7340', GOLD_DARK = '#5a5a5a';
+const BG_DARK = '#1a1a1a', BG_DARKER = '#0d0d0d', BG_CORRIDOR = '#111111';
+
+const FLOOR_NAMES = {
+  G: 'Basement', '1': 'Lobby', '2': 'Restaurant & Bar', '3': 'Standard Rooms',
+  '4': 'Deluxe Rooms', '5': 'Executive Rooms', '6': 'Presidential Suites',
+  '7': 'VIP Suites', '8': 'Penthouse', '9': 'Security',
+  '10': 'Intel & Management', '11': 'Rooftop',
+};
+
+const FLOOR_LAYOUT = {
+  G: [
+    { id: 'loadingBay', x: 6, y: 6, w: 544, h: 244, label: 'Loading Bay', sub: 'Supply Receiving · Sorting', visual: true },
+    { id: 'blackMarket', x: 650, y: 6, w: 544, h: 244, label: 'Black Market', sub: 'Hidden Trading Floor' },
+    { id: 'underground', x: 6, y: 350, w: 544, h: 244, label: 'Underground Services', sub: 'MEP · Data · Control' },
+    { id: 'vault', x: 650, y: 350, w: 544, h: 244, label: 'Continental Vault', sub: 'Secure Storage' },
+  ],
+  '1': [
+    { id: 'concierge', x: 6, y: 6, w: 544, h: 244, label: 'Concierge', sub: 'Guest Services · Luggage' },
+    { id: 'lounge', x: 650, y: 6, w: 544, h: 244, label: 'Waiting Lounge', sub: 'Seating Area', visual: true },
+    { id: 'reception', x: 6, y: 350, w: 544, h: 244, label: 'Reception Desk', sub: 'Grand Lobby' },
+    { id: 'entrance', x: 650, y: 350, w: 544, h: 244, label: 'Main Entrance', sub: 'Lobby Doors', visual: true },
+  ],
+  '2': [
+    { id: 'loadingBay2', x: 6, y: 6, w: 544, h: 244, label: 'Loading Bay', sub: 'Food Storage', visual: true },
+    { id: 'bar', x: 650, y: 6, w: 544, h: 244, label: 'Bar / Lounge', sub: 'No Business Conducted' },
+    { id: 'kitchen', x: 6, y: 350, w: 544, h: 244, label: 'Kitchen', sub: 'Fine Dining' },
+    { id: 'barLounge', x: 650, y: 350, w: 544, h: 244, label: 'Bar / Lounge', sub: 'Seating Area', visual: true },
+  ],
+  '3': [
+    { id: 'laundry', x: 6, y: 6, w: 272, h: 244, label: 'Laundry Service', sub: '' },
+    { id: 'staffRoom', x: 278, y: 6, w: 272, h: 244, label: 'Staff Room', sub: 'Visual Only', visual: true },
+    { id: 'guestRooms', x: 650, y: 6, w: 544, h: 244, label: 'Standard Rooms', sub: 'Level 1-12' },
+    { id: 'guestRoomsBL', x: 6, y: 350, w: 544, h: 244, label: 'Standard Rooms', sub: 'Level 1-12', levelKey: 'guestRooms' },
+    { id: 'guestRoomsBR', x: 650, y: 350, w: 544, h: 244, label: 'Standard Rooms', sub: 'Level 1-12', levelKey: 'guestRooms' },
+  ],
+  '4': [
+    { id: 'guestRoomsTL', x: 6, y: 6, w: 544, h: 244, label: 'Deluxe Rooms', sub: 'Level 13-25', levelKey: 'guestRooms' },
+    { id: 'guestRoomsTR', x: 650, y: 6, w: 544, h: 244, label: 'Deluxe Rooms', sub: 'Level 13-25', levelKey: 'guestRooms' },
+    { id: 'guestRooms', x: 6, y: 350, w: 544, h: 244, label: 'Deluxe Rooms', sub: 'Level 13-25' },
+    { id: 'guestRoomsBR', x: 650, y: 350, w: 544, h: 244, label: 'Deluxe Rooms', sub: 'Level 13-25', levelKey: 'guestRooms' },
+  ],
+  '5': [
+    { id: 'guestRoomsTL', x: 6, y: 6, w: 544, h: 244, label: 'Executive Rooms', sub: 'Level 26-38', levelKey: 'guestRooms' },
+    { id: 'guestRoomsTR', x: 650, y: 6, w: 544, h: 244, label: 'Executive Rooms', sub: 'Level 26-38', levelKey: 'guestRooms' },
+    { id: 'guestRooms', x: 6, y: 350, w: 544, h: 244, label: 'Executive Rooms', sub: 'Level 26-38' },
+    { id: 'guestRoomsBR', x: 650, y: 350, w: 544, h: 244, label: 'Executive Rooms', sub: 'Level 26-38', levelKey: 'guestRooms' },
+  ],
+  '6': [
+    { id: 'guestRoomsTL', x: 6, y: 6, w: 544, h: 244, label: 'Presidential Suites', sub: 'Level 39-50', levelKey: 'guestRooms' },
+    { id: 'guestRoomsTR', x: 650, y: 6, w: 544, h: 244, label: 'Presidential Suites', sub: 'Level 39-50', levelKey: 'guestRooms' },
+    { id: 'guestRooms', x: 6, y: 350, w: 544, h: 244, label: 'Presidential Suites', sub: 'Level 39-50' },
+    { id: 'guestRoomsBR', x: 650, y: 350, w: 544, h: 244, label: 'Presidential Suites', sub: 'Level 39-50', levelKey: 'guestRooms' },
+  ],
+  '7': [
+    { id: 'vipTL', x: 6, y: 6, w: 544, h: 244, label: 'VIP Suites', sub: 'Exclusive Guests', levelKey: 'vip' },
+    { id: 'vipTR', x: 650, y: 6, w: 544, h: 244, label: 'VIP Suites', sub: 'Exclusive Guests', levelKey: 'vip' },
+    { id: 'vip', x: 6, y: 350, w: 544, h: 244, label: 'VIP Suites', sub: 'Exclusive Guests' },
+    { id: 'vipBR', x: 650, y: 350, w: 544, h: 244, label: 'VIP Suites', sub: 'Exclusive Guests', levelKey: 'vip' },
+  ],
+  '8': [
+    { id: 'vipTL', x: 6, y: 6, w: 544, h: 244, label: 'Penthouse', sub: 'Presidential Penthouse', levelKey: 'vip' },
+    { id: 'vipTR', x: 650, y: 6, w: 544, h: 244, label: 'Penthouse', sub: 'Presidential Penthouse', levelKey: 'vip' },
+    { id: 'vip', x: 6, y: 350, w: 544, h: 244, label: 'Penthouse', sub: 'Presidential Penthouse' },
+    { id: 'vipBR', x: 650, y: 350, w: 544, h: 244, label: 'Penthouse', sub: 'Presidential Penthouse', levelKey: 'vip' },
+  ],
+  '9': [
+    { id: 'armory', x: 6, y: 6, w: 544, h: 244, label: 'Armory', sub: 'Weapon Storage' },
+    { id: 'safeHouse', x: 650, y: 6, w: 544, h: 244, label: 'Safe House', sub: 'Secure Bunker' },
+    { id: 'controlCenter', x: 6, y: 350, w: 544, h: 244, label: 'Control Center', sub: 'Security Ops', visual: true },
+    { id: 'safeHouseBunker', x: 650, y: 350, w: 544, h: 244, label: 'Safe House', sub: 'Bunker', visual: true },
+  ],
+  '10': [
+    { id: 'intelNetwork', x: 6, y: 6, w: 544, h: 244, label: 'Intelligence Network', sub: 'Comms Center' },
+    { id: 'managerOffice', x: 650, y: 6, w: 544, h: 244, label: "Manager's Office", sub: 'Visual Only', visual: true },
+    { id: 'datacenter', x: 6, y: 350, w: 544, h: 244, label: 'Datacenter', sub: 'Server Infrastructure', visual: true },
+    { id: 'staffQuarters', x: 650, y: 350, w: 544, h: 244, label: 'Staff Quarters', sub: 'BOH', visual: true },
+  ],
+  '11': [{ id: 'rooftop', x: 6, y: 6, w: 1188, h: 588, label: 'Rooftop Terrace', sub: 'Helipad', visual: true }],
+};
+
+const CORRIDOR_LAYOUT = {
+  G: [{ x: 550, y: 6, w: 100, h: 588, vertical: true, label: 'MAIN CORRIDOR' },{ x: 6, y: 250, w: 544, h: 100 },{ x: 650, y: 250, w: 544, h: 100 }],
+  '1': [{ x: 550, y: 6, w: 100, h: 588, vertical: true, label: 'LOBBY' },{ x: 6, y: 250, w: 1188, h: 100, label: 'GRAND LOBBY' }],
+  '2': [{ x: 550, y: 6, w: 100, h: 588, vertical: true, label: 'MAIN CORRIDOR' },{ x: 6, y: 250, w: 544, h: 100 },{ x: 650, y: 250, w: 544, h: 100 }],
+  '3': [{ x: 550, y: 6, w: 100, h: 588, vertical: true, label: 'STANDARD CORRIDOR' },{ x: 6, y: 250, w: 544, h: 100 },{ x: 650, y: 250, w: 544, h: 100 }],
+  '4': [{ x: 550, y: 6, w: 100, h: 588, vertical: true, label: 'DELUXE CORRIDOR' },{ x: 6, y: 250, w: 544, h: 100 },{ x: 650, y: 250, w: 544, h: 100 }],
+  '5': [{ x: 550, y: 6, w: 100, h: 588, vertical: true, label: 'EXECUTIVE CORRIDOR' },{ x: 6, y: 250, w: 544, h: 100 },{ x: 650, y: 250, w: 544, h: 100 }],
+  '6': [{ x: 550, y: 6, w: 100, h: 588, vertical: true, label: 'PRESIDENTIAL CORRIDOR' },{ x: 6, y: 250, w: 544, h: 100 },{ x: 650, y: 250, w: 544, h: 100 }],
+  '7': [{ x: 550, y: 6, w: 100, h: 588, vertical: true, label: 'VIP CORRIDOR' },{ x: 6, y: 250, w: 544, h: 100 },{ x: 650, y: 250, w: 544, h: 100 }],
+  '8': [{ x: 550, y: 6, w: 100, h: 588, vertical: true, label: 'PENTHOUSE CORRIDOR' },{ x: 6, y: 250, w: 544, h: 100 },{ x: 650, y: 250, w: 544, h: 100 }],
+  '9': [{ x: 550, y: 6, w: 100, h: 588, vertical: true, label: 'BLAST CORRIDOR' },{ x: 6, y: 250, w: 544, h: 100 },{ x: 650, y: 250, w: 544, h: 100 }],
+  '10': [{ x: 550, y: 6, w: 100, h: 588, vertical: true, label: 'MAIN CORRIDOR' },{ x: 6, y: 250, w: 544, h: 100 },{ x: 650, y: 250, w: 544, h: 100 }],
+  '11': [],
+};
+
+const DOOR_WIDTHS = { standard: 24, lobby: 50, sliding: 32 };
+const DOOR_LAYOUT = {
+  G: [{x:278,y:250,side:'bottom',cat:'standard'},{x:922,y:250,side:'bottom',cat:'standard'},{x:278,y:350,side:'top',cat:'standard'},{x:922,y:350,side:'top',cat:'standard'}],
+  '1': [{x:278,y:250,side:'bottom',cat:'standard'},{x:922,y:250,side:'bottom',cat:'standard'},{x:278,y:350,side:'top',cat:'lobby'},{x:922,y:350,side:'top',cat:'lobby'}],
+  '2': [{x:278,y:250,side:'bottom',cat:'standard'},{x:922,y:250,side:'bottom',cat:'standard'},{x:278,y:350,side:'top',cat:'standard'},{x:922,y:350,side:'top',cat:'standard'}],
+  '3': [{x:142,y:250,side:'bottom',cat:'standard'},{x:414,y:250,side:'bottom',cat:'standard'},{x:922,y:250,side:'bottom',cat:'standard'},{x:278,y:350,side:'top',cat:'standard'},{x:922,y:350,side:'top',cat:'standard'}],
+  '4': [{x:278,y:250,side:'bottom',cat:'standard'},{x:922,y:250,side:'bottom',cat:'standard'},{x:278,y:350,side:'top',cat:'standard'},{x:922,y:350,side:'top',cat:'standard'}],
+  '5': [{x:278,y:250,side:'bottom',cat:'standard'},{x:922,y:250,side:'bottom',cat:'standard'},{x:278,y:350,side:'top',cat:'standard'},{x:922,y:350,side:'top',cat:'standard'}],
+  '6': [{x:278,y:250,side:'bottom',cat:'sliding'},{x:922,y:250,side:'bottom',cat:'sliding'},{x:278,y:350,side:'top',cat:'sliding'},{x:922,y:350,side:'top',cat:'sliding'}],
+  '7': [{x:278,y:250,side:'bottom',cat:'sliding'},{x:922,y:250,side:'bottom',cat:'sliding'},{x:278,y:350,side:'top',cat:'sliding'},{x:922,y:350,side:'top',cat:'sliding'}],
+  '8': [{x:278,y:250,side:'bottom',cat:'sliding'},{x:922,y:250,side:'bottom',cat:'sliding'},{x:278,y:350,side:'top',cat:'sliding'},{x:922,y:350,side:'top',cat:'sliding'}],
+  '9': [{x:278,y:250,side:'bottom',cat:'standard'},{x:922,y:250,side:'bottom',cat:'standard'},{x:278,y:350,side:'top',cat:'standard'},{x:922,y:350,side:'top',cat:'standard'}],
+  '10': [{x:278,y:250,side:'bottom',cat:'standard'},{x:922,y:250,side:'bottom',cat:'standard'},{x:278,y:350,side:'top',cat:'standard'},{x:922,y:350,side:'top',cat:'standard'}],
+  '11': [],
+};
+
+const FLOOR_IDS = ['G', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11'];
+
+function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function renderDoor(door) {
+  const dw = DOOR_WIDTHS[door.cat];
+  let s = '';
+  // Door gap
+  if (door.side === 'top' || door.side === 'bottom') {
+    s += `<rect x="${door.x - dw/2}" y="${door.y - 3}" width="${dw}" height="6" fill="${BG_CORRIDOR}"/>`;
+  } else {
+    s += `<rect x="${door.x - 3}" y="${door.y - dw/2}" width="6" height="${dw}" fill="${BG_CORRIDOR}"/>`;
+  }
+  if (door.cat === 'sliding') {
+    s += `<line x1="${door.x - dw/2}" y1="${door.y}" x2="${door.x + dw/2}" y2="${door.y}" stroke="${GOLD_DIM}" stroke-width="1.5"/>`;
+    if (door.side === 'top') {
+      s += `<line x1="${door.x - dw/2}" y1="${door.y - 1}" x2="${door.x}" y2="${door.y - 1}" stroke="${GOLD}" stroke-width="0.8"/>`;
+      s += `<line x1="${door.x}" y1="${door.y + 1}" x2="${door.x + dw/2}" y2="${door.y + 1}" stroke="${GOLD}" stroke-width="0.8"/>`;
+    } else {
+      s += `<line x1="${door.x - dw/2}" y1="${door.y + 1}" x2="${door.x}" y2="${door.y + 1}" stroke="${GOLD}" stroke-width="0.8"/>`;
+      s += `<line x1="${door.x}" y1="${door.y - 1}" x2="${door.x + dw/2}" y2="${door.y - 1}" stroke="${GOLD}" stroke-width="0.8"/>`;
+    }
+  } else {
+    // Arc + leaf
+    if (door.side === 'top') {
+      s += `<path d="M ${door.x - dw/2} ${door.y} A ${dw} ${dw} 0 0 1 ${door.x + dw/2} ${door.y + 4}" fill="none" stroke="${GOLD_DIM}" stroke-width="0.8"/>`;
+      s += `<line x1="${door.x - dw/2}" y1="${door.y}" x2="${door.x - dw/2}" y2="${door.y + dw * 0.6}" stroke="${GOLD}" stroke-width="1"/>`;
+      if (door.cat === 'lobby') s += `<line x1="${door.x + dw/2}" y1="${door.y}" x2="${door.x + dw/2}" y2="${door.y + dw * 0.6}" stroke="${GOLD}" stroke-width="1"/>`;
+    } else {
+      s += `<path d="M ${door.x - dw/2} ${door.y} A ${dw} ${dw} 0 0 0 ${door.x + dw/2} ${door.y - 4}" fill="none" stroke="${GOLD_DIM}" stroke-width="0.8"/>`;
+      s += `<line x1="${door.x - dw/2}" y1="${door.y}" x2="${door.x - dw/2}" y2="${door.y - dw * 0.6}" stroke="${GOLD}" stroke-width="1"/>`;
+      if (door.cat === 'lobby') s += `<line x1="${door.x + dw/2}" y1="${door.y}" x2="${door.x + dw/2}" y2="${door.y - dw * 0.6}" stroke="${GOLD}" stroke-width="1"/>`;
+    }
+  }
+  return s;
+}
+
+function renderFloor(floorId) {
+  const rooms = FLOOR_LAYOUT[floorId] || [];
+  const corridors = CORRIDOR_LAYOUT[floorId] || [];
+  const doors = DOOR_LAYOUT[floorId] || [];
+  let svg = `<svg viewBox="0 0 ${SVG_W} ${SVG_H}" xmlns="http://www.w3.org/2000/svg">`;
+
+  // Outer walls
+  svg += `<rect x="0" y="0" width="${SVG_W}" height="${SVG_H}" fill="${BG_DARKER}" stroke="${GOLD_DIM}" stroke-width="2"/>`;
+  svg += `<rect x="6" y="6" width="${SVG_W - 12}" height="${SVG_H - 12}" fill="${BG_DARK}" stroke="${GOLD_DARK}" stroke-width="0.5"/>`;
+
+  // Corridors
+  corridors.forEach((seg, i) => {
+    svg += `<rect x="${seg.x}" y="${seg.y}" width="${seg.w}" height="${seg.h}" fill="${BG_CORRIDOR}" stroke="${GOLD_DARK}" stroke-width="0.5"/>`;
+    if (seg.vertical) {
+      svg += `<line x1="${seg.x + seg.w/2}" y1="${seg.y + 8}" x2="${seg.x + seg.w/2}" y2="${seg.y + seg.h - 8}" stroke="${GOLD_DARK}" stroke-width="0.5" stroke-dasharray="6 4"/>`;
+    } else {
+      svg += `<line x1="${seg.x + 8}" y1="${seg.y + seg.h/2}" x2="${seg.x + seg.w - 8}" y2="${seg.y + seg.h/2}" stroke="${GOLD_DARK}" stroke-width="0.5" stroke-dasharray="6 4"/>`;
+    }
+    if (seg.label) {
+      const cx = seg.x + seg.w / 2, cy = seg.y + seg.h / 2 + 3;
+      if (seg.vertical) {
+        svg += `<text x="${cx}" y="${cy}" text-anchor="middle" font-size="7" fill="${GOLD_DARK}" letter-spacing="2" font-family="Georgia,serif" transform="rotate(-90 ${cx} ${cy})">${esc(seg.label)}</text>`;
+      } else {
+        svg += `<text x="${cx}" y="${cy}" text-anchor="middle" font-size="7" fill="${GOLD_DARK}" letter-spacing="2" font-family="Georgia,serif">${esc(seg.label)}</text>`;
+      }
+    }
+  });
+
+  // Rooms
+  rooms.forEach(room => {
+    const fill = room.visual ? '#0a0a0a' : '#151515';
+    const stroke = room.visual ? GOLD_DARK : GOLD_DIM;
+    svg += `<rect x="${room.x}" y="${room.y}" width="${room.w}" height="${room.h}" fill="${fill}" stroke="${stroke}" stroke-width="1.5"/>`;
+    svg += `<text x="${room.x + room.w/2}" y="${room.y + 20}" text-anchor="middle" font-family="Georgia,serif" font-size="12" fill="${GOLD}" letter-spacing="2">${esc(room.label)}</text>`;
+    if (room.sub) {
+      svg += `<text x="${room.x + room.w/2}" y="${room.y + 36}" text-anchor="middle" font-family="Georgia,serif" font-size="8" fill="${GOLD_DIM}">${esc(room.sub)}</text>`;
+    }
+    if (room.visual) {
+      svg += `<text x="${room.x + room.w/2}" y="${room.y + room.h/2 + 10}" text-anchor="middle" font-family="Georgia,serif" font-size="7" fill="${GOLD_DARK}" letter-spacing="2">VISUAL ONLY</text>`;
+    }
+  });
+
+  // Doors
+  doors.forEach(door => { svg += renderDoor(door); });
+
+  // Circular elevator
+  if (corridors.length > 0) {
+    svg += `<circle cx="${ELEVATOR_X}" cy="${ELEVATOR_Y}" r="${ELEVATOR_R + 6}" fill="${BG_DARKER}"/>`;
+    svg += `<circle cx="${ELEVATOR_X}" cy="${ELEVATOR_Y}" r="${ELEVATOR_R}" fill="${BG_CORRIDOR}" stroke="${GOLD_DIM}" stroke-width="1.5"/>`;
+    svg += `<circle cx="${ELEVATOR_X}" cy="${ELEVATOR_Y}" r="${ELEVATOR_R - 6}" fill="none" stroke="${GOLD_DARK}" stroke-width="0.7"/>`;
+    svg += `<line x1="${ELEVATOR_X - ELEVATOR_R}" y1="${ELEVATOR_Y}" x2="${ELEVATOR_X + ELEVATOR_R}" y2="${ELEVATOR_Y}" stroke="${GOLD_DARK}" stroke-width="1"/>`;
+    svg += `<line x1="${ELEVATOR_X}" y1="${ELEVATOR_Y - ELEVATOR_R}" x2="${ELEVATOR_X}" y2="${ELEVATOR_Y + ELEVATOR_R}" stroke="${GOLD_DARK}" stroke-width="1"/>`;
+    svg += `<path d="M ${ELEVATOR_X - 4} ${ELEVATOR_Y - 11} L ${ELEVATOR_X} ${ELEVATOR_Y - 17} L ${ELEVATOR_X + 4} ${ELEVATOR_Y - 11}" fill="none" stroke="${GOLD_DIM}" stroke-width="1"/>`;
+    svg += `<path d="M ${ELEVATOR_X - 4} ${ELEVATOR_Y + 11} L ${ELEVATOR_X} ${ELEVATOR_Y + 17} L ${ELEVATOR_X + 4} ${ELEVATOR_Y + 11}" fill="none" stroke="${GOLD_DIM}" stroke-width="1"/>`;
+    svg += `<text x="${ELEVATOR_X}" y="${ELEVATOR_Y + ELEVATOR_R + 12}" text-anchor="middle" font-family="Georgia,serif" font-size="7" fill="${GOLD_DIM}" letter-spacing="1">GLASS ELEVATOR</text>`;
+  }
+
+  // Floor name
+  svg += `<text x="${SVG_W / 2}" y="${SVG_H - 10}" text-anchor="middle" font-family="Georgia,serif" font-size="9" fill="${GOLD_DIM}" letter-spacing="4">${esc(FLOOR_NAMES[floorId].toUpperCase())}</text>`;
+  svg += `</svg>`;
+  return svg;
+}
+
+const container = document.getElementById('floors');
+FLOOR_IDS.forEach(fid => {
+  const section = document.createElement('div');
+  section.className = 'floor-section';
+  const label = fid === 'G' ? 'G' : 'F' + fid;
+  section.innerHTML = `<div class="floor-header">${label} · ${FLOOR_NAMES[fid]}</div>${renderFloor(fid)}`;
+  container.appendChild(section);
+});
+</script>
+</body>
+</html>

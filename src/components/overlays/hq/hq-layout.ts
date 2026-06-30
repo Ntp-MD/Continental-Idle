@@ -9,11 +9,13 @@ export interface RoomLayout {
   label: string
   sub: string
   visual?: boolean
+  levelKey?: string
+  roomNum?: number
 }
 
-export const SVG_W = 900
+export const SVG_W = 1200
 export const SVG_H = 600
-export const THUMB_W = 180
+export const THUMB_W = 200
 export const THUMB_H = 100
 
 export const FLOOR_IDS: FloorId[] = ['G', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11']
@@ -33,53 +35,152 @@ export const FLOOR_NAMES: Record<FloorId, string> = {
   '11': 'Rooftop',
 }
 
+interface RoomGridOptions {
+  cols: number
+  bands: 1 | 2
+  gap?: number
+  startNum: number
+  maxRooms: number
+  prefix?: string
+  levelKey: string
+}
+
+const INNER_X = 6
+const INNER_Y = 6
+const INNER_W = 1188
+const INNER_H = 588
+const V_CORR_W = 100
+const ELEV_TOP = 250
+const ELEV_BOT = 350
+const H_CORR_H = 50
+
+function generateRoomGrid(opts: RoomGridOptions): RoomLayout[] {
+  const { cols, bands, gap = 2, startNum, maxRooms, prefix = '', levelKey } = opts
+  const midX = INNER_X + INNER_W / 2
+  const leftW = (INNER_W - V_CORR_W) / 2
+  const rightX = midX + V_CORR_W / 2
+  const leftCols = Math.ceil(cols / 2)
+  const rightCols = Math.floor(cols / 2)
+  let num = startNum
+  const rooms: RoomLayout[] = []
+
+  const rw = Math.floor((leftW - (leftCols - 1) * gap) / leftCols)
+  const topZoneY = INNER_Y
+  const topZoneH = ELEV_TOP - INNER_Y
+  const botZoneY = ELEV_BOT
+  const botZoneH = INNER_Y + INNER_H - ELEV_BOT
+
+  function addRoom(x: number, y: number, w: number, h: number): void {
+    if (num >= startNum + maxRooms) return
+    rooms.push({
+      id: `${levelKey}${num}`,
+      x, y, w, h,
+      label: `${prefix}${num}`,
+      sub: '',
+      levelKey,
+      roomNum: num,
+    })
+    num++
+  }
+
+  function drawZone(zoneY: number, zoneH: number): void {
+    if (bands === 1) {
+      const rh = zoneH
+      for (let c = 0; c < leftCols; c++) {
+        if (num >= startNum + maxRooms) break
+        const rx = INNER_X + c * (rw + gap)
+        addRoom(rx, zoneY, rw, rh)
+      }
+      for (let c = 0; c < rightCols; c++) {
+        if (num >= startNum + maxRooms) break
+        const rx = rightX + c * (rw + gap)
+        addRoom(rx, zoneY, rw, rh)
+      }
+    } else {
+      const rh = Math.floor((zoneH - H_CORR_H - 2 * gap) / 2)
+      const topY = zoneY
+      const corrY = zoneY + rh + gap
+      const botY = corrY + H_CORR_H + gap
+      const rhBot = zoneY + zoneH - botY
+
+      for (let c = 0; c < leftCols; c++) {
+        if (num >= startNum + maxRooms) break
+        const rx = INNER_X + c * (rw + gap)
+        addRoom(rx, topY, rw, rh)
+      }
+      for (let c = 0; c < rightCols; c++) {
+        if (num >= startNum + maxRooms) break
+        const rx = rightX + c * (rw + gap)
+        addRoom(rx, topY, rw, rh)
+      }
+      for (let c = 0; c < leftCols; c++) {
+        if (num >= startNum + maxRooms) break
+        const rx = INNER_X + c * (rw + gap)
+        addRoom(rx, botY, rw, rhBot)
+      }
+      for (let c = 0; c < rightCols; c++) {
+        if (num >= startNum + maxRooms) break
+        const rx = rightX + c * (rw + gap)
+        addRoom(rx, botY, rw, rhBot)
+      }
+    }
+  }
+
+  drawZone(topZoneY, topZoneH)
+  drawZone(botZoneY, botZoneH)
+  return rooms
+}
+
+const F3_ROOMS = generateRoomGrid({ cols: 10, bands: 2, gap: 2, startNum: 301, maxRooms: 40, levelKey: 'guestRooms' })
+const F4_ROOMS = generateRoomGrid({ cols: 10, bands: 2, gap: 2, startNum: 401, maxRooms: 40, levelKey: 'guestRooms' })
+const F5_ROOMS = generateRoomGrid({ cols: 8, bands: 1, gap: 3, startNum: 501, maxRooms: 16, levelKey: 'guestRooms' })
+const F6_ROOMS = generateRoomGrid({ cols: 8, bands: 1, gap: 3, startNum: 601, maxRooms: 16, levelKey: 'guestRooms' })
+const F7_ROOMS = generateRoomGrid({ cols: 4, bands: 1, gap: 6, startNum: 701, maxRooms: 8, levelKey: 'vip' })
+const F8_ROOMS = generateRoomGrid({ cols: 4, bands: 1, gap: 6, startNum: 801, maxRooms: 8, prefix: 'PH ', levelKey: 'vip' })
+
 export const FLOOR_LAYOUT: Record<FloorId, RoomLayout[]> = {
   G: [
-    { id: 'blackMarket', x: 40, y: 40, w: 400, h: 240, label: 'Black Market', sub: 'Hidden Trading' },
-    { id: 'vault', x: 460, y: 40, w: 400, h: 240, label: 'Continental Vault', sub: 'Secure Storage' },
-    { id: 'underground', x: 40, y: 300, w: 820, h: 250, label: 'Underground Services', sub: 'Visual Only', visual: true },
+    { id: 'loadingBay', x: 6, y: 6, w: 544, h: 244, label: 'Loading Bay', sub: 'Supply Receiving · Sorting', visual: true },
+    { id: 'blackMarket', x: 650, y: 6, w: 544, h: 244, label: 'Black Market', sub: 'Hidden Trading Floor' },
+    { id: 'underground', x: 6, y: 350, w: 544, h: 244, label: 'Underground Services', sub: 'MEP · Data · Control' },
+    { id: 'vault', x: 650, y: 350, w: 544, h: 244, label: 'Continental Vault', sub: 'Secure Storage' },
   ],
   '1': [
-    { id: 'concierge', x: 40, y: 40, w: 200, h: 220, label: 'Concierge', sub: 'Guest Services' },
-    { id: 'reception', x: 260, y: 40, w: 380, h: 220, label: 'Grand Lobby', sub: 'Reception Desk' },
-    { id: 'lounge', x: 660, y: 40, w: 200, h: 220, label: 'Waiting Lounge', sub: 'Seating Area' },
-    { id: 'elevator', x: 380, y: 280, w: 140, h: 100, label: 'Elevator', sub: '' },
-    { id: 'entrance', x: 380, y: 400, w: 140, h: 150, label: 'Main Entrance', sub: '' },
+    { id: 'concierge', x: 6, y: 6, w: 544, h: 244, label: 'Concierge', sub: 'Guest Services · Luggage' },
+    { id: 'lounge', x: 650, y: 6, w: 544, h: 244, label: 'Waiting Lounge', sub: 'Seating Area', visual: true },
+    { id: 'reception', x: 6, y: 350, w: 544, h: 244, label: 'Reception Desk', sub: 'Grand Lobby' },
+    { id: 'entrance', x: 650, y: 350, w: 544, h: 244, label: 'Main Entrance', sub: 'Lobby Doors', visual: true },
   ],
   '2': [
-    { id: 'kitchen', x: 40, y: 40, w: 400, h: 510, label: 'Kitchen', sub: 'Fine Dining' },
-    { id: 'bar', x: 460, y: 40, w: 400, h: 510, label: 'Bar / Lounge', sub: 'No Business Conducted' },
+    { id: 'loadingBay2', x: 6, y: 6, w: 544, h: 244, label: 'Loading Bay', sub: 'Food Storage', visual: true },
+    { id: 'bar', x: 650, y: 6, w: 544, h: 244, label: 'Bar / Lounge', sub: 'No Business Conducted' },
+    { id: 'kitchen', x: 6, y: 350, w: 544, h: 244, label: 'Kitchen', sub: 'Fine Dining' },
+    { id: 'barLounge', x: 650, y: 350, w: 544, h: 244, label: 'Bar / Lounge', sub: 'Seating Area', visual: true },
   ],
   '3': [
-    { id: 'laundry', x: 40, y: 40, w: 260, h: 240, label: 'Laundry Service', sub: '' },
-    { id: 'staffRoom', x: 320, y: 40, w: 260, h: 240, label: 'Staff Room', sub: 'Visual Only', visual: true },
-    { id: 'guestRooms', x: 40, y: 300, w: 820, h: 250, label: 'Standard Rooms', sub: 'Level 1-12' },
+    { id: 'laundry', x: 6, y: 6, w: 272, h: 244, label: 'Laundry Service', sub: '' },
+    { id: 'staffRoom', x: 278, y: 6, w: 272, h: 244, label: 'Staff Room', sub: 'Visual Only', visual: true },
+    ...F3_ROOMS,
   ],
-  '4': [
-    { id: 'guestRooms', x: 40, y: 40, w: 820, h: 510, label: 'Deluxe Rooms', sub: 'Level 13-25' },
-  ],
-  '5': [
-    { id: 'guestRooms', x: 40, y: 40, w: 820, h: 510, label: 'Executive Rooms', sub: 'Level 26-38' },
-  ],
-  '6': [
-    { id: 'guestRooms', x: 40, y: 40, w: 820, h: 510, label: 'Presidential Suites', sub: 'Level 39-50' },
-  ],
-  '7': [
-    { id: 'vip', x: 40, y: 40, w: 820, h: 510, label: 'VIP Suites', sub: 'Exclusive Guests' },
-  ],
-  '8': [
-    { id: 'vip', x: 40, y: 40, w: 820, h: 510, label: 'Penthouse', sub: 'Presidential Penthouse' },
-  ],
+  '4': [...F4_ROOMS],
+  '5': [...F5_ROOMS],
+  '6': [...F6_ROOMS],
+  '7': [...F7_ROOMS],
+  '8': [...F8_ROOMS],
   '9': [
-    { id: 'armory', x: 40, y: 40, w: 400, h: 510, label: 'Armory', sub: 'Weapon Storage' },
-    { id: 'safeHouse', x: 460, y: 40, w: 400, h: 510, label: 'Safe House', sub: 'Secure Bunker' },
+    { id: 'armory', x: 6, y: 6, w: 544, h: 244, label: 'Armory', sub: 'Weapon Storage' },
+    { id: 'safeHouse', x: 650, y: 6, w: 544, h: 244, label: 'Safe House', sub: 'Secure Bunker' },
+    { id: 'controlCenter', x: 6, y: 350, w: 544, h: 244, label: 'Control Center', sub: 'Security Ops', visual: true },
+    { id: 'safeHouseBunker', x: 650, y: 350, w: 544, h: 244, label: 'Safe House', sub: 'Bunker', visual: true },
   ],
   '10': [
-    { id: 'intelNetwork', x: 40, y: 40, w: 400, h: 510, label: 'Intelligence Network', sub: 'Comms Center' },
-    { id: 'managerOffice', x: 460, y: 40, w: 400, h: 510, label: "Manager's Office", sub: 'Visual Only', visual: true },
+    { id: 'intelNetwork', x: 6, y: 6, w: 544, h: 244, label: 'Intelligence Network', sub: 'Comms Center' },
+    { id: 'managerOffice', x: 650, y: 6, w: 544, h: 244, label: "Manager's Office", sub: 'Visual Only', visual: true },
+    { id: 'datacenter', x: 6, y: 350, w: 544, h: 244, label: 'Datacenter', sub: 'Server Infrastructure', visual: true },
+    { id: 'staffQuarters', x: 650, y: 350, w: 544, h: 244, label: 'Staff Quarters', sub: 'BOH', visual: true },
   ],
   '11': [
-    { id: 'rooftop', x: 40, y: 40, w: 820, h: 510, label: 'Rooftop Terrace', sub: 'Helipad', visual: true },
+    { id: 'rooftop', x: 6, y: 6, w: 1188, h: 588, label: 'Rooftop Terrace', sub: 'Helipad', visual: true },
   ],
 }
 
@@ -345,97 +446,24 @@ export const ROOM_FURNITURE: Record<string, FurnitureElement[]> = {
     { type: 'circle', x: 450, y: 195, r: 15, fill: FURNITURE_COLORS.fabric, stroke: FURNITURE_COLORS.woodDark, strokeWidth: 0.3 },
   ],
   guestRooms: [
-    { type: 'rect', x: 60, y: 60, w: 120, h: 80, fill: FURNITURE_COLORS.wood, stroke: FURNITURE_COLORS.woodDark, strokeWidth: 1 },
-    { type: 'rect', x: 70, y: 70, w: 100, h: 60, fill: FURNITURE_COLORS.fabric, stroke: FURNITURE_COLORS.woodDark, strokeWidth: 0.3 },
-    { type: 'rect', x: 60, y: 60, w: 120, h: 10, fill: FURNITURE_COLORS.fabricLight, stroke: FURNITURE_COLORS.woodDark, strokeWidth: 0.3 },
-    { type: 'rect', x: 190, y: 70, w: 30, h: 30, fill: FURNITURE_COLORS.woodLight, stroke: FURNITURE_COLORS.woodDark, strokeWidth: 0.5 },
-    { type: 'rect', x: 195, y: 75, w: 20, h: 20, fill: FURNITURE_COLORS.glass, stroke: FURNITURE_COLORS.metal, strokeWidth: 0.3 },
-    { type: 'circle', x: 205, y: 85, r: 3, fill: FURNITURE_COLORS.gold, stroke: FURNITURE_COLORS.goldDim, strokeWidth: 0.3 },
-    { type: 'rect', x: 250, y: 60, w: 120, h: 80, fill: FURNITURE_COLORS.wood, stroke: FURNITURE_COLORS.woodDark, strokeWidth: 1 },
-    { type: 'rect', x: 260, y: 70, w: 100, h: 60, fill: FURNITURE_COLORS.fabric, stroke: FURNITURE_COLORS.woodDark, strokeWidth: 0.3 },
-    { type: 'rect', x: 250, y: 60, w: 120, h: 10, fill: FURNITURE_COLORS.fabricLight, stroke: FURNITURE_COLORS.woodDark, strokeWidth: 0.3 },
-    { type: 'rect', x: 380, y: 70, w: 30, h: 30, fill: FURNITURE_COLORS.woodLight, stroke: FURNITURE_COLORS.woodDark, strokeWidth: 0.5 },
-    { type: 'rect', x: 385, y: 75, w: 20, h: 20, fill: FURNITURE_COLORS.glass, stroke: FURNITURE_COLORS.metal, strokeWidth: 0.3 },
-    { type: 'circle', x: 395, y: 85, r: 3, fill: FURNITURE_COLORS.gold, stroke: FURNITURE_COLORS.goldDim, strokeWidth: 0.3 },
-    { type: 'rect', x: 440, y: 60, w: 120, h: 80, fill: FURNITURE_COLORS.wood, stroke: FURNITURE_COLORS.woodDark, strokeWidth: 1 },
-    { type: 'rect', x: 450, y: 70, w: 100, h: 60, fill: FURNITURE_COLORS.fabric, stroke: FURNITURE_COLORS.woodDark, strokeWidth: 0.3 },
-    { type: 'rect', x: 440, y: 60, w: 120, h: 10, fill: FURNITURE_COLORS.fabricLight, stroke: FURNITURE_COLORS.woodDark, strokeWidth: 0.3 },
-    { type: 'rect', x: 570, y: 70, w: 30, h: 30, fill: FURNITURE_COLORS.woodLight, stroke: FURNITURE_COLORS.woodDark, strokeWidth: 0.5 },
-    { type: 'rect', x: 575, y: 75, w: 20, h: 20, fill: FURNITURE_COLORS.glass, stroke: FURNITURE_COLORS.metal, strokeWidth: 0.3 },
-    { type: 'circle', x: 585, y: 85, r: 3, fill: FURNITURE_COLORS.gold, stroke: FURNITURE_COLORS.goldDim, strokeWidth: 0.3 },
-    { type: 'rect', x: 630, y: 60, w: 120, h: 80, fill: FURNITURE_COLORS.wood, stroke: FURNITURE_COLORS.woodDark, strokeWidth: 1 },
-    { type: 'rect', x: 640, y: 70, w: 100, h: 60, fill: FURNITURE_COLORS.fabric, stroke: FURNITURE_COLORS.woodDark, strokeWidth: 0.3 },
-    { type: 'rect', x: 630, y: 60, w: 120, h: 10, fill: FURNITURE_COLORS.fabricLight, stroke: FURNITURE_COLORS.woodDark, strokeWidth: 0.3 },
-    { type: 'rect', x: 760, y: 70, w: 30, h: 30, fill: FURNITURE_COLORS.woodLight, stroke: FURNITURE_COLORS.woodDark, strokeWidth: 0.5 },
-    { type: 'rect', x: 765, y: 75, w: 20, h: 20, fill: FURNITURE_COLORS.glass, stroke: FURNITURE_COLORS.metal, strokeWidth: 0.3 },
-    { type: 'circle', x: 775, y: 85, r: 3, fill: FURNITURE_COLORS.gold, stroke: FURNITURE_COLORS.goldDim, strokeWidth: 0.3 },
-    { type: 'rect', x: 60, y: 180, w: 200, h: 30, fill: FURNITURE_COLORS.woodLight, stroke: FURNITURE_COLORS.woodDark, strokeWidth: 0.5 },
-    { type: 'rect', x: 70, y: 188, w: 180, h: 18, fill: FURNITURE_COLORS.accent, stroke: FURNITURE_COLORS.woodDark, strokeWidth: 0.3 },
-    { type: 'rect', x: 300, y: 180, w: 200, h: 30, fill: FURNITURE_COLORS.woodLight, stroke: FURNITURE_COLORS.woodDark, strokeWidth: 0.5 },
-    { type: 'rect', x: 310, y: 188, w: 180, h: 18, fill: FURNITURE_COLORS.accent, stroke: FURNITURE_COLORS.woodDark, strokeWidth: 0.3 },
-    { type: 'rect', x: 540, y: 180, w: 200, h: 30, fill: FURNITURE_COLORS.woodLight, stroke: FURNITURE_COLORS.woodDark, strokeWidth: 0.5 },
-    { type: 'rect', x: 550, y: 188, w: 180, h: 18, fill: FURNITURE_COLORS.accent, stroke: FURNITURE_COLORS.woodDark, strokeWidth: 0.3 },
-    { type: 'rect', x: 60, y: 250, w: 100, h: 60, fill: FURNITURE_COLORS.leather, stroke: FURNITURE_COLORS.woodDark, strokeWidth: 0.5 },
-    { type: 'rect', x: 70, y: 260, w: 80, h: 40, fill: FURNITURE_COLORS.fabric, stroke: FURNITURE_COLORS.woodDark, strokeWidth: 0.3 },
-    { type: 'rect', x: 200, y: 250, w: 100, h: 60, fill: FURNITURE_COLORS.leather, stroke: FURNITURE_COLORS.woodDark, strokeWidth: 0.5 },
-    { type: 'rect', x: 210, y: 260, w: 80, h: 40, fill: FURNITURE_COLORS.fabric, stroke: FURNITURE_COLORS.woodDark, strokeWidth: 0.3 },
-    { type: 'rect', x: 60, y: 340, w: 780, h: 25, fill: FURNITURE_COLORS.metalDark, stroke: FURNITURE_COLORS.metal, strokeWidth: 0.5, opacity: 0.5 },
-    { type: 'rect', x: 60, y: 390, w: 120, h: 80, fill: FURNITURE_COLORS.wood, stroke: FURNITURE_COLORS.woodDark, strokeWidth: 1 },
-    { type: 'rect', x: 70, y: 400, w: 100, h: 60, fill: FURNITURE_COLORS.fabric, stroke: FURNITURE_COLORS.woodDark, strokeWidth: 0.3 },
-    { type: 'rect', x: 60, y: 390, w: 120, h: 10, fill: FURNITURE_COLORS.fabricLight, stroke: FURNITURE_COLORS.woodDark, strokeWidth: 0.3 },
-    { type: 'rect', x: 250, y: 390, w: 120, h: 80, fill: FURNITURE_COLORS.wood, stroke: FURNITURE_COLORS.woodDark, strokeWidth: 1 },
-    { type: 'rect', x: 260, y: 400, w: 100, h: 60, fill: FURNITURE_COLORS.fabric, stroke: FURNITURE_COLORS.woodDark, strokeWidth: 0.3 },
-    { type: 'rect', x: 250, y: 390, w: 120, h: 10, fill: FURNITURE_COLORS.fabricLight, stroke: FURNITURE_COLORS.woodDark, strokeWidth: 0.3 },
-    { type: 'rect', x: 440, y: 390, w: 120, h: 80, fill: FURNITURE_COLORS.wood, stroke: FURNITURE_COLORS.woodDark, strokeWidth: 1 },
-    { type: 'rect', x: 450, y: 400, w: 100, h: 60, fill: FURNITURE_COLORS.fabric, stroke: FURNITURE_COLORS.woodDark, strokeWidth: 0.3 },
-    { type: 'rect', x: 440, y: 390, w: 120, h: 10, fill: FURNITURE_COLORS.fabricLight, stroke: FURNITURE_COLORS.woodDark, strokeWidth: 0.3 },
-    { type: 'rect', x: 630, y: 390, w: 120, h: 80, fill: FURNITURE_COLORS.wood, stroke: FURNITURE_COLORS.woodDark, strokeWidth: 1 },
-    { type: 'rect', x: 640, y: 400, w: 100, h: 60, fill: FURNITURE_COLORS.fabric, stroke: FURNITURE_COLORS.woodDark, strokeWidth: 0.3 },
-    { type: 'rect', x: 630, y: 390, w: 120, h: 10, fill: FURNITURE_COLORS.fabricLight, stroke: FURNITURE_COLORS.woodDark, strokeWidth: 0.3 },
-    { type: 'rect', x: 60, y: 490, w: 780, h: 20, fill: FURNITURE_COLORS.woodLight, stroke: FURNITURE_COLORS.woodDark, strokeWidth: 0.5, opacity: 0.5 },
+    { type: 'rect', x: 8, y: 8, w: 50, h: 35, fill: FURNITURE_COLORS.wood, stroke: FURNITURE_COLORS.woodDark, strokeWidth: 0.8 },
+    { type: 'rect', x: 12, y: 12, w: 42, h: 25, fill: FURNITURE_COLORS.fabric, stroke: FURNITURE_COLORS.woodDark, strokeWidth: 0.3 },
+    { type: 'rect', x: 8, y: 8, w: 50, h: 6, fill: FURNITURE_COLORS.fabricLight, stroke: FURNITURE_COLORS.woodDark, strokeWidth: 0.3 },
+    { type: 'rect', x: 62, y: 10, w: 14, h: 14, fill: FURNITURE_COLORS.woodLight, stroke: FURNITURE_COLORS.woodDark, strokeWidth: 0.5 },
+    { type: 'rect', x: 65, y: 13, w: 8, h: 8, fill: FURNITURE_COLORS.glass, stroke: FURNITURE_COLORS.metal, strokeWidth: 0.3 },
+    { type: 'rect', x: 8, y: 50, w: 40, h: 20, fill: FURNITURE_COLORS.woodLight, stroke: FURNITURE_COLORS.woodDark, strokeWidth: 0.5 },
+    { type: 'rect', x: 12, y: 54, w: 32, h: 12, fill: FURNITURE_COLORS.accent, stroke: FURNITURE_COLORS.woodDark, strokeWidth: 0.3 },
   ],
   vip: [
-    { type: 'rect', x: 60, y: 60, w: 180, h: 100, fill: FURNITURE_COLORS.wood, stroke: FURNITURE_COLORS.goldDim, strokeWidth: 1 },
-    { type: 'rect', x: 75, y: 75, w: 150, h: 70, fill: FURNITURE_COLORS.fabric, stroke: FURNITURE_COLORS.goldDim, strokeWidth: 0.3 },
-    { type: 'rect', x: 60, y: 60, w: 180, h: 15, fill: FURNITURE_COLORS.fabricLight, stroke: FURNITURE_COLORS.goldDim, strokeWidth: 0.3 },
-    { type: 'rect', x: 90, y: 55, w: 120, h: 10, fill: FURNITURE_COLORS.gold, stroke: FURNITURE_COLORS.goldDim, strokeWidth: 0.3, opacity: 0.3 },
-    { type: 'rect', x: 260, y: 70, w: 50, h: 50, fill: FURNITURE_COLORS.woodLight, stroke: FURNITURE_COLORS.goldDim, strokeWidth: 0.5 },
-    { type: 'rect', x: 268, y: 78, w: 34, h: 34, fill: FURNITURE_COLORS.glass, stroke: FURNITURE_COLORS.goldDim, strokeWidth: 0.3 },
-    { type: 'circle', x: 285, y: 95, r: 5, fill: FURNITURE_COLORS.gold, stroke: FURNITURE_COLORS.goldDim, strokeWidth: 0.3 },
-    { type: 'rect', x: 340, y: 60, w: 180, h: 100, fill: FURNITURE_COLORS.wood, stroke: FURNITURE_COLORS.goldDim, strokeWidth: 1 },
-    { type: 'rect', x: 355, y: 75, w: 150, h: 70, fill: FURNITURE_COLORS.fabric, stroke: FURNITURE_COLORS.goldDim, strokeWidth: 0.3 },
-    { type: 'rect', x: 340, y: 60, w: 180, h: 15, fill: FURNITURE_COLORS.fabricLight, stroke: FURNITURE_COLORS.goldDim, strokeWidth: 0.3 },
-    { type: 'rect', x: 370, y: 55, w: 120, h: 10, fill: FURNITURE_COLORS.gold, stroke: FURNITURE_COLORS.goldDim, strokeWidth: 0.3, opacity: 0.3 },
-    { type: 'rect', x: 540, y: 70, w: 50, h: 50, fill: FURNITURE_COLORS.woodLight, stroke: FURNITURE_COLORS.goldDim, strokeWidth: 0.5 },
-    { type: 'rect', x: 548, y: 78, w: 34, h: 34, fill: FURNITURE_COLORS.glass, stroke: FURNITURE_COLORS.goldDim, strokeWidth: 0.3 },
-    { type: 'circle', x: 565, y: 95, r: 5, fill: FURNITURE_COLORS.gold, stroke: FURNITURE_COLORS.goldDim, strokeWidth: 0.3 },
-    { type: 'rect', x: 620, y: 60, w: 180, h: 100, fill: FURNITURE_COLORS.wood, stroke: FURNITURE_COLORS.goldDim, strokeWidth: 1 },
-    { type: 'rect', x: 635, y: 75, w: 150, h: 70, fill: FURNITURE_COLORS.fabric, stroke: FURNITURE_COLORS.goldDim, strokeWidth: 0.3 },
-    { type: 'rect', x: 620, y: 60, w: 180, h: 15, fill: FURNITURE_COLORS.fabricLight, stroke: FURNITURE_COLORS.goldDim, strokeWidth: 0.3 },
-    { type: 'rect', x: 650, y: 55, w: 120, h: 10, fill: FURNITURE_COLORS.gold, stroke: FURNITURE_COLORS.goldDim, strokeWidth: 0.3, opacity: 0.3 },
-    { type: 'rect', x: 60, y: 200, w: 300, h: 50, fill: FURNITURE_COLORS.leather, stroke: FURNITURE_COLORS.goldDim, strokeWidth: 0.5 },
-    { type: 'rect', x: 75, y: 210, w: 270, h: 30, fill: FURNITURE_COLORS.fabric, stroke: FURNITURE_COLORS.goldDim, strokeWidth: 0.3 },
-    { type: 'rect', x: 400, y: 200, w: 80, h: 50, fill: FURNITURE_COLORS.wood, stroke: FURNITURE_COLORS.goldDim, strokeWidth: 0.5 },
-    { type: 'rect', x: 410, y: 210, w: 60, h: 30, fill: FURNITURE_COLORS.glass, stroke: FURNITURE_COLORS.goldDim, strokeWidth: 0.3 },
-    { type: 'rect', x: 520, y: 200, w: 300, h: 50, fill: FURNITURE_COLORS.leather, stroke: FURNITURE_COLORS.goldDim, strokeWidth: 0.5 },
-    { type: 'rect', x: 535, y: 210, w: 270, h: 30, fill: FURNITURE_COLORS.fabric, stroke: FURNITURE_COLORS.goldDim, strokeWidth: 0.3 },
-    { type: 'rect', x: 60, y: 290, w: 780, h: 30, fill: FURNITURE_COLORS.woodLight, stroke: FURNITURE_COLORS.goldDim, strokeWidth: 0.5 },
-    { type: 'rect', x: 70, y: 298, w: 760, h: 18, fill: FURNITURE_COLORS.accent, stroke: FURNITURE_COLORS.goldDim, strokeWidth: 0.3 },
-    { type: 'rect', x: 60, y: 350, w: 120, h: 80, fill: FURNITURE_COLORS.wood, stroke: FURNITURE_COLORS.goldDim, strokeWidth: 1 },
-    { type: 'rect', x: 75, y: 365, w: 90, h: 50, fill: FURNITURE_COLORS.fabric, stroke: FURNITURE_COLORS.goldDim, strokeWidth: 0.3 },
-    { type: 'rect', x: 60, y: 350, w: 120, h: 15, fill: FURNITURE_COLORS.fabricLight, stroke: FURNITURE_COLORS.goldDim, strokeWidth: 0.3 },
-    { type: 'rect', x: 250, y: 350, w: 120, h: 80, fill: FURNITURE_COLORS.wood, stroke: FURNITURE_COLORS.goldDim, strokeWidth: 1 },
-    { type: 'rect', x: 265, y: 365, w: 90, h: 50, fill: FURNITURE_COLORS.fabric, stroke: FURNITURE_COLORS.goldDim, strokeWidth: 0.3 },
-    { type: 'rect', x: 250, y: 350, w: 120, h: 15, fill: FURNITURE_COLORS.fabricLight, stroke: FURNITURE_COLORS.goldDim, strokeWidth: 0.3 },
-    { type: 'rect', x: 440, y: 350, w: 120, h: 80, fill: FURNITURE_COLORS.wood, stroke: FURNITURE_COLORS.goldDim, strokeWidth: 1 },
-    { type: 'rect', x: 455, y: 365, w: 90, h: 50, fill: FURNITURE_COLORS.fabric, stroke: FURNITURE_COLORS.goldDim, strokeWidth: 0.3 },
-    { type: 'rect', x: 440, y: 350, w: 120, h: 15, fill: FURNITURE_COLORS.fabricLight, stroke: FURNITURE_COLORS.goldDim, strokeWidth: 0.3 },
-    { type: 'rect', x: 630, y: 350, w: 120, h: 80, fill: FURNITURE_COLORS.wood, stroke: FURNITURE_COLORS.goldDim, strokeWidth: 1 },
-    { type: 'rect', x: 645, y: 365, w: 90, h: 50, fill: FURNITURE_COLORS.fabric, stroke: FURNITURE_COLORS.goldDim, strokeWidth: 0.3 },
-    { type: 'rect', x: 630, y: 350, w: 120, h: 15, fill: FURNITURE_COLORS.fabricLight, stroke: FURNITURE_COLORS.goldDim, strokeWidth: 0.3 },
-    { type: 'rect', x: 60, y: 460, w: 780, h: 30, fill: FURNITURE_COLORS.woodLight, stroke: FURNITURE_COLORS.goldDim, strokeWidth: 0.5, opacity: 0.5 },
-    { type: 'circle', x: 100, y: 475, r: 8, fill: FURNITURE_COLORS.gold, stroke: FURNITURE_COLORS.goldDim, strokeWidth: 0.3, opacity: 0.3 },
-    { type: 'circle', x: 800, y: 475, r: 8, fill: FURNITURE_COLORS.gold, stroke: FURNITURE_COLORS.goldDim, strokeWidth: 0.3, opacity: 0.3 },
+    { type: 'rect', x: 8, y: 8, w: 60, h: 40, fill: FURNITURE_COLORS.wood, stroke: FURNITURE_COLORS.goldDim, strokeWidth: 0.8 },
+    { type: 'rect', x: 12, y: 12, w: 52, h: 30, fill: FURNITURE_COLORS.fabric, stroke: FURNITURE_COLORS.goldDim, strokeWidth: 0.3 },
+    { type: 'rect', x: 8, y: 8, w: 60, h: 8, fill: FURNITURE_COLORS.fabricLight, stroke: FURNITURE_COLORS.goldDim, strokeWidth: 0.3 },
+    { type: 'rect', x: 20, y: 6, w: 36, h: 6, fill: FURNITURE_COLORS.gold, stroke: FURNITURE_COLORS.goldDim, strokeWidth: 0.3, opacity: 0.3 },
+    { type: 'rect', x: 72, y: 10, w: 18, h: 18, fill: FURNITURE_COLORS.woodLight, stroke: FURNITURE_COLORS.goldDim, strokeWidth: 0.5 },
+    { type: 'rect', x: 76, y: 14, w: 10, h: 10, fill: FURNITURE_COLORS.glass, stroke: FURNITURE_COLORS.goldDim, strokeWidth: 0.3 },
+    { type: 'circle', x: 81, y: 19, r: 3, fill: FURNITURE_COLORS.gold, stroke: FURNITURE_COLORS.goldDim, strokeWidth: 0.3 },
+    { type: 'rect', x: 8, y: 55, w: 50, h: 22, fill: FURNITURE_COLORS.leather, stroke: FURNITURE_COLORS.goldDim, strokeWidth: 0.5 },
+    { type: 'rect', x: 12, y: 59, w: 42, h: 14, fill: FURNITURE_COLORS.fabric, stroke: FURNITURE_COLORS.goldDim, strokeWidth: 0.3 },
   ],
   armory: [
     { type: 'rect', x: 60, y: 60, w: 160, h: 200, fill: FURNITURE_COLORS.metalDark, stroke: FURNITURE_COLORS.metal, strokeWidth: 1 },
@@ -589,23 +617,70 @@ export const ROOM_FURNITURE: Record<string, FurnitureElement[]> = {
   ],
 }
 
+const OLD_ROOM_POS: Record<string, [number, number]> = {
+  blackMarket: [40, 40],
+  vault: [460, 40],
+  underground: [40, 300],
+  concierge: [40, 40],
+  reception: [260, 40],
+  lounge: [660, 40],
+  elevator: [380, 280],
+  entrance: [380, 400],
+  kitchen: [40, 40],
+  bar: [460, 40],
+  laundry: [40, 40],
+  staffRoom: [320, 40],
+  armory: [40, 40],
+  safeHouse: [460, 40],
+  intelNetwork: [40, 40],
+  managerOffice: [460, 40],
+  rooftop: [40, 40],
+}
+
+for (const [roomId, [ox, oy]] of Object.entries(OLD_ROOM_POS)) {
+  if (ROOM_FURNITURE[roomId]) {
+    ROOM_FURNITURE[roomId] = ROOM_FURNITURE[roomId].map(f => {
+      const nf: FurnitureElement = { ...f, x: f.x - ox, y: f.y - oy }
+      if (f.x2 !== undefined) nf.x2 = f.x2 - ox
+      if (f.y2 !== undefined) nf.y2 = f.y2 - oy
+      return nf
+    })
+  }
+}
+
 export function getRoomFurniture(roomId: string): FurnitureElement[] {
-  return ROOM_FURNITURE[roomId] || []
+  if (ROOM_FURNITURE[roomId]) return ROOM_FURNITURE[roomId]
+  const room = Object.values(FLOOR_LAYOUT).flat().find(r => r.id === roomId)
+  if (room?.levelKey && ROOM_FURNITURE[room.levelKey]) return ROOM_FURNITURE[room.levelKey]
+  return []
 }
 
 export const ROOM_TO_FLOOR: Record<string, FloorId> = {
+  concierge: '1',
   reception: '1',
+  lounge: '1',
+  entrance: '1',
   kitchen: '2',
   bar: '2',
+  loadingBay2: '2',
+  barLounge: '2',
   laundry: '3',
+  staffRoom: '3',
   guestRooms: '3',
   vip: '7',
   armory: '9',
   safeHouse: '9',
+  controlCenter: '9',
+  safeHouseBunker: '9',
   intelNetwork: '10',
+  managerOffice: '10',
+  datacenter: '10',
+  staffQuarters: '10',
   blackMarket: 'G',
   vault: 'G',
   underground: 'G',
+  loadingBay: 'G',
+  rooftop: '11',
 }
 
 export function getBuildingFloor(buildingId: string): FloorId {
@@ -641,78 +716,267 @@ export function getRoomsOnFloor(floor: FloorId): RoomLayout[] {
   return FLOOR_LAYOUT[floor] || []
 }
 
+export interface CorridorSegment {
+  x: number
+  y: number
+  w: number
+  h: number
+  vertical?: boolean
+  label?: string
+}
+
+export const CORRIDOR_LAYOUT: Record<FloorId, CorridorSegment[]> = {
+  G: [
+    { x: 550, y: 6, w: 100, h: 588, vertical: true, label: 'MAIN CORRIDOR' },
+    { x: 6, y: 250, w: 544, h: 100 },
+    { x: 650, y: 250, w: 544, h: 100 },
+  ],
+  '1': [
+    { x: 550, y: 6, w: 100, h: 588, vertical: true, label: 'LOBBY' },
+    { x: 6, y: 250, w: 1188, h: 100, label: 'GRAND LOBBY' },
+  ],
+  '2': [
+    { x: 550, y: 6, w: 100, h: 588, vertical: true, label: 'MAIN CORRIDOR' },
+    { x: 6, y: 250, w: 544, h: 100 },
+    { x: 650, y: 250, w: 544, h: 100 },
+  ],
+  '3': [
+    { x: 550, y: 6, w: 100, h: 588, vertical: true, label: 'STANDARD CORRIDOR' },
+    { x: 6, y: 250, w: 544, h: 100 },
+    { x: 650, y: 250, w: 544, h: 100 },
+    { x: 6, y: 103, w: 544, h: 50 },
+    { x: 650, y: 103, w: 544, h: 50 },
+    { x: 6, y: 447, w: 544, h: 50 },
+    { x: 650, y: 447, w: 544, h: 50 },
+  ],
+  '4': [
+    { x: 550, y: 6, w: 100, h: 588, vertical: true, label: 'DELUXE CORRIDOR' },
+    { x: 6, y: 250, w: 544, h: 100 },
+    { x: 650, y: 250, w: 544, h: 100 },
+    { x: 6, y: 103, w: 544, h: 50 },
+    { x: 650, y: 103, w: 544, h: 50 },
+    { x: 6, y: 447, w: 544, h: 50 },
+    { x: 650, y: 447, w: 544, h: 50 },
+  ],
+  '5': [
+    { x: 550, y: 6, w: 100, h: 588, vertical: true, label: 'EXECUTIVE CORRIDOR' },
+    { x: 6, y: 250, w: 544, h: 100 },
+    { x: 650, y: 250, w: 544, h: 100 },
+  ],
+  '6': [
+    { x: 550, y: 6, w: 100, h: 588, vertical: true, label: 'PRESIDENTIAL CORRIDOR' },
+    { x: 6, y: 250, w: 544, h: 100 },
+    { x: 650, y: 250, w: 544, h: 100 },
+  ],
+  '7': [
+    { x: 550, y: 6, w: 100, h: 588, vertical: true, label: 'VIP CORRIDOR' },
+    { x: 6, y: 250, w: 544, h: 100 },
+    { x: 650, y: 250, w: 544, h: 100 },
+  ],
+  '8': [
+    { x: 550, y: 6, w: 100, h: 588, vertical: true, label: 'PENTHOUSE CORRIDOR' },
+    { x: 6, y: 250, w: 544, h: 100 },
+    { x: 650, y: 250, w: 544, h: 100 },
+  ],
+  '9': [
+    { x: 550, y: 6, w: 100, h: 588, vertical: true, label: 'BLAST CORRIDOR' },
+    { x: 6, y: 250, w: 544, h: 100 },
+    { x: 650, y: 250, w: 544, h: 100 },
+  ],
+  '10': [
+    { x: 550, y: 6, w: 100, h: 588, vertical: true, label: 'MAIN CORRIDOR' },
+    { x: 6, y: 250, w: 544, h: 100 },
+    { x: 650, y: 250, w: 544, h: 100 },
+  ],
+  '11': [],
+}
+
 export interface PathNode {
   x: number
   y: number
 }
 
 export const CORRIDOR_NODES: Record<FloorId, PathNode[]> = {
-  G: [{ x: 200, y: 280 }, { x: 450, y: 280 }, { x: 700, y: 280 }, { x: 450, y: 400 }],
-  '1': [{ x: 140, y: 160 }, { x: 450, y: 160 }, { x: 760, y: 160 }, { x: 450, y: 320 }, { x: 450, y: 460 }],
-  '2': [{ x: 240, y: 280 }, { x: 660, y: 280 }],
-  '3': [{ x: 170, y: 160 }, { x: 450, y: 160 }, { x: 450, y: 420 }],
-  '4': [{ x: 200, y: 280 }, { x: 450, y: 280 }, { x: 700, y: 280 }],
-  '5': [{ x: 200, y: 280 }, { x: 450, y: 280 }, { x: 700, y: 280 }],
-  '6': [{ x: 200, y: 280 }, { x: 450, y: 280 }, { x: 700, y: 280 }],
-  '7': [{ x: 200, y: 280 }, { x: 450, y: 280 }, { x: 700, y: 280 }],
-  '8': [{ x: 200, y: 280 }, { x: 450, y: 280 }, { x: 700, y: 280 }],
-  '9': [{ x: 240, y: 280 }, { x: 660, y: 280 }],
-  '10': [{ x: 240, y: 280 }, { x: 660, y: 280 }],
+  G: [{ x: 278, y: 300 }, { x: 600, y: 300 }, { x: 922, y: 300 }, { x: 600, y: 128 }, { x: 600, y: 472 }],
+  '1': [{ x: 278, y: 300 }, { x: 600, y: 300 }, { x: 922, y: 300 }, { x: 600, y: 128 }, { x: 600, y: 472 }],
+  '2': [{ x: 278, y: 300 }, { x: 600, y: 300 }, { x: 922, y: 300 }, { x: 600, y: 128 }, { x: 600, y: 472 }],
+  '3': [{ x: 278, y: 300 }, { x: 600, y: 300 }, { x: 922, y: 300 }, { x: 600, y: 128 }, { x: 600, y: 472 }],
+  '4': [{ x: 278, y: 300 }, { x: 600, y: 300 }, { x: 922, y: 300 }, { x: 600, y: 128 }, { x: 600, y: 472 }],
+  '5': [{ x: 278, y: 300 }, { x: 600, y: 300 }, { x: 922, y: 300 }, { x: 600, y: 128 }, { x: 600, y: 472 }],
+  '6': [{ x: 278, y: 300 }, { x: 600, y: 300 }, { x: 922, y: 300 }, { x: 600, y: 128 }, { x: 600, y: 472 }],
+  '7': [{ x: 278, y: 300 }, { x: 600, y: 300 }, { x: 922, y: 300 }, { x: 600, y: 128 }, { x: 600, y: 472 }],
+  '8': [{ x: 278, y: 300 }, { x: 600, y: 300 }, { x: 922, y: 300 }, { x: 600, y: 128 }, { x: 600, y: 472 }],
+  '9': [{ x: 278, y: 300 }, { x: 600, y: 300 }, { x: 922, y: 300 }, { x: 600, y: 128 }, { x: 600, y: 472 }],
+  '10': [{ x: 278, y: 300 }, { x: 600, y: 300 }, { x: 922, y: 300 }, { x: 600, y: 128 }, { x: 600, y: 472 }],
   '11': [],
+}
+
+function generateAnchorsForGrid(rooms: RoomLayout[]): Record<string, [number, number][]> {
+  const result: Record<string, [number, number][]> = {}
+  for (const room of rooms) {
+    result[room.id] = [[Math.round(room.x + room.w / 2), Math.round(room.y + room.h / 2)]]
+  }
+  return result
 }
 
 export const ROOM_ANCHORS: Record<FloorId, Record<string, [number, number][]>> = {
   G: {
-    blackMarket: [[150, 150], [300, 150], [200, 220], [350, 220]],
-    vault: [[550, 150], [700, 150], [600, 220], [750, 220]],
-    underground: [[200, 380], [450, 380], [700, 380], [400, 480], [600, 480]],
+    loadingBay: [[140, 128], [280, 128], [180, 200], [380, 200]],
+    blackMarket: [[790, 128], [930, 128], [830, 200], [1030, 200]],
+    underground: [[140, 472], [280, 472], [180, 540], [380, 540]],
+    vault: [[790, 472], [930, 472], [830, 540], [1030, 540]],
   },
   '1': {
-    concierge: [[120, 150], [180, 150], [130, 220], [170, 220]],
-    reception: [[350, 150], [450, 150], [550, 150], [400, 220], [500, 220]],
-    lounge: [[740, 150], [800, 150], [760, 220], [800, 220]],
-    entrance: [[450, 460], [420, 500], [480, 500]],
+    concierge: [[140, 128], [280, 128], [180, 200], [380, 200]],
+    lounge: [[790, 128], [930, 128], [830, 200], [1030, 200]],
+    reception: [[140, 472], [280, 472], [380, 540], [480, 540]],
+    entrance: [[790, 472], [930, 472], [830, 540], [1030, 540]],
   },
   '2': {
-    kitchen: [[150, 150], [300, 150], [200, 280], [350, 280], [200, 420], [350, 420]],
-    bar: [[550, 150], [700, 150], [600, 280], [750, 280], [600, 420], [750, 420]],
+    loadingBay2: [[140, 128], [280, 128], [380, 200]],
+    bar: [[790, 128], [930, 128], [830, 200], [1030, 200]],
+    kitchen: [[140, 472], [280, 472], [180, 540], [380, 540]],
+    barLounge: [[790, 472], [930, 472], [830, 540], [1030, 540]],
   },
   '3': {
-    laundry: [[120, 150], [200, 150], [160, 220], [220, 220]],
-    staffRoom: [[400, 150], [480, 150], [430, 220], [500, 220]],
-    guestRooms: [[150, 380], [350, 380], [550, 380], [750, 380], [250, 480], [550, 480]],
+    laundry: [[80, 128], [160, 128], [120, 200]],
+    staffRoom: [[360, 128], [440, 128], [400, 200]],
+    ...generateAnchorsForGrid(F3_ROOMS),
   },
-  '4': { guestRooms: [[150, 150], [350, 150], [550, 150], [750, 150], [200, 300], [450, 300], [700, 300], [250, 450], [550, 450]] },
-  '5': { guestRooms: [[150, 150], [350, 150], [550, 150], [750, 150], [200, 300], [450, 300], [700, 300], [250, 450], [550, 450]] },
-  '6': { guestRooms: [[150, 150], [350, 150], [550, 150], [750, 150], [200, 300], [450, 300], [700, 300], [250, 450], [550, 450]] },
-  '7': { vip: [[150, 150], [350, 150], [550, 150], [750, 150], [200, 300], [450, 300], [700, 300], [250, 450], [550, 450]] },
-  '8': { vip: [[150, 150], [350, 150], [550, 150], [750, 150], [200, 300], [450, 300], [700, 300], [250, 450], [550, 450]] },
+  '4': generateAnchorsForGrid(F4_ROOMS),
+  '5': generateAnchorsForGrid(F5_ROOMS),
+  '6': generateAnchorsForGrid(F6_ROOMS),
+  '7': generateAnchorsForGrid(F7_ROOMS),
+  '8': generateAnchorsForGrid(F8_ROOMS),
   '9': {
-    armory: [[150, 150], [300, 150], [200, 300], [350, 300], [200, 450], [350, 450]],
-    safeHouse: [[550, 150], [700, 150], [600, 300], [750, 300], [600, 450], [750, 450]],
+    armory: [[140, 128], [280, 128], [180, 200], [380, 200]],
+    safeHouse: [[790, 128], [930, 128], [830, 200], [1030, 200]],
+    controlCenter: [[140, 472], [280, 472], [380, 540]],
+    safeHouseBunker: [[790, 472], [930, 472], [830, 540], [1030, 540]],
   },
   '10': {
-    intelNetwork: [[150, 150], [300, 150], [200, 300], [350, 300], [200, 450], [350, 450]],
-    managerOffice: [[550, 150], [700, 150], [600, 300], [750, 300], [600, 450], [750, 450]],
+    intelNetwork: [[140, 128], [280, 128], [180, 200], [380, 200]],
+    managerOffice: [[790, 128], [930, 128], [830, 200], [1030, 200]],
+    datacenter: [[140, 472], [280, 472], [380, 540]],
+    staffQuarters: [[790, 472], [930, 472], [830, 540], [1030, 540]],
   },
-  '11': {},
+  '11': {
+    rooftop: [[300, 200], [600, 300], [900, 200], [400, 400], [800, 400]],
+  },
 }
 
-export const ELEVATOR_X = 450
+export const ELEVATOR_X = 600
+export const ELEVATOR_Y = 300
+export const ELEVATOR_R = 42
 
 export const ELEVATOR_NODES: Record<FloorId, [number, number]> = {
-  G: [ELEVATOR_X, 400],
-  '1': [ELEVATOR_X, 330],
-  '2': [ELEVATOR_X, 280],
-  '3': [ELEVATOR_X, 420],
-  '4': [ELEVATOR_X, 280],
-  '5': [ELEVATOR_X, 280],
-  '6': [ELEVATOR_X, 280],
-  '7': [ELEVATOR_X, 280],
-  '8': [ELEVATOR_X, 280],
-  '9': [ELEVATOR_X, 280],
-  '10': [ELEVATOR_X, 280],
-  '11': [ELEVATOR_X, 300],
+  G: [ELEVATOR_X, ELEVATOR_Y],
+  '1': [ELEVATOR_X, ELEVATOR_Y],
+  '2': [ELEVATOR_X, ELEVATOR_Y],
+  '3': [ELEVATOR_X, ELEVATOR_Y],
+  '4': [ELEVATOR_X, ELEVATOR_Y],
+  '5': [ELEVATOR_X, ELEVATOR_Y],
+  '6': [ELEVATOR_X, ELEVATOR_Y],
+  '7': [ELEVATOR_X, ELEVATOR_Y],
+  '8': [ELEVATOR_X, ELEVATOR_Y],
+  '9': [ELEVATOR_X, ELEVATOR_Y],
+  '10': [ELEVATOR_X, ELEVATOR_Y],
+  '11': [ELEVATOR_X, ELEVATOR_Y],
+}
+
+export type DoorCategory = 'standard' | 'lobby' | 'sliding'
+
+export interface DoorDef {
+  x: number
+  y: number
+  side: 'top' | 'bottom' | 'left' | 'right'
+  category: DoorCategory
+}
+
+const DW = 24
+const DW_LOBBY = 50
+const DW_SLIDING = 32
+
+function doorTop(cx: number, ry: number, cat: DoorCategory = 'standard'): DoorDef {
+  return { x: cx, y: ry, side: 'top', category: cat }
+}
+function doorBottom(cx: number, ry: number, cat: DoorCategory = 'standard'): DoorDef {
+  return { x: cx, y: ry, side: 'bottom', category: cat }
+}
+function doorLeft(rx: number, cy: number, cat: DoorCategory = 'standard'): DoorDef {
+  return { x: rx, y: cy, side: 'left', category: cat }
+}
+function doorRight(rx: number, cy: number, cat: DoorCategory = 'standard'): DoorDef {
+  return { x: rx, y: cy, side: 'right', category: cat }
+}
+
+function generateDoorsForGrid(rooms: RoomLayout[], bands: 1 | 2, cat: DoorCategory = 'standard'): DoorDef[] {
+  const doors: DoorDef[] = []
+  const midX = INNER_X + INNER_W / 2
+  const vCorrLeft = midX - V_CORR_W / 2
+  const vCorrRight = midX + V_CORR_W / 2
+
+  for (const room of rooms) {
+    const cx = room.x + room.w / 2
+    const cy = room.y + room.h / 2
+    if (bands === 1) {
+      if (room.x + room.w <= vCorrLeft + 2) {
+        doors.push(doorRight(room.x + room.w, cy, cat))
+      } else if (room.x >= vCorrRight - 2) {
+        doors.push(doorLeft(room.x, cy, cat))
+      }
+    } else {
+      if (room.y < ELEV_TOP - 2) {
+        if (room.y + room.h < ELEV_TOP) {
+          const corrY = room.y + room.h
+          doors.push(doorBottom(cx, corrY, cat))
+        }
+      } else if (room.y >= ELEV_BOT - 2) {
+        if (room.y > ELEV_BOT) {
+          doors.push(doorTop(cx, room.y, cat))
+        }
+      }
+    }
+  }
+  return doors
+}
+export const DOOR_LAYOUT: Record<FloorId, DoorDef[]> = {
+  G: [
+    doorBottom(278, 250, 'standard'), doorBottom(922, 250, 'standard'),
+    doorTop(278, 350, 'standard'), doorTop(922, 350, 'standard'),
+  ],
+  '1': [
+    doorBottom(278, 250, 'standard'), doorBottom(922, 250, 'standard'),
+    doorTop(278, 350, 'lobby'), doorTop(922, 350, 'lobby'),
+  ],
+  '2': [
+    doorBottom(278, 250, 'standard'), doorBottom(922, 250, 'standard'),
+    doorTop(278, 350, 'standard'), doorTop(922, 350, 'standard'),
+  ],
+  '3': [
+    doorBottom(142, 250, 'standard'), doorBottom(414, 250, 'standard'),
+    ...generateDoorsForGrid(F3_ROOMS, 2, 'standard'),
+  ],
+  '4': [...generateDoorsForGrid(F4_ROOMS, 2, 'standard')],
+  '5': [...generateDoorsForGrid(F5_ROOMS, 1, 'standard')],
+  '6': [...generateDoorsForGrid(F6_ROOMS, 1, 'sliding')],
+  '7': [...generateDoorsForGrid(F7_ROOMS, 1, 'sliding')],
+  '8': [...generateDoorsForGrid(F8_ROOMS, 1, 'sliding')],
+  '9': [
+    doorBottom(278, 250, 'standard'), doorBottom(922, 250, 'standard'),
+    doorTop(278, 350, 'standard'), doorTop(922, 350, 'standard'),
+  ],
+  '10': [
+    doorBottom(278, 250, 'standard'), doorBottom(922, 250, 'standard'),
+    doorTop(278, 350, 'standard'), doorTop(922, 350, 'standard'),
+  ],
+  '11': [],
+}
+
+export const DOOR_WIDTHS: Record<DoorCategory, number> = {
+  standard: DW,
+  lobby: DW_LOBBY,
+  sliding: DW_SLIDING,
 }
 
 export const GOLD = '#c9a84c'

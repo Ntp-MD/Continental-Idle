@@ -114,7 +114,7 @@ function updateSidebarDots(): void {
 
 function randAnchor(floor: FloorId, roomId: string): [number, number] {
   const anchors = ROOM_ANCHORS[floor]?.[roomId]
-  if (!anchors || anchors.length === 0) return [450, 300]
+  if (!anchors || anchors.length === 0) return [600, 300]
   return anchors[Math.floor(Math.random() * anchors.length)]
 }
 
@@ -289,7 +289,7 @@ function initVisitors(): void {
   const dots: NpcDot[] = visitors.value.map((v, i) => {
     const def = v.isAssassin ? ASSASSIN_MAP[v.typeId] : STAFF_MAP[v.typeId]
     return {
-      id: v.id, x: 350 + i * 60, y: 200,
+      id: v.id, x: 200 + i * 80, y: 420,
       color: v.isAssassin ? (ASSASSIN_COLORS[v.typeId] || '#ff1744') : (STAFF_COLORS[v.typeId] || '#aaa'),
       name: def?.name || v.typeId,
       profession: v.isAssassin ? 'Assassin' : 'Staff',
