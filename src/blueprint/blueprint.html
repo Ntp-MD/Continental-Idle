@@ -1,0 +1,602 @@
+<!DOCTYPE html>
+<html lang="th">
+
+<head>
+	<meta charset="UTF-8">
+	<title>The Continental — Architectural Floor Plans</title>
+	<style>
+		:root {
+			--gold: #333333;
+			--gold-dim: #666666;
+			--gold-bright: #1a1a1a;
+			--bg: #f4f4f2;
+			--paper: #ffffff;
+			--line: #333333;
+			--line-soft: #aaaaaa;
+			--ink: #222222;
+			--ink-dim: #666666;
+			--red: #8a2c2c;
+			--furn: #ebebe9;
+			--svc: #d8d8d6;
+		}
+
+		* {
+			box-sizing: border-box;
+		}
+
+		html,
+		body {
+			margin: 0;
+			padding: 0;
+			background: #e9e9e6;
+			color: var(--ink);
+			font-family: Arial, Helvetica, sans-serif;
+			min-height: 100vh;
+		}
+
+		.wrap {
+			max-width: 1280px;
+			margin: 0 auto;
+			padding: 28px 20px 60px;
+		}
+
+		.masthead {
+			display: flex;
+			justify-content: space-between;
+			align-items: flex-end;
+			border-bottom: 2px solid var(--gold);
+			padding-bottom: 14px;
+			margin-bottom: 18px;
+		}
+
+		.masthead h1 {
+			margin: 0;
+			font-family: 'Times New Roman', Georgia, serif;
+			letter-spacing: 6px;
+			font-size: 28px;
+			font-weight: 400;
+			color: var(--gold-bright);
+			text-transform: uppercase;
+		}
+
+		.masthead .sub {
+			font-size: 11px;
+			letter-spacing: 3px;
+			color: var(--ink-dim);
+			margin-top: 4px;
+			text-transform: uppercase;
+		}
+
+		.masthead .doc-id {
+			text-align: right;
+			font-size: 11px;
+			color: var(--ink-dim);
+			line-height: 1.7;
+			letter-spacing: 1px;
+		}
+
+		.floor-tabs {
+			display: flex;
+			flex-wrap: wrap;
+			gap: 6px;
+			margin-bottom: 18px;
+		}
+
+		.floor-tabs button {
+			background: #ffffff;
+			border: 1px solid var(--line-soft);
+			color: var(--ink-dim);
+			font-family: inherit;
+			font-size: 12px;
+			letter-spacing: 1px;
+			padding: 8px 12px;
+			cursor: pointer;
+			transition: all .15s ease;
+		}
+
+		.floor-tabs button:hover {
+			border-color: var(--gold);
+			color: var(--ink);
+		}
+
+		.floor-tabs button.active {
+			background: var(--gold);
+			color: #ffffff;
+			border-color: var(--gold);
+			font-weight: bold;
+		}
+
+		.sheet {
+			background: var(--paper);
+			border: 1px solid var(--line-soft);
+			position: relative;
+		}
+
+		.sheet svg {
+			display: block;
+			width: 100%;
+			height: auto;
+		}
+
+		.legend-bar {
+			display: flex;
+			flex-wrap: wrap;
+			align-items: center;
+			gap: 18px;
+			padding: 14px 18px;
+			border-bottom: 1px solid var(--line-soft);
+			font-size: 10.5px;
+			color: var(--ink-dim);
+			letter-spacing: .5px;
+		}
+
+		.legend-bar .floor-label {
+			font-size: 13px;
+			font-weight: bold;
+			color: var(--ink);
+			letter-spacing: 2px;
+			text-transform: uppercase;
+		}
+
+		.legend-bar .floor-info {
+			color: var(--ink-dim);
+			font-size: 10px;
+		}
+
+		.legend-bar span {
+			display: flex;
+			align-items: center;
+			gap: 6px;
+		}
+
+		.legend-bar i {
+			display: inline-block;
+			width: 14px;
+			height: 10px;
+			border: 1px solid var(--gold-dim);
+		}
+
+		footer {
+			text-align: center;
+			margin-top: 22px;
+			font-size: 10px;
+			letter-spacing: 2px;
+			color: #999999;
+			text-transform: uppercase;
+		}
+
+		/* SVG text defaults */
+		text {
+			font-family: 'Arial', 'Helvetica', sans-serif;
+		}
+	</style>
+</head>
+
+<body>
+	<div class="wrap">
+		<div class="masthead">
+			<div>
+				<h1>The Continental</h1>
+				<div class="sub">Architectural Floor Plan Survey · High Table Property Registry</div>
+			</div>
+			<div class="doc-id"> DWG NO. CONT‑IDLE‑000<br> SCALE 1 : 100 &nbsp; · &nbsp; SHEET <span id="sheetNo">01</span> /
+				22 </div>
+		</div>
+		<div class="floor-tabs" id="floorTabs"></div>
+		<div class="sheet">
+			<div class="legend-bar" id="legendBar"></div>
+			<svg id="svgRoot" viewBox="0 0 1200 600" xmlns="http://www.w3.org/2000/svg"></svg>
+		</div>
+		<footer>Adjudicator copy · No business may be conducted on the premises · Continental‑Idle reference plan</footer>
+	</div>
+	<script>
+		/* ============================================================
+			 THE CONTINENTAL — Grid Canvas
+			 Canvas: 1200×600 px
+			 Grid: 25×25 px cells
+			 Total: 48×24 = 1,152 cells
+			 ============================================================ */
+
+		const NS = "http://www.w3.org/2000/svg";
+		const W = 1200, H = 600;
+		const GRID_SIZE = 25;
+
+		const GRID_LINE = {
+			stroke: '#d4d4d0',
+			'stroke-width': 0.5
+		};
+
+		const WALL_EXT = { stroke: '#1a1a1a', 'stroke-width': 2, fill: 'none' };
+		const WALL_INT = { stroke: '#1a1a1a', 'stroke-width': 1.5, fill: 'none' };
+		const COL_FILL = '#1a1a1a';
+
+		const CAT = {
+			public: '#e8e4dc',
+			service: '#dcd8d0',
+			back: '#d4d0c8',
+			security: '#d0ccc4',
+			utility: '#ccc8c0',
+			open: '#f7f7f5',
+		};
+
+		const ROOM = {
+			fill: '#ffffff',
+		};
+
+		const ELEVATOR = {
+			w: 50,
+			h: 50,
+			fill: '#ebebe9',
+			stroke: '#1a1a1a',
+			'stroke-width': 1.5
+		};
+
+		function el(tag, attrs, parent) {
+			const e = document.createElementNS(NS, tag);
+			for (const k in attrs) e.setAttribute(k, attrs[k]);
+			if (parent) parent.appendChild(e);
+			return e;
+		}
+
+		function drawGrid(g) {
+			const defs = el('defs', {}, g);
+			const pat = el('pattern', { id: 'grid', width: GRID_SIZE, height: GRID_SIZE, patternUnits: 'userSpaceOnUse' }, defs);
+			el('rect', { width: GRID_SIZE, height: GRID_SIZE, fill: '#f7f7f5' }, pat);
+			el('path', { d: `M ${GRID_SIZE} 0 L 0 0 0 ${GRID_SIZE}`, fill: 'none', ...GRID_LINE }, pat);
+			el('rect', { x: 0, y: 0, width: W, height: H, fill: 'url(#grid)' }, g);
+		}
+
+		function drawElevator(g, x, y, count) {
+			count = count || 1;
+			const totalW = ELEVATOR.w * count;
+			for (let i = 0; i < count; i++) {
+				const cx = x + i * ELEVATOR.w;
+				const r = el('rect', { x: cx, y, width: ELEVATOR.w, height: ELEVATOR.h, fill: ELEVATOR.fill, stroke: ELEVATOR.stroke, 'stroke-width': ELEVATOR['stroke-width'] }, g);
+				el('title', {}, r).textContent = 'Elevator';
+				el('rect', { x: cx + 4, y: y + 4, width: ELEVATOR.w - 8, height: ELEVATOR.h - 8, fill: 'none', stroke: ELEVATOR.stroke, 'stroke-width': 0.7 }, g);
+				el('line', { x1: cx + ELEVATOR.w / 2, y1: y + 4, x2: cx + ELEVATOR.w / 2, y2: y + ELEVATOR.h - 4, stroke: ELEVATOR.stroke, 'stroke-width': 1 }, g);
+			}
+		}
+
+
+		function drawRoom(g, x, y, w, h, cat, label) {
+			const fill = cat ? (CAT[cat] || ROOM.fill) : ROOM.fill;
+			const r = el('rect', { x, y, width: w, height: h, fill }, g);
+			if (label) el('title', {}, r).textContent = label;
+			el('rect', { x, y, width: w, height: h, fill: 'none', ...WALL_INT }, g);
+		}
+
+		function drawLRoom(g, x, y, w, h, extSide, extW, extH) {
+			let d;
+			if (extSide === 'down-left') {
+				d = `M${x},${y} L${x + w},${y} L${x + w},${y + h} L${x + extW},${y + h} L${x + extW},${y + h + extH} L${x},${y + h + extH} Z`;
+			} else if (extSide === 'down-right') {
+				d = `M${x},${y} L${x + w},${y} L${x + w},${y + h + extH} L${x + w - extW},${y + h + extH} L${x + w - extW},${y + h} L${x},${y + h} Z`;
+			} else if (extSide === 'up-left') {
+				d = `M${x},${y - extH} L${x + extW},${y - extH} L${x + extW},${y} L${x + w},${y} L${x + w},${y + h} L${x},${y + h} Z`;
+			} else if (extSide === 'up-right') {
+				d = `M${x},${y} L${x + w - extW},${y} L${x + w - extW},${y - extH} L${x + w},${y - extH} L${x + w},${y + h} L${x},${y + h} Z`;
+			}
+			el('path', { d, fill: ROOM.fill }, g);
+			el('path', { d, ...WALL_INT }, g);
+		}
+
+		function drawDoor(g, x, y, orient, swing, size) {
+			size = size || 25;
+			const half = size / 2, gap = 3;
+			if (orient === 'h') {
+				el('rect', { x: x - half - gap, y: y - 2, width: size + gap * 2, height: 4, fill: '#f7f7f5' }, g);
+				if (swing === 'down') el('line', { x1: x - half, y1: y, x2: x - half, y2: y + half, stroke: '#1a1a1a', 'stroke-width': 1 }, g);
+				else el('line', { x1: x - half, y1: y, x2: x - half, y2: y - half, stroke: '#1a1a1a', 'stroke-width': 1 }, g);
+			} else {
+				el('rect', { x: x - 2, y: y - half - gap, width: 4, height: size + gap * 2, fill: '#f7f7f5' }, g);
+				if (swing === 'right') el('line', { x1: x, y1: y - half, x2: x + half, y2: y - half, stroke: '#1a1a1a', 'stroke-width': 1 }, g);
+				else el('line', { x1: x, y1: y - half, x2: x - half, y2: y - half, stroke: '#1a1a1a', 'stroke-width': 1 }, g);
+			}
+		}
+
+		function drawLabel(g, cx, cy, text, sub, size) {
+			el('text', { x: cx, y: cy, 'text-anchor': 'middle', 'font-size': size || 12, fill: '#333333', 'letter-spacing': '1' }, g).textContent = text.toUpperCase();
+			if (sub) {
+				el('text', { x: cx, y: cy + 14, 'text-anchor': 'middle', 'font-size': 9, fill: '#666666' }, g).textContent = sub.toUpperCase();
+			}
+		}
+
+		function drawCol(g, x, y, w, h) {
+			const r = el('rect', { x, y, width: w, height: h, fill: COL_FILL }, g);
+			el('title', {}, r).textContent = 'Structural Column';
+		}
+
+		function drawFurn(g, x, y, w, h, shape, label) {
+			let e;
+			if (shape === 'circle') {
+				e = el('ellipse', { cx: x + w / 2, cy: y + h / 2, rx: w / 2, ry: h / 2, fill: '#ebebe9', stroke: '#999999', 'stroke-width': 0.75 }, g);
+			} else {
+				e = el('rect', { x, y, width: w, height: h, rx: shape === 'round' ? 10 : 0, fill: '#ebebe9', stroke: '#999999', 'stroke-width': 0.75 }, g);
+			}
+			if (label) el('title', {}, e).textContent = label;
+		}
+
+		function drawOpenZone(g, x, y, w, h, cat) {
+			el('rect', { x, y, width: w, height: h, fill: CAT[cat] || CAT.open }, g);
+		}
+
+		/* ============================================================
+			 FLOOR 1 — LOBBY
+			 Zoning: Main Entrance (public, S exterior wall) feeds into
+			 the open Grand Lobby hall (public) with Reception Desk.
+			 Concierge (guest service) flanks W for luggage; Waiting
+			 Lounge (public) flanks E for guest seating. Reception
+			 Office (back-of-house, restricted) sits N behind reception.
+			 Elevator bank (2 cars, 2×2 each) between office and hall.
+			 ============================================================ */
+		function drawLobby(g) {
+			// --- 1. Floor fills: open Grand Lobby hall ---
+			drawOpenZone(g, 175, 325, 850, 125, 'open');
+			drawOpenZone(g, 0, 450, 1200, 150, 'open');
+
+			// --- 2. Enclosed rooms (flush against exterior walls, full height) ---
+			drawRoom(g, 375, 0, 450, 175, 'back', 'Reception Office');         // Reception Office — N wall, wider
+			drawRoom(g, 0, 0, 175, 450, 'service', 'Concierge');        // Concierge — W wall, full height
+			drawRoom(g, 1025, 0, 175, 450, 'public', 'Waiting Lounge');      // Waiting Lounge — E wall, full height
+
+			// --- 3. Exterior wall ---
+			el('rect', { x: 0, y: 0, width: W, height: H, fill: 'none', ...WALL_EXT }, g);
+
+			// --- 4. Structural columns ---
+			drawCol(g, 175, 175, 25, 25);
+			drawCol(g, 375, 175, 25, 25);
+			drawCol(g, 825, 175, 25, 25);
+			drawCol(g, 1000, 175, 25, 25);
+			drawCol(g, 175, 450, 25, 25);
+			drawCol(g, 425, 450, 25, 25);
+			drawCol(g, 750, 450, 25, 25);
+			drawCol(g, 1000, 450, 25, 25);
+
+			// --- 5. Elevator banks (flush against N wall, flanking Reception Office) ---
+			drawElevator(g, 225, 0, 2);     // Left bank — flush N wall
+			drawElevator(g, 875, 0, 2);     // Right bank — flush N wall
+			// Plant pots at far corners from elevators
+			drawFurn(g, 150, 425, 25, 25, 'circle', 'Plant');   // Bottom-left corner
+			drawFurn(g, 1025, 425, 25, 25, 'circle', 'Plant');  // Bottom-right corner
+
+			// --- 6. Marble floor pattern in lower hall ---
+			for (let mx = 0; mx < 1200; mx += 100) {
+				for (let my = 450; my < 600; my += 75) {
+					el('rect', { x: mx, y: my, width: 100, height: 75, fill: 'none', stroke: '#e0e0de', 'stroke-width': 0.4 }, g);
+				}
+			}
+
+			// --- 7. Lobby rug pattern (upper hall center) ---
+			el('rect', { x: 300, y: 340, width: 600, height: 90, fill: 'none', stroke: '#ccc8c0', 'stroke-width': 0.5, 'stroke-dasharray': '4 3' }, g);
+
+			// --- 8. Doors ---
+			drawDoor(g, 600, 175, 'h');
+			drawDoor(g, 175, 350, 'v');
+			drawDoor(g, 1025, 350, 'v', 'right');
+			drawDoor(g, 500, 600, 'h', 'up', 100);
+			drawDoor(g, 700, 600, 'h', 'up', 100);
+			drawDoor(g, 175, 100, 'v');             // Concierge upper section door
+
+			// --- 9. Reception counter (L-shaped) ---
+			drawFurn(g, 475, 350, 250, 25, null, 'Reception Counter');
+			drawFurn(g, 475, 375, 25, 50, null, 'Reception Counter');
+
+			// Concierge desk + bell desk + luggage
+			drawFurn(g, 25, 275, 100, 25, null, 'Concierge Desk');
+			drawFurn(g, 25, 350, 50, 25, null, 'Bell Desk');
+			drawFurn(g, 100, 350, 50, 25, null, 'Bell Desk');
+			drawFurn(g, 25, 400, 50, 25, null, 'Luggage Rack');
+			drawFurn(g, 100, 400, 50, 25, null, 'Luggage Rack');
+			// Concierge upper — luggage storage area
+			drawFurn(g, 25, 25, 50, 50, null, 'Luggage Storage');
+			drawFurn(g, 100, 25, 50, 50, null, 'Luggage Storage');
+			drawFurn(g, 25, 100, 50, 50, null, 'Luggage Storage');
+			drawFurn(g, 100, 100, 50, 50, null, 'Luggage Storage');
+			drawFurn(g, 25, 175, 50, 50, null, 'Luggage Storage');
+			drawFurn(g, 100, 175, 50, 50, null, 'Luggage Storage');
+			drawFurn(g, 125, 250, 25, 25, 'circle', 'Plant');
+
+			// Waiting Lounge furniture
+			drawFurn(g, 1050, 275, 25, 50, null, 'Sofa');
+			drawFurn(g, 1150, 275, 25, 50, null, 'Sofa');
+			drawFurn(g, 1075, 375, 50, 50, 'circle', 'Coffee Table');
+			drawFurn(g, 1050, 400, 25, 50, null, 'Sofa');
+			drawFurn(g, 1150, 400, 25, 50, null, 'Sofa');
+			drawFurn(g, 1100, 250, 25, 25, 'circle', 'Plant');
+			// Waiting Lounge upper — private seating
+			drawFurn(g, 1050, 25, 25, 50, null, 'Sofa');
+			drawFurn(g, 1150, 25, 25, 50, null, 'Sofa');
+			drawFurn(g, 1075, 100, 50, 50, 'circle', 'Coffee Table');
+			drawFurn(g, 1050, 125, 25, 50, null, 'Sofa');
+			drawFurn(g, 1150, 125, 25, 50, null, 'Sofa');
+			drawFurn(g, 1100, 0, 25, 25, 'circle', 'Plant');
+			drawFurn(g, 1050, 175, 25, 50, null, 'Sofa');
+			drawFurn(g, 1150, 175, 25, 50, null, 'Sofa');
+
+			// Reception Office furniture
+			drawFurn(g, 400, 25, 50, 25, null, 'Desk');
+			drawFurn(g, 400, 50, 25, 25, 'round', 'Chair');
+			drawFurn(g, 475, 25, 25, 50, null, 'Filing Cabinet');
+			drawFurn(g, 550, 25, 50, 25, null, 'Desk');
+			drawFurn(g, 550, 50, 25, 25, 'round', 'Chair');
+			drawFurn(g, 625, 25, 25, 50, null, 'Filing Cabinet');
+			drawFurn(g, 700, 25, 25, 25, null, 'Filing Cabinet');
+			drawFurn(g, 700, 75, 25, 25, null, 'Filing Cabinet');
+			drawFurn(g, 700, 125, 25, 25, null, 'Filing Cabinet');
+			drawFurn(g, 750, 25, 50, 25, null, 'Desk');
+			drawFurn(g, 750, 50, 25, 25, 'round', 'Chair');
+			drawFurn(g, 400, 100, 125, 50, null, 'Meeting Table');
+			drawFurn(g, 550, 100, 125, 50, null, 'Meeting Table');
+
+			// Upper hall — left seating cluster
+			drawFurn(g, 200, 325, 50, 25, null, 'Sofa');
+			drawFurn(g, 200, 350, 25, 25, null, 'Chair');
+			drawFurn(g, 225, 350, 25, 25, null, 'Chair');
+			drawFurn(g, 300, 325, 50, 25, null, 'Sofa');
+			drawFurn(g, 300, 350, 25, 25, null, 'Chair');
+			drawFurn(g, 325, 350, 25, 25, null, 'Chair');
+			drawFurn(g, 250, 380, 50, 25, 'round', 'Coffee Table');
+
+			// Upper hall — right seating cluster
+			drawFurn(g, 750, 325, 50, 25, null, 'Sofa');
+			drawFurn(g, 750, 350, 25, 25, null, 'Chair');
+			drawFurn(g, 775, 350, 25, 25, null, 'Chair');
+			drawFurn(g, 850, 325, 50, 25, null, 'Sofa');
+			drawFurn(g, 850, 350, 25, 25, null, 'Chair');
+			drawFurn(g, 875, 350, 25, 25, null, 'Chair');
+			drawFurn(g, 950, 325, 50, 25, null, 'Sofa');
+			drawFurn(g, 950, 350, 25, 25, null, 'Chair');
+			drawFurn(g, 975, 350, 25, 25, null, 'Chair');
+			drawFurn(g, 800, 380, 50, 25, 'round', 'Coffee Table');
+			drawFurn(g, 900, 380, 50, 25, 'round', 'Coffee Table');
+
+			// Lower hall — seating and decor (fill both rows)
+			drawFurn(g, 50, 475, 25, 25, null, 'Chair');
+			drawFurn(g, 75, 475, 25, 25, null, 'Chair');
+			drawFurn(g, 150, 475, 25, 25, 'circle', 'Plant');
+			drawFurn(g, 250, 475, 50, 25, null, 'Sofa');
+			drawFurn(g, 350, 475, 25, 25, null, 'Chair');
+			drawFurn(g, 375, 475, 25, 25, null, 'Chair');
+			drawFurn(g, 450, 475, 25, 25, 'circle', 'Plant');
+			drawFurn(g, 700, 475, 25, 25, 'circle', 'Plant');
+			drawFurn(g, 750, 475, 25, 25, null, 'Chair');
+			drawFurn(g, 775, 475, 25, 25, null, 'Chair');
+			drawFurn(g, 850, 475, 50, 25, null, 'Sofa');
+			drawFurn(g, 950, 475, 25, 25, 'circle', 'Plant');
+			drawFurn(g, 1000, 475, 25, 25, null, 'Chair');
+			drawFurn(g, 1025, 475, 25, 25, null, 'Chair');
+			// Lower hall — second row seating
+			drawFurn(g, 50, 525, 50, 25, null, 'Sofa');
+			drawFurn(g, 125, 525, 25, 25, 'circle', 'Plant');
+			drawFurn(g, 200, 525, 50, 25, null, 'Sofa');
+			drawFurn(g, 300, 525, 25, 25, null, 'Chair');
+			drawFurn(g, 325, 525, 25, 25, null, 'Chair');
+			drawFurn(g, 850, 525, 50, 25, null, 'Sofa');
+			drawFurn(g, 950, 525, 25, 25, null, 'Chair');
+			drawFurn(g, 975, 525, 25, 25, null, 'Chair');
+			drawFurn(g, 1050, 525, 50, 25, null, 'Sofa');
+			drawFurn(g, 1125, 525, 25, 25, 'circle', 'Plant');
+
+			// Floor lamps
+			drawFurn(g, 200, 425, 25, 25, 'circle', 'Floor Lamp');
+			drawFurn(g, 975, 425, 25, 25, 'circle', 'Floor Lamp');
+			drawFurn(g, 100, 525, 25, 25, 'circle', 'Floor Lamp');
+			drawFurn(g, 1100, 525, 25, 25, 'circle', 'Floor Lamp');
+
+			// Entrance planters
+			drawFurn(g, 425, 560, 25, 25, 'circle', 'Plant');
+			drawFurn(g, 750, 560, 25, 25, 'circle', 'Plant');
+
+			// Doormat at entrance
+			el('rect', { x: 500, y: 575, width: 200, height: 20, fill: 'none', stroke: '#bbb7af', 'stroke-width': 0.6, 'stroke-dasharray': '3 2' }, g);
+
+			// --- 10. Labels ---
+			drawLabel(g, 600, 90, 'Reception Office', 'Back Office');
+			drawLabel(g, 87, 350, 'Concierge', 'Guest Services · Luggage');
+			drawLabel(g, 87, 75, 'Luggage Storage', null, 8);
+			drawLabel(g, 1112, 350, 'Waiting Lounge', 'Seating Area');
+			drawLabel(g, 1112, 75, 'Waiting Lounge', 'Private Seating', 8);
+			drawLabel(g, 600, 335, 'Reception Desk', 'Grand Lobby');
+			drawLabel(g, 275, 65, 'Elevator', null, 8);
+			drawLabel(g, 925, 65, 'Elevator', null, 8);
+			drawLabel(g, 600, 585, 'Main Entrance', 'Lobby Doors', 10);
+		}
+
+		/* ============================================================
+			 RENDER
+			 ============================================================ */
+		const FLOORS = [
+			{ id: 'G', name: 'Basement', info: 'Black Market · Vault · Underground Services · Loading Bay' },
+			{ id: '1', name: 'Lobby', info: 'Concierge · Waiting Lounge · Reception Desk · Main Entrance · Reception Office' },
+			{ id: '2', name: 'Restaurant & Bar', info: 'Kitchen · Bar / Lounge · Loading Bay' },
+			{ id: '3', name: 'Service Floor', info: 'Laundry Service · Staff Room' },
+			{ id: '4', name: 'Security', info: 'Control Center · Armory' },
+			{ id: '5', name: 'Staff Rooms', info: 'Staff Room' },
+			{ id: '6', name: 'Staff Rooms', info: 'Staff Room' },
+			{ id: '7', name: 'Standard Rooms', info: '20 Standard Guest Rooms' },
+			{ id: '8', name: 'Standard Rooms', info: '20 Standard Guest Rooms' },
+			{ id: '9', name: 'Standard Rooms', info: '20 Standard Guest Rooms' },
+			{ id: '10', name: 'Standard Rooms', info: '20 Standard Guest Rooms' },
+			{ id: '11', name: 'Deluxe Rooms', info: '16 Deluxe Guest Rooms' },
+			{ id: '12', name: 'Deluxe Rooms', info: '16 Deluxe Guest Rooms' },
+			{ id: '13', name: 'Executive Rooms', info: '10 Executive Guest Rooms' },
+			{ id: '14', name: 'Executive Rooms', info: '10 Executive Guest Rooms' },
+			{ id: '15', name: 'VIP Suites', info: '8 VIP Suites' },
+			{ id: '16', name: 'VIP Suites', info: '8 VIP Suites' },
+			{ id: '17', name: 'Penthouse', info: '4 Penthouse Suites' },
+			{ id: '18', name: 'Penthouse', info: '4 Penthouse Suites' },
+			{ id: '19', name: 'Intel', info: 'Datacenter · Intelligence Network' },
+			{ id: '20', name: 'Management', info: 'Safe House · Manager\'s Office' },
+			{ id: '21', name: 'Rooftop', info: 'Rooftop Terrace · Helipad' },
+		];
+
+		let currentFloor = '1';
+
+		function renderFloorTabs() {
+			const tabs = document.getElementById('floorTabs');
+			tabs.innerHTML = '';
+			FLOORS.forEach(f => {
+				const btn = document.createElement('button');
+				btn.textContent = f.id === 'G' ? 'G' : 'F' + f.id;
+				btn.className = f.id === currentFloor ? 'active' : '';
+				btn.onclick = () => { currentFloor = f.id; render(); };
+				tabs.appendChild(btn);
+			});
+		}
+
+		const CAT_LABEL = {
+			public: 'Public / Guest',
+			service: 'Guest Service',
+			back: 'Back of House',
+			security: 'Restricted / Security',
+			utility: 'Utility',
+		};
+
+		const FLOOR_CATS = {
+			'1': ['public', 'service', 'back'],
+		};
+
+		function renderLegend() {
+			const bar = document.getElementById('legendBar');
+			const f = FLOORS.find(x => x.id === currentFloor) || FLOORS[0];
+			bar.innerHTML = '';
+			const label = document.createElement('span');
+			label.className = 'floor-label';
+			label.textContent = 'Floor ' + (f.id === 'G' ? 'G' : f.id) + ' — ' + f.name;
+			bar.appendChild(label);
+			const info = document.createElement('span');
+			info.className = 'floor-info';
+			info.textContent = f.info;
+			bar.appendChild(info);
+			const cats = FLOOR_CATS[currentFloor] || [];
+			cats.forEach(cat => {
+				const span = document.createElement('span');
+				const i = document.createElement('i');
+				i.style.background = CAT[cat];
+				span.appendChild(i);
+				span.appendChild(document.createTextNode(CAT_LABEL[cat]));
+				bar.appendChild(span);
+			});
+		}
+
+		function render() {
+			renderFloorTabs();
+			renderLegend();
+			const svg = document.getElementById('svgRoot');
+			svg.innerHTML = '';
+			const g = el('g', {}, svg);
+			drawGrid(g);
+			if (currentFloor === '1') drawLobby(g);
+			const sheetNo = document.getElementById('sheetNo');
+			if (sheetNo) {
+				const idx = FLOORS.findIndex(f => f.id === currentFloor);
+				sheetNo.textContent = String(idx + 1).padStart(2, '0');
+			}
+		}
+
+		render();
+	</script>
+</body>
+
+</html>

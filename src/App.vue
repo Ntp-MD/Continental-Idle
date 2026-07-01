@@ -14,6 +14,7 @@ import ToastContainer from '@/components/overlays/ToastContainer.vue'
 import BuffBar from '@/components/layout/BuffBar.vue'
 import EventLogPanel from '@/components/panels/EventLogPanel.vue'
 import Wiki from '@/components/panels/Wiki.vue'
+import BlueprintPreview from '@/components/panels/blueprint/BlueprintPreview.vue'
 import AutoplayPanel from '@/components/overlays/AutoplayPanel.vue'
 import SupplyRoutePanel from '@/components/panels/SupplyRoutePanel.vue'
 import PowerBalancePanel from '@/components/panels/PowerBalancePanel.vue'
@@ -45,6 +46,7 @@ const showBuildings = ref(true)
 const showEventLog = ref(false)
 const showSaveMenu = ref(false)
 const showWiki = ref(false)
+const showBlueprint = ref(false)
 const showAutoplay = ref(false)
 const showSupplyRoutes = ref(false)
 const showPowerBalance = ref(false)
@@ -163,6 +165,7 @@ function handleKeydown(e: KeyboardEvent) {
     if (showEventLog.value) { showEventLog.value = false; return }
     if (showSaveMenu.value) { showSaveMenu.value = false; return }
     if (showWiki.value) { showWiki.value = false; return }
+    if (showBlueprint.value) { showBlueprint.value = false; return }
     if (showSupplyRoutes.value) { showSupplyRoutes.value = false; return }
     if (showPowerBalance.value) { showPowerBalance.value = false; return }
     if (showAchievements.value) { showAchievements.value = false; return }
@@ -382,6 +385,7 @@ onUnmounted(() => {
           <button class="game-map-actions__btn" @click="openSkills" aria-label="Open skill tree panel">Skills</button>
           <button class="game-map-actions__btn" @click="openSettings" aria-label="Open settings panel">Settings</button>
           <button class="game-map-actions__btn" @click="openWiki" aria-label="Open wiki">Wiki</button>
+          <button class="game-map-actions__btn" @click="showBlueprint = true" aria-label="Open architectural blueprint preview">Blueprint</button>
           <button class="game-map-actions__btn" @click="showSupplyRoutes = true" aria-label="Open supply routes panel">Routes</button>
           <button class="game-map-actions__btn" @click="showPowerBalance = true" aria-label="Open power balance panel">Power</button>
           <button class="game-map-actions__btn" @click="showAutoplay = !showAutoplay" :aria-label="showAutoplay ? 'Close autoplay panel' : 'Open autoplay panel'">AI Play</button>
@@ -411,6 +415,7 @@ onUnmounted(() => {
     <SettingsPanel :visible="showSettings" @close="showSettings = false" />
     <EventLogPanel :visible="showEventLog" @close="showEventLog = false" />
     <Wiki v-if="showWiki" @close="showWiki = false" />
+    <BlueprintPreview v-if="showBlueprint" @close="showBlueprint = false" />
     <TutorialOverlay />
     <ToastContainer />
     <AutoplayPanel v-if="showAutoplay" />

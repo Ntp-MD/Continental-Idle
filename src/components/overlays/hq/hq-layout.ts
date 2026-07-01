@@ -979,13 +979,16 @@ export const DOOR_WIDTHS: Record<DoorCategory, number> = {
   sliding: DW_SLIDING,
 }
 
-export const GOLD = '#c9a84c'
-export const GOLD_DIM = '#8a7340'
-export const GOLD_DARK = '#5a5a5a'
-export const BG_DARK = '#1a1a1a'
-export const BG_DARKER = '#0d0d0d'
-export const BG_CORRIDOR = '#111111'
-export const LABEL_DARK = '#333333'
+export const GOLD = '#aaaaaa'
+export const GOLD_DIM = '#666666'
+export const GOLD_DARK = '#444444'
+export const BG_DARK = '#0d0d0d'
+export const BG_DARKER = '#050505'
+export const BG_CORRIDOR = '#141414'
+export const BG_ROOM = '#1a1a1a'
+export const BG_ROOM_VISUAL = '#101010'
+export const LABEL_DARK = '#cccccc'
+export const GRID_LINE = '#1a1a1a'
 
 export const STAFF_COLORS: Record<string, string> = {
   concierge: '#00e5ff',
