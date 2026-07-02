@@ -78,17 +78,20 @@ function migrate(data: unknown): LayoutData {
       : { width: 2000, height: 800, tileSize: 25 },
     customAssets: Array.isArray(d.customAssets)
       ? d.customAssets.filter(
-          (a: any) => typeof a?.id === 'string' && typeof a?.name === 'string'
-            && typeof a?.w === 'number' && a.w > 0
-            && typeof a?.h === 'number' && a.h > 0
-        ).map((a: any) => {
+          (a: unknown): a is Record<string, unknown> => {
+            const rec = a as Record<string, unknown>
+            return typeof rec?.id === 'string' && typeof rec?.name === 'string'
+              && typeof rec?.w === 'number' && rec.w > 0
+              && typeof rec?.h === 'number' && rec.h > 0
+          }
+        ).map((a) => {
           const asset: AssetDef = {
-            id: a.id,
-            name: a.name,
+            id: a.id as string,
+            name: a.name as string,
             category: typeof a.category === 'string' ? a.category : 'Custom',
-            w: a.w,
-            h: a.h,
-            shape: ['rect', 'circle', 'round'].includes(a.shape) ? a.shape : 'rect',
+            w: a.w as number,
+            h: a.h as number,
+            shape: ['rect', 'circle', 'round'].includes(a.shape as string) ? a.shape as AssetDef['shape'] : 'rect',
             custom: true,
           }
           if (typeof a.pxW === 'number' && a.pxW > 0) asset.pxW = Math.floor(a.pxW)
@@ -97,39 +100,47 @@ function migrate(data: unknown): LayoutData {
         })
       : [],
     floors: Array.isArray(d.floors) && d.floors.length > 0
-      ? d.floors.map((f: any) => ({
-          id: typeof f?.id === 'string' ? f.id : genId('floor'),
-          name: typeof f?.name === 'string' ? f.name : 'Unnamed',
-          label: typeof f?.label === 'string' ? f.label : 'F?',
-          rooms: Array.isArray(f?.rooms) ? f.rooms.filter(
-            (r: any) => typeof r?.x === 'number' && typeof r?.y === 'number'
-              && typeof r?.w === 'number' && typeof r?.h === 'number'
-          ).map((r: any) => {
-            const room: RoomData = {
-              id: typeof r?.id === 'string' ? r.id : genId('r'),
-              x: r.x, y: r.y, w: r.w, h: r.h,
-              cat: ['public', 'service', 'back', 'security', 'utility', 'open'].includes(r?.cat) ? r.cat : 'public',
-              label: typeof r?.label === 'string' ? r.label : '',
+      ? d.floors.map((f: unknown) => {
+          const fRec = (f ?? {}) as Record<string, unknown>
+          return {
+          id: typeof fRec.id === 'string' ? fRec.id : genId('floor'),
+          name: typeof fRec.name === 'string' ? fRec.name : 'Unnamed',
+          label: typeof fRec.label === 'string' ? fRec.label : 'F?',
+          rooms: Array.isArray(fRec.rooms) ? fRec.rooms.filter(
+            (r: unknown): r is Record<string, unknown> => {
+              const rec = r as Record<string, unknown>
+              return typeof rec?.x === 'number' && typeof rec?.y === 'number'
+                && typeof rec?.w === 'number' && typeof rec?.h === 'number'
             }
-            if (typeof r?.radius === 'number' && r.radius >= 0) room.radius = r.radius
+          ).map((r) => {
+            const room: RoomData = {
+              id: typeof r.id === 'string' ? r.id : genId('r'),
+              x: r.x as number, y: r.y as number, w: r.w as number, h: r.h as number,
+              cat: ['public', 'service', 'back', 'security', 'utility', 'open'].includes(r.cat as string) ? r.cat as RoomCategory : 'public',
+              label: typeof r.label === 'string' ? r.label : '',
+            }
+            if (typeof r.radius === 'number' && r.radius >= 0) room.radius = r.radius
             return room
           }) : [],
-          objects: Array.isArray(f?.objects) ? f.objects.filter(
-            (o: any) => typeof o?.x === 'number' && typeof o?.y === 'number'
-              && typeof o?.w === 'number' && typeof o?.h === 'number'
-          ).map((o: any) => {
-            const obj: ObjectData = {
-              id: typeof o?.id === 'string' ? o.id : genId('o'),
-              type: typeof o?.type === 'string' ? o.type : 'unknown',
-              x: o.x, y: o.y, w: o.w, h: o.h,
-              rotation: [0, 90].includes(o?.rotation) ? o.rotation : 0,
+          objects: Array.isArray(fRec.objects) ? fRec.objects.filter(
+            (o: unknown): o is Record<string, unknown> => {
+              const rec = o as Record<string, unknown>
+              return typeof rec?.x === 'number' && typeof rec?.y === 'number'
+                && typeof rec?.w === 'number' && typeof rec?.h === 'number'
             }
-            if (typeof o?.radius === 'number' && o.radius >= 0) obj.radius = o.radius
-            if (typeof o?.labelPadding === 'number') obj.labelPadding = o.labelPadding
-            if (typeof o?.padding === 'number' && o.padding >= 0) obj.padding = o.padding
+          ).map((o) => {
+            const obj: ObjectData = {
+              id: typeof o.id === 'string' ? o.id : genId('o'),
+              type: typeof o.type === 'string' ? o.type : 'unknown',
+              x: o.x as number, y: o.y as number, w: o.w as number, h: o.h as number,
+              rotation: [0, 90].includes(o.rotation as number) ? o.rotation as Rotation : 0,
+            }
+            if (typeof o.radius === 'number' && o.radius >= 0) obj.radius = o.radius
+            if (typeof o.labelPadding === 'number' && o.labelPadding >= 0) obj.labelPadding = o.labelPadding
+            if (typeof o.padding === 'number' && o.padding >= 0) obj.padding = o.padding
             return obj
           }) : [],
-        }))
+        }})
       : makeDefaultFloors(),
   }
   return migrated
@@ -553,7 +564,7 @@ function duplicateFloor(id: string) {
   const floor = state.layout.floors.find(f => f.id === id)
   if (!floor) return
   pushHistory()
-  const copy: FloorData = JSON.parse(JSON.stringify(floor))
+  const copy: FloorData = structuredClone(floor)
   copy.id = genId('floor')
   copy.name = `${floor.name} Copy`
   copy.rooms.forEach(r => (r.id = genId('r')))
@@ -851,6 +862,7 @@ function syncToGame(): boolean {
 }
 
 const DRAFT_KEY = 'blueprint-editor-drafts'
+const MAX_DRAFTS = 20
 
 function loadDrafts(): { id: string; name: string; timestamp: number }[] {
   try {
@@ -866,6 +878,10 @@ function loadDrafts(): { id: string; name: string; timestamp: number }[] {
 function saveDraft(name: string): boolean {
   try {
     const drafts = loadDrafts()
+    if (drafts.length >= MAX_DRAFTS) {
+      useToast().error(`Draft limit reached (${MAX_DRAFTS}) — delete an old draft first`)
+      return false
+    }
     const id = genId('draft')
     const data = JSON.stringify(state.layout)
     localStorage.setItem(`blueprint-draft-${id}`, data)

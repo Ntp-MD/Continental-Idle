@@ -28,8 +28,18 @@ function onOutside(e: MouseEvent) {
   if (!el.closest('.floor-overlay') && !el.closest('.floor-trigger')) close()
 }
 
-onMounted(() => document.addEventListener('click', onOutside))
-onUnmounted(() => document.removeEventListener('click', onOutside))
+function onKeydown(e: KeyboardEvent) {
+  if (e.key === 'Escape' && open.value) close()
+}
+
+onMounted(() => {
+  document.addEventListener('click', onOutside)
+  document.addEventListener('keydown', onKeydown)
+})
+onUnmounted(() => {
+  document.removeEventListener('click', onOutside)
+  document.removeEventListener('keydown', onKeydown)
+})
 
 function startRename(id: string, name: string) {
   editingId.value = id
@@ -68,9 +78,9 @@ function onDrop(index: number) {
   </button>
 
   <Teleport to="body">
-    <div v-if="open" class="floor-overlay" @click.stop>
+    <div v-if="open" class="floor-overlay" role="dialog" aria-modal="true" aria-labelledby="floor-overlay-title" @click.stop>
       <div class="floor-overlay__header">
-        <span class="floor-overlay__title">Floors ({{ store.state.layout.floors.length }})</span>
+        <span id="floor-overlay-title" class="floor-overlay__title">Floors ({{ store.state.layout.floors.length }})</span>
         <button class="floor-overlay__add" @click="store.addFloor()">+ Add</button>
         <button class="floor-overlay__close" aria-label="Close floor panel" @click="close">✕</button>
       </div>
@@ -97,8 +107,8 @@ function onDrop(index: number) {
             @blur="commitRename"
           />
           <span v-else class="floor-overlay__item-name" @dblclick.stop="startRename(floor.id, floor.name)">{{ floor.name }}</span>
-          <span class="floor-overlay__action" title="Duplicate" aria-label="Duplicate floor" @click.stop="store.duplicateFloor(floor.id)">⧉</span>
-          <span class="floor-overlay__action floor-overlay__action--danger" title="Delete" aria-label="Delete floor" @click.stop="onDeleteFloor(floor.id)">✕</span>
+          <button class="floor-overlay__action" title="Duplicate" aria-label="Duplicate floor" @click.stop="store.duplicateFloor(floor.id)">⧉</button>
+          <button class="floor-overlay__action floor-overlay__action--danger" title="Delete" aria-label="Delete floor" @click.stop="onDeleteFloor(floor.id)">✕</button>
         </div>
       </div>
     </div>
@@ -270,6 +280,8 @@ function onDrop(index: number) {
 }
 
 .floor-overlay__action {
+  background: none;
+  border: none;
   color: var(--text-dim, #6a6a74);
   cursor: pointer;
   font-size: 12px;

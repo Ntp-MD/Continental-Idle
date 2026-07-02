@@ -185,7 +185,7 @@ function deleteAsset() {
         </div>
         <div class="properties-panel__row">
           <label>Label Pad</label>
-          <input type="number" v-model.number="fields.labelPadding" @change="commitObjectField('labelPadding')" />
+          <input type="number" min="0" v-model.number="fields.labelPadding" @change="commitObjectField('labelPadding')" />
         </div>
         <div class="properties-panel__row">
           <label>Padding</label>

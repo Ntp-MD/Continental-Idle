@@ -3,6 +3,7 @@ import { ref, watch, onMounted, onUnmounted } from 'vue'
 import { useEditorStore } from '../editor-store'
 import { useToast } from '@/composables/useToast'
 import { ROOM_CATEGORIES, ROOM_CATEGORY_LABELS } from '../editor-types'
+import type { RoomCategory } from '../editor-types'
 import FloorTabs from './FloorTabs.vue'
 
 const store = useEditorStore()
@@ -131,8 +132,18 @@ function onDraftOutsideClick(e: MouseEvent) {
   }
 }
 
-onMounted(() => document.addEventListener('click', onDraftOutsideClick))
-onUnmounted(() => document.removeEventListener('click', onDraftOutsideClick))
+function onDraftKeydown(e: KeyboardEvent) {
+  if (e.key === 'Escape' && showDraftPanel.value) showDraftPanel.value = false
+}
+
+onMounted(() => {
+  document.addEventListener('click', onDraftOutsideClick)
+  document.addEventListener('keydown', onDraftKeydown)
+})
+onUnmounted(() => {
+  document.removeEventListener('click', onDraftOutsideClick)
+  document.removeEventListener('keydown', onDraftKeydown)
+})
 </script>
 
 <template>
@@ -173,7 +184,7 @@ onUnmounted(() => document.removeEventListener('click', onDraftOutsideClick))
         v-if="store.state.mode === 'wall'"
         class="editor-toolbar__wall-cat"
         :value="store.state.wallCategory"
-        @change="store.state.wallCategory = ($event.target as HTMLSelectElement).value as any"
+        @change="store.state.wallCategory = ($event.target as HTMLSelectElement).value as RoomCategory"
         title="Room category for new walls"
       >
         <option v-for="cat in ROOM_CATEGORIES" :key="cat" :value="cat">{{ ROOM_CATEGORY_LABELS[cat] }}</option>
@@ -205,9 +216,9 @@ onUnmounted(() => document.removeEventListener('click', onDraftOutsideClick))
     </div>
 
     <Teleport to="body">
-      <div v-if="showDraftPanel" class="editor-toolbar__draft-popup">
+      <div v-if="showDraftPanel" class="editor-toolbar__draft-popup" role="dialog" aria-modal="true" aria-labelledby="draft-popup-title">
         <div class="editor-toolbar__draft-popup-header">
-          <span>Drafts</span>
+          <span id="draft-popup-title">Drafts</span>
           <button class="editor-toolbar__draft-popup-close" @click="showDraftPanel = false">✕</button>
         </div>
         <div v-if="draftList.length === 0" class="editor-toolbar__draft-empty">No drafts saved</div>
