@@ -161,13 +161,13 @@ export function hireVisitor(visitorId: string, branchId?: BranchId): boolean {
     const assassinCap = branch.upgrades.includes('armoryExpansion') ? 4 : 3
     if (Object.keys(branch.assassins).length >= assassinCap) return false
 
-    branch.currency -= cost
+    const rarityPremium = cost - def.hireCost
+    if (rarityPremium > 0) branch.currency -= rarityPremium
     const hired = hireAssassin(visitor.typeId, id)
     if (!hired) {
-      branch.currency += cost
+      if (rarityPremium > 0) branch.currency += rarityPremium
       return false
     }
-    branch.currency += def.hireCost
 
     hired.rarity = visitor.rarity
     hired.stats = { ...visitor.stats }
@@ -181,13 +181,13 @@ export function hireVisitor(visitorId: string, branchId?: BranchId): boolean {
     const maxStaff = 5 + getExtraStaffSlots()
     if (Object.keys(branch.staff).length >= maxStaff) return false
 
-    branch.currency -= cost
+    const rarityPremium = cost - def.hireCost
+    if (rarityPremium > 0) branch.currency -= rarityPremium
     const hired = hireStaff(visitor.typeId, id)
     if (!hired) {
-      branch.currency += cost
+      if (rarityPremium > 0) branch.currency += rarityPremium
       return false
     }
-    branch.currency += def.hireCost
 
     hired.rarity = visitor.rarity
     hired.stats = { ...visitor.stats }

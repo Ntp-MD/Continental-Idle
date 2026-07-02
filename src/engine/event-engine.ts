@@ -194,6 +194,7 @@ function generateRaid(branchId: BranchId): RaidData {
 
 class EventEngine {
   private lastEventTimes: Map<BranchId, number> = new Map()
+  private lastAIEventTimes: Map<BranchId, number> = new Map()
   private lastRaidTimes: Map<BranchId, number> = new Map()
   private activeEvent: ActiveEvent | null = null
   private tickCount = 0
@@ -215,6 +216,7 @@ class EventEngine {
     const now = Date.now() / 1000
     state.worldMap.unlockedBranches.forEach(branchId => {
       this.lastEventTimes.set(branchId, now)
+      this.lastAIEventTimes.set(branchId, now)
       this.lastRaidTimes.set(branchId, now)
     })
   }
@@ -295,6 +297,9 @@ class EventEngine {
       aiOwnerBranch: aiOwnerBranch ?? null,
     }
     this.lastEventTimes.set(state.activeBranch, Date.now() / 1000)
+    if (aiOwnerBranch) {
+      this.lastAIEventTimes.set(state.activeBranch, Date.now() / 1000)
+    }
     if (def.id === 'assassinRaid') {
       this.lastRaidTimes.set(state.activeBranch, Date.now() / 1000)
     }
@@ -484,33 +489,37 @@ class EventEngine {
   ignoreEvent(): void {
     if (!this.activeEvent) return
 
-    const state = gameState.get()
-    const branch = state.branches[this.activeEvent.branch]
-    if (!branch) return
+    const activeEvent = this.activeEvent
+    try {
+      const state = gameState.get()
+      const branch = state.branches[activeEvent.branch]
+      if (!branch) return
 
-    const heatImmune = sovereignManager.hasActiveDecree('heatReduction') && sovereignManager.getActiveDecreeMult('heatReduction') === -1
-    if (!heatImmune) {
-      branch.heatLevel = Math.min(10, branch.heatLevel + 1)
+      const heatImmune = sovereignManager.hasActiveDecree('heatReduction') && sovereignManager.getActiveDecreeMult('heatReduction') === -1
+      if (!heatImmune) {
+        branch.heatLevel = Math.min(10, branch.heatLevel + 1)
+      }
+      branch.reputation = Math.max(0, branch.reputation - 15)
+      branch.guestSatisfaction = Math.max(0, branch.guestSatisfaction - 5)
+
+      // Ignoring AI events worsens relations slightly
+      if (activeEvent.aiOwnerBranch) {
+        worsenRelations(activeEvent.aiOwnerBranch, 5)
+      }
+
+      state.eventLog.push({
+        timestamp: Date.now(),
+        branch: activeEvent.branch,
+        eventId: activeEvent.definition.id,
+        choiceId: 'ignored',
+        outcome: 'ignored',
+      })
+      if (state.eventLog.length > 200) state.eventLog = state.eventLog.slice(-200)
+
+      eventBus.emit('event:ignored', activeEvent)
+    } finally {
+      this.activeEvent = null
     }
-    branch.reputation = Math.max(0, branch.reputation - 15)
-    branch.guestSatisfaction = Math.max(0, branch.guestSatisfaction - 5)
-
-    // Ignoring AI events worsens relations slightly
-    if (this.activeEvent.aiOwnerBranch) {
-      worsenRelations(this.activeEvent.aiOwnerBranch, 5)
-    }
-
-    state.eventLog.push({
-      timestamp: Date.now(),
-      branch: this.activeEvent.branch,
-      eventId: this.activeEvent.definition.id,
-      choiceId: 'ignored',
-      outcome: 'ignored',
-    })
-    if (state.eventLog.length > 200) state.eventLog = state.eventLog.slice(-200)
-
-    eventBus.emit('event:ignored', this.activeEvent)
-    this.activeEvent = null
   }
 
   private checkForAIEvent(): void {
@@ -518,8 +527,8 @@ class EventEngine {
 
     const state = gameState.get()
     const now = Date.now() / 1000
-    const lastTime = this.lastEventTimes.get(state.activeBranch) || 0
-    if (now - lastTime < EVENT_COOLDOWN) return
+    const lastAITime = this.lastAIEventTimes.get(state.activeBranch) || 0
+    if (now - lastAITime < EVENT_COOLDOWN) return
 
     const branch = state.branches[state.activeBranch]
     if (!branch) return

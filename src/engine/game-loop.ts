@@ -61,7 +61,7 @@ class GameLoop {
   }
 
   private saveHandler = (): void => {
-    gameState.save()
+    gameState.withLock(() => gameState.save())
   }
 }
 

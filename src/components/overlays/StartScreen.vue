@@ -71,6 +71,10 @@ function quickStart() {
   emit('quickStart')
 }
 
+function openBlueprintEditor() {
+  window.open('/src/blueprint/editor.html', '_blank')
+}
+
 onUnmounted(() => {
   if (loadingInterval) clearInterval(loadingInterval)
   if (continueTimeout) clearTimeout(continueTimeout)
@@ -179,6 +183,10 @@ onUnmounted(() => {
 
       <button v-if="gameState.hasSave()" class="start-screen__btn-continue" @click="continueGame">
         CONTINUE SAVED GAME
+      </button>
+
+      <button class="start-screen__btn-continue" @click="openBlueprintEditor">
+        BLUEPRINT EDITOR
       </button>
     </div>
   </div>

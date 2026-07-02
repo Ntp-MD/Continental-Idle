@@ -58,8 +58,8 @@ class AchievementManager {
         if (def.condition(state)) {
           this.unlock(def.id)
         }
-      } catch {
-        // skip — condition may reference fields not yet present in older saves
+      } catch (err) {
+        console.warn(`Achievement condition error for ${def.id}:`, err)
       }
     }
   }

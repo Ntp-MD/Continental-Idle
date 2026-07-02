@@ -184,6 +184,31 @@ export const FLOOR_LAYOUT: Record<FloorId, RoomLayout[]> = {
   ],
 }
 
+;(function applySyncedLayout() {
+  try {
+    const raw = localStorage.getItem('blueprint-synced-layout')
+    if (!raw) return
+    const data = JSON.parse(raw)
+    if (!data?.floors) return
+    for (const floorId of FLOOR_IDS) {
+      const syncedRooms = data.floors[floorId]
+      if (Array.isArray(syncedRooms) && syncedRooms.length > 0) {
+        FLOOR_LAYOUT[floorId] = syncedRooms.map((r: { id: string; x: number; y: number; w: number; h: number; label: string; sub?: string }) => ({
+          id: r.id,
+          x: r.x,
+          y: r.y,
+          w: r.w,
+          h: r.h,
+          label: r.label,
+          sub: r.sub ?? '',
+        }))
+      }
+    }
+  } catch {
+    // ignore — fall back to hardcoded layout
+  }
+})()
+
 export type FurnitureType = 'rect' | 'circle' | 'line' | 'path' | 'text' | 'ellipse'
 
 export interface FurnitureElement {

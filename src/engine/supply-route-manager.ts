@@ -102,6 +102,10 @@ export function hijackRoute(routeId: string): { success: boolean; reason?: strin
   if (!route.aiOwned && (route.from === state.activeBranch || route.to === state.activeBranch)) {
     return { success: false, reason: 'Cannot hijack your own route' }
   }
+  // Cannot hijack if target route's destination is the active branch (would create self-route)
+  if (route.to === state.activeBranch) {
+    return { success: false, reason: 'Cannot hijack route to your own branch' }
+  }
 
   const def = getRouteTypeDef(route.type)
   if (!def) return { success: false, reason: 'Unknown route type' }

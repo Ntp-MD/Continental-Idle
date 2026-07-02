@@ -1,9 +1,9 @@
 ﻿import type { GameState, BranchId, BranchState, BuildingState } from '@/types'
-import { BUILDINGS } from '@/data/buildings'
+import { BUILDINGS, BUILDING_MAP } from '@/data/buildings'
 import { BRANCHES } from '@/data/branches'
 import { STAFF_TYPES } from '@/data/staff'
 import { ASSASSIN_TYPES } from '@/data/assassins'
-import { initAIOwners } from './ai-owner-manager'
+import { initAIOwners, createAIOwner } from './ai-owner-manager'
 import { getBranchIncomePerSecond } from './income-engine'
 import { getTotalOfflineEfficiency } from './skill-manager'
 import { sovereignManager } from './sovereign-manager'
@@ -287,6 +287,11 @@ class GameStateManager {
       // Validate activeBranch is a known branch
       if (!BRANCHES.find(t => t.id === parsed.activeBranch)) return false
 
+      // Validate activeBranch is in unlockedBranches — fallback to hqBranch if not
+      if (!parsed.worldMap.unlockedBranches.includes(parsed.activeBranch)) {
+        parsed.activeBranch = parsed.hqBranch
+      }
+
       // Validate worldMap arrays contain only known branch IDs
       const validIds = new Set(BRANCHES.map(t => t.id))
       if (parsed.worldMap?.unlockedBranches) {
@@ -492,49 +497,54 @@ class GameStateManager {
   }
 
   private calculateOfflineProgress(): void {
-    const now = Date.now()
-    const lastSaved = this.state.timestamp
-    const elapsedMs = now - lastSaved
-    if (elapsedMs < 10_000) {
-      this.clearOfflineEarnings()
-      return
-    }
-
-    // Cap at 24 hours to prevent overflow
-    const cappedSeconds = Math.min(Math.floor(elapsedMs / 1000), 86400)
-    const efficiency = 0.5 + getTotalOfflineEfficiency()
-
-    // Strip expired buffs before calculating offline income
-    // so buffs that expired during offline don't apply to the full duration
-    this.state.activeBuffs = this.state.activeBuffs.filter(b => b.expiresAt === null || b.expiresAt > now)
-
-    const breakdown: Record<string, number> = {}
-    let totalEarnings = 0
-
-    this.state.worldMap.unlockedBranches.forEach(branchId => {
-      const branch = this.state.branches[branchId]
-      if (!branch) return
-
-      // Use the actual income calculation which accounts for staff, buffs, skills, etc.
-      const baseIncome = getBranchIncomePerSecond(branchId)
-
-      // Active branch gets full rate, inactive get 50% (or 60% with continentalCharter)
-      const isActive = branchId === this.state.activeBranch
-      const inactiveRate = isActive ? 1.0 : (branch.upgrades.includes('continentalCharter') ? 0.6 : 0.5)
-      const branchIncome = baseIncome * inactiveRate
-
-      const earnings = Math.floor(branchIncome * cappedSeconds * efficiency)
-      if (earnings > 0) {
-        breakdown[branchId] = earnings
-        totalEarnings += earnings
-        branch.currency += earnings
-        branch.lifetimeEarnings += earnings
+    try {
+      const now = Date.now()
+      const lastSaved = this.state.timestamp
+      const elapsedMs = now - lastSaved
+      if (elapsedMs < 10_000) {
+        this.clearOfflineEarnings()
+        return
       }
-    })
 
-    this.state.lastOfflineSeconds = cappedSeconds
-    this.state.lastOfflineEarnings = totalEarnings
-    this.state.lastOfflineBreakdown = breakdown
+      // Cap at 24 hours to prevent overflow
+      const cappedSeconds = Math.min(Math.floor(elapsedMs / 1000), 86400)
+      const efficiency = 0.5 + getTotalOfflineEfficiency()
+
+      // Strip expired buffs before calculating offline income
+      // so buffs that expired during offline don't apply to the full duration
+      this.state.activeBuffs = this.state.activeBuffs.filter(b => b.expiresAt === null || b.expiresAt > now)
+
+      const breakdown: Record<string, number> = {}
+      let totalEarnings = 0
+
+      this.state.worldMap.unlockedBranches.forEach(branchId => {
+        const branch = this.state.branches[branchId]
+        if (!branch) return
+
+        // Use the actual income calculation which accounts for staff, buffs, skills, etc.
+        const baseIncome = getBranchIncomePerSecond(branchId)
+
+        // Active branch gets full rate, inactive get 50% (or 60% with continentalCharter)
+        const isActive = branchId === this.state.activeBranch
+        const inactiveRate = isActive ? 1.0 : (branch.upgrades.includes('continentalCharter') ? 0.6 : 0.5)
+        const branchIncome = baseIncome * inactiveRate
+
+        const earnings = Math.floor(branchIncome * cappedSeconds * efficiency)
+        if (earnings > 0) {
+          breakdown[branchId] = earnings
+          totalEarnings += earnings
+          branch.currency += earnings
+          branch.lifetimeEarnings += earnings
+        }
+      })
+
+      this.state.lastOfflineSeconds = cappedSeconds
+      this.state.lastOfflineEarnings = totalEarnings
+      this.state.lastOfflineBreakdown = breakdown
+    } catch (err) {
+      console.error('Offline progress calculation failed:', err)
+      this.clearOfflineEarnings()
+    }
   }
 
   private migrate(save: GameState): GameState {
@@ -633,6 +643,25 @@ class GameStateManager {
     // Migrate branches missing royalBuildings
     Object.values(save.branches).forEach(branch => {
       if (!branch.royalBuildings) branch.royalBuildings = {}
+      // Clamp currency and lifetimeEarnings to non-negative
+      if (typeof branch.currency === 'number') branch.currency = Math.max(0, branch.currency)
+      if (typeof branch.lifetimeEarnings === 'number') branch.lifetimeEarnings = Math.max(0, branch.lifetimeEarnings)
+      // Clamp building levels to maxLevel
+      if (branch.buildings) {
+        for (const bId of Object.keys(branch.buildings)) {
+          const bDef = BUILDING_MAP[bId]
+          if (bDef && branch.buildings[bId].level > bDef.maxLevel) {
+            branch.buildings[bId].level = bDef.maxLevel
+          }
+        }
+      }
+    })
+
+    // Ensure all branches have AI owners
+    BRANCHES.forEach(t => {
+      if (!save.aiOwners[t.id]) {
+        save.aiOwners[t.id] = createAIOwner(t.id)
+      }
     })
 
     // Cap eventLog to prevent unbounded growth

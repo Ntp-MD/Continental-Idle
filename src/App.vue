@@ -1,5 +1,5 @@
 ﻿<script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, onMounted, onUnmounted, defineAsyncComponent } from 'vue'
 import StartScreen from '@/components/overlays/StartScreen.vue'
 import GameHeader from '@/components/layout/GameHeader.vue'
 import WorldMap from '@/components/layout/WorldMap.vue'
@@ -13,15 +13,13 @@ import TutorialOverlay from '@/components/overlays/TutorialOverlay.vue'
 import ToastContainer from '@/components/overlays/ToastContainer.vue'
 import BuffBar from '@/components/layout/BuffBar.vue'
 import EventLogPanel from '@/components/panels/EventLogPanel.vue'
-import Wiki from '@/components/panels/Wiki.vue'
-import BlueprintPreview from '@/components/panels/blueprint/BlueprintPreview.vue'
+import BlueprintPreview from '@/components/panels/BlueprintPreview.vue'
 import AutoplayPanel from '@/components/overlays/AutoplayPanel.vue'
 import SupplyRoutePanel from '@/components/panels/SupplyRoutePanel.vue'
 import PowerBalancePanel from '@/components/panels/PowerBalancePanel.vue'
 import AchievementsPanel from '@/components/panels/AchievementsPanel.vue'
 import RoyalPanel from '@/components/panels/RoyalPanel.vue'
 import SovereignPanel from '@/components/panels/SovereignPanel.vue'
-import HQOfficeView from '@/components/overlays/HQOfficeView.vue'
 import OfflineProgress from '@/components/overlays/OfflineProgress.vue'
 import ErrorBoundary from '@/components/overlays/ErrorBoundary.vue'
 import { autoplayBot } from '@/engine/autoplay'
@@ -33,6 +31,8 @@ import { eventBus } from '@/engine/event-bus'
 import { useToast } from '@/composables/useToast'
 import { formatNumber } from '@/engine/format'
 import { getBranchDef } from '@/data/branches'
+const HQOfficeView = defineAsyncComponent(() => import('@/components/overlays/HQOfficeView.vue'))
+const Wiki = defineAsyncComponent(() => import('@/components/panels/Wiki.vue'))
 import type { BranchId } from '@/types'
 
 const toast = useToast()

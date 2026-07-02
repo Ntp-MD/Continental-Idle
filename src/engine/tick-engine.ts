@@ -78,8 +78,6 @@ function tickHeatDecay(): void {
     if (branch.heatLevel > 0) branch.heatLevel = Math.max(0, branch.heatLevel - 1)
     if (branch.guestSatisfaction > 50) {
       branch.guestSatisfaction = Math.max(50, branch.guestSatisfaction - 1)
-    } else if (branch.guestSatisfaction < 50) {
-      branch.guestSatisfaction = Math.min(50, branch.guestSatisfaction + 1)
     }
   })
 }
