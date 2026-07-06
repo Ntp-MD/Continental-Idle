@@ -1,25 +1,17 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { useEditorStore, startAssetDrag } from '../editor-store'
+import { useEditorStore, startAssetDrag, startRoomTemplateDrag } from '../editor-store'
 import { useToast } from '@/composables/useToast'
-import { BUILTIN_ASSETS } from '../editor-assets'
-import type { AssetShape, AssetDef } from '../editor-types'
+import type { AssetDef } from '../types'
 
 const store = useEditorStore()
 
 const searchQuery = ref('')
 
-const SHAPE_ICON: Record<AssetShape, string> = {
-  rect: '▭',
-  circle: '◯',
-  round: '▢',
-  arc: '◜',
-}
-
 function assetIcon(asset: AssetDef): string {
   if (asset.parts && asset.parts.length > 0) return '▦'
   if (asset.linkedParts && asset.linkedParts.length > 0) return '⛓'
-  return SHAPE_ICON[asset.shape] ?? '▭'
+  return '▭'
 }
 
 function assetSizeLabel(asset: AssetDef): string {
@@ -30,12 +22,7 @@ function assetSizeLabel(asset: AssetDef): string {
 }
 
 const allAssets = computed(() => {
-  const customIds = new Set(store.state.layout.customAssets.map(a => a.id))
-  const hiddenIds = new Set(store.state.layout.hiddenBuiltinIds ?? [])
-  return [
-    ...BUILTIN_ASSETS.filter(a => !customIds.has(a.id) && !hiddenIds.has(a.id)),
-    ...store.state.layout.customAssets,
-  ]
+  return [...store.state.layout.customAssets]
 })
 
 const grouped = computed(() => {
@@ -59,10 +46,11 @@ const categoryOrder = computed(() => {
 const showAddForm = ref(false)
 const newName = ref('')
 const newCategory = ref('')
+const newCategoryCustom = ref('')
 const newW = ref(1)
 const newH = ref(1)
-const newShape = ref<AssetShape>('rect')
 const newRx = ref(0)
+const newBgColor = ref('')
 
 const existingCategories = computed(() => {
   const stored = store.state.layout.assetCategories ?? []
@@ -71,21 +59,47 @@ const existingCategories = computed(() => {
   return [...cats].sort()
 })
 
-function submitNewAsset() {
+async function submitNewAsset() {
   if (!newName.value.trim()) {
     useToast().warning('Asset name cannot be empty')
     return
   }
   const rx = newRx.value > 0 ? { tl: newRx.value, tr: newRx.value, br: newRx.value, bl: newRx.value } : undefined
-  store.addCustomAsset(newName.value.trim(), newW.value, newH.value, newShape.value, newCategory.value.trim(), undefined, undefined, rx)
+  const category = newCategoryCustom.value.trim() || newCategory.value.trim()
+  await store.addCustomAsset(newName.value.trim(), newW.value, newH.value, category, undefined, undefined, rx, newBgColor.value || undefined)
   useToast().success('Asset added')
   newName.value = ''
   newCategory.value = ''
+  newCategoryCustom.value = ''
   newW.value = 1
   newH.value = 1
-  newShape.value = 'rect'
   newRx.value = 0
+  newBgColor.value = ''
   showAddForm.value = false
+}
+
+async function addNewCategory() {
+  const name = window.prompt('Enter new category name:')
+  if (!name) return
+  const trimmed = name.trim()
+  if (!trimmed) {
+    useToast().warning('Category name cannot be empty')
+    return
+  }
+  if (trimmed.length > 50) {
+    useToast().warning('Category name too long (max 50 characters)')
+    return
+  }
+  if (!/^[a-zA-Z0-9\s\-_]+$/.test(trimmed)) {
+    useToast().warning('Category name can only contain letters, numbers, spaces, hyphens, and underscores')
+    return
+  }
+  const added = await store.addAssetCategory(trimmed)
+  if (added) {
+    useToast().success(`Category "${added}" added`)
+  } else {
+    useToast().warning('Category already exists')
+  }
 }
 
 function onAssetMouseDown(assetId: string, e: MouseEvent) {
@@ -93,6 +107,19 @@ function onAssetMouseDown(assetId: string, e: MouseEvent) {
   e.preventDefault()
   store.setMode('object')
   startAssetDrag(assetId)
+}
+
+const roomTemplates = computed(() => store.state.layout.roomTemplates ?? [])
+
+function onRoomTemplateMouseDown(templateId: string, e: MouseEvent) {
+  if (e.button !== 0) return
+  e.preventDefault()
+  startRoomTemplateDrag(templateId)
+}
+
+async function onDeleteRoomTemplate(id: string) {
+  await store.deleteRoomTemplate(id)
+  useToast().info('Room template deleted')
 }
 
 /* ---------- Click to select asset for PropertiesPanel ---------- */
@@ -126,10 +153,28 @@ function onItemClick(assetId: string) {
           </div>
         </template>
       </div>
+
+      <div v-if="roomTemplates.length > 0" class="asset-palette__category">
+        <div class="asset-palette__category-title">Room Templates</div>
+        <div
+          v-for="tpl in roomTemplates"
+          :key="tpl.id"
+          class="asset-palette__item asset-palette__item--room-template"
+          @mousedown="onRoomTemplateMouseDown(tpl.id, $event)"
+        >
+          <span class="asset-palette__item-icon">▢</span>
+          <span class="asset-palette__item-name">{{ tpl.name }}</span>
+          <span class="asset-palette__item-size">{{ tpl.w }}×{{ tpl.h }}</span>
+          <button class="asset-palette__item-delete" @click.stop="onDeleteRoomTemplate(tpl.id)" title="Delete template">×</button>
+        </div>
+      </div>
     </div>
 
     <button class="asset-palette__add-btn" @click="showAddForm = !showAddForm">
       {{ showAddForm ? 'Cancel' : '+ Add New Asset' }}
+    </button>
+    <button class="asset-palette__add-btn" @click="addNewCategory">
+      + Add New Category
     </button>
 
     <div v-if="showAddForm" class="asset-palette__form">
@@ -138,19 +183,17 @@ function onItemClick(assetId: string) {
         <option value="" disabled>Select category...</option>
         <option v-for="cat in existingCategories" :key="cat" :value="cat">{{ cat }}</option>
       </select>
-      <input class="asset-palette__form-input" v-model="newCategory" placeholder="...or type new category" />
+      <input class="asset-palette__form-input" v-model="newCategoryCustom" placeholder="...or type new category" />
       <div class="asset-palette__form-row">
         <input class="asset-palette__form-input asset-palette__form-input--num" type="number" min="1" v-model.number="newW" placeholder="W" />
         <span>×</span>
         <input class="asset-palette__form-input asset-palette__form-input--num" type="number" min="1" v-model.number="newH" placeholder="H" />
       </div>
-      <select class="asset-palette__form-input" v-model="newShape">
-        <option value="rect">Rect</option>
-        <option value="circle">Circle</option>
-        <option value="round">Round</option>
-        <option value="arc">Arc</option>
-      </select>
       <input class="asset-palette__form-input" type="number" min="0" v-model.number="newRx" placeholder="Corner radius (0 = none)" />
+      <div class="asset-palette__form-row">
+        <input type="color" v-model="newBgColor" class="asset-palette__form-input asset-palette__form-input--color" />
+        <input class="asset-palette__form-input" :value="newBgColor || '#ffffff'" @input="newBgColor = ($event.target as HTMLInputElement).value" placeholder="Bg color" />
+      </div>
       <button class="asset-palette__form-submit" @click="submitNewAsset">Add Asset</button>
     </div>
   </div>
@@ -317,6 +360,14 @@ function onItemClick(assetId: string) {
   width: 50px;
 }
 
+.asset-palette__form-input--color {
+  width: 36px;
+  min-width: 36px;
+  height: 28px;
+  padding: 2px;
+  cursor: pointer;
+}
+
 .asset-palette__form-submit {
   background: var(--accent-gold, #f0c040);
   color: #08090c;
@@ -330,5 +381,24 @@ function onItemClick(assetId: string) {
 
 .asset-palette__form-submit:hover {
   opacity: 0.85;
+}
+
+.asset-palette__item--room-template .asset-palette__item-icon {
+  color: #3dd68c;
+}
+
+.asset-palette__item-delete {
+  background: none;
+  border: none;
+  color: var(--text-dim, #6a6a74);
+  cursor: pointer;
+  font-size: 14px;
+  padding: 0 2px;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+.asset-palette__item-delete:hover {
+  color: #ef4444;
 }
 </style>

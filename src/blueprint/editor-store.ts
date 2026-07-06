@@ -1,15 +1,14 @@
 import { reactive, computed, ref } from 'vue'
 import type {
   LayoutData, FloorData, RoomData, ObjectData, AssetDef,
-  EditorMode, Selection, Rect, RoomCategory, RoomCategoryDef, Rotation,
-  CompositePart, MultiSelection, AssetShape, ZoneData, LinkedPart,
-} from './editor-types'
-import { aabbOverlap, DEFAULT_ROOM_CATEGORIES, DEFAULT_TILE_SIZE } from './editor-types'
-import { findAsset, findAssetCached, buildAssetMap, BUILTIN_ASSETS } from './editor-assets'
+  EditorMode, Selection, Rect, Rotation,
+  CompositePart, MultiSelection, ZoneData, LinkedPart,
+  ObjectCustomProps, ValidationRule, RoomTemplate,
+} from './types'
+import { aabbOverlap } from './utils'
+import { findAsset, findAssetCached, buildAssetMap } from './editor-assets'
 import { useToast } from '@/composables/useToast'
-import { autoFixFloor } from './floor-validator'
-import type { AutoFixResult } from './floor-validator'
-import { SAVED_LAYOUT } from './saved-layout'
+import { EDITOR_CONFIG } from './editor-config'
 
 const toast = useToast()
 
@@ -25,1061 +24,643 @@ const editorLog = {
   },
 }
 
-const LAYOUT_VERSION = 1
-const PRESET_VERSION = 16
-const STORAGE_KEY = 'blueprint-editor-layout'
-const PRESET_VERSION_KEY = 'blueprint-preset-version'
-const HISTORY_LIMIT = 50
+const LAYOUT_VERSION = EDITOR_CONFIG.layoutVersion
+const HISTORY_LIMIT = EDITOR_CONFIG.historyLimit
 
-const DEFAULT_FLOOR_NAMES: { id: string; name: string }[] = [
-  { id: 'G', name: 'Basement' },
-  { id: 'F1', name: 'Lobby' },
-  { id: 'F2', name: 'Restaurant & Bar' },
-  { id: 'F3', name: 'Service Floor' },
-  { id: 'F4', name: 'Security' },
-  { id: 'F5', name: 'Staff Rooms' },
-  { id: 'F6', name: 'Staff Rooms' },
-  { id: 'F7', name: 'Standard Rooms' },
-  { id: 'F8', name: 'Standard Rooms' },
-  { id: 'F9', name: 'Standard Rooms' },
-  { id: 'F10', name: 'Standard Rooms' },
-  { id: 'F11', name: 'Deluxe Rooms' },
-  { id: 'F12', name: 'Deluxe Rooms' },
-  { id: 'F13', name: 'Executive Rooms' },
-  { id: 'F14', name: 'Executive Rooms' },
-  { id: 'F15', name: 'VIP Suites' },
-  { id: 'F16', name: 'VIP Suites' },
-  { id: 'F17', name: 'Penthouse Suites' },
-  { id: 'F18', name: 'Penthouse Suites' },
-  { id: 'F19', name: 'Datacenter & Intel' },
-  { id: 'F20', name: 'Safe House & Office' },
-  { id: 'F21', name: 'Rooftop Terrace' },
-]
-
-interface PresetRoom {
-  id: string
-  x: number
-  y: number
-  w: number
-  h: number
-  cat: RoomCategory
-  label: string
-  radius?: number
-}
-
-interface PresetObject {
-  id: string
-  type: string
-  x: number
-  y: number
-  w: number
-  h: number
-  rotation: Rotation
-  radius?: number
-  labelPadding?: number
-}
-
-type FloorPreset = { rooms: PresetRoom[]; objects: PresetObject[] }
-type GuestTier = 'staff' | 'standard' | 'deluxe' | 'executive' | 'vip' | 'penthouse'
-
-const PRESET_CANVAS_W = 2000
-const PRESET_CANVAS_H = 800
-const TILE = DEFAULT_TILE_SIZE
-
-function makeObj(id: string, type: string, x: number, y: number, rotation: Rotation = 0): PresetObject {
-  const asset = BUILTIN_ASSETS.find(a => a.id === type)
-  const aw = asset ? asset.w * TILE : TILE
-  const ah = asset ? asset.h * TILE : TILE
-  const swap = rotation === 90 || rotation === 270
-  const w = swap ? ah : aw
-  const h = swap ? aw : ah
-  const isRound = asset && (asset.shape === 'circle' || asset.shape === 'round')
-  const sx = Math.round(x / TILE) * TILE
-  const sy = Math.round(y / TILE) * TILE
-  const o: PresetObject = { id, type, x: sx, y: sy, w, h, rotation }
-  if (isRound) {
-    o.radius = Math.min(w, h) / 2 - 2
-  }
-  return o
-}
-
-function furnishGuestRoom(room: PresetRoom, prefix: string, tier: GuestTier, doorSide: 'top' | 'bottom'): PresetObject[] {
-  const { x, y, w: rw, h: rh } = room
-  const objs: PresetObject[] = []
-  const pad = 25
-
-  const farY = doorSide === 'bottom' ? y + pad : y + rh - 50 - pad
-  const nearY = doorSide === 'bottom' ? y + rh - 55 - pad : y + pad + 25
-
-  objs.push(makeObj(`${prefix}-bed`, 'bed', x + pad, farY))
-  objs.push(makeObj(`${prefix}-night`, 'nightstand', x + pad + 30, farY))
-  objs.push(makeObj(`${prefix}-desk`, 'desk', x + rw - 25 - pad, farY))
-
-  if (tier === 'staff') {
-    objs.push(makeObj(`${prefix}-wardrobe`, 'wardrobe', x + pad, nearY))
-    objs.push(makeObj(`${prefix}-bath`, 'bathtub', x + rw - 25 - pad, nearY))
-    return objs
-  }
-
-  const chairY = doorSide === 'bottom' ? farY + 50 + 5 : farY - 25 - 5
-  objs.push(makeObj(`${prefix}-chair`, 'chair', x + rw - 25 - pad, chairY))
-  objs.push(makeObj(`${prefix}-wardrobe`, 'wardrobe', x + pad, nearY))
-  objs.push(makeObj(`${prefix}-tv`, 'tv-stand', Math.round(x + rw / 2 - 12), nearY))
-  objs.push(makeObj(`${prefix}-bath`, 'bathtub', x + rw - 25 - pad, nearY))
-
-  if (tier === 'deluxe' || tier === 'executive' || tier === 'vip' || tier === 'penthouse') {
-    objs.push(makeObj(`${prefix}-minibar`, 'minibar', x + pad + 30, nearY + 12))
-  }
-  if (tier === 'vip' || tier === 'penthouse') {
-    const midY = Math.round(y + rh / 2 - 25)
-    objs.push(makeObj(`${prefix}-sofa`, 'sofa', Math.round(x + rw / 2 - 60), midY))
-    objs.push(makeObj(`${prefix}-table`, 'table-chairs', Math.round(x + rw / 2 + 10), midY))
-  }
-  return objs
-}
-
-function gridPlace(room: PresetRoom, prefix: string, type: string, cols: number, rows: number, pad: number): PresetObject[] {
-  if (cols < 1 || rows < 1) return []
-  const { x, y, w: rw, h: rh } = room
-  const asset = BUILTIN_ASSETS.find(a => a.id === type)
-  const ow = asset ? asset.w * TILE : TILE
-  const oh = asset ? asset.h * TILE : TILE
-  const objs: PresetObject[] = []
-  const stepX = Math.floor((rw - 2 * pad) / cols / TILE) * TILE
-  const stepY = Math.floor((rh - 2 * pad) / rows / TILE) * TILE
-  const startX = x + Math.round((rw - stepX * cols) / 2)
-  const startY = y + Math.round((rh - stepY * rows) / 2)
-  for (let r = 0; r < rows; r++) {
-    for (let c = 0; c < cols; c++) {
-      const ox = startX + c * stepX + Math.round((stepX - ow) / 2 / TILE) * TILE
-      const oy = startY + r * stepY + Math.round((stepY - oh) / 2 / TILE) * TILE
-      objs.push(makeObj(`${prefix}-${type}-${c}-${r}`, type, ox, oy))
-    }
-  }
-  return objs
-}
-
-function furnishFunctionalRoom(room: PresetRoom, prefix: string): PresetObject[] {
-  const { x, y, w: rw, h: rh, cat } = room
-  if (rw < 100 || rh < 100) return []
-  const objs: PresetObject[] = []
-  const pad = 20
-  const lbl = (room.label || '').toUpperCase()
-
-  if (lbl.includes('HELI')) {
-    objs.push(makeObj(`${prefix}-helipad`, 'helipad', Math.round(x + rw / 2 - 50), Math.round(y + rh / 2 - 50)))
-    return objs
-  }
-  if (lbl.includes('KITCHEN') || lbl.includes('COLD')) {
-    objs.push(makeObj(`${prefix}-stove`, 'kitchen-stove', x + pad, y + pad))
-    objs.push(makeObj(`${prefix}-prep`, 'prep-station', x + pad + 30, y + pad))
-    objs.push(makeObj(`${prefix}-shelf1`, 'storage-shelf', x + rw - 25 - pad, y + pad))
-    objs.push(makeObj(`${prefix}-shelf2`, 'storage-shelf', x + pad, y + rh - 50 - pad))
-    objs.push(makeObj(`${prefix}-shelf3`, 'storage-shelf', x + rw - 25 - pad, y + rh - 50 - pad))
-    objs.push(makeObj(`${prefix}-trash`, 'trash-bin', Math.round(x + rw / 2 - 12), y + rh - 25 - pad))
-    return objs
-  }
-  if (lbl.includes('DINING') || lbl.includes('RESTAURANT') || lbl.includes('CAFETERIA')) {
-    const cols = Math.max(2, Math.floor((rw - 2 * pad) / 80))
-    const rows = Math.max(1, Math.floor((rh - 2 * pad) / 80))
-    objs.push(...gridPlace(room, prefix, 'dining-table-round', cols, rows, pad + 10))
-    objs.push(makeObj(`${prefix}-plant`, 'plant', x + pad, y + pad))
-    objs.push(makeObj(`${prefix}-trash`, 'trash-bin', x + rw - 25 - pad, y + rh - 25 - pad))
-    return objs
-  }
-  if (lbl.includes('BAR')) {
-    objs.push(makeObj(`${prefix}-bar`, 'bar-counter', x + pad, y + pad))
-    const stoolCount = Math.min(6, Math.floor((rw - 2 * pad) / 35))
-    for (let i = 0; i < stoolCount; i++) {
-      objs.push(makeObj(`${prefix}-stool-${i}`, 'bar-stool', x + pad + 25 + i * 35, y + pad + 30))
-    }
-    objs.push(makeObj(`${prefix}-table1`, 'table-chairs', x + pad, y + rh - 60 - pad))
-    objs.push(makeObj(`${prefix}-table2`, 'table-chairs', x + pad + 60, y + rh - 60 - pad))
-    objs.push(makeObj(`${prefix}-plant`, 'plant', x + rw - 25 - pad, y + pad))
-    objs.push(makeObj(`${prefix}-trash`, 'trash-bin', x + rw - 25 - pad, y + rh - 25 - pad))
-    return objs
-  }
-  if (lbl.includes('BANQUET')) {
-    const cols = Math.max(2, Math.floor((rw - 2 * pad) / 80))
-    const rows = Math.max(1, Math.floor((rh - 2 * pad) / 80))
-    objs.push(...gridPlace(room, prefix, 'dining-table-round', cols, rows, pad + 20))
-    objs.push(makeObj(`${prefix}-trash`, 'trash-bin', x + rw - 25 - pad, y + rh - 25 - pad))
-    return objs
-  }
-  if (lbl.includes('MEETING') || lbl.includes('BRIEFING')) {
-    objs.push(makeObj(`${prefix}-table`, 'table-chairs', Math.round(x + rw / 2 - 25), Math.round(y + rh / 2 - 25)))
-    objs.push(makeObj(`${prefix}-chair1`, 'chair', x + pad, Math.round(y + rh / 2 - 12)))
-    objs.push(makeObj(`${prefix}-chair2`, 'chair', x + rw - 25 - pad, Math.round(y + rh / 2 - 12)))
-    objs.push(makeObj(`${prefix}-desk`, 'desk', x + pad, y + pad))
-    objs.push(makeObj(`${prefix}-trash`, 'trash-bin', x + rw - 25 - pad, y + rh - 25 - pad))
-    return objs
-  }
-  if (lbl.includes('BUSINESS')) {
-    const deskCount = Math.max(2, Math.floor((rw - 2 * pad) / 40))
-    for (let i = 0; i < deskCount; i++) {
-      objs.push(makeObj(`${prefix}-desk-${i}`, 'desk', x + pad + i * 40, y + pad))
-      objs.push(makeObj(`${prefix}-chair-${i}`, 'chair', x + pad + i * 40, y + pad + 55))
-    }
-    objs.push(makeObj(`${prefix}-filing`, 'filing-cabinet', x + rw - 25 - pad, y + rh - 25 - pad))
-    objs.push(makeObj(`${prefix}-trash`, 'trash-bin', x + pad, y + rh - 25 - pad))
-    return objs
-  }
-  if (lbl.includes('GYM') || lbl.includes('FITNESS')) {
-    objs.push(makeObj(`${prefix}-shelf1`, 'storage-shelf', x + pad, y + pad))
-    objs.push(makeObj(`${prefix}-shelf2`, 'storage-shelf', x + rw - 25 - pad, y + pad))
-    objs.push(makeObj(`${prefix}-plant`, 'plant', x + pad, y + rh - 25 - pad))
-    objs.push(makeObj(`${prefix}-trash`, 'trash-bin', x + rw - 25 - pad, y + rh - 25 - pad))
-    return objs
-  }
-  if (lbl.includes('POOL')) {
-    objs.push(makeObj(`${prefix}-table1`, 'dining-table-round', x + pad, y + pad))
-    objs.push(makeObj(`${prefix}-table2`, 'dining-table-round', x + rw - 50 - pad, y + pad))
-    objs.push(makeObj(`${prefix}-plant`, 'plant', x + pad, y + rh - 25 - pad))
-    objs.push(makeObj(`${prefix}-trash`, 'trash-bin', x + rw - 25 - pad, y + rh - 25 - pad))
-    return objs
-  }
-  if (lbl.includes('LAUNDRY')) {
-    objs.push(makeObj(`${prefix}-shelf1`, 'storage-shelf', x + pad, y + pad))
-    objs.push(makeObj(`${prefix}-shelf2`, 'storage-shelf', x + pad + 35, y + pad))
-    objs.push(makeObj(`${prefix}-shelf3`, 'storage-shelf', x + rw - 25 - pad, y + pad))
-    objs.push(makeObj(`${prefix}-trash`, 'trash-bin', x + rw - 25 - pad, y + rh - 25 - pad))
-    return objs
-  }
-  if (lbl.includes('LOCKER')) {
-    objs.push(makeObj(`${prefix}-shelf1`, 'storage-shelf', x + pad, y + pad))
-    objs.push(makeObj(`${prefix}-shelf2`, 'storage-shelf', x + rw - 25 - pad, y + pad))
-    objs.push(makeObj(`${prefix}-trash`, 'trash-bin', x + pad, y + rh - 25 - pad))
-    return objs
-  }
-  if (lbl.includes('SPA')) {
-    objs.push(makeObj(`${prefix}-desk`, 'desk', x + pad, y + pad))
-    objs.push(makeObj(`${prefix}-chair`, 'chair', x + pad + 30, y + pad))
-    objs.push(makeObj(`${prefix}-table`, 'table-chairs', Math.round(x + rw / 2 - 25), y + pad + 80))
-    objs.push(makeObj(`${prefix}-plant1`, 'plant', x + rw - 25 - pad, y + pad))
-    objs.push(makeObj(`${prefix}-plant2`, 'plant', x + pad, y + rh - 25 - pad))
-    objs.push(makeObj(`${prefix}-trash`, 'trash-bin', x + rw - 25 - pad, y + rh - 25 - pad))
-    return objs
-  }
-  if (lbl.includes('LOADING') || lbl.includes('RECEIVING') || lbl.includes('STORAGE') || lbl.includes('LUGGAGE')) {
-    objs.push(makeObj(`${prefix}-shelf1`, 'storage-shelf', x + pad, y + pad))
-    objs.push(makeObj(`${prefix}-shelf2`, 'storage-shelf', x + rw - 25 - pad, y + pad))
-    objs.push(makeObj(`${prefix}-shelf3`, 'storage-shelf', x + pad, y + rh - 50 - pad))
-    objs.push(makeObj(`${prefix}-trash`, 'trash-bin', x + rw - 25 - pad, y + rh - 25 - pad))
-    return objs
-  }
-  if (lbl.includes('COOLING') || lbl.includes('HVAC')) {
-    objs.push(makeObj(`${prefix}-cool1`, 'storage-shelf', x + pad, y + pad))
-    objs.push(makeObj(`${prefix}-cool2`, 'storage-shelf', x + pad + 35, y + pad))
-    objs.push(makeObj(`${prefix}-cool3`, 'storage-shelf', x + rw - 25 - pad, y + pad))
-    objs.push(makeObj(`${prefix}-trash`, 'trash-bin', x + pad, y + rh - 25 - pad))
-    return objs
-  }
-  if (lbl.includes('MECH') || lbl.includes('ELECTRICAL')) {
-    objs.push(makeObj(`${prefix}-rack1`, 'server-rack', x + pad, y + pad))
-    objs.push(makeObj(`${prefix}-rack2`, 'server-rack', x + pad + 35, y + pad))
-    objs.push(makeObj(`${prefix}-rack3`, 'server-rack', x + rw - 25 - pad, y + pad))
-    objs.push(makeObj(`${prefix}-trash`, 'trash-bin', x + pad, y + rh - 25 - pad))
-    return objs
-  }
-  if (lbl.includes('PARKING')) {
-    objs.push(makeObj(`${prefix}-trash1`, 'trash-bin', x + pad, y + rh - 25 - pad))
-    objs.push(makeObj(`${prefix}-trash2`, 'trash-bin', x + rw - 25 - pad, y + rh - 25 - pad))
-    return objs
-  }
-  if (lbl.includes('WINE')) {
-    objs.push(makeObj(`${prefix}-shelf1`, 'storage-shelf', x + pad, y + pad))
-    objs.push(makeObj(`${prefix}-shelf2`, 'storage-shelf', x + rw - 25 - pad, y + pad))
-    objs.push(makeObj(`${prefix}-shelf3`, 'storage-shelf', x + pad, y + rh - 50 - pad))
-    objs.push(makeObj(`${prefix}-shelf4`, 'storage-shelf', x + rw - 25 - pad, y + rh - 50 - pad))
-    objs.push(makeObj(`${prefix}-trash`, 'trash-bin', Math.round(x + rw / 2 - 12), y + rh - 25 - pad))
-    return objs
-  }
-  if (lbl.includes('COAT')) {
-    objs.push(makeObj(`${prefix}-shelf`, 'storage-shelf', x + pad, y + pad))
-    objs.push(makeObj(`${prefix}-trash`, 'trash-bin', x + rw - 25 - pad, y + rh - 25 - pad))
-    return objs
-  }
-  if (lbl.includes('RESTROOM')) {
-    objs.push(makeObj(`${prefix}-plant`, 'plant', x + pad, y + pad))
-    objs.push(makeObj(`${prefix}-trash`, 'trash-bin', x + rw - 25 - pad, y + rh - 25 - pad))
-    return objs
-  }
-  if (cat === 'security' || lbl.includes('SECURITY') || lbl.includes('CCTV') || lbl.includes('CONTROL') ||
-      lbl.includes('ARMORY') || lbl.includes('EVIDENCE') || lbl.includes('VAULT') || lbl.includes('HOLDING') ||
-      lbl.includes('BADGE') || lbl.includes('NOC') || lbl.includes('INTEL')) {
-    objs.push(makeObj(`${prefix}-control`, 'control-desk', x + pad, y + pad))
-    objs.push(makeObj(`${prefix}-chair`, 'chair', x + pad + 50, y + pad + 30))
-    if (lbl.includes('ARMORY')) {
-      objs.push(makeObj(`${prefix}-weapon`, 'weapon-rack', x + pad + 110, y + pad))
-    }
-    objs.push(makeObj(`${prefix}-rack`, 'server-rack', x + rw - 25 - pad, y + pad))
-    objs.push(makeObj(`${prefix}-filing1`, 'filing-cabinet', x + pad, y + rh - 25 - pad))
-    objs.push(makeObj(`${prefix}-filing2`, 'filing-cabinet', x + rw - 25 - pad, y + rh - 25 - pad))
-    objs.push(makeObj(`${prefix}-trash`, 'trash-bin', Math.round(x + rw / 2 - 12), y + rh - 25 - pad))
-    return objs
-  }
-  if (lbl.includes('SERVER') || lbl.includes('DATA') || lbl.includes('NETWORK')) {
-    const bottomReserve = 80
-    const cols = Math.max(2, Math.floor((rw - 2 * pad) / 40))
-    const rows = Math.max(1, Math.floor((rh - 2 * pad - bottomReserve) / 60))
-    objs.push(...gridPlace({ ...room, h: rh - bottomReserve }, prefix, 'server-rack', cols, rows, pad))
-    objs.push(makeObj(`${prefix}-control`, 'control-desk', x + pad, y + rh - 25 - pad))
-    objs.push(makeObj(`${prefix}-chair`, 'chair', x + pad + 50, y + rh - 25 - pad - 30))
-    objs.push(makeObj(`${prefix}-trash`, 'trash-bin', x + rw - 25 - pad, y + rh - 25 - pad))
-    return objs
-  }
-  if (lbl.includes('OFFICE') || lbl.includes('PRIVATE')) {
-    objs.push(makeObj(`${prefix}-desk`, 'desk', x + pad, y + pad))
-    objs.push(makeObj(`${prefix}-chair`, 'chair', x + pad + 30, y + pad))
-    objs.push(makeObj(`${prefix}-filing`, 'filing-cabinet', x + rw - 25 - pad, y + pad))
-    objs.push(makeObj(`${prefix}-trash`, 'trash-bin', x + rw - 25 - pad, y + rh - 25 - pad))
-    return objs
-  }
-  if (lbl.includes('BEDROOM')) {
-    objs.push(makeObj(`${prefix}-bed`, 'bed', x + pad, y + pad))
-    objs.push(makeObj(`${prefix}-night`, 'nightstand', x + pad + 30, y + pad))
-    objs.push(makeObj(`${prefix}-wardrobe`, 'wardrobe', x + rw - 25 - pad, y + pad))
-    objs.push(makeObj(`${prefix}-trash`, 'trash-bin', x + pad, y + rh - 25 - pad))
-    return objs
-  }
-  if (lbl.includes('PANIC')) {
-    objs.push(makeObj(`${prefix}-desk`, 'desk', x + pad, y + pad))
-    objs.push(makeObj(`${prefix}-chair`, 'chair', x + pad + 30, y + pad))
-    objs.push(makeObj(`${prefix}-filing`, 'filing-cabinet', x + rw - 25 - pad, y + pad))
-    objs.push(makeObj(`${prefix}-trash`, 'trash-bin', x + pad, y + rh - 25 - pad))
-    return objs
-  }
-  if (lbl.includes('LIVING')) {
-    objs.push(makeObj(`${prefix}-sofa1`, 'sofa', x + pad, y + pad))
-    objs.push(makeObj(`${prefix}-table`, 'table-chairs', x + pad + 30, y + pad))
-    objs.push(makeObj(`${prefix}-sofa2`, 'sofa', x + rw - 25 - pad, y + pad))
-    objs.push(makeObj(`${prefix}-plant`, 'plant', x + pad, y + rh - 25 - pad))
-    objs.push(makeObj(`${prefix}-trash`, 'trash-bin', x + rw - 25 - pad, y + rh - 25 - pad))
-    return objs
-  }
-  if (lbl.includes('ESCAPE')) {
-    objs.push(makeObj(`${prefix}-trash`, 'trash-bin', x + pad, y + rh - 25 - pad))
-    return objs
-  }
-  if (lbl.includes('CABANA')) {
-    objs.push(makeObj(`${prefix}-sofa`, 'sofa', x + pad, y + pad))
-    objs.push(makeObj(`${prefix}-table`, 'table-chairs', x + pad + 30, y + pad))
-    objs.push(makeObj(`${prefix}-plant`, 'plant', x + rw - 25 - pad, y + pad))
-    objs.push(makeObj(`${prefix}-trash`, 'trash-bin', x + rw - 25 - pad, y + rh - 25 - pad))
-    return objs
-  }
-  if (lbl.includes('LOUNGE') || lbl.includes('TERRACE') || lbl.includes('DECK') || lbl.includes('GARDEN')) {
-    objs.push(makeObj(`${prefix}-sofa1`, 'sofa', x + pad, y + pad))
-    objs.push(makeObj(`${prefix}-table1`, 'table-chairs', x + pad + 30, y + pad))
-    objs.push(makeObj(`${prefix}-sofa2`, 'sofa', x + pad, y + rh - 50 - pad))
-    objs.push(makeObj(`${prefix}-table2`, 'dining-table-round', x + rw - 50 - pad, y + pad))
-    objs.push(makeObj(`${prefix}-plant1`, 'plant', x + rw - 25 - pad, y + rh - 25 - pad))
-    const trashX = Math.round(x + rw / 2 - 12)
-    const plant2DefaultX = x + pad + 40
-    const plant2X = (plant2DefaultX + 25 > trashX) ? x + pad + 30 : plant2DefaultX
-    const plant2Y = (plant2DefaultX + 25 > trashX) ? y + rh - 50 - pad : y + rh - 25 - pad
-    objs.push(makeObj(`${prefix}-plant2`, 'plant', plant2X, plant2Y))
-    objs.push(makeObj(`${prefix}-trash`, 'trash-bin', trashX, y + rh - 25 - pad))
-    return objs
-  }
-  if (lbl.includes('HOST')) {
-    objs.push(makeObj(`${prefix}-desk`, 'concierge-desk', x + pad, y + pad))
-    objs.push(makeObj(`${prefix}-chair`, 'chair', x + pad + 50, y + pad + 30))
-    objs.push(makeObj(`${prefix}-plant`, 'plant', x + rw - 25 - pad, y + rh - 25 - pad))
-    return objs
-  }
-  switch (cat) {
-    case 'utility':
-      objs.push(makeObj(`${prefix}-rack1`, 'server-rack', x + pad, y + pad))
-      objs.push(makeObj(`${prefix}-rack2`, 'server-rack', x + pad + 35, y + pad))
-      objs.push(makeObj(`${prefix}-shelf`, 'storage-shelf', x + rw - 25 - pad, y + rh - 50 - pad))
-      break
-    case 'back':
-      objs.push(makeObj(`${prefix}-desk`, 'desk', x + pad, y + pad))
-      objs.push(makeObj(`${prefix}-chair`, 'chair', x + pad + 30, y + pad + 10))
-      objs.push(makeObj(`${prefix}-filing`, 'filing-cabinet', x + rw - 25 - pad, y + pad))
-      objs.push(makeObj(`${prefix}-shelf`, 'storage-shelf', x + rw - 25 - pad, y + rh - 50 - pad))
-      break
-    case 'service':
-      objs.push(makeObj(`${prefix}-desk`, 'concierge-desk', x + pad, y + pad))
-      objs.push(makeObj(`${prefix}-chair`, 'chair', x + pad + 50, y + pad + 30))
-      objs.push(makeObj(`${prefix}-plant`, 'plant', x + rw - 25 - pad, y + rh - 25 - pad))
-      break
-    case 'public':
-    case 'open':
-    default:
-      objs.push(makeObj(`${prefix}-sofa1`, 'sofa', x + pad + 10, y + pad + 10))
-      objs.push(makeObj(`${prefix}-table1`, 'table-chairs', x + pad + 40, y + pad + 10))
-      objs.push(makeObj(`${prefix}-plant1`, 'plant', x + rw - 25 - pad, y + pad + 10))
-      objs.push(makeObj(`${prefix}-plant2`, 'plant', x + rw - 25 - pad, y + rh - 25 - pad))
-      break
-  }
-  return objs
-}
-
-function doorBetween(id: string, a: PresetRoom, b: PresetRoom): PresetObject | null {
-  if (Math.abs(a.x + a.w - b.x) < 1 || Math.abs(b.x + b.w - a.x) < 1) {
-    const left = Math.abs(a.x + a.w - b.x) < 1 ? a : b
-    const yOverlapStart = Math.max(a.y, b.y)
-    const yOverlapEnd = Math.min(a.y + a.h, b.y + b.h)
-    if (yOverlapEnd - yOverlapStart >= 25) {
-      const midY = (yOverlapStart + yOverlapEnd) / 2
-      return makeObj(id, 'door-standard', left.x + left.w - 12, midY - 12, 90)
-    }
-  }
-  if (Math.abs(a.y + a.h - b.y) < 1 || Math.abs(b.y + b.h - a.y) < 1) {
-    const top = Math.abs(a.y + a.h - b.y) < 1 ? a : b
-    const xOverlapStart = Math.max(a.x, b.x)
-    const xOverlapEnd = Math.min(a.x + a.w, b.x + b.w)
-    if (xOverlapEnd - xOverlapStart >= 25) {
-      const midX = (xOverlapStart + xOverlapEnd) / 2
-      return makeObj(id, 'door-standard', midX - 12, top.y + top.h - 12, 0)
-    }
-  }
-  return null
-}
-
-function autoDoors(prefix: string, rooms: PresetRoom[]): PresetObject[] {
-  const doors: PresetObject[] = []
-  const corridors = rooms.filter(r => r.cat === 'open' && r.label?.toUpperCase().includes('CORRIDOR'))
-  const nonCorridors = rooms.filter(r => !(r.cat === 'open' && r.label?.toUpperCase().includes('CORRIDOR')))
-  const roomIndex = new Map(rooms.map((r, i) => [r.id, i]))
-  const dooredRooms = new Set<string>()
-
-  for (const room of nonCorridors) {
-    for (const cor of corridors) {
-      const door = doorBetween(`${prefix}-door-c-${roomIndex.get(room.id)}`, room, cor)
-      if (door) {
-        doors.push(door)
-        dooredRooms.add(room.id)
-        break
+const SAVED_LAYOUT: LayoutData = {
+  "version": 1,
+  "hiddenBuiltinIds": [],
+  "assetCategories": [
+    "tools",
+    "Merged",
+    "Linked Sets"
+  ],
+  "canvas": {
+    "width": 1200,
+    "height": 600,
+    "tileSize": 25
+  },
+  "customAssets": [
+    {
+      "id": "custom-mr8wdziq-1",
+      "name": "Table",
+      "category": "tools",
+      "w": 1,
+      "h": 2,
+      "custom": true
+    },
+    {
+      "id": "custom-mr8wfbqa-1",
+      "name": "Chair",
+      "category": "tools",
+      "w": 1,
+      "h": 1,
+      "custom": true,
+      "defaultPadding": 5,
+      "defaultRx": {
+        "tl": 3,
+        "tr": 3,
+        "br": 3,
+        "bl": 3
       }
+    },
+    {
+      "id": "linked-mr8ztb1g-1",
+      "name": "Table Set",
+      "category": "Linked Sets",
+      "w": 3,
+      "h": 2,
+      "custom": true,
+      "linkedParts": [
+        {
+          "type": "custom-mr8wdziq-1",
+          "dx": 25,
+          "dy": 0,
+          "w": 25,
+          "h": 50,
+          "rotation": 0
+        },
+        {
+          "type": "custom-mr8wfbqa-1",
+          "dx": 50,
+          "dy": 0,
+          "w": 25,
+          "h": 25,
+          "rotation": 0
+        },
+        {
+          "type": "custom-mr8wfbqa-1",
+          "dx": 0,
+          "dy": 0,
+          "w": 25,
+          "h": 25,
+          "rotation": 0
+        },
+        {
+          "type": "custom-mr8wfbqa-1",
+          "dx": 0,
+          "dy": 25,
+          "w": 25,
+          "h": 25,
+          "rotation": 0
+        },
+        {
+          "type": "custom-mr8wfbqa-1",
+          "dx": 50,
+          "dy": 25,
+          "w": 25,
+          "h": 25,
+          "rotation": 0
+        }
+      ]
+    },
+    {
+      "id": "custom-mr8zu9xo-1",
+      "name": "Door",
+      "category": "tools",
+      "w": 2,
+      "h": 1,
+      "custom": true
+    },
+    {
+      "id": "custom-mr907rdo-1",
+      "name": "Bar",
+      "category": "Misc",
+      "w": 1,
+      "h": 8,
+      "custom": true
+    },
+    {
+      "id": "custom-mr92zwu5-7",
+      "name": "For Sofa",
+      "category": "Misc",
+      "w": 2,
+      "h": 1,
+      "custom": true,
+      "pxW": 40,
+      "pxH": 25
     }
-  }
-
-  for (let i = 0; i < nonCorridors.length; i++) {
-    if (dooredRooms.has(nonCorridors[i].id)) continue
-    for (let j = 0; j < nonCorridors.length; j++) {
-      if (i === j) continue
-      const door = doorBetween(`${prefix}-door-r${i}-${j}`, nonCorridors[i], nonCorridors[j])
-      if (door) {
-        doors.push(door)
-        dooredRooms.add(nonCorridors[i].id)
-        break
-      }
+  ],
+  "floors": [
+    {
+      "id": "floor-mr8wexze-1",
+      "name": "New Floor",
+      "label": "F0",
+      "rooms": [],
+      "objects": [
+        {
+          "id": "o-mr8zrvak-1",
+          "subId": "sub-mr8zrvak-2",
+          "type": "custom-mr8wdziq-1",
+          "x": 175,
+          "y": 50,
+          "w": 25,
+          "h": 50,
+          "rotation": 0,
+          "linkedIds": [
+            "o-mr8zryfh-1",
+            "o-mr8zrzr0-1",
+            "o-mr8zs16c-1",
+            "o-mr8zs2pw-1"
+          ],
+          "collapsed": false
+        },
+        {
+          "id": "o-mr8zryfh-1",
+          "subId": "sub-mr8zryfh-2",
+          "type": "custom-mr8wfbqa-1",
+          "x": 200,
+          "y": 50,
+          "w": 25,
+          "h": 25,
+          "rotation": 0,
+          "rx": {
+            "tl": 3,
+            "tr": 3,
+            "br": 3,
+            "bl": 3
+          },
+          "padding": 5,
+          "linkedIds": [
+            "o-mr8zrvak-1",
+            "o-mr8zrzr0-1",
+            "o-mr8zs16c-1",
+            "o-mr8zs2pw-1"
+          ],
+          "collapsed": false
+        },
+        {
+          "id": "o-mr8zrzr0-1",
+          "subId": "sub-mr8zrzr0-2",
+          "type": "custom-mr8wfbqa-1",
+          "x": 150,
+          "y": 50,
+          "w": 25,
+          "h": 25,
+          "rotation": 0,
+          "rx": {
+            "tl": 3,
+            "tr": 3,
+            "br": 3,
+            "bl": 3
+          },
+          "padding": 5,
+          "linkedIds": [
+            "o-mr8zrvak-1",
+            "o-mr8zryfh-1",
+            "o-mr8zs16c-1",
+            "o-mr8zs2pw-1"
+          ],
+          "collapsed": false
+        },
+        {
+          "id": "o-mr8zs16c-1",
+          "subId": "sub-mr8zs16c-2",
+          "type": "custom-mr8wfbqa-1",
+          "x": 150,
+          "y": 75,
+          "w": 25,
+          "h": 25,
+          "rotation": 0,
+          "rx": {
+            "tl": 3,
+            "tr": 3,
+            "br": 3,
+            "bl": 3
+          },
+          "padding": 5,
+          "linkedIds": [
+            "o-mr8zrvak-1",
+            "o-mr8zryfh-1",
+            "o-mr8zrzr0-1",
+            "o-mr8zs2pw-1"
+          ],
+          "collapsed": false
+        },
+        {
+          "id": "o-mr8zs2pw-1",
+          "subId": "sub-mr8zs2pw-2",
+          "type": "custom-mr8wfbqa-1",
+          "x": 200,
+          "y": 75,
+          "w": 25,
+          "h": 25,
+          "rotation": 0,
+          "rx": {
+            "tl": 3,
+            "tr": 3,
+            "br": 3,
+            "bl": 3
+          },
+          "padding": 5,
+          "linkedIds": [
+            "o-mr8zrvak-1",
+            "o-mr8zryfh-1",
+            "o-mr8zrzr0-1",
+            "o-mr8zs16c-1"
+          ],
+          "collapsed": false
+        },
+        {
+          "id": "o-mr8ztdpw-1",
+          "subId": "sub-mr8ztdpw-2",
+          "type": "custom-mr8wdziq-1",
+          "x": 175,
+          "y": 125,
+          "w": 25,
+          "h": 50,
+          "rotation": 0,
+          "linkedIds": [
+            "o-mr8ztdpw-3",
+            "o-mr8ztdpw-5",
+            "o-mr8ztdpw-7",
+            "o-mr8ztdpw-9"
+          ],
+          "collapsed": false
+        },
+        {
+          "id": "o-mr8ztdpw-3",
+          "subId": "sub-mr8ztdpw-4",
+          "type": "custom-mr8wfbqa-1",
+          "x": 200,
+          "y": 125,
+          "w": 25,
+          "h": 25,
+          "rotation": 0,
+          "rx": {
+            "tl": 3,
+            "tr": 3,
+            "br": 3,
+            "bl": 3
+          },
+          "padding": 5,
+          "linkedIds": [
+            "o-mr8ztdpw-1",
+            "o-mr8ztdpw-5",
+            "o-mr8ztdpw-7",
+            "o-mr8ztdpw-9"
+          ],
+          "collapsed": false
+        },
+        {
+          "id": "o-mr8ztdpw-5",
+          "subId": "sub-mr8ztdpw-6",
+          "type": "custom-mr8wfbqa-1",
+          "x": 150,
+          "y": 125,
+          "w": 25,
+          "h": 25,
+          "rotation": 0,
+          "rx": {
+            "tl": 3,
+            "tr": 3,
+            "br": 3,
+            "bl": 3
+          },
+          "padding": 5,
+          "linkedIds": [
+            "o-mr8ztdpw-1",
+            "o-mr8ztdpw-3",
+            "o-mr8ztdpw-7",
+            "o-mr8ztdpw-9"
+          ],
+          "collapsed": false
+        },
+        {
+          "id": "o-mr8ztdpw-7",
+          "subId": "sub-mr8ztdpw-8",
+          "type": "custom-mr8wfbqa-1",
+          "x": 150,
+          "y": 150,
+          "w": 25,
+          "h": 25,
+          "rotation": 0,
+          "rx": {
+            "tl": 3,
+            "tr": 3,
+            "br": 3,
+            "bl": 3
+          },
+          "padding": 5,
+          "linkedIds": [
+            "o-mr8ztdpw-1",
+            "o-mr8ztdpw-3",
+            "o-mr8ztdpw-5",
+            "o-mr8ztdpw-9"
+          ],
+          "collapsed": false
+        },
+        {
+          "id": "o-mr8ztdpw-9",
+          "subId": "sub-mr8ztdpw-10",
+          "type": "custom-mr8wfbqa-1",
+          "x": 200,
+          "y": 150,
+          "w": 25,
+          "h": 25,
+          "rotation": 0,
+          "rx": {
+            "tl": 3,
+            "tr": 3,
+            "br": 3,
+            "bl": 3
+          },
+          "padding": 5,
+          "linkedIds": [
+            "o-mr8ztdpw-1",
+            "o-mr8ztdpw-3",
+            "o-mr8ztdpw-5",
+            "o-mr8ztdpw-7"
+          ],
+          "collapsed": false
+        },
+        {
+          "id": "o-mr9058oc-1",
+          "subId": "sub-mr9058oc-2",
+          "type": "custom-mr8zu9xo-1",
+          "x": 450,
+          "y": 0,
+          "w": 50,
+          "h": 25,
+          "rotation": 0,
+          "collapsed": false
+        },
+        {
+          "id": "o-mr907u8d-1",
+          "subId": "sub-mr907u8d-2",
+          "type": "custom-mr907rdo-1",
+          "x": 1075,
+          "y": 25,
+          "w": 25,
+          "h": 200,
+          "rotation": 0,
+          "collapsed": false
+        },
+        {
+          "id": "o-mr92tiph-1",
+          "subId": "sub-mr92tiph-2",
+          "type": "custom-mr8wdziq-1",
+          "x": 350,
+          "y": 325,
+          "w": 25,
+          "h": 50,
+          "rotation": 0,
+          "collapsed": false
+        },
+        {
+          "id": "o-mr931mxx-14",
+          "subId": "sub-mr931mxx-15",
+          "type": "custom-mr92zwu5-7",
+          "rotation": 0,
+          "x": 350,
+          "y": 300,
+          "w": 40,
+          "h": 25,
+          "collapsed": false
+        }
+      ],
+      "zones": []
+    },
+    {
+      "id": "floor-mr905qt8-1",
+      "name": "Test Gen",
+      "label": "F1",
+      "rooms": [],
+      "objects": [],
+      "zones": []
     }
-  }
-
-  for (let i = 0; i < rooms.length; i++) {
-    for (let j = i + 1; j < rooms.length; j++) {
-      if (dooredRooms.has(rooms[i].id) && dooredRooms.has(rooms[j].id)) continue
-      const door = doorBetween(`${prefix}-door-x-${i}-${j}`, rooms[i], rooms[j])
-      if (door) {
-        doors.push(door)
-        dooredRooms.add(rooms[i].id)
-        dooredRooms.add(rooms[j].id)
-      }
-    }
-  }
-
-  return doors
+  ],
+  "objectCustomProps": {},
+  "instanceLabels": {},
+  "validationRules": {},
+  "roomTemplates": []
 }
 
-function autoFurnish(rooms: PresetRoom[]): PresetObject[] {
-  return rooms.flatMap(r => furnishFunctionalRoom(r, r.id))
-}
 
-const STATIC_CORRIDOR_H = 100
-const STATIC_MID_CORRIDOR_H = 100
 
-function buildStaticFloor(prefix: string, rooms: PresetRoom[]): FloorPreset {
-  const bottomCorridorY = PRESET_CANVAS_H - STATIC_CORRIDOR_H
-  const midCorridorY = Math.round((bottomCorridorY - STATIC_MID_CORRIDOR_H) / 2)
-  const midCorridorEnd = midCorridorY + STATIC_MID_CORRIDOR_H
-  const topH = midCorridorY
 
-  const adjusted = rooms.map(r => {
-    const isTopHalf = r.y + r.h / 2 < midCorridorY
-    if (isTopHalf) {
-      return { ...r, y: r.y, h: Math.min(r.h, topH) }
-    } else {
-      const relY = r.y - Math.round(bottomCorridorY / 2)
-      const ny = midCorridorEnd + Math.max(0, relY)
-      const maxH = bottomCorridorY - ny
-      return { ...r, y: ny, h: Math.min(r.h, maxH) }
-    }
-  }).filter(r => r.h > 0)
 
-  const midCorridor: PresetRoom = {
-    id: `${prefix}-mid-corridor`, x: 0, y: midCorridorY,
-    w: PRESET_CANVAS_W, h: STATIC_MID_CORRIDOR_H, cat: 'open', label: 'CORRIDOR',
-  }
-  const bottomCorridor: PresetRoom = {
-    id: `${prefix}-corridor`, x: 0, y: bottomCorridorY,
-    w: PRESET_CANVAS_W, h: STATIC_CORRIDOR_H, cat: 'open', label: 'CORRIDOR',
-  }
-  const allRooms = [...adjusted, midCorridor, bottomCorridor]
-  const objects = [...autoFurnish(adjusted), ...autoDoors(prefix, allRooms)]
-  addElevators(prefix, objects, allRooms)
-  addCorridorTrashBins(prefix, objects, midCorridorY, STATIC_MID_CORRIDOR_H)
-  return { rooms: allRooms, objects }
-}
 
-function addElevators(prefix: string, objects: PresetObject[], rooms: PresetRoom[]): void {
-  const sz = 50
-  const corridor = rooms.find(r => r.cat === 'open' && r.label?.toUpperCase().includes('CORRIDOR'))
-  const cy = corridor ? corridor.y + Math.round(corridor.h / 2 - sz / 2) : Math.round(PRESET_CANVAS_H / 2 - sz / 2)
-  const leftX = corridor ? corridor.x + 20 : 20
-  const rightX = corridor ? corridor.x + corridor.w - sz - 20 : PRESET_CANVAS_W - sz - 20
-  const gap = 100
-  const positions = [
-    { id: `${prefix}-elev1`, x: leftX, y: cy },
-    { id: `${prefix}-elev2`, x: leftX + sz + gap, y: cy },
-    { id: `${prefix}-elev3`, x: rightX - sz - gap, y: cy },
-    { id: `${prefix}-elev4`, x: rightX, y: cy },
-  ]
-  let placed = 0
-  for (const pos of positions) {
-    const overlapsRoom = rooms.some(r =>
-      r.cat !== 'open' &&
-      pos.x < r.x + r.w && pos.x + sz > r.x &&
-      pos.y < r.y + r.h && pos.y + sz > r.y
-    )
-    if (overlapsRoom) continue
-    const overlapIdx = objects.findIndex(o =>
-      pos.x < o.x + o.w && pos.x + sz > o.x &&
-      pos.y < o.y + o.h && pos.y + sz > o.y
-    )
-    if (overlapIdx >= 0) {
-      if (placed >= 2) continue
-      objects.splice(overlapIdx, 1)
-    }
-    objects.push(makeObj(pos.id, 'elevator', pos.x, pos.y))
-    placed++
-  }
-  if (placed < 2) {
-    for (const pos of positions) {
-      if (objects.some(o => o.type === 'elevator' && o.x === pos.x && o.y === pos.y)) continue
-      const overlapIdx = objects.findIndex(o =>
-        pos.x < o.x + o.w && pos.x + sz > o.x &&
-        pos.y < o.y + o.h && pos.y + sz > o.y
-      )
-      if (overlapIdx >= 0) objects.splice(overlapIdx, 1)
-      objects.push(makeObj(pos.id, 'elevator', pos.x, pos.y))
-      placed++
-      if (placed >= 2) break
-    }
-  }
-}
 
-function addCorridorTrashBins(prefix: string, objects: PresetObject[], corridorY: number, corridorH: number): void {
-  const midY = Math.round(corridorY + corridorH / 2 - 12)
-  objects.push(makeObj(`${prefix}-trash1`, 'trash-bin', 160, midY))
-  objects.push(makeObj(`${prefix}-trash2`, 'trash-bin', PRESET_CANVAS_W - 185, midY))
-}
 
-function buildGuestStaticFloor(prefix: string, rooms: PresetRoom[], tier: GuestTier): FloorPreset {
-  const corridorH = 100
-  const vCorridorW = 100
-  const n = rooms.length
-  const newW = Math.round((PRESET_CANVAS_W - (n - 1) * vCorridorW) / n)
 
-  const sortedRooms = [...rooms].sort((a, b) => a.x - b.x)
-  const vCorridors: PresetRoom[] = []
-  const shiftedRooms: PresetRoom[] = []
 
-  for (let i = 0; i < sortedRooms.length; i++) {
-    const r = sortedRooms[i]
-    const rx = i * (newW + vCorridorW)
-    const adjusted: PresetRoom = {
-      ...r,
-      x: rx,
-      y: r.y + corridorH,
-      h: r.h - corridorH,
-      w: newW,
-    }
-    shiftedRooms.push(adjusted)
-    if (i < n - 1) {
-      vCorridors.push({
-        id: `${prefix}-vcorridor-${i}`, x: rx + newW, y: corridorH,
-        w: vCorridorW, h: PRESET_CANVAS_H - corridorH, cat: 'open', label: 'CORRIDOR',
-      })
-    }
-  }
 
-  const corridor: PresetRoom = {
-    id: `${prefix}-corridor`, x: 0, y: 0,
-    w: PRESET_CANVAS_W, h: corridorH, cat: 'open', label: 'CORRIDOR',
-  }
-  const allRooms = [...shiftedRooms, ...vCorridors, corridor]
-  const objects: PresetObject[] = [
-    ...shiftedRooms.flatMap(r => furnishGuestRoom(r, r.id, tier, 'top')),
-  ]
-  for (let i = 0; i < shiftedRooms.length; i++) {
-    const r = shiftedRooms[i]
-    objects.push(makeObj(`${prefix}-door-r${i}`, 'door-standard', Math.round(r.x + r.w / 2 - 12), corridorH - 12))
-  }
-  addElevators(prefix, objects, allRooms)
-  addCorridorTrashBins(prefix, objects, 0, corridorH)
-  return { rooms: allRooms, objects }
-}
 
-function guestRoomFloor(prefix: string, roomsPerSide: number, corridorH: number, labelPrefix: string, tier: GuestTier = 'standard'): FloorPreset {
-  const count = roomsPerSide
-  const roomW = Math.floor(PRESET_CANVAS_W / count)
-  const corridorY = Math.floor((PRESET_CANVAS_H - corridorH) / 2)
-  const topH = corridorY
-  const botH = PRESET_CANVAS_H - corridorY - corridorH
-  const rooms: PresetRoom[] = []
-  const objects: PresetObject[] = []
-  for (let i = 0; i < count; i++) {
-    const x = i * roomW
-    const w = (i === count - 1) ? PRESET_CANVAS_W - x : roomW
-    const topRoom: PresetRoom = { id: `${prefix}-t${i}`, x, y: 0, w, h: topH, cat: 'public', label: `${labelPrefix}${String(i + 1).padStart(2, '0')}` }
-    const botRoom: PresetRoom = { id: `${prefix}-b${i}`, x, y: corridorY + corridorH, w, h: botH, cat: 'public', label: `${labelPrefix}${String(i + 1 + count).padStart(2, '0')}` }
-    rooms.push(topRoom, botRoom)
-    objects.push(...furnishGuestRoom(topRoom, topRoom.id, tier, 'bottom'))
-    objects.push(...furnishGuestRoom(botRoom, botRoom.id, tier, 'top'))
-    objects.push(makeObj(`${prefix}-door-t${i}`, 'door-standard', Math.round(x + w / 2 - 12), corridorY - 12))
-    objects.push(makeObj(`${prefix}-door-b${i}`, 'door-standard', Math.round(x + w / 2 - 12), corridorY + corridorH - 12))
-  }
-  rooms.push({ id: `${prefix}-corridor`, x: 0, y: corridorY, w: PRESET_CANVAS_W, h: corridorH, cat: 'open', label: 'CORRIDOR' })
-  for (let cx = 200; cx < PRESET_CANVAS_W - 200; cx += 400) {
-    objects.push(makeObj(`${prefix}-plant-c${cx}`, 'plant', cx, Math.round(corridorY + corridorH / 2 - 12)))
-  }
-  addElevators(prefix, objects, rooms)
-  addCorridorTrashBins(prefix, objects, corridorY, corridorH)
-  return { rooms, objects }
-}
 
-function staffFloor(prefix: string): FloorPreset {
-  const bedroomCols = 10
-  const cols = bedroomCols + 1
-  const colW = Math.floor(PRESET_CANVAS_W / cols)
-  const corridorH = 100
-  const corridorY = Math.floor((PRESET_CANVAS_H - corridorH) / 2)
-  const topH = corridorY
-  const botH = PRESET_CANVAS_H - corridorY - corridorH
-  const rooms: PresetRoom[] = []
-  const objects: PresetObject[] = []
-  for (let i = 0; i < cols; i++) {
-    const x = i * colW
-    const w = (i === cols - 1) ? PRESET_CANVAS_W - x : colW
-    if (i < bedroomCols) {
-      const topRoom: PresetRoom = { id: `${prefix}-t${i}`, x, y: 0, w, h: topH, cat: 'back', label: `STAFF RM ${i + 1}` }
-      const botRoom: PresetRoom = { id: `${prefix}-b${i}`, x, y: corridorY + corridorH, w, h: botH, cat: 'back', label: `STAFF RM ${i + bedroomCols + 1}` }
-      rooms.push(topRoom, botRoom)
-      objects.push(...furnishGuestRoom(topRoom, topRoom.id, 'staff', 'bottom'))
-      objects.push(...furnishGuestRoom(botRoom, botRoom.id, 'staff', 'top'))
-      objects.push(makeObj(`${prefix}-door-t${i}`, 'door-standard', Math.round(x + colW / 2 - 12), corridorY - 12))
-      objects.push(makeObj(`${prefix}-door-b${i}`, 'door-standard', Math.round(x + colW / 2 - 12), corridorY + corridorH - 12))
-    } else {
-      const lounge: PresetRoom = { id: `${prefix}-lounge`, x, y: 0, w, h: topH, cat: 'service', label: 'STAFF LOUNGE' }
-      const restroom: PresetRoom = { id: `${prefix}-restroom`, x, y: corridorY + corridorH, w, h: botH, cat: 'utility', label: 'STAFF RESTROOM' }
-      rooms.push(lounge, restroom)
-      objects.push(...furnishFunctionalRoom(lounge, lounge.id))
-      objects.push(makeObj(`${prefix}-trash-restroom`, 'trash-bin', x + 20, corridorY + corridorH + 20))
-      objects.push(makeObj(`${prefix}-door-lounge`, 'door-standard', Math.round(x + colW / 2 - 12), corridorY - 12))
-      objects.push(makeObj(`${prefix}-door-restroom`, 'door-standard', Math.round(x + colW / 2 - 12), corridorY + corridorH - 12))
-    }
-  }
-  rooms.push({ id: `${prefix}-corridor`, x: 0, y: corridorY, w: PRESET_CANVAS_W, h: corridorH, cat: 'open', label: 'STAFF CORRIDOR' })
-  addElevators(prefix, objects, rooms)
-  addCorridorTrashBins(prefix, objects, corridorY, corridorH)
-  return { rooms, objects }
-}
 
-function executiveFloor(prefix: string, roomsPerSide: number = 6): FloorPreset {
-  const loungeW = 500
-  const remaining = PRESET_CANVAS_W - loungeW
-  const count = roomsPerSide
-  const roomW = Math.floor(remaining / count)
-  const corridorH = 120
-  const corridorY = Math.floor((PRESET_CANVAS_H - corridorH) / 2)
-  const topH = corridorY
-  const botH = PRESET_CANVAS_H - corridorY - corridorH
-  const loungeRoom: PresetRoom = { id: `${prefix}-lounge`, x: 0, y: 0, w: loungeW, h: PRESET_CANVAS_H, cat: 'public', label: 'EXECUTIVE LOUNGE' }
-  const rooms: PresetRoom[] = [loungeRoom]
-  const objects: PresetObject[] = [
-    makeObj(`${prefix}-lounge-sofa1`, 'sofa', 30, 30),
-    makeObj(`${prefix}-lounge-table1`, 'table-chairs', 80, 30),
-    makeObj(`${prefix}-lounge-sofa2`, 'sofa', 30, PRESET_CANVAS_H - 100),
-    makeObj(`${prefix}-lounge-bar`, 'bar-counter', 200, 30),
-    makeObj(`${prefix}-lounge-stool1`, 'bar-stool', 220, 60),
-    makeObj(`${prefix}-lounge-stool2`, 'bar-stool', 270, 60),
-    makeObj(`${prefix}-lounge-plant`, 'plant', loungeW - 60, PRESET_CANVAS_H - 60),
-    makeObj(`${prefix}-lounge-trash`, 'trash-bin', loungeW - 60, 30),
-    makeObj(`${prefix}-lounge-door`, 'door-standard', loungeW - 12, Math.round(PRESET_CANVAS_H / 2 - 12), 90),
-  ]
-  for (let i = 0; i < count; i++) {
-    const x = loungeW + i * roomW
-    const w = (i === count - 1) ? (loungeW + remaining) - x : roomW
-    const topRoom: PresetRoom = { id: `${prefix}-t${i}`, x, y: 0, w, h: topH, cat: 'public', label: `EXEC ${i + 1}` }
-    const botRoom: PresetRoom = { id: `${prefix}-b${i}`, x, y: corridorY + corridorH, w, h: botH, cat: 'public', label: `EXEC ${i + 1 + count}` }
-    rooms.push(topRoom, botRoom)
-    objects.push(...furnishGuestRoom(topRoom, topRoom.id, 'executive', 'bottom'))
-    objects.push(...furnishGuestRoom(botRoom, botRoom.id, 'executive', 'top'))
-    objects.push(makeObj(`${prefix}-door-t${i}`, 'door-standard', Math.round(x + w / 2 - 12), corridorY - 12))
-    objects.push(makeObj(`${prefix}-door-b${i}`, 'door-standard', Math.round(x + w / 2 - 12), corridorY + corridorH - 12))
-  }
-  rooms.push({ id: `${prefix}-corridor`, x: loungeW, y: corridorY, w: PRESET_CANVAS_W - loungeW, h: corridorH, cat: 'open', label: 'CORRIDOR' })
-  addElevators(prefix, objects, rooms)
-  addCorridorTrashBins(prefix, objects, corridorY, corridorH)
-  return { rooms, objects }
-}
 
-function buildLobbyPreset(): FloorPreset {
-  // Canvas: 2000×800, tile=25px (80×32 tiles)
-  // All coordinates multiples of 25
 
-  const rooms: PresetRoom[] = [
-    // === SERVICE CORRIDOR (vertical, 4 tiles wide, full height) ===
-    // Separates back-of-house from public — per spec rule
-    { id: 'lobby-r-svc-corridor', x: 300, y: 0, w: 100, h: 800, cat: 'open', label: 'SERVICE CORRIDOR' },
 
-    // === BACK OF HOUSE (left of service corridor, accessed only via service corridor) ===
-    { id: 'lobby-r-recp-office', x: 0, y: 0, w: 300, h: 200, cat: 'back', label: 'RECEPTION OFFICE' },
-    { id: 'lobby-r-luggage', x: 0, y: 200, w: 300, h: 200, cat: 'back', label: 'LUGGAGE STORAGE' },
-    { id: 'lobby-r-staff-locker', x: 0, y: 400, w: 300, h: 200, cat: 'back', label: 'STAFF LOCKER' },
-    { id: 'lobby-r-mechanical', x: 0, y: 600, w: 300, h: 200, cat: 'utility', label: 'MECHANICAL' },
 
-    // === SERVICE (top row, near entrance) ===
-    // Reception within sightline of main entrance (bottom-right)
-    { id: 'lobby-r-reception', x: 400, y: 0, w: 400, h: 200, cat: 'service', label: 'RECEPTION' },
-    { id: 'lobby-r-concierge', x: 800, y: 0, w: 400, h: 200, cat: 'service', label: 'CONCIERGE' },
 
-    // === PUBLIC (top-right) ===
-    { id: 'lobby-r-business', x: 1200, y: 0, w: 400, h: 200, cat: 'public', label: 'BUSINESS CENTER' },
-    { id: 'lobby-r-restroom', x: 1600, y: 0, w: 400, h: 200, cat: 'utility', label: 'RESTROOM' },
 
-    // === CIRCULATION (middle, connects service corridor to elevator lobby) ===
-    { id: 'lobby-r-main-lobby', x: 400, y: 200, w: 400, h: 300, cat: 'open', label: 'MAIN LOBBY' },
 
-    // === ELEVATOR LOBBY (center-block, 4 elevators flush against top wall) ===
-    { id: 'lobby-r-elev-lobby', x: 800, y: 200, w: 400, h: 300, cat: 'open', label: 'ELEVATOR LOBBY' },
 
-    // === PUBLIC (middle-right) ===
-    { id: 'lobby-r-wait-lounge', x: 1200, y: 200, w: 400, h: 300, cat: 'public', label: 'WAITING LOUNGE' },
 
-    // === VERTICAL CORRIDOR (right, connects top to bottom) ===
-    { id: 'lobby-r-v-corridor', x: 1600, y: 200, w: 100, h: 600, cat: 'open', label: 'CORRIDOR' },
 
-    // === OPEN (right-middle) ===
-    { id: 'lobby-r-terrace', x: 1700, y: 200, w: 300, h: 300, cat: 'open', label: 'LOBBY TERRACE' },
 
-    // === BACK OF HOUSE (bottom-left, adjacent to service corridor + restaurant) ===
-    { id: 'lobby-r-kitchen', x: 400, y: 500, w: 400, h: 300, cat: 'back', label: 'KITCHEN' },
 
-    // === PUBLIC (bottom) ===
-    // Kitchen adjacent to Restaurant per adjacency rule
-    { id: 'lobby-r-restaurant', x: 800, y: 500, w: 400, h: 300, cat: 'public', label: 'RESTAURANT' },
-    { id: 'lobby-r-bar', x: 1200, y: 500, w: 400, h: 300, cat: 'public', label: 'BAR & LOUNGE' },
 
-    // === PUBLIC (bottom-right, main entrance) ===
-    { id: 'lobby-r-entrance', x: 1700, y: 500, w: 300, h: 300, cat: 'public', label: 'MAIN ENTRANCE' },
-  ]
 
-  const objects: PresetObject[] = []
 
-  // === ELEVATORS (center-block, flush against top wall of elevator lobby) ===
-  // Elevator lobby: x=800-1200, y=200-500
-  // Each elevator: 2×2 tiles = 50×50px
-  // 4-tile clearance = 100px on all sides except flush with structural wall (top)
-  //
-  // Layout:
-  //   elev1 (900,200)  elev2 (1050,200)   ← flush against top wall
-  //   elev3 (900,350)  elev4 (1050,350)   ← 100px gap below row 1
-  //
-  // Clearances:
-  //   Top:    0 (flush with structural wall)
-  //   Left:   900-800 = 100 ✓
-  //   Right:  1200-1100 = 100 ✓
-  //   Between: 1050-950 = 100 ✓
-  //   Rows:   350-250 = 100 ✓
-  //   Bottom: 500-400 = 100 ✓
-  objects.push(makeObj('lobby-o-elev-1', 'elevator', 900, 200))
-  objects.push(makeObj('lobby-o-elev-2', 'elevator', 1050, 200))
-  objects.push(makeObj('lobby-o-elev-3', 'elevator', 900, 350))
-  objects.push(makeObj('lobby-o-elev-4', 'elevator', 1050, 350))
 
-  return { rooms, objects }
-}
 
-function buildBasementPreset(): FloorPreset {
-  const corridorH = 100
-  const corridorY = Math.round((PRESET_CANVAS_H - corridorH) / 2)
-  const topH = corridorY
-  const botH = PRESET_CANVAS_H - corridorY - corridorH
 
-  const rooms: PresetRoom[] = [
-    // Top row — back-of-house operations
-    { id: 'g-loading', x: 0, y: 0, w: 500, h: topH, cat: 'back', label: 'LOADING DOCK' },
-    { id: 'g-receiving', x: 500, y: 0, w: 500, h: topH, cat: 'back', label: 'RECEIVING & STORAGE' },
-    { id: 'g-laundry', x: 1000, y: 0, w: 400, h: topH, cat: 'utility', label: 'LAUNDRY' },
-    { id: 'g-lockers', x: 1400, y: 0, w: 300, h: topH, cat: 'utility', label: 'STAFF LOCKERS' },
-    { id: 'g-armory', x: 1700, y: 0, w: 300, h: topH, cat: 'security', label: 'ARMORY' },
-    // Bottom row — utilities + staff support
-    { id: 'g-electrical', x: 0, y: corridorY + corridorH, w: 400, h: botH, cat: 'utility', label: 'ELECTRICAL / GENERATOR' },
-    { id: 'g-mech', x: 400, y: corridorY + corridorH, w: 400, h: botH, cat: 'utility', label: 'MECHANICAL / MEP' },
-    { id: 'g-cafeteria', x: 800, y: corridorY + corridorH, w: 500, h: botH, cat: 'back', label: 'STAFF CAFETERIA' },
-    { id: 'g-coldstorage', x: 1300, y: corridorY + corridorH, w: 400, h: botH, cat: 'back', label: 'KITCHEN PREP & COLD STORAGE' },
-    { id: 'g-parking', x: 1700, y: corridorY + corridorH, w: 300, h: botH, cat: 'utility', label: 'PARKING GARAGE' },
-    // Single corridor spine
-    { id: 'g-corridor', x: 0, y: corridorY, w: PRESET_CANVAS_W, h: corridorH, cat: 'open', label: 'CORRIDOR' },
-  ]
 
-  const objects: PresetObject[] = [
-    ...autoFurnish(rooms.filter(r => r.cat !== 'open')),
-    ...autoDoors('g', rooms),
-  ]
-  addElevators('g', objects, rooms)
-  addCorridorTrashBins('g', objects, corridorY, corridorH)
-  return { rooms, objects }
-}
 
-function buildStandardFloorV2(prefix: string, labelPrefix: string, roomsPerSide: number = 12): FloorPreset {
-  const corridorH = 100
-  const lobbyW = 250
-  const roomW = 125
-  const roomH = 175
-  const totalContentH = roomH * 2 + corridorH
-  const offsetY = Math.floor((PRESET_CANVAS_H - totalContentH) / 2)
-  const corridorY = offsetY + roomH
-  const corridorEnd = corridorY + corridorH
-  const roomsX = lobbyW
-  const roomsAreaW = PRESET_CANVAS_W - lobbyW * 2
 
-  const rooms: PresetRoom[] = []
-  const objects: PresetObject[] = []
 
-  rooms.push({
-    id: `${prefix}-lobby-l`, x: 0, y: 0, w: lobbyW, h: PRESET_CANVAS_H,
-    cat: 'open', label: 'ELEVATOR LOBBY',
-  })
-  rooms.push({
-    id: `${prefix}-lobby-r`, x: PRESET_CANVAS_W - lobbyW, y: 0, w: lobbyW, h: PRESET_CANVAS_H,
-    cat: 'open', label: 'ELEVATOR LOBBY',
-  })
 
-  const elevSz = 50
-  const leftElevX = Math.round((lobbyW - elevSz) / 2)
-  const rightElevX = PRESET_CANVAS_W - lobbyW + Math.round((lobbyW - elevSz) / 2)
-  const elevY1 = corridorY - elevSz - 50
-  const elevY2 = corridorEnd + 50
-  objects.push(makeObj(`${prefix}-elev1`, 'elevator', leftElevX, elevY1))
-  objects.push(makeObj(`${prefix}-elev2`, 'elevator', leftElevX, elevY2))
-  objects.push(makeObj(`${prefix}-elev3`, 'elevator', rightElevX, elevY1))
-  objects.push(makeObj(`${prefix}-elev4`, 'elevator', rightElevX, elevY2))
 
-  for (let i = 0; i < roomsPerSide; i++) {
-    const x = roomsX + i * roomW
-    const room: PresetRoom = {
-      id: `${prefix}-t${i}`, x, y: offsetY, w: roomW, h: roomH,
-      cat: 'public', label: `${labelPrefix}${String(i + 1).padStart(2, '0')}`,
-    }
-    rooms.push(room)
-    objects.push(makeObj(`${prefix}-door-t${i}`, 'door-standard', x + 2 * TILE, corridorY - TILE, 180))
-  }
 
-  for (let i = 0; i < roomsPerSide; i++) {
-    const x = roomsX + i * roomW
-    const room: PresetRoom = {
-      id: `${prefix}-b${i}`, x, y: corridorEnd, w: roomW, h: roomH,
-      cat: 'public', label: `${labelPrefix}${String(i + 1 + roomsPerSide).padStart(2, '0')}`,
-    }
-    rooms.push(room)
-    objects.push(makeObj(`${prefix}-door-b${i}`, 'door-standard', x + 2 * TILE, corridorEnd, 0))
-  }
 
-  rooms.push({
-    id: `${prefix}-corridor`, x: roomsX, y: corridorY,
-    w: roomsAreaW, h: corridorH, cat: 'open', label: 'CORRIDOR',
-  })
 
-  for (let cx = roomsX + 200; cx < roomsX + roomsAreaW - 200; cx += 400) {
-    objects.push(makeObj(`${prefix}-plant-${cx}`, 'plant', cx, Math.round(corridorY + corridorH / 2 - 12)))
-  }
 
-  addCorridorTrashBins(prefix, objects, corridorY, corridorH)
 
-  return { rooms, objects }
-}
 
-const FLOOR_PRESETS: Record<string, FloorPreset> = {
-  G: buildBasementPreset(),
-  F2: buildStaticFloor('f2', [
-    { id: 'f2-host', x: 0, y: 0, w: 300, h: 300, cat: 'service', label: 'HOST STAND' },
-    { id: 'f2-dining', x: 300, y: 0, w: 1100, h: 300, cat: 'public', label: 'MAIN DINING HALL' },
-    { id: 'f2-bar', x: 1400, y: 0, w: 600, h: 300, cat: 'public', label: 'BAR LOUNGE' },
-    { id: 'f2-restroom-coat', x: 0, y: 400, w: 300, h: 300, cat: 'utility', label: 'COAT CHECK & RESTROOM' },
-    { id: 'f2-kitchen', x: 300, y: 400, w: 450, h: 300, cat: 'back', label: 'SHOW KITCHEN' },
-    { id: 'f2-service-corridor', x: 750, y: 400, w: 100, h: 300, cat: 'open', label: 'SERVICE CORRIDOR' },
-    { id: 'f2-private-dining', x: 850, y: 400, w: 250, h: 300, cat: 'public', label: 'PRIVATE DINING' },
-    { id: 'f2-wine', x: 1100, y: 400, w: 300, h: 300, cat: 'back', label: 'WINE CELLAR' },
-    { id: 'f2-restroom', x: 1400, y: 400, w: 300, h: 300, cat: 'utility', label: 'GUEST RESTROOMS' },
-    { id: 'f2-service', x: 1700, y: 400, w: 300, h: 300, cat: 'back', label: 'STAFF SERVICE CORRIDOR' },
-  ]),
-  F3: buildStaticFloor('f3', [
-    { id: 'f3-banquet', x: 0, y: 0, w: 1200, h: 300, cat: 'open', label: 'BANQUET HALL' },
-    { id: 'f3-meetingA', x: 1200, y: 0, w: 300, h: 300, cat: 'service', label: 'MEETING ROOM A' },
-    { id: 'f3-meetingB', x: 1500, y: 0, w: 300, h: 300, cat: 'service', label: 'MEETING ROOM B' },
-    { id: 'f3-business', x: 1800, y: 0, w: 200, h: 300, cat: 'service', label: 'BUSINESS CENTER' },
-    { id: 'f3-spa', x: 0, y: 400, w: 500, h: 300, cat: 'service', label: 'SPA RECEPTION & TREATMENT' },
-    { id: 'f3-spalockers', x: 500, y: 400, w: 300, h: 300, cat: 'utility', label: 'SPA LOCKER ROOMS' },
-    { id: 'f3-gym', x: 800, y: 400, w: 600, h: 300, cat: 'open', label: 'GYM / FITNESS CENTER' },
-    { id: 'f3-pooldeck', x: 1400, y: 400, w: 300, h: 300, cat: 'open', label: 'POOL DECK ACCESS / SAUNA' },
-    { id: 'f3-meetingC', x: 1700, y: 400, w: 300, h: 300, cat: 'service', label: 'MEETING ROOM C' },
-  ]),
-  F4: buildStaticFloor('f4', [
-    { id: 'f4-secoffice', x: 0, y: 0, w: 500, h: 300, cat: 'security', label: 'SECURITY OFFICE' },
-    { id: 'f4-cctv', x: 500, y: 0, w: 500, h: 300, cat: 'security', label: 'CCTV CONTROL ROOM' },
-    { id: 'f4-briefing', x: 1000, y: 0, w: 400, h: 300, cat: 'security', label: 'BRIEFING ROOM' },
-    { id: 'f4-armory', x: 1400, y: 0, w: 300, h: 300, cat: 'security', label: 'ARMORY' },
-    { id: 'f4-records', x: 1700, y: 0, w: 300, h: 300, cat: 'security', label: 'EVIDENCE / RECORDS' },
-    { id: 'f4-server', x: 0, y: 400, w: 500, h: 300, cat: 'utility', label: 'SERVER / IT ROOM' },
-    { id: 'f4-holding', x: 500, y: 400, w: 400, h: 300, cat: 'security', label: 'HOLDING ROOM' },
-    { id: 'f4-restroom', x: 900, y: 400, w: 300, h: 300, cat: 'utility', label: 'STAFF RESTROOM' },
-    { id: 'f4-restarea', x: 1200, y: 400, w: 400, h: 300, cat: 'back', label: 'GUARD REST AREA' },
-    { id: 'f4-badge', x: 1600, y: 400, w: 400, h: 300, cat: 'security', label: 'ACCESS CONTROL / BADGE OFFICE' },
-  ]),
-  F5: staffFloor('f5'),
-  F6: staffFloor('f6'),
-  F7: buildStandardFloorV2('f7', 'STD-7-', 12),
-  F8: guestRoomFloor('f8', 12, 100, 'STD-8-', 'standard'),
-  F9: guestRoomFloor('f9', 12, 100, 'STD-9-', 'standard'),
-  F10: guestRoomFloor('f10', 12, 100, 'STD-10-', 'standard'),
-  F11: guestRoomFloor('f11', 8, 120, 'DLX-11-', 'deluxe'),
-  F12: guestRoomFloor('f12', 8, 120, 'DLX-12-', 'deluxe'),
-  F13: executiveFloor('f13', 6),
-  F14: executiveFloor('f14', 6),
-  F15: guestRoomFloor('f15', 4, 150, 'VIP-15-', 'vip'),
-  F16: guestRoomFloor('f16', 4, 150, 'VIP-16-', 'vip'),
-  F17: buildGuestStaticFloor('f17', [
-    { id: 'f17-penthouseA', x: 0, y: 0, w: 500, h: 800, cat: 'public', label: 'PENTHOUSE SUITE A' },
-    { id: 'f17-penthouseB', x: 500, y: 0, w: 500, h: 800, cat: 'public', label: 'PENTHOUSE SUITE B' },
-    { id: 'f17-penthouseC', x: 1000, y: 0, w: 500, h: 800, cat: 'public', label: 'PENTHOUSE SUITE C' },
-    { id: 'f17-penthouseD', x: 1500, y: 0, w: 500, h: 800, cat: 'public', label: 'PENTHOUSE SUITE D' },
-  ], 'penthouse'),
-  F18: buildGuestStaticFloor('f18', [
-    { id: 'f18-penthouseA', x: 0, y: 0, w: 500, h: 800, cat: 'public', label: 'PENTHOUSE SUITE A' },
-    { id: 'f18-penthouseB', x: 500, y: 0, w: 500, h: 800, cat: 'public', label: 'PENTHOUSE SUITE B' },
-    { id: 'f18-penthouseC', x: 1000, y: 0, w: 500, h: 800, cat: 'public', label: 'PENTHOUSE SUITE C' },
-    { id: 'f18-penthouseD', x: 1500, y: 0, w: 500, h: 800, cat: 'public', label: 'PENTHOUSE SUITE D' },
-  ], 'penthouse'),
-  F19: buildStaticFloor('f19', [
-    { id: 'f19-racks', x: 0, y: 0, w: 1200, h: 300, cat: 'utility', label: 'SERVER RACKS HALL' },
-    { id: 'f19-cooling', x: 1200, y: 0, w: 800, h: 300, cat: 'utility', label: 'COOLING / HVAC' },
-    { id: 'f19-noc', x: 0, y: 400, w: 700, h: 300, cat: 'security', label: 'NETWORK OPERATIONS CONTROL' },
-    { id: 'f19-vault', x: 700, y: 400, w: 600, h: 300, cat: 'security', label: 'SECURE DATA VAULT' },
-    { id: 'f19-intel', x: 1300, y: 400, w: 700, h: 300, cat: 'security', label: 'INTEL ANALYSIS ROOM' },
-  ]),
-  F20: buildStaticFloor('f20', [
-    { id: 'f20-office', x: 0, y: 0, w: 700, h: 300, cat: 'back', label: 'PRIVATE OFFICE' },
-    { id: 'f20-bedroom', x: 700, y: 0, w: 600, h: 300, cat: 'security', label: 'SAFE HOUSE BEDROOM' },
-    { id: 'f20-panic', x: 1300, y: 0, w: 400, h: 300, cat: 'security', label: 'PANIC ROOM' },
-    { id: 'f20-meeting', x: 1700, y: 0, w: 300, h: 300, cat: 'back', label: 'MEETING ROOM' },
-    { id: 'f20-living', x: 0, y: 400, w: 1000, h: 300, cat: 'security', label: 'SAFE HOUSE LIVING AREA' },
-    { id: 'f20-vault', x: 1000, y: 400, w: 500, h: 300, cat: 'security', label: 'ARMORED STORAGE / VAULT' },
-    { id: 'f20-escape', x: 1500, y: 400, w: 500, h: 300, cat: 'open', label: 'ESCAPE CORRIDOR' },
-  ]),
-  F21: buildStaticFloor('f21', [
-    { id: 'f21-pool', x: 0, y: 0, w: 800, h: 300, cat: 'open', label: 'ROOFTOP POOL' },
-    { id: 'f21-poolbar', x: 800, y: 0, w: 300, h: 300, cat: 'public', label: 'POOL BAR' },
-    { id: 'f21-lounge', x: 1100, y: 0, w: 500, h: 300, cat: 'open', label: 'LOUNGE DECK' },
-    { id: 'f21-garden', x: 1600, y: 0, w: 400, h: 300, cat: 'open', label: 'SKY GARDEN' },
-    { id: 'f21-helipad', x: 0, y: 400, w: 600, h: 300, cat: 'open', label: 'HELIPAD' },
-    { id: 'f21-cabana', x: 600, y: 400, w: 400, h: 300, cat: 'public', label: 'VIP CABANA' },
-    { id: 'f21-restaurant', x: 1000, y: 400, w: 600, h: 300, cat: 'public', label: 'ROOFTOP RESTAURANT' },
-    { id: 'f21-mech', x: 1600, y: 400, w: 400, h: 300, cat: 'utility', label: 'MECHANICAL PENTHOUSE' },
-  ]),
-}
 
-function getPresetForLabel(label: string): FloorPreset | undefined {
-  if (label === 'F1') return buildLobbyPreset()
-  return FLOOR_PRESETS[label]
-}
 
-function makeDefaultFloors(): FloorData[] {
-  return DEFAULT_FLOOR_NAMES.map(f => {
-    const label = f.id === 'G' ? 'G' : f.id
-    const preset = getPresetForLabel(label)
-    const floor: FloorData = {
-      id: `floor-${f.id}`,
-      name: f.name,
-      label,
-      rooms: preset ? preset.rooms.map(r => ({ ...r, locked: true })) : [],
-      objects: preset ? preset.objects.map(o => ({ ...o })) : [],
-    }
-    recalcCollapsed(floor, [])
-    return floor
-  })
-}
 
-function makeDefaultLayout(): LayoutData {
-  return {
-    version: LAYOUT_VERSION,
-    canvas: { width: 2000, height: 800, tileSize: 25 },
-    customAssets: [],
-    hiddenBuiltinIds: [],
-    roomCategories: DEFAULT_ROOM_CATEGORIES.map(c => ({ ...c })),
-    assetCategories: ['Door', 'Core', 'Furniture', 'Custom'],
-    floors: makeDefaultFloors(),
-  }
-}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 let idCounter = 1
+function initIdCounter(): void {
+  let maxCounter = 0
+  for (const floor of state.layout.floors) {
+    for (const obj of floor.objects) {
+      const m = obj.id.match(/-([0-9a-z]+)$/)
+      if (m) {
+        const n = parseInt(m[1], 36)
+        if (n > maxCounter) maxCounter = n
+      }
+    }
+    for (const room of floor.rooms) {
+      const m = room.id.match(/-([0-9a-z]+)$/)
+      if (m) {
+        const n = parseInt(m[1], 36)
+        if (n > maxCounter) maxCounter = n
+      }
+    }
+  }
+  for (const asset of state.layout.customAssets) {
+    const m = asset.id.match(/-([0-9a-z]+)$/)
+    if (m) {
+      const n = parseInt(m[1], 36)
+      if (n > maxCounter) maxCounter = n
+    }
+  }
+  idCounter = maxCounter + 1
+}
 function genId(prefix: string): string {
   return `${prefix}-${Date.now().toString(36)}-${idCounter++}`
 }
 
-const ASSET_KEYWORD_MAP: { keywords: string[]; assetId: string }[] = [
-  { keywords: ['elevator', 'lift'], assetId: 'elevator' },
-  { keywords: ['column', 'pillar'], assetId: 'column' },
-  { keywords: ['door-lobby', 'lobby-door', 'entrance-door'], assetId: 'door-lobby' },
-  { keywords: ['door-sliding', 'sliding-door'], assetId: 'door-sliding' },
-  { keywords: ['door', 'entrance'], assetId: 'door-standard' },
-  { keywords: ['bed', 'mattress'], assetId: 'bed' },
-  { keywords: ['nightstand', 'night-stand', 'bedside'], assetId: 'nightstand' },
-  { keywords: ['concierge', 'reception-desk', 'front-desk'], assetId: 'concierge-desk' },
-  { keywords: ['reception', 'counter', 'check-in'], assetId: 'reception-counter' },
-  { keywords: ['desk', 'table-work', 'workstation'], assetId: 'desk' },
-  { keywords: ['chair', 'seat', 'stool'], assetId: 'chair' },
-  { keywords: ['sofa', 'couch', 'lounge-seat'], assetId: 'sofa' },
-  { keywords: ['table-chair', 'dining-set', 'table-set'], assetId: 'table-chairs' },
-  { keywords: ['dining-table', 'round-table'], assetId: 'dining-table-round' },
-  { keywords: ['plant', 'tree', 'flower', 'pot'], assetId: 'plant' },
-  { keywords: ['luggage', 'baggage', 'suitcase'], assetId: 'luggage-rack' },
-  { keywords: ['bar-counter', 'drink-counter'], assetId: 'bar-counter' },
-  { keywords: ['bar-stool', 'drink-stool'], assetId: 'bar-stool' },
-  { keywords: ['stove', 'cooker', 'range'], assetId: 'kitchen-stove' },
-  { keywords: ['prep', 'cooking-station'], assetId: 'prep-station' },
-  { keywords: ['shelf', 'storage', 'rack-storage'], assetId: 'storage-shelf' },
-  { keywords: ['wardrobe', 'closet', 'armoire'], assetId: 'wardrobe' },
-  { keywords: ['minibar', 'mini-bar', 'fridge'], assetId: 'minibar' },
-  { keywords: ['tv', 'television', 'screen'], assetId: 'tv-stand' },
-  { keywords: ['bathtub', 'tub', 'bath'], assetId: 'bathtub' },
-  { keywords: ['weapon', 'gun', 'armory-rack'], assetId: 'weapon-rack' },
-  { keywords: ['control', 'security-desk', 'guard-desk'], assetId: 'control-desk' },
-  { keywords: ['server', 'data-rack', 'network-rack'], assetId: 'server-rack' },
-  { keywords: ['filing', 'cabinet', 'document'], assetId: 'filing-cabinet' },
-  { keywords: ['trash', 'bin', 'garbage', 'waste'], assetId: 'trash-bin' },
-  { keywords: ['helipad', 'helicopter', 'heli'], assetId: 'helipad' },
-]
-
-function resolveAssetType(type: string, customAssetIds?: Set<string>): string {
-  if (customAssetIds && customAssetIds.has(type)) return type
-  if (BUILTIN_ASSETS.some(a => a.id === type)) return type
-  const lower = type.toLowerCase()
-  for (const entry of ASSET_KEYWORD_MAP) {
-    if (entry.keywords.some(kw => lower.includes(kw))) {
-      return entry.assetId
-    }
-  }
-  return type
-}
 
 function migrate(data: unknown): LayoutData {
-  if (!data || typeof data !== 'object') return makeDefaultLayout()
+  if (!data || typeof data !== 'object') return JSON.parse(JSON.stringify(SAVED_LAYOUT))
   const d = data as Record<string, unknown>
   const canvas = d.canvas
   const validCanvas = canvas && typeof canvas === 'object'
@@ -1092,30 +673,16 @@ function migrate(data: unknown): LayoutData {
   const migrated: LayoutData = {
     version: LAYOUT_VERSION,
     hiddenBuiltinIds,
-    roomCategories: Array.isArray(d.roomCategories)
-      ? d.roomCategories.filter((c: unknown): c is Record<string, unknown> => {
-          const rec = c as Record<string, unknown>
-          return typeof rec?.id === 'string' && typeof rec?.label === 'string' && typeof rec?.color === 'string'
-        }).map((c) => {
-          const def: RoomCategoryDef = {
-            id: c.id as string,
-            label: c.label as string,
-            color: c.color as string,
-          }
-          if (c.builtin === true) def.builtin = true
-          return def
-        })
-      : DEFAULT_ROOM_CATEGORIES.map(c => ({ ...c })),
     assetCategories: Array.isArray(d.assetCategories)
       ? d.assetCategories.filter((c: unknown): c is string => typeof c === 'string')
-      : ['Door', 'Core', 'Furniture', 'Custom'],
+      : [],
     canvas: validCanvas
       ? {
-          width: typeof (canvas as Record<string, unknown>).width === 'number' && isFinite((canvas as Record<string, unknown>).width as number) ? (canvas as Record<string, unknown>).width as number : 2000,
-          height: typeof (canvas as Record<string, unknown>).height === 'number' && isFinite((canvas as Record<string, unknown>).height as number) ? (canvas as Record<string, unknown>).height as number : 800,
+          width: typeof (canvas as Record<string, unknown>).width === 'number' && isFinite((canvas as Record<string, unknown>).width as number) ? (canvas as Record<string, unknown>).width as number : EDITOR_CONFIG.defaultCanvas.width,
+          height: typeof (canvas as Record<string, unknown>).height === 'number' && isFinite((canvas as Record<string, unknown>).height as number) ? (canvas as Record<string, unknown>).height as number : EDITOR_CONFIG.defaultCanvas.height,
           tileSize: (canvas as Record<string, unknown>).tileSize as number,
         }
-      : { width: 2000, height: 800, tileSize: 25 },
+      : { ...EDITOR_CONFIG.defaultCanvas },
     customAssets: Array.isArray(d.customAssets)
       ? d.customAssets.filter(
           (a: unknown): a is Record<string, unknown> => {
@@ -1131,9 +698,9 @@ function migrate(data: unknown): LayoutData {
             category: typeof a.category === 'string' ? a.category : 'Custom',
             w: a.w as number,
             h: a.h as number,
-            shape: ['rect', 'circle', 'round', 'arc'].includes(a.shape as string) ? a.shape as AssetDef['shape'] : 'rect',
             custom: true,
           }
+          if (typeof a.usePx === 'boolean') asset.usePx = a.usePx
           if (typeof a.pxW === 'number' && a.pxW > 0) asset.pxW = Math.floor(a.pxW)
           if (typeof a.pxH === 'number' && a.pxH > 0) asset.pxH = Math.floor(a.pxH)
           if (Array.isArray(a.parts)) {
@@ -1142,7 +709,6 @@ function migrate(data: unknown): LayoutData {
                 const rec = p as Record<string, unknown>
                 return typeof rec?.dx === 'number' && typeof rec?.dy === 'number'
                   && typeof rec?.w === 'number' && typeof rec?.h === 'number'
-                  && ['rect', 'circle', 'round', 'arc'].includes(rec.shape as string)
               })
               .map((p) => {
                 const part: CompositePart = {
@@ -1150,7 +716,6 @@ function migrate(data: unknown): LayoutData {
                   dy: p.dy as number,
                   w: p.w as number,
                   h: p.h as number,
-                  shape: p.shape as AssetShape,
                 }
                 if (typeof p.rotation === 'number' && [0, 90, 180, 270].includes(p.rotation)) {
                   part.rotation = p.rotation as Rotation
@@ -1183,6 +748,7 @@ function migrate(data: unknown): LayoutData {
               })
           }
           if (typeof a.defaultPadding === 'number' && a.defaultPadding > 0) asset.defaultPadding = a.defaultPadding
+          if (typeof a.defaultBgColor === 'string' && a.defaultBgColor && /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(a.defaultBgColor)) asset.defaultBgColor = a.defaultBgColor
           if (a.defaultRx && typeof a.defaultRx === 'object') {
             const rx = a.defaultRx as Record<string, unknown>
             if (typeof rx.tl === 'number' && typeof rx.tr === 'number' && typeof rx.br === 'number' && typeof rx.bl === 'number') {
@@ -1211,11 +777,18 @@ function migrate(data: unknown): LayoutData {
             const room: RoomData = {
               id: typeof r.id === 'string' ? r.id : genId('r'),
               x: r.x as number, y: r.y as number, w: r.w as number, h: r.h as number,
-              cat: typeof r.cat === 'string' ? r.cat : 'public',
               label: typeof r.label === 'string' ? r.label : '',
             }
             if (typeof r.radius === 'number' && r.radius >= 0) room.radius = r.radius
             if (r.locked === true) room.locked = true
+            if (typeof r.fillColor === 'string' && r.fillColor && /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(r.fillColor)) room.fillColor = r.fillColor
+            if (r.rx && typeof r.rx === 'object') {
+              const rrx = r.rx as Record<string, unknown>
+              if (typeof rrx.tl === 'number' && typeof rrx.tr === 'number' && typeof rrx.br === 'number' && typeof rrx.bl === 'number') {
+                room.rx = { tl: rrx.tl, tr: rrx.tr, br: rrx.br, bl: rrx.bl }
+              }
+            }
+            if (typeof r.padding === 'number' && r.padding >= 0) room.padding = r.padding
             return room
           }) : [],
           objects: Array.isArray(fRec.objects) ? fRec.objects.filter(
@@ -1229,6 +802,7 @@ function migrate(data: unknown): LayoutData {
           ).map((o) => {
             const obj: ObjectData = {
               id: typeof o.id === 'string' ? o.id : genId('o'),
+              subId: typeof o.subId === 'string' ? o.subId : genId('sub'),
               type: typeof o.type === 'string' ? o.type : 'unknown',
               x: o.x as number, y: o.y as number, w: o.w as number, h: o.h as number,
               rotation: [0, 90, 180, 270].includes(o.rotation as number) ? o.rotation as Rotation : 0,
@@ -1266,9 +840,20 @@ function migrate(data: unknown): LayoutData {
             color: typeof z.color === 'string' ? z.color : '#06b6d4',
           })) : [],
         }})
-      : makeDefaultFloors(),
+      : [],
+    objectCustomProps: typeof d.objectCustomProps === 'object' && d.objectCustomProps !== null
+      ? d.objectCustomProps as Record<string, ObjectCustomProps>
+      : {},
+    instanceLabels: typeof d.instanceLabels === 'object' && d.instanceLabels !== null
+      ? d.instanceLabels as Record<string, string>
+      : {},
+    validationRules: typeof d.validationRules === 'object' && d.validationRules !== null
+      ? d.validationRules as Record<string, ValidationRule>
+      : {},
+    roomTemplates: Array.isArray((d as Record<string, unknown>).roomTemplates)
+      ? (d as Record<string, unknown>).roomTemplates as RoomTemplate[]
+      : [],
   }
-  const customAssetIds = new Set(migrated.customAssets.map(a => a.id))
   const t = migrated.canvas.tileSize
   for (const asset of migrated.customAssets) {
     if (asset.linkedParts && asset.linkedParts.length > 0) {
@@ -1289,11 +874,6 @@ function migrate(data: unknown): LayoutData {
     }
   }
   for (const floor of migrated.floors) {
-    for (const o of floor.objects) {
-      if (!findAsset(migrated.customAssets, o.type)) {
-        o.type = resolveAssetType(o.type, customAssetIds)
-      }
-    }
     const validIds = new Set(floor.objects.map(o => o.id))
     const beforeCount = floor.objects.length
     floor.objects = floor.objects.filter(o => findAsset(migrated.customAssets, o.type))
@@ -1314,68 +894,11 @@ function migrate(data: unknown): LayoutData {
 }
 
 function loadInitial(): LayoutData {
-  const savedPresetVer = localStorage.getItem(PRESET_VERSION_KEY)
-  const currentPresetVer = String(PRESET_VERSION)
-  const presetChanged = savedPresetVer !== currentPresetVer
-
-  if (presetChanged) {
-    localStorage.setItem(PRESET_VERSION_KEY, currentPresetVer)
+  const hmrData = (import.meta as any).hot?.data?._editorLayout as string | undefined
+  if (hmrData) {
+    try { return migrate(JSON.parse(hmrData)) } catch { /* fall through */ }
   }
-
-  if (presetChanged) {
-    // Preset version changed: try to preserve user edits
-    let savedData: LayoutData | null = null
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY)
-      if (raw) {
-        savedData = migrate(JSON.parse(raw))
-      }
-    } catch (e) {
-      editorLog.error('loadSavedLayoutDuringPresetUpgrade', e)
-    }
-
-    if (savedData) {
-      // Preserve user customizations, refresh preset floors
-      for (const floor of savedData.floors) {
-        const preset = getPresetForLabel(floor.label)
-        if (preset) {
-          floor.rooms = preset.rooms.map(r => ({ ...r, locked: true }))
-          floor.objects = preset.objects.map(o => ({ ...o }))
-          recalcCollapsed(floor, savedData.customAssets)
-        }
-      }
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(savedData))
-      return savedData
-    }
-
-    // No saved data: rebuild from SAVED_LAYOUT + fresh presets
-    const data = migrate(JSON.parse(JSON.stringify(SAVED_LAYOUT)))
-    for (const floor of data.floors) {
-      const preset = getPresetForLabel(floor.label)
-      if (preset) {
-        floor.rooms = preset.rooms.map(r => ({ ...r, locked: true }))
-        floor.objects = preset.objects.map(o => ({ ...o }))
-        recalcCollapsed(floor, data.customAssets)
-      }
-    }
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(data))
-    return data
-  }
-
-  // Preset unchanged: load from localStorage (user's edits)
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    if (raw) {
-      return migrate(JSON.parse(raw))
-    }
-  } catch (e) {
-    editorLog.error('loadFromLocalStorage', e)
-  }
-
-  // No localStorage data: fall back to SAVED_LAYOUT
-  const data = migrate(JSON.parse(JSON.stringify(SAVED_LAYOUT)))
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(data))
-  return data
+  return migrate(JSON.parse(JSON.stringify(SAVED_LAYOUT)))
 }
 
 interface EditorState {
@@ -1385,20 +908,20 @@ interface EditorState {
   selection: Selection
   multiSelection: MultiSelection | null
   selectedAssetId: string | null
-  wallCategory: string
 }
 
+const _hmrData = (import.meta as any).hot?.data
 const state = reactive<EditorState>({
   layout: loadInitial(),
-  currentFloorId: '',
-  mode: 'object',
-  selection: null,
-  multiSelection: null,
-  selectedAssetId: null,
-  wallCategory: 'public',
+  currentFloorId: _hmrData?._editorState?.currentFloorId ?? '',
+  mode: _hmrData?._editorState?.mode ?? 'object',
+  selection: _hmrData?._editorState?.selection ?? null,
+  multiSelection: _hmrData?._editorState?.multiSelection ?? null,
+  selectedAssetId: _hmrData?._editorState?.selectedAssetId ?? null,
 })
 
-state.currentFloorId = state.layout.floors[0]?.id ?? ''
+if (!state.currentFloorId) state.currentFloorId = state.layout.floors[0]?.id ?? ''
+initIdCounter()
 
 let _assetMap: Map<string, AssetDef> | null = null
 let _assetMapVersion = -1
@@ -1414,7 +937,7 @@ function assetMap(): Map<string, AssetDef> {
   return _assetMap
 }
 
-export const dragState = reactive<{ assetId: string | null }>({ assetId: null })
+export const dragState = reactive<{ assetId: string | null; roomTemplateId: string | null }>({ assetId: null, roomTemplateId: null })
 
 export function startAssetDrag(assetId: string) {
   dragState.assetId = assetId
@@ -1422,6 +945,19 @@ export function startAssetDrag(assetId: string) {
 
 export function endAssetDrag() {
   dragState.assetId = null
+  dragState.roomTemplateId = null
+}
+
+export function startRoomTemplateDrag(templateId: string) {
+  dragState.roomTemplateId = templateId
+}
+
+export function endRoomTemplateDrag() {
+  dragState.roomTemplateId = null
+}
+
+function findRoomTemplate(id: string): RoomTemplate | undefined {
+  return state.layout.roomTemplates?.find(t => t.id === id)
 }
 
 function selectAsset(id: string | null) {
@@ -1434,9 +970,8 @@ const selectedAsset = computed(() =>
   state.selectedAssetId ? findAsset(state.layout.customAssets, state.selectedAssetId) ?? null : null
 )
 
-const undoStack = ref<string[]>([])
-const redoStack = ref<string[]>([])
-let saveTimer: number | null = null
+const undoStack = ref<string[]>(_hmrData?._editorState?.undoStack ?? [])
+const redoStack = ref<string[]>(_hmrData?._editorState?.redoStack ?? [])
 
 function snapshot(): string {
   return JSON.stringify(state.layout)
@@ -1451,7 +986,7 @@ function restore(json: string) {
     return
   }
   if (!parsed || !parsed.floors || !parsed.floors.length) {
-    editorLog.error('restoreHistorySnapshot', 'Invalid snapshot — missing floors')
+    editorLog.error('restoreHistorySnapshot', 'Invalid snapshot - missing floors')
     return
   }
   state.layout = parsed
@@ -1467,7 +1002,9 @@ function restore(json: string) {
 }
 
 function pushHistory() {
-  undoStack.value.push(snapshot())
+  const snap = snapshot()
+  if (undoStack.value.length > 0 && undoStack.value[undoStack.value.length - 1] === snap) return
+  undoStack.value.push(snap)
   if (undoStack.value.length > HISTORY_LIMIT) undoStack.value.shift()
   redoStack.value.length = 0
 }
@@ -1477,7 +1014,6 @@ function undo() {
   redoStack.value.push(snapshot())
   const prev = undoStack.value.pop()!
   restore(prev)
-  scheduleSave()
 }
 
 function redo() {
@@ -1485,32 +1021,6 @@ function redo() {
   undoStack.value.push(snapshot())
   const next = redoStack.value.pop()!
   restore(next)
-  scheduleSave()
-}
-
-function scheduleSave() {
-  if (saveTimer) window.clearTimeout(saveTimer)
-  saveTimer = window.setTimeout(() => {
-    saveTimer = null
-    saveToLocalStorage()
-  }, 500)
-}
-
-function flushSave() {
-  if (saveTimer) {
-    window.clearTimeout(saveTimer)
-    saveTimer = null
-    saveToLocalStorage()
-  }
-}
-
-function saveToLocalStorage() {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state.layout))
-  } catch (e) {
-    editorLog.error('saveToLocalStorage', e)
-    toast.error('Save failed — storage quota exceeded')
-  }
 }
 
 const currentFloor = computed<FloorData | undefined>(() =>
@@ -1520,7 +1030,9 @@ const currentFloor = computed<FloorData | undefined>(() =>
 function snap(value: number, tileSize?: number): number {
   const t = tileSize ?? state.layout.canvas.tileSize
   if (t <= 0) return value
-  return Math.round(value / t) * t
+  const snapped = Math.round(value / t) * t
+  if (value > 0 && snapped < t) return t
+  return snapped
 }
 
 function selectedRoom(): RoomData | undefined {
@@ -1557,7 +1069,7 @@ function objectOverlapsAny(rect: Rect, excludeId?: string | string[]): boolean {
   })
 }
 
-function recalcCollapsed(floor: FloorData, customAssets?: AssetDef[]) {
+function recalcCollapsed(floor: FloorData, customAssets?: AssetDef[], changedRect?: Rect) {
   const am = customAssets ? buildAssetMap(customAssets) : assetMap()
   const objCount = floor.objects.length
   if (objCount <= 1) {
@@ -1567,7 +1079,10 @@ function recalcCollapsed(floor: FloorData, customAssets?: AssetDef[]) {
   function getAsset(type: string): AssetDef | undefined {
     return findAssetCached(am, type)
   }
-  for (const obj of floor.objects) {
+  const candidates = changedRect
+    ? floor.objects.filter(o => aabbOverlap(o, changedRect))
+    : floor.objects
+  for (const obj of candidates) {
     const asset = getAsset(obj.type)
     const hasParts = asset?.parts && asset.parts.length > 0
     obj.collapsed = floor.objects.some(o => {
@@ -1609,23 +1124,30 @@ function clamp(rect: Rect): Rect {
   return { x, y, w, h }
 }
 
-function addRoom(rect: Rect, cat: string, label = 'New Room'): RoomData | null {
+async function addRoom(rect: Rect, label = 'New Room', template?: RoomTemplate): Promise<RoomData | null> {
   const floor = currentFloor.value
   if (!floor) return null
   const snapped = clamp({ x: snap(rect.x), y: snap(rect.y), w: snap(rect.w), h: snap(rect.h) })
   if (snapped.w <= 0 || snapped.h <= 0) {
-    toast.warning('Room too small — minimum 1 tile')
+    toast.warning('Room too small - minimum 1 tile')
     return null
   }
   if (roomOverlapsAny(snapped)) {
-    toast.warning('Cannot place room — overlaps existing room')
+    toast.warning('Cannot place room - overlaps existing room')
     return null
   }
   pushHistory()
-  const room: RoomData = { id: genId('r'), ...snapped, cat, label }
+  const room: RoomData = {
+    id: genId('r'), ...snapped,
+    label: template?.label ?? label,
+  }
+  if (template?.radius && template.radius > 0) room.radius = template.radius
+  if (template?.fillColor) room.fillColor = template.fillColor
+  if (template?.rx) room.rx = template.rx
+  if (template?.padding && template.padding > 0) room.padding = template.padding
   floor.rooms.push(room)
   state.selection = { type: 'room', id: room.id }
-  scheduleSave()
+  await saveLayout()
   return room
 }
 
@@ -1635,14 +1157,14 @@ function assetSizeFor(type: string, rotation: Rotation, tileSize?: number, custo
     : findAssetCached(assetMap(), type)
   if (!asset) return null
   const t = tileSize ?? state.layout.canvas.tileSize
-  const aw = asset.pxW ?? asset.w * t
-  const ah = asset.pxH ?? asset.h * t
+  const aw = asset.usePx ? (asset.pxW ?? asset.w * t) : asset.w * t
+  const ah = asset.usePx ? (asset.pxH ?? asset.h * t) : asset.h * t
   const swap = rotation === 90 || rotation === 270
   return swap ? { w: ah, h: aw } : { w: aw, h: ah }
 }
 
 function normalizeObject(o: ObjectData, tileSize?: number, customAssets?: AssetDef[]): void {
-  // Don't resize objects that are part of a linked set — their sizes come from linkedParts
+  // Don't resize objects that are part of a linked set - their sizes come from linkedParts
   if (o.linkedIds && o.linkedIds.length > 0) {
     const t = tileSize ?? state.layout.canvas.tileSize
     o.x = Math.round(o.x / t) * t
@@ -1660,19 +1182,19 @@ function normalizeObject(o: ObjectData, tileSize?: number, customAssets?: AssetD
   const asset = customAssets
     ? findAsset(customAssets, o.type)
     : findAssetCached(assetMap(), o.type)
-  if (asset && (asset.shape === 'circle' || asset.shape === 'round')) {
-    o.radius = Math.min(o.w, o.h) / 2 - 2
+  if (asset?.defaultRx && !o.rx) {
+    o.rx = { ...asset.defaultRx }
   }
 }
 
-function addObject(type: string, x: number, y: number): ObjectData | null {
+async function addObject(type: string, x: number, y: number): Promise<ObjectData | null> {
   if (state.mode === 'wall') return null
   const floor = currentFloor.value
   const asset = findAssetCached(assetMap(), type)
   if (!floor || !asset) return null
   const t = state.layout.canvas.tileSize
-  const w = snap(asset.pxW ?? asset.w * t)
-  const h = snap(asset.pxH ?? asset.h * t)
+  const w = snap(asset.usePx ? (asset.pxW ?? asset.w * t) : asset.w * t)
+  const h = snap(asset.usePx ? (asset.pxH ?? asset.h * t) : asset.h * t)
   const rect = clamp({ x: snap(x), y: snap(y), w, h })
 
   if (asset.linkedParts && asset.linkedParts.length > 0) {
@@ -1690,7 +1212,7 @@ function addObject(type: string, x: number, y: number): ObjectData | null {
     }
     for (const pr of partRects) {
       if (objectOverlapsAny(pr)) {
-        toast.warning('Cannot place — one or more parts overlap existing objects')
+        toast.warning('Cannot place - one or more parts overlap existing objects')
         return null
       }
     }
@@ -1702,12 +1224,14 @@ function addObject(type: string, x: number, y: number): ObjectData | null {
       const partAsset = findAssetCached(assetMap(), p.type)
       const obj: ObjectData = {
         id: genId('o'),
+        subId: genId('sub'),
         type: p.type,
         rotation: p.rotation ?? 0,
         ...pr,
       }
       if (asset.defaultPadding) obj.padding = asset.defaultPadding
       if (asset.defaultRx) obj.rx = { ...asset.defaultRx }
+      if (asset.defaultBgColor) obj.fillColor = asset.defaultBgColor
       if (partAsset?.defaultPadding && obj.padding === undefined) obj.padding = partAsset.defaultPadding
       if (partAsset?.defaultRx && obj.rx === undefined) obj.rx = { ...partAsset.defaultRx }
       floor.objects.push(obj)
@@ -1719,21 +1243,22 @@ function addObject(type: string, x: number, y: number): ObjectData | null {
     }
     state.selection = { type: 'object', id: newIds[0] }
     state.multiSelection = { type: 'object', ids: newIds }
-    scheduleSave()
+    await saveLayout()
     return floor.objects.find(o => o.id === newIds[0]) ?? null
   }
 
   if (objectOverlapsAny(rect)) {
-    toast.warning('Cannot place object — overlaps existing object')
+    toast.warning('Cannot place object - overlaps existing object')
     return null
   }
   pushHistory()
-  const obj: ObjectData = { id: genId('o'), type, rotation: 0, ...rect }
+  const obj: ObjectData = { id: genId('o'), subId: genId('sub'), type, rotation: 0, ...rect }
   if (asset.defaultPadding !== undefined) obj.padding = asset.defaultPadding
   if (asset.defaultRx) obj.rx = { ...asset.defaultRx }
+  if (asset.defaultBgColor) obj.fillColor = asset.defaultBgColor
   floor.objects.push(obj)
   state.selection = { type: 'object', id: obj.id }
-  scheduleSave()
+  await saveLayout()
   return obj
 }
 
@@ -1742,8 +1267,8 @@ function canPlaceObject(type: string, x: number, y: number): boolean {
   const asset = findAssetCached(assetMap(), type)
   if (!asset) return false
   const t = state.layout.canvas.tileSize
-  const w = snap(asset.pxW ?? asset.w * t)
-  const h = snap(asset.pxH ?? asset.h * t)
+  const w = snap(asset.usePx ? (asset.pxW ?? asset.w * t) : asset.w * t)
+  const h = snap(asset.usePx ? (asset.pxH ?? asset.h * t) : asset.h * t)
   const rect = clamp({ x: snap(x), y: snap(y), w, h })
   if (asset.linkedParts && asset.linkedParts.length > 0) {
     const partRects = asset.linkedParts.map(p =>
@@ -1799,7 +1324,7 @@ function toggleMultiSelect(id: string) {
   }
 }
 
-function deleteSelected() {
+async function deleteSelected(): Promise<void> {
   const floor = currentFloor.value
   if (!floor) return
 
@@ -1817,6 +1342,7 @@ function deleteSelected() {
       toast.info(`${allIds.length - ids.length} locked object(s) skipped`)
     }
     pushHistory()
+    cleanupObjectData(ids)
     floor.objects = floor.objects.filter(o => !ids.includes(o.id))
     for (const o of floor.objects) {
       if (o.linkedIds) {
@@ -1826,7 +1352,7 @@ function deleteSelected() {
     }
     state.multiSelection = null
     recalcCollapsed(floor)
-    scheduleSave()
+    await saveLayout()
     return
   }
 
@@ -1840,7 +1366,7 @@ function deleteSelected() {
   } else {
     const o = floor.objects.find(o => o.id === state.selection!.id)
     if (o?.locked) {
-      toast.warning('Cannot delete a locked object — unlock first')
+      toast.warning('Cannot delete a locked object - unlock first')
       return
     }
   }
@@ -1849,6 +1375,7 @@ function deleteSelected() {
     floor.rooms = floor.rooms.filter(r => r.id !== state.selection!.id)
   } else {
     const delId = state.selection.id
+    cleanupObjectData([delId])
     floor.objects = floor.objects.filter(o => o.id !== delId)
     for (const o of floor.objects) {
       if (o.linkedIds) {
@@ -1859,7 +1386,7 @@ function deleteSelected() {
   }
   state.selection = null
   recalcCollapsed(floor)
-  scheduleSave()
+  await saveLayout()
 }
 
 function groupBoundsOf(objs: ObjectData[]): { minX: number; minY: number; maxX: number; maxY: number; w: number; h: number } {
@@ -1927,25 +1454,36 @@ function moveSelectedTo(x: number, y: number) {
   }
 }
 
-function commitMove() {
+async function commitMove(): Promise<void> {
   const floor = currentFloor.value
   if (!floor) return
 
   if (state.multiSelection && state.multiSelection.ids.length > 0) {
     const ids = state.multiSelection.ids
     const objs = floor.objects.filter(o => ids.includes(o.id) && !o.locked)
+    let moveRect: Rect | undefined
     if (objs.length > 0) {
       const bounds = groupBoundsOf(objs)
       const clamped = clamp({ x: snap(bounds.minX), y: snap(bounds.minY), w: bounds.w, h: bounds.h })
+      moveRect = clamped
       const dx = clamped.x - bounds.minX
       const dy = clamped.y - bounds.minY
+      const oldPositions = objs.map(o => ({ id: o.id, x: o.x, y: o.y }))
       for (const o of objs) {
         o.x += dx
         o.y += dy
       }
+      const groupIds = objs.map(o => o.id)
+      const hasOverlap = objs.some(o => objectOverlapsAny(o, groupIds))
+      if (hasOverlap) {
+        for (const op of oldPositions) {
+          const mo = floor.objects.find(fo => fo.id === op.id)
+          if (mo) { mo.x = op.x; mo.y = op.y }
+        }
+      }
     }
-    recalcCollapsed(floor)
-    scheduleSave()
+    recalcCollapsed(floor, undefined, moveRect)
+    await saveLayout()
     return
   }
 
@@ -1991,12 +1529,13 @@ function commitMove() {
       }
     }
   }
-  recalcCollapsed(floor)
-  scheduleSave()
+  const movedObj = selectedObject()
+  recalcCollapsed(floor, undefined, movedObj ? { x: movedObj.x, y: movedObj.y, w: movedObj.w, h: movedObj.h } : undefined)
+  await saveLayout()
 }
 
 
-function eraseWallTile(roomId: string, clickX: number, clickY: number) {
+async function eraseWallTile(roomId: string, clickX: number, clickY: number) {
   const floor = currentFloor.value
   if (!floor) return
   const room = floor.rooms.find(r => r.id === roomId)
@@ -2025,29 +1564,32 @@ function eraseWallTile(roomId: string, clickX: number, clickY: number) {
   } else if (minDist === distBottom && room.h > t) {
     room.h -= t
   } else {
-    // Room too small to trim further — delete it
     floor.rooms = floor.rooms.filter(r => r.id !== roomId)
   }
   recalcCollapsed(floor)
-  scheduleSave()
+  await saveLayout()
 }
 
-function rotateSelected() {
+async function rotateSelected(): Promise<void> {
   if (state.selection?.type !== 'object') return
   const o = selectedObject()
   if (!o) return
   if (o.locked) {
-    toast.warning('Cannot rotate a locked object — unlock first')
+    toast.warning('Cannot rotate a locked object - unlock first')
     return
   }
   const asset = findAssetCached(assetMap(), o.type)
   if (asset?.parts && asset.parts.length > 0) {
-    toast.warning('Cannot rotate a merged object — ungroup first')
+    toast.warning('Cannot rotate a merged object - ungroup first')
+    return
+  }
+  if (o.linkedIds && o.linkedIds.length > 0) {
+    toast.warning('Cannot rotate a linked object - unlink first')
     return
   }
   const rect = clamp({ x: o.x, y: o.y, w: o.h, h: o.w })
   if (objectOverlapsAny(rect, o.id)) {
-    toast.warning('Cannot rotate — would overlap another object')
+    toast.warning('Cannot rotate - would overlap another object')
     return
   }
   pushHistory()
@@ -2060,10 +1602,10 @@ function rotateSelected() {
   o.y = rect.y
   const cf = currentFloor.value
   if (cf) recalcCollapsed(cf)
-  scheduleSave()
+  await saveLayout()
 }
 
-function updateRoomProps(patch: Partial<RoomData>): boolean {
+async function updateRoomProps(patch: Partial<RoomData>): Promise<boolean> {
   const r = selectedRoom()
   if (!r) return false
   if (r.locked && (patch.x !== undefined || patch.y !== undefined || patch.w !== undefined || patch.h !== undefined)) {
@@ -2078,16 +1620,33 @@ function updateRoomProps(patch: Partial<RoomData>): boolean {
     && roomOverlapsAny(rect, r.id)) {
     return false
   }
+  if (patch.fillColor !== undefined && !isValidColor(patch.fillColor)) {
+    toast.warning('Invalid fill color')
+    return false
+  }
+  const changed = (patch.x !== undefined && r.x !== rect.x) ||
+    (patch.y !== undefined && r.y !== rect.y) ||
+    (patch.w !== undefined && r.w !== rect.w) ||
+    (patch.h !== undefined && r.h !== rect.h) ||
+    (patch.label !== undefined && r.label !== (patch.label || '')) ||
+    (patch.radius !== undefined && r.radius !== patch.radius) ||
+    (patch.locked !== undefined && r.locked !== patch.locked) ||
+    (patch.fillColor !== undefined && (r.fillColor ?? '') !== (patch.fillColor || '')) ||
+    (patch.rx !== undefined && r.rx !== patch.rx) ||
+    (patch.padding !== undefined && r.padding !== patch.padding)
+  if (!changed) return true
   pushHistory()
   if (patch.x !== undefined) r.x = rect.x
   if (patch.y !== undefined) r.y = rect.y
   if (patch.w !== undefined) r.w = rect.w
   if (patch.h !== undefined) r.h = rect.h
   if (patch.label !== undefined) r.label = patch.label || ''
-  if (patch.cat !== undefined) r.cat = patch.cat
   if (patch.radius !== undefined) r.radius = patch.radius
   if (patch.locked !== undefined) r.locked = patch.locked
-  scheduleSave()
+  if (patch.fillColor !== undefined) r.fillColor = patch.fillColor || undefined
+  if (patch.rx !== undefined) r.rx = patch.rx
+  if (patch.padding !== undefined) r.padding = patch.padding
+  await saveLayout()
   return true
 }
 
@@ -2097,11 +1656,11 @@ function isValidColor(c: string | undefined): boolean {
   return !c || (typeof c === 'string' && HEX_COLOR_RE.test(c))
 }
 
-function updateObjectProps(patch: Partial<ObjectData>): boolean {
+async function updateObjectProps(patch: Partial<ObjectData>): Promise<boolean> {
   const o = selectedObject()
   if (!o) return false
   if (o.locked && patch.locked === undefined) {
-    toast.warning('Object is locked — unlock to edit properties')
+    toast.warning('Object is locked - unlock to edit properties')
     return false
   }
   if (patch.fillColor !== undefined && !isValidColor(patch.fillColor)) {
@@ -2119,6 +1678,17 @@ function updateObjectProps(patch: Partial<ObjectData>): boolean {
   if (needsSize && objectOverlapsAny(rect, o.id)) {
     return false
   }
+  const changed = (patch.x !== undefined && o.x !== rect.x) ||
+    (patch.y !== undefined && o.y !== rect.y) ||
+    (needsSize && (o.w !== w || o.h !== h)) ||
+    (patch.radius !== undefined && o.radius !== patch.radius) ||
+    (patch.rx !== undefined && o.rx !== patch.rx) ||
+    (patch.labelPadding !== undefined && o.labelPadding !== patch.labelPadding) ||
+    (patch.padding !== undefined && o.padding !== patch.padding) ||
+    (patch.fillColor !== undefined && (o.fillColor ?? '') !== (patch.fillColor || '')) ||
+    (patch.locked !== undefined && o.locked !== patch.locked) ||
+    (patch.label !== undefined && (o.label ?? '') !== (patch.label || ''))
+  if (!changed) return true
   pushHistory()
   if (patch.x !== undefined) o.x = rect.x
   if (patch.y !== undefined) o.y = rect.y
@@ -2135,7 +1705,7 @@ function updateObjectProps(patch: Partial<ObjectData>): boolean {
   if (patch.label !== undefined) o.label = patch.label || undefined
   const cf = currentFloor.value
   if (cf) recalcCollapsed(cf)
-  scheduleSave()
+  await saveLayout()
   return true
 }
 
@@ -2145,7 +1715,7 @@ function setMode(mode: EditorMode) {
   state.multiSelection = null
 }
 
-function resizeCanvas(width: number, height: number, tileSize: number) {
+async function resizeCanvas(width: number, height: number, tileSize: number): Promise<void> {
   const t = tileSize > 0 ? tileSize : state.layout.canvas.tileSize
   const w = Math.max(t, Math.round(width / t) * t)
   const h = Math.max(t, Math.round(height / t) * t)
@@ -2182,38 +1752,67 @@ function resizeCanvas(width: number, height: number, tileSize: number) {
       o.y = snapped.y
     }
   }
-  scheduleSave()
+  await saveLayout()
 }
 
-function addCustomAsset(name: string, w: number, h: number, shape: AssetDef['shape'], category?: string, pxW?: number, pxH?: number, defaultRx?: { tl: number; tr: number; br: number; bl: number }) {
+async function addRoomTemplate(room: RoomData, name: string, category?: string): Promise<RoomTemplate> {
+  const tpl: RoomTemplate = {
+    id: genId('roomtpl'),
+    name: name.trim() || room.label || 'Room Template',
+    category: (category && category.trim()) || 'Rooms',
+    w: room.w,
+    h: room.h,
+    label: room.label,
+  }
+  if (room.radius && room.radius > 0) tpl.radius = room.radius
+  if (room.fillColor) tpl.fillColor = room.fillColor
+  if (room.rx) tpl.rx = room.rx
+  if (room.padding && room.padding > 0) tpl.padding = room.padding
+  pushHistory()
+  if (!state.layout.roomTemplates) state.layout.roomTemplates = []
+  state.layout.roomTemplates.push(tpl)
+  await saveLayout()
+  return tpl
+}
+
+async function deleteRoomTemplate(id: string): Promise<void> {
+  if (!state.layout.roomTemplates) return
+  pushHistory()
+  state.layout.roomTemplates = state.layout.roomTemplates.filter(t => t.id !== id)
+  await saveLayout()
+}
+
+async function addRoomFromTemplate(templateId: string, x: number, y: number): Promise<RoomData | null> {
+  const tpl = findRoomTemplate(templateId)
+  if (!tpl) return null
+  return addRoom({ x, y, w: tpl.w, h: tpl.h }, tpl.label, tpl)
+}
+
+async function addCustomAsset(name: string, w: number, h: number, category?: string, pxW?: number, pxH?: number, defaultRx?: { tl: number; tr: number; br: number; bl: number }, defaultBgColor?: string): Promise<AssetDef> {
   const safeW = Math.max(1, Math.floor(w))
   const safeH = Math.max(1, Math.floor(h))
-  const safeCat = (category && category.trim()) || 'Custom'
-  const asset: AssetDef = { id: genId('custom'), name, category: safeCat, w: safeW, h: safeH, shape, custom: true }
+  const safeCat = (category && category.trim()) || 'Misc'
+  const asset: AssetDef = { id: genId('custom'), name, category: safeCat, w: safeW, h: safeH, custom: true }
   if (pxW !== undefined && pxW > 0) asset.pxW = Math.floor(pxW)
   if (pxH !== undefined && pxH > 0) asset.pxH = Math.floor(pxH)
   if (defaultRx && (defaultRx.tl > 0 || defaultRx.tr > 0 || defaultRx.br > 0 || defaultRx.bl > 0)) asset.defaultRx = defaultRx
+  if (defaultBgColor && /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(defaultBgColor)) asset.defaultBgColor = defaultBgColor
   pushHistory()
   state.layout.customAssets.push(asset)
   invalidateAssetMap()
-  scheduleSave()
+  await saveLayout()
   return asset
 }
 
-function updateCustomAsset(id: string, patch: Partial<Pick<AssetDef, 'name' | 'w' | 'h' | 'shape' | 'category' | 'pxW' | 'pxH' | 'defaultPadding' | 'defaultRx'>>) {
+async function updateCustomAsset(id: string, patch: Partial<Pick<AssetDef, 'name' | 'w' | 'h' | 'category' | 'pxW' | 'pxH' | 'usePx' | 'defaultPadding' | 'defaultRx' | 'defaultBgColor'>>): Promise<void> {
   let asset = state.layout.customAssets.find(a => a.id === id)
-  if (!asset) {
-    const builtin = BUILTIN_ASSETS.find(a => a.id === id)
-    if (!builtin) return
-    asset = { ...builtin, custom: true }
-    state.layout.customAssets.push(asset)
-  }
+  if (!asset) return
   pushHistory()
   if (patch.name !== undefined) asset.name = patch.name
   if (patch.w !== undefined) asset.w = Math.max(1, Math.floor(patch.w))
   if (patch.h !== undefined) asset.h = Math.max(1, Math.floor(patch.h))
-  if (patch.shape !== undefined) asset.shape = patch.shape
   if (patch.category !== undefined) asset.category = patch.category
+  if (patch.usePx !== undefined) asset.usePx = patch.usePx
   if (patch.pxW !== undefined) asset.pxW = patch.pxW > 0 ? Math.floor(patch.pxW) : undefined
   if (patch.pxH !== undefined) asset.pxH = patch.pxH > 0 ? Math.floor(patch.pxH) : undefined
   if (patch.defaultPadding !== undefined) asset.defaultPadding = patch.defaultPadding > 0 ? patch.defaultPadding : undefined
@@ -2221,10 +1820,13 @@ function updateCustomAsset(id: string, patch: Partial<Pick<AssetDef, 'name' | 'w
     const r = patch.defaultRx
     asset.defaultRx = (r.tl > 0 || r.tr > 0 || r.br > 0 || r.bl > 0) ? r : undefined
   }
+  if (patch.defaultBgColor !== undefined) {
+    asset.defaultBgColor = (patch.defaultBgColor && /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(patch.defaultBgColor)) ? patch.defaultBgColor : undefined
+  }
 
   const t = state.layout.canvas.tileSize
-  const newW = asset.pxW ?? asset.w * t
-  const newH = asset.pxH ?? asset.h * t
+  const newW = asset.usePx ? (asset.pxW ?? asset.w * t) : asset.w * t
+  const newH = asset.usePx ? (asset.pxH ?? asset.h * t) : asset.h * t
   const collapsedIds: string[] = []
 
   for (const floor of state.layout.floors) {
@@ -2243,6 +1845,9 @@ function updateCustomAsset(id: string, patch: Partial<Pick<AssetDef, 'name' | 'w
       if (patch.defaultRx !== undefined) {
         obj.rx = asset.defaultRx ? { ...asset.defaultRx } : undefined
       }
+      if (patch.defaultBgColor !== undefined) {
+        obj.fillColor = asset.defaultBgColor || undefined
+      }
       const overlaps = floor.objects.some(o => o.id !== obj.id && aabbOverlap(obj, o))
       obj.collapsed = overlaps
       if (overlaps) collapsedIds.push(obj.id)
@@ -2250,14 +1855,13 @@ function updateCustomAsset(id: string, patch: Partial<Pick<AssetDef, 'name' | 'w
   }
 
   if (collapsedIds.length > 0) {
-    toast.error(`${collapsedIds.length} object(s) collapsed due to overlap — shown in red`)
+    toast.error(`${collapsedIds.length} object(s) collapsed due to overlap - shown in red`)
   }
 
   invalidateAssetMap()
-  scheduleSave()
 }
 
-function deleteCustomAsset(id: string) {
+async function deleteCustomAsset(id: string): Promise<void> {
   let removedCount = 0
   for (const floor of state.layout.floors) {
     removedCount += floor.objects.filter(o => o.type === id).length
@@ -2266,87 +1870,25 @@ function deleteCustomAsset(id: string) {
   state.layout.customAssets = state.layout.customAssets.filter(a => a.id !== id)
   invalidateAssetMap()
   for (const floor of state.layout.floors) {
+    const removedIds = new Set(floor.objects.filter(o => o.type === id).map(o => o.id))
+    cleanupObjectData([...removedIds])
     floor.objects = floor.objects.filter(o => o.type !== id)
-  }
-  if (state.selectedAssetId === id) state.selectedAssetId = null
-  if (removedCount > 0) {
-    toast.info(`Removed ${removedCount} object(s) using this asset`)
-  }
-  scheduleSave()
-}
-
-function deleteAsset(id: string) {
-  let removedCount = 0
-  for (const floor of state.layout.floors) {
-    removedCount += floor.objects.filter(o => o.type === id).length
-  }
-  pushHistory()
-  const isBuiltin = BUILTIN_ASSETS.some(a => a.id === id)
-  if (isBuiltin) {
-    if (!state.layout.hiddenBuiltinIds.includes(id)) {
-      state.layout.hiddenBuiltinIds.push(id)
+    for (const o of floor.objects) {
+      if (o.linkedIds) {
+        o.linkedIds = o.linkedIds.filter(lid => !removedIds.has(lid))
+        if (o.linkedIds.length === 0) delete o.linkedIds
+      }
     }
-  } else {
-    state.layout.customAssets = state.layout.customAssets.filter(a => a.id !== id)
-  }
-  invalidateAssetMap()
-  for (const floor of state.layout.floors) {
-    floor.objects = floor.objects.filter(o => o.type !== id)
   }
   if (state.selectedAssetId === id) state.selectedAssetId = null
   if (removedCount > 0) {
     toast.info(`Removed ${removedCount} object(s) using this asset`)
   }
-  scheduleSave()
-}
-
-/* ---------- Room Category CRUD ---------- */
-function addRoomCategory(label: string, color: string): RoomCategoryDef | null {
-  const trimmed = label.trim()
-  if (!trimmed) {
-    toast.warning('Category name cannot be empty')
-    return null
-  }
-  const id = trimmed.toLowerCase().replace(/\s+/g, '-')
-  if (state.layout.roomCategories.some(c => c.id === id)) {
-    toast.warning('Category already exists')
-    return null
-  }
-  pushHistory()
-  const def: RoomCategoryDef = { id, label: trimmed, color }
-  state.layout.roomCategories.push(def)
-  scheduleSave()
-  return def
-}
-
-function updateRoomCategory(id: string, patch: Partial<Pick<RoomCategoryDef, 'label' | 'color'>>) {
-  const cat = state.layout.roomCategories.find(c => c.id === id)
-  if (!cat) return
-  pushHistory()
-  if (patch.label !== undefined) cat.label = patch.label
-  if (patch.color !== undefined) cat.color = patch.color
-  scheduleSave()
-}
-
-function deleteRoomCategory(id: string) {
-  const cat = state.layout.roomCategories.find(c => c.id === id)
-  if (!cat) return
-  if (cat.builtin) {
-    toast.warning('Cannot delete a built-in category')
-    return
-  }
-  const inUse = state.layout.floors.some(f => f.rooms.some(r => r.cat === id))
-  if (inUse) {
-    toast.warning('Cannot delete — rooms are using this category')
-    return
-  }
-  pushHistory()
-  state.layout.roomCategories = state.layout.roomCategories.filter(c => c.id !== id)
-  scheduleSave()
+  await saveLayout()
 }
 
 /* ---------- Asset Category CRUD ---------- */
-function addAssetCategory(name: string): string | null {
+async function addAssetCategory(name: string): Promise<string | null> {
   const trimmed = name.trim()
   if (!trimmed) {
     toast.warning('Category name cannot be empty')
@@ -2358,11 +1900,11 @@ function addAssetCategory(name: string): string | null {
   }
   pushHistory()
   state.layout.assetCategories.push(trimmed)
-  scheduleSave()
+  await saveLayout()
   return trimmed
 }
 
-function renameAssetCategory(oldName: string, newName: string) {
+async function renameAssetCategory(oldName: string, newName: string): Promise<void> {
   const trimmed = newName.trim()
   if (!trimmed) return
   if (state.layout.assetCategories.includes(trimmed)) {
@@ -2376,18 +1918,18 @@ function renameAssetCategory(oldName: string, newName: string) {
     if (a.category === oldName) a.category = trimmed
   }
   invalidateAssetMap()
-  scheduleSave()
+  await saveLayout()
 }
 
-function deleteAssetCategory(name: string) {
+async function deleteAssetCategory(name: string): Promise<void> {
   const inUse = state.layout.customAssets.some(a => a.category === name)
   if (inUse) {
-    toast.warning('Cannot delete — assets are using this category')
+    toast.warning('Cannot delete - assets are using this category')
     return
   }
   pushHistory()
   state.layout.assetCategories = state.layout.assetCategories.filter(c => c !== name)
-  scheduleSave()
+  await saveLayout()
 }
 
 /* ---------- Merge / Ungroup ---------- */
@@ -2409,35 +1951,29 @@ function rotatedCorners(obj: ObjectData): [number, number][] {
 }
 
 function buildCompositeParts(objs: ObjectData[]): { parts: CompositePart[]; minX: number; minY: number; totalW: number; totalH: number } {
+  // IMPORTANT: rotateSelected() already swaps w/h and adjusts x/y.
+  // So obj.w/h are the VISUAL dimensions after rotation.
+  // Do NOT use rotatedCorners() here - it would double-rotate.
+  // Do NOT set part.rotation to obj.rotation - parts are already in visual orientation.
+  // Changing this will break merged objects with rotated parts.
   let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
   for (const obj of objs) {
-    for (const [x, y] of rotatedCorners(obj)) {
-      minX = Math.min(minX, x)
-      minY = Math.min(minY, y)
-      maxX = Math.max(maxX, x)
-      maxY = Math.max(maxY, y)
-    }
+    minX = Math.min(minX, obj.x)
+    minY = Math.min(minY, obj.y)
+    maxX = Math.max(maxX, obj.x + obj.w)
+    maxY = Math.max(maxY, obj.y + obj.h)
   }
-  minX = snap(Math.round(minX))
-  minY = snap(Math.round(minY))
-  maxX = snap(Math.round(maxX))
-  maxY = snap(Math.round(maxY))
 
   const totalW = maxX - minX
   const totalH = maxY - minY
-  const am = assetMap()
 
   const parts: CompositePart[] = objs.map(obj => {
-    const a = findAssetCached(am, obj.type)
-    const cx = obj.x + obj.w / 2
-    const cy = obj.y + obj.h / 2
     return {
-      dx: snap(Math.round(cx - minX - obj.w / 2)),
-      dy: snap(Math.round(cy - minY - obj.h / 2)),
-      w: snap(Math.round(obj.w)),
-      h: snap(Math.round(obj.h)),
-      shape: a?.shape ?? 'rect',
-      rotation: obj.rotation,
+      dx: Math.round(obj.x - minX),
+      dy: Math.round(obj.y - minY),
+      w: Math.round(obj.w),
+      h: Math.round(obj.h),
+      rotation: 0,
       type: obj.type,
     }
   })
@@ -2445,14 +1981,14 @@ function buildCompositeParts(objs: ObjectData[]): { parts: CompositePart[]; minX
   return { parts, minX, minY, totalW, totalH }
 }
 
-function mergeObjects(ids: string[]): string | null {
+async function mergeObjects(ids: string[]): Promise<string | null> {
   const floor = currentFloor.value
   if (!floor || ids.length < 2) return null
 
   const objs = ids.map(id => floor.objects.find(o => o.id === id)).filter(Boolean) as ObjectData[]
   if (objs.length < 2) return null
   if (objs.some(o => o.locked)) {
-    toast.warning('Cannot merge locked objects — unlock first')
+    toast.warning('Cannot merge locked objects - unlock first')
     return null
   }
 
@@ -2466,7 +2002,6 @@ function mergeObjects(ids: string[]): string | null {
     category: 'Merged',
     w: Math.round(totalW / t),
     h: Math.round(totalH / t),
-    shape: 'rect',
     custom: true,
     parts,
   }
@@ -2478,10 +2013,24 @@ function mergeObjects(ids: string[]): string | null {
     state.layout.assetCategories.push('Merged')
   }
 
+  const allMergedIds = new Set(ids)
+  for (const obj of objs) {
+    if (obj.linkedIds) {
+      for (const lid of obj.linkedIds) allMergedIds.add(lid)
+    }
+  }
+  for (const o of floor.objects) {
+    if (!o.linkedIds) continue
+    o.linkedIds = o.linkedIds.filter(lid => !allMergedIds.has(lid))
+    if (o.linkedIds.length === 0) delete o.linkedIds
+  }
+
+  cleanupObjectData(ids)
   floor.objects = floor.objects.filter(o => !ids.includes(o.id))
 
   const newObj: ObjectData = {
     id: genId('o'),
+    subId: genId('sub'),
     type: assetId,
     x: minX,
     y: minY,
@@ -2498,12 +2047,12 @@ function mergeObjects(ids: string[]): string | null {
   state.selection = { type: 'object', id: newObj.id }
   state.multiSelection = null
 
-  scheduleSave()
   toast.success(`Merged ${objs.length} objects into 1`)
+  await saveLayout()
   return newObj.id
 }
 
-function createCompositeAssetFromSelection(name?: string, category?: string): string | null {
+async function createCompositeAssetFromSelection(name?: string, category?: string): Promise<string | null> {
   const floor = currentFloor.value
   if (!floor) return null
   const ids = state.multiSelection?.ids
@@ -2515,7 +2064,7 @@ function createCompositeAssetFromSelection(name?: string, category?: string): st
   const objs = ids.map(id => floor.objects.find(o => o.id === id)).filter(Boolean) as ObjectData[]
   if (objs.length < 2) return null
   if (objs.some(o => o.locked)) {
-    toast.warning('Cannot merge locked objects — unlock first')
+    toast.warning('Cannot merge locked objects - unlock first')
     return null
   }
 
@@ -2531,7 +2080,6 @@ function createCompositeAssetFromSelection(name?: string, category?: string): st
     category: safeCat,
     w: Math.round(totalW / t),
     h: Math.round(totalH / t),
-    shape: 'rect',
     custom: true,
     parts,
   }
@@ -2543,12 +2091,12 @@ function createCompositeAssetFromSelection(name?: string, category?: string): st
     state.layout.assetCategories.push(safeCat)
   }
 
-  scheduleSave()
-  toast.success(`Created "${safeName}" composite asset — find it in the ${safeCat} category`)
+  toast.success(`Created "${safeName}" composite asset - find it in the ${safeCat} category`)
+  await saveLayout()
   return assetId
 }
 
-function createLinkedAssetFromSelection(name?: string, category?: string): string | null {
+async function createLinkedAssetFromSelection(name?: string, category?: string): Promise<string | null> {
   const floor = currentFloor.value
   if (!floor) return null
   const ids = state.multiSelection?.ids
@@ -2560,7 +2108,7 @@ function createLinkedAssetFromSelection(name?: string, category?: string): strin
   const objs = ids.map(id => floor.objects.find(o => o.id === id)).filter(Boolean) as ObjectData[]
   if (objs.length < 2) return null
   if (objs.some(o => o.locked)) {
-    toast.warning('Cannot link locked objects — unlock first')
+    toast.warning('Cannot link locked objects - unlock first')
     return null
   }
 
@@ -2598,7 +2146,6 @@ function createLinkedAssetFromSelection(name?: string, category?: string): strin
     category: safeCat,
     w: Math.round(totalW / t),
     h: Math.round(totalH / t),
-    shape: 'rect',
     custom: true,
     linkedParts,
   }
@@ -2610,19 +2157,19 @@ function createLinkedAssetFromSelection(name?: string, category?: string): strin
     state.layout.assetCategories.push(safeCat)
   }
 
-  scheduleSave()
-  toast.success(`Created "${safeName}" linked asset — find it in the ${safeCat} category`)
+  toast.success(`Created "${safeName}" linked asset - find it in the ${safeCat} category`)
+  await saveLayout()
   return assetId
 }
 
-function ungroupObject(id: string): string[] | null {
+async function ungroupObject(id: string): Promise<string[] | null> {
   const floor = currentFloor.value
   if (!floor) return null
 
   const obj = floor.objects.find(o => o.id === id)
   if (!obj) return null
   if (obj.locked) {
-    toast.warning('Cannot ungroup a locked object — unlock first')
+    toast.warning('Cannot ungroup a locked object - unlock first')
     return null
   }
 
@@ -2634,21 +2181,31 @@ function ungroupObject(id: string): string[] | null {
 
   pushHistory()
 
+  if (obj.linkedIds) {
+    for (const linkedId of obj.linkedIds) {
+      const linked = floor.objects.find(o => o.id === linkedId)
+      if (linked?.linkedIds) {
+        linked.linkedIds = linked.linkedIds.filter(lid => lid !== id)
+        if (linked.linkedIds.length === 0) delete linked.linkedIds
+      }
+    }
+  }
+
   const newIds: string[] = []
   for (const part of asset.parts) {
     const t = state.layout.canvas.tileSize
     const partW = Math.round(part.w / t)
     const partH = Math.round(part.h / t)
     let typeId: string
-    if (part.type && (BUILTIN_ASSETS.some(a => a.id === part.type) || state.layout.customAssets.some(a => a.id === part.type))) {
+    if (part.type && state.layout.customAssets.some(a => a.id === part.type)) {
       typeId = part.type
     } else {
-      const partAsset = BUILTIN_ASSETS.find(a => a.shape === part.shape && a.w === partW && a.h === partH)
-      const customMatch = state.layout.customAssets.find(a => a.shape === part.shape && a.w === partW && a.h === partH && (!a.parts || a.parts.length === 0))
-      typeId = partAsset?.id ?? customMatch?.id ?? 'unknown'
+      const customMatch = state.layout.customAssets.find(a => a.w === partW && a.h === partH && (!a.parts || a.parts.length === 0))
+      typeId = customMatch?.id ?? 'unknown'
     }
     const newObj: ObjectData = {
       id: genId('o'),
+      subId: genId('sub'),
       type: typeId,
       x: obj.x + part.dx,
       y: obj.y + part.dy,
@@ -2666,6 +2223,7 @@ function ungroupObject(id: string): string[] | null {
   }
 
   floor.objects = floor.objects.filter(o => o.id !== id)
+  cleanupObjectData([id])
 
   state.layout.customAssets = state.layout.customAssets.filter(a => a.id !== asset.id)
   invalidateAssetMap()
@@ -2673,8 +2231,8 @@ function ungroupObject(id: string): string[] | null {
   state.multiSelection = { type: 'object', ids: newIds }
   state.selection = null
 
-  scheduleSave()
   toast.success(`Ungrouped into ${newIds.length} objects`)
+  await saveLayout()
   return newIds
 }
 
@@ -2685,13 +2243,16 @@ function getLinkedObjects(obj: ObjectData): ObjectData[] {
   return floor.objects.filter(o => obj.linkedIds!.includes(o.id))
 }
 
-function linkObjects(ids: string[]): boolean {
+async function linkObjects(ids: string[]): Promise<boolean> {
   const floor = currentFloor.value
   if (!floor || ids.length < 2) return false
   const objs = floor.objects.filter(o => ids.includes(o.id))
-  if (objs.length < 2) return false
+  if (objs.length < 2) {
+    toast.warning('Some selected objects not found on current floor')
+    return false
+  }
   if (objs.some(o => o.locked)) {
-    toast.warning('Cannot link locked objects — unlock first')
+    toast.warning('Cannot link locked objects - unlock first')
     return false
   }
 
@@ -2710,18 +2271,18 @@ function linkObjects(ids: string[]): boolean {
     if (!obj) continue
     obj.linkedIds = allGroupIds.filter(oid => oid !== id)
   }
-  scheduleSave()
   toast.success(`Linked ${allGroupIds.length} objects`)
+  await saveLayout()
   return true
 }
 
-function unlinkObject(id: string): boolean {
+async function unlinkObject(id: string): Promise<boolean> {
   const floor = currentFloor.value
   if (!floor) return false
   const obj = floor.objects.find(o => o.id === id)
   if (!obj || !obj.linkedIds || obj.linkedIds.length === 0) return false
   if (obj.locked) {
-    toast.warning('Cannot unlink a locked object — unlock first')
+    toast.warning('Cannot unlink a locked object - unlock first')
     return false
   }
 
@@ -2734,34 +2295,37 @@ function unlinkObject(id: string): boolean {
     }
   }
   delete obj.linkedIds
-  scheduleSave()
   toast.success('Unlinked object')
+  await saveLayout()
   return true
 }
 
 
-function addFloor(): FloorData {
+async function addFloor(): Promise<FloorData> {
   pushHistory()
   const n = state.layout.floors.length
   const floor: FloorData = { id: genId('floor'), name: `New Floor`, label: `F${n}`, rooms: [], objects: [], zones: [] }
   state.layout.floors.push(floor)
-  scheduleSave()
+  await saveLayout()
   return floor
 }
 
-function deleteFloor(id: string) {
+async function deleteFloor(id: string) {
   if (state.layout.floors.length <= 1) return
+  const floor = state.layout.floors.find(f => f.id === id)
+  if (!floor) return
   pushHistory()
+  cleanupObjectData(floor.objects.map(o => o.id))
   state.layout.floors = state.layout.floors.filter(f => f.id !== id)
   if (state.currentFloorId === id) {
     state.currentFloorId = state.layout.floors[0].id
   }
   state.selection = null
   state.multiSelection = null
-  scheduleSave()
+  await saveLayout()
 }
 
-function duplicateFloor(id: string) {
+async function duplicateFloor(id: string) {
   const floor = state.layout.floors.find(f => f.id === id)
   if (!floor) return
   pushHistory()
@@ -2777,6 +2341,7 @@ function duplicateFloor(id: string) {
     const newId = genId('o')
     idMap.set(o.id, newId)
     o.id = newId
+    o.subId = genId('sub')
   }
   for (const o of copy.objects) {
     if (o.linkedIds) {
@@ -2786,18 +2351,18 @@ function duplicateFloor(id: string) {
   }
   const idx = state.layout.floors.findIndex(f => f.id === id)
   state.layout.floors.splice(idx + 1, 0, copy)
-  scheduleSave()
+  await saveLayout()
 }
 
-function renameFloor(id: string, name: string) {
+async function renameFloor(id: string, name: string) {
   const floor = state.layout.floors.find(f => f.id === id)
   if (!floor) return
   pushHistory()
   floor.name = name
-  scheduleSave()
+  await saveLayout()
 }
 
-function reorderFloors(fromIndex: number, toIndex: number) {
+async function reorderFloors(fromIndex: number, toIndex: number) {
   if (fromIndex === toIndex) return
   if (fromIndex < 0 || toIndex < 0) return
   if (fromIndex >= state.layout.floors.length || toIndex >= state.layout.floors.length) return
@@ -2805,31 +2370,33 @@ function reorderFloors(fromIndex: number, toIndex: number) {
   const floors = state.layout.floors
   const [moved] = floors.splice(fromIndex, 1)
   floors.splice(toIndex, 0, moved)
-  scheduleSave()
+  await saveLayout()
 }
 
-function clearFloor(id: string) {
+async function clearFloor(id: string) {
   const floor = state.layout.floors.find(f => f.id === id)
   if (!floor) return
   pushHistory()
+  cleanupObjectData(floor.objects.map(o => o.id))
   floor.rooms = []
   floor.objects = []
   floor.zones = []
   state.selection = null
   state.multiSelection = null
-  flushSave()
+  await saveLayout()
 }
 
-function clearAllFloors() {
+async function clearAllFloors() {
   pushHistory()
   for (const floor of state.layout.floors) {
+    cleanupObjectData(floor.objects.map(o => o.id))
     floor.rooms = []
     floor.objects = []
     floor.zones = []
   }
   state.selection = null
   state.multiSelection = null
-  flushSave()
+  await saveLayout()
 }
 
 function selectFloor(id: string) {
@@ -2838,35 +2405,162 @@ function selectFloor(id: string) {
   state.multiSelection = null
 }
 
-async function exportToTS() {
-  const data = state.layout
-  const ts = `// Auto-generated by Blueprint Editor — ${new Date().toISOString()}
-import type { LayoutData } from './editor-types'
+let saveDebounceTimer: number | null = null
+let isSaving = false
+const MAX_SAVE_RETRIES = 3
 
-export const SAVED_LAYOUT: LayoutData = ${JSON.stringify(data, null, 2)}
+async function saveLayout() {
+  if (isSaving) {
+    if (saveDebounceTimer) window.clearTimeout(saveDebounceTimer)
+    saveDebounceTimer = window.setTimeout(() => saveLayout(), EDITOR_CONFIG.saveDebounceMs)
+    return
+  }
+
+  isSaving = true
+  const data = state.layout
+  const ts = `// Auto-generated by Blueprint Editor - ${new Date().toISOString()}
+import type { LayoutData } from './types'
+
+const SAVED_LAYOUT: LayoutData = ${JSON.stringify(data, null, 2)}
 `
-  try {
-    const res = await fetch('/__save-layout', {
-      method: 'POST',
-      headers: { 'Content-Type': 'text/plain' },
-      body: ts,
-    })
-    if (!res.ok) throw new Error(`HTTP ${res.status}`)
-    toast.success('saved-layout.ts written to src/blueprint/saved-layout.ts')
-  } catch (e) {
-    editorLog.error('exportToTS', e)
-    toast.error('Failed to save — falling back to download')
+
+  const attemptSave = async (attempt: number): Promise<boolean> => {
+    try {
+      const res = await fetch(EDITOR_CONFIG.saveEndpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain' },
+        body: ts,
+      })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      return true
+    } catch (e) {
+      editorLog.error('saveLayout attempt ' + attempt, e)
+      if (attempt < MAX_SAVE_RETRIES) {
+        await new Promise(resolve => setTimeout(resolve, 1000 * (attempt + 1)))
+        return attemptSave(attempt + 1)
+      }
+      return false
+    }
+  }
+
+  const success = await attemptSave(1)
+  if (!success) {
+    editorLog.error('saveLayout', 'All retries failed')
+    toast.error('Failed to save - falling back to download')
     const blob = new Blob([ts], { type: 'text/typescript' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = 'saved-layout.ts'
+    a.download = 'editor-store-layout.ts'
     a.click()
     URL.revokeObjectURL(url)
   }
+
+  isSaving = false
+  if (saveDebounceTimer) {
+    window.clearTimeout(saveDebounceTimer)
+    saveDebounceTimer = null
+    saveLayout()
+  }
 }
 
-const SYNC_KEY = 'blueprint-synced-layout'
+const SYNC_KEY = EDITOR_CONFIG.syncKey
+
+/* ---------- Custom Properties ---------- */
+function cleanupObjectData(ids: string[]): void {
+  const subIdsToRemove = new Set<string>()
+  for (const floor of state.layout.floors) {
+    for (const obj of floor.objects) {
+      if (ids.includes(obj.id) && obj.subId) {
+        subIdsToRemove.add(obj.subId)
+      }
+    }
+  }
+  for (const subId of subIdsToRemove) {
+    delete state.layout.objectCustomProps[subId]
+    delete state.layout.instanceLabels[subId]
+    delete state.layout.validationRules[subId]
+  }
+}
+
+function getObjectCustomProps(subId: string): ObjectCustomProps | undefined {
+  return state.layout.objectCustomProps[subId]
+}
+
+async function setObjectCustomProps(subId: string, props: ObjectCustomProps): Promise<void> {
+  state.layout.objectCustomProps[subId] = props
+  pushHistory()
+  await saveLayout()
+}
+
+async function deleteObjectCustomProps(subId: string): Promise<void> {
+  delete state.layout.objectCustomProps[subId]
+  pushHistory()
+  await saveLayout()
+}
+
+/* ---------- Instance Labels ---------- */
+function getInstanceLabel(subId: string): string | undefined {
+  return state.layout.instanceLabels[subId]
+}
+
+async function setInstanceLabel(subId: string, label: string): Promise<void> {
+  state.layout.instanceLabels[subId] = label
+  pushHistory()
+  await saveLayout()
+}
+
+async function deleteInstanceLabel(subId: string): Promise<void> {
+  delete state.layout.instanceLabels[subId]
+  pushHistory()
+  await saveLayout()
+}
+
+/* ---------- Validation Rules ---------- */
+function getValidationRule(subId: string): ValidationRule | undefined {
+  return state.layout.validationRules[subId]
+}
+
+async function setValidationRule(subId: string, rule: ValidationRule): Promise<void> {
+  state.layout.validationRules[subId] = rule
+  pushHistory()
+  await saveLayout()
+}
+
+async function deleteValidationRule(subId: string): Promise<void> {
+  delete state.layout.validationRules[subId]
+  pushHistory()
+  await saveLayout()
+}
+
+/* ---------- Search/Filter ---------- */
+function findObjectsByTag(tag: string): ObjectData[] {
+  const results: ObjectData[] = []
+  for (const floor of state.layout.floors) {
+    for (const obj of floor.objects) {
+      if (!obj.subId) continue
+      const props = state.layout.objectCustomProps[obj.subId]
+      if (props?.tags?.includes(tag)) {
+        results.push(obj)
+      }
+    }
+  }
+  return results
+}
+
+function findObjectsByTagOnCurrentFloor(tag: string): ObjectData[] {
+  const floor = currentFloor.value
+  if (!floor) return []
+  const results: ObjectData[] = []
+  for (const obj of floor.objects) {
+    if (!obj.subId) continue
+    const props = state.layout.objectCustomProps[obj.subId]
+    if (props?.tags?.includes(tag)) {
+      results.push(obj)
+    }
+  }
+  return results
+}
 
 function editorFloorLabelToFloorId(label: string): string | null {
   if (label === 'G') return 'G'
@@ -2898,31 +2592,13 @@ function syncToGame(): boolean {
     return true
   } catch (e) {
     editorLog.error('syncToGame', e)
-    toast.error('Sync failed — storage error')
+    toast.error('Sync failed - storage error')
     return false
   }
 }
 
-function runAutoFix(floor: FloorData): AutoFixResult {
-  const result = autoFixFloor(
-    floor.label, floor.rooms, floor.objects,
-    state.layout.canvas.width, state.layout.canvas.height,
-  )
-  if (result.fixed > 0) {
-    recalcCollapsed(floor)
-    if (result.remaining > 0) {
-      toast.warning(`Auto-fixed ${result.fixed} issue(s), ${result.remaining} remaining on ${floor.name}`)
-    } else {
-      toast.success(`Auto-fixed ${result.fixed} issue(s) on ${floor.name} — all rules pass`)
-    }
-  } else if (result.remaining > 0) {
-    toast.warning(`${floor.name}: ${result.remaining} unfixable violation(s) remain`)
-  }
-  return result
-}
-
 /* ---------- Zone Marks ---------- */
-function addZone(x: number, y: number, w: number, h: number, label?: string, color?: string): ZoneData | null {
+async function addZone(x: number, y: number, w: number, h: number, label?: string, color?: string): Promise<ZoneData | null> {
   const floor = currentFloor.value
   if (!floor) return null
   pushHistory()
@@ -2930,11 +2606,11 @@ function addZone(x: number, y: number, w: number, h: number, label?: string, col
   const zone: ZoneData = { id: genId('zone'), x: rect.x, y: rect.y, w: rect.w, h: rect.h, label: label || 'New Zone', color: color || '#06b6d4' }
   if (!floor.zones) floor.zones = []
   floor.zones.push(zone)
-  scheduleSave()
+  await saveLayout()
   return zone
 }
 
-function updateZone(id: string, patch: Partial<ZoneData>) {
+async function updateZone(id: string, patch: Partial<ZoneData>): Promise<void> {
   const floor = currentFloor.value
   if (!floor?.zones) return
   const z = floor.zones.find(z => z.id === id)
@@ -2946,16 +2622,16 @@ function updateZone(id: string, patch: Partial<ZoneData>) {
   if (patch.h !== undefined) z.h = clamp({ x: z.x, y: z.y, w: z.w, h: snap(patch.h) }).h
   if (patch.label !== undefined) z.label = patch.label
   if (patch.color !== undefined) z.color = patch.color
-  scheduleSave()
+  await saveLayout()
 }
 
-function deleteZone(id: string) {
+async function deleteZone(id: string): Promise<void> {
   const floor = currentFloor.value
   if (!floor?.zones) return
   pushHistory()
   floor.zones = floor.zones.filter(z => z.id !== id)
   if (floor.zones.length === 0) delete floor.zones
-  scheduleSave()
+  await saveLayout()
 }
 
 /* ---------- Copy / Paste ---------- */
@@ -2978,7 +2654,7 @@ function copySelected() {
   }
 }
 
-function pasteObjects() {
+async function pasteObjects() {
   const floor = currentFloor.value
   if (!floor || !clipboard || clipboard.length === 0) return
   const tileSize = state.layout.canvas.tileSize
@@ -2993,7 +2669,7 @@ function pasteObjects() {
     const rawY = c.y + offset
     const rect = clamp({ x: snap(rawX), y: snap(rawY), w: c.w, h: c.h })
     if (objectOverlapsAny(rect)) {
-      toast.warning(`Skipped pasting "${c.type}" — would overlap existing object`)
+      toast.warning(`Skipped pasting "${c.type}" - would overlap existing object`)
       continue
     }
     newIds.push(newId)
@@ -3001,6 +2677,7 @@ function pasteObjects() {
     const copy: ObjectData = {
       ...rest,
       id: newId,
+      subId: genId('sub'),
       x: rect.x,
       y: rect.y,
       w: rect.w,
@@ -3009,7 +2686,7 @@ function pasteObjects() {
     pendingCopies.push(copy)
   }
   if (pendingCopies.length === 0) {
-    toast.warning('Paste failed — all objects would overlap')
+    toast.warning('Paste failed - all objects would overlap')
     return
   }
   pushHistory()
@@ -3036,20 +2713,36 @@ function pasteObjects() {
     state.multiSelection = null
   }
   recalcCollapsed(floor)
-  scheduleSave()
+  await saveLayout()
   toast.success(`Pasted ${newIds.length} object(s)`)
 }
 
 /* ---------- Toggle Object Lock ---------- */
-function toggleObjectLock(id: string) {
+async function toggleObjectLock(id: string): Promise<void> {
   const floor = currentFloor.value
   if (!floor) return
   const o = floor.objects.find(o => o.id === id)
   if (!o) return
   pushHistory()
   o.locked = !o.locked
-  scheduleSave()
   toast.info(o.locked ? 'Object locked' : 'Object unlocked')
+  await saveLayout()
+}
+
+if (import.meta.hot) {
+  import.meta.hot.dispose(() => {
+    const hot = import.meta.hot!
+    hot.data._editorLayout = JSON.stringify(state.layout)
+    hot.data._editorState = {
+      currentFloorId: state.currentFloorId,
+      mode: state.mode,
+      selection: state.selection,
+      multiSelection: state.multiSelection,
+      selectedAssetId: state.selectedAssetId,
+      undoStack: [...undoStack.value],
+      redoStack: [...redoStack.value],
+    }
+  })
 }
 
 export function useEditorStore() {
@@ -3057,9 +2750,13 @@ export function useEditorStore() {
     state,
     currentFloor,
     snap,
+    assetMap,
     selectedRoom,
     selectedObject,
     addRoom,
+    addRoomFromTemplate,
+    addRoomTemplate,
+    deleteRoomTemplate,
     addObject,
     canPlaceObject,
     canPlaceRoom,
@@ -3079,10 +2776,6 @@ export function useEditorStore() {
     addCustomAsset,
     updateCustomAsset,
     deleteCustomAsset,
-    deleteAsset,
-    addRoomCategory,
-    updateRoomCategory,
-    deleteRoomCategory,
     addAssetCategory,
     renameAssetCategory,
     deleteAssetCategory,
@@ -3102,19 +2795,28 @@ export function useEditorStore() {
     clearFloor,
     clearAllFloors,
     selectFloor,
-    exportToTS,
     syncToGame,
-    flushSave,
+    saveLayout,
     undo,
     redo,
     canUndo: computed(() => undoStack.value.length > 0),
     canRedo: computed(() => redoStack.value.length > 0),
-    runAutoFix,
     addZone,
     updateZone,
     deleteZone,
     copySelected,
     pasteObjects,
     toggleObjectLock,
+    getObjectCustomProps,
+    setObjectCustomProps,
+    deleteObjectCustomProps,
+    getInstanceLabel,
+    setInstanceLabel,
+    deleteInstanceLabel,
+    getValidationRule,
+    setValidationRule,
+    deleteValidationRule,
+    findObjectsByTag,
+    findObjectsByTagOnCurrentFloor,
   }
 }

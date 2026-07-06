@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
-import { useEditorStore, dragState, endAssetDrag } from '../editor-store'
-import { buildAssetMap, findAssetCached } from '../editor-assets'
+import { useEditorStore, dragState, endAssetDrag, endRoomTemplateDrag } from '../editor-store'
+import { findAssetCached } from '../editor-assets'
 import { useToast } from '@/composables/useToast'
-import { aabbOverlap } from '../editor-types'
-import type { Rect, AssetShape, CompositePart, ObjectData } from '../editor-types'
+import { aabbOverlap } from '../utils'
+import type { Rect, CompositePart, ObjectData, RoomData } from '../types'
 
 const store = useEditorStore()
 const svgRef = ref<SVGSVGElement | null>(null)
@@ -12,21 +12,30 @@ const containerRef = ref<HTMLElement | null>(null)
 
 const canvas = computed(() => store.state.layout.canvas)
 const floor = computed(() => store.currentFloor.value)
-const assetMap = computed(() => buildAssetMap(store.state.layout.customAssets))
 
 /* ---------- Zoom & Pan (Photoshop-style) ---------- */
-let _savedZoom = 1
-let _savedPanX = 0
-let _savedPanY = 0
-let _hasSaved = false
-const zoom = ref(_hasSaved ? _savedZoom : 1)
-const panX = ref(_hasSaved ? _savedPanX : 0)
-const panY = ref(_hasSaved ? _savedPanY : 0)
+const ZOOM_STORAGE_KEY = 'blueprint-zoom-state'
+function loadZoomState(): { zoom: number; panX: number; panY: number } {
+  try {
+    const raw = sessionStorage.getItem(ZOOM_STORAGE_KEY)
+    if (raw) return JSON.parse(raw)
+  } catch { /* ignore */ }
+  return { zoom: 1, panX: 0, panY: 0 }
+}
+function saveZoomState(zoom: number, panX: number, panY: number) {
+  try {
+    sessionStorage.setItem(ZOOM_STORAGE_KEY, JSON.stringify({ zoom, panX, panY }))
+  } catch { /* ignore */ }
+}
+const _initial = loadZoomState()
+const zoom = ref(_initial.zoom)
+const panX = ref(_initial.panX)
+const panY = ref(_initial.panY)
 const MIN_ZOOM = 0.1
 const MAX_ZOOM = 8
-watch(zoom, v => { _savedZoom = v; _hasSaved = true })
-watch(panX, v => { _savedPanX = v; _hasSaved = true })
-watch(panY, v => { _savedPanY = v; _hasSaved = true })
+watch(zoom, v => saveZoomState(v, panX.value, panY.value))
+watch(panX, v => saveZoomState(zoom.value, v, panY.value))
+watch(panY, v => saveZoomState(zoom.value, panX.value, v))
 
 const viewBox = computed(() => {
   const w = canvas.value.width / zoom.value
@@ -212,11 +221,11 @@ function onWallMouseMove(e: MouseEvent) {
   wallDrag.value.valid = store.canPlaceRoom(rect)
 }
 
-function onWallMouseUp() {
+async function onWallMouseUp() {
   window.removeEventListener('mousemove', onWallMouseMove)
   window.removeEventListener('mouseup', onWallMouseUp)
   if (wallDrag.value && wallDrag.value.valid && wallDrag.value.w > 0 && wallDrag.value.h > 0) {
-    store.addRoom({ x: wallDrag.value.x, y: wallDrag.value.y, w: wallDrag.value.w, h: wallDrag.value.h }, store.state.wallCategory)
+    await store.addRoom({ x: wallDrag.value.x, y: wallDrag.value.y, w: wallDrag.value.w, h: wallDrag.value.h })
   }
   wallDrag.value = null
 }
@@ -224,13 +233,13 @@ function onWallMouseUp() {
 /* ---------- Palette drop (Object mode) ---------- */
 const paletteGhost = computed(() => {
   if (!dragState.assetId) return null
-  const asset = findAssetCached(assetMap.value, dragState.assetId)
+  const asset = findAssetCached(store.assetMap(), dragState.assetId)
   if (!asset) return null
   const t = canvas.value.tileSize
   const w = store.snap(asset.pxW ?? asset.w * t)
   const h = store.snap(asset.pxH ?? asset.h * t)
   const linkedParts = asset.linkedParts?.map(p => ({ dx: p.dx, dy: p.dy, w: store.snap(p.w), h: store.snap(p.h) }))
-  return { w, h, shape: asset.shape, linkedParts, t }
+  return { w, h, linkedParts }
 })
 
 const paletteGhostParts = computed(() => {
@@ -316,7 +325,7 @@ function onWindowMouseMoveForDrag(e: MouseEvent) {
   mouseCoords.value = { x: Math.round(store.snap(x)), y: Math.round(store.snap(y)) }
 }
 
-function onWindowMouseUpForDrag(e: MouseEvent) {
+async function onWindowMouseUpForDrag(e: MouseEvent) {
   if (!dragState.assetId) return
   if (store.state.mode === 'wall') {
     endAssetDrag()
@@ -330,7 +339,7 @@ function onWindowMouseUpForDrag(e: MouseEvent) {
     const ghost = paletteGhost.value
     if (inside && ghost) {
       const p = localPoint(e)
-      store.addObject(assetId, p.x - ghost.w / 2, p.y - ghost.h / 2)
+      await store.addObject(assetId, p.x - ghost.w / 2, p.y - ghost.h / 2)
     }
   }
   endAssetDrag()
@@ -346,11 +355,67 @@ watch(() => dragState.assetId, (id) => {
   }
 })
 
-function roomColor(cat: string): string {
-  const def = store.state.layout.roomCategories?.find(c => c.id === cat)
-  return def?.color ?? '#e8e4dc'
+/* ---------- Room template drop ---------- */
+const ROOM_DEFAULT_FILL = '#e8e4dc'
+
+const roomTemplateGhost = computed(() => {
+  if (!dragState.roomTemplateId) return null
+  const tpl = store.state.layout.roomTemplates?.find(t => t.id === dragState.roomTemplateId)
+  if (!tpl) return null
+  return { w: tpl.w, h: tpl.h, fillColor: tpl.fillColor ?? ROOM_DEFAULT_FILL }
+})
+
+const roomTemplateGhostRect = computed(() => {
+  const ghost = roomTemplateGhost.value
+  if (!ghost) return null
+  let x = store.snap(mousePos.value.x - ghost.w / 2)
+  let y = store.snap(mousePos.value.y - ghost.h / 2)
+  const overflowX = Math.max(0, x + ghost.w - canvas.value.width)
+  const overflowY = Math.max(0, y + ghost.h - canvas.value.height)
+  if (overflowX > 0) x -= overflowX
+  if (overflowY > 0) y -= overflowY
+  return { x, y, w: ghost.w, h: ghost.h, fillColor: ghost.fillColor }
+})
+
+const roomTemplateValid = ref(false)
+
+function onRoomTemplateMouseMove(e: MouseEvent) {
+  if (!dragState.roomTemplateId || !svgRef.value) return
+  const p = localPoint(e)
+  mousePos.value = p
+  const ghost = roomTemplateGhostRect.value
+  if (ghost) {
+    roomTemplateValid.value = store.canPlaceRoom({ x: ghost.x, y: ghost.y, w: ghost.w, h: ghost.h })
+  }
 }
+
+async function onRoomTemplateMouseUp(e: MouseEvent) {
+  if (!dragState.roomTemplateId) return
+  const templateId = dragState.roomTemplateId
+  const svgEl = svgRef.value
+  if (svgEl) {
+    const rect = svgEl.getBoundingClientRect()
+    const inside = e.clientX >= rect.left && e.clientX <= rect.right && e.clientY >= rect.top && e.clientY <= rect.bottom
+    const ghost = roomTemplateGhostRect.value
+    if (inside && ghost && roomTemplateValid.value) {
+      await store.addRoomFromTemplate(templateId, ghost.x, ghost.y)
+    }
+  }
+  endRoomTemplateDrag()
+}
+
+watch(() => dragState.roomTemplateId, (id) => {
+  if (id) {
+    window.addEventListener('mousemove', onRoomTemplateMouseMove)
+    window.addEventListener('mouseup', onRoomTemplateMouseUp)
+  } else {
+    window.removeEventListener('mousemove', onRoomTemplateMouseMove)
+    window.removeEventListener('mouseup', onRoomTemplateMouseUp)
+  }
+})
+
 const moving = ref<{ type: 'room' | 'object'; id: string; offsetX: number; offsetY: number } | null>(null)
+let _moveHistoryPushed = false
 
 function onRoomMouseDown(e: MouseEvent, id: string) {
   if (e.button === 1 || spaceDown.value) return
@@ -358,8 +423,8 @@ function onRoomMouseDown(e: MouseEvent, id: string) {
   store.select({ type: 'room', id })
   const room = floor.value?.rooms.find(r => r.id === id)
   if (room?.locked) return
-  store.pushHistory()
   const p = localPoint(e)
+  _moveHistoryPushed = false
   moving.value = { type: 'room', id, offsetX: p.x - (room?.x ?? 0), offsetY: p.y - (room?.y ?? 0) }
   window.addEventListener('mousemove', onMoveMouseMove)
   window.addEventListener('mouseup', onMoveMouseUp)
@@ -375,8 +440,8 @@ function onObjectMouseDown(e: MouseEvent, id: string) {
   store.select({ type: 'object', id })
   const obj = floor.value?.objects.find(o => o.id === id)
   if (obj?.locked) return
-  store.pushHistory()
   const p = localPoint(e)
+  _moveHistoryPushed = false
   moving.value = { type: 'object', id, offsetX: p.x - (obj?.x ?? 0), offsetY: p.y - (obj?.y ?? 0) }
   window.addEventListener('mousemove', onMoveMouseMove)
   window.addEventListener('mouseup', onMoveMouseUp)
@@ -384,17 +449,21 @@ function onObjectMouseDown(e: MouseEvent, id: string) {
 
 function onMoveMouseMove(e: MouseEvent) {
   if (!moving.value) return
+  if (!_moveHistoryPushed) {
+    store.pushHistory()
+    _moveHistoryPushed = true
+  }
   const p = localPoint(e)
   const newX = p.x - moving.value.offsetX
   const newY = p.y - moving.value.offsetY
   store.moveSelectedTo(newX, newY)
 }
 
-function onMoveMouseUp() {
+async function onMoveMouseUp() {
   window.removeEventListener('mousemove', onMoveMouseMove)
   window.removeEventListener('mouseup', onMoveMouseUp)
-  if (moving.value) {
-    store.commitMove()
+  if (moving.value && _moveHistoryPushed) {
+    await store.commitMove()
   }
   moving.value = null
 }
@@ -402,6 +471,7 @@ function onMoveMouseUp() {
 /* ---------- Keyboard ---------- */
 function onContainerMouseMove(e: MouseEvent) {
   if (dragState.assetId) return
+  if (dragState.roomTemplateId) return
   const p = localPoint(e)
   mouseCoords.value = { x: Math.round(p.x), y: Math.round(p.y) }
   rulerMouseX.value = p.x
@@ -431,7 +501,7 @@ function pushArrowHistory() {
   }, 600)
 }
 
-function onKeyDown(e: KeyboardEvent) {
+async function onKeyDown(e: KeyboardEvent) {
   const tag = (e.target as HTMLElement)?.tagName
   if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return
   if (e.code === 'Space') {
@@ -442,11 +512,11 @@ function onKeyDown(e: KeyboardEvent) {
   if (e.key === 'Delete' || e.key === 'Backspace') {
     if (store.state.selection) {
       e.preventDefault()
-      store.deleteSelected()
+      await store.deleteSelected()
     }
   } else if (e.key === 'r' || e.key === 'R') {
     if (store.state.selection?.type === 'object') {
-      store.rotateSelected()
+      await store.rotateSelected()
     } else if (store.state.selection?.type === 'room') {
       useToast().info('Rotate only works on objects, not rooms')
     }
@@ -473,14 +543,15 @@ function onKeyDown(e: KeyboardEvent) {
       const sel = store.state.selection
       if (sel?.type === 'room') {
         const r = store.selectedRoom()
-        if (r) { pushArrowHistory(); store.moveSelectedTo(r.x + dx, r.y + dy); store.commitMove() }
+        if (r) { pushArrowHistory(); store.moveSelectedTo(r.x + dx, r.y + dy); await store.commitMove() }
       } else if (sel?.type === 'object') {
         const o = store.selectedObject()
-        if (o) { pushArrowHistory(); store.moveSelectedTo(o.x + dx, o.y + dy); store.commitMove() }
+        if (o) { pushArrowHistory(); store.moveSelectedTo(o.x + dx, o.y + dy); await store.commitMove() }
       }
     }
   } else if (e.key === 'Escape') {
     if (dragState.assetId) endAssetDrag()
+    if (dragState.roomTemplateId) endRoomTemplateDrag()
     if (wallDrag.value) {
       window.removeEventListener('mousemove', onWallMouseMove)
       window.removeEventListener('mouseup', onWallMouseUp)
@@ -517,7 +588,7 @@ function onKeyDown(e: KeyboardEvent) {
     if (!e.ctrlKey && !e.metaKey) {
       e.preventDefault()
       const obj = store.selectedObject()
-      if (obj) store.toggleObjectLock(obj.id)
+      if (obj) await store.toggleObjectLock(obj.id)
     }
   }
 }
@@ -529,7 +600,7 @@ function onKeyUp(e: KeyboardEvent) {
 onMounted(() => {
   window.addEventListener('keydown', onKeyDown)
   window.addEventListener('keyup', onKeyUp)
-  if (!_hasSaved) requestAnimationFrame(fitToScreen)
+  if (!sessionStorage.getItem(ZOOM_STORAGE_KEY)) requestAnimationFrame(fitToScreen)
 })
 onUnmounted(() => {
   window.removeEventListener('keydown', onKeyDown)
@@ -544,6 +615,8 @@ onUnmounted(() => {
   window.removeEventListener('mouseup', onMoveMouseUp)
   window.removeEventListener('mousemove', onPanMouseMove)
   window.removeEventListener('mouseup', onPanMouseUp)
+  window.removeEventListener('mousemove', onRoomTemplateMouseMove)
+  window.removeEventListener('mouseup', onRoomTemplateMouseUp)
 })
 
 function escapeSvgText(s: string): string {
@@ -551,21 +624,26 @@ function escapeSvgText(s: string): string {
 }
 
 function assetLabel(type: string): string {
-  return escapeSvgText(findAssetCached(assetMap.value, type)?.name ?? type)
+  return escapeSvgText(findAssetCached(store.assetMap(), type)?.name ?? type)
 }
 
-function assetShape(type: string): AssetShape | undefined {
-  return findAssetCached(assetMap.value, type)?.shape
+function objFillColor(obj: ObjectData): string {
+  if (obj.fillColor) return obj.fillColor
+  const a = findAssetCached(store.assetMap(), obj.type)
+  return a?.defaultBgColor ?? '#ffffff'
+}
+
+function roomFillColor(room: RoomData): string {
+  return room.fillColor ?? ROOM_DEFAULT_FILL
 }
 
 function assetParts(type: string): CompositePart[] | undefined {
-  return findAssetCached(assetMap.value, type)?.parts
+  return findAssetCached(store.assetMap(), type)?.parts
 }
 
 function compositeOutlinePath(obj: ObjectData): string | null {
   const parts = assetParts(obj.type)
   if (!parts || parts.length === 0) return null
-  if (parts.some(p => p.shape === 'circle' || p.shape === 'arc')) return null
 
   const rects = parts.map(p => {
     const cx = obj.x + p.dx + p.w / 2
@@ -634,19 +712,6 @@ function roundedRectPath(x: number, y: number, w: number, h: number, rx?: { tl: 
   ].filter(Boolean).join(' ')
 }
 
-function doorArcPath(obj: { x: number; y: number; w: number; h: number; rotation: number }): string {
-  const { x, y, w, h, rotation } = obj
-  switch (rotation) {
-    case 90:
-      return `M ${x} ${y} L ${x} ${y + h} L ${x + w} ${y + h} L ${x + w} ${y}`
-    case 180:
-      return `M ${x} ${y + h} L ${x + w} ${y + h} L ${x + w} ${y} L ${x} ${y}`
-    case 270:
-      return `M ${x + w} ${y} L ${x + w} ${y + h} L ${x} ${y + h} L ${x} ${y}`
-    default:
-      return `M ${x} ${y} L ${x + w} ${y} L ${x + w} ${y + h} L ${x} ${y + h}`
-  }
-}
 </script>
 
 <template>
@@ -770,9 +835,21 @@ function doorArcPath(obj: { x: number; y: number; w: number; h: number; rotation
           </template>
 
           <g v-for="room in floor.rooms" :key="room.id" @mousedown="onRoomMouseDown($event, room.id)">
+            <path
+              v-if="roundedRectPath(room.x + (room.padding ?? 0), room.y + (room.padding ?? 0), room.w - (room.padding ?? 0) * 2, room.h - (room.padding ?? 0) * 2, room.rx)"
+              :d="roundedRectPath(room.x + (room.padding ?? 0), room.y + (room.padding ?? 0), room.w - (room.padding ?? 0) * 2, room.h - (room.padding ?? 0) * 2, room.rx)!"
+              :fill="roomFillColor(room)"
+              :stroke="room.locked ? '#666' : '#333333'"
+              :stroke-width="room.locked ? 2 : 1.5"
+              :stroke-dasharray="room.locked ? '6 3' : undefined"
+              :class="{ 'editor-canvas__selected': store.state.selection?.type === 'room' && store.state.selection.id === room.id, 'editor-canvas__dragging-item': moving?.id === room.id, 'editor-canvas__locked': room.locked }"
+              :style="{ cursor: moving?.id === room.id ? 'grabbing' : 'move' }"
+            />
             <rect
-              :x="room.x" :y="room.y" :width="room.w" :height="room.h"
-              :fill="roomColor(room.cat)"
+              v-else
+              :x="room.x + (room.padding ?? 0)" :y="room.y + (room.padding ?? 0)"
+              :width="room.w - (room.padding ?? 0) * 2" :height="room.h - (room.padding ?? 0) * 2"
+              :fill="roomFillColor(room)"
               :stroke="room.locked ? '#666' : '#333333'"
               :stroke-width="room.locked ? 2 : 1.5"
               :stroke-dasharray="room.locked ? '6 3' : undefined"
@@ -788,21 +865,10 @@ function doorArcPath(obj: { x: number; y: number; w: number; h: number; rotation
           <g v-for="obj in floor.objects" :key="obj.id" @mousedown="onObjectMouseDown($event, obj.id)">
             <template v-if="assetParts(obj.type)">
               <template v-for="(part, i) in assetParts(obj.type)" :key="i">
-                <ellipse
-                  v-if="part.shape === 'circle'"
-                  :cx="obj.x + part.dx + part.w / 2" :cy="obj.y + part.dy + part.h / 2"
-                  :rx="part.w / 2" :ry="part.h / 2"
-                  :fill="obj.fillColor ?? '#ffffff'" stroke="none"
-                  :transform="part.rotation ? `rotate(${part.rotation} ${obj.x + part.dx + part.w / 2} ${obj.y + part.dy + part.h / 2})` : undefined"
-                  :class="{ 'editor-canvas__collapsed': obj.collapsed }"
-                  :style="{ cursor: moving?.id === obj.id ? 'grabbing' : 'move' }"
-                />
                 <rect
-                  v-else
                   :x="obj.x + part.dx" :y="obj.y + part.dy"
                   :width="part.w" :height="part.h"
-                  :fill="obj.fillColor ?? '#ffffff'" stroke="none"
-                  :rx="part.shape === 'round' ? 6 : 0"
+                  :fill="objFillColor(obj)" stroke="none"
                   :transform="part.rotation ? `rotate(${part.rotation} ${obj.x + part.dx + part.w / 2} ${obj.y + part.dy + part.h / 2})` : undefined"
                   :class="{ 'editor-canvas__collapsed': obj.collapsed }"
                   :style="{ cursor: moving?.id === obj.id ? 'grabbing' : 'move' }"
@@ -817,20 +883,9 @@ function doorArcPath(obj: { x: number; y: number; w: number; h: number; rotation
               />
               <template v-else>
                 <template v-for="(part, i) in assetParts(obj.type)" :key="'o' + i">
-                  <ellipse
-                    v-if="part.shape === 'circle'"
-                    :cx="obj.x + part.dx + part.w / 2" :cy="obj.y + part.dy + part.h / 2"
-                    :rx="part.w / 2" :ry="part.h / 2"
-                    fill="none" stroke="#555" stroke-width="1"
-                    :transform="part.rotation ? `rotate(${part.rotation} ${obj.x + part.dx + part.w / 2} ${obj.y + part.dy + part.h / 2})` : undefined"
-                    :class="{ 'editor-canvas__selected': isObjectSelected(obj.id), 'editor-canvas__collapsed': obj.collapsed, 'editor-canvas__dragging-item': moving?.id === obj.id, 'editor-canvas__linked': obj.linkedIds && obj.linkedIds.length > 0, 'editor-canvas__locked': obj.locked }"
-                    :style="{ cursor: moving?.id === obj.id ? 'grabbing' : 'move', pointerEvents: 'none' }"
-                  />
                   <rect
-                    v-else
                     :x="obj.x + part.dx" :y="obj.y + part.dy"
                     :width="part.w" :height="part.h"
-                    :rx="part.shape === 'round' ? 6 : 0"
                     fill="none" stroke="#555" stroke-width="1"
                     :transform="part.rotation ? `rotate(${part.rotation} ${obj.x + part.dx + part.w / 2} ${obj.y + part.dy + part.h / 2})` : undefined"
                     :class="{ 'editor-canvas__selected': isObjectSelected(obj.id), 'editor-canvas__collapsed': obj.collapsed, 'editor-canvas__dragging-item': moving?.id === obj.id, 'editor-canvas__linked': obj.linkedIds && obj.linkedIds.length > 0, 'editor-canvas__locked': obj.locked }"
@@ -840,31 +895,17 @@ function doorArcPath(obj: { x: number; y: number; w: number; h: number; rotation
               </template>
             </template>
             <path
-              v-else-if="assetShape(obj.type) === 'arc'"
-              :d="doorArcPath(obj)"
-              fill="rgba(85,85,85,0.08)" stroke="#555" stroke-width="2"
-              :class="{ 'editor-canvas__selected': isObjectSelected(obj.id), 'editor-canvas__collapsed': obj.collapsed, 'editor-canvas__dragging-item': moving?.id === obj.id, 'editor-canvas__linked': obj.linkedIds && obj.linkedIds.length > 0, 'editor-canvas__locked': obj.locked }"
-              :style="{ cursor: moving?.id === obj.id ? 'grabbing' : 'move' }"
-            />
-            <path
-              v-else-if="assetShape(obj.type) !== 'circle' && roundedRectPath(obj.x + (obj.padding ?? 0), obj.y + (obj.padding ?? 0), obj.w - (obj.padding ?? 0) * 2, obj.h - (obj.padding ?? 0) * 2, obj.rx)"
+              v-else-if="roundedRectPath(obj.x + (obj.padding ?? 0), obj.y + (obj.padding ?? 0), obj.w - (obj.padding ?? 0) * 2, obj.h - (obj.padding ?? 0) * 2, obj.rx)"
               :d="roundedRectPath(obj.x + (obj.padding ?? 0), obj.y + (obj.padding ?? 0), obj.w - (obj.padding ?? 0) * 2, obj.h - (obj.padding ?? 0) * 2, obj.rx)!"
-              :fill="obj.fillColor ?? '#ffffff'" stroke="#555" stroke-width="1"
+              :fill="objFillColor(obj)" stroke="#555" stroke-width="1"
               :class="{ 'editor-canvas__selected': isObjectSelected(obj.id), 'editor-canvas__collapsed': obj.collapsed, 'editor-canvas__dragging-item': moving?.id === obj.id, 'editor-canvas__linked': obj.linkedIds && obj.linkedIds.length > 0, 'editor-canvas__locked': obj.locked }"
               :style="{ cursor: moving?.id === obj.id ? 'grabbing' : 'move' }"
             />
             <rect
-              v-else-if="assetShape(obj.type) !== 'circle'"
-              :x="obj.x + (obj.padding ?? 0)" :y="obj.y + (obj.padding ?? 0)" :width="obj.w - (obj.padding ?? 0) * 2" :height="obj.h - (obj.padding ?? 0) * 2"
-              :fill="obj.fillColor ?? '#ffffff'" stroke="#555" stroke-width="1"
-              :rx="obj.radius ?? (assetShape(obj.type) === 'round' ? 6 : 0)"
-              :class="{ 'editor-canvas__selected': isObjectSelected(obj.id), 'editor-canvas__collapsed': obj.collapsed, 'editor-canvas__dragging-item': moving?.id === obj.id, 'editor-canvas__linked': obj.linkedIds && obj.linkedIds.length > 0, 'editor-canvas__locked': obj.locked }"
-              :style="{ cursor: moving?.id === obj.id ? 'grabbing' : 'move' }"
-            />
-            <ellipse
               v-else
-              :cx="obj.x + obj.w / 2" :cy="obj.y + obj.h / 2" :rx="(obj.w - (obj.padding ?? 0) * 2) / 2" :ry="(obj.h - (obj.padding ?? 0) * 2) / 2"
-              :fill="obj.fillColor ?? '#ffffff'" stroke="#555" stroke-width="1"
+              :x="obj.x + (obj.padding ?? 0)" :y="obj.y + (obj.padding ?? 0)" :width="obj.w - (obj.padding ?? 0) * 2" :height="obj.h - (obj.padding ?? 0) * 2"
+              :fill="objFillColor(obj)" stroke="#555" stroke-width="1"
+              :rx="obj.radius ?? 0"
               :class="{ 'editor-canvas__selected': isObjectSelected(obj.id), 'editor-canvas__collapsed': obj.collapsed, 'editor-canvas__dragging-item': moving?.id === obj.id, 'editor-canvas__linked': obj.linkedIds && obj.linkedIds.length > 0, 'editor-canvas__locked': obj.locked }"
               :style="{ cursor: moving?.id === obj.id ? 'grabbing' : 'move' }"
             />
@@ -915,6 +956,17 @@ function doorArcPath(obj: { x: number; y: number; w: number; h: number; rotation
             :fill="paletteValid ? 'rgba(61,214,140,0.35)' : 'rgba(239,68,68,0.35)'"
             :stroke="paletteValid ? '#3dd68c' : '#ef4444'"
             stroke-width="1.5"
+          />
+        </g>
+
+        <g v-if="dragState.roomTemplateId && roomTemplateGhostRect">
+          <rect
+            :x="roomTemplateGhostRect.x" :y="roomTemplateGhostRect.y"
+            :width="roomTemplateGhostRect.w" :height="roomTemplateGhostRect.h"
+            :fill="roomTemplateValid ? 'rgba(61,214,140,0.35)' : 'rgba(239,68,68,0.35)'"
+            :stroke="roomTemplateValid ? '#3dd68c' : '#ef4444'"
+            stroke-width="1.5"
+            stroke-dasharray="4 3"
           />
         </g>
       </svg>

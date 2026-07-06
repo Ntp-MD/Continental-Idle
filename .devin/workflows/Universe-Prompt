@@ -371,7 +371,10 @@ After all findings are written, synthesize:
 2. **Under-engineering:** Any system that will not scale past 10× current load, user count, or data volume
 3. **Missing layers:** Systems that should exist but don't — error boundary, input sanitization layer, retry logic, caching layer, rate limiter, schema validator
 4. **The highest-leverage refactor:** The single structural change that would eliminate the most bugs or the most risk
-5. **Technical debt trajectory:** If no action is taken, what breaks first and when?
+5. **Technical debt trajectory:** If no action is taken:
+   - What breaks first, and under what condition (load spike, specific user action, data volume threshold)?
+   - What breaks second, as a consequence of the first failure (cascading failure chain)?
+   - At what point does the fix become significantly more expensive (data migration needed, breaking API change, user-facing regression)?
 
 ---
 
@@ -398,6 +401,7 @@ Write 8–12 sentences covering:
 - The highest-risk category overall
 - Any systemic pattern across multiple findings (e.g., "no input validation anywhere", "async errors consistently swallowed")
 - Estimated effort to reach production-safe state
+- What happens if the top 3 Critical/High findings are left unaddressed for one more release cycle
 
 Group all findings into:
 ```
@@ -445,6 +449,12 @@ const value = sanitize(raw); // validated and typed
 **Verification Step:**
 Exact input, sequence of actions, or scenario that reproduces the bug. If not reproducible from static analysis, state what runtime condition would need to be observed.
 
+**Consequence If Unfixed:**
+- **Immediate effect:** What breaks right now, under what trigger condition
+- **Compounding effect:** How the impact grows over time / scale / usage (e.g. "corrupts save data further with every session", "cost grows O(n²) as user base grows")
+- **Trigger likelihood:** How likely this is to actually occur in real usage (Rare / Occasional / Common / Inevitable)
+- **Downstream systems affected:** Other features/modules that will break or degrade as a result, if any
+
 ---
 
 ## Completeness Gate
@@ -456,7 +466,7 @@ You are **NOT done** until every condition below is met:
 - [ ] Every category addressed — either findings listed, clean verdict with evidence, or explicit N/A with reason
 - [ ] UI/UX Coverage Checklist table populated for every feature in the codebase (if applicable)
 - [ ] Dependency table populated from the package manifest (if applicable)
-- [ ] Every finding has: Category, Location, Confidence %, Exploitability, Blast Radius, Proposed Fix, Verification Step
+- [ ] Every finding has: Category, Location, Confidence %, Exploitability, Blast Radius, Proposed Fix, Verification Step, Consequence If Unfixed
 - [ ] Architectural Debt section written
 - [ ] Executive Summary written last (after all findings are known)
 

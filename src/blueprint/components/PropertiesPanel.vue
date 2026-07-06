@@ -2,7 +2,7 @@
 import { ref, watch, computed } from 'vue'
 import { useEditorStore } from '../editor-store'
 import { useToast } from '@/composables/useToast'
-import type { AssetShape, RoomData, ObjectData, AssetDef } from '../editor-types'
+import type { RoomData, ObjectData, AssetDef } from '../types'
 
 const store = useEditorStore()
 
@@ -10,71 +10,73 @@ const room = computed(() => store.selectedRoom())
 const object = computed(() => store.selectedObject())
 const asset = computed(() => store.selectedAsset.value)
 
-const fields = ref({ x: 0, y: 0, w: 0, h: 0, label: '', cat: 'public', radius: 0, labelPadding: 0, padding: 0, fillColor: '', objLabel: '', rxTL: 0, rxTR: 0, rxBR: 0, rxBL: 0 })
+const fields = ref({ x: 0, y: 0, w: 0, h: 0, label: '', radius: 0, labelPadding: 0, padding: 0, fillColor: '', objLabel: '', rxTL: 0, rxTR: 0, rxBR: 0, rxBL: 0 })
 const errorFields = ref<Record<string, boolean>>({})
 const rxSync = ref(true)
 
-const assetFields = ref({ name: '', w: 1, h: 1, shape: 'rect' as AssetShape, category: '', pxW: 0, pxH: 0, defaultPadding: 0, rxTL: 0, rxTR: 0, rxBR: 0, rxBL: 0 })
+const assetFields = ref({ name: '', w: 1, h: 1, category: '', pxW: 0, pxH: 0, usePx: false, defaultPadding: 0, rxTL: 0, rxTR: 0, rxBR: 0, rxBL: 0, defaultBgColor: '' })
+
+const customNotes = ref('')
+const customTags = ref('')
+const instanceLabel = ref('')
 
 watch([room, object], () => {
   errorFields.value = {}
   if (room.value) {
-    fields.value = { x: room.value.x, y: room.value.y, w: room.value.w, h: room.value.h, label: room.value.label, cat: room.value.cat, radius: room.value.radius ?? 0, labelPadding: 0, padding: 0, fillColor: '', objLabel: '', rxTL: 0, rxTR: 0, rxBR: 0, rxBL: 0 }
+    fields.value = { x: room.value.x, y: room.value.y, w: room.value.w, h: room.value.h, label: room.value.label, radius: room.value.radius ?? 0, labelPadding: 0, padding: room.value.padding ?? 0, fillColor: room.value.fillColor ?? '', objLabel: '', rxTL: room.value.rx?.tl ?? 0, rxTR: room.value.rx?.tr ?? 0, rxBR: room.value.rx?.br ?? 0, rxBL: room.value.rx?.bl ?? 0 }
   } else if (object.value) {
-    fields.value = { x: object.value.x, y: object.value.y, w: object.value.w, h: object.value.h, label: '', cat: 'public', radius: object.value.radius ?? 0, labelPadding: object.value.labelPadding ?? 0, padding: object.value.padding ?? 0, fillColor: object.value.fillColor ?? '', objLabel: object.value.label ?? '', rxTL: object.value.rx?.tl ?? 0, rxTR: object.value.rx?.tr ?? 0, rxBR: object.value.rx?.br ?? 0, rxBL: object.value.rx?.bl ?? 0 }
+    fields.value = { x: object.value.x, y: object.value.y, w: object.value.w, h: object.value.h, label: '', radius: object.value.radius ?? 0, labelPadding: object.value.labelPadding ?? 0, padding: object.value.padding ?? 0, fillColor: object.value.fillColor ?? '', objLabel: object.value.label ?? '', rxTL: object.value.rx?.tl ?? 0, rxTR: object.value.rx?.tr ?? 0, rxBR: object.value.rx?.br ?? 0, rxBL: object.value.rx?.bl ?? 0 }
+    if (object.value.subId) {
+      const props = store.getObjectCustomProps(object.value.subId)
+      customNotes.value = props?.notes ?? ''
+      customTags.value = props?.tags?.join(', ') ?? ''
+      instanceLabel.value = store.getInstanceLabel(object.value.subId) ?? ''
+    } else {
+      customNotes.value = ''
+      customTags.value = ''
+      instanceLabel.value = ''
+    }
   }
 }, { immediate: true })
 
 watch(asset, (a) => {
   if (a) {
-    assetFields.value = { name: a.name, w: a.w, h: a.h, shape: a.shape, category: a.category, pxW: a.pxW ?? 0, pxH: a.pxH ?? 0, defaultPadding: a.defaultPadding ?? 0, rxTL: a.defaultRx?.tl ?? 0, rxTR: a.defaultRx?.tr ?? 0, rxBR: a.defaultRx?.br ?? 0, rxBL: a.defaultRx?.bl ?? 0 }
+    assetFields.value = { name: a.name, w: a.w, h: a.h, category: a.category, pxW: a.pxW ?? 0, pxH: a.pxH ?? 0, usePx: a.usePx ?? false, defaultPadding: a.defaultPadding ?? 0, rxTL: a.defaultRx?.tl ?? 0, rxTR: a.defaultRx?.tr ?? 0, rxBR: a.defaultRx?.br ?? 0, rxBL: a.defaultRx?.bl ?? 0, defaultBgColor: a.defaultBgColor ?? '' }
   }
 }, { immediate: true })
 
+const FLASH_ERROR_MS = 1200
+
 function flashError(field: string) {
   errorFields.value[field] = true
-  setTimeout(() => { errorFields.value[field] = false }, 1200)
+  setTimeout(() => { errorFields.value[field] = false }, FLASH_ERROR_MS)
 }
 
-function commitRoomField(field: 'x' | 'y' | 'w' | 'h' | 'label' | 'cat' | 'radius') {
+async function commitRoomField(field: 'x' | 'y' | 'w' | 'h' | 'label' | 'radius' | 'fillColor' | 'padding') {
   if (!room.value) return
+  if (field === 'fillColor') {
+    await store.updateRoomProps({ fillColor: fields.value.fillColor || undefined })
+    return
+  }
   const patch: Partial<RoomData> = { [field]: fields.value[field] } as Partial<RoomData>
-  const ok = store.updateRoomProps(patch)
+  const ok = await store.updateRoomProps(patch)
   if (!ok) {
     flashError(field)
     ;(fields.value as unknown as Record<string, unknown>)[field] = (room.value as unknown as Record<string, unknown>)[field]
   }
 }
 
-function commitObjectField(field: 'x' | 'y' | 'w' | 'h' | 'radius' | 'labelPadding' | 'padding' | 'fillColor' | 'objLabel') {
-  if (!object.value) return
-  if (field === 'fillColor') {
-    store.updateObjectProps({ fillColor: fields.value.fillColor || undefined })
-    return
-  }
-  if (field === 'objLabel') {
-    store.updateObjectProps({ label: fields.value.objLabel || undefined })
-    return
-  }
-  const patch: Partial<ObjectData> = { [field]: fields.value[field] } as Partial<ObjectData>
-  const ok = store.updateObjectProps(patch)
-  if (!ok) {
-    flashError(field)
-    ;(fields.value as unknown as Record<string, unknown>)[field] = (object.value as unknown as Record<string, unknown>)[field]
-  }
-}
-
-function commitRx() {
-  if (!object.value) return
+async function commitRoomRx() {
+  if (!room.value) return
   const { rxTL, rxTR, rxBR, rxBL } = fields.value
   if (rxTL === 0 && rxTR === 0 && rxBR === 0 && rxBL === 0) {
-    store.updateObjectProps({ rx: undefined })
+    await store.updateRoomProps({ rx: undefined })
   } else {
-    store.updateObjectProps({ rx: { tl: rxTL, tr: rxTR, br: rxBR, bl: rxBL } })
+    await store.updateRoomProps({ rx: { tl: rxTL, tr: rxTR, br: rxBR, bl: rxBL } })
   }
 }
 
-function onRxInput(corner: 'rxTL' | 'rxTR' | 'rxBR' | 'rxBL') {
+async function onRoomRxInput(corner: 'rxTL' | 'rxTR' | 'rxBR' | 'rxBL') {
   if (rxSync.value) {
     const val = fields.value[corner]
     fields.value.rxTL = val
@@ -82,47 +84,130 @@ function onRxInput(corner: 'rxTL' | 'rxTR' | 'rxBR' | 'rxBL') {
     fields.value.rxBR = val
     fields.value.rxBL = val
   }
-  commitRx()
+  await commitRoomRx()
 }
 
-function toggleLock() {
+async function clearRoomFillColor() {
+  if (!room.value) return
+  fields.value.fillColor = ''
+  await store.updateRoomProps({ fillColor: undefined })
+}
+
+async function saveRoomAsTemplate() {
+  if (!room.value) return
+  const name = window.prompt('Template name:', room.value.label || 'Room Template')
+  if (!name) return
+  await store.addRoomTemplate(room.value, name)
+  useToast().success('Room template saved')
+}
+
+async function commitObjectField(field: 'x' | 'y' | 'w' | 'h' | 'radius' | 'labelPadding' | 'padding' | 'fillColor' | 'objLabel') {
   if (!object.value) return
-  store.toggleObjectLock(object.value.id)
+  if (field === 'fillColor') {
+    await store.updateObjectProps({ fillColor: fields.value.fillColor || undefined })
+    return
+  }
+  if (field === 'objLabel') {
+    await store.updateObjectProps({ label: fields.value.objLabel || undefined })
+    return
+  }
+  const patch: Partial<ObjectData> = { [field]: fields.value[field] } as Partial<ObjectData>
+  const ok = await store.updateObjectProps(patch)
+  if (!ok) {
+    flashError(field)
+    ;(fields.value as unknown as Record<string, unknown>)[field] = (object.value as unknown as Record<string, unknown>)[field]
+  }
 }
 
-function clearFillColor() {
+async function commitRx() {
+  if (!object.value) return
+  const { rxTL, rxTR, rxBR, rxBL } = fields.value
+  if (rxTL === 0 && rxTR === 0 && rxBR === 0 && rxBL === 0) {
+    await store.updateObjectProps({ rx: undefined })
+  } else {
+    await store.updateObjectProps({ rx: { tl: rxTL, tr: rxTR, br: rxBR, bl: rxBL } })
+  }
+}
+
+async function onRxInput(corner: 'rxTL' | 'rxTR' | 'rxBR' | 'rxBL') {
+  if (rxSync.value) {
+    const val = fields.value[corner]
+    fields.value.rxTL = val
+    fields.value.rxTR = val
+    fields.value.rxBR = val
+    fields.value.rxBL = val
+  }
+  await commitRx()
+}
+
+async function toggleLock() {
+  if (!object.value) return
+  await store.toggleObjectLock(object.value.id)
+}
+
+async function clearFillColor() {
   if (!object.value) return
   fields.value.fillColor = ''
-  store.updateObjectProps({ fillColor: undefined })
+  await store.updateObjectProps({ fillColor: undefined })
 }
 
-function rotate() {
-  store.rotateSelected()
+async function rotate() {
+  await store.rotateSelected()
 }
 
-function remove() {
-  store.deleteSelected()
+async function remove() {
+  await store.deleteSelected()
 }
 
-function commitAssetField(field: 'name' | 'w' | 'h' | 'shape' | 'category' | 'pxW' | 'pxH' | 'defaultPadding') {
+async function saveCustomNotes() {
+  if (!object.value?.subId) return
+  const props = store.getObjectCustomProps(object.value.subId) || {}
+  props.notes = customNotes.value || undefined
+  await store.setObjectCustomProps(object.value.subId, props)
+}
+
+async function saveCustomTags() {
+  if (!object.value?.subId) return
+  const tags = customTags.value.split(',').map(t => t.trim()).filter(t => t)
+  const props = store.getObjectCustomProps(object.value.subId) || {}
+  props.tags = tags.length > 0 ? tags : undefined
+  await store.setObjectCustomProps(object.value.subId, props)
+}
+
+async function saveInstanceLabel() {
+  if (!object.value?.subId) return
+  if (instanceLabel.value) {
+    await store.setInstanceLabel(object.value.subId, instanceLabel.value)
+  } else {
+    await store.deleteInstanceLabel(object.value.subId)
+  }
+}
+
+async function commitAssetField(field: 'name' | 'w' | 'h' | 'category' | 'pxW' | 'pxH' | 'usePx' | 'defaultPadding' | 'defaultBgColor') {
   if (!asset.value) return
   const val = assetFields.value[field]
-  store.updateCustomAsset(asset.value.id, { [field]: val } as Partial<Pick<AssetDef, 'name' | 'w' | 'h' | 'shape' | 'category' | 'pxW' | 'pxH' | 'defaultPadding'>>)
+  await store.updateCustomAsset(asset.value.id, { [field]: val } as Partial<Pick<AssetDef, 'name' | 'w' | 'h' | 'category' | 'pxW' | 'pxH' | 'usePx' | 'defaultPadding' | 'defaultBgColor'>>)
+}
+
+async function toggleUsePx() {
+  if (!asset.value) return
+  assetFields.value.usePx = !assetFields.value.usePx
+  await store.updateCustomAsset(asset.value.id, { usePx: assetFields.value.usePx })
 }
 
 const assetRxSync = ref(true)
 
-function commitAssetRx() {
+async function commitAssetRx() {
   if (!asset.value) return
   const { rxTL, rxTR, rxBR, rxBL } = assetFields.value
   if (rxTL === 0 && rxTR === 0 && rxBR === 0 && rxBL === 0) {
-    store.updateCustomAsset(asset.value.id, { defaultRx: undefined })
+    await store.updateCustomAsset(asset.value.id, { defaultRx: undefined })
   } else {
-    store.updateCustomAsset(asset.value.id, { defaultRx: { tl: rxTL, tr: rxTR, br: rxBR, bl: rxBL } })
+    await store.updateCustomAsset(asset.value.id, { defaultRx: { tl: rxTL, tr: rxTR, br: rxBR, bl: rxBL } })
   }
 }
 
-function onAssetRxInput(corner: 'rxTL' | 'rxTR' | 'rxBR' | 'rxBL') {
+async function onAssetRxInput(corner: 'rxTL' | 'rxTR' | 'rxBR' | 'rxBL') {
   if (assetRxSync.value) {
     const val = assetFields.value[corner]
     assetFields.value.rxTL = val
@@ -130,19 +215,19 @@ function onAssetRxInput(corner: 'rxTL' | 'rxTR' | 'rxBR' | 'rxBL') {
     assetFields.value.rxBR = val
     assetFields.value.rxBL = val
   }
-  commitAssetRx()
+  await commitAssetRx()
+}
+
+async function clearAssetBgColor() {
+  if (!asset.value) return
+  assetFields.value.defaultBgColor = ''
+  await store.updateCustomAsset(asset.value.id, { defaultBgColor: undefined })
 }
 
 const isCompositeAsset = computed(() => !!(asset.value?.parts && asset.value.parts.length > 0))
 const partCount = computed(() => asset.value?.parts?.length ?? 0)
 const isLinkedAsset = computed(() => !!(asset.value?.linkedParts && asset.value.linkedParts.length > 0))
 const linkedPartCount = computed(() => asset.value?.linkedParts?.length ?? 0)
-
-function resetPx() {
-  assetFields.value.pxW = 0
-  assetFields.value.pxH = 0
-  store.updateCustomAsset(asset.value!.id, { pxW: 0, pxH: 0 })
-}
 
 const collapsedCount = computed(() => {
   if (!asset.value) return 0
@@ -160,86 +245,100 @@ const assetInUse = computed(() => {
   return store.state.layout.floors.some(f => f.objects.some(o => o.type === asset.value!.id))
 })
 
-function deleteAsset() {
+async function onSaveAsset() {
+  await store.saveLayout()
+  useToast().success('Asset saved')
+}
+
+async function onSaveProps() {
+  await store.saveLayout()
+  useToast().success('Properties saved')
+}
+
+async function deleteAsset() {
   if (!asset.value) return
   const msg = assetInUse.value
     ? 'This asset is placed on floors. Deleting will remove all instances. Continue?'
     : 'Remove this asset from the palette?'
   if (!window.confirm(msg)) return
-  store.deleteCustomAsset(asset.value.id)
+  await store.deleteCustomAsset(asset.value.id)
   store.selectAsset(null)
   useToast().success('Asset removed from palette')
 }
 
-/* ---------- Room Category Manager ---------- */
+/* ---------- Asset Category Manager ---------- */
 const showCatManager = ref(false)
-const newCatLabel = ref('')
-const newCatColor = ref('#e0d4e8')
 
-const roomCategories = computed(() => store.state.layout.roomCategories ?? [])
 const assetCategories = computed(() => store.state.layout.assetCategories ?? [])
 
-function addRoomCat() {
-  const def = store.addRoomCategory(newCatLabel.value, newCatColor.value)
-  if (def) {
-    newCatLabel.value = ''
-    newCatColor.value = '#e0d4e8'
-  }
-}
-
-function deleteRoomCat(id: string) {
-  store.deleteRoomCategory(id)
-}
-
-/* ---------- Asset Category Manager ---------- */
 const newAssetCat = ref('')
 
-function addAssetCat() {
-  const name = store.addAssetCategory(newAssetCat.value)
+async function addAssetCat() {
+  const name = await store.addAssetCategory(newAssetCat.value)
   if (name) newAssetCat.value = ''
 }
 
-function deleteAssetCat(name: string) {
-  store.deleteAssetCategory(name)
+async function renameAssetCat(oldName: string) {
+  const newName = window.prompt('Rename category:', oldName)
+  if (!newName) return
+  const trimmed = newName.trim()
+  if (!trimmed) {
+    useToast().warning('Category name cannot be empty')
+    return
+  }
+  if (trimmed === oldName) return
+  if (trimmed.length > 50) {
+    useToast().warning('Category name too long (max 50 characters)')
+    return
+  }
+  if (!/^[a-zA-Z0-9\s\-_]+$/.test(trimmed)) {
+    useToast().warning('Category name can only contain letters, numbers, spaces, hyphens, and underscores')
+    return
+  }
+  await store.renameAssetCategory(oldName, trimmed)
 }
 
-function doMerge() {
+async function deleteAssetCat(name: string) {
+  await store.deleteAssetCategory(name)
+}
+
+async function doMerge() {
   if (!store.state.multiSelection || store.state.multiSelection.ids.length < 2) return
-  store.mergeObjects([...store.state.multiSelection.ids])
+  await store.mergeObjects([...store.state.multiSelection.ids])
 }
 
-function doLink() {
+async function doLink() {
   if (!store.state.multiSelection || store.state.multiSelection.ids.length < 2) return
-  store.linkObjects([...store.state.multiSelection.ids])
+  await store.linkObjects([...store.state.multiSelection.ids])
 }
 
-function doUnlink() {
+async function doUnlink() {
   if (!object.value) return
-  store.unlinkObject(object.value.id)
+  await store.unlinkObject(object.value.id)
 }
 
 const compositeName = ref('')
 const linkedName = ref('')
 
-function doCreateComposite() {
+async function doCreateComposite() {
   if (!store.state.multiSelection || store.state.multiSelection.ids.length < 2) return
-  const id = store.createCompositeAssetFromSelection(compositeName.value || undefined)
+  const id = await store.createCompositeAssetFromSelection(compositeName.value || undefined)
   if (id) {
     compositeName.value = ''
   }
 }
 
-function doCreateLinked() {
+async function doCreateLinked() {
   if (!store.state.multiSelection || store.state.multiSelection.ids.length < 2) return
-  const id = store.createLinkedAssetFromSelection(linkedName.value || undefined)
+  const id = await store.createLinkedAssetFromSelection(linkedName.value || undefined)
   if (id) {
     linkedName.value = ''
   }
 }
 
-function doUngroup() {
+async function doUngroup() {
   if (!object.value) return
-  store.ungroupObject(object.value.id)
+  await store.ungroupObject(object.value.id)
 }
 
 /* ---------- Zone Management ---------- */
@@ -251,18 +350,43 @@ const newZoneH = ref(100)
 
 const zones = computed(() => store.currentFloor.value?.zones ?? [])
 
-function addZone() {
+async function addZone() {
   const floor = store.currentFloor.value
   if (!floor) return
-  const x = Math.round((floor.rooms[0]?.x ?? 0) / 25) * 25
-  const y = Math.round((floor.rooms[0]?.y ?? 0) / 25) * 25
-  store.addZone(x, y, newZoneW.value, newZoneH.value, newZoneLabel.value || undefined, newZoneColor.value || undefined)
+  const t = store.state.layout.canvas.tileSize
+  const x = Math.round((floor.rooms[0]?.x ?? 0) / t) * t
+  const y = Math.round((floor.rooms[0]?.y ?? 0) / t) * t
+  await store.addZone(x, y, newZoneW.value, newZoneH.value, newZoneLabel.value || undefined, newZoneColor.value || undefined)
   newZoneLabel.value = ''
   newZoneColor.value = '#06b6d4'
 }
 
-function deleteZone(id: string) {
-  store.deleteZone(id)
+async function deleteZone(id: string) {
+  await store.deleteZone(id)
+}
+
+async function updateZoneColor(id: string, color: string) {
+  await store.updateZone(id, { color })
+}
+
+async function updateZoneLabel(id: string, label: string) {
+  await store.updateZone(id, { label })
+}
+
+async function updateZoneX(id: string, x: number) {
+  await store.updateZone(id, { x })
+}
+
+async function updateZoneY(id: string, y: number) {
+  await store.updateZone(id, { y })
+}
+
+async function updateZoneW(id: string, w: number) {
+  await store.updateZone(id, { w })
+}
+
+async function updateZoneH(id: string, h: number) {
+  await store.updateZone(id, { h })
 }
 
 const isComposite = computed(() => {
@@ -286,21 +410,21 @@ const isComposite = computed(() => {
       <div v-if="showZoneManager" class="properties-panel__cat-manager">
         <div v-for="zone in zones" :key="zone.id" class="properties-panel__zone-row">
           <div class="properties-panel__cat-row">
-            <input type="color" :value="zone.color" @change="store.updateZone(zone.id, { color: ($event.target as HTMLInputElement).value })" class="properties-panel__cat-color" />
-            <input type="text" :value="zone.label" @change="store.updateZone(zone.id, { label: ($event.target as HTMLInputElement).value })" class="properties-panel__cat-label" />
+            <input type="color" :value="zone.color" @change="updateZoneColor(zone.id, ($event.target as HTMLInputElement).value)" class="properties-panel__cat-color" />
+            <input type="text" :value="zone.label" @change="updateZoneLabel(zone.id, ($event.target as HTMLInputElement).value)" class="properties-panel__cat-label" />
             <button class="properties-panel__btn properties-panel__btn--danger properties-panel__btn--sm" @click="deleteZone(zone.id)">×</button>
           </div>
           <div class="properties-panel__zone-pos">
             <label>X</label>
-            <input type="number" :value="zone.x" @change="store.updateZone(zone.id, { x: +($event.target as HTMLInputElement).value })" />
+            <input type="number" :value="zone.x" @change="updateZoneX(zone.id, +($event.target as HTMLInputElement).value)" />
             <label>Y</label>
-            <input type="number" :value="zone.y" @change="store.updateZone(zone.id, { y: +($event.target as HTMLInputElement).value })" />
+            <input type="number" :value="zone.y" @change="updateZoneY(zone.id, +($event.target as HTMLInputElement).value)" />
           </div>
           <div class="properties-panel__zone-pos">
             <label>W</label>
-            <input type="number" :value="zone.w" @change="store.updateZone(zone.id, { w: +($event.target as HTMLInputElement).value })" />
+            <input type="number" :value="zone.w" @change="updateZoneW(zone.id, +($event.target as HTMLInputElement).value)" />
             <label>H</label>
-            <input type="number" :value="zone.h" @change="store.updateZone(zone.id, { h: +($event.target as HTMLInputElement).value })" />
+            <input type="number" :value="zone.h" @change="updateZoneH(zone.id, +($event.target as HTMLInputElement).value)" />
           </div>
         </div>
         <div class="properties-panel__cat-add">
@@ -366,7 +490,8 @@ const isComposite = computed(() => {
       <button class="properties-panel__btn" @click="showCatManager = !showCatManager">{{ showCatManager ? 'Close' : 'Manage Asset Categories' }}</button>
       <div v-if="showCatManager && asset" class="properties-panel__cat-manager">
         <div v-for="cat in assetCategories" :key="cat" class="properties-panel__cat-row">
-          <span class="properties-panel__cat-label">{{ cat }}</span>
+          <span class="properties-panel__cat-label" @dblclick="renameAssetCat(cat)" title="Double-click to rename">{{ cat }}</span>
+          <button class="properties-panel__btn properties-panel__btn--sm" @click="renameAssetCat(cat)" title="Rename">✎</button>
           <button class="properties-panel__btn properties-panel__btn--danger properties-panel__btn--sm" @click="deleteAssetCat(cat)">×</button>
         </div>
         <div class="properties-panel__cat-add">
@@ -376,36 +501,43 @@ const isComposite = computed(() => {
       </div>
       <template v-if="!isCompositeAsset && !isLinkedAsset">
         <div class="properties-panel__row">
-          <label>Width (tiles)</label>
-          <input type="number" min="1" v-model.number="assetFields.w" @change="commitAssetField('w')" />
+          <label>Unit Mode</label>
+          <div class="properties-panel__unit-toggle">
+            <button class="properties-panel__unit-btn" :class="{ 'properties-panel__unit-btn--active': !assetFields.usePx }" @click="assetFields.usePx ? toggleUsePx() : null">Tiles</button>
+            <button class="properties-panel__unit-btn" :class="{ 'properties-panel__unit-btn--active': assetFields.usePx }" @click="!assetFields.usePx ? toggleUsePx() : null">Pixels</button>
+          </div>
         </div>
-        <div class="properties-panel__row">
-          <label>Height (tiles)</label>
-          <input type="number" min="1" v-model.number="assetFields.h" @change="commitAssetField('h')" />
-        </div>
-        <div class="properties-panel__row">
-          <label>Shape</label>
-          <select v-model="assetFields.shape" @change="commitAssetField('shape')">
-            <option value="rect">Rect</option>
-            <option value="circle">Circle</option>
-            <option value="round">Round</option>
-            <option value="arc">Arc</option>
-          </select>
-        </div>
-        <div class="properties-panel__row">
-          <label>px Width</label>
-          <input type="number" min="0" v-model.number="assetFields.pxW" @change="commitAssetField('pxW')" />
-        </div>
-        <div class="properties-panel__row">
-          <label>px Height</label>
-          <input type="number" min="0" v-model.number="assetFields.pxH" @change="commitAssetField('pxH')" />
-        </div>
-        <button v-if="assetFields.pxW > 0 || assetFields.pxH > 0" class="properties-panel__btn properties-panel__btn--sm" @click="resetPx">Reset px Override</button>
-        <div v-if="assetFields.pxW > 0 || assetFields.pxH > 0" class="properties-panel__readonly-note">Using px override — tile size ignored</div>
+        <template v-if="!assetFields.usePx">
+          <div class="properties-panel__row">
+            <label>Width (tiles)</label>
+            <input type="number" min="1" v-model.number="assetFields.w" @change="commitAssetField('w')" />
+          </div>
+          <div class="properties-panel__row">
+            <label>Height (tiles)</label>
+            <input type="number" min="1" v-model.number="assetFields.h" @change="commitAssetField('h')" />
+          </div>
+        </template>
+        <template v-else>
+          <div class="properties-panel__row">
+            <label>Width (px)</label>
+            <input type="number" min="1" v-model.number="assetFields.pxW" @change="commitAssetField('pxW')" />
+          </div>
+          <div class="properties-panel__row">
+            <label>Height (px)</label>
+            <input type="number" min="1" v-model.number="assetFields.pxH" @change="commitAssetField('pxH')" />
+          </div>
+        </template>
       </template>
       <div class="properties-panel__row">
         <label>Default Padding</label>
         <input type="number" min="0" v-model.number="assetFields.defaultPadding" @change="commitAssetField('defaultPadding')" />
+      </div>
+      <div class="properties-panel__row">
+        <label>Bg Color</label>
+        <div class="properties-panel__color-row">
+          <input type="color" :value="assetFields.defaultBgColor || '#ffffff'" @input="assetFields.defaultBgColor = ($event.target as HTMLInputElement).value; commitAssetField('defaultBgColor')" class="properties-panel__cat-color" />
+          <button class="properties-panel__btn properties-panel__btn--sm" @click="clearAssetBgColor">Reset</button>
+        </div>
       </div>
       <template v-if="!isCompositeAsset && !isLinkedAsset">
         <div class="properties-panel__row">
@@ -445,6 +577,7 @@ const isComposite = computed(() => {
         <span>{{ collapsedCount }} object(s) collapsed — overlapping! Shown in red on canvas.</span>
       </div>
       <div class="properties-panel__delete-section">
+        <button class="properties-panel__btn properties-panel__btn--save" @click="onSaveAsset">Save Asset</button>
         <button class="properties-panel__btn properties-panel__btn--danger" @click="deleteAsset">Delete Asset</button>
       </div>
     </div>
@@ -476,27 +609,49 @@ const isComposite = computed(() => {
           <input type="text" v-model="fields.label" @change="commitRoomField('label')" />
         </div>
         <div class="properties-panel__row">
-          <label>Category</label>
-          <select v-model="fields.cat" @change="commitRoomField('cat')">
-            <option v-for="cat in roomCategories" :key="cat.id" :value="cat.id">{{ cat.label }}</option>
-          </select>
+          <label>Radius</label>
+          <input type="number" min="0" v-model.number="fields.radius" @change="commitRoomField('radius')" />
         </div>
-        <button class="properties-panel__btn" @click="showCatManager = !showCatManager">{{ showCatManager ? 'Close' : 'Manage Categories' }}</button>
-        <div v-if="showCatManager" class="properties-panel__cat-manager">
-          <div v-for="cat in roomCategories" :key="cat.id" class="properties-panel__cat-row">
-            <input type="color" :value="cat.color" @input="store.updateRoomCategory(cat.id, { color: ($event.target as HTMLInputElement).value })" class="properties-panel__cat-color" />
-            <input type="text" :value="cat.label" @change="store.updateRoomCategory(cat.id, { label: ($event.target as HTMLInputElement).value })" class="properties-panel__cat-label" />
-            <button v-if="!cat.builtin" class="properties-panel__btn properties-panel__btn--danger properties-panel__btn--sm" @click="deleteRoomCat(cat.id)">×</button>
-          </div>
-          <div class="properties-panel__cat-add">
-            <input type="text" v-model="newCatLabel" placeholder="New category name" class="properties-panel__cat-label" />
-            <input type="color" v-model="newCatColor" class="properties-panel__cat-color" />
-            <button class="properties-panel__btn properties-panel__btn--sm" @click="addRoomCat">+</button>
+        <div class="properties-panel__row">
+          <label>Padding</label>
+          <input type="number" min="0" v-model.number="fields.padding" @change="commitRoomField('padding')" />
+        </div>
+        <div class="properties-panel__row">
+          <label>Corner Radius</label>
+          <div class="properties-panel__rx-grid">
+            <div class="properties-panel__rx-corner">
+              <span class="properties-panel__rx-label">↖ TL</span>
+              <input type="number" min="0" v-model.number="fields.rxTL" @input="onRoomRxInput('rxTL')" class="properties-panel__rx-input" />
+            </div>
+            <div class="properties-panel__rx-corner">
+              <span class="properties-panel__rx-label">TR ↗</span>
+              <input type="number" min="0" v-model.number="fields.rxTR" @input="onRoomRxInput('rxTR')" class="properties-panel__rx-input" />
+            </div>
+            <div class="properties-panel__rx-corner">
+              <span class="properties-panel__rx-label">↙ BL</span>
+              <input type="number" min="0" v-model.number="fields.rxBL" @input="onRoomRxInput('rxBL')" class="properties-panel__rx-input" />
+            </div>
+            <div class="properties-panel__rx-corner">
+              <span class="properties-panel__rx-label">BR ↘</span>
+              <input type="number" min="0" v-model.number="fields.rxBR" @input="onRoomRxInput('rxBR')" class="properties-panel__rx-input" />
+            </div>
           </div>
         </div>
         <div class="properties-panel__row">
-          <label>Radius</label>
-          <input type="number" min="0" v-model.number="fields.radius" @change="commitRoomField('radius')" />
+          <label></label>
+          <label class="properties-panel__rx-sync">
+            <input type="checkbox" v-model="rxSync" /> Sync all corners
+          </label>
+        </div>
+        <div class="properties-panel__row">
+          <label>Fill Color</label>
+          <div class="properties-panel__color-row">
+            <input type="color" :value="fields.fillColor || '#e8e4dc'" @input="fields.fillColor = ($event.target as HTMLInputElement).value; commitRoomField('fillColor')" class="properties-panel__cat-color" />
+            <button class="properties-panel__btn properties-panel__btn--sm" @click="clearRoomFillColor">Reset</button>
+          </div>
+        </div>
+        <div class="properties-panel__btn-group">
+          <button class="properties-panel__btn" @click="saveRoomAsTemplate">Save as Template</button>
         </div>
       </template>
 
@@ -551,6 +706,19 @@ const isComposite = computed(() => {
           <label>Label</label>
           <input type="text" v-model="fields.objLabel" @change="commitObjectField('objLabel')" placeholder="Custom label" />
         </div>
+        <div class="properties-panel__section-title">Instance Properties</div>
+        <div class="properties-panel__row">
+          <label>Instance Label</label>
+          <input type="text" v-model="instanceLabel" @change="saveInstanceLabel" placeholder="Unique label for this instance" />
+        </div>
+        <div class="properties-panel__row">
+          <label>Notes</label>
+          <textarea v-model="customNotes" @change="saveCustomNotes" placeholder="Add notes..." class="properties-panel__textarea" rows="2"></textarea>
+        </div>
+        <div class="properties-panel__row">
+          <label>Tags</label>
+          <input type="text" v-model="customTags" @change="saveCustomTags" placeholder="tag1, tag2, tag3" />
+        </div>
         <div class="properties-panel__btn-group">
           <button class="properties-panel__btn" @click="rotate">Rotate (R)</button>
           <button class="properties-panel__btn" @click="toggleLock">{{ object.locked ? 'Unlock' : 'Lock' }}</button>
@@ -560,6 +728,7 @@ const isComposite = computed(() => {
       </template>
 
       <div class="properties-panel__delete-section">
+        <button class="properties-panel__btn properties-panel__btn--save" @click="onSaveProps">Save</button>
         <button class="properties-panel__btn" @click="store.select(null); store.selectAsset(null)">Deselect</button>
         <button v-if="object || room" class="properties-panel__btn properties-panel__btn--danger" @click="remove">Delete</button>
       </div>
@@ -687,6 +856,17 @@ const isComposite = computed(() => {
   opacity: 0.85;
 }
 
+.properties-panel__btn--save {
+  color: #08090c;
+  background: var(--accent-green, #3dd68c);
+  border-color: var(--accent-green, #3dd68c);
+  font-weight: bold;
+}
+
+.properties-panel__btn--save:hover:not(:disabled) {
+  opacity: 0.85;
+}
+
 .properties-panel__readonly-note {
   font-size: 11px;
   color: var(--text-dim, #6a6a74);
@@ -781,6 +961,24 @@ const isComposite = computed(() => {
   border-radius: 4px;
   font-size: 12px;
   min-width: 0;
+}
+
+.properties-panel__textarea {
+  flex: 1;
+  background: var(--bg-secondary, #0c0d10);
+  border: 1px solid var(--border-dim, #252530);
+  color: var(--text-primary, #e8e8ec);
+  padding: 6px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  resize: vertical;
+  min-height: 40px;
+  font-family: inherit;
+}
+
+.properties-panel__textarea:focus {
+  outline: none;
+  border-color: var(--accent-blue, #3b82f6);
 }
 
 .properties-panel__cat-add {
@@ -926,5 +1124,38 @@ const isComposite = computed(() => {
 
 .properties-panel__delete-section .properties-panel__btn {
   flex: 1;
+}
+
+.properties-panel__unit-toggle {
+  display: flex;
+  gap: 0;
+  flex: 1;
+}
+
+.properties-panel__unit-btn {
+  flex: 1;
+  background: var(--bg-tertiary, #101216);
+  border: 1px solid var(--border-dim, #252530);
+  color: var(--text-secondary, #a0a0a8);
+  padding: 5px 8px;
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.properties-panel__unit-btn:first-child {
+  border-radius: 4px 0 0 4px;
+}
+
+.properties-panel__unit-btn:last-child {
+  border-radius: 0 4px 4px 0;
+  border-left: none;
+}
+
+.properties-panel__unit-btn--active {
+  background: var(--accent-gold, #f0c040);
+  color: #08090c;
+  border-color: var(--accent-gold, #f0c040);
+  font-weight: bold;
 }
 </style>

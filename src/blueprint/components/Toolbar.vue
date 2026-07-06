@@ -17,15 +17,16 @@ watch(() => store.state.layout.canvas, (c) => {
   tileInput.value = c.tileSize
 })
 
-function applyCanvasSize() {
+async function applyCanvasSize() {
   const ok = window.confirm('Changing canvas size will re-snap all rooms/objects to the new grid. Continue?')
   if (!ok) return
-  store.resizeCanvas(widthInput.value, heightInput.value, tileInput.value)
+  await store.resizeCanvas(widthInput.value, heightInput.value, tileInput.value)
   toast.info('Canvas resized')
 }
 
-function onExportTS() {
-  store.exportToTS()
+async function onSave() {
+  await store.saveLayout()
+  toast.success('Layout saved')
 }
 
 function onUndo() {
@@ -131,15 +132,6 @@ onUnmounted(() => {
         @click="store.setMode('erase')"
         title="Erase wall tiles (click room edges to trim)"
       >Erase</button>
-      <select
-        v-if="store.state.mode === 'wall'"
-        class="editor-toolbar__wall-cat"
-        :value="store.state.wallCategory"
-        @change="store.state.wallCategory = ($event.target as HTMLSelectElement).value"
-        title="Room category for new walls"
-      >
-        <option v-for="cat in store.state.layout.roomCategories" :key="cat.id" :value="cat.id">{{ cat.label }}</option>
-      </select>
     </div>
 
     <div class="editor-toolbar__group">
@@ -149,7 +141,7 @@ onUnmounted(() => {
     </div>
 
     <div class="editor-toolbar__group">
-      <button class="editor-toolbar__btn editor-toolbar__btn--save-ts" @click="onExportTS" title="Save layout to src/blueprint/saved-layout.ts">Save TS</button>
+      <button class="editor-toolbar__btn editor-toolbar__btn--save" @click="onSave" title="Save layout to editor-store.ts">Save</button>
       <button class="editor-toolbar__btn editor-toolbar__btn--danger" @click="onClear" title="Clear all rooms and objects on this floor">Clear Floor</button>
       <button class="editor-toolbar__btn editor-toolbar__btn--danger" @click="onClearAll" title="Clear all rooms and objects on every floor">Clear All Floors</button>
     </div>
@@ -263,16 +255,6 @@ onUnmounted(() => {
   font-weight: bold;
 }
 
-.editor-toolbar__wall-cat {
-  background: var(--bg-tertiary, #101216);
-  border: 1px solid var(--border-dim, #252530);
-  color: var(--text-primary, #e8e8ec);
-  padding: 4px 6px;
-  border-radius: 4px;
-  font-size: 12px;
-  max-width: 140px;
-}
-
 .editor-toolbar__btn--danger {
   color: var(--accent-red, #ef4444);
   border-color: var(--accent-red, #ef4444);
@@ -292,17 +274,6 @@ onUnmounted(() => {
   color: #08090c;
   border-color: var(--accent-green, #3dd68c);
   font-weight: bold;
-}
-
-.editor-toolbar__btn--save-ts {
-  background: #a855f7;
-  color: #fff;
-  border-color: #a855f7;
-  font-weight: bold;
-}
-
-.editor-toolbar__btn--save-ts:hover:not(:disabled) {
-  opacity: 0.85;
 }
 
 .editor-toolbar__btn--sync:hover:not(:disabled) {

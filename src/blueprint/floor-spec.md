@@ -51,16 +51,6 @@ Every response must be a single valid SVG document. Before writing SVG, you MUST
 - Back-of-house (`back`, `security`, `utility` categories) must have zero direct path from `public`-category areas — route back-of-house access through a separate service corridor.
 - Security/restricted rooms (armory, datacenter, safe house, control room) are reachable only via back-of-house circulation, never from a guest corridor.
 
-### Room Sizing (width × height, in tiles)
-| Room type | Minimum size |
-|---|---|
-| Guest room (Staff) | 4 × 4 |
-| Guest room (Standard) | 5 × 7 |
-| Guest room (Deluxe) | 5 × 8 |
-| Guest room (Executive) | 6 × 8 |
-| Guest room (VIP) | 6 × 10 |
-| Guest room (Penthouse) | Let Design decide |
-| Elevator | 5 × 6 |
 
 ### Room Consistency
 - All rooms of the same type on a given floor must have **identical dimensions** (width × height).
@@ -70,36 +60,6 @@ Every response must be a single valid SVG document. Before writing SVG, you MUST
 - If a floor requires mixed room sizes (e.g. suites vs standard), each size class is treated as a distinct room type with its own consistent layout.
 
 (Object footprints are defined in the blueprint editor — reference exact tile dimensions there rather than assuming.)
-
-# Room Categories
-
-| Category | Meaning |
-|---|---|
-| `public` | Public / Guest-facing |
-| `service` | Guest Service |
-| `back` | Back of House |
-| `security` | Restricted / Security |
-| `utility` | Utility |
-| `open` | Open Area |
-
-# Floor Inventory
-
-| Floor | Name | Room Count |
-|---|---|---|
-| G | Basement | — |
-| F1 | Lobby | — |
-| F2 | Restaurant & Bar | — |
-| F3 | Service Floor | — |
-| F4 | Security | — |
-| F5–F6 | Staff Rooms | 20/floor |
-| F7–F10 | Standard Rooms | 24/floor |
-| F11–F12 | Deluxe Rooms | 16/floor |
-| F13–F14 | Executive Rooms | 12/floor |
-| F15–F16 | VIP Suites | 8/floor |
-| F17–F18 | Penthouse Suites | 4/floor |
-| F19 | Datacenter & Intel | — |
-| F20 | Safe House & Office | — |
-| F21 | Rooftop Terrace | — |
 
 Capacity assumption: design for realistic occupancy of 500+ people building-wide when sizing circulation and exits.
 
