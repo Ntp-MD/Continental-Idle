@@ -86,7 +86,7 @@ export function getThreatLevel(branchId: BranchId): 'low' | 'medium' | 'high' | 
   return 'low'
 }
 
-export function tickAIOwners(tickCount: number): void {
+export function tickAIOwners(_tickCount: number): void {
   const activeOwners = getActiveAIOwners()
   if (activeOwners.length === 0) return
 
@@ -108,29 +108,6 @@ export function tickAIOwners(tickCount: number): void {
     // Relations drift toward 0
     if (owner.relations > 0) owner.relations = Math.max(0, owner.relations - 0.01)
     if (owner.relations < 0) owner.relations = Math.min(0, owner.relations + 0.005)
-
-    // Check if AI should take action
-    if (tickCount - owner.lastActionTick < owner.actionCooldown) return
-
-    const actionRoll = Math.random()
-    const aggressionMult = owner.aggression * (1 + owner.threatLevel * 0.1)
-
-    if (actionRoll < aggressionMult * 0.3) {
-      // AI decides to act — emit an AI event
-      const eventType = pickAIEvent(owner, playerPower)
-      if (eventType) {
-        eventBus.emit('ai:action', {
-          branchId: owner.branchId,
-          ownerName: owner.name,
-          temperament: owner.temperament,
-          eventType,
-          power: owner.power,
-        })
-        owner.lastActionTick = tickCount
-        // Action cooldown varies by temperament
-        owner.actionCooldown = def.baseCooldown + Math.floor(Math.random() * 20)
-      }
-    }
   })
 }
 
@@ -145,11 +122,23 @@ export function pickAIEvent(owner: AIOwnerState, playerPower: number): AIEventTy
   const actions = temperamentActions[owner.temperament]
   if (!actions || actions.length === 0) return null
 
-  // Filter by conditions
   const validActions = actions.filter(action => {
+    // Power-based conditions — AI must be strong enough to attempt aggressive actions
     if (action === 'raid' && owner.power < playerPower * 0.5) return false
-    if (action === 'truce' && owner.relations < -20) return false
     if (action === 'tribute' && owner.power < playerPower * 0.8) return false
+    if (action === 'sabotage' && owner.power < playerPower * 0.4) return false
+    if (action === 'provocation' && owner.power < playerPower * 0.6) return false
+
+    // Relations-based conditions — AI won't attack allies or offer truces to enemies
+    if (action === 'raid' && owner.relations > 20) return false
+    if (action === 'tribute' && owner.relations > 30) return false
+    if (action === 'sabotage' && owner.relations > 10) return false
+    if (action === 'provocation' && owner.relations > 15) return false
+    if (action === 'truce' && owner.relations < -20) return false
+    if (action === 'truce' && owner.threatLevel < 2) return false
+
+    // Spy is always available — low-cost intelligence gathering
+
     return true
   })
 
@@ -234,5 +223,37 @@ export function generateAIEvent(
   const ownerBranchName = getBranchDef(owner.branchId).name
   const targetBranchName = getBranchDef(targetBranch).name
 
-  return buildAIEventDefinition(template, owner.name, ownerBranchName, targetBranchName)
+  const def = buildAIEventDefinition(template, owner.name, ownerBranchName, targetBranchName)
+
+  // Scale effects by owner power relative to player
+  const playerPower = getPlayerPower()
+  const powerRatio = playerPower > 0 ? owner.power / playerPower : 1
+  const scale = Math.max(0.5, Math.min(3.0, powerRatio))
+
+  def.choices = def.choices.map(choice => ({
+    ...choice,
+    penalties: choice.penalties.map(p => {
+      if (p.type === 'loseCurrency' && p.scaling === 'currencyPercent') {
+        return { ...p, value: Math.min(0.20, p.value * scale) }
+      }
+      if (p.type === 'incomeMultiplier' && p.value < 1) {
+        return { ...p, value: Math.max(0.3, p.value * (2 - scale)) }
+      }
+      if (p.type === 'incomeFreeze') {
+        return { ...p, value: Math.min(120, Math.round(p.value * scale)) }
+      }
+      return p
+    }),
+    rewards: choice.rewards.map(r => {
+      if (r.type === 'incomeMultiplier' && r.value > 1) {
+        return { ...r, value: Math.min(2.0, r.value * (0.5 + scale * 0.5)) }
+      }
+      return r
+    }),
+  }))
+
+  // Set autoResolveAction based on event type
+  def.autoResolveAction = eventType === 'truce' ? 'best' : 'safe'
+
+  return def
 }

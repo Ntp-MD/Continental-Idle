@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { useEditorStore } from '../editor-store'
+import { useToast } from '@/composables/useToast'
 
 const store = useEditorStore()
 
@@ -49,6 +50,7 @@ function startRename(id: string, name: string) {
 function commitRename() {
   if (editingId.value) {
     store.renameFloor(editingId.value, editingName.value.trim() || 'Unnamed')
+    useToast().info('Floor renamed')
   }
   editingId.value = null
 }
@@ -57,6 +59,7 @@ function onDeleteFloor(id: string) {
   if (store.state.layout.floors.length <= 1) return
   if (!window.confirm('Delete this floor? This cannot be undone via UI (only Ctrl+Z).')) return
   store.deleteFloor(id)
+  useToast().info('Floor deleted')
 }
 
 function onDragStart(index: number) {
@@ -67,6 +70,7 @@ function onDrop(index: number) {
   if (dragIndex.value === null) return
   store.reorderFloors(dragIndex.value, index)
   dragIndex.value = null
+  useToast().info('Floors reordered')
 }
 </script>
 
@@ -81,7 +85,7 @@ function onDrop(index: number) {
     <div v-if="open" class="floor-overlay" role="dialog" aria-modal="true" aria-labelledby="floor-overlay-title" @click.stop>
       <div class="floor-overlay__header">
         <span id="floor-overlay-title" class="floor-overlay__title">Floors ({{ store.state.layout.floors.length }})</span>
-        <button class="floor-overlay__add" @click="store.addFloor()">+ Add</button>
+        <button class="floor-overlay__add" @click="store.addFloor(); useToast().success('Floor added')">+ Add</button>
         <button class="floor-overlay__close" aria-label="Close floor panel" @click="close">✕</button>
       </div>
       <div class="floor-overlay__body">
@@ -107,7 +111,7 @@ function onDrop(index: number) {
             @blur="commitRename"
           />
           <span v-else class="floor-overlay__item-name" @dblclick.stop="startRename(floor.id, floor.name)">{{ floor.name }}</span>
-          <button class="floor-overlay__action" title="Duplicate" aria-label="Duplicate floor" @click.stop="store.duplicateFloor(floor.id)">⧉</button>
+          <button class="floor-overlay__action" title="Duplicate" aria-label="Duplicate floor" @click.stop="store.duplicateFloor(floor.id); useToast().success('Floor duplicated')">⧉</button>
           <button class="floor-overlay__action floor-overlay__action--danger" title="Delete" aria-label="Delete floor" @click.stop="onDeleteFloor(floor.id)">✕</button>
         </div>
       </div>

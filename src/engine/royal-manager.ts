@@ -2,7 +2,7 @@ import { gameState } from './game-state'
 import { eventBus } from './event-bus'
 import { ROYAL_BUILDINGS, ROYAL_BUILDING_MAP, ROYAL_BUILDING_INCOME_GROWTH } from '@/data/royal-buildings'
 import { ROYAL_SKILL_MAX_LEVEL, getRoyalSkillNode } from '@/data/royal-skills'
-import type { BranchId, BranchState, RoyalSkillTreeState } from '@/types'
+import type { BranchId, BranchState } from '@/types'
 
 // === Royal Building Income ===
 
@@ -92,7 +92,7 @@ export function purchaseRoyalBuilding(buildingId: string, count?: number): boole
 
 // === Royal Skill Tree ===
 
-export function canUpgradeRoyalSkill(branch: keyof RoyalSkillTreeState): boolean {
+export function canUpgradeRoyalSkill(branch: string): boolean {
   const state = gameState.get()
   const currentLevel = state.royalSkillTree[branch as keyof typeof state.royalSkillTree] || 0
   if (currentLevel >= ROYAL_SKILL_MAX_LEVEL) return false
@@ -101,7 +101,7 @@ export function canUpgradeRoyalSkill(branch: keyof RoyalSkillTreeState): boolean
   return state.royalMarks >= node.royalMarkCost
 }
 
-export function upgradeRoyalSkill(branch: keyof RoyalSkillTreeState): boolean {
+export function upgradeRoyalSkill(branch: string): boolean {
   const state = gameState.get()
   const key = branch as keyof typeof state.royalSkillTree
   const currentLevel = state.royalSkillTree[key] || 0

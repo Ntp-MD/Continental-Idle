@@ -894,9 +894,24 @@ export const ELEVATOR_X = 600
 export const ELEVATOR_Y = 300
 export const ELEVATOR_R = 42
 
+export const ELEVATOR_POS: Record<FloorId, { x: number; y: number; r: number }> = {
+  G: { x: ELEVATOR_X, y: ELEVATOR_Y, r: ELEVATOR_R },
+  '1': { x: 600, y: 50, r: ELEVATOR_R },
+  '2': { x: ELEVATOR_X, y: ELEVATOR_Y, r: ELEVATOR_R },
+  '3': { x: ELEVATOR_X, y: ELEVATOR_Y, r: ELEVATOR_R },
+  '4': { x: ELEVATOR_X, y: ELEVATOR_Y, r: ELEVATOR_R },
+  '5': { x: ELEVATOR_X, y: ELEVATOR_Y, r: ELEVATOR_R },
+  '6': { x: ELEVATOR_X, y: ELEVATOR_Y, r: ELEVATOR_R },
+  '7': { x: ELEVATOR_X, y: ELEVATOR_Y, r: ELEVATOR_R },
+  '8': { x: ELEVATOR_X, y: ELEVATOR_Y, r: ELEVATOR_R },
+  '9': { x: ELEVATOR_X, y: ELEVATOR_Y, r: ELEVATOR_R },
+  '10': { x: ELEVATOR_X, y: ELEVATOR_Y, r: ELEVATOR_R },
+  '11': { x: ELEVATOR_X, y: ELEVATOR_Y, r: ELEVATOR_R },
+}
+
 export const ELEVATOR_NODES: Record<FloorId, [number, number]> = {
   G: [ELEVATOR_X, ELEVATOR_Y],
-  '1': [ELEVATOR_X, ELEVATOR_Y],
+  '1': [600, 50],
   '2': [ELEVATOR_X, ELEVATOR_Y],
   '3': [ELEVATOR_X, ELEVATOR_Y],
   '4': [ELEVATOR_X, ELEVATOR_Y],

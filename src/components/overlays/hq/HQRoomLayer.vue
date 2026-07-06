@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { FloorId } from '@/types'
-import { SVG_W, SVG_H, GOLD, GOLD_DIM, GOLD_DARK, BG_DARK, BG_DARKER, BG_CORRIDOR, getRoomsOnFloor, getRoomFurniture, FLOOR_NAMES, ELEVATOR_X, ELEVATOR_Y, ELEVATOR_R, CORRIDOR_LAYOUT, DOOR_LAYOUT, DOOR_WIDTHS } from './hq-layout'
+import { SVG_W, SVG_H, GOLD, GOLD_DIM, GOLD_DARK, BG_DARK, BG_DARKER, BG_CORRIDOR, getRoomsOnFloor, getRoomFurniture, FLOOR_NAMES, ELEVATOR_POS, CORRIDOR_LAYOUT, DOOR_LAYOUT, DOOR_WIDTHS } from './hq-layout'
 
 const props = defineProps<{
   floor: FloorId
@@ -149,19 +149,20 @@ const WALL_THICKNESS = 6
 
     <!-- Circular glass elevator -->
     <g v-if="CORRIDOR_LAYOUT[props.floor].length > 0">
+      <!-- Elevator position for this floor -->
       <!-- White mask to hide corridor behind -->
-      <circle :cx="ELEVATOR_X" :cy="ELEVATOR_Y" :r="ELEVATOR_R + 6" fill="#0d0d0d"/>
+      <circle :cx="ELEVATOR_POS[props.floor].x" :cy="ELEVATOR_POS[props.floor].y" :r="ELEVATOR_POS[props.floor].r + 6" fill="#0d0d0d"/>
       <!-- Outer ring -->
-      <circle :cx="ELEVATOR_X" :cy="ELEVATOR_Y" :r="ELEVATOR_R" :fill="BG_CORRIDOR" :stroke="GOLD_DIM" stroke-width="1.5"/>
+      <circle :cx="ELEVATOR_POS[props.floor].x" :cy="ELEVATOR_POS[props.floor].y" :r="ELEVATOR_POS[props.floor].r" :fill="BG_CORRIDOR" :stroke="GOLD_DIM" stroke-width="1.5"/>
       <!-- Inner ring (glass effect) -->
-      <circle :cx="ELEVATOR_X" :cy="ELEVATOR_Y" :r="ELEVATOR_R - 6" fill="none" :stroke="GOLD_DARK" stroke-width="0.7"/>
+      <circle :cx="ELEVATOR_POS[props.floor].x" :cy="ELEVATOR_POS[props.floor].y" :r="ELEVATOR_POS[props.floor].r - 6" fill="none" :stroke="GOLD_DARK" stroke-width="0.7"/>
       <!-- Cross dividers — 4 compartments -->
-      <line :x1="ELEVATOR_X - ELEVATOR_R" :y1="ELEVATOR_Y" :x2="ELEVATOR_X + ELEVATOR_R" :y2="ELEVATOR_Y" :stroke="GOLD_DARK" stroke-width="1"/>
-      <line :x1="ELEVATOR_X" :y1="ELEVATOR_Y - ELEVATOR_R" :x2="ELEVATOR_X" :y2="ELEVATOR_Y + ELEVATOR_R" :stroke="GOLD_DARK" stroke-width="1"/>
+      <line :x1="ELEVATOR_POS[props.floor].x - ELEVATOR_POS[props.floor].r" :y1="ELEVATOR_POS[props.floor].y" :x2="ELEVATOR_POS[props.floor].x + ELEVATOR_POS[props.floor].r" :y2="ELEVATOR_POS[props.floor].y" :stroke="GOLD_DARK" stroke-width="1"/>
+      <line :x1="ELEVATOR_POS[props.floor].x" :y1="ELEVATOR_POS[props.floor].y - ELEVATOR_POS[props.floor].r" :x2="ELEVATOR_POS[props.floor].x" :y2="ELEVATOR_POS[props.floor].y + ELEVATOR_POS[props.floor].r" :stroke="GOLD_DARK" stroke-width="1"/>
       <!-- Arrow indicators -->
-      <path :d="`M ${ELEVATOR_X - 4} ${ELEVATOR_Y - 11} L ${ELEVATOR_X} ${ELEVATOR_Y - 17} L ${ELEVATOR_X + 4} ${ELEVATOR_Y - 11}`" fill="none" :stroke="GOLD_DIM" stroke-width="1"/>
-      <path :d="`M ${ELEVATOR_X - 4} ${ELEVATOR_Y + 11} L ${ELEVATOR_X} ${ELEVATOR_Y + 17} L ${ELEVATOR_X + 4} ${ELEVATOR_Y + 11}`" fill="none" :stroke="GOLD_DIM" stroke-width="1"/>
-      <text :x="ELEVATOR_X" :y="ELEVATOR_Y + ELEVATOR_R + 12" text-anchor="middle" font-family="Georgia,serif" font-size="7" :fill="GOLD_DIM" letter-spacing="1">GLASS ELEVATOR</text>
+      <path :d="`M ${ELEVATOR_POS[props.floor].x - 4} ${ELEVATOR_POS[props.floor].y - 11} L ${ELEVATOR_POS[props.floor].x} ${ELEVATOR_POS[props.floor].y - 17} L ${ELEVATOR_POS[props.floor].x + 4} ${ELEVATOR_POS[props.floor].y - 11}`" fill="none" :stroke="GOLD_DIM" stroke-width="1"/>
+      <path :d="`M ${ELEVATOR_POS[props.floor].x - 4} ${ELEVATOR_POS[props.floor].y + 11} L ${ELEVATOR_POS[props.floor].x} ${ELEVATOR_POS[props.floor].y + 17} L ${ELEVATOR_POS[props.floor].x + 4} ${ELEVATOR_POS[props.floor].y + 11}`" fill="none" :stroke="GOLD_DIM" stroke-width="1"/>
+      <text :x="ELEVATOR_POS[props.floor].x" :y="ELEVATOR_POS[props.floor].y + ELEVATOR_POS[props.floor].r + 12" text-anchor="middle" font-family="Georgia,serif" font-size="7" :fill="GOLD_DIM" letter-spacing="1">GLASS ELEVATOR</text>
     </g>
 
     <!-- Floor name -->

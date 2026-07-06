@@ -2,8 +2,6 @@
 import { ref, watch, onMounted, onUnmounted } from 'vue'
 import { useEditorStore } from '../editor-store'
 import { useToast } from '@/composables/useToast'
-import { ROOM_CATEGORIES, ROOM_CATEGORY_LABELS } from '../editor-types'
-import type { RoomCategory } from '../editor-types'
 import FloorTabs from './FloorTabs.vue'
 
 const store = useEditorStore()
@@ -26,30 +24,18 @@ function applyCanvasSize() {
   toast.info('Canvas resized')
 }
 
-function onExport() {
-  store.exportJSON()
-  toast.success('Layout exported')
+function onExportTS() {
+  store.exportToTS()
 }
 
-const fileInput = ref<HTMLInputElement | null>(null)
-
-function onImportClick() {
-  fileInput.value?.click()
+function onUndo() {
+  store.undo()
+  toast.info('Undone')
 }
 
-function onImportFile(e: Event) {
-  const file = (e.target as HTMLInputElement).files?.[0]
-  if (!file) return
-  const ok = window.confirm('Import this file? Current layout will be replaced (use Undo to revert).')
-  if (!ok) {
-    ;(e.target as HTMLInputElement).value = ''
-    return
-  }
-  const reader = new FileReader()
-  reader.onload = () => store.importJSON(String(reader.result))
-  reader.onerror = () => toast.error('Failed to read file')
-  reader.readAsText(file)
-  ;(e.target as HTMLInputElement).value = ''
+function onRedo() {
+  store.redo()
+  toast.info('Redone')
 }
 
 function onClear() {
@@ -58,22 +44,17 @@ function onClear() {
   toast.info('Floor cleared')
 }
 
-function onLoadLobbyPreset() {
-  const ok = window.confirm('Load lobby preset onto F1? This will replace all rooms and objects on the Lobby floor.')
-  if (!ok) return
-  const success = store.applyLobbyPreset()
-  if (success) {
-    toast.success('Lobby preset loaded on F1')
-  } else {
-    toast.error('Lobby floor (F1) not found')
-  }
+function onClearAll() {
+  if (!window.confirm('Clear ALL rooms and objects on EVERY floor? This cannot be undone except via Undo.')) return
+  store.clearAllFloors()
+  toast.info('All floors cleared')
 }
 
 function onSync() {
   const ok = window.confirm(
     'Sync layout to game?\n\n' +
     'This will overwrite the in-game floor layouts with your editor rooms.\n' +
-    'Note: Objects (furniture, doors) are not synced — only room layouts.\n' +
+    'Note: Objects (furniture, doors) and zones are not synced — only room layouts.\n' +
     'Only floors G through F11 are synced (floors F12+ are not yet supported).\n' +
     'You MUST restart the game for changes to take effect.\n\n' +
     'Continue?'
@@ -82,67 +63,31 @@ function onSync() {
   const success = store.syncToGame()
   if (success) {
     toast.success('Layout synced! Restart the game to apply changes.')
+  } else {
+    toast.error('Sync failed — check console for details')
   }
 }
 
-const draftName = ref('')
-const showDraftPanel = ref(false)
-const draftList = ref<{ id: string; name: string; timestamp: number }[]>([])
+const showHelp = ref(false)
 
-function refreshDrafts() {
-  draftList.value = store.loadDrafts()
-}
-
-function onSaveDraft() {
-  const name = draftName.value.trim() || `Draft ${new Date().toLocaleString()}`
-  const success = store.saveDraft(name)
-  if (success) {
-    toast.success(`Draft saved: ${name}`)
-    draftName.value = ''
-    refreshDrafts()
-  }
-}
-
-function onLoadDraft(id: string) {
-  const ok = window.confirm('Load this draft? Current layout will be replaced.')
-  if (!ok) return
-  const success = store.loadDraft(id)
-  if (success) {
-    toast.success('Draft loaded')
-    showDraftPanel.value = false
-  }
-}
-
-function onDeleteDraft(id: string) {
-  if (!window.confirm('Delete this draft? This cannot be undone.')) return
-  store.deleteDraft(id)
-  toast.info('Draft deleted')
-  refreshDrafts()
-}
-
-function toggleDraftPanel() {
-  showDraftPanel.value = !showDraftPanel.value
-  if (showDraftPanel.value) refreshDrafts()
-}
-
-function onDraftOutsideClick(e: MouseEvent) {
+function onHelpOutsideClick(e: MouseEvent) {
   const el = e.target as HTMLElement
-  if (!el.closest('.editor-toolbar__draft-popup') && !el.closest('.editor-toolbar__btn--drafts-toggle')) {
-    showDraftPanel.value = false
+  if (!el.closest('.editor-toolbar__help-popup') && !el.closest('[title="Keyboard shortcuts"]')) {
+    showHelp.value = false
   }
 }
 
-function onDraftKeydown(e: KeyboardEvent) {
-  if (e.key === 'Escape' && showDraftPanel.value) showDraftPanel.value = false
+function onHelpKeydown(e: KeyboardEvent) {
+  if (e.key === 'Escape' && showHelp.value) showHelp.value = false
 }
 
 onMounted(() => {
-  document.addEventListener('click', onDraftOutsideClick)
-  document.addEventListener('keydown', onDraftKeydown)
+  document.addEventListener('click', onHelpOutsideClick)
+  document.addEventListener('keydown', onHelpKeydown)
 })
 onUnmounted(() => {
-  document.removeEventListener('click', onDraftOutsideClick)
-  document.removeEventListener('keydown', onDraftKeydown)
+  document.removeEventListener('click', onHelpOutsideClick)
+  document.removeEventListener('keydown', onHelpKeydown)
 })
 </script>
 
@@ -180,65 +125,70 @@ onUnmounted(() => {
         :class="{ 'editor-toolbar__btn--active': store.state.mode === 'move' }"
         @click="store.setMode('move')"
       >Move</button>
+      <button
+        class="editor-toolbar__btn"
+        :class="{ 'editor-toolbar__btn--active': store.state.mode === 'erase' }"
+        @click="store.setMode('erase')"
+        title="Erase wall tiles (click room edges to trim)"
+      >Erase</button>
       <select
         v-if="store.state.mode === 'wall'"
         class="editor-toolbar__wall-cat"
         :value="store.state.wallCategory"
-        @change="store.state.wallCategory = ($event.target as HTMLSelectElement).value as RoomCategory"
+        @change="store.state.wallCategory = ($event.target as HTMLSelectElement).value"
         title="Room category for new walls"
       >
-        <option v-for="cat in ROOM_CATEGORIES" :key="cat" :value="cat">{{ ROOM_CATEGORY_LABELS[cat] }}</option>
+        <option v-for="cat in store.state.layout.roomCategories" :key="cat.id" :value="cat.id">{{ cat.label }}</option>
       </select>
     </div>
 
     <div class="editor-toolbar__group">
-      <button class="editor-toolbar__btn" :disabled="!store.canUndo.value" @click="store.undo()">Undo</button>
-      <button class="editor-toolbar__btn" :disabled="!store.canRedo.value" @click="store.redo()">Redo</button>
+      <button class="editor-toolbar__btn" :disabled="!store.canUndo.value" @click="onUndo" title="Undo (Ctrl+Z)">Undo</button>
+      <button class="editor-toolbar__btn" :disabled="!store.canRedo.value" @click="onRedo" title="Redo (Ctrl+Y or Ctrl+Shift+Z)">Redo</button>
+      <button class="editor-toolbar__btn" @click="showHelp = !showHelp" title="Keyboard shortcuts">?</button>
     </div>
 
     <div class="editor-toolbar__group">
-      <button class="editor-toolbar__btn" @click="onExport">Export</button>
-      <button class="editor-toolbar__btn" @click="onImportClick">Import</button>
-      <input ref="fileInput" type="file" accept="application/json" class="editor-toolbar__file" @change="onImportFile" />
-      <button class="editor-toolbar__btn" @click="onLoadLobbyPreset">Load Lobby</button>
-      <button class="editor-toolbar__btn editor-toolbar__btn--danger" @click="onClear">Clear Floor</button>
+      <button class="editor-toolbar__btn editor-toolbar__btn--save-ts" @click="onExportTS" title="Save layout to src/blueprint/saved-layout.ts">Save TS</button>
+      <button class="editor-toolbar__btn editor-toolbar__btn--danger" @click="onClear" title="Clear all rooms and objects on this floor">Clear Floor</button>
+      <button class="editor-toolbar__btn editor-toolbar__btn--danger" @click="onClearAll" title="Clear all rooms and objects on every floor">Clear All Floors</button>
     </div>
-
-    <div class="editor-toolbar__group">
-      <input
-        class="editor-toolbar__draft-input"
-        v-model="draftName"
-        placeholder="Draft name..."
-        @keydown.enter="onSaveDraft"
-      />
-      <button class="editor-toolbar__btn editor-toolbar__btn--draft" @click="onSaveDraft">Save Draft</button>
-      <button class="editor-toolbar__btn editor-toolbar__btn--drafts-toggle" @click="toggleDraftPanel">Drafts</button>
-    </div>
-
-    <Teleport to="body">
-      <div v-if="showDraftPanel" class="editor-toolbar__draft-popup" role="dialog" aria-modal="true" aria-labelledby="draft-popup-title">
-        <div class="editor-toolbar__draft-popup-header">
-          <span id="draft-popup-title">Drafts</span>
-          <button class="editor-toolbar__draft-popup-close" @click="showDraftPanel = false">✕</button>
-        </div>
-        <div v-if="draftList.length === 0" class="editor-toolbar__draft-empty">No drafts saved</div>
-        <div
-          v-for="d in draftList"
-          :key="d.id"
-          class="editor-toolbar__draft-item"
-        >
-          <span class="editor-toolbar__draft-name">{{ d.name }}</span>
-          <span class="editor-toolbar__draft-time">{{ new Date(d.timestamp).toLocaleString() }}</span>
-          <button class="editor-toolbar__btn editor-toolbar__btn--small" @click="onLoadDraft(d.id)">Load</button>
-          <button class="editor-toolbar__btn editor-toolbar__btn--small editor-toolbar__btn--danger" @click="onDeleteDraft(d.id)">Del</button>
-        </div>
-      </div>
-    </Teleport>
 
     <div class="editor-toolbar__group editor-toolbar__group--sync">
       <FloorTabs />
-      <button class="editor-toolbar__btn editor-toolbar__btn--sync" @click="onSync">Sync to Game</button>
+      <button class="editor-toolbar__btn editor-toolbar__btn--sync" @click="onSync" title="Sync room layouts to the game (G–F11 only)">Sync to Game</button>
     </div>
+
+    <Teleport to="body">
+      <div v-if="showHelp" class="editor-toolbar__help-popup" role="dialog" aria-modal="true" aria-labelledby="help-popup-title">
+        <div class="editor-toolbar__help-header">
+          <span id="help-popup-title">Keyboard Shortcuts</span>
+          <button class="editor-toolbar__help-close" @click="showHelp = false">✕</button>
+        </div>
+        <div class="editor-toolbar__help-body">
+          <div class="editor-toolbar__help-row"><kbd>Space</kbd><span>Pan canvas (hold + drag)</span></div>
+          <div class="editor-toolbar__help-row"><kbd>Del</kbd><span>Delete selected</span></div>
+          <div class="editor-toolbar__help-row"><kbd>R</kbd><span>Rotate selected object</span></div>
+          <div class="editor-toolbar__help-row"><kbd>Ctrl+Z</kbd><span>Undo</span></div>
+          <div class="editor-toolbar__help-row"><kbd>Ctrl+Y</kbd><span>Redo</span></div>
+          <div class="editor-toolbar__help-row"><kbd>Ctrl+Shift+Z</kbd><span>Redo (alt)</span></div>
+          <div class="editor-toolbar__help-row"><kbd>Ctrl+0</kbd><span>Fit to screen</span></div>
+          <div class="editor-toolbar__help-row"><kbd>+</kbd><span>Zoom in</span></div>
+          <div class="editor-toolbar__help-row"><kbd>-</kbd><span>Zoom out</span></div>
+          <div class="editor-toolbar__help-row"><kbd>↑↓←→</kbd><span>Move selected by 1 tile</span></div>
+          <div class="editor-toolbar__help-row"><kbd>Shift+click</kbd><span>Add/remove from multi-selection</span></div>
+          <div class="editor-toolbar__help-row"><kbd>Drag empty area</kbd><span>Box select objects</span></div>
+          <div class="editor-toolbar__help-row"><kbd>Ctrl+G</kbd><span>Merge selected objects</span></div>
+          <div class="editor-toolbar__help-row"><kbd>Ctrl+Shift+G</kbd><span>Ungroup merged object</span></div>
+          <div class="editor-toolbar__help-row"><kbd>Ctrl+L</kbd><span>Link selected objects</span></div>
+          <div class="editor-toolbar__help-row"><kbd>Ctrl+Shift+L</kbd><span>Unlink object</span></div>
+          <div class="editor-toolbar__help-row"><kbd>Ctrl+C</kbd><span>Copy selected object(s)</span></div>
+          <div class="editor-toolbar__help-row"><kbd>Ctrl+V</kbd><span>Paste object(s)</span></div>
+          <div class="editor-toolbar__help-row"><kbd>L</kbd><span>Toggle lock on selected object</span></div>
+          <div class="editor-toolbar__help-row"><kbd>Esc</kbd><span>Cancel drag / deselect</span></div>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>
 
@@ -297,7 +247,7 @@ onUnmounted(() => {
   font-size: 12px;
 }
 
-.editor-toolbar__btn:hover:not(:disabled):not(.editor-toolbar__btn--danger):not(.editor-toolbar__btn--sync):not(.editor-toolbar__btn--draft) {
+.editor-toolbar__btn:hover:not(:disabled):not(.editor-toolbar__btn--danger):not(.editor-toolbar__btn--sync) {
   border-color: var(--accent-gold, #f0c040);
 }
 
@@ -344,41 +294,22 @@ onUnmounted(() => {
   font-weight: bold;
 }
 
+.editor-toolbar__btn--save-ts {
+  background: #a855f7;
+  color: #fff;
+  border-color: #a855f7;
+  font-weight: bold;
+}
+
+.editor-toolbar__btn--save-ts:hover:not(:disabled) {
+  opacity: 0.85;
+}
+
 .editor-toolbar__btn--sync:hover:not(:disabled) {
   opacity: 0.85;
 }
 
-.editor-toolbar__file {
-  display: none;
-}
-
-.editor-toolbar__draft-input {
-  width: 120px;
-  background: var(--bg-tertiary, #101216);
-  border: 1px solid var(--border-dim, #252530);
-  color: var(--text-primary, #e8e8ec);
-  padding: 4px 8px;
-  border-radius: 4px;
-  font-size: 12px;
-}
-
-.editor-toolbar__btn--draft {
-  background: var(--accent-blue, #4a9eff);
-  color: #08090c;
-  border-color: var(--accent-blue, #4a9eff);
-  font-weight: bold;
-}
-
-.editor-toolbar__btn--draft:hover:not(:disabled) {
-  opacity: 0.85;
-}
-
-.editor-toolbar__btn--small {
-  padding: 3px 8px;
-  font-size: 11px;
-}
-
-.editor-toolbar__draft-popup {
+.editor-toolbar__help-popup {
   position: fixed;
   top: 50%;
   left: 50%;
@@ -386,15 +317,12 @@ onUnmounted(() => {
   background: var(--bg-card, #161820);
   border: 1px solid var(--border-dim, #252530);
   border-radius: 8px;
-  padding: 0;
   z-index: 10000;
-  min-width: 360px;
-  max-height: 400px;
-  overflow-y: auto;
+  min-width: 280px;
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.7);
 }
 
-.editor-toolbar__draft-popup-header {
+.editor-toolbar__help-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -407,7 +335,7 @@ onUnmounted(() => {
   color: var(--text-primary, #e8e8ec);
 }
 
-.editor-toolbar__draft-popup-close {
+.editor-toolbar__help-close {
   background: none;
   border: none;
   color: var(--text-dim, #6a6a74);
@@ -417,42 +345,35 @@ onUnmounted(() => {
   border-radius: 3px;
 }
 
-.editor-toolbar__draft-popup-close:hover {
+.editor-toolbar__help-close:hover {
   color: var(--accent-red, #ef4444);
   background: rgba(239, 68, 68, 0.1);
 }
 
-.editor-toolbar__draft-empty {
-  text-align: center;
-  color: var(--text-secondary, #a0a0a8);
-  padding: 16px;
-  font-size: 12px;
+.editor-toolbar__help-body {
+  padding: 10px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 
-.editor-toolbar__draft-item {
+.editor-toolbar__help-row {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 14px;
-  border-bottom: 1px solid var(--border-dim, #252530);
-}
-
-.editor-toolbar__draft-item:last-child {
-  border-bottom: none;
-}
-
-.editor-toolbar__draft-name {
-  flex: 1;
+  gap: 10px;
   font-size: 12px;
-  color: var(--text-primary, #e8e8ec);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  color: var(--text-secondary, #a0a0a8);
 }
 
-.editor-toolbar__draft-time {
+.editor-toolbar__help-row kbd {
+  background: var(--bg-tertiary, #101216);
+  border: 1px solid var(--border-dim, #252530);
+  border-radius: 3px;
+  padding: 2px 6px;
   font-size: 11px;
-  color: var(--text-secondary, #a0a0a8);
-  white-space: nowrap;
+  font-family: monospace;
+  color: var(--text-primary, #e8e8ec);
+  min-width: 70px;
+  text-align: center;
 }
 </style>

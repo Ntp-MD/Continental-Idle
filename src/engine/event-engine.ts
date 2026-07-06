@@ -9,7 +9,8 @@ import { sovereignManager } from './sovereign-manager'
 import { gameState } from './game-state'
 import { getBranchIncomePerSecond } from './income-engine'
 import { eventBus } from './event-bus'
-import { getActiveAIOwners, generateAIEvent, getAIOwner, pickAIEvent, getPlayerPower, improveRelations, worsenRelations } from './ai-owner-manager'
+import { getActiveAIOwners, generateAIEvent, pickAIEvent, getPlayerPower, improveRelations, worsenRelations } from './ai-owner-manager'
+import { getTemperamentDef } from '@/data/ai-owners'
 
 function generateBuffId(): string {
   return 'buff_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6)
@@ -538,25 +539,41 @@ class EventEngine {
     const activeOwners = getActiveAIOwners()
     if (activeOwners.length === 0) return
 
-    // Pick a random active AI owner to potentially trigger an event
-    const owner = activeOwners[Math.floor(Math.random() * activeOwners.length)]
+    // Filter by cooldown — only consider owners whose cooldown has elapsed
+    const eligible = activeOwners.filter(owner =>
+      this.tickCount - owner.lastActionTick >= owner.actionCooldown
+    )
+    if (eligible.length === 0) return
+
+    // Pick a random eligible AI owner
+    const owner = eligible[Math.floor(Math.random() * eligible.length)]
     if (!owner) return
 
-    // Check cooldown on AI owner
-    const aiOwnerState = getAIOwner(owner.branchId)
-    if (!aiOwnerState || aiOwnerState.defeated) return
-
-    // Low probability per check
-    const rollChance = 0.015 * aiOwnerState.aggression
+    // Roll for action based on aggression and threat
+    const aggressionMult = owner.aggression * (1 + owner.threatLevel * 0.1)
+    const rollChance = 0.03 * aggressionMult
     if (Math.random() > rollChance) return
 
     // Pick event type using the shared logic from ai-owner-manager
     const playerPower = getPlayerPower()
-    const eventType = pickAIEvent(aiOwnerState, playerPower)
+    const eventType = pickAIEvent(owner, playerPower)
     if (!eventType) return
 
-    const def = generateAIEvent(aiOwnerState, eventType, state.activeBranch)
-    this.triggerEvent(def, aiOwnerState.branchId)
+    const def = generateAIEvent(owner, eventType, state.activeBranch)
+    this.triggerEvent(def, owner.branchId)
+
+    // Update AI owner cooldown
+    owner.lastActionTick = this.tickCount
+    const temperamentDef = getTemperamentDef(owner.temperament)
+    owner.actionCooldown = temperamentDef.baseCooldown + Math.floor(Math.random() * 20)
+
+    eventBus.emit('ai:action', {
+      branchId: owner.branchId,
+      ownerName: owner.name,
+      temperament: owner.temperament,
+      eventType,
+      power: owner.power,
+    })
   }
 
   tick(): void {

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onUnmounted } from 'vue'
+import { onMounted, onUnmounted } from 'vue'
 import Toolbar from './components/Toolbar.vue'
 import AssetPalette from './components/AssetPalette.vue'
 import EditorCanvas from './components/EditorCanvas.vue'
@@ -9,7 +9,16 @@ import { useEditorStore } from './editor-store'
 
 const store = useEditorStore()
 
+function flushOnUnload() {
+  store.flushSave()
+}
+
+onMounted(() => {
+  window.addEventListener('beforeunload', flushOnUnload)
+})
+
 onUnmounted(() => {
+  window.removeEventListener('beforeunload', flushOnUnload)
   store.flushSave()
 })
 </script>

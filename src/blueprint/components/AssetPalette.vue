@@ -1,37 +1,90 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { useEditorStore, startAssetDrag } from '../editor-store'
-import { BUILTIN_ASSETS, ASSET_CATEGORIES } from '../editor-assets'
+import { useToast } from '@/composables/useToast'
+import { BUILTIN_ASSETS } from '../editor-assets'
 import type { AssetShape, AssetDef } from '../editor-types'
 
 const store = useEditorStore()
 
-const allAssets = computed(() => [...BUILTIN_ASSETS, ...store.state.layout.customAssets])
+const searchQuery = ref('')
+
+const SHAPE_ICON: Record<AssetShape, string> = {
+  rect: '▭',
+  circle: '◯',
+  round: '▢',
+  arc: '◜',
+}
+
+function assetIcon(asset: AssetDef): string {
+  if (asset.parts && asset.parts.length > 0) return '▦'
+  if (asset.linkedParts && asset.linkedParts.length > 0) return '⛓'
+  return SHAPE_ICON[asset.shape] ?? '▭'
+}
+
+function assetSizeLabel(asset: AssetDef): string {
+  if (asset.parts && asset.parts.length > 0) return `${asset.parts.length} parts`
+  if (asset.linkedParts && asset.linkedParts.length > 0) return `${asset.linkedParts.length} linked`
+  if (asset.pxW || asset.pxH) return `${asset.pxW ?? asset.w}×${asset.pxH ?? asset.h}px`
+  return `${asset.w}×${asset.h}`
+}
+
+const allAssets = computed(() => {
+  const customIds = new Set(store.state.layout.customAssets.map(a => a.id))
+  const hiddenIds = new Set(store.state.layout.hiddenBuiltinIds ?? [])
+  return [
+    ...BUILTIN_ASSETS.filter(a => !customIds.has(a.id) && !hiddenIds.has(a.id)),
+    ...store.state.layout.customAssets,
+  ]
+})
 
 const grouped = computed(() => {
+  const q = searchQuery.value.trim().toLowerCase()
   const groups: Record<string, typeof allAssets.value> = {}
   for (const asset of allAssets.value) {
+    if (q && !asset.name.toLowerCase().includes(q) && !asset.id.toLowerCase().includes(q) && !asset.category.toLowerCase().includes(q)) continue
     if (!groups[asset.category]) groups[asset.category] = []
     groups[asset.category].push(asset)
   }
   return groups
 })
 
-const categoryOrder = computed(() => [...ASSET_CATEGORIES, ...Object.keys(grouped.value).filter(c => !(ASSET_CATEGORIES as readonly string[]).includes(c))])
+const categoryOrder = computed(() => {
+  const stored = store.state.layout.assetCategories ?? []
+  const all = new Set<string>(stored)
+  for (const c of Object.keys(grouped.value)) all.add(c)
+  return [...all].filter(cat => (grouped.value[cat]?.length ?? 0) > 0)
+})
 
 const showAddForm = ref(false)
 const newName = ref('')
+const newCategory = ref('')
 const newW = ref(1)
 const newH = ref(1)
 const newShape = ref<AssetShape>('rect')
+const newRx = ref(0)
+
+const existingCategories = computed(() => {
+  const stored = store.state.layout.assetCategories ?? []
+  const cats = new Set<string>(stored)
+  for (const a of allAssets.value) cats.add(a.category)
+  return [...cats].sort()
+})
 
 function submitNewAsset() {
-  if (!newName.value.trim()) return
-  store.addCustomAsset(newName.value.trim(), newW.value, newH.value, newShape.value)
+  if (!newName.value.trim()) {
+    useToast().warning('Asset name cannot be empty')
+    return
+  }
+  const rx = newRx.value > 0 ? { tl: newRx.value, tr: newRx.value, br: newRx.value, bl: newRx.value } : undefined
+  store.addCustomAsset(newName.value.trim(), newW.value, newH.value, newShape.value, newCategory.value.trim(), undefined, undefined, rx)
+  useToast().success('Asset added')
   newName.value = ''
+  newCategory.value = ''
   newW.value = 1
   newH.value = 1
   newShape.value = 'rect'
+  newRx.value = 0
   showAddForm.value = false
 }
 
@@ -47,37 +100,29 @@ function onItemClick(assetId: string) {
   store.selectAsset(assetId)
 }
 
-function onEditClick(asset: AssetDef, e: MouseEvent) {
-  e.stopPropagation()
-  store.selectAsset(asset.id)
-}
-
-function onDeleteAsset(id: string, e: MouseEvent) {
-  e.stopPropagation()
-  if (!window.confirm('Delete this custom asset? Objects already placed will remain.')) return
-  store.deleteCustomAsset(id)
-}
 </script>
 
 <template>
   <div class="asset-palette">
     <div class="asset-palette__header">Asset Palette</div>
+    <div class="asset-palette__search">
+      <input class="asset-palette__search-input" v-model="searchQuery" placeholder="Search assets..." type="text" aria-label="Search assets" />
+    </div>
     <div class="asset-palette__scroll">
-      <div v-for="cat in categoryOrder" :key="cat" v-show="grouped[cat]?.length" class="asset-palette__category">
+      <div v-if="!Object.values(grouped).some(g => g.length)" class="asset-palette__empty">No assets found</div>
+      <div v-for="cat in categoryOrder" :key="cat" class="asset-palette__category">
         <div class="asset-palette__category-title">{{ cat }}</div>
+        <div v-if="!grouped[cat]?.length" class="asset-palette__category-empty">No items</div>
         <template v-for="asset in grouped[cat]" :key="asset.id">
           <div
             class="asset-palette__item"
-            :class="{ 'asset-palette__item--selected': store.state.selectedAssetId === asset.id }"
+            :class="{ 'asset-palette__item--selected': store.state.selectedAssetId === asset.id, 'asset-palette__item--composite': asset.parts && asset.parts.length > 0, 'asset-palette__item--linked': asset.linkedParts && asset.linkedParts.length > 0 }"
             @mousedown="onAssetMouseDown(asset.id, $event)"
             @click="onItemClick(asset.id)"
           >
+            <span class="asset-palette__item-icon">{{ assetIcon(asset) }}</span>
             <span class="asset-palette__item-name">{{ asset.name }}</span>
-            <span class="asset-palette__item-right">
-              <span class="asset-palette__item-size">{{ asset.pxW ?? asset.w }}×{{ asset.pxH ?? asset.h }}{{ (asset.pxW || asset.pxH) ? 'px' : '' }}</span>
-              <span v-if="asset.custom" class="asset-palette__item-edit" title="Edit" aria-label="Edit asset" @mousedown.stop="onEditClick(asset, $event)">✎</span>
-              <span v-if="asset.custom" class="asset-palette__item-delete" title="Delete" aria-label="Delete asset" @mousedown.stop="onDeleteAsset(asset.id, $event)">✕</span>
-            </span>
+            <span class="asset-palette__item-size">{{ assetSizeLabel(asset) }}</span>
           </div>
         </template>
       </div>
@@ -89,6 +134,11 @@ function onDeleteAsset(id: string, e: MouseEvent) {
 
     <div v-if="showAddForm" class="asset-palette__form">
       <input class="asset-palette__form-input" v-model="newName" placeholder="Asset name" />
+      <select class="asset-palette__form-input" v-model="newCategory">
+        <option value="" disabled>Select category...</option>
+        <option v-for="cat in existingCategories" :key="cat" :value="cat">{{ cat }}</option>
+      </select>
+      <input class="asset-palette__form-input" v-model="newCategory" placeholder="...or type new category" />
       <div class="asset-palette__form-row">
         <input class="asset-palette__form-input asset-palette__form-input--num" type="number" min="1" v-model.number="newW" placeholder="W" />
         <span>×</span>
@@ -98,7 +148,9 @@ function onDeleteAsset(id: string, e: MouseEvent) {
         <option value="rect">Rect</option>
         <option value="circle">Circle</option>
         <option value="round">Round</option>
+        <option value="arc">Arc</option>
       </select>
+      <input class="asset-palette__form-input" type="number" min="0" v-model.number="newRx" placeholder="Corner radius (0 = none)" />
       <button class="asset-palette__form-submit" @click="submitNewAsset">Add Asset</button>
     </div>
   </div>
@@ -123,6 +175,26 @@ function onDeleteAsset(id: string, e: MouseEvent) {
   border-bottom: 1px solid var(--border-dim, #252530);
 }
 
+.asset-palette__search {
+  padding: 8px;
+  border-bottom: 1px solid var(--border-dim, #252530);
+}
+
+.asset-palette__search-input {
+  width: 100%;
+  background: var(--bg-tertiary, #101216);
+  border: 1px solid var(--border-dim, #252530);
+  color: var(--text-primary, #e8e8ec);
+  padding: 6px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+.asset-palette__search-input:focus {
+  outline: none;
+  border-color: var(--accent-gold, #f0c040);
+}
+
 .asset-palette__scroll {
   flex: 1;
   overflow-y: auto;
@@ -137,10 +209,17 @@ function onDeleteAsset(id: string, e: MouseEvent) {
   margin: 10px 0 4px;
 }
 
+.asset-palette__category-empty {
+  font-size: 10px;
+  color: var(--text-dim, #6a6a74);
+  padding: 2px 8px 6px;
+  opacity: 0.5;
+}
+
 .asset-palette__item {
   display: flex;
-  justify-content: space-between;
   align-items: center;
+  gap: 6px;
   padding: 6px 8px;
   border-radius: 4px;
   cursor: grab;
@@ -157,39 +236,40 @@ function onDeleteAsset(id: string, e: MouseEvent) {
   border-left: 2px solid var(--accent-gold, #f0c040);
 }
 
-.asset-palette__item-right {
-  display: flex;
-  align-items: center;
-  gap: 6px;
+.asset-palette__item--composite .asset-palette__item-icon {
+  color: var(--accent-gold, #f0c040);
+}
+
+.asset-palette__item--linked .asset-palette__item-icon {
+  color: #06b6d4;
+}
+
+.asset-palette__item-icon {
+  font-size: 14px;
+  color: var(--text-dim, #6a6a74);
+  flex-shrink: 0;
+  width: 16px;
+  text-align: center;
+}
+
+.asset-palette__item-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .asset-palette__item-size {
   color: var(--text-dim, #6a6a74);
-  font-size: 11px;
+  font-size: 10px;
+  flex-shrink: 0;
 }
 
-.asset-palette__item-edit {
-  color: var(--text-dim, #6a6a74);
-  cursor: pointer;
+.asset-palette__empty {
+  padding: 16px 8px;
   font-size: 12px;
-  padding: 1px 3px;
-  border-radius: 3px;
-}
-
-.asset-palette__item-edit:hover {
-  color: var(--accent-gold, #f0c040);
-}
-
-.asset-palette__item-delete {
   color: var(--text-dim, #6a6a74);
-  cursor: pointer;
-  font-size: 11px;
-  padding: 1px 3px;
-  border-radius: 3px;
-}
-
-.asset-palette__item-delete:hover {
-  color: var(--accent-red, #ef4444);
+  text-align: center;
 }
 
 .asset-palette__add-btn {
