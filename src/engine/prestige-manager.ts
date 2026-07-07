@@ -1,4 +1,4 @@
-﻿import type { BranchId } from '@/types'
+import type { BranchId } from '@/types'
 import { BUILDINGS } from '@/data/buildings'
 import { BRANCHES } from '@/data/branches'
 import { gameState } from './game-state'

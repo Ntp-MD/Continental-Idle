@@ -1,4 +1,4 @@
-﻿import type { BranchId } from '@/types'
+import type { BranchId } from '@/types'
 import { gameState } from './game-state'
 import { eventBus } from './event-bus'
 import { BRANCHES } from '@/data/branches'

@@ -1,4 +1,4 @@
-﻿import type { AssassinDefinition } from '@/types'
+import type { AssassinDefinition } from '@/types'
 
 export const ASSASSIN_TYPES: AssassinDefinition[] = [
   { id: 'streetSamurai', name: 'Street Samurai', rank: 'D', hireCost: 50000, ability: 'Reduces heat by 2 when assigned', branchLock: null, maxLevel: 10 },

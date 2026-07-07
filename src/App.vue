@@ -1,4 +1,4 @@
-ï»¿<script setup lang="ts">
+<script setup lang="ts">
 import { ref, onMounted, onUnmounted, defineAsyncComponent } from 'vue'
 import StartScreen from '@/components/overlays/StartScreen.vue'
 import GameHeader from '@/components/layout/GameHeader.vue'
@@ -115,21 +115,21 @@ function doSave() {
   if (gameState.save()) {
     toast.success('Game saved')
   } else {
-    toast.error('Save failed â€” storage quota exceeded')
+    toast.error('Save failed — storage quota exceeded')
   }
 }
 
 function doExport() {
   const json = gameState.exportSave()
   if (!json) {
-    toast.error('Export failed â€” save error')
+    toast.error('Export failed — save error')
     showSaveMenu.value = false
     return
   }
   navigator.clipboard?.writeText(json).then(() => {
     toast.success('Save copied to clipboard')
   }).catch(() => {
-    toast.warning('Export failed â€” clipboard unavailable')
+    toast.warning('Export failed — clipboard unavailable')
   })
   showSaveMenu.value = false
 }
@@ -145,7 +145,7 @@ function doImport() {
       toast.error('Invalid save data')
     }
   }).catch(() => {
-    toast.warning('Import failed â€” clipboard unavailable')
+    toast.warning('Import failed — clipboard unavailable')
   })
   showSaveMenu.value = false
 }
@@ -214,17 +214,17 @@ function handleBranchRoyal(e: Event) {
 }
 
 function handleSaveFailed() {
-  toast.error('Autosave failed â€” storage may be full')
+  toast.error('Autosave failed — storage may be full')
 }
 
 function handleVisitorArrived(e: Event) {
   const detail = (e as CustomEvent).detail as { count: number; random?: boolean; royalMark?: boolean }
   if (detail.royalMark) {
-    toast.success(`Royal Mark scroll used â€” a special visitor has arrived!`)
+    toast.success(`Royal Mark scroll used — a special visitor has arrived!`)
   } else if (detail.random) {
     toast.info(`A visitor has arrived at your Continental`)
   } else {
-    toast.success(`${detail.count} visitors have arrived â€” check HQ Office to hire them`)
+    toast.success(`${detail.count} visitors have arrived — check HQ Office to hire them`)
   }
 }
 
@@ -234,17 +234,17 @@ function handleVisitorLeft() {
 
 function handleDiplomacyGift(e: Event) {
   const detail = (e as CustomEvent).detail as { ownerName: string; gain: number }
-  toast.success(`Gift sent to ${detail.ownerName} â€” relations improved by ${detail.gain}`)
+  toast.success(`Gift sent to ${detail.ownerName} — relations improved by ${detail.gain}`)
 }
 
 function handleDiplomacyTruce(e: Event) {
   const detail = (e as CustomEvent).detail as { ownerName: string }
-  toast.success(`Truce proposed with ${detail.ownerName} â€” relations improved by 20`)
+  toast.success(`Truce proposed with ${detail.ownerName} — relations improved by 20`)
 }
 
 function handleSupplyRouteEstablished(e: Event) {
   const detail = (e as CustomEvent).detail as { from: BranchId; to: BranchId; type: string }
-  toast.success(`Supply route established: ${getBranchDef(detail.from)?.name} â†’ ${getBranchDef(detail.to)?.name}`)
+  toast.success(`Supply route established: ${getBranchDef(detail.from)?.name} ? ${getBranchDef(detail.to)?.name}`)
 }
 
 function handleSupplyRouteHijacked() {
@@ -252,7 +252,7 @@ function handleSupplyRouteHijacked() {
 }
 
 function handleSupplyRouteCollapsed() {
-  toast.warning(`A supply route has collapsed â€” stability reached zero`)
+  toast.warning(`A supply route has collapsed — stability reached zero`)
 }
 
 function handleAIAction(e: Event) {
@@ -272,7 +272,7 @@ function handleSovereignAchieved() {
 
 function handleDecreeIssued(e: Event) {
   const detail = (e as CustomEvent).detail as { name: string; description: string }
-  toast.success(`Royal Decree: ${detail.name} â€” ${detail.description}`)
+  toast.success(`Royal Decree: ${detail.name} — ${detail.description}`)
 }
 
 function handleSandboxLoop(e: Event) {
@@ -394,7 +394,7 @@ onUnmounted(() => {
           <button class="game-map-actions__btn" @click="showRoyal = true" aria-label="Open royal continental panel" :disabled="!hasRoyalBranches">Royal</button>
           <button class="game-map-actions__btn" @click="showSovereign = true" aria-label="Open sovereign panel">Throne</button>
           <div class="game-map-actions__save-wrap">
-            <button class="game-map-actions__btn" @click="showSaveMenu = !showSaveMenu">Save â–¾</button>
+            <button class="game-map-actions__btn" @click="showSaveMenu = !showSaveMenu">Save ?</button>
             <div v-if="showSaveMenu" class="game-map-actions__save-menu">
               <button class="game-map-actions__save-item" @click="doSave(); showSaveMenu = false">Save</button>
               <button class="game-map-actions__save-item" @click="doExport">Export</button>

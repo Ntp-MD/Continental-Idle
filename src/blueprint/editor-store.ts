@@ -6,9 +6,57 @@ import type {
   ObjectCustomProps, ValidationRule, RoomTemplate,
 } from './types'
 import { aabbOverlap } from './utils'
-import { findAsset, findAssetCached, buildAssetMap } from './editor-assets'
 import { useToast } from '@/composables/useToast'
 import { EDITOR_CONFIG } from './editor-config'
+
+export const BUILTIN_ASSETS: AssetDef[] = [
+  {
+    id: 'builtin-sofa-1',
+    name: 'Sofa 1',
+    category: 'Special',
+    w: 2,
+    h: 1,
+    special: true,
+    svgViewBox: { w: 50, h: 25 },
+    svg: '<rect x="2" y="1" width="46" height="4" rx="1.2" fill="none" stroke="var(--blueprint-line)" stroke-width="0.4"/><rect x="2" y="5" width="6" height="18" rx="1.5" fill="none" stroke="var(--blueprint-line)" stroke-width="0.4"/><rect x="42" y="5" width="6" height="18" rx="1.5" fill="none" stroke="var(--blueprint-line)" stroke-width="0.4"/><rect x="9" y="5" width="15.5" height="18" rx="1" fill="none" stroke="var(--blueprint-line)" stroke-width="0.35"/><rect x="25.5" y="5" width="15.5" height="18" rx="1" fill="none" stroke="var(--blueprint-line)" stroke-width="0.35"/>',
+  },
+  {
+    id: 'builtin-bed-1',
+    name: 'Bed 1',
+    category: 'Special',
+    w: 1,
+    h: 2,
+    special: true,
+    svgViewBox: { w: 25, h: 50 },
+    svg: '<rect x="1" y="4" width="23" height="44" rx="2" fill="none" stroke="var(--blueprint-line)" stroke-width="0.4"/><rect x="1" y="1" width="23" height="3" rx="1" fill="none" stroke="var(--blueprint-line)" stroke-width="0.4"/><rect x="3.5" y="5.5" width="18" height="8" rx="2" fill="none" stroke="var(--blueprint-line)" stroke-width="0.35"/><line x1="1" y1="30" x2="24" y2="30" stroke="var(--blueprint-line)" stroke-width="0.3"/><line x1="12.5" y1="30" x2="12.5" y2="47" stroke="var(--blueprint-line)" stroke-width="0.25"/>',
+  },
+  {
+    id: 'builtin-bed-4',
+    name: 'Bed 4',
+    category: 'Special',
+    w: 1,
+    h: 2,
+    special: true,
+    svgViewBox: { w: 25, h: 50 },
+    svg: '<rect x="1" y="4" width="23" height="44" rx="2" fill="none" stroke="var(--blueprint-line)" stroke-width="0.4"/><rect x="1" y="1" width="23" height="3" rx="1" fill="none" stroke="var(--blueprint-line)" stroke-width="0.4"/><rect x="3.5" y="5.5" width="18" height="8" rx="2" fill="none" stroke="var(--blueprint-line)" stroke-width="0.35"/><line x1="1" y1="30" x2="24" y2="30" stroke="var(--blueprint-line)" stroke-width="0.3"/><line x1="12.5" y1="30" x2="12.5" y2="47" stroke="var(--blueprint-line)" stroke-width="0.25"/>',
+  },
+]
+
+const BUILTIN_ASSET_MAP = new Map<string, AssetDef>(BUILTIN_ASSETS.map(a => [a.id, a]))
+
+export function findAsset(assets: AssetDef[], type: string): AssetDef | undefined {
+  return assets.find(a => a.id === type) || BUILTIN_ASSET_MAP.get(type)
+}
+
+export function findAssetCached(assetMap: Map<string, AssetDef>, type: string): AssetDef | undefined {
+  return assetMap.get(type) ?? BUILTIN_ASSET_MAP.get(type)
+}
+
+export function buildAssetMap(customAssets: AssetDef[]): Map<string, AssetDef> {
+  const map = new Map<string, AssetDef>(BUILTIN_ASSET_MAP)
+  for (const a of customAssets) map.set(a.id, a)
+  return map
+}
 
 const toast = useToast()
 
@@ -139,6 +187,20 @@ const SAVED_LAYOUT: LayoutData = {
       "custom": true,
       "pxW": 40,
       "pxH": 25
+    },
+    {
+      "id": "custom-mradv414-17664810560",
+      "name": "Double Bed",
+      "category": "Special",
+      "w": 2,
+      "h": 2,
+      "custom": true,
+      "special": true,
+      "svg": "<rect x=\"1\" y=\"4\" width=\"48\" height=\"44\" rx=\"2.5\"\n        fill=\"none\" stroke=\"var(--blueprint-line)\" stroke-width=\"0.4\"/>\n  <rect x=\"1\" y=\"1\" width=\"48\" height=\"3\" rx=\"1\"\n        fill=\"none\" stroke=\"var(--blueprint-line)\" stroke-width=\"0.4\"/>\n  <rect x=\"4\" y=\"5.5\" width=\"20\" height=\"8\" rx=\"2\"\n        fill=\"none\" stroke=\"var(--blueprint-line)\" stroke-width=\"0.35\"/>\n  <rect x=\"26\" y=\"5.5\" width=\"20\" height=\"8\" rx=\"2\"\n        fill=\"none\" stroke=\"var(--blueprint-line)\" stroke-width=\"0.35\"/>\n  <line x1=\"1\" y1=\"30\" x2=\"49\" y2=\"30\"\n        stroke=\"var(--blueprint-line)\" stroke-width=\"0.3\"/>\n  <line x1=\"25\" y1=\"30\" x2=\"25\" y2=\"47\"\n        stroke=\"var(--blueprint-line)\" stroke-width=\"0.25\"/>",
+      "svgViewBox": {
+        "w": 50,
+        "h": 50
+      }
     }
   ],
   "floors": [
@@ -411,11 +473,55 @@ const SAVED_LAYOUT: LayoutData = {
           "id": "o-mr931mxx-14",
           "subId": "sub-mr931mxx-15",
           "type": "custom-mr92zwu5-7",
-          "rotation": 0,
           "x": 350,
           "y": 300,
-          "w": 40,
+          "w": 50,
           "h": 25,
+          "rotation": 0,
+          "collapsed": false
+        },
+        {
+          "id": "o-mra3etl1-41",
+          "subId": "sub-mra3etl1-42",
+          "type": "builtin-sofa-1",
+          "x": 150,
+          "y": 450,
+          "w": 25,
+          "h": 50,
+          "rotation": 90,
+          "collapsed": false
+        },
+        {
+          "id": "o-mra52jjp-146",
+          "subId": "sub-mra52jjp-147",
+          "type": "builtin-bed-4",
+          "x": 125,
+          "y": 300,
+          "w": 25,
+          "h": 50,
+          "rotation": 0,
+          "collapsed": false
+        },
+        {
+          "id": "o-mradqjzs-8456727",
+          "subId": "sub-mradqjzs-8456728",
+          "type": "builtin-bed-4",
+          "x": 525,
+          "y": 175,
+          "w": 25,
+          "h": 50,
+          "rotation": 0,
+          "collapsed": false
+        },
+        {
+          "id": "o-mradv5yo-4384484173716265",
+          "subId": "sub-mradv5yo-4384484173716266",
+          "type": "custom-mradv414-17664810560",
+          "x": 450,
+          "y": 175,
+          "w": 50,
+          "h": 50,
+          "rotation": 0,
           "collapsed": false
         }
       ],
@@ -435,183 +541,6 @@ const SAVED_LAYOUT: LayoutData = {
   "validationRules": {},
   "roomTemplates": []
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
@@ -657,7 +586,6 @@ function initIdCounter(): void {
 function genId(prefix: string): string {
   return `${prefix}-${Date.now().toString(36)}-${idCounter++}`
 }
-
 
 function migrate(data: unknown): LayoutData {
   if (!data || typeof data !== 'object') return JSON.parse(JSON.stringify(SAVED_LAYOUT))
@@ -753,6 +681,14 @@ function migrate(data: unknown): LayoutData {
             const rx = a.defaultRx as Record<string, unknown>
             if (typeof rx.tl === 'number' && typeof rx.tr === 'number' && typeof rx.br === 'number' && typeof rx.bl === 'number') {
               asset.defaultRx = { tl: rx.tl, tr: rx.tr, br: rx.br, bl: rx.bl }
+            }
+          }
+          if (typeof a.special === 'boolean') asset.special = a.special
+          if (typeof a.svg === 'string' && a.svg) asset.svg = a.svg
+          if (a.svgViewBox && typeof a.svgViewBox === 'object') {
+            const vb = a.svgViewBox as Record<string, unknown>
+            if (typeof vb.w === 'number' && typeof vb.h === 'number' && vb.w > 0 && vb.h > 0) {
+              asset.svgViewBox = { w: vb.w, h: vb.h }
             }
           }
           return asset
@@ -1059,6 +995,7 @@ function objectOverlapsAny(rect: Rect, excludeId?: string | string[]): boolean {
   return floor.objects.some(o => {
     if (excluded && excluded.has(o.id)) return false
     const asset = findAssetCached(am, o.type)
+    if (asset?.special) return false
     if (asset?.parts && asset.parts.length > 0) {
       return asset.parts.some(part => {
         const partRect = { x: o.x + part.dx, y: o.y + part.dy, w: part.w, h: part.h }
@@ -1084,11 +1021,13 @@ function recalcCollapsed(floor: FloorData, customAssets?: AssetDef[], changedRec
     : floor.objects
   for (const obj of candidates) {
     const asset = getAsset(obj.type)
+    if (asset?.special) { obj.collapsed = false; continue }
     const hasParts = asset?.parts && asset.parts.length > 0
     obj.collapsed = floor.objects.some(o => {
       if (o.id === obj.id) return false
       if (!aabbOverlap(obj, o)) return false
       const oAsset = getAsset(o.type)
+      if (oAsset?.special) return false
       if (hasParts) {
         const parts = asset!.parts!
         if (oAsset?.parts && oAsset.parts.length > 0) {
@@ -1247,7 +1186,7 @@ async function addObject(type: string, x: number, y: number): Promise<ObjectData
     return floor.objects.find(o => o.id === newIds[0]) ?? null
   }
 
-  if (objectOverlapsAny(rect)) {
+  if (!asset.special && objectOverlapsAny(rect)) {
     toast.warning('Cannot place object - overlaps existing object')
     return null
   }
@@ -1270,6 +1209,7 @@ function canPlaceObject(type: string, x: number, y: number): boolean {
   const w = snap(asset.usePx ? (asset.pxW ?? asset.w * t) : asset.w * t)
   const h = snap(asset.usePx ? (asset.pxH ?? asset.h * t) : asset.h * t)
   const rect = clamp({ x: snap(x), y: snap(y), w, h })
+  if (asset.special) return true
   if (asset.linkedParts && asset.linkedParts.length > 0) {
     const partRects = asset.linkedParts.map(p =>
       ({ x: snap(rect.x + p.dx), y: snap(rect.y + p.dy), w: snap(p.w), h: snap(p.h) })
@@ -1534,7 +1474,6 @@ async function commitMove(): Promise<void> {
   await saveLayout()
 }
 
-
 async function eraseWallTile(roomId: string, clickX: number, clickY: number) {
   const floor = currentFloor.value
   if (!floor) return
@@ -1797,6 +1736,34 @@ async function addCustomAsset(name: string, w: number, h: number, category?: str
   if (pxH !== undefined && pxH > 0) asset.pxH = Math.floor(pxH)
   if (defaultRx && (defaultRx.tl > 0 || defaultRx.tr > 0 || defaultRx.br > 0 || defaultRx.bl > 0)) asset.defaultRx = defaultRx
   if (defaultBgColor && /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(defaultBgColor)) asset.defaultBgColor = defaultBgColor
+  pushHistory()
+  state.layout.customAssets.push(asset)
+  invalidateAssetMap()
+  await saveLayout()
+  return asset
+}
+
+async function addSvgAsset(name: string, w: number, h: number, svgString: string, category?: string): Promise<AssetDef | null> {
+  const safeW = Math.max(1, Math.floor(w))
+  const safeH = Math.max(1, Math.floor(h))
+  const safeCat = (category && category.trim()) || 'Special'
+  const trimmed = svgString.trim()
+  if (!trimmed) { toast.warning('SVG content cannot be empty'); return null }
+  const viewBoxMatch = trimmed.match(/viewBox\s*=\s*["']([^"']+)["']/)
+  if (!viewBoxMatch) { toast.warning('SVG must have a viewBox attribute'); return null }
+  const parts = viewBoxMatch[1].split(/[\s,]+/).map(Number)
+  if (parts.length < 4 || parts.some(isNaN)) { toast.warning('Invalid viewBox format'); return null }
+  const vbW = parts[2]
+  const vbH = parts[3]
+  if (vbW <= 0 || vbH <= 0) { toast.warning('Invalid viewBox dimensions'); return null }
+  const innerMatch = trimmed.match(/<svg[^>]*>([\s\S]*)<\/svg>/i)
+  const innerSvg = innerMatch ? innerMatch[1].trim() : trimmed
+  const asset: AssetDef = {
+    id: genId('custom'), name, category: safeCat,
+    w: safeW, h: safeH, custom: true, special: true,
+    svg: innerSvg,
+    svgViewBox: { w: vbW, h: vbH },
+  }
   pushHistory()
   state.layout.customAssets.push(asset)
   invalidateAssetMap()
@@ -2300,7 +2267,6 @@ async function unlinkObject(id: string): Promise<boolean> {
   return true
 }
 
-
 async function addFloor(): Promise<FloorData> {
   pushHistory()
   const n = state.layout.floors.length
@@ -2774,6 +2740,7 @@ export function useEditorStore() {
     setMode,
     resizeCanvas,
     addCustomAsset,
+    addSvgAsset,
     updateCustomAsset,
     deleteCustomAsset,
     addAssetCategory,

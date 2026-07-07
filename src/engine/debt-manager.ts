@@ -1,4 +1,4 @@
-﻿import type { BranchId } from '@/types'
+import type { BranchId } from '@/types'
 import { gameState } from './game-state'
 import { getTotalDebtReduction } from './skill-manager'
 import { hasRoyalGuard } from './assassin-manager'

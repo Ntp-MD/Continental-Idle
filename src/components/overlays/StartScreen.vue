@@ -1,4 +1,4 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 import { ref, computed, onUnmounted } from 'vue'
 import {
   STARTER_BRANCHES, getBranchDef,
@@ -98,7 +98,7 @@ onUnmounted(() => {
 
       <!-- Story intro -->
       <div class="start-screen__story">
-        <div class="start-screen__story-icon">☠</div>
+        <div class="start-screen__story-icon">?</div>
         <div class="start-screen__story-text">
           <p class="start-screen__story-line" v-for="(line, i) in storyIntro.split('\n\n')" :key="i">{{ line }}</p>
         </div>
@@ -124,13 +124,13 @@ onUnmounted(() => {
           <div class="start-screen__option-name">{{ branch.name }}</div>
           <div class="start-screen__option-city">{{ branch.city }}</div>
           <div class="start-screen__option-currency">{{ branch.currency }}</div>
-          <div v-if="selected === branch.id" class="start-screen__option-check">✓ SELECTED</div>
+          <div v-if="selected === branch.id" class="start-screen__option-check">? SELECTED</div>
         </div>
       </div>
 
       <!-- All locations by continent -->
       <div class="start-screen__world">
-        <div class="start-screen__world-title">World Map — 37 Continental Branches</div>
+        <div class="start-screen__world-title">World Map � 37 Continental Branches</div>
         <div v-for="cont in continents" :key="cont" class="start-screen__continent">
           <div class="start-screen__continent-label" :style="{ color: CONTINENT_COLORS[cont] }">
             {{ CONTINENT_LABELS[cont] }}

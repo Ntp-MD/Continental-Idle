@@ -1,4 +1,4 @@
-﻿import type { BranchId, StaffEntry, CharacterStats, Rarity } from '@/types'
+import type { BranchId, StaffEntry, CharacterStats, Rarity } from '@/types'
 import { STAFF_MAP } from '@/data/staff'
 import { getTraitMultiplier } from '@/data/traits'
 import { getTotalStaffXpMult, getExtraStaffSlots } from './skill-manager'

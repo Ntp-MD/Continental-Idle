@@ -1,4 +1,4 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 import { ref, onMounted, onUnmounted, watch } from 'vue'
 import { gameState } from '@/engine/game-state'
 import { getPrestigeFavor, canPrestige, doPrestige } from '@/engine/prestige-manager'

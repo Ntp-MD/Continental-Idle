@@ -1,4 +1,4 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { gameState } from '@/engine/game-state'
 import { getBranchDef } from '@/data/branches'
@@ -120,7 +120,7 @@ watch(() => props.visible, (v) => { if (v) update() })
           <span class="event-log__outcome" :class="e.outcome === 'ignored' ? 'event-log__outcome--ignored' : 'event-log__outcome--resolved'">{{ e.outcome }}</span>
         </div>
       </div>
-      <button class="game-panel__close" @click="emit('close')" aria-label="Close event history panel">✕</button>
+      <button class="game-panel__close" @click="emit('close')" aria-label="Close event history panel">?</button>
     </div>
   </div>
 </template>

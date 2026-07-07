@@ -1,4 +1,4 @@
-ï»¿import type { EventDefinition, BranchId, EventEffect, RaidData, RaidAttacker } from '@/types'
+import type { EventDefinition, BranchId, EventEffect, RaidData, RaidAttacker } from '@/types'
 import { EVENTS, EVENT_COOLDOWN } from '@/data/events'
 import { hasTraitEffect } from '@/data/traits'
 import { hasCleanerMaxed, getVipFrequencyMultiplier } from './abilities'
@@ -241,7 +241,7 @@ class EventEngine {
       if (e.branchLock && e.branchLock !== state.activeBranch) return false
       // High Table Enforcer prevents excommunicado events
       if (e.id === 'excommunicado' && hasHighTableEnforcer(state.activeBranch)) return false
-      // Raid cooldown check â€” separate from normal event cooldown
+      // Raid cooldown check — separate from normal event cooldown
       if (e.id === 'assassinRaid') {
         const lastRaid = this.lastRaidTimes.get(state.activeBranch) || 0
         if (now - lastRaid < RAID_COOLDOWN) return false
@@ -356,7 +356,7 @@ class EventEngine {
     }
 
     // Apply reputation change (Shadow Blade doubles reputation gain, diplomacy skill adds %)
-    // Only amplify positive changes â€” penalties should not be worsened by bonuses
+    // Only amplify positive changes — penalties should not be worsened by bonuses
     const repMult = choice.reputationChange > 0 && hasShadowBlade(eventBranchId) ? 2 : 1
     const skillRepMult = choice.reputationChange > 0 ? getTotalReputationMult() : 1
     const repChange = Math.round(choice.reputationChange * repMult * skillRepMult)
@@ -414,7 +414,7 @@ class EventEngine {
       // Apply penalties
       choice.penalties.forEach(p => applyPenalty(p, eventBranchId))
 
-      // Special: markerForgiveness â€” clear cheapest debt on accept
+      // Special: markerForgiveness — clear cheapest debt on accept
       if (this.activeEvent.definition.id === 'markerForgiveness' && choiceId === 'accept') {
         if (branch.markerDebts.length > 0) {
           const cheapest = branch.markerDebts.reduce((min, d) => d.amount < min.amount ? d : min, branch.markerDebts[0])
@@ -423,7 +423,7 @@ class EventEngine {
       }
     }
 
-    // Guest satisfaction: resolving events improves it slightly (skip for raid fight â€” handled above)
+    // Guest satisfaction: resolving events improves it slightly (skip for raid fight — handled above)
     if (!(this.activeEvent.definition.id === 'assassinRaid' && choiceId === 'fight')) {
       branch.guestSatisfaction = Math.min(100, branch.guestSatisfaction + 2)
     }
@@ -539,7 +539,7 @@ class EventEngine {
     const activeOwners = getActiveAIOwners()
     if (activeOwners.length === 0) return
 
-    // Filter by cooldown â€” only consider owners whose cooldown has elapsed
+    // Filter by cooldown — only consider owners whose cooldown has elapsed
     const eligible = activeOwners.filter(owner =>
       this.tickCount - owner.lastActionTick >= owner.actionCooldown
     )
@@ -599,13 +599,13 @@ class EventEngine {
           const flag = action === 'best' ? 'isBest' : 'isSafe'
           const preferred = choices.find(c => c[flag])
 
-          // Validate requirements before auto-resolving â€” fallback to ignore if preferred choice can't be taken
+          // Validate requirements before auto-resolving — fallback to ignore if preferred choice can't be taken
           let choiceId: string | null = null
           if (preferred) {
             if (!preferred.requires || this.canMeetRequirements(preferred)) {
               choiceId = preferred.id
             } else {
-              // Preferred choice can't be taken â€” find first choice without requirements
+              // Preferred choice can't be taken — find first choice without requirements
               const noReq = choices.find(c => !c.requires)
               choiceId = (noReq || choices[0]).id
             }

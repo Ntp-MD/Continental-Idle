@@ -1,4 +1,4 @@
-﻿import type { BranchId, BranchState } from '@/types'
+import type { BranchId, BranchState } from '@/types'
 import { BUILDINGS, BUILDING_MAP, BUILDING_INCOME_GROWTH } from '@/data/buildings'
 import { STAFF_MAP } from '@/data/staff'
 import { getTraitMultiplier } from '@/data/traits'

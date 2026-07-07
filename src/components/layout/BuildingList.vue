@@ -1,4 +1,4 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
 import { gameState } from '@/engine/game-state'
 import { BUILDINGS } from '@/data/buildings'
@@ -50,7 +50,7 @@ function update() {
       id: def.id,
       name: def.name,
       level,
-      income: level > 0 ? formatIncome(inc) : '—',
+      income: level > 0 ? formatIncome(inc) : '�',
       cost: maxed ? 'MAX' : (cost === 0 ? 'FREE' : formatNumber(cost)),
       affordable: affordable && !maxed,
       maxed,

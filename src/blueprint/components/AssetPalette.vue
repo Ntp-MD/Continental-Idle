@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
-import { useEditorStore, startAssetDrag, startRoomTemplateDrag } from '../editor-store'
+import { ref, computed, watch } from 'vue'
+import { useEditorStore, startAssetDrag, startRoomTemplateDrag, BUILTIN_ASSETS } from '../editor-store'
 import { useToast } from '@/composables/useToast'
 import type { AssetDef } from '../types'
 
@@ -9,6 +9,7 @@ const store = useEditorStore()
 const searchQuery = ref('')
 
 function assetIcon(asset: AssetDef): string {
+  if (asset.special) return '★'
   if (asset.parts && asset.parts.length > 0) return '▦'
   if (asset.linkedParts && asset.linkedParts.length > 0) return '⛓'
   return '▭'
@@ -22,7 +23,9 @@ function assetSizeLabel(asset: AssetDef): string {
 }
 
 const allAssets = computed(() => {
-  return [...store.state.layout.customAssets]
+  const hidden = new Set(store.state.layout.hiddenBuiltinIds)
+  const builtins = BUILTIN_ASSETS.filter(a => !hidden.has(a.id))
+  return [...builtins, ...store.state.layout.customAssets]
 })
 
 const grouped = computed(() => {
@@ -52,6 +55,28 @@ const newH = ref(1)
 const newRx = ref(0)
 const newBgColor = ref('')
 
+const showSvgForm = ref(false)
+const svgName = ref('')
+const svgW = ref(1)
+const svgH = ref(1)
+const svgContent = ref('')
+const svgCategory = ref('')
+
+const TILE_UNIT = 25
+
+watch(svgContent, (val) => {
+  if (!val) return
+  const m = val.match(/viewBox\s*=\s*["']([^"']+)["']/)
+  if (!m) return
+  const parts = m[1].split(/[\s,]+/).map(Number)
+  if (parts.length < 4 || parts.some(isNaN)) return
+  const vbW = parts[2]
+  const vbH = parts[3]
+  if (vbW <= 0 || vbH <= 0) return
+  svgW.value = Math.max(1, Math.round(vbW / TILE_UNIT))
+  svgH.value = Math.max(1, Math.round(vbH / TILE_UNIT))
+})
+
 const existingCategories = computed(() => {
   const stored = store.state.layout.assetCategories ?? []
   const cats = new Set<string>(stored)
@@ -76,6 +101,19 @@ async function submitNewAsset() {
   newRx.value = 0
   newBgColor.value = ''
   showAddForm.value = false
+}
+
+async function submitSvgAsset() {
+  if (!svgName.value.trim()) { useToast().warning('Asset name cannot be empty'); return }
+  if (!svgContent.value.trim()) { useToast().warning('SVG content cannot be empty'); return }
+  const result = await store.addSvgAsset(svgName.value.trim(), svgW.value, svgH.value, svgContent.value, svgCategory.value.trim() || undefined)
+  if (result) {
+    useToast().success('SVG asset imported')
+    svgName.value = ''
+    svgContent.value = ''
+    svgCategory.value = ''
+    showSvgForm.value = false
+  }
 }
 
 async function addNewCategory() {
@@ -176,6 +214,9 @@ function onItemClick(assetId: string) {
     <button class="asset-palette__add-btn" @click="addNewCategory">
       + Add New Category
     </button>
+    <button class="asset-palette__add-btn" @click="showSvgForm = !showSvgForm">
+      {{ showSvgForm ? 'Cancel' : '+ Import SVG Asset' }}
+    </button>
 
     <div v-if="showAddForm" class="asset-palette__form">
       <input class="asset-palette__form-input" v-model="newName" placeholder="Asset name" />
@@ -195,6 +236,18 @@ function onItemClick(assetId: string) {
         <input class="asset-palette__form-input" :value="newBgColor || '#ffffff'" @input="newBgColor = ($event.target as HTMLInputElement).value" placeholder="Bg color" />
       </div>
       <button class="asset-palette__form-submit" @click="submitNewAsset">Add Asset</button>
+    </div>
+
+    <div v-if="showSvgForm" class="asset-palette__form">
+      <input class="asset-palette__form-input" v-model="svgName" placeholder="Asset name" />
+      <input class="asset-palette__form-input" v-model="svgCategory" placeholder="Category (default: Special)" />
+      <div class="asset-palette__form-row">
+        <input class="asset-palette__form-input asset-palette__form-input--num" type="number" min="1" :value="svgW" disabled placeholder="W (auto)" />
+        <span>×</span>
+        <input class="asset-palette__form-input asset-palette__form-input--num" type="number" min="1" :value="svgH" disabled placeholder="H (auto)" />
+      </div>
+      <textarea class="asset-palette__form-textarea" v-model="svgContent" placeholder="Paste SVG here (must include viewBox)..." rows="6"></textarea>
+      <button class="asset-palette__form-submit" @click="submitSvgAsset">Import SVG</button>
     </div>
   </div>
 </template>
@@ -366,6 +419,24 @@ function onItemClick(assetId: string) {
   height: 28px;
   padding: 2px;
   cursor: pointer;
+}
+
+.asset-palette__form-textarea {
+  width: 100%;
+  background: var(--bg-tertiary, #101216);
+  border: 1px solid var(--border-dim, #252530);
+  color: var(--text-primary, #e8e8ec);
+  padding: 6px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-family: var(--font-mono, monospace);
+  resize: vertical;
+  min-height: 80px;
+}
+
+.asset-palette__form-textarea:focus {
+  outline: none;
+  border-color: var(--accent-gold, #f0c040);
 }
 
 .asset-palette__form-submit {

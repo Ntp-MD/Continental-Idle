@@ -1,4 +1,4 @@
-﻿import type { BranchId, AssassinEntry, CharacterStats, Rarity } from '@/types'
+import type { BranchId, AssassinEntry, CharacterStats, Rarity } from '@/types'
 import { ASSASSIN_MAP } from '@/data/assassins'
 import { getTraitMultiplier } from '@/data/traits'
 import { gameState } from './game-state'

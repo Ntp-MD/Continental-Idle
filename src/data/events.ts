@@ -1,10 +1,10 @@
-﻿import type { EventDefinition } from '@/types'
+import type { EventDefinition } from '@/types'
 
 export const EVENTS: EventDefinition[] = [
   {
     id: 'contractOpen',
     name: 'Contract Open',
-    description: 'A bounty has been posted. Accept to double your income for 90 seconds — but heat rises. Requires a Cleaner assigned.',
+    description: 'A bounty has been posted. Accept to double your income for 90 seconds � but heat rises. Requires a Cleaner assigned.',
     branchLock: null,
     weight: 25,
     heatModifier: 5,

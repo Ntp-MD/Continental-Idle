@@ -1,4 +1,4 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
 import { eventEngine } from '@/engine/event-engine'
 import { eventBus } from '@/engine/event-bus'
@@ -122,7 +122,7 @@ onUnmounted(() => {
 <template>
   <div v-if="visible" class="event-prompt" role="dialog" aria-modal="true" aria-labelledby="event-prompt-title">
     <div class="event-prompt__header">
-      <span class="event-prompt__icon">⚠</span>
+      <span class="event-prompt__icon">?</span>
       <span class="event-prompt__text" id="event-prompt-title">{{ eventName }}</span>
       <span class="event-prompt__timer">{{ timer }}s</span>
     </div>
@@ -134,7 +134,7 @@ onUnmounted(() => {
         <span class="event-prompt__raid-value">{{ raidData.attackers.length }} (Power: {{ raidData.attackerPower }})</span>
       </div>
       <div v-for="a in raidData.attackers" :key="a.name" class="event-prompt__raid-attacker">
-        {{ a.name }} — Lv.{{ a.level }} | PRE {{ a.precision }} SPD {{ a.speed }}
+        {{ a.name }} � Lv.{{ a.level }} | PRE {{ a.precision }} SPD {{ a.speed }}
       </div>
       <div class="event-prompt__raid-row">
         <span class="event-prompt__raid-label">Your defenders:</span>
@@ -159,8 +159,8 @@ onUnmounted(() => {
         @click="!c.disabled && resolve(c.id)"
       >
         {{ c.label }}
-        <span v-if="revealOutcomes && c.isBest" class="event-prompt__badge event-prompt__badge--best">★ Best</span>
-        <span v-if="revealOutcomes && c.isSafe" class="event-prompt__badge event-prompt__badge--safe">🛡 Safe</span>
+        <span v-if="revealOutcomes && c.isBest" class="event-prompt__badge event-prompt__badge--best">? Best</span>
+        <span v-if="revealOutcomes && c.isSafe" class="event-prompt__badge event-prompt__badge--safe">?? Safe</span>
         <span v-if="c.details" class="event-prompt__details">{{ c.details }}</span>
       </button>
     </div>

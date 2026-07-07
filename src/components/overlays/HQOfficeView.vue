@@ -1,4 +1,4 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 import { ref, shallowRef, onMounted, onUnmounted, nextTick, markRaw, triggerRef, computed } from 'vue'
 import { gameState } from '@/engine/game-state'
 import { getBranchDef } from '@/data/branches'
@@ -469,7 +469,7 @@ onUnmounted(() => {
       <div class="hq-office__stats-header">
         <span>{{ selectedNpc.dot.name }} Lv.{{ selectedNpc.dot.level }}</span>
         <span class="hq-office__stats-rarity">{{ selectedNpc.dot.rarity }}</span>
-        <button class="hq-office__stats-close" @click="selectedNpcId = null">Ã—</button>
+        <button class="hq-office__stats-close" @click="selectedNpcId = null">×</button>
       </div>
       <div class="hq-office__stats-body">
         <div class="hq-office__stats-row">
@@ -480,16 +480,16 @@ onUnmounted(() => {
           <span>CHA</span><b>{{ selectedNpc.data.stats.charisma }}</b>
           <span>LCK</span><b>{{ selectedNpc.data.stats.luck }}</b>
         </div>
-        <div class="hq-office__stats-traits">Traits: {{ selectedNpc.data.traits.join(', ') || 'â€”' }}</div>
+        <div class="hq-office__stats-traits">Traits: {{ selectedNpc.data.traits.join(', ') || '—' }}</div>
         <button v-if="selectedNpc.type === 'staff'" class="hq-office__fire-btn" @click="onFireStaff(selectedNpc.data.id)">Fire Staff</button>
         <button v-else class="hq-office__fire-btn" @click="onFireAssassin(selectedNpc.data.id)">Fire Assassin</button>
       </div>
     </div>
     <div v-if="selectedVisitor" class="hq-office__visitor-detail">
       <HQVisitorCard :visitor="selectedVisitor" :branch-currency="branchCurrency" @hire="onHireVisitor" @dismiss="onDismissVisitor" />
-      <button class="hq-office__stats-close" @click="selectedVisitor = null; selectedNpcId = null">Ã—</button>
+      <button class="hq-office__stats-close" @click="selectedVisitor = null; selectedNpcId = null">×</button>
     </div>
-    <div v-if="props.inline" class="hq-office__info"><span>{{ hqName }} â€” {{ hqOwner }}</span></div>
+    <div v-if="props.inline" class="hq-office__info"><span>{{ hqName }} — {{ hqOwner }}</span></div>
   </div>
 </template>
 

@@ -1,4 +1,4 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
 import { gameState } from '@/engine/game-state'
 import { getBranchIncomePerSecond } from '@/engine/income-engine'
@@ -87,7 +87,7 @@ onUnmounted(() => {
 <template>
   <header class="game-header">
     <h1 class="game-header__title">
-      Continental — {{ branchName }}
+      Continental � {{ branchName }}
       <span v-if="isHq" class="game-header__hq-badge">HQ</span>
     </h1>
     <div class="game-header__currencies">
@@ -138,12 +138,12 @@ onUnmounted(() => {
           <div class="heat-meter__fill" :style="{ width: (heat / 10 * 100) + '%' }"></div>
         </div>
         <span class="heat-meter__value">{{ heat }}/10</span>
-        <span v-if="heat >= 8" class="heat-meter__warning">⚠</span>
+        <span v-if="heat >= 8" class="heat-meter__warning">?</span>
       </div>
       <div v-if="debtCount > 0" class="game-header__currency game-header__currency--debt" :class="{ 'game-header__currency--debt-warning': debtWarning }">
         <span class="game-header__currency-label">Debt</span>
         <span class="game-header__currency-value">{{ debtTotal }} ({{ debtCount }})</span>
-        <span v-if="debtWarning" class="game-header__currency-warning">⚠</span>
+        <span v-if="debtWarning" class="game-header__currency-warning">?</span>
       </div>
       <div v-if="graceMinutes > 0" class="game-header__currency game-header__currency--grace">
         <span class="game-header__currency-label">Grace</span>

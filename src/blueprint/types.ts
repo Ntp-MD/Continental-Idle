@@ -34,6 +34,9 @@ export interface AssetDef {
   defaultPadding?: number
   defaultRx?: { tl: number; tr: number; br: number; bl: number }
   defaultBgColor?: string
+  special?: boolean
+  svg?: string
+  svgViewBox?: { w: number; h: number }
 }
 
 export interface RoomData {

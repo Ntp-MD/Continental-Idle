@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, watch, computed } from 'vue'
-import { useEditorStore } from '../editor-store'
+import { useEditorStore, findAssetCached } from '../editor-store'
 import { useToast } from '@/composables/useToast'
 import type { RoomData, ObjectData, AssetDef } from '../types'
 
@@ -228,6 +228,12 @@ const isCompositeAsset = computed(() => !!(asset.value?.parts && asset.value.par
 const partCount = computed(() => asset.value?.parts?.length ?? 0)
 const isLinkedAsset = computed(() => !!(asset.value?.linkedParts && asset.value.linkedParts.length > 0))
 const linkedPartCount = computed(() => asset.value?.linkedParts?.length ?? 0)
+const isSvgAsset = computed(() => !!(asset.value?.special && asset.value.svg))
+const isSvgObject = computed(() => {
+  if (!object.value) return false
+  const a = findAssetCached(store.assetMap(), object.value.type)
+  return !!(a?.special && a.svg)
+})
 
 const collapsedCount = computed(() => {
   if (!asset.value) return 0
@@ -481,6 +487,7 @@ const isComposite = computed(() => {
         <label>Name</label>
         <input type="text" v-model="assetFields.name" @change="commitAssetField('name')" />
       </div>
+      <template v-if="!isSvgAsset">
       <div class="properties-panel__row">
         <label>Category</label>
         <select v-model="assetFields.category" @change="commitAssetField('category')">
@@ -567,6 +574,7 @@ const isComposite = computed(() => {
             <input type="checkbox" v-model="assetRxSync" /> Sync all corners
           </label>
         </div>
+      </template>
       </template>
       <div v-if="assetInUse" class="properties-panel__inuse-info">
         <span class="properties-panel__collapsed-icon">i</span>
@@ -660,6 +668,7 @@ const isComposite = computed(() => {
           <label>Rotation</label>
           <span class="properties-panel__value">{{ object.rotation }}°</span>
         </div>
+        <template v-if="!isSvgObject">
         <div class="properties-panel__row">
           <label>Label Pad</label>
           <input type="number" min="0" v-model.number="fields.labelPadding" @change="commitObjectField('labelPadding')" />
@@ -702,6 +711,7 @@ const isComposite = computed(() => {
             <button class="properties-panel__btn properties-panel__btn--sm" @click="clearFillColor">Reset</button>
           </div>
         </div>
+        </template>
         <div class="properties-panel__row">
           <label>Label</label>
           <input type="text" v-model="fields.objLabel" @change="commitObjectField('objLabel')" placeholder="Custom label" />

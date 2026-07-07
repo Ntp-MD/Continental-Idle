@@ -1,4 +1,4 @@
-ï»¿<script setup lang="ts">
+<script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { gameState } from '@/engine/game-state'
 import { STAFF_TYPES } from '@/data/staff'
@@ -144,7 +144,7 @@ function update() {
       loyalty: Math.round(a.loyalty),
       loyaltyPercent: Math.min(100, a.loyalty),
       rawassignedBranch: a.assignedBranch,
-      assignedBranch: a.assignedBranch ? (getBranchDef(a.assignedBranch)?.name || a.assignedBranch) : 'â€”',
+      assignedBranch: a.assignedBranch ? (getBranchDef(a.assignedBranch)?.name || a.assignedBranch) : '—',
       rawAttackTarget: a.attackTarget,
       attackTarget: attackTargetName,
       statsDisplay: `P:${a.stats.precision} S:${a.stats.speed} C:${a.stats.charisma} L:${a.stats.luck}`,
@@ -509,7 +509,7 @@ watch(() => props.visible, (v) => {
       <template v-if="debts.length > 0">
         <div class="section-header staff-section-gap">Marker Debts</div>
         <div class="debt-info">
-          Total: {{ totalDebt }} â€” Debts auto-collect 5%/10s and accrue 1% interest/min
+          Total: {{ totalDebt }} — Debts auto-collect 5%/10s and accrue 1% interest/min
         </div>
         <div v-for="d in debts" :key="d.id" class="staff-card debt-row">
           <span class="debt-row__amount">{{ d.amount }}</span>

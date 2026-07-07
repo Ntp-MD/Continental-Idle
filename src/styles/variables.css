@@ -102,6 +102,9 @@
 	--accent-hp-low: #ef4444;
 	--hpbar-bg: #252530;
 
+	/* ── Blueprint Editor ── */
+	--blueprint-line: #555;
+
 	/* ── Fonts ── */
 	--font-mono: "JetBrains Mono", "Fira Code", "Courier New", Consolas, Monaco, monospace;
 	--font-scale: 1;

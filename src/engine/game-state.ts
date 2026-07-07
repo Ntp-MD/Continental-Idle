@@ -1,4 +1,4 @@
-ï»¿import type { GameState, BranchId, BranchState, BuildingState } from '@/types'
+import type { GameState, BranchId, BranchState, BuildingState } from '@/types'
 import { BUILDINGS, BUILDING_MAP } from '@/data/buildings'
 import { BRANCHES } from '@/data/branches'
 import { STAFF_TYPES } from '@/data/staff'
@@ -157,8 +157,8 @@ class GameStateManager {
     } else if (hq) {
       this.state = createDefaultState(hq)
     } else if (this.hasSave()) {
-      // Save exists but failed validation â€” start fresh
-      console.error('Save data corrupted â€” starting fresh game')
+      // Save exists but failed validation — start fresh
+      console.error('Save data corrupted — starting fresh game')
       this.deleteSave()
       this.state = createDefaultState('bangkok')
     }
@@ -193,14 +193,14 @@ class GameStateManager {
     this.state.checksum = this.computeChecksum()
     const json = JSON.stringify(this.state)
     try {
-      // Write main save first â€” if this fails, backup is preserved
+      // Write main save first — if this fails, backup is preserved
       localStorage.setItem(SAVE_KEY, json)
-      // Then backup â€” use the same json to avoid cross-tab race
+      // Then backup — use the same json to avoid cross-tab race
       localStorage.setItem(SAVE_KEY + '_backup', json)
       return true
     } catch {
-      console.error('Failed to save game â€” storage quota exceeded or unavailable')
-      this.toast.error('Failed to save game â€” storage may be full')
+      console.error('Failed to save game — storage quota exceeded or unavailable')
+      this.toast.error('Failed to save game — storage may be full')
       return false
     }
   }
@@ -216,10 +216,10 @@ class GameStateManager {
     const result = this.tryParseSave(raw)
     if (result) return result
 
-    // Main save failed â€” try backup
+    // Main save failed — try backup
     const backup = localStorage.getItem(SAVE_KEY + '_backup')
     if (backup) {
-      console.warn('Main save corrupted â€” attempting backup recovery')
+      console.warn('Main save corrupted — attempting backup recovery')
       const backupResult = this.tryParseSave(backup)
       if (backupResult) {
         console.info('Backup save recovered successfully')
@@ -256,7 +256,7 @@ class GameStateManager {
       typed.checksum = ''
       const expected = this.computeChecksumFor(typed)
       if (!savedChecksum || savedChecksum !== expected) {
-        console.error('Save checksum missing or mismatched â€” rejecting tampered save')
+        console.error('Save checksum missing or mismatched — rejecting tampered save')
         return null
       }
       typed.checksum = savedChecksum
@@ -287,7 +287,7 @@ class GameStateManager {
       // Validate activeBranch is a known branch
       if (!BRANCHES.find(t => t.id === parsed.activeBranch)) return false
 
-      // Validate activeBranch is in unlockedBranches â€” fallback to hqBranch if not
+      // Validate activeBranch is in unlockedBranches — fallback to hqBranch if not
       if (!parsed.worldMap.unlockedBranches.includes(parsed.activeBranch)) {
         parsed.activeBranch = parsed.hqBranch
       }
@@ -721,7 +721,7 @@ class GameStateManager {
     if (state.visitors) dataObj.vi = state.visitors.map(v => v.typeId + ':' + v.rarity + ':' + v.isAssassin + ':' + v.level + ':' + v.stats.precision + ':' + v.stats.speed + ':' + v.stats.charisma + ':' + v.stats.luck + ':' + v.traits.join('.')).join(',')
     if (state.lastSandboxLoopAt !== undefined) dataObj.ls = state.lastSandboxLoopAt
     const data = JSON.stringify(dataObj)
-    // FNV-1a hash â€” stronger than DJB2, covers all economically relevant fields
+    // FNV-1a hash — stronger than DJB2, covers all economically relevant fields
     let hash = 0x811c9dc5
     for (let i = 0; i < data.length; i++) {
       hash ^= data.charCodeAt(i)

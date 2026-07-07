@@ -1,4 +1,4 @@
-﻿import { gameState } from './game-state'
+import { gameState } from './game-state'
 import { runGameTick } from './tick-engine'
 import { achievementManager } from './achievement-manager'
 import { sovereignManager } from './sovereign-manager'

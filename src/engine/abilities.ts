@@ -1,4 +1,4 @@
-﻿import { gameState } from './game-state'
+import { gameState } from './game-state'
 import { STAFF_MAP } from '@/data/staff'
 import type { BranchId } from '@/types'
 

@@ -1,4 +1,4 @@
-﻿import { gameState } from './game-state'
+import { gameState } from './game-state'
 import { eventBus } from './event-bus'
 
 export interface TutorialStep {

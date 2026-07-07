@@ -1,10 +1,37 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
-import { useEditorStore, dragState, endAssetDrag, endRoomTemplateDrag } from '../editor-store'
-import { findAssetCached } from '../editor-assets'
+import { useEditorStore, dragState, endAssetDrag, endRoomTemplateDrag, findAssetCached } from '../editor-store'
 import { useToast } from '@/composables/useToast'
 import { aabbOverlap } from '../utils'
 import type { Rect, CompositePart, ObjectData, RoomData } from '../types'
+
+function renderSvgContent(g: SVGGElement, html: string) {
+  const parser = new DOMParser()
+  const doc = parser.parseFromString(
+    `<svg xmlns="http://www.w3.org/2000/svg">${html}</svg>`,
+    'image/svg+xml',
+  )
+  const parserError = doc.querySelector('parsererror')
+  if (parserError) {
+    console.warn('[EditorCanvas] Failed to parse SVG content:', parserError.textContent, html)
+    return
+  }
+  while (g.firstChild) g.removeChild(g.firstChild)
+  Array.from(doc.documentElement.children).forEach(child => {
+    g.appendChild(document.importNode(child, true))
+  })
+}
+
+const vSvgContent = {
+  mounted(el: Element, binding: { value: string }) {
+    if (binding.value) renderSvgContent(el as SVGGElement, binding.value)
+  },
+  updated(el: Element, binding: { value: string; oldValue?: string }) {
+    if (binding.value !== binding.oldValue && binding.value) {
+      renderSvgContent(el as SVGGElement, binding.value)
+    }
+  },
+}
 
 const store = useEditorStore()
 const svgRef = ref<SVGSVGElement | null>(null)
@@ -641,6 +668,25 @@ function assetParts(type: string): CompositePart[] | undefined {
   return findAssetCached(store.assetMap(), type)?.parts
 }
 
+function assetSvg(type: string): string | undefined {
+  return findAssetCached(store.assetMap(), type)?.svg
+}
+
+function svgTransform(obj: ObjectData): string {
+  const asset = findAssetCached(store.assetMap(), obj.type)
+  const vb = asset?.svgViewBox ?? { w: 50, h: 25 }
+  const rot = obj.rotation || 0
+  if (rot === 0) {
+    return `translate(${obj.x}, ${obj.y}) scale(${obj.w / vb.w}, ${obj.h / vb.h})`
+  } else if (rot === 90) {
+    return `translate(${obj.x + obj.w}, ${obj.y}) rotate(90) scale(${obj.h / vb.w}, ${obj.w / vb.h})`
+  } else if (rot === 180) {
+    return `translate(${obj.x + obj.w}, ${obj.y + obj.h}) rotate(180) scale(${obj.w / vb.w}, ${obj.h / vb.h})`
+  } else {
+    return `translate(${obj.x}, ${obj.y + obj.h}) rotate(270) scale(${obj.h / vb.w}, ${obj.w / vb.h})`
+  }
+}
+
 function compositeOutlinePath(obj: ObjectData): string | null {
   const parts = assetParts(obj.type)
   if (!parts || parts.length === 0) return null
@@ -680,6 +726,27 @@ function compositeOutlinePath(obj: ObjectData): string | null {
       if (j === 0 || !filled[i][j - 1]) segs.push(`${x1} ${y1} ${x1} ${y2}`)
       if (j === filled[i].length - 1 || !filled[i][j + 1]) segs.push(`${x2} ${y1} ${x2} ${y2}`)
     }
+  }
+  if (segs.length === 0) return null
+  return segs.map(s => `M${s.split(' ')[0]} ${s.split(' ')[1]}L${s.split(' ')[2]} ${s.split(' ')[3]}`).join(' ')
+}
+
+function compositePartDetailsPath(obj: ObjectData): string | null {
+  const parts = assetParts(obj.type)
+  if (!parts || parts.length <= 1) return null
+  const segs: string[] = []
+  for (const p of parts) {
+    const cx = obj.x + p.dx + p.w / 2
+    const cy = obj.y + p.dy + p.h / 2
+    let x = obj.x + p.dx, y = obj.y + p.dy, w = p.w, h = p.h
+    if (p.rotation === 90 || p.rotation === 270) {
+      x = cx - p.h / 2; y = cy - p.w / 2; w = p.h; h = p.w
+    }
+    x = Math.round(x); y = Math.round(y); w = Math.round(w); h = Math.round(h)
+    segs.push(`${x} ${y} ${x + w} ${y}`)
+    segs.push(`${x} ${y + h} ${x + w} ${y + h}`)
+    segs.push(`${x} ${y} ${x} ${y + h}`)
+    segs.push(`${x + w} ${y} ${x + w} ${y + h}`)
   }
   if (segs.length === 0) return null
   return segs.map(s => `M${s.split(' ')[0]} ${s.split(' ')[1]}L${s.split(' ')[2]} ${s.split(' ')[3]}`).join(' ')
@@ -863,7 +930,22 @@ function roundedRectPath(x: number, y: number, w: number, h: number, rx?: { tl: 
           </g>
 
           <g v-for="obj in floor.objects" :key="obj.id" @mousedown="onObjectMouseDown($event, obj.id)">
-            <template v-if="assetParts(obj.type)">
+            <template v-if="assetSvg(obj.type)">
+              <rect
+                :x="obj.x + (obj.padding ?? 0)" :y="obj.y + (obj.padding ?? 0)"
+                :width="obj.w - (obj.padding ?? 0) * 2" :height="obj.h - (obj.padding ?? 0) * 2"
+                :fill="objFillColor(obj)" stroke="none"
+                :class="{ 'editor-canvas__collapsed': obj.collapsed }"
+                :style="{ cursor: moving?.id === obj.id ? 'grabbing' : 'move' }"
+              />
+              <g
+                v-svg-content="assetSvg(obj.type)"
+                :transform="svgTransform(obj)"
+                :class="{ 'editor-canvas__selected': isObjectSelected(obj.id), 'editor-canvas__collapsed': obj.collapsed, 'editor-canvas__dragging-item': moving?.id === obj.id, 'editor-canvas__locked': obj.locked }"
+                :style="{ cursor: moving?.id === obj.id ? 'grabbing' : 'move' }"
+              />
+            </template>
+            <template v-else-if="assetParts(obj.type)">
               <template v-for="(part, i) in assetParts(obj.type)" :key="i">
                 <rect
                   :x="obj.x + part.dx" :y="obj.y + part.dy"
@@ -880,6 +962,12 @@ function roundedRectPath(x: number, y: number, w: number, h: number, rx?: { tl: 
                 fill="none" stroke="#555" stroke-width="1" stroke-linecap="square"
                 :class="{ 'editor-canvas__selected': isObjectSelected(obj.id), 'editor-canvas__collapsed': obj.collapsed, 'editor-canvas__dragging-item': moving?.id === obj.id, 'editor-canvas__linked': obj.linkedIds && obj.linkedIds.length > 0, 'editor-canvas__locked': obj.locked }"
                 :style="{ cursor: moving?.id === obj.id ? 'grabbing' : 'move', pointerEvents: 'none' }"
+              />
+              <path
+                v-if="compositePartDetailsPath(obj)"
+                :d="compositePartDetailsPath(obj)!"
+                fill="none" stroke="#555" stroke-width="0.5" stroke-linecap="square" opacity="0.5"
+                :style="{ pointerEvents: 'none' }"
               />
               <template v-else>
                 <template v-for="(part, i) in assetParts(obj.type)" :key="'o' + i">
