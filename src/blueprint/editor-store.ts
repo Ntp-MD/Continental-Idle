@@ -42,36 +42,31 @@ const SAVED_LAYOUT: LayoutData = {
   "customAssets": [
     {
       "id": "builtin-sofa-1",
-      "name": "Sofa 1",
+      "name": "Sofa",
       "category": "Special",
       "w": 2,
       "h": 1,
       "custom": true,
       "special": true,
-      "svgViewBox": { "w": 50, "h": 25 },
-      "svg": "<rect x=\"2\" y=\"1\" width=\"46\" height=\"4\" rx=\"1.2\" fill=\"none\" stroke=\"var(--blueprint-line)\" stroke-width=\"0.4\"/><rect x=\"2\" y=\"5\" width=\"6\" height=\"18\" rx=\"1.5\" fill=\"none\" stroke=\"var(--blueprint-line)\" stroke-width=\"0.4\"/><rect x=\"42\" y=\"5\" width=\"6\" height=\"18\" rx=\"1.5\" fill=\"none\" stroke=\"var(--blueprint-line)\" stroke-width=\"0.4\"/><rect x=\"9\" y=\"5\" width=\"15.5\" height=\"18\" rx=\"1\" fill=\"none\" stroke=\"var(--blueprint-line)\" stroke-width=\"0.35\"/><rect x=\"25.5\" y=\"5\" width=\"15.5\" height=\"18\" rx=\"1\" fill=\"none\" stroke=\"var(--blueprint-line)\" stroke-width=\"0.35\"/>"
+      "svg": "<rect x=\"2\" y=\"1\" width=\"46\" height=\"4\" rx=\"1.2\" fill=\"none\" stroke=\"var(--blueprint-line)\" stroke-width=\"0.4\"/><rect x=\"2\" y=\"5\" width=\"6\" height=\"18\" rx=\"1.5\" fill=\"none\" stroke=\"var(--blueprint-line)\" stroke-width=\"0.4\"/><rect x=\"42\" y=\"5\" width=\"6\" height=\"18\" rx=\"1.5\" fill=\"none\" stroke=\"var(--blueprint-line)\" stroke-width=\"0.4\"/><rect x=\"9\" y=\"5\" width=\"15.5\" height=\"18\" rx=\"1\" fill=\"none\" stroke=\"var(--blueprint-line)\" stroke-width=\"0.35\"/><rect x=\"25.5\" y=\"5\" width=\"15.5\" height=\"18\" rx=\"1\" fill=\"none\" stroke=\"var(--blueprint-line)\" stroke-width=\"0.35\"/>",
+      "svgViewBox": {
+        "w": 50,
+        "h": 25
+      }
     },
     {
       "id": "builtin-bed-1",
-      "name": "Bed 1",
+      "name": "Bed",
       "category": "Special",
       "w": 1,
       "h": 2,
       "custom": true,
       "special": true,
-      "svgViewBox": { "w": 25, "h": 50 },
-      "svg": "<rect x=\"1\" y=\"4\" width=\"23\" height=\"44\" rx=\"2\" fill=\"none\" stroke=\"var(--blueprint-line)\" stroke-width=\"0.4\"/><rect x=\"1\" y=\"1\" width=\"23\" height=\"3\" rx=\"1\" fill=\"none\" stroke=\"var(--blueprint-line)\" stroke-width=\"0.4\"/><rect x=\"3.5\" y=\"5.5\" width=\"18\" height=\"8\" rx=\"2\" fill=\"none\" stroke=\"var(--blueprint-line)\" stroke-width=\"0.35\"/><line x1=\"1\" y1=\"30\" x2=\"24\" y2=\"30\" stroke=\"var(--blueprint-line)\" stroke-width=\"0.3\"/><line x1=\"12.5\" y1=\"30\" x2=\"12.5\" y2=\"47\" stroke=\"var(--blueprint-line)\" stroke-width=\"0.25\"/>"
-    },
-    {
-      "id": "builtin-bed-4",
-      "name": "Bed 4",
-      "category": "Special",
-      "w": 1,
-      "h": 2,
-      "custom": true,
-      "special": true,
-      "svgViewBox": { "w": 25, "h": 50 },
-      "svg": "<rect x=\"1\" y=\"4\" width=\"23\" height=\"44\" rx=\"2\" fill=\"none\" stroke=\"var(--blueprint-line)\" stroke-width=\"0.4\"/><rect x=\"1\" y=\"1\" width=\"23\" height=\"3\" rx=\"1\" fill=\"none\" stroke=\"var(--blueprint-line)\" stroke-width=\"0.4\"/><rect x=\"3.5\" y=\"5.5\" width=\"18\" height=\"8\" rx=\"2\" fill=\"none\" stroke=\"var(--blueprint-line)\" stroke-width=\"0.35\"/><line x1=\"1\" y1=\"30\" x2=\"24\" y2=\"30\" stroke=\"var(--blueprint-line)\" stroke-width=\"0.3\"/><line x1=\"12.5\" y1=\"30\" x2=\"12.5\" y2=\"47\" stroke=\"var(--blueprint-line)\" stroke-width=\"0.25\"/>"
+      "svg": "<rect x=\"1\" y=\"4\" width=\"23\" height=\"44\" rx=\"2\" fill=\"none\" stroke=\"var(--blueprint-line)\" stroke-width=\"0.4\"/><rect x=\"1\" y=\"1\" width=\"23\" height=\"3\" rx=\"1\" fill=\"none\" stroke=\"var(--blueprint-line)\" stroke-width=\"0.4\"/><rect x=\"3.5\" y=\"5.5\" width=\"18\" height=\"8\" rx=\"2\" fill=\"none\" stroke=\"var(--blueprint-line)\" stroke-width=\"0.35\"/><line x1=\"1\" y1=\"30\" x2=\"24\" y2=\"30\" stroke=\"var(--blueprint-line)\" stroke-width=\"0.3\"/><line x1=\"12.5\" y1=\"30\" x2=\"12.5\" y2=\"47\" stroke=\"var(--blueprint-line)\" stroke-width=\"0.25\"/>",
+      "svgViewBox": {
+        "w": 25,
+        "h": 50
+      }
     },
     {
       "id": "custom-mr8wdziq-1",
@@ -180,6 +175,62 @@ const SAVED_LAYOUT: LayoutData = {
       "svgViewBox": {
         "w": 25,
         "h": 50
+      }
+    },
+    {
+      "id": "builtin-elevator-1",
+      "name": "Elevator",
+      "category": "Special",
+      "w": 3,
+      "h": 4,
+      "custom": true,
+      "special": true,
+      "svg": "<defs><marker id=\"arrow\" viewBox=\"0 0 10 10\" refX=\"8\" refY=\"5\" markerWidth=\"5\" markerHeight=\"5\" orient=\"auto-start-reverse\"><path d=\"M2 1L8 5L2 9\" fill=\"none\" stroke=\"var(--blueprint-line)\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/></marker></defs><rect x=\"1\" y=\"1\" width=\"73\" height=\"98\" rx=\"2\" fill=\"none\" stroke=\"var(--blueprint-line)\" stroke-width=\"0.5\"/><rect x=\"5\" y=\"5\" width=\"65\" height=\"85\" rx=\"2\" fill=\"none\" stroke=\"var(--blueprint-line)\" stroke-width=\"0.3\"/><line x1=\"1\" y1=\"90\" x2=\"74\" y2=\"90\" stroke=\"var(--blueprint-line)\" stroke-width=\"0.4\"/><rect x=\"6\" y=\"91\" width=\"30.5\" height=\"7\" rx=\"0.5\" fill=\"none\" stroke=\"var(--blueprint-line)\" stroke-width=\"0.35\"/><rect x=\"38.5\" y=\"91\" width=\"30.5\" height=\"7\" rx=\"0.5\" fill=\"none\" stroke=\"var(--blueprint-line)\" stroke-width=\"0.35\"/><line x1=\"34\" y1=\"94.5\" x2=\"26\" y2=\"94.5\" stroke=\"var(--blueprint-line)\" stroke-width=\"0.4\" marker-end=\"url(#arrow)\"/><line x1=\"41\" y1=\"94.5\" x2=\"49\" y2=\"94.5\" stroke=\"var(--blueprint-line)\" stroke-width=\"0.4\" marker-end=\"url(#arrow)\"/><rect x=\"30\" y=\"8\" width=\"15\" height=\"7\" rx=\"1\" fill=\"none\" stroke=\"var(--blueprint-line)\" stroke-width=\"0.3\"/><circle cx=\"8\" cy=\"94.5\" r=\"1.3\" fill=\"none\" stroke=\"var(--blueprint-line)\" stroke-width=\"0.3\"/>",
+      "svgViewBox": {
+        "w": 75,
+        "h": 100
+      }
+    },
+    {
+      "id": "custom-mrahjnoa-9.041026690228171e+23",
+      "name": "Kitchen Left",
+      "category": "Special",
+      "w": 4,
+      "h": 3,
+      "custom": true,
+      "special": true,
+      "svg": "<path d=\"M1 1 H99 V24 H24 V74 H1 Z\"\n        fill=\"none\" stroke=\"var(--blueprint-line)\" stroke-width=\"0.5\"/>\n  <line x1=\"2\" y1=\"23\" x2=\"23\" y2=\"2\"\n        stroke=\"var(--blueprint-line)\" stroke-width=\"0.35\"/>\n  <circle cx=\"12\" cy=\"12\" r=\"3\" fill=\"none\" stroke=\"var(--blueprint-line)\" stroke-width=\"0.3\"/>\n  <rect x=\"27\" y=\"3\" width=\"19\" height=\"20\" rx=\"1\"\n        fill=\"none\" stroke=\"var(--blueprint-line)\" stroke-width=\"0.4\"/>\n  <circle cx=\"33\" cy=\"9\" r=\"2\" fill=\"none\" stroke=\"var(--blueprint-line)\" stroke-width=\"0.3\"/>\n  <circle cx=\"41\" cy=\"9\" r=\"2\" fill=\"none\" stroke=\"var(--blueprint-line)\" stroke-width=\"0.3\"/>\n  <circle cx=\"33\" cy=\"17\" r=\"2\" fill=\"none\" stroke=\"var(--blueprint-line)\" stroke-width=\"0.3\"/>\n  <circle cx=\"41\" cy=\"17\" r=\"2\" fill=\"none\" stroke=\"var(--blueprint-line)\" stroke-width=\"0.3\"/>\n  <rect x=\"52\" y=\"3\" width=\"19\" height=\"20\" rx=\"1\"\n        fill=\"none\" stroke=\"var(--blueprint-line)\" stroke-width=\"0.4\"/>\n  <rect x=\"56\" y=\"8\" width=\"11\" height=\"10\" rx=\"2\"\n        fill=\"none\" stroke=\"var(--blueprint-line)\" stroke-width=\"0.3\"/>\n  <rect x=\"77\" y=\"3\" width=\"19\" height=\"20\" rx=\"1\"\n        fill=\"none\" stroke=\"var(--blueprint-line)\" stroke-width=\"0.4\"/>\n  <line x1=\"86.5\" y1=\"3\" x2=\"86.5\" y2=\"23\"\n        stroke=\"var(--blueprint-line)\" stroke-width=\"0.3\"/>\n  <rect x=\"3\" y=\"27\" width=\"20\" height=\"19\" rx=\"1\"\n        fill=\"none\" stroke=\"var(--blueprint-line)\" stroke-width=\"0.4\"/>\n  <rect x=\"7\" y=\"32\" width=\"12\" height=\"9\" rx=\"1\"\n        fill=\"none\" stroke=\"var(--blueprint-line)\" stroke-width=\"0.25\"/>\n  <rect x=\"3\" y=\"52\" width=\"20\" height=\"19\" rx=\"1\"\n        fill=\"none\" stroke=\"var(--blueprint-line)\" stroke-width=\"0.4\"/>\n  <line x1=\"3\" y1=\"58\" x2=\"23\" y2=\"58\" stroke=\"var(--blueprint-line)\" stroke-width=\"0.25\"/>\n  <line x1=\"3\" y1=\"65\" x2=\"23\" y2=\"65\" stroke=\"var(--blueprint-line)\" stroke-width=\"0.25\"/>",
+      "svgViewBox": {
+        "w": 100,
+        "h": 75
+      }
+    },
+    {
+      "id": "custom-mrahmoey-9.041026690228171e+23",
+      "name": "Kitchen-Right",
+      "category": "Special",
+      "w": 4,
+      "h": 3,
+      "custom": true,
+      "special": true,
+      "svg": "<path d=\"M99 1 H1 V24 H76 V74 H99 Z\"\n        fill=\"none\" stroke=\"var(--blueprint-line)\" stroke-width=\"0.5\"/>\n  <line x1=\"98\" y1=\"23\" x2=\"77\" y2=\"2\"\n        stroke=\"var(--blueprint-line)\" stroke-width=\"0.35\"/>\n  <circle cx=\"88\" cy=\"12\" r=\"3\" fill=\"none\" stroke=\"var(--blueprint-line)\" stroke-width=\"0.3\"/>\n  <rect x=\"4\" y=\"3\" width=\"19\" height=\"20\" rx=\"1\"\n        fill=\"none\" stroke=\"var(--blueprint-line)\" stroke-width=\"0.4\"/>\n  <line x1=\"13.5\" y1=\"3\" x2=\"13.5\" y2=\"23\"\n        stroke=\"var(--blueprint-line)\" stroke-width=\"0.3\"/>\n  <rect x=\"29\" y=\"3\" width=\"19\" height=\"20\" rx=\"1\"\n        fill=\"none\" stroke=\"var(--blueprint-line)\" stroke-width=\"0.4\"/>\n  <rect x=\"33\" y=\"8\" width=\"11\" height=\"10\" rx=\"2\"\n        fill=\"none\" stroke=\"var(--blueprint-line)\" stroke-width=\"0.3\"/>\n  <rect x=\"54\" y=\"3\" width=\"19\" height=\"20\" rx=\"1\"\n        fill=\"none\" stroke=\"var(--blueprint-line)\" stroke-width=\"0.4\"/>\n  <circle cx=\"59\" cy=\"9\" r=\"2\" fill=\"none\" stroke=\"var(--blueprint-line)\" stroke-width=\"0.3\"/>\n  <circle cx=\"67\" cy=\"9\" r=\"2\" fill=\"none\" stroke=\"var(--blueprint-line)\" stroke-width=\"0.3\"/>\n  <circle cx=\"59\" cy=\"17\" r=\"2\" fill=\"none\" stroke=\"var(--blueprint-line)\" stroke-width=\"0.3\"/>\n  <circle cx=\"67\" cy=\"17\" r=\"2\" fill=\"none\" stroke=\"var(--blueprint-line)\" stroke-width=\"0.3\"/>\n  <rect x=\"77\" y=\"27\" width=\"20\" height=\"19\" rx=\"1\"\n        fill=\"none\" stroke=\"var(--blueprint-line)\" stroke-width=\"0.4\"/>\n  <rect x=\"81\" y=\"32\" width=\"12\" height=\"9\" rx=\"1\"\n        fill=\"none\" stroke=\"var(--blueprint-line)\" stroke-width=\"0.25\"/>\n  <rect x=\"77\" y=\"52\" width=\"20\" height=\"19\" rx=\"1\"\n        fill=\"none\" stroke=\"var(--blueprint-line)\" stroke-width=\"0.4\"/>\n  <line x1=\"77\" y1=\"58\" x2=\"97\" y2=\"58\" stroke=\"var(--blueprint-line)\" stroke-width=\"0.25\"/>\n  <line x1=\"77\" y1=\"65\" x2=\"97\" y2=\"65\" stroke=\"var(--blueprint-line)\" stroke-width=\"0.25\"/>",
+      "svgViewBox": {
+        "w": 100,
+        "h": 75
+      }
+    },
+    {
+      "id": "custom-mrahr7le-9.041026690228171e+23",
+      "name": "Wash",
+      "category": "Special",
+      "w": 2,
+      "h": 1,
+      "custom": true,
+      "special": true,
+      "svg": "<rect x=\"1\" y=\"1\" width=\"48\" height=\"23\" rx=\"1.5\"\n        fill=\"none\" stroke=\"var(--blueprint-line)\" stroke-width=\"0.4\"/>\n  <line x1=\"25\" y1=\"1\" x2=\"25\" y2=\"24\"\n        stroke=\"var(--blueprint-line)\" stroke-width=\"0.3\"/>\n  <rect x=\"5\" y=\"3\" width=\"15\" height=\"4\" rx=\"1\"\n        fill=\"none\" stroke=\"var(--blueprint-line)\" stroke-width=\"0.3\"/>\n  <circle cx=\"13\" cy=\"16\" r=\"7\" fill=\"none\" stroke=\"var(--blueprint-line)\" stroke-width=\"0.4\"/>\n  <circle cx=\"13\" cy=\"16\" r=\"5\" fill=\"none\" stroke=\"var(--blueprint-line)\" stroke-width=\"0.25\"/>\n  <rect x=\"30\" y=\"3\" width=\"15\" height=\"4\" rx=\"1\"\n        fill=\"none\" stroke=\"var(--blueprint-line)\" stroke-width=\"0.3\"/>\n  <circle cx=\"37\" cy=\"16\" r=\"7\" fill=\"none\" stroke=\"var(--blueprint-line)\" stroke-width=\"0.4\"/>\n  <circle cx=\"37\" cy=\"16\" r=\"5\" fill=\"none\" stroke=\"var(--blueprint-line)\" stroke-width=\"0.25\"/>",
+      "svgViewBox": {
+        "w": 50,
+        "h": 25
       }
     }
   ],
@@ -593,6 +644,17 @@ const SAVED_LAYOUT: LayoutData = {
           "h": 50,
           "rotation": 0,
           "collapsed": false
+        },
+        {
+          "id": "o-mrahjpd6-9.041026690228171e+23",
+          "subId": "sub-mrahjpd6-9.041026690228171e+23",
+          "type": "custom-mrahjnoa-9.041026690228171e+23",
+          "x": 125,
+          "y": 325,
+          "w": 100,
+          "h": 75,
+          "rotation": 0,
+          "collapsed": false
         }
       ],
       "zones": []
@@ -611,6 +673,18 @@ const SAVED_LAYOUT: LayoutData = {
   "validationRules": {},
   "roomTemplates": []
 }
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
