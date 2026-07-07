@@ -41,6 +41,17 @@ const SAVED_LAYOUT: LayoutData = {
   },
   "customAssets": [
     {
+      "id": "builtin-restroom-1",
+      "name": "Rest Room",
+      "category": "Special",
+      "w": 3,
+      "h": 3,
+      "custom": true,
+      "special": true,
+      "svgViewBox": { "w": 75, "h": 75 },
+      "svg": "<line x1=\"1\" y1=\"1\" x2=\"74\" y2=\"1\" stroke=\"var(--blueprint-line)\" stroke-width=\"0.6\"/><line x1=\"74\" y1=\"1\" x2=\"74\" y2=\"74\" stroke=\"var(--blueprint-line)\" stroke-width=\"0.6\"/><line x1=\"74\" y1=\"74\" x2=\"1\" y2=\"74\" stroke=\"var(--blueprint-line)\" stroke-width=\"0.6\"/><line x1=\"1\" y1=\"1\" x2=\"1\" y2=\"26\" stroke=\"var(--blueprint-line)\" stroke-width=\"0.6\"/><line x1=\"1\" y1=\"46\" x2=\"1\" y2=\"74\" stroke=\"var(--blueprint-line)\" stroke-width=\"0.6\"/><line x1=\"1\" y1=\"26\" x2=\"21\" y2=\"26\" stroke=\"var(--blueprint-line)\" stroke-width=\"0.4\"/><path d=\"M21 26 A20 20 0 0 1 1 46\" fill=\"none\" stroke=\"var(--blueprint-line)\" stroke-width=\"0.2\" stroke-dasharray=\"1 1\"/><rect x=\"2\" y=\"2\" width=\"21\" height=\"21\" rx=\"1\" fill=\"none\" stroke=\"var(--blueprint-line)\" stroke-width=\"0.4\"/><rect x=\"3\" y=\"3\" width=\"4\" height=\"4\" fill=\"none\" stroke=\"var(--blueprint-line)\" stroke-width=\"0.3\"/><circle cx=\"12.5\" cy=\"12.5\" r=\"2\" fill=\"none\" stroke=\"var(--blueprint-line)\" stroke-width=\"0.3\"/><rect x=\"58\" y=\"2\" width=\"14\" height=\"5\" rx=\"1\" fill=\"none\" stroke=\"var(--blueprint-line)\" stroke-width=\"0.4\"/><rect x=\"59\" y=\"7\" width=\"12\" height=\"13\" rx=\"6\" fill=\"none\" stroke=\"var(--blueprint-line)\" stroke-width=\"0.4\"/><rect x=\"9\" y=\"61\" width=\"21\" height=\"12\" rx=\"2\" fill=\"none\" stroke=\"var(--blueprint-line)\" stroke-width=\"0.4\"/><rect x=\"13.5\" y=\"63\" width=\"12\" height=\"7\" rx=\"3\" fill=\"none\" stroke=\"var(--blueprint-line)\" stroke-width=\"0.3\"/><circle cx=\"19.5\" cy=\"71\" r=\"1\" fill=\"none\" stroke=\"var(--blueprint-line)\" stroke-width=\"0.25\"/><line x1=\"28\" y1=\"3\" x2=\"47\" y2=\"3\" stroke=\"var(--blueprint-line)\" stroke-width=\"0.4\"/><rect x=\"30\" y=\"4\" width=\"15\" height=\"8\" rx=\"1\" fill=\"none\" stroke=\"var(--blueprint-line)\" stroke-width=\"0.3\"/><rect x=\"64\" y=\"28\" width=\"9\" height=\"30\" rx=\"1\" fill=\"none\" stroke=\"var(--blueprint-line)\" stroke-width=\"0.4\"/><line x1=\"64\" y1=\"38\" x2=\"73\" y2=\"38\" stroke=\"var(--blueprint-line)\" stroke-width=\"0.25\"/><line x1=\"64\" y1=\"48\" x2=\"73\" y2=\"48\" stroke=\"var(--blueprint-line)\" stroke-width=\"0.25\"/>"
+    },
+    {
       "id": "builtin-sofa-1",
       "name": "Sofa",
       "category": "Special",
