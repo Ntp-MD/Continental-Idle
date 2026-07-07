@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
-import { useEditorStore, dragState, endAssetDrag, endRoomTemplateDrag, findAssetCached } from '../editor-store'
+import { useEditorStore, dragState, endAssetDrag, endRoomTemplateDrag } from '../editor-store'
+import { findAssetCached } from '../editor-assets'
 import { useToast } from '@/composables/useToast'
 import { aabbOverlap } from '../utils'
 import type { Rect, CompositePart, ObjectData, RoomData } from '../types'

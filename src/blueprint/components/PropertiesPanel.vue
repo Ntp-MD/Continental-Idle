@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, watch, computed } from 'vue'
-import { useEditorStore, findAssetCached } from '../editor-store'
+import { useEditorStore } from '../editor-store'
+import { findAssetCached } from '../editor-assets'
 import { useToast } from '@/composables/useToast'
 import type { RoomData, ObjectData, AssetDef } from '../types'
 

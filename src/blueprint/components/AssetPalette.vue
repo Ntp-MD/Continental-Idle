@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
-import { useEditorStore, startAssetDrag, startRoomTemplateDrag, BUILTIN_ASSETS } from '../editor-store'
+import { useEditorStore, startAssetDrag, startRoomTemplateDrag } from '../editor-store'
 import { useToast } from '@/composables/useToast'
 import type { AssetDef } from '../types'
 
@@ -23,9 +23,7 @@ function assetSizeLabel(asset: AssetDef): string {
 }
 
 const allAssets = computed(() => {
-  const hidden = new Set(store.state.layout.hiddenBuiltinIds)
-  const builtins = BUILTIN_ASSETS.filter(a => !hidden.has(a.id))
-  return [...builtins, ...store.state.layout.customAssets]
+  return [...store.state.layout.customAssets]
 })
 
 const grouped = computed(() => {

@@ -6,57 +6,9 @@ import type {
   ObjectCustomProps, ValidationRule, RoomTemplate,
 } from './types'
 import { aabbOverlap } from './utils'
+import { findAsset, findAssetCached, buildAssetMap } from './editor-assets'
 import { useToast } from '@/composables/useToast'
 import { EDITOR_CONFIG } from './editor-config'
-
-export const BUILTIN_ASSETS: AssetDef[] = [
-  {
-    id: 'builtin-sofa-1',
-    name: 'Sofa 1',
-    category: 'Special',
-    w: 2,
-    h: 1,
-    special: true,
-    svgViewBox: { w: 50, h: 25 },
-    svg: '<rect x="2" y="1" width="46" height="4" rx="1.2" fill="none" stroke="var(--blueprint-line)" stroke-width="0.4"/><rect x="2" y="5" width="6" height="18" rx="1.5" fill="none" stroke="var(--blueprint-line)" stroke-width="0.4"/><rect x="42" y="5" width="6" height="18" rx="1.5" fill="none" stroke="var(--blueprint-line)" stroke-width="0.4"/><rect x="9" y="5" width="15.5" height="18" rx="1" fill="none" stroke="var(--blueprint-line)" stroke-width="0.35"/><rect x="25.5" y="5" width="15.5" height="18" rx="1" fill="none" stroke="var(--blueprint-line)" stroke-width="0.35"/>',
-  },
-  {
-    id: 'builtin-bed-1',
-    name: 'Bed 1',
-    category: 'Special',
-    w: 1,
-    h: 2,
-    special: true,
-    svgViewBox: { w: 25, h: 50 },
-    svg: '<rect x="1" y="4" width="23" height="44" rx="2" fill="none" stroke="var(--blueprint-line)" stroke-width="0.4"/><rect x="1" y="1" width="23" height="3" rx="1" fill="none" stroke="var(--blueprint-line)" stroke-width="0.4"/><rect x="3.5" y="5.5" width="18" height="8" rx="2" fill="none" stroke="var(--blueprint-line)" stroke-width="0.35"/><line x1="1" y1="30" x2="24" y2="30" stroke="var(--blueprint-line)" stroke-width="0.3"/><line x1="12.5" y1="30" x2="12.5" y2="47" stroke="var(--blueprint-line)" stroke-width="0.25"/>',
-  },
-  {
-    id: 'builtin-bed-4',
-    name: 'Bed 4',
-    category: 'Special',
-    w: 1,
-    h: 2,
-    special: true,
-    svgViewBox: { w: 25, h: 50 },
-    svg: '<rect x="1" y="4" width="23" height="44" rx="2" fill="none" stroke="var(--blueprint-line)" stroke-width="0.4"/><rect x="1" y="1" width="23" height="3" rx="1" fill="none" stroke="var(--blueprint-line)" stroke-width="0.4"/><rect x="3.5" y="5.5" width="18" height="8" rx="2" fill="none" stroke="var(--blueprint-line)" stroke-width="0.35"/><line x1="1" y1="30" x2="24" y2="30" stroke="var(--blueprint-line)" stroke-width="0.3"/><line x1="12.5" y1="30" x2="12.5" y2="47" stroke="var(--blueprint-line)" stroke-width="0.25"/>',
-  },
-]
-
-const BUILTIN_ASSET_MAP = new Map<string, AssetDef>(BUILTIN_ASSETS.map(a => [a.id, a]))
-
-export function findAsset(assets: AssetDef[], type: string): AssetDef | undefined {
-  return assets.find(a => a.id === type) || BUILTIN_ASSET_MAP.get(type)
-}
-
-export function findAssetCached(assetMap: Map<string, AssetDef>, type: string): AssetDef | undefined {
-  return assetMap.get(type) ?? BUILTIN_ASSET_MAP.get(type)
-}
-
-export function buildAssetMap(customAssets: AssetDef[]): Map<string, AssetDef> {
-  const map = new Map<string, AssetDef>(BUILTIN_ASSET_MAP)
-  for (const a of customAssets) map.set(a.id, a)
-  return map
-}
 
 const toast = useToast()
 
@@ -77,7 +29,6 @@ const HISTORY_LIMIT = EDITOR_CONFIG.historyLimit
 
 const SAVED_LAYOUT: LayoutData = {
   "version": 1,
-  "hiddenBuiltinIds": [],
   "assetCategories": [
     "tools",
     "Merged",
@@ -89,6 +40,39 @@ const SAVED_LAYOUT: LayoutData = {
     "tileSize": 25
   },
   "customAssets": [
+    {
+      "id": "builtin-sofa-1",
+      "name": "Sofa 1",
+      "category": "Special",
+      "w": 2,
+      "h": 1,
+      "custom": true,
+      "special": true,
+      "svgViewBox": { "w": 50, "h": 25 },
+      "svg": "<rect x=\"2\" y=\"1\" width=\"46\" height=\"4\" rx=\"1.2\" fill=\"none\" stroke=\"var(--blueprint-line)\" stroke-width=\"0.4\"/><rect x=\"2\" y=\"5\" width=\"6\" height=\"18\" rx=\"1.5\" fill=\"none\" stroke=\"var(--blueprint-line)\" stroke-width=\"0.4\"/><rect x=\"42\" y=\"5\" width=\"6\" height=\"18\" rx=\"1.5\" fill=\"none\" stroke=\"var(--blueprint-line)\" stroke-width=\"0.4\"/><rect x=\"9\" y=\"5\" width=\"15.5\" height=\"18\" rx=\"1\" fill=\"none\" stroke=\"var(--blueprint-line)\" stroke-width=\"0.35\"/><rect x=\"25.5\" y=\"5\" width=\"15.5\" height=\"18\" rx=\"1\" fill=\"none\" stroke=\"var(--blueprint-line)\" stroke-width=\"0.35\"/>"
+    },
+    {
+      "id": "builtin-bed-1",
+      "name": "Bed 1",
+      "category": "Special",
+      "w": 1,
+      "h": 2,
+      "custom": true,
+      "special": true,
+      "svgViewBox": { "w": 25, "h": 50 },
+      "svg": "<rect x=\"1\" y=\"4\" width=\"23\" height=\"44\" rx=\"2\" fill=\"none\" stroke=\"var(--blueprint-line)\" stroke-width=\"0.4\"/><rect x=\"1\" y=\"1\" width=\"23\" height=\"3\" rx=\"1\" fill=\"none\" stroke=\"var(--blueprint-line)\" stroke-width=\"0.4\"/><rect x=\"3.5\" y=\"5.5\" width=\"18\" height=\"8\" rx=\"2\" fill=\"none\" stroke=\"var(--blueprint-line)\" stroke-width=\"0.35\"/><line x1=\"1\" y1=\"30\" x2=\"24\" y2=\"30\" stroke=\"var(--blueprint-line)\" stroke-width=\"0.3\"/><line x1=\"12.5\" y1=\"30\" x2=\"12.5\" y2=\"47\" stroke=\"var(--blueprint-line)\" stroke-width=\"0.25\"/>"
+    },
+    {
+      "id": "builtin-bed-4",
+      "name": "Bed 4",
+      "category": "Special",
+      "w": 1,
+      "h": 2,
+      "custom": true,
+      "special": true,
+      "svgViewBox": { "w": 25, "h": 50 },
+      "svg": "<rect x=\"1\" y=\"4\" width=\"23\" height=\"44\" rx=\"2\" fill=\"none\" stroke=\"var(--blueprint-line)\" stroke-width=\"0.4\"/><rect x=\"1\" y=\"1\" width=\"23\" height=\"3\" rx=\"1\" fill=\"none\" stroke=\"var(--blueprint-line)\" stroke-width=\"0.4\"/><rect x=\"3.5\" y=\"5.5\" width=\"18\" height=\"8\" rx=\"2\" fill=\"none\" stroke=\"var(--blueprint-line)\" stroke-width=\"0.35\"/><line x1=\"1\" y1=\"30\" x2=\"24\" y2=\"30\" stroke=\"var(--blueprint-line)\" stroke-width=\"0.3\"/><line x1=\"12.5\" y1=\"30\" x2=\"12.5\" y2=\"47\" stroke=\"var(--blueprint-line)\" stroke-width=\"0.25\"/>"
+    },
     {
       "id": "custom-mr8wdziq-1",
       "name": "Table",
@@ -171,24 +155,6 @@ const SAVED_LAYOUT: LayoutData = {
       "custom": true
     },
     {
-      "id": "custom-mr907rdo-1",
-      "name": "Bar",
-      "category": "Misc",
-      "w": 1,
-      "h": 8,
-      "custom": true
-    },
-    {
-      "id": "custom-mr92zwu5-7",
-      "name": "For Sofa",
-      "category": "Misc",
-      "w": 2,
-      "h": 1,
-      "custom": true,
-      "pxW": 40,
-      "pxH": 25
-    },
-    {
       "id": "custom-mradv414-17664810560",
       "name": "Double Bed",
       "category": "Special",
@@ -199,6 +165,20 @@ const SAVED_LAYOUT: LayoutData = {
       "svg": "<rect x=\"1\" y=\"4\" width=\"48\" height=\"44\" rx=\"2.5\"\n        fill=\"none\" stroke=\"var(--blueprint-line)\" stroke-width=\"0.4\"/>\n  <rect x=\"1\" y=\"1\" width=\"48\" height=\"3\" rx=\"1\"\n        fill=\"none\" stroke=\"var(--blueprint-line)\" stroke-width=\"0.4\"/>\n  <rect x=\"4\" y=\"5.5\" width=\"20\" height=\"8\" rx=\"2\"\n        fill=\"none\" stroke=\"var(--blueprint-line)\" stroke-width=\"0.35\"/>\n  <rect x=\"26\" y=\"5.5\" width=\"20\" height=\"8\" rx=\"2\"\n        fill=\"none\" stroke=\"var(--blueprint-line)\" stroke-width=\"0.35\"/>\n  <line x1=\"1\" y1=\"30\" x2=\"49\" y2=\"30\"\n        stroke=\"var(--blueprint-line)\" stroke-width=\"0.3\"/>\n  <line x1=\"25\" y1=\"30\" x2=\"25\" y2=\"47\"\n        stroke=\"var(--blueprint-line)\" stroke-width=\"0.25\"/>",
       "svgViewBox": {
         "w": 50,
+        "h": 50
+      }
+    },
+    {
+      "id": "custom-mraerhs8-9.041026690228171e+23",
+      "name": "Bath",
+      "category": "Special",
+      "w": 1,
+      "h": 2,
+      "custom": true,
+      "special": true,
+      "svg": "<rect x=\"2\" y=\"2\" width=\"21\" height=\"46\" rx=\"9\"\n        fill=\"none\" stroke=\"var(--blueprint-line)\" stroke-width=\"0.4\"/>\n  <rect x=\"4.5\" y=\"5\" width=\"16\" height=\"40\" rx=\"7\"\n        fill=\"none\" stroke=\"var(--blueprint-line)\" stroke-width=\"0.3\"/>\n  <rect x=\"10.5\" y=\"0.5\" width=\"4\" height=\"2.5\" rx=\"0.8\"\n        fill=\"none\" stroke=\"var(--blueprint-line)\" stroke-width=\"0.35\"/>\n  <circle cx=\"8.5\" cy=\"4\" r=\"1\" fill=\"none\" stroke=\"var(--blueprint-line)\" stroke-width=\"0.3\"/>\n  <circle cx=\"16.5\" cy=\"4\" r=\"1\" fill=\"none\" stroke=\"var(--blueprint-line)\" stroke-width=\"0.3\"/>\n  <circle cx=\"12.5\" cy=\"41\" r=\"1.3\" fill=\"none\" stroke=\"var(--blueprint-line)\" stroke-width=\"0.3\"/>",
+      "svgViewBox": {
+        "w": 25,
         "h": 50
       }
     }
@@ -448,17 +428,6 @@ const SAVED_LAYOUT: LayoutData = {
           "collapsed": false
         },
         {
-          "id": "o-mr907u8d-1",
-          "subId": "sub-mr907u8d-2",
-          "type": "custom-mr907rdo-1",
-          "x": 1075,
-          "y": 25,
-          "w": 25,
-          "h": 200,
-          "rotation": 0,
-          "collapsed": false
-        },
-        {
           "id": "o-mr92tiph-1",
           "subId": "sub-mr92tiph-2",
           "type": "custom-mr8wdziq-1",
@@ -466,17 +435,6 @@ const SAVED_LAYOUT: LayoutData = {
           "y": 325,
           "w": 25,
           "h": 50,
-          "rotation": 0,
-          "collapsed": false
-        },
-        {
-          "id": "o-mr931mxx-14",
-          "subId": "sub-mr931mxx-15",
-          "type": "custom-mr92zwu5-7",
-          "x": 350,
-          "y": 300,
-          "w": 50,
-          "h": 25,
           "rotation": 0,
           "collapsed": false
         },
@@ -492,33 +450,145 @@ const SAVED_LAYOUT: LayoutData = {
           "collapsed": false
         },
         {
-          "id": "o-mra52jjp-146",
-          "subId": "sub-mra52jjp-147",
-          "type": "builtin-bed-4",
-          "x": 125,
-          "y": 300,
-          "w": 25,
-          "h": 50,
-          "rotation": 0,
-          "collapsed": false
-        },
-        {
-          "id": "o-mradqjzs-8456727",
-          "subId": "sub-mradqjzs-8456728",
-          "type": "builtin-bed-4",
-          "x": 525,
-          "y": 175,
-          "w": 25,
-          "h": 50,
-          "rotation": 0,
-          "collapsed": false
-        },
-        {
           "id": "o-mradv5yo-4384484173716265",
           "subId": "sub-mradv5yo-4384484173716266",
           "type": "custom-mradv414-17664810560",
           "x": 450,
           "y": 175,
+          "w": 50,
+          "h": 50,
+          "rotation": 0,
+          "collapsed": false
+        },
+        {
+          "id": "o-mraehe1d-9.041026690228171e+23",
+          "subId": "sub-mraehe1d-9.041026690228171e+23",
+          "type": "custom-mr8wdziq-1",
+          "x": 825,
+          "y": 250,
+          "w": 25,
+          "h": 50,
+          "rotation": 0,
+          "collapsed": false
+        },
+        {
+          "id": "o-mraehfep-9.041026690228171e+23",
+          "subId": "sub-mraehfep-9.041026690228171e+23",
+          "type": "custom-mr8wfbqa-1",
+          "x": 750,
+          "y": 250,
+          "w": 25,
+          "h": 25,
+          "rotation": 0,
+          "rx": {
+            "tl": 3,
+            "tr": 3,
+            "br": 3,
+            "bl": 3
+          },
+          "padding": 5,
+          "collapsed": false
+        },
+        {
+          "id": "o-mraehgjt-9.041026690228171e+23",
+          "subId": "sub-mraehgjt-9.041026690228171e+23",
+          "type": "custom-mr8zu9xo-1",
+          "x": 800,
+          "y": 375,
+          "w": 50,
+          "h": 25,
+          "rotation": 0,
+          "collapsed": false
+        },
+        {
+          "id": "o-mraehi69-9.041026690228171e+23",
+          "subId": "sub-mraehi69-9.041026690228171e+23",
+          "type": "custom-mr8wdziq-1",
+          "x": 925,
+          "y": 150,
+          "w": 25,
+          "h": 50,
+          "rotation": 0,
+          "collapsed": false
+        },
+        {
+          "id": "o-mraehi69-9.041026690228171e+23",
+          "subId": "sub-mraehi69-9.041026690228171e+23",
+          "type": "custom-mr8wfbqa-1",
+          "x": 950,
+          "y": 150,
+          "w": 25,
+          "h": 25,
+          "rotation": 0,
+          "rx": {
+            "tl": 3,
+            "tr": 3,
+            "br": 3,
+            "bl": 3
+          },
+          "padding": 5,
+          "collapsed": false
+        },
+        {
+          "id": "o-mraehi69-9.041026690228171e+23",
+          "subId": "sub-mraehi69-9.041026690228171e+23",
+          "type": "custom-mr8wfbqa-1",
+          "x": 900,
+          "y": 150,
+          "w": 25,
+          "h": 25,
+          "rotation": 0,
+          "rx": {
+            "tl": 3,
+            "tr": 3,
+            "br": 3,
+            "bl": 3
+          },
+          "padding": 5,
+          "collapsed": false
+        },
+        {
+          "id": "o-mraehi69-9.041026690228171e+23",
+          "subId": "sub-mraehi69-9.041026690228171e+23",
+          "type": "custom-mr8wfbqa-1",
+          "x": 900,
+          "y": 175,
+          "w": 25,
+          "h": 25,
+          "rotation": 0,
+          "rx": {
+            "tl": 3,
+            "tr": 3,
+            "br": 3,
+            "bl": 3
+          },
+          "padding": 5,
+          "collapsed": false
+        },
+        {
+          "id": "o-mraehi69-9.041026690228171e+23",
+          "subId": "sub-mraehi69-9.041026690228171e+23",
+          "type": "custom-mr8wfbqa-1",
+          "x": 950,
+          "y": 175,
+          "w": 25,
+          "h": 25,
+          "rotation": 0,
+          "rx": {
+            "tl": 3,
+            "tr": 3,
+            "br": 3,
+            "bl": 3
+          },
+          "padding": 5,
+          "collapsed": false
+        },
+        {
+          "id": "o-mraehooh-9.041026690228171e+23",
+          "subId": "sub-mraehooh-9.041026690228171e+23",
+          "type": "custom-mradv414-17664810560",
+          "x": 1075,
+          "y": 300,
           "w": 50,
           "h": 50,
           "rotation": 0,
@@ -541,6 +611,16 @@ const SAVED_LAYOUT: LayoutData = {
   "validationRules": {},
   "roomTemplates": []
 }
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -595,12 +675,8 @@ function migrate(data: unknown): LayoutData {
     && typeof (canvas as Record<string, unknown>).tileSize === 'number'
     && isFinite((canvas as Record<string, unknown>).tileSize as number)
     && (canvas as Record<string, unknown>).tileSize as number > 0
-  const hiddenBuiltinIds: string[] = Array.isArray(d.hiddenBuiltinIds)
-    ? d.hiddenBuiltinIds.filter((id: unknown): id is string => typeof id === 'string')
-    : []
   const migrated: LayoutData = {
     version: LAYOUT_VERSION,
-    hiddenBuiltinIds,
     assetCategories: Array.isArray(d.assetCategories)
       ? d.assetCategories.filter((c: unknown): c is string => typeof c === 'string')
       : [],
@@ -1900,27 +1976,9 @@ async function deleteAssetCategory(name: string): Promise<void> {
 }
 
 /* ---------- Merge / Ungroup ---------- */
-function rotatedCorners(obj: ObjectData): [number, number][] {
-  const cx = obj.x + obj.w / 2
-  const cy = obj.y + obj.h / 2
-  const rad = (obj.rotation * Math.PI) / 180
-  const cos = Math.cos(rad)
-  const sin = Math.sin(rad)
-  const hw = obj.w / 2
-  const hh = obj.h / 2
-  const corners: [number, number][] = [
-    [-hw, -hh], [hw, -hh], [hw, hh], [-hw, hh],
-  ]
-  return corners.map(([dx, dy]) => [
-    cx + dx * cos - dy * sin,
-    cy + dx * sin + dy * cos,
-  ])
-}
-
 function buildCompositeParts(objs: ObjectData[]): { parts: CompositePart[]; minX: number; minY: number; totalW: number; totalH: number } {
   // IMPORTANT: rotateSelected() already swaps w/h and adjusts x/y.
   // So obj.w/h are the VISUAL dimensions after rotation.
-  // Do NOT use rotatedCorners() here - it would double-rotate.
   // Do NOT set part.rotation to obj.rotation - parts are already in visual orientation.
   // Changing this will break merged objects with rotated parts.
   let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity

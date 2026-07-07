@@ -127,7 +127,6 @@ export interface LayoutData {
   version: number
   canvas: CanvasConfig
   customAssets: AssetDef[]
-  hiddenBuiltinIds: string[]
   assetCategories: string[]
   floors: FloorData[]
   objectCustomProps: Record<string, ObjectCustomProps>
