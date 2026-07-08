@@ -1,10 +1,14 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
-import { useEditorStore, dragState, endAssetDrag, endRoomTemplateDrag } from '../editor-store'
-import { findAssetCached } from '../editor-assets'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { useAssetsStore, dragState, endAssetDrag, endRoomTemplateDrag } from '../assets-store'
+import { findAssetCached } from '../assets-utils'
+import { svgTransform as svgTransformGeo, compositeOutlinePath as compositeOutlinePathGeo, compositePartDetailsPath as compositePartDetailsPathGeo, roundedRectPath } from '../geometry'
 import { useToast } from '@/composables/useToast'
-import { aabbOverlap } from '../utils'
-import type { Rect, CompositePart, ObjectData, RoomData } from '../types'
+import type { CompositePart, ObjectData, RoomData } from '../types'
+import { useCanvasViewport } from '../composables/useCanvasViewport'
+import { useCanvasSelection } from '../composables/useCanvasSelection'
+import { useCanvasDragDrop } from '../composables/useCanvasDragDrop'
+import { useWallPaintTool } from '../composables/useWallPaintTool'
 
 function renderSvgContent(g: SVGGElement, html: string) {
   const parser = new DOMParser()
@@ -19,7 +23,12 @@ function renderSvgContent(g: SVGGElement, html: string) {
   }
   while (g.firstChild) g.removeChild(g.firstChild)
   Array.from(doc.documentElement.children).forEach(child => {
-    g.appendChild(document.importNode(child, true))
+    const node = document.importNode(child, true) as SVGElement
+    const role = node.getAttribute('data-role')
+    if (role) {
+      node.classList.add(`svg-role--${role}`)
+    }
+    g.appendChild(node)
   })
 }
 
@@ -34,286 +43,68 @@ const vSvgContent = {
   },
 }
 
-const store = useEditorStore()
-const svgRef = ref<SVGSVGElement | null>(null)
-const containerRef = ref<HTMLElement | null>(null)
-
+const store = useAssetsStore()
 const canvas = computed(() => store.state.layout.canvas)
 const floor = computed(() => store.currentFloor.value)
 
-/* ---------- Zoom & Pan (Photoshop-style) ---------- */
-const ZOOM_STORAGE_KEY = 'blueprint-zoom-state'
-function loadZoomState(): { zoom: number; panX: number; panY: number } {
-  try {
-    const raw = sessionStorage.getItem(ZOOM_STORAGE_KEY)
-    if (raw) return JSON.parse(raw)
-  } catch { /* ignore */ }
-  return { zoom: 1, panX: 0, panY: 0 }
-}
-function saveZoomState(zoom: number, panX: number, panY: number) {
-  try {
-    sessionStorage.setItem(ZOOM_STORAGE_KEY, JSON.stringify({ zoom, panX, panY }))
-  } catch { /* ignore */ }
-}
-const _initial = loadZoomState()
-const zoom = ref(_initial.zoom)
-const panX = ref(_initial.panX)
-const panY = ref(_initial.panY)
-const MIN_ZOOM = 0.1
-const MAX_ZOOM = 8
-watch(zoom, v => saveZoomState(v, panX.value, panY.value))
-watch(panX, v => saveZoomState(zoom.value, v, panY.value))
-watch(panY, v => saveZoomState(zoom.value, panX.value, v))
+const ROOM_DEFAULT_FILL = '#e8e4dc'
 
-const viewBox = computed(() => {
-  const w = canvas.value.width / zoom.value
-  const h = canvas.value.height / zoom.value
-  const cx = canvas.value.width / 2 + panX.value
-  const cy = canvas.value.height / 2 + panY.value
-  return `${cx - w / 2} ${cy - h / 2} ${w} ${h}`
-})
-
-const zoomPercent = computed(() => Math.round(zoom.value * 100))
-
-function fitToScreen() {
-  if (!containerRef.value) return
-  const pad = 12 + RULER_SIZE
-  const cw = containerRef.value.clientWidth - pad * 2
-  const ch = containerRef.value.clientHeight - pad * 2
-  const fitZoom = Math.min(cw / canvas.value.width, ch / canvas.value.height)
-  zoom.value = fitZoom
-  panX.value = 0
-  panY.value = 0
-}
-
-function centerView() {
-  panX.value = 0
-  panY.value = 0
-}
-
-function zoomBy(factor: number, cx?: number, cy?: number) {
-  const oldZoom = zoom.value
-  const newZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, oldZoom * factor))
-  if (cx !== undefined && cy !== undefined) {
-    const ratio = oldZoom / newZoom
-    panX.value = (panX.value + cx) * ratio - cx
-    panY.value = (panY.value + cy) * ratio - cy
-  }
-  zoom.value = newZoom
-}
-
-function onWheel(e: WheelEvent) {
-  e.preventDefault()
-  const svg = svgRef.value
-  if (!svg) return
-  const pt = svg.createSVGPoint()
-  pt.x = e.clientX
-  pt.y = e.clientY
-  const ctm = svg.getScreenCTM()
-  if (!ctm) return
-  const svgPt = pt.matrixTransform(ctm.inverse())
-  const cx = svgPt.x - canvas.value.width / 2
-  const cy = svgPt.y - canvas.value.height / 2
-  const factor = e.deltaY < 0 ? 1.15 : 1 / 1.15
-  zoomBy(factor, cx, cy)
-}
-
-/* ---------- Pan: Space+drag, middle-mouse, or blank-area drag ---------- */
-const spaceDown = ref(false)
-const panning = ref<{ startX: number; startY: number; panX: number; panY: number } | null>(null)
-
-function startPan(e: MouseEvent) {
-  e.preventDefault()
-  e.stopPropagation()
-  panning.value = { startX: e.clientX, startY: e.clientY, panX: panX.value, panY: panY.value }
-  window.addEventListener('mousemove', onPanMouseMove)
-  window.addEventListener('mouseup', onPanMouseUp)
-}
-
-function onPanMouseDown(e: MouseEvent) {
-  if (spaceDown.value || e.button === 1) {
-    startPan(e)
-  }
-}
-
-function onPanMouseMove(e: MouseEvent) {
-  if (!panning.value) return
-  const dx = (e.clientX - panning.value.startX) / zoom.value
-  const dy = (e.clientY - panning.value.startY) / zoom.value
-  panX.value = panning.value.panX - dx
-  panY.value = panning.value.panY - dy
-}
-
-function onPanMouseUp() {
-  window.removeEventListener('mousemove', onPanMouseMove)
-  window.removeEventListener('mouseup', onPanMouseUp)
-  panning.value = null
-}
-
-function localPoint(e: MouseEvent): { x: number; y: number } {
-  const svg = svgRef.value
-  if (!svg) return { x: 0, y: 0 }
-  const pt = svg.createSVGPoint()
-  pt.x = e.clientX
-  pt.y = e.clientY
-  const ctm = svg.getScreenCTM()
-  if (!ctm) return { x: 0, y: 0 }
-  const svgPt = pt.matrixTransform(ctm.inverse())
-  return { x: svgPt.x, y: svgPt.y }
-}
+/* ---------- Viewport (zoom, pan, localPoint) ---------- */
+const vp = useCanvasViewport(
+  () => canvas.value.width,
+  () => canvas.value.height,
+)
+const {
+  zoom, panX, panY, viewBox, zoomPercent, spaceDown, panning,
+  svgRef, containerRef, RULER_SIZE,
+  fitToScreen, centerView, zoomBy, onWheel,
+  startPan, onPanMouseDown, onPanMouseMove, onPanMouseUp, localPoint,
+} = vp
 
 /* ---------- Wall drawing (Wall mode) ---------- */
-const wallDrag = ref<{ startX: number; startY: number; x: number; y: number; w: number; h: number; valid: boolean } | null>(null)
-
-/* ---------- Box select (Object/Move mode) ---------- */
-const boxSelect = ref<{ startX: number; startY: number; x: number; y: number; w: number; h: number } | null>(null)
-const BOX_SELECT_THRESHOLD = 4
-
-function onCanvasMouseDown(e: MouseEvent) {
-  if (e.button === 1) return
-  if (spaceDown.value) return
-  const p = localPoint(e)
-  const inside = p.x >= 0 && p.x <= canvas.value.width && p.y >= 0 && p.y <= canvas.value.height
-  if (!inside) {
-    startPan(e)
-    return
-  }
-  if (store.state.mode === 'move') {
-    startPan(e)
-    return
-  }
-  if (store.state.mode === 'erase') {
-    const room = floor.value?.rooms.find(r =>
-      p.x >= r.x && p.x <= r.x + r.w && p.y >= r.y && p.y <= r.y + r.h
-    )
-    if (room) {
-      store.eraseWallTile(room.id, p.x, p.y)
-    }
-    return
-  }
-  if (store.state.mode !== 'wall') {
-    store.select(null)
-    store.selectAsset(null)
-    boxSelect.value = { startX: p.x, startY: p.y, x: p.x, y: p.y, w: 0, h: 0 }
-    window.addEventListener('mousemove', onBoxSelectMouseMove)
-    window.addEventListener('mouseup', onBoxSelectMouseUp)
-    return
-  }
-  wallDrag.value = { startX: p.x, startY: p.y, x: p.x, y: p.y, w: 0, h: 0, valid: false }
-  window.addEventListener('mousemove', onWallMouseMove)
-  window.addEventListener('mouseup', onWallMouseUp)
-}
-
-function onBoxSelectMouseMove(e: MouseEvent) {
-  if (!boxSelect.value) return
-  const p = localPoint(e)
-  const x = Math.min(p.x, boxSelect.value.startX)
-  const y = Math.min(p.y, boxSelect.value.startY)
-  const w = Math.abs(p.x - boxSelect.value.startX)
-  const h = Math.abs(p.y - boxSelect.value.startY)
-  boxSelect.value.x = x
-  boxSelect.value.y = y
-  boxSelect.value.w = w
-  boxSelect.value.h = h
-}
-
-function onBoxSelectMouseUp() {
-  window.removeEventListener('mousemove', onBoxSelectMouseMove)
-  window.removeEventListener('mouseup', onBoxSelectMouseUp)
-  if (boxSelect.value && boxSelect.value.w > BOX_SELECT_THRESHOLD && boxSelect.value.h > BOX_SELECT_THRESHOLD) {
-    const rect: Rect = { x: boxSelect.value.x, y: boxSelect.value.y, w: boxSelect.value.w, h: boxSelect.value.h }
-    const objs = floor.value?.objects ?? []
-    const hitIds = objs.filter(o => aabbOverlap(o, rect)).map(o => o.id)
-    if (hitIds.length === 1) {
-      store.select({ type: 'object', id: hitIds[0] })
-    } else if (hitIds.length > 1) {
-      store.state.multiSelection = { type: 'object', ids: hitIds }
-      store.state.selection = null
-    }
-  }
-  boxSelect.value = null
-}
-
-function onWallMouseMove(e: MouseEvent) {
-  if (!wallDrag.value) return
-  const p = localPoint(e)
-  const x = Math.min(p.x, wallDrag.value.startX)
-  const y = Math.min(p.y, wallDrag.value.startY)
-  const w = Math.abs(p.x - wallDrag.value.startX)
-  const h = Math.abs(p.y - wallDrag.value.startY)
-  const rect: Rect = { x, y, w, h }
-  wallDrag.value.x = x
-  wallDrag.value.y = y
-  wallDrag.value.w = w
-  wallDrag.value.h = h
-  wallDrag.value.valid = store.canPlaceRoom(rect)
-}
-
-async function onWallMouseUp() {
-  window.removeEventListener('mousemove', onWallMouseMove)
-  window.removeEventListener('mouseup', onWallMouseUp)
-  if (wallDrag.value && wallDrag.value.valid && wallDrag.value.w > 0 && wallDrag.value.h > 0) {
-    await store.addRoom({ x: wallDrag.value.x, y: wallDrag.value.y, w: wallDrag.value.w, h: wallDrag.value.h })
-  }
-  wallDrag.value = null
-}
-
-/* ---------- Palette drop (Object mode) ---------- */
-const paletteGhost = computed(() => {
-  if (!dragState.assetId) return null
-  const asset = findAssetCached(store.assetMap(), dragState.assetId)
-  if (!asset) return null
-  const t = canvas.value.tileSize
-  const w = store.snap(asset.pxW ?? asset.w * t)
-  const h = store.snap(asset.pxH ?? asset.h * t)
-  const linkedParts = asset.linkedParts?.map(p => ({ dx: p.dx, dy: p.dy, w: store.snap(p.w), h: store.snap(p.h) }))
-  return { w, h, linkedParts }
+const wall = useWallPaintTool({
+  localPoint,
+  canPlaceRoom: store.canPlaceRoom,
+  addRoom: store.addRoom,
 })
+const { wallDrag, onWallMouseMove, onWallMouseUp } = wall
 
-const paletteGhostParts = computed(() => {
-  const ghost = paletteGhost.value
-  if (!ghost?.linkedParts || ghost.linkedParts.length === 0) return null
-  const gx = store.snap(mousePos.value.x - ghost.w / 2)
-  const gy = store.snap(mousePos.value.y - ghost.h / 2)
-  const rects = ghost.linkedParts.map(p => ({
-    x: store.snap(gx + p.dx),
-    y: store.snap(gy + p.dy),
-    w: p.w,
-    h: p.h,
-  }))
-  const groupMaxX = Math.max(...rects.map(r => r.x + r.w))
-  const groupMaxY = Math.max(...rects.map(r => r.y + r.h))
-  const overflowX = Math.max(0, groupMaxX - canvas.value.width)
-  const overflowY = Math.max(0, groupMaxY - canvas.value.height)
-  if (overflowX > 0 || overflowY > 0) {
-    for (const r of rects) {
-      r.x -= overflowX
-      r.y -= overflowY
-    }
-  }
-  return rects
+/* ---------- Selection (box-select, click-select) ---------- */
+const sel = useCanvasSelection({
+  spaceDown,
+  localPoint,
+  canvasWidth: () => canvas.value.width,
+  canvasHeight: () => canvas.value.height,
+  startPan,
+  floor,
+  store: store as any,
+  wallDrag,
+  onWallMouseMove,
+  onWallMouseUp,
 })
+const { boxSelect, onCanvasMouseDown, onBoxSelectMouseMove, onBoxSelectMouseUp } = sel
 
-const paletteGhostRect = computed(() => {
-  const ghost = paletteGhost.value
-  if (!ghost) return null
-  let x = store.snap(mousePos.value.x - ghost.w / 2)
-  let y = store.snap(mousePos.value.y - ghost.h / 2)
-  const overflowX = Math.max(0, x + ghost.w - canvas.value.width)
-  const overflowY = Math.max(0, y + ghost.h - canvas.value.height)
-  if (overflowX > 0) x -= overflowX
-  if (overflowY > 0) y -= overflowY
-  return { x, y, w: ghost.w, h: ghost.h }
+/* ---------- Drag & drop (palette, room template) ---------- */
+const dd = useCanvasDragDrop({
+  svgRef,
+  localPoint,
+  canvasWidth: () => canvas.value.width,
+  canvasHeight: () => canvas.value.height,
+  floor,
+  store: store as any,
+  tileSize: () => canvas.value.tileSize,
 })
+const {
+  mousePos, paletteValid, paletteGhost, paletteGhostParts, paletteGhostRect,
+  roomTemplateGhost, roomTemplateGhostRect, roomTemplateValid,
+  onWindowMouseMoveForDrag, onWindowMouseUpForDrag,
+  onRoomTemplateMouseMove, onRoomTemplateMouseUp,
+} = dd
 
-const mousePos = ref({ x: -1000, y: -1000 })
-const paletteValid = ref(false)
+/* ---------- UI state ---------- */
 const showGrid = ref(true)
 const showLabels = ref(true)
 const mouseCoords = ref({ x: 0, y: 0 })
-
-/* ---------- Rulers (Photoshop-style, inside SVG) ---------- */
-const RULER_SIZE = 22
 const rulerMouseX = ref(-1)
 const rulerMouseY = ref(-1)
 
@@ -341,107 +132,7 @@ const rulerYTicks = computed(() => {
   return ticks
 })
 
-function onWindowMouseMoveForDrag(e: MouseEvent) {
-  if (!dragState.assetId || !svgRef.value) return
-  const p = localPoint(e)
-  mousePos.value = p
-  const ghost = paletteGhost.value
-  if (!ghost) return
-  const x = p.x - ghost.w / 2
-  const y = p.y - ghost.h / 2
-  paletteValid.value = store.canPlaceObject(dragState.assetId, x, y)
-  mouseCoords.value = { x: Math.round(store.snap(x)), y: Math.round(store.snap(y)) }
-}
-
-async function onWindowMouseUpForDrag(e: MouseEvent) {
-  if (!dragState.assetId) return
-  if (store.state.mode === 'wall') {
-    endAssetDrag()
-    return
-  }
-  const assetId = dragState.assetId
-  const svgEl = svgRef.value
-  if (svgEl) {
-    const rect = svgEl.getBoundingClientRect()
-    const inside = e.clientX >= rect.left && e.clientX <= rect.right && e.clientY >= rect.top && e.clientY <= rect.bottom
-    const ghost = paletteGhost.value
-    if (inside && ghost) {
-      const p = localPoint(e)
-      await store.addObject(assetId, p.x - ghost.w / 2, p.y - ghost.h / 2)
-    }
-  }
-  endAssetDrag()
-}
-
-watch(() => dragState.assetId, (id) => {
-  if (id) {
-    window.addEventListener('mousemove', onWindowMouseMoveForDrag)
-    window.addEventListener('mouseup', onWindowMouseUpForDrag)
-  } else {
-    window.removeEventListener('mousemove', onWindowMouseMoveForDrag)
-    window.removeEventListener('mouseup', onWindowMouseUpForDrag)
-  }
-})
-
-/* ---------- Room template drop ---------- */
-const ROOM_DEFAULT_FILL = '#e8e4dc'
-
-const roomTemplateGhost = computed(() => {
-  if (!dragState.roomTemplateId) return null
-  const tpl = store.state.layout.roomTemplates?.find(t => t.id === dragState.roomTemplateId)
-  if (!tpl) return null
-  return { w: tpl.w, h: tpl.h, fillColor: tpl.fillColor ?? ROOM_DEFAULT_FILL }
-})
-
-const roomTemplateGhostRect = computed(() => {
-  const ghost = roomTemplateGhost.value
-  if (!ghost) return null
-  let x = store.snap(mousePos.value.x - ghost.w / 2)
-  let y = store.snap(mousePos.value.y - ghost.h / 2)
-  const overflowX = Math.max(0, x + ghost.w - canvas.value.width)
-  const overflowY = Math.max(0, y + ghost.h - canvas.value.height)
-  if (overflowX > 0) x -= overflowX
-  if (overflowY > 0) y -= overflowY
-  return { x, y, w: ghost.w, h: ghost.h, fillColor: ghost.fillColor }
-})
-
-const roomTemplateValid = ref(false)
-
-function onRoomTemplateMouseMove(e: MouseEvent) {
-  if (!dragState.roomTemplateId || !svgRef.value) return
-  const p = localPoint(e)
-  mousePos.value = p
-  const ghost = roomTemplateGhostRect.value
-  if (ghost) {
-    roomTemplateValid.value = store.canPlaceRoom({ x: ghost.x, y: ghost.y, w: ghost.w, h: ghost.h })
-  }
-}
-
-async function onRoomTemplateMouseUp(e: MouseEvent) {
-  if (!dragState.roomTemplateId) return
-  const templateId = dragState.roomTemplateId
-  const svgEl = svgRef.value
-  if (svgEl) {
-    const rect = svgEl.getBoundingClientRect()
-    const inside = e.clientX >= rect.left && e.clientX <= rect.right && e.clientY >= rect.top && e.clientY <= rect.bottom
-    const ghost = roomTemplateGhostRect.value
-    if (inside && ghost && roomTemplateValid.value) {
-      await store.addRoomFromTemplate(templateId, ghost.x, ghost.y)
-    }
-  }
-  endRoomTemplateDrag()
-}
-
-watch(() => dragState.roomTemplateId, (id) => {
-  if (id) {
-    window.addEventListener('mousemove', onRoomTemplateMouseMove)
-    window.addEventListener('mouseup', onRoomTemplateMouseUp)
-  } else {
-    window.removeEventListener('mousemove', onRoomTemplateMouseMove)
-    window.removeEventListener('mouseup', onRoomTemplateMouseUp)
-  }
-})
-
+/* ---------- Move (room/object drag) ---------- */
 const moving = ref<{ type: 'room' | 'object'; id: string; offsetX: number; offsetY: number } | null>(null)
 let _moveHistoryPushed = false
 
@@ -496,7 +187,7 @@ async function onMoveMouseUp() {
   moving.value = null
 }
 
-/* ---------- Keyboard ---------- */
+/* ---------- Container mouse + toggles ---------- */
 function onContainerMouseMove(e: MouseEvent) {
   if (dragState.assetId) return
   if (dragState.roomTemplateId) return
@@ -514,6 +205,7 @@ function toggleLabels() {
   showLabels.value = !showLabels.value
 }
 
+/* ---------- Keyboard ---------- */
 let _arrowHistoryTimer: number | null = null
 let _arrowHistoryPending = false
 
@@ -625,6 +317,8 @@ function onKeyUp(e: KeyboardEvent) {
   if (e.code === 'Space') spaceDown.value = false
 }
 
+const ZOOM_STORAGE_KEY = 'blueprint-zoom-state'
+
 onMounted(() => {
   window.addEventListener('keydown', onKeyDown)
   window.addEventListener('keyup', onKeyUp)
@@ -647,6 +341,7 @@ onUnmounted(() => {
   window.removeEventListener('mouseup', onRoomTemplateMouseUp)
 })
 
+/* ---------- Render helpers ---------- */
 function escapeSvgText(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 }
@@ -666,118 +361,32 @@ function roomFillColor(room: RoomData): string {
 }
 
 function assetParts(type: string): CompositePart[] | undefined {
-  return findAssetCached(store.assetMap(), type)?.parts
+  const a = findAssetCached(store.assetMap(), type)
+  return a?.kind === 'composite' ? a.parts : undefined
 }
 
 function assetSvg(type: string): string | undefined {
-  return findAssetCached(store.assetMap(), type)?.svg
+  const a = findAssetCached(store.assetMap(), type)
+  return a?.kind === 'svg' ? a.svg : undefined
 }
 
 function svgTransform(obj: ObjectData): string {
   const asset = findAssetCached(store.assetMap(), obj.type)
-  const vb = asset?.svgViewBox ?? { w: 50, h: 25 }
-  const rot = obj.rotation || 0
-  if (rot === 0) {
-    return `translate(${obj.x}, ${obj.y}) scale(${obj.w / vb.w}, ${obj.h / vb.h})`
-  } else if (rot === 90) {
-    return `translate(${obj.x + obj.w}, ${obj.y}) rotate(90) scale(${obj.h / vb.w}, ${obj.w / vb.h})`
-  } else if (rot === 180) {
-    return `translate(${obj.x + obj.w}, ${obj.y + obj.h}) rotate(180) scale(${obj.w / vb.w}, ${obj.h / vb.h})`
-  } else {
-    return `translate(${obj.x}, ${obj.y + obj.h}) rotate(270) scale(${obj.h / vb.w}, ${obj.w / vb.h})`
-  }
+  return svgTransformGeo(obj, asset)
 }
 
 function compositeOutlinePath(obj: ObjectData): string | null {
-  const parts = assetParts(obj.type)
-  if (!parts || parts.length === 0) return null
-
-  const rects = parts.map(p => {
-    const cx = obj.x + p.dx + p.w / 2
-    const cy = obj.y + p.dy + p.h / 2
-    if (p.rotation === 90 || p.rotation === 270) {
-      const nw = p.h, nh = p.w
-      return { x: cx - nw / 2, y: cy - nh / 2, w: nw, h: nh }
-    }
-    return { x: obj.x + p.dx, y: obj.y + p.dy, w: p.w, h: p.h }
-  }).map(r => ({ x: Math.round(r.x), y: Math.round(r.y), w: Math.round(r.w), h: Math.round(r.h) }))
-
-  const xsSet = new Set<number>()
-  const ysSet = new Set<number>()
-  for (const r of rects) { xsSet.add(r.x); xsSet.add(r.x + r.w); ysSet.add(r.y); ysSet.add(r.y + r.h) }
-  const sx = [...xsSet].sort((a, b) => a - b)
-  const sy = [...ysSet].sort((a, b) => a - b)
-
-  const filled: boolean[][] = []
-  for (let i = 0; i < sy.length - 1; i++) {
-    filled[i] = []
-    for (let j = 0; j < sx.length - 1; j++) {
-      const cx = sx[j], cy = sy[i], cw = sx[j + 1] - sx[j], ch = sy[i + 1] - sy[i]
-      filled[i][j] = rects.some(r => cx >= r.x && cx + cw <= r.x + r.w && cy >= r.y && cy + ch <= r.y + r.h)
-    }
-  }
-
-  const segs: string[] = []
-  for (let i = 0; i < filled.length; i++) {
-    for (let j = 0; j < filled[i].length; j++) {
-      if (!filled[i][j]) continue
-      const x1 = sx[j], x2 = sx[j + 1], y1 = sy[i], y2 = sy[i + 1]
-      if (i === 0 || !filled[i - 1][j]) segs.push(`${x1} ${y1} ${x2} ${y1}`)
-      if (i === filled.length - 1 || !filled[i + 1][j]) segs.push(`${x1} ${y2} ${x2} ${y2}`)
-      if (j === 0 || !filled[i][j - 1]) segs.push(`${x1} ${y1} ${x1} ${y2}`)
-      if (j === filled[i].length - 1 || !filled[i][j + 1]) segs.push(`${x2} ${y1} ${x2} ${y2}`)
-    }
-  }
-  if (segs.length === 0) return null
-  return segs.map(s => `M${s.split(' ')[0]} ${s.split(' ')[1]}L${s.split(' ')[2]} ${s.split(' ')[3]}`).join(' ')
+  return compositeOutlinePathGeo(obj, assetParts(obj.type))
 }
 
 function compositePartDetailsPath(obj: ObjectData): string | null {
-  const parts = assetParts(obj.type)
-  if (!parts || parts.length <= 1) return null
-  const segs: string[] = []
-  for (const p of parts) {
-    const cx = obj.x + p.dx + p.w / 2
-    const cy = obj.y + p.dy + p.h / 2
-    let x = obj.x + p.dx, y = obj.y + p.dy, w = p.w, h = p.h
-    if (p.rotation === 90 || p.rotation === 270) {
-      x = cx - p.h / 2; y = cy - p.w / 2; w = p.h; h = p.w
-    }
-    x = Math.round(x); y = Math.round(y); w = Math.round(w); h = Math.round(h)
-    segs.push(`${x} ${y} ${x + w} ${y}`)
-    segs.push(`${x} ${y + h} ${x + w} ${y + h}`)
-    segs.push(`${x} ${y} ${x} ${y + h}`)
-    segs.push(`${x + w} ${y} ${x + w} ${y + h}`)
-  }
-  if (segs.length === 0) return null
-  return segs.map(s => `M${s.split(' ')[0]} ${s.split(' ')[1]}L${s.split(' ')[2]} ${s.split(' ')[3]}`).join(' ')
+  return compositePartDetailsPathGeo(obj, assetParts(obj.type))
 }
 
 function isObjectSelected(id: string): boolean {
   if (store.state.selection?.type === 'object' && store.state.selection.id === id) return true
   if (store.state.multiSelection?.ids.includes(id)) return true
   return false
-}
-
-function roundedRectPath(x: number, y: number, w: number, h: number, rx?: { tl: number; tr: number; br: number; bl: number }): string | null {
-  if (!rx) return null
-  const { tl, tr, br, bl } = rx
-  if (tl === 0 && tr === 0 && br === 0 && bl === 0) return null
-  const maxR = Math.min(w, h) / 2
-  const r = (v: number) => Math.max(0, Math.min(v, maxR))
-  const rtl = r(tl), rtr = r(tr), rbr = r(br), rbl = r(bl)
-  return [
-    `M ${x + rtl} ${y}`,
-    `L ${x + w - rtr} ${y}`,
-    rtr > 0 ? `A ${rtr} ${rtr} 0 0 1 ${x + w} ${y + rtr}` : '',
-    `L ${x + w} ${y + h - rbr}`,
-    rbr > 0 ? `A ${rbr} ${rbr} 0 0 1 ${x + w - rbr} ${y + h}` : '',
-    `L ${x + rbl} ${y + h}`,
-    rbl > 0 ? `A ${rbl} ${rbl} 0 0 1 ${x} ${y + h - rbl}` : '',
-    `L ${x} ${y + rtl}`,
-    rtl > 0 ? `A ${rtl} ${rtl} 0 0 1 ${x + rtl} ${y}` : '',
-    'Z',
-  ].filter(Boolean).join(' ')
 }
 
 </script>
@@ -942,6 +551,7 @@ function roundedRectPath(x: number, y: number, w: number, h: number, rx?: { tl: 
               <g
                 v-svg-content="assetSvg(obj.type)"
                 :transform="svgTransform(obj)"
+                :data-obj-id="obj.id"
                 :class="{ 'editor-canvas__selected': isObjectSelected(obj.id), 'editor-canvas__collapsed': obj.collapsed, 'editor-canvas__dragging-item': moving?.id === obj.id, 'editor-canvas__locked': obj.locked }"
                 :style="{ cursor: moving?.id === obj.id ? 'grabbing' : 'move' }"
               />
@@ -1018,7 +628,7 @@ function roundedRectPath(x: number, y: number, w: number, h: number, rx?: { tl: 
         />
 
         <rect
-          v-if="boxSelect && boxSelect.w > BOX_SELECT_THRESHOLD"
+          v-if="boxSelect && boxSelect.w > 4"
           :x="boxSelect.x" :y="boxSelect.y" :width="boxSelect.w" :height="boxSelect.h"
           fill="rgba(240,192,64,0.15)"
           stroke="#f0c040"
@@ -1130,6 +740,11 @@ function roundedRectPath(x: number, y: number, w: number, h: number, rx?: { tl: 
   height: 100%;
   background: #1a1a1a;
   box-shadow: var(--shadow-panel, 0 12px 48px rgba(0, 0, 0, 0.6));
+}
+
+.editor-canvas__svg:focus {
+  outline: 2px solid var(--accent-gold, #f0c040);
+  outline-offset: -2px;
 }
 
 .editor-canvas__floor-title {
@@ -1285,5 +900,17 @@ function roundedRectPath(x: number, y: number, w: number, h: number, rx?: { tl: 
 .editor-canvas__dragging-item {
   opacity: 0.7;
   filter: drop-shadow(0 0 6px rgba(240, 192, 64, 0.6));
+}
+
+.svg-role--wall {
+  stroke: #3b82f6 !important;
+}
+
+.svg-role--door {
+  stroke: #22c55e !important;
+}
+
+.svg-role--fixture {
+  stroke: var(--blueprint-line);
 }
 </style>

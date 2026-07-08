@@ -61,7 +61,7 @@ function saveLayoutPlugin() {
           return
         }
 
-        const filePath = path.resolve(fileURLToPath(new URL('./src/blueprint/editor-store.ts', import.meta.url)))
+        const filePath = path.resolve(fileURLToPath(new URL('./src/blueprint/store/state.ts', import.meta.url)))
         const stat = fs.statSync(filePath)
         const mtime = stat.mtimeMs
 
@@ -72,13 +72,13 @@ function saveLayoutPlugin() {
           const fileStartIdx = fileContent.indexOf(fileStartMarker)
           if (fileStartIdx === -1) {
             res.statusCode = 500
-            res.end('Cannot find SAVED_LAYOUT in editor-store.ts')
+            res.end('Cannot find SAVED_LAYOUT in store/state.ts')
             return
           }
           const fileObjStart = fileContent.indexOf('{', fileStartIdx + fileStartMarker.length)
           if (fileObjStart === -1) {
             res.statusCode = 500
-            res.end('Cannot find opening brace in editor-store.ts')
+            res.end('Cannot find opening brace in store/state.ts')
             return
           }
           let fileDepth = 0
@@ -102,7 +102,7 @@ function saveLayoutPlugin() {
           }
           if (cachedEndIdx === -1) {
             res.statusCode = 500
-            res.end('Cannot find closing brace in editor-store.ts')
+            res.end('Cannot find closing brace in store/state.ts')
             return
           }
         }

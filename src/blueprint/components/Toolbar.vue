@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import { ref, watch, onMounted, onUnmounted } from 'vue'
-import { useEditorStore } from '../editor-store'
+import { useAssetsStore } from '../assets-store'
 import { useToast } from '@/composables/useToast'
+import { useAsyncAction } from '../composables/useAsyncAction'
 import FloorTabs from './FloorTabs.vue'
 
-const store = useEditorStore()
+const store = useAssetsStore()
 const toast = useToast()
+const { pending, run } = useAsyncAction()
 
 const widthInput = ref(store.state.layout.canvas.width)
 const heightInput = ref(store.state.layout.canvas.height)
@@ -20,12 +22,12 @@ watch(() => store.state.layout.canvas, (c) => {
 async function applyCanvasSize() {
   const ok = window.confirm('Changing canvas size will re-snap all rooms/objects to the new grid. Continue?')
   if (!ok) return
-  await store.resizeCanvas(widthInput.value, heightInput.value, tileInput.value)
+  await run(() => store.resizeCanvas(widthInput.value, heightInput.value, tileInput.value))
   toast.info('Canvas resized')
 }
 
 async function onSave() {
-  await store.saveLayout()
+  await run(() => store.saveLayout())
   toast.success('Layout saved')
 }
 
@@ -51,7 +53,7 @@ function onClearAll() {
   toast.info('All floors cleared')
 }
 
-function onSync() {
+async function onSync() {
   const ok = window.confirm(
     'Sync layout to game?\n\n' +
     'This will overwrite the in-game floor layouts with your editor rooms.\n' +
@@ -61,12 +63,14 @@ function onSync() {
     'Continue?'
   )
   if (!ok) return
-  const success = store.syncToGame()
-  if (success) {
-    toast.success('Layout synced! Restart the game to apply changes.')
-  } else {
-    toast.error('Sync failed — check console for details')
-  }
+  await run(async () => {
+    const success = store.syncToGame()
+    if (success) {
+      toast.success('Layout synced! Restart the game to apply changes.')
+    } else {
+      toast.error('Sync failed — check console for details')
+    }
+  })
 }
 
 const showHelp = ref(false)
@@ -141,14 +145,14 @@ onUnmounted(() => {
     </div>
 
     <div class="editor-toolbar__group">
-      <button class="editor-toolbar__btn editor-toolbar__btn--save" @click="onSave" title="Save layout to editor-store.ts">Save</button>
-      <button class="editor-toolbar__btn editor-toolbar__btn--danger" @click="onClear" title="Clear all rooms and objects on this floor">Clear Floor</button>
-      <button class="editor-toolbar__btn editor-toolbar__btn--danger" @click="onClearAll" title="Clear all rooms and objects on every floor">Clear All Floors</button>
+      <button class="editor-toolbar__btn editor-toolbar__btn--save" :disabled="pending" @click="onSave" title="Save layout to assets-store.ts">Save</button>
+      <button class="editor-toolbar__btn editor-toolbar__btn--danger" :disabled="pending" @click="onClear" title="Clear all rooms and objects on this floor">Clear Floor</button>
+      <button class="editor-toolbar__btn editor-toolbar__btn--danger" :disabled="pending" @click="onClearAll" title="Clear all rooms and objects on every floor">Clear All Floors</button>
     </div>
 
     <div class="editor-toolbar__group editor-toolbar__group--sync">
       <FloorTabs />
-      <button class="editor-toolbar__btn editor-toolbar__btn--sync" @click="onSync" title="Sync room layouts to the game (G–F11 only)">Sync to Game</button>
+      <button class="editor-toolbar__btn editor-toolbar__btn--sync" :disabled="pending" @click="onSync" title="Sync room layouts to the game (G–F11 only)">Sync to Game</button>
     </div>
 
     <Teleport to="body">

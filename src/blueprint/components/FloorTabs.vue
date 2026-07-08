@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, computed } from 'vue'
-import { useEditorStore } from '../editor-store'
+import { useAssetsStore } from '../assets-store'
 import { useToast } from '@/composables/useToast'
 
-const store = useEditorStore()
+const store = useAssetsStore()
 
 const open = ref(false)
 const editingId = ref<string | null>(null)
