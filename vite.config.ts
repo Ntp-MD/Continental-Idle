@@ -1,8 +1,86 @@
-import { defineConfig } from 'vite'
+import { defineConfig, type ViteDevServer } from 'vite'
 import { fileURLToPath, URL } from 'node:url'
 import vue from '@vitejs/plugin-vue'
 import fs from 'node:fs'
 import path from 'node:path'
+
+function isLocalhostOrigin(value: string | undefined): boolean {
+  if (!value) return true
+  try {
+    const url = new URL(value)
+    return url.hostname === 'localhost' || url.hostname === '127.0.0.1' || url.hostname === '::1' || url.hostname === '::ffff:127.0.0.1' || url.hostname === '0.0.0.0'
+  } catch {
+    return false
+  }
+}
+
+function isSafeSaveRequest(req: any, res: any): boolean {
+  const origin = req.headers?.origin
+  const referer = req.headers?.referer
+  if (req.headers?.['x-blueprint-save'] !== '1' || !isLocalhostOrigin(origin) || !isLocalhostOrigin(referer)) {
+    res.statusCode = 403
+    res.end('Forbidden')
+    return false
+  }
+  return true
+}
+
+function saveAssetsPlugin() {
+  const filePath = path.resolve(fileURLToPath(new URL('./src/blueprint-editor/asset-registry.ts', import.meta.url)))
+  return {
+    name: 'save-assets',
+    configureServer(server: ViteDevServer) {
+      server.middlewares.use('/__save-assets', async (req: any, res: any) => {
+        if (req.method !== 'POST') {
+          res.statusCode = 405
+          res.end('Method Not Allowed')
+          return
+        }
+        if (!isSafeSaveRequest(req, res)) return
+        let body = ''
+        let size = 0
+        const MAX_BODY_SIZE = 10 * 1024 * 1024
+        for await (const chunk of req) {
+          size += chunk.length
+          if (size > MAX_BODY_SIZE) {
+            res.statusCode = 413
+            res.end('Payload too large')
+            return
+          }
+          body += chunk
+        }
+
+        let parsed: { assetRegistry?: unknown; assetCategories?: unknown }
+        try {
+          parsed = JSON.parse(body)
+        } catch {
+          res.statusCode = 400
+          res.end('Invalid JSON body')
+          return
+        }
+        if (!Array.isArray(parsed.assetRegistry)) {
+          res.statusCode = 400
+          res.end('Invalid assets data: assetRegistry must be an array')
+          return
+        }
+
+        const content =
+          'import type { AssetDef } from \'./types\'\n\n' +
+          'export const ASSET_REGISTRY: AssetDef[] = ' + JSON.stringify(parsed.assetRegistry, null, 2) + '\n'
+
+        try {
+          fs.writeFileSync(filePath, content, 'utf-8')
+          res.statusCode = 200
+          res.setHeader('Content-Type', 'application/json')
+          res.end(JSON.stringify({ ok: true }))
+        } catch (e) {
+          res.statusCode = 500
+          res.end(String(e))
+        }
+      })
+    },
+  }
+}
 
 function saveLayoutPlugin() {
   let cachedStartIdx = -1
@@ -10,15 +88,26 @@ function saveLayoutPlugin() {
   let cachedMtime = 0
   return {
     name: 'save-layout',
-    configureServer(server) {
-      server.middlewares.use('/__save-layout', async (req, res) => {
+    configureServer(server: ViteDevServer) {
+      server.middlewares.use('/__save-layout', async (req: any, res: any) => {
         if (req.method !== 'POST') {
           res.statusCode = 405
           res.end('Method Not Allowed')
           return
         }
+        if (!isSafeSaveRequest(req, res)) return
         let body = ''
-        for await (const chunk of req) body += chunk
+        let size = 0
+        const MAX_BODY_SIZE = 10 * 1024 * 1024
+        for await (const chunk of req) {
+          size += chunk.length
+          if (size > MAX_BODY_SIZE) {
+            res.statusCode = 413
+            res.end('Payload too large')
+            return
+          }
+          body += chunk
+        }
 
         const startMarker = 'const SAVED_LAYOUT: LayoutData = '
         const startIdx = body.indexOf(startMarker)
@@ -61,7 +150,7 @@ function saveLayoutPlugin() {
           return
         }
 
-        const filePath = path.resolve(fileURLToPath(new URL('./src/blueprint/store/state.ts', import.meta.url)))
+        const filePath = path.resolve(fileURLToPath(new URL('./src/blueprint-editor/store/migrate.ts', import.meta.url)))
         const stat = fs.statSync(filePath)
         const mtime = stat.mtimeMs
 
@@ -72,13 +161,13 @@ function saveLayoutPlugin() {
           const fileStartIdx = fileContent.indexOf(fileStartMarker)
           if (fileStartIdx === -1) {
             res.statusCode = 500
-            res.end('Cannot find SAVED_LAYOUT in store/state.ts')
+            res.end('Cannot find SAVED_LAYOUT in store/migrate.ts')
             return
           }
           const fileObjStart = fileContent.indexOf('{', fileStartIdx + fileStartMarker.length)
           if (fileObjStart === -1) {
             res.statusCode = 500
-            res.end('Cannot find opening brace in store/state.ts')
+            res.end('Cannot find opening brace in store/migrate.ts')
             return
           }
           let fileDepth = 0
@@ -102,7 +191,7 @@ function saveLayoutPlugin() {
           }
           if (cachedEndIdx === -1) {
             res.statusCode = 500
-            res.end('Cannot find closing brace in store/state.ts')
+            res.end('Cannot find closing brace in store/migrate.ts')
             return
           }
         }
@@ -128,7 +217,7 @@ function saveLayoutPlugin() {
 
 // https://vite.dev/config/
 export default defineConfig({
-  plugins: [vue(), saveLayoutPlugin()],
+  plugins: [vue(), saveAssetsPlugin(), saveLayoutPlugin()],
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),
@@ -137,8 +226,7 @@ export default defineConfig({
   build: {
     rollupOptions: {
       input: {
-        main: fileURLToPath(new URL('./index.html', import.meta.url)),
-        editor: fileURLToPath(new URL('./src/blueprint/editor.html', import.meta.url)),
+        main: 'index.html',
       },
     },
   },

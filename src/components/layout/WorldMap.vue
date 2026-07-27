@@ -345,7 +345,7 @@ function drawNodes(projection: d3.GeoProjection) {
     .style('cursor', d => d.nodeState === 'locked' ? 'not-allowed' : 'pointer')
     .attr('tabindex', d => d.nodeState === 'locked' ? -1 : 0)
     .attr('role', 'button')
-    .attr('aria-label', d => `${d.name} — ${d.nodeState}`)
+    .attr('aria-label', d => `${d.name} â€” ${d.nodeState}`)
 
   // Pulse rings for HQ and active
   nodeGroups.filter(d => d.nodeState === 'hq' || d.nodeState === 'active')
@@ -748,7 +748,7 @@ onUnmounted(() => {
       Loading world map...
     </div>
     <div v-if="mapError" class="world-map__status world-map__status--error">
-      Map data unavailable — showing branches only
+      Map data unavailable â€” showing branches only
     </div>
 
     <div class="world-map__controls">

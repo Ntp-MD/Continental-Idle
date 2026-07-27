@@ -87,7 +87,7 @@ onUnmounted(() => {
 <template>
   <header class="game-header">
     <h1 class="game-header__title">
-      Continental — {{ branchName }}
+      Continental â€” {{ branchName }}
       <span v-if="isHq" class="game-header__hq-badge">HQ</span>
     </h1>
     <div class="game-header__currencies">

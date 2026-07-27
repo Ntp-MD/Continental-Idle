@@ -221,8 +221,13 @@
 }
 
 @keyframes panel-fade-in {
-	from { opacity: 0; }
-	to { opacity: 1; }
+	from {
+		opacity: 0;
+	}
+
+	to {
+		opacity: 1;
+	}
 }
 
 .game-panel__content {
@@ -239,8 +244,15 @@
 }
 
 @keyframes panel-slide-up {
-	from { opacity: 0; transform: translateY(12px) scale(0.98); }
-	to { opacity: 1; transform: translateY(0) scale(1); }
+	from {
+		opacity: 0;
+		transform: translateY(12px) scale(0.98);
+	}
+
+	to {
+		opacity: 1;
+		transform: translateY(0) scale(1);
+	}
 }
 
 .game-panel__title {
@@ -327,8 +339,15 @@
 }
 
 @keyframes event-slide-in {
-	from { opacity: 0; transform: translateY(-8px); }
-	to { opacity: 1; transform: translateY(0); }
+	from {
+		opacity: 0;
+		transform: translateY(-8px);
+	}
+
+	to {
+		opacity: 1;
+		transform: translateY(0);
+	}
 }
 
 .event-prompt__header {
@@ -432,11 +451,12 @@
 .start-screen {
 	position: fixed;
 	inset: 0;
+	height: 100dvh;
 	background: var(--bg-primary);
 	display: flex;
 	justify-content: center;
-	align-items: flex-start;
-	overflow-y: auto;
+	align-items: stretch;
+	overflow: hidden;
 	z-index: 5000;
 	padding: var(--gap-md) 0;
 }
@@ -446,8 +466,11 @@
 	width: 100%;
 	max-width: 100%;
 	padding: min(40px, 5vw);
-	max-height: 100vh;
-	overflow-y: auto;
+	flex: 1;
+	display: flex;
+	flex-direction: column;
+	min-height: 0;
+	overflow: hidden;
 }
 
 .start-screen__title {
@@ -614,6 +637,25 @@
 	color: var(--bg-primary);
 }
 
+.start-screen__editor-btn {
+	position: absolute;
+	top: 16px;
+	right: 16px;
+	border: 1px solid var(--border-color);
+	background: transparent;
+	color: var(--text-secondary);
+	padding: var(--gap-sm) var(--gap-md);
+	font-size: 12px;
+	border-radius: var(--radius-md);
+	cursor: pointer;
+	z-index: 10;
+}
+
+.start-screen__editor-btn:hover {
+	border-color: var(--accent-cyan);
+	color: var(--accent-cyan);
+}
+
 /* Start Screen — Loading Overlay */
 .start-screen__loading {
 	text-align: center;
@@ -655,7 +697,8 @@
 .start-screen__world {
 	margin: var(--gap-md) 0;
 	text-align: left;
-	max-height: 300px;
+	flex: 1;
+	min-height: 0;
 	overflow-y: auto;
 	border: 1px solid var(--border-dim);
 	padding: var(--gap-sm);
@@ -1354,7 +1397,7 @@
 	}
 
 	.start-screen__world {
-		max-height: 220px;
+		flex: 1;
 	}
 
 	.start-screen__selected-info {
@@ -3431,9 +3474,17 @@
 
 /* Pulse animation for currency gains */
 @keyframes currency-pulse {
-	0% { transform: scale(1); }
-	50% { transform: scale(1.08); }
-	100% { transform: scale(1); }
+	0% {
+		transform: scale(1);
+	}
+
+	50% {
+		transform: scale(1.08);
+	}
+
+	100% {
+		transform: scale(1);
+	}
 }
 
 .currency-pulse {
@@ -3442,8 +3493,15 @@
 
 /* Subtle glow for active income */
 @keyframes income-glow {
-	0%, 100% { text-shadow: none; }
-	50% { text-shadow: 0 0 8px currentColor; }
+
+	0%,
+	100% {
+		text-shadow: none;
+	}
+
+	50% {
+		text-shadow: 0 0 8px currentColor;
+	}
 }
 
 .income-active {
@@ -3458,8 +3516,13 @@
 
 /* Flash green on value increase */
 @keyframes value-up-flash {
-	0% { color: var(--accent-green); }
-	100% { color: inherit; }
+	0% {
+		color: var(--accent-green);
+	}
+
+	100% {
+		color: inherit;
+	}
 }
 
 .value-up {
@@ -3468,23 +3531,35 @@
 
 /* Shimmer for loading states */
 @keyframes shimmer {
-	0% { background-position: -200% 0; }
-	100% { background-position: 200% 0; }
+	0% {
+		background-position: -200% 0;
+	}
+
+	100% {
+		background-position: 200% 0;
+	}
 }
 
 .shimmer {
 	background: linear-gradient(90deg,
-		var(--bg-card) 25%,
-		var(--bg-card-hover) 50%,
-		var(--bg-card) 75%);
+			var(--bg-card) 25%,
+			var(--bg-card-hover) 50%,
+			var(--bg-card) 75%);
 	background-size: 200% 100%;
 	animation: shimmer 1.5s infinite;
 }
 
 /* Fade in animation for new elements */
 @keyframes fade-in-up {
-	from { opacity: 0; transform: translateY(8px); }
-	to { opacity: 1; transform: translateY(0); }
+	from {
+		opacity: 0;
+		transform: translateY(8px);
+	}
+
+	to {
+		opacity: 1;
+		transform: translateY(0);
+	}
 }
 
 .fade-in-up {
@@ -3493,8 +3568,15 @@
 
 /* Scale in for popups and badges */
 @keyframes scale-in {
-	from { opacity: 0; transform: scale(0.9); }
-	to { opacity: 1; transform: scale(1); }
+	from {
+		opacity: 0;
+		transform: scale(0.9);
+	}
+
+	to {
+		opacity: 1;
+		transform: scale(1);
+	}
 }
 
 .scale-in {
@@ -3529,4 +3611,427 @@
 	background: var(--accent-red-dim);
 	color: var(--accent-red);
 	border: 1px solid rgba(239, 68, 68, 0.25);
+}
+
+/* === Blueprint Editor Button Variants === */
+.btn {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: var(--gap-xs);
+	white-space: nowrap;
+}
+
+.btn__primary {
+	border-color: var(--accent-blue);
+	color: var(--accent-blue);
+}
+
+.btn__primary:hover {
+	background: var(--accent-blue);
+	color: var(--bg-primary);
+	border-color: var(--accent-blue);
+}
+
+.btn__primary:active {
+	background: var(--accent-blue);
+	color: var(--bg-primary);
+}
+
+.btn__success {
+	border-color: var(--accent-green);
+	color: var(--accent-green);
+}
+
+.btn__success:hover {
+	background: var(--accent-green);
+	color: var(--bg-primary);
+	border-color: var(--accent-green);
+}
+
+.btn__success:active {
+	background: var(--accent-green);
+	color: var(--bg-primary);
+}
+
+.btn__danger {
+	border-color: var(--accent-red);
+	color: var(--accent-red);
+}
+
+.btn__danger:hover {
+	background: var(--accent-red);
+	color: var(--bg-primary);
+	border-color: var(--accent-red);
+}
+
+.btn__danger:active {
+	background: var(--accent-red);
+	color: var(--bg-primary);
+}
+
+.btn__warning {
+	border-color: var(--accent-gold);
+	color: var(--accent-gold);
+	background: var(--accent-gold-dim);
+}
+
+.btn__warning:hover {
+	background: var(--accent-gold);
+	color: var(--bg-primary);
+	border-color: var(--accent-gold);
+}
+
+.btn__warning:active {
+	background: var(--accent-gold);
+	color: var(--bg-primary);
+}
+
+.btn__ghost {
+	background: transparent;
+	border-color: transparent;
+	color: var(--text-secondary);
+	box-shadow: none;
+}
+
+.btn__ghost:hover {
+	background: var(--bg-card-hover);
+	border-color: var(--border-dim);
+	color: var(--text-primary);
+	box-shadow: none;
+	transform: none;
+}
+
+.btn__ghost:active {
+	background: var(--bg-secondary);
+	transform: none;
+}
+
+.btn__dashed {
+	background: transparent;
+	border-style: dashed;
+	color: var(--text-dim);
+}
+
+.btn__dashed:hover {
+	border-color: var(--accent-gold);
+	color: var(--accent-gold);
+	background: transparent;
+}
+
+.btn__block {
+	display: flex;
+	width: 100%;
+}
+
+.btn__icon {
+	padding: var(--gap-xs);
+	min-width: 24px;
+	min-height: 24px;
+	font-size: 12px;
+}
+
+.btn__text__danger {
+	color: var(--accent-red);
+}
+
+.btn__text__danger:hover {
+	color: var(--bg-primary);
+	background: var(--accent-red);
+	border-color: var(--accent-red);
+}
+
+.btn-sm,
+.btn__sm {
+	padding: 2px var(--gap-xs);
+	font-size: 9px;
+	min-height: 20px;
+}
+
+.btn__dirty {
+	animation: btn-dirty-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes btn-dirty-pulse {
+
+	0%,
+	100% {
+		box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent-gold) 30%, transparent);
+	}
+
+	50% {
+		box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent-gold) 10%, transparent);
+	}
+}
+
+/* === Blueprint Editor Input Variants === */
+.input--readonly,
+.input--readonly:focus {
+	opacity: 0.5;
+	cursor: default;
+	box-shadow: none;
+	border-color: var(--border-dim);
+}
+
+.input__num {
+	width: 56px;
+	text-align: center;
+}
+
+
+.textarea {
+	width: 100%;
+}
+
+/* === Blueprint Editor Tag Component === */
+.tag {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--gap-xs);
+	padding: 2px var(--gap-sm);
+	background: var(--bg-tertiary);
+	border: 1px solid var(--border-dim);
+	border-radius: var(--radius-sm);
+	font-size: 10px;
+	color: var(--text-secondary);
+}
+
+.tag__name {
+	flex: 1;
+}
+
+/* === Blueprint Editor Alert Components === */
+.alert {
+	display: flex;
+	align-items: center;
+	gap: var(--gap-sm);
+	padding: var(--gap-sm) var(--gap-md);
+	border-radius: var(--radius-sm);
+	font-size: var(--font-sm);
+	border: 1px solid var(--border-dim);
+}
+
+.alert-sm {
+	padding: var(--gap-xs) var(--gap-sm);
+	font-size: var(--font-xs);
+}
+
+.alert-info {
+	border-color: var(--accent-blue);
+	background: color-mix(in srgb, var(--accent-blue) 10%, transparent);
+	color: var(--text-primary);
+}
+
+.alert-danger {
+	border-color: var(--accent-red);
+	background: color-mix(in srgb, var(--accent-red) 10%, transparent);
+	color: var(--text-primary);
+}
+
+/* === Blueprint Editor Button Active State === */
+.btn__active {
+	border-color: var(--accent-gold);
+	color: var(--accent-gold);
+	background: var(--accent-gold-dim);
+	box-shadow: inset 0 0 0 1px var(--accent-gold);
+}
+
+/* === Blueprint Editor Input Compact === */
+.input-compact {
+	width: 40px;
+	text-align: center;
+	padding: var(--gap-xs) 2px;
+}
+
+/* === Blueprint Editor Properties Panel Helper Classes === */
+.properties-panel__section-title {
+	font-size: var(--font-sm);
+	font-weight: 600;
+	color: var(--accent-gold);
+	text-transform: uppercase;
+	letter-spacing: 0.5px;
+	padding: var(--gap-xs) 0;
+	border-bottom: 1px solid var(--border-dim);
+	margin-bottom: var(--gap-xs);
+}
+
+.properties-panel__section {
+	display: flex;
+	flex-direction: column;
+	gap: var(--gap-sm);
+}
+
+.properties-panel__empty {
+	font-size: var(--font-sm);
+	color: var(--text-dim);
+	text-align: center;
+	padding: var(--gap-md) 0;
+}
+
+.properties-panel__empty-hint {
+	font-size: var(--font-xs);
+	color: var(--text-dim);
+	text-align: center;
+	padding: var(--gap-xs) 0 var(--gap-sm);
+	line-height: 1.5;
+}
+
+.properties-panel__value {
+	font-size: var(--font-sm);
+	color: var(--text-secondary);
+}
+
+.properties-panel__id-row {
+	display: flex;
+	gap: var(--gap-sm);
+	align-items: center;
+}
+
+.properties-panel__color-row {
+	display: flex;
+	gap: var(--gap-sm);
+	align-items: center;
+}
+
+.properties-panel__anchor-row {
+	display: flex;
+	gap: var(--gap-xs);
+	align-items: center;
+}
+
+.properties-panel__hint {
+	font-size: var(--font-xs);
+	color: var(--text-dim);
+	line-height: 1.5;
+	padding: var(--gap-xs) 0;
+}
+
+.properties-panel__delete-section {
+	display: flex;
+	gap: var(--gap-sm);
+	padding-top: var(--gap-sm);
+}
+
+.properties-panel__delete-section--alone {
+	border-top: 1px solid var(--border-dim);
+	margin-top: var(--gap-sm);
+}
+
+.properties-panel__btn-group {
+	display: flex;
+	gap: var(--gap-sm);
+	flex-wrap: wrap;
+	padding-top: var(--gap-sm);
+}
+
+.properties-panel__warning {
+	font-size: var(--font-xs);
+	color: var(--accent-red);
+	padding: var(--gap-xs) var(--gap-sm);
+	background: color-mix(in srgb, var(--accent-red) 8%, transparent);
+	border-radius: var(--radius-sm);
+}
+
+.properties-panel__cat-manager {
+	display: flex;
+	flex-direction: column;
+	gap: var(--gap-xs);
+	padding: var(--gap-sm);
+	background: var(--bg-primary);
+	border: 1px solid var(--border-dim);
+	border-radius: var(--radius-sm);
+}
+
+.properties-panel__cat-row {
+	display: flex;
+	gap: var(--gap-xs);
+	align-items: center;
+}
+
+.properties-panel__cat-add {
+	display: flex;
+	gap: var(--gap-xs);
+	align-items: center;
+	padding-top: var(--gap-xs);
+	border-top: 1px solid var(--border-dim);
+}
+
+.properties-panel__zone-row {
+	display: flex;
+	flex-direction: column;
+	gap: var(--gap-xs);
+	padding: var(--gap-sm);
+	background: var(--bg-primary);
+	border: 1px solid var(--border-dim);
+	border-radius: var(--radius-sm);
+}
+
+.properties-panel__zone-pos {
+	display: flex;
+	gap: var(--gap-xs);
+	align-items: center;
+}
+
+.properties-panel__zone-pos label {
+	min-width: 12px;
+	text-align: center;
+}
+
+.properties-panel__unit-toggle {
+	display: flex;
+	gap: var(--gap-xs);
+}
+
+.properties-panel__rx-grid {
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	gap: var(--gap-xs);
+}
+
+.properties-panel__rx-corner {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	align-items: center;
+}
+
+.properties-panel__rx-label {
+	font-size: var(--font-xs);
+	color: var(--text-dim);
+}
+
+.properties-panel__rx-sync {
+	display: flex;
+	align-items: center;
+	gap: var(--gap-xs);
+	font-size: var(--font-xs);
+	color: var(--text-secondary);
+	text-transform: none;
+	letter-spacing: 0;
+	font-weight: 400;
+	cursor: pointer;
+}
+
+.properties-panel__rx-sync input[type="checkbox"] {
+	width: 14px;
+	height: 14px;
+	accent-color: var(--accent-gold);
+}
+
+.properties-panel__collapse-arrow {
+	color: var(--text-dim);
+	font-size: var(--font-xs);
+}
+
+.properties-panel__collapsed-icon {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 18px;
+	height: 18px;
+	border-radius: var(--radius-pill);
+	background: var(--bg-tertiary);
+	font-size: var(--font-xs);
+	font-weight: 700;
+	flex-shrink: 0;
 }

@@ -1,15 +1,17 @@
 <script setup lang="ts">
 import { ref, computed, onUnmounted } from 'vue'
+import { useRouter } from 'vue-router'
 import {
   STARTER_BRANCHES, getBranchDef,
   CONTINENT_LABELS, CONTINENT_COLORS,
   getBranchesByContinent, type Continent
 } from '@/data/branches'
 import { gameState } from '@/engine/game-state'
-import { getStoryIntro, getStoryContext } from '@/data/story'
+import { getPrologue, getStoryContext } from '@/data/story'
 import type { BranchId } from '@/types'
 
 const emit = defineEmits<{ start: [], quickStart: [] }>()
+const router = useRouter()
 
 const selected = ref<BranchId>('bangkok')
 const loading = ref(false)
@@ -21,7 +23,7 @@ const starterOptions = STARTER_BRANCHES.map(id => getBranchDef(id))
 const continents: Continent[] = ['north-america', 'south-america', 'europe', 'asia', 'africa', 'oceania']
 
 const selectedDef = computed(() => getBranchDef(selected.value))
-const storyIntro = computed(() => getStoryIntro(selected.value))
+const prologue = computed(() => getPrologue(selected.value))
 const storyContext = computed(() => getStoryContext(selected.value))
 
 function selectBranch(id: BranchId) {
@@ -71,10 +73,6 @@ function quickStart() {
   emit('quickStart')
 }
 
-function openBlueprintEditor() {
-  window.open('/src/blueprint/editor.html', '_blank')
-}
-
 onUnmounted(() => {
   if (loadingInterval) clearInterval(loadingInterval)
   if (continueTimeout) clearTimeout(continueTimeout)
@@ -96,11 +94,11 @@ onUnmounted(() => {
       <h1 class="start-screen__title">CONTINENTAL IDLE</h1>
       <p class="start-screen__subtitle">The High Table Awaits</p>
 
-      <!-- Story intro -->
+      <!-- Prologue -->
       <div class="start-screen__story">
         <div class="start-screen__story-icon">?</div>
         <div class="start-screen__story-text">
-          <p class="start-screen__story-line" v-for="(line, i) in storyIntro.split('\n\n')" :key="i">{{ line }}</p>
+          <p class="start-screen__story-line" v-for="(line, i) in prologue.split('\n\n')" :key="i">{{ line }}</p>
         </div>
       </div>
 
@@ -130,7 +128,7 @@ onUnmounted(() => {
 
       <!-- All locations by continent -->
       <div class="start-screen__world">
-        <div class="start-screen__world-title">World Map — 37 Continental Branches</div>
+        <div class="start-screen__world-title">World Map â€” 37 Continental Branches</div>
         <div v-for="cont in continents" :key="cont" class="start-screen__continent">
           <div class="start-screen__continent-label" :style="{ color: CONTINENT_COLORS[cont] }">
             {{ CONTINENT_LABELS[cont] }}
@@ -185,9 +183,10 @@ onUnmounted(() => {
         CONTINUE SAVED GAME
       </button>
 
-      <button class="start-screen__btn-continue" @click="openBlueprintEditor">
-        BLUEPRINT EDITOR
-      </button>
     </div>
+
+    <button class="start-screen__editor-btn" @click="router.push({ name: 'editor' })" aria-label="Open Blueprint Editor">
+      Blueprint Editor
+    </button>
   </div>
 </template>

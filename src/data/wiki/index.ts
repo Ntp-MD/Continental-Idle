@@ -63,7 +63,7 @@ export const wikiSections: WikiSection[] = [
       },
       {
         type: 'paragraph',
-        text: 'The game features a **terminal-noir** aesthetic — a terminal/hacker branch as the primary UI with noir-luxury flavor through typography and event storytelling. Each branch swaps the terminal\'s accent color to evoke its region.'
+        text: 'The game features a **terminal-noir** aesthetic â€” a terminal/hacker branch as the primary UI with noir-luxury flavor through typography and event storytelling. Each branch swaps the terminal\'s accent color to evoke its region.'
       }
     ]
   },
@@ -75,14 +75,14 @@ export const wikiSections: WikiSection[] = [
         type: 'list',
         ordered: true,
         items: [
-          '**Build** — Purchase and upgrade buildings (12 standard per branch)',
-          '**Hire** — Recruit staff and assassins with unique stats/traits',
-          '**Earn** — Idle income generates automatically; active play boosts via events',
-          '**Prestige** — Reset a branch for Table Favor (meta-currency); keep staff, assassins, upgrades',
-          '**Expand** — Unlock new BRANCHES via total prestige; conquer Continentals',
-          '**Supply Routes** — Establish underworld supply routes between branches for passive income',
-          '**Power Balance** — Compete against AI controllers who generate events and fight for control',
-          '**Repeat** — Multi-branch management with inactive income at 50%'
+          '**Build** â€” Purchase and upgrade buildings (12 standard per branch)',
+          '**Hire** â€” Recruit staff and assassins with unique stats/traits',
+          '**Earn** â€” Idle income generates automatically; active play boosts via events',
+          '**Prestige** â€” Reset a branch for Table Favor (meta-currency); keep staff, assassins, upgrades',
+          '**Expand** â€” Unlock new BRANCHES via total prestige; conquer Continentals',
+          '**Supply Routes** â€” Establish underworld supply routes between branches for passive income',
+          '**Power Balance** â€” Compete against AI controllers who generate events and fight for control',
+          '**Repeat** â€” Multi-branch management with inactive income at 50%'
         ]
       }
     ]
@@ -167,7 +167,7 @@ export const wikiSections: WikiSection[] = [
         type: 'info-box',
         title: 'Cost Growth',
         content: [
-          'Buildings #1–#10: costGrowth = 1.15',
+          'Buildings #1â€“#10: costGrowth = 1.15',
           'Building #11 (Black Market Vault): costGrowth = 1.25',
           'Building #12 (Continental Vault): costGrowth = 1.35',
           'Income growth per level: 1.07x (BUILDING_INCOME_GROWTH)',
@@ -182,18 +182,18 @@ export const wikiSections: WikiSection[] = [
       {
         type: 'list',
         items: [
-          '**Reception Desk** — Free, available from start',
-          '**Guest Rooms** — Available from start',
-          '**Bar/Lounge** — Available from start',
-          '**Kitchen** — Available from start',
-          '**Laundry Service** — Requires Bar/Lounge Lv.5',
-          '**Underground Services** — Requires Kitchen Lv.5',
-          '**Safe House** — Requires Underground Services Lv.1',
-          '**Armory** — Requires Safe House Lv.5',
-          '**Intelligence Network** — Requires Armory Lv.3',
-          '**VIP Penthouse** — Requires Intelligence Network Lv.1',
-          '**Black Market Vault** — Requires VIP Penthouse Lv.5',
-          '**Continental Vault** — Requires Black Market Vault Lv.5'
+          '**Reception Desk** â€” Free, available from start',
+          '**Guest Rooms** â€” Available from start',
+          '**Bar/Lounge** â€” Available from start',
+          '**Kitchen** â€” Available from start',
+          '**Laundry Service** â€” Requires Bar/Lounge Lv.5',
+          '**Underground Services** â€” Requires Kitchen Lv.5',
+          '**Safe House** â€” Requires Underground Services Lv.1',
+          '**Armory** â€” Requires Safe House Lv.5',
+          '**Intelligence Network** â€” Requires Armory Lv.3',
+          '**VIP Penthouse** â€” Requires Intelligence Network Lv.1',
+          '**Black Market Vault** â€” Requires VIP Penthouse Lv.5',
+          '**Continental Vault** â€” Requires Black Market Vault Lv.5'
         ]
       },
       {
@@ -242,10 +242,10 @@ export const wikiSections: WikiSection[] = [
       {
         type: 'list',
         items: [
-          '**Level** — Increases income bonus via effectPerLevel (best-match buildings get 1.25x bonus)',
-          '**XP** — Earned over time while assigned to a building; inactive BRANCHES earn at 50% rate',
-          '**Assignment** — Assign to a building to boost its income',
-          '**Traits** — Random positive/negative traits affect income, XP, cost, and event protection'
+          '**Level** â€” Increases income bonus via effectPerLevel (best-match buildings get 1.25x bonus)',
+          '**XP** â€” Earned over time while assigned to a building; inactive BRANCHES earn at 50% rate',
+          '**Assignment** â€” Assign to a building to boost its income',
+          '**Traits** â€” Random positive/negative traits affect income, XP, cost, and event protection'
         ]
       },
       {
@@ -265,14 +265,14 @@ export const wikiSections: WikiSection[] = [
       {
         type: 'list',
         items: [
-          '**Concierge** (max Lv.20) — Auto-collect guest tips (+5% passive income)',
-          '**Bartender** (max Lv.20) — Bar income continues during excommunicado freeze',
-          '**Chef** (max Lv.15) — Kitchen boosts ALL building income by +10%',
-          '**Cleaner** (max Lv.15) — All negative event penalties negated',
-          '**Sommelier** (max Lv.10) — VIP guests arrive 50% more frequently',
-          '**Intelligence Officer** (max Lv.10) — All event outcomes revealed before choosing',
-          '**Adjudicator** (max Lv.10) — Prestige keeps 80% reputation instead of 50%',
-          '**Vault Keeper** (max Lv.10) — Safe House interest doubles to 4%/min'
+          '**Concierge** (max Lv.20) â€” Auto-collect guest tips (+5% passive income)',
+          '**Bartender** (max Lv.20) â€” Bar income continues during excommunicado freeze',
+          '**Chef** (max Lv.15) â€” Kitchen boosts ALL building income by +10%',
+          '**Cleaner** (max Lv.15) â€” All negative event penalties negated',
+          '**Sommelier** (max Lv.10) â€” VIP guests arrive 50% more frequently',
+          '**Intelligence Officer** (max Lv.10) â€” All event outcomes revealed before choosing',
+          '**Adjudicator** (max Lv.10) â€” Prestige keeps 80% reputation instead of 50%',
+          '**Vault Keeper** (max Lv.10) â€” Safe House interest doubles to 4%/min'
         ]
       },
       {
@@ -329,13 +329,13 @@ export const wikiSections: WikiSection[] = [
       {
         type: 'list',
         items: [
-          '**Stats** — Precision, Speed, Charisma, Luck (budget of 24, spread across 4 stats)',
-          '**Traits** — Random positive or rare traits; rare traits have powerful income/XP multipliers',
-          '**Loyalty** — Decays when assigned away from home branch; must be 30+ to defend against raids',
-          '**Lending** — Lend assassins to other BRANCHES for 5 minutes; loyalty drops 5 on return',
-          '**Synergy** — Count of buildings with matched staff+assassin assignments',
-          '**Combat** — Damage scales with level and stats (Precision x0.5 + Speed x0.3); raid power scales with level x5 + Precision x2 + Speed x1',
-          '**Takeover Attacks** — Assign assassins to attack a target branch\'s HQ; damage dealt every 5s tick; loyalty drains 0.2 per tick; XP gained from damage dealt'
+          '**Stats** â€” Precision, Speed, Charisma, Luck (budget of 24, spread across 4 stats)',
+          '**Traits** â€” Random positive or rare traits; rare traits have powerful income/XP multipliers',
+          '**Loyalty** â€” Decays when assigned away from home branch; must be 30+ to defend against raids',
+          '**Lending** â€” Lend assassins to other BRANCHES for 5 minutes; loyalty drops 5 on return',
+          '**Synergy** â€” Count of buildings with matched staff+assassin assignments',
+          '**Combat** â€” Damage scales with level and stats (Precision x0.5 + Speed x0.3); raid power scales with level x5 + Precision x2 + Speed x1',
+          '**Takeover Attacks** â€” Assign assassins to attack a target branch\'s HQ; damage dealt every 5s tick; loyalty drains 0.2 per tick; XP gained from damage dealt'
         ]
       },
       {
@@ -355,11 +355,11 @@ export const wikiSections: WikiSection[] = [
       {
         type: 'list',
         items: [
-          '**Street Samurai** (D) — Reduces heat by 2 when assigned',
-          '**Enforcer** (C) — Protects branch from income freeze events',
-          '**Shadow Blade** (B) — Doubles reputation gain from events',
-          '**Royal Guard** (A) — Halves marker debt accrual rate',
-          '**High Table Enforcer** (S) — Prevents excommunicado events entirely'
+          '**Street Samurai** (D) â€” Reduces heat by 2 when assigned',
+          '**Enforcer** (C) â€” Protects branch from income freeze events',
+          '**Shadow Blade** (B) â€” Doubles reputation gain from events',
+          '**Royal Guard** (A) â€” Halves marker debt accrual rate',
+          '**High Table Enforcer** (S) â€” Prevents excommunicado events entirely'
         ]
       }
     ]
@@ -381,12 +381,12 @@ export const wikiSections: WikiSection[] = [
         type: 'list',
         ordered: true,
         items: [
-          '**Meet Requirements** — Total prestige must reach the branch\'s unlock prestige',
-          '**Pay the Cost** — Takeover cost = 50M x 1.15^(unlockPrestige), paid from your active branch currency',
-          '**Assign Assassins** — Send assassins from any unlocked branch to attack the target',
-          '**Deal Damage** — Every 5s tick, each assigned assassin deals combat damage to the target HQ',
-          '**Conquer** — When HQ health reaches 0, the branch is unlocked and added to your empire',
-          '**Defeat AI** — The AI controller of that branch is permanently defeated'
+          '**Meet Requirements** â€” Total prestige must reach the branch\'s unlock prestige',
+          '**Pay the Cost** â€” Takeover cost = 50M x 1.15^(unlockPrestige), paid from your active branch currency',
+          '**Assign Assassins** â€” Send assassins from any unlocked branch to attack the target',
+          '**Deal Damage** â€” Every 5s tick, each assigned assassin deals combat damage to the target HQ',
+          '**Conquer** â€” When HQ health reaches 0, the branch is unlocked and added to your empire',
+          '**Defeat AI** â€” The AI controller of that branch is permanently defeated'
         ]
       },
       {
@@ -427,12 +427,12 @@ export const wikiSections: WikiSection[] = [
       {
         type: 'list',
         items: [
-          '**Collection Rate** — 5% of each debt is automatically collected per tick from branch currency',
-          '**Interest Rate** — 1% per tick, compounded',
-          '**Interest Cap** — Debts are capped at 10x their original amount',
-          '**Royal Guard** — Halves the interest accrual rate',
-          '**Shadow Skill Tree** — Reduces interest rate via debt reduction nodes',
-          '**Reputation** — Repaying a debt grants +5 reputation; repaying all grants +10'
+          '**Collection Rate** â€” 5% of each debt is automatically collected per tick from branch currency',
+          '**Interest Rate** â€” 1% per tick, compounded',
+          '**Interest Cap** â€” Debts are capped at 10x their original amount',
+          '**Royal Guard** â€” Halves the interest accrual rate',
+          '**Shadow Skill Tree** â€” Reduces interest rate via debt reduction nodes',
+          '**Reputation** â€” Repaying a debt grants +5 reputation; repaying all grants +10'
         ]
       },
       {
@@ -468,12 +468,12 @@ export const wikiSections: WikiSection[] = [
         type: 'info-box',
         title: 'Upgrade Details',
         content: [
-          'Private Wing — Unlocks Sommelier staff hire',
-          'Armory Expansion — Increases assassin cap from 3 to 4',
-          'Continental Charter — Inactive branch income 50% to 60%',
-          'Gold Standard — Safe House interest +50%',
-          'Diplomatic Channels — New branches start with 100 reputation',
-          'Training Grounds — Staff XP gain +20%'
+          'Private Wing â€” Unlocks Sommelier staff hire',
+          'Armory Expansion â€” Increases assassin cap from 3 to 4',
+          'Continental Charter â€” Inactive branch income 50% to 60%',
+          'Gold Standard â€” Safe House interest +50%',
+          'Diplomatic Channels â€” New branches start with 100 reputation',
+          'Training Grounds â€” Staff XP gain +20%'
         ]
       }
     ]
@@ -559,19 +559,19 @@ export const wikiSections: WikiSection[] = [
       {
         type: 'list',
         items: [
-          '**Weight** — Base probability of triggering',
-          '**Heat Modifier** — Increased probability at higher heat levels',
-          '**Choices** — 2-3 options with rewards/penalties',
-          '**Auto-resolve** — If player doesn\'t respond within timeout, the preferred choice is taken automatically',
-          '**Cooldown** — 45 seconds between events per branch; raids have a separate cooldown',
-          '**Grace Period** — 30-minute event immunity for newly unlocked or prestiged BRANCHES'
+          '**Weight** â€” Base probability of triggering',
+          '**Heat Modifier** â€” Increased probability at higher heat levels',
+          '**Choices** â€” 2-3 options with rewards/penalties',
+          '**Auto-resolve** â€” If player doesn\'t respond within timeout, the preferred choice is taken automatically',
+          '**Cooldown** â€” 45 seconds between events per branch; raids have a separate cooldown',
+          '**Grace Period** â€” 30-minute event immunity for newly unlocked or prestiged BRANCHES'
         ]
       },
       {
         type: 'warning-box',
         title: 'Excommunicado',
         content: [
-          'Declares your branch excommunicado — all income frozen for 60 seconds.',
+          'Declares your branch excommunicado â€” all income frozen for 60 seconds.',
           'Can be prevented by hiring a High Table Enforcer assassin.',
           'Bartender max ability keeps Bar income flowing during freeze.',
           'Enforcer assassin grants full immunity to income freeze events.'
@@ -616,7 +616,7 @@ export const wikiSections: WikiSection[] = [
     content: [
       {
         type: 'paragraph',
-        text: 'You are the child of a Continental branch boss — the head of your family\'s criminal empire in your chosen headquarters city. Your father, a powerful figure in the underworld, has been assassinated in the power struggle for the **High Table** — the supreme council that governs the Continental network across all 37 cities.'
+        text: 'You are the child of a Continental branch boss â€” the head of your family\'s criminal empire in your chosen headquarters city. Your father, a powerful figure in the underworld, has been assassinated in the power struggle for the **High Table** â€” the supreme council that governs the Continental network across all 37 cities.'
       },
       {
         type: 'heading',
@@ -635,11 +635,11 @@ export const wikiSections: WikiSection[] = [
       {
         type: 'list',
         items: [
-          '**Rebuild** — Restore your father\'s empire from your HQ city',
-          '**Conquer** — Seize control of rival Continental branches via takeover',
-          '**Supply Routes** — Establish illegal underworld supply lines for passive income',
-          '**Defeat AI Controllers** — Each city has an AI boss that generates events and must be defeated',
-          '**Claim the High Table** — Conquer all 37 cities to become the Sovereign of the High Table'
+          '**Rebuild** â€” Restore your father\'s empire from your HQ city',
+          '**Conquer** â€” Seize control of rival Continental branches via takeover',
+          '**Supply Routes** â€” Establish illegal underworld supply lines for passive income',
+          '**Defeat AI Controllers** â€” Each city has an AI boss that generates events and must be defeated',
+          '**Claim the High Table** â€” Conquer all 37 cities to become the Sovereign of the High Table'
         ]
       },
       {
@@ -648,7 +648,7 @@ export const wikiSections: WikiSection[] = [
         content: [
           'Each HQ has a unique father figure with a name and title.',
           'The killer is the AI controller of a rival city.',
-          'The story intro changes based on your selected headquarters.',
+          'The prologue changes based on your selected headquarters.',
           'Defeating the killer\'s city is a personal vendetta mission.'
         ]
       }
@@ -660,7 +660,7 @@ export const wikiSections: WikiSection[] = [
     content: [
       {
         type: 'paragraph',
-        text: 'Establish illegal supply routes between your branches to generate passive income. Routes have stability that decays over time — if stability reaches zero, the route collapses.'
+        text: 'Establish illegal supply routes between your branches to generate passive income. Routes have stability that decays over time â€” if stability reaches zero, the route collapses.'
       },
       {
         type: 'heading',
@@ -687,12 +687,12 @@ export const wikiSections: WikiSection[] = [
       {
         type: 'list',
         items: [
-          '**Max Routes** — 3 routes per branch',
-          '**Income Split** — 60% to source branch, 40% to destination',
-          '**Stability Decay** — Every 5 seconds, stability decreases by the route type\'s decay rate',
-          '**Stabilize** — Pay 10% of establish cost to restore +20 stability',
-          '**Collapse** — If stability reaches 0, the route is destroyed',
-          '**Dismantle** — Voluntarily remove a route (no refund)'
+          '**Max Routes** â€” 3 routes per branch',
+          '**Income Split** â€” 60% to source branch, 40% to destination',
+          '**Stability Decay** â€” Every 5 seconds, stability decreases by the route type\'s decay rate',
+          '**Stabilize** â€” Pay 10% of establish cost to restore +20 stability',
+          '**Collapse** â€” If stability reaches 0, the route is destroyed',
+          '**Dismantle** â€” Voluntarily remove a route (no refund)'
         ]
       },
       {
@@ -724,7 +724,7 @@ export const wikiSections: WikiSection[] = [
     content: [
       {
         type: 'paragraph',
-        text: 'Every city in the Continental network has an **AI Controller** — a rival boss with unique temperament, power, and ambitions. These AI owners generate events from a dynamic event pool, creating an ongoing power struggle between you and the AI.'
+        text: 'Every city in the Continental network has an **AI Controller** â€” a rival boss with unique temperament, power, and ambitions. These AI owners generate events from a dynamic event pool, creating an ongoing power struggle between you and the AI.'
       },
       {
         type: 'heading',
@@ -751,12 +751,12 @@ export const wikiSections: WikiSection[] = [
       {
         type: 'list',
         items: [
-          '**Raid** — AI sends raiders to attack your branch (fight / pay tribute / endure)',
-          '**Tribute** — AI demands payment (pay for relations / refuse for heat)',
-          '**Sabotage** — AI damages operations (repair / retaliate / endure)',
-          '**Spy** — AI spy caught in your branch (interrogate / release)',
-          '**Provocation** — AI provokes you (stand firm / back down)',
-          '**Truce** — AI offers temporary peace (accept for buff / reject)'
+          '**Raid** â€” AI sends raiders to attack your branch (fight / pay tribute / endure)',
+          '**Tribute** â€” AI demands payment (pay for relations / refuse for heat)',
+          '**Sabotage** â€” AI damages operations (repair / retaliate / endure)',
+          '**Spy** â€” AI spy caught in your branch (interrogate / release)',
+          '**Provocation** â€” AI provokes you (stand firm / back down)',
+          '**Truce** â€” AI offers temporary peace (accept for buff / reject)'
         ]
       },
       {
@@ -767,24 +767,24 @@ export const wikiSections: WikiSection[] = [
       {
         type: 'list',
         items: [
-          '**AI Power** — Grows over time, capped by maxPower based on branch unlock prestige',
-          '**Player Power** — Calculated from income, assassins, staff, and prestige across all branches',
-          '**Threat Levels** — Low / Medium / High / Critical based on AI power vs player power',
-          '**Relations** — Drift toward 0 over time; actions can improve or worsen them',
-          '**Defeat** — AI controllers are defeated when you conquer their branch via takeover',
-          '**Aggression** — Higher aggression AI owners act more frequently'
+          '**AI Power** â€” Grows over time, capped by maxPower based on branch unlock prestige',
+          '**Player Power** â€” Calculated from income, assassins, staff, and prestige across all branches',
+          '**Threat Levels** â€” Low / Medium / High / Critical based on AI power vs player power',
+          '**Relations** â€” Drift toward 0 over time; actions can improve or worsen them',
+          '**Defeat** â€” AI controllers are defeated when you conquer their branch via takeover',
+          '**Aggression** â€” Higher aggression AI owners act more frequently'
         ]
       },
       {
         type: 'info-box',
         title: 'Power Balance Status',
         content: [
-          'Supreme — Player power > 3x AI total power',
-          'Dominant — Player power 1.5x-3x AI total power',
-          'Strong — Player power 1x-1.5x AI total power',
-          'Contested — Player power 0.8x-1x AI total power',
-          'Vulnerable — Player power 0.4x-0.8x AI total power',
-          'Overwhelmed — Player power < 0.4x AI total power'
+          'Supreme â€” Player power > 3x AI total power',
+          'Dominant â€” Player power 1.5x-3x AI total power',
+          'Strong â€” Player power 1x-1.5x AI total power',
+          'Contested â€” Player power 0.8x-1x AI total power',
+          'Vulnerable â€” Player power 0.4x-0.8x AI total power',
+          'Overwhelmed â€” Player power < 0.4x AI total power'
         ]
       },
       {
@@ -804,7 +804,7 @@ export const wikiSections: WikiSection[] = [
     content: [
       {
         type: 'paragraph',
-        text: 'Prestige resets a branch\'s buildings and currency but grants **Table Favor** — a meta-currency for permanent upgrades. Favor is calculated from lifetime earnings:'
+        text: 'Prestige resets a branch\'s buildings and currency but grants **Table Favor** â€” a meta-currency for permanent upgrades. Favor is calculated from lifetime earnings:'
       },
       {
         type: 'code',
@@ -867,10 +867,10 @@ export const wikiSections: WikiSection[] = [
       {
         type: 'list',
         items: [
-          'Royal Buildings — Special endgame structures',
-          'Royal Marks — Endgame currency',
-          'Royal Prestige — Royal-specific resets',
-          'Royal Skill Tree — Endgame upgrades'
+          'Royal Buildings â€” Special endgame structures',
+          'Royal Marks â€” Endgame currency',
+          'Royal Prestige â€” Royal-specific resets',
+          'Royal Skill Tree â€” Endgame upgrades'
         ]
       }
     ]
@@ -898,11 +898,11 @@ export const wikiSections: WikiSection[] = [
         type: 'info-box',
         title: 'Skill Tree Branches',
         content: [
-          '**Commerce** — Income multipliers',
-          '**Personnel** — Staff XP gains and extra staff slots',
-          '**Shadow** — Debt reduction, heat reduction, buff duration',
-          '**Diplomacy** — Reputation multipliers and passive heat decay',
-          '**Ascension** — Prestige favor multipliers'
+          '**Commerce** â€” Income multipliers',
+          '**Personnel** â€” Staff XP gains and extra staff slots',
+          '**Shadow** â€” Debt reduction, heat reduction, buff duration',
+          '**Diplomacy** â€” Reputation multipliers and passive heat decay',
+          '**Ascension** â€” Prestige favor multipliers'
         ]
       }
     ]
@@ -918,7 +918,7 @@ export const wikiSections: WikiSection[] = [
       },
       {
         type: 'paragraph',
-        text: 'The true endgame is to seize control of every Continental Hotel across all regions, defeating all 37 AI controllers and claiming the High Table. This is intentionally designed to be extremely difficult — a multi-hundred-hour grind.'
+        text: 'The true endgame is to seize control of every Continental Hotel across all regions, defeating all 37 AI controllers and claiming the High Table. This is intentionally designed to be extremely difficult â€” a multi-hundred-hour grind.'
       },
       {
         type: 'info-box',
@@ -942,10 +942,10 @@ export const wikiSections: WikiSection[] = [
       {
         type: 'list',
         items: [
-          'Royal Buildings — 5 special endgame structures (see Royal Buildings section)',
-          'Royal Marks — Endgame currency earned passively and via Royal Prestige',
-          'Royal Prestige — Royal-specific resets granting Royal Marks',
-          'Royal Skill Tree — 25 endgame upgrades across 5 branches (see Royal Skill Tree section)'
+          'Royal Buildings â€” 5 special endgame structures (see Royal Buildings section)',
+          'Royal Marks â€” Endgame currency earned passively and via Royal Prestige',
+          'Royal Prestige â€” Royal-specific resets granting Royal Marks',
+          'Royal Skill Tree â€” 25 endgame upgrades across 5 branches (see Royal Skill Tree section)'
         ]
       },
       {
@@ -955,7 +955,7 @@ export const wikiSections: WikiSection[] = [
       },
       {
         type: 'paragraph',
-        text: 'After all 37 Royal Continentals are established and all AI controllers defeated, attempt the Royal Takeover — seizing control of the High Table itself.'
+        text: 'After all 37 Royal Continentals are established and all AI controllers defeated, attempt the Royal Takeover â€” seizing control of the High Table itself.'
       },
       {
         type: 'info-box',
@@ -974,7 +974,7 @@ export const wikiSections: WikiSection[] = [
       },
       {
         type: 'paragraph',
-        text: 'The game continues with no more progression — you rule the network. Infinite Royal Prestige loops with increasing rewards (10% per loop).'
+        text: 'The game continues with no more progression â€” you rule the network. Infinite Royal Prestige loops with increasing rewards (10% per loop).'
       }
     ]
   },
@@ -993,7 +993,7 @@ export const wikiSections: WikiSection[] = [
           'Built with Vue 3, TypeScript, Vite',
           'D3.js for world map rendering',
           'LocalStorage for save data',
-          'No server/cloud — single-player only',
+          'No server/cloud â€” single-player only',
           'Autoplay bot for automated gameplay'
         ]
       },
@@ -1097,13 +1097,13 @@ export const wikiSections: WikiSection[] = [
         type: 'info-box',
         title: 'Achievement Categories',
         content: [
-          '**Income** — Currency and lifetime earnings milestones',
-          '**Prestige** — Prestige level achievements',
-          '**Combat** — Assassin and takeover achievements',
-          '**Expansion** — Branch unlock milestones',
-          '**Staff** — Hiring and veteran achievements',
-          '**Events** — Event resolution and supply route milestones',
-          '**Special** — Playtime, royal, and skill tree achievements'
+          '**Income** â€” Currency and lifetime earnings milestones',
+          '**Prestige** â€” Prestige level achievements',
+          '**Combat** â€” Assassin and takeover achievements',
+          '**Expansion** â€” Branch unlock milestones',
+          '**Staff** â€” Hiring and veteran achievements',
+          '**Events** â€” Event resolution and supply route milestones',
+          '**Special** â€” Playtime, royal, and skill tree achievements'
         ]
       }
     ]
@@ -1163,11 +1163,11 @@ export const wikiSections: WikiSection[] = [
         type: 'info-box',
         title: 'Royal Skill Branches',
         content: [
-          '**Income** — Income multipliers (up to +100%)',
-          '**Loyalty** — Assassin loyalty decay reduction (up to -80%)',
-          '**Power** — Assassin power multipliers (up to +100%)',
-          '**Favor** — Prestige favor multipliers (up to +100%)',
-          '**Ascension** — Royal prestige multipliers (up to +100%)',
+          '**Income** â€” Income multipliers (up to +100%)',
+          '**Loyalty** â€” Assassin loyalty decay reduction (up to -80%)',
+          '**Power** â€” Assassin power multipliers (up to +100%)',
+          '**Favor** â€” Prestige favor multipliers (up to +100%)',
+          '**Ascension** â€” Royal prestige multipliers (up to +100%)',
           'Level 5 in any branch also grants +50% buff duration'
         ]
       }
@@ -1190,9 +1190,9 @@ export const wikiSections: WikiSection[] = [
         type: 'info-box',
         title: 'Sovereign Benefits',
         content: [
-          '**All buffs doubled** — Every multiplier from every source is doubled',
-          '**Royal Decrees** — Choose 1 of 3 random global buffs every 24 hours',
-          '**Sandbox+ Mode** — Infinite reset loops with +10% rewards per loop'
+          '**All buffs doubled** â€” Every multiplier from every source is doubled',
+          '**Royal Decrees** â€” Choose 1 of 3 random global buffs every 24 hours',
+          '**Sandbox+ Mode** â€” Infinite reset loops with +10% rewards per loop'
         ]
       },
       {
@@ -1255,8 +1255,8 @@ export const wikiSections: WikiSection[] = [
         type: 'table',
         headers: ['Floor', 'Buildings', 'Description'],
         rows: [
-          ['G', 'blackMarket, vault, underground', 'Basement — hidden trading, secure vault'],
-          ['1', 'reception (lobby)', 'Main floor — entrance, reception, visitor spawns'],
+          ['G', 'blackMarket, vault, underground', 'Basement â€” hidden trading, secure vault'],
+          ['1', 'reception (lobby)', 'Main floor â€” entrance, reception, visitor spawns'],
           ['2', 'kitchen, bar', 'Restaurant & bar'],
           ['3', 'laundry, guestRooms (Standard), Staff Room', 'Standard rooms (level 1-12) + staff room'],
           ['4', 'guestRooms (Deluxe)', 'Deluxe rooms (level 13-25)'],
@@ -1264,7 +1264,7 @@ export const wikiSections: WikiSection[] = [
           ['6', 'guestRooms (Presidential)', 'Presidential suites (level 39-50)'],
           ['7', 'vip (VIP Suites)', 'VIP guest suites'],
           ['8', 'vip (Penthouse)', 'Presidential penthouse'],
-          ['9', 'armory, safeHouse', 'Security — assassins reside here'],
+          ['9', 'armory, safeHouse', 'Security â€” assassins reside here'],
           ['10', 'intelNetwork, Manager\'s Office', 'Intel + manager (visual only)'],
           ['11', 'Rooftop', 'Helipad (visual only)'],
         ]
@@ -1389,7 +1389,7 @@ export const wikiSections: WikiSection[] = [
         title: 'Hiring & Assignment',
         content: [
           'Click a visitor to view their stats card',
-          'Hire cost = base hireCost × rarity cost multiplier (uses branch currency)',
+          'Hire cost = base hireCost Ã— rarity cost multiplier (uses branch currency)',
           'Hired staff auto-assign to their role\'s best match building',
           'Hired assassins go to floor 9 (armory)',
           'Visitors leave after 2 hours if not hired',
@@ -1400,7 +1400,7 @@ export const wikiSections: WikiSection[] = [
         title: 'Firing',
         content: [
           'Staff and assassins can be fired from the Staff Panel or HQ stats panel',
-          'Firing removes the character permanently — no refund',
+          'Firing removes the character permanently â€” no refund',
         ]
       },
     ]

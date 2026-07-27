@@ -115,11 +115,11 @@ class AutoplayBot {
         this._consecutiveErrors = 0
       } catch (err) {
         console.error('Autoplay tick error:', err)
-        this.logAction('? Tick error — continuing')
+        this.logAction('? Tick error â€” continuing')
         this._consecutiveErrors++
         if (this._consecutiveErrors >= this.MAX_CONSECUTIVE_ERRORS) {
           console.error('Autoplay stopped after ' + this.MAX_CONSECUTIVE_ERRORS + ' consecutive errors')
-          this.logAction('? Autoplay stopped — too many consecutive errors')
+          this.logAction('? Autoplay stopped â€” too many consecutive errors')
           this.stop()
           return
         }
@@ -174,12 +174,12 @@ class AutoplayBot {
   private makeDecisions(): void {
     const phase = this.assessGamePhase()
 
-    // 1. Free actions — always first, no cost
+    // 1. Free actions â€” always first, no cost
     this.autoResolveEvent()
     this.confirmStaffLevelUps()
     this.confirmAssassinLevelUps()
 
-    // 2. Defensive check — handle threats before spending
+    // 2. Defensive check â€” handle threats before spending
     this.handleDefense(phase)
 
     // 3. Switch to best branch for current strategy
@@ -261,30 +261,30 @@ class AutoplayBot {
       const branch = state.branches[branchId]
       if (!branch) continue
 
-      // 1. Heat management — high heat triggers raids & bad events
+      // 1. Heat management â€” high heat triggers raids & bad events
       if (branch.heatLevel >= 7) {
         const hasSamurai = Object.values(branch.assassins).some(a => a.typeId === 'streetSamurai' && a.assignedBranch === branchId)
         if (!hasSamurai && phase !== 'rush') {
-          this.logAction(`? ${getBranchDef(branchId).name} heat critical (${branch.heatLevel}/10) — needs Street Samurai`)
+          this.logAction(`? ${getBranchDef(branchId).name} heat critical (${branch.heatLevel}/10) â€” needs Street Samurai`)
         }
       }
 
-      // 2. Income freeze check — if frozen, prioritize Enforcer hiring
+      // 2. Income freeze check â€” if frozen, prioritize Enforcer hiring
       const isFrozen = state.activeBuffs.some(b =>
         b.type === 'incomeFreeze' &&
         (b.branchId === null || b.branchId === branchId) &&
         (b.expiresAt === null || b.expiresAt > Date.now())
       )
       if (isFrozen && !hasEnforcer(branchId) && !hasHighTableEnforcer(branchId)) {
-        this.logAction(`? ${getBranchDef(branchId).name} income frozen — need Enforcer`)
+        this.logAction(`? ${getBranchDef(branchId).name} income frozen â€” need Enforcer`)
       }
 
-      // 3. Excommunicado grace — don't prestige during grace
+      // 3. Excommunicado grace â€” don't prestige during grace
       if (Date.now() < branch.excommunicadoGraceUntil && branchId === state.activeBranch) {
-        // Skip prestige for this branch — grace period active
+        // Skip prestige for this branch â€” grace period active
       }
 
-      // 4. Debt urgency — if debt > 50% of currency, flag it
+      // 4. Debt urgency â€” if debt > 50% of currency, flag it
       const debt = getTotalDebt(branchId)
       if (debt > branch.currency * 0.5 && debt > 0) {
         if (branch.currency >= debt) {
@@ -293,11 +293,11 @@ class AutoplayBot {
         }
       }
 
-      // 5. Low loyalty assassins — recall from attack if loyalty critical
+      // 5. Low loyalty assassins â€” recall from attack if loyalty critical
       Object.values(branch.assassins).forEach(a => {
         if (a.loyalty < 10 && a.attackTarget) {
           cancelAssassinAttack(a.id, branchId)
-          this.logAction(`? Assassin loyalty critical (${a.loyalty.toFixed(0)}) — pulled back from attack`)
+          this.logAction(`? Assassin loyalty critical (${a.loyalty.toFixed(0)}) â€” pulled back from attack`)
         }
       })
     }
@@ -490,7 +490,7 @@ class AutoplayBot {
     const inactiveBranches = state.worldMap.unlockedBranches.filter(id => id !== activeId)
     if (inactiveBranches.length === 0) return
 
-    // Rotate — one inactive branch per decision cycle
+    // Rotate â€” one inactive branch per decision cycle
     const branchId = inactiveBranches[this.inactiveBranchIdx % inactiveBranches.length]
     this.inactiveBranchIdx++
 
@@ -558,7 +558,7 @@ class AutoplayBot {
       const existingCount = routes.filter(r => r.from === fromId).length
       if (existingCount >= 3) continue
 
-      // Pick a target branch — prefer the one furthest away for thematic feel
+      // Pick a target branch â€” prefer the one furthest away for thematic feel
       const targets = unlocked.filter(t => t !== fromId)
       if (targets.length === 0) continue
 
@@ -1041,7 +1041,7 @@ class AutoplayBot {
       })
 
       if (target) {
-        // Don't send if loyalty is too low — keep for defense
+        // Don't send if loyalty is too low â€” keep for defense
         if (assassin.loyalty < 30 && this.assessThreats(sourceBranchId).heatLevel >= 5) {
           continue
         }

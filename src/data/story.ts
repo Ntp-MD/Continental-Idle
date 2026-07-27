@@ -14,7 +14,7 @@ export interface StoryContext {
 }
 
 const FATHER_NAMES: Record<string, { name: string; title: string }> = {
-  bangkok: { name: 'Somchai "The Serpent" Rattanakosin', title: 'Lord of the Golden Triangle' },
+  bangkok: { name: 'Somchai "The Serpent" Rattanakosin', title: 'Continental Siam' },
   newYork: { name: 'Vincent "The Architect" Caravale', title: 'Don of the Five Families' },
   rome: { name: 'Lorenzo "Il Papa" Vex', title: 'Cardinal of the Underworld' },
   casablanca: { name: 'Rashid "The Desert Fox" Al-Maghribi', title: 'Sultan of the Sahara Trade' },
@@ -80,15 +80,18 @@ export function getStoryContext(hqBranch: BranchId): StoryContext {
   }
 }
 
-export function getStoryIntro(hqBranch: BranchId): string {
+export function getPrologue(hqBranch: BranchId): string {
   const ctx = getStoryContext(hqBranch)
-  return `${ctx.fatherName}, ${ctx.fatherTitle}, has been assassinated.
+  const branchTerm = hqBranch === 'bangkok' ? 'Continental Bangkok, Siam' : 'Continental branch'
+  return `Your father, ${ctx.fatherTitle}, has been assassinated — caught in a power struggle and interference from rival Continental branches across borders.
 
-The High Table — the supreme council that governs the Continental network across 37 cities — has fallen into chaos. Your father's seat is empty, and the wolves are circling.
+You are his son. Raised on a quiet island in the Andaman Sea, living with relatives. You lived an ordinary life — school, chores, the sea, the sun. You never knew what your father truly did. You never knew the world he operated in.
 
-${ctx.killerName}, the AI controller of ${ctx.killerBranch}, is the prime suspect. The power struggle for the High Table has begun, and every city has its own AI boss waiting to seize control.
+Then one day, Mod, Natthapon — your father's most trusted aide — arrived at your door. The truth was laid bare: your father was a Continental boss, and the underworld he ruled is far larger and more dangerous than you ever imagined.
 
-You are the heir of ${ctx.hqName}. Your father's empire is now yours to rebuild — one Continental branch at a time. Conquer rival cities, establish supply routes, and climb the ladder to claim your seat at the High Table.
+Now his HQ is yours to inherit — along with the resources and connections he left behind. Mod will guide you, protect you, and help you rebuild.
 
-The underworld awaits its new king.`
+The Continental network spans 37 cities. Each one has its own boss. Your father's seat at the High Table is empty.
+
+Step up. Take what is yours. One ${branchTerm} at a time.`
 }

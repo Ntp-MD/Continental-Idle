@@ -134,7 +134,7 @@ onUnmounted(() => {
         <span class="event-prompt__raid-value">{{ raidData.attackers.length }} (Power: {{ raidData.attackerPower }})</span>
       </div>
       <div v-for="a in raidData.attackers" :key="a.name" class="event-prompt__raid-attacker">
-        {{ a.name }} — Lv.{{ a.level }} | PRE {{ a.precision }} SPD {{ a.speed }}
+        {{ a.name }} â€” Lv.{{ a.level }} | PRE {{ a.precision }} SPD {{ a.speed }}
       </div>
       <div class="event-prompt__raid-row">
         <span class="event-prompt__raid-label">Your defenders:</span>

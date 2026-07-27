@@ -102,9 +102,6 @@
 	--accent-hp-low: #ef4444;
 	--hpbar-bg: #252530;
 
-	/* ── Blueprint Editor ── */
-	--blueprint-line: #555;
-
 	/* ── Fonts ── */
 	--font-mono: "JetBrains Mono", "Fira Code", "Courier New", Consolas, Monaco, monospace;
 	--font-scale: 1;
@@ -115,4 +112,31 @@
 	--gap-md: 16px;
 	--gap-lg: 24px;
 	--gap-xl: 40px;
+
+	/* ── Blueprint Editor SVG ── */
+	--svg-fill: #f4f8fc;
+	--svg-fill-alt: #e8f0fa;
+	--svg-stroke: #1a3a5c;
+	--svg-edge: #7c93ab;
+	--svg-grid: #c7d6e8;
+	--object-detail-line: #c5c5c5;
+
+	/* ── Blueprint Editor Aliases → Continental tokens ── */
+	--bg-base: var(--bg-primary);
+	--bg-surface: var(--bg-secondary);
+	--bg-raised: var(--bg-card);
+	--bg-btn: var(--bg-card);
+	--accent-primary: var(--accent-blue);
+	--accent-danger: var(--accent-red);
+	--accent-success: var(--accent-green);
+	--accent-warning: var(--accent-gold);
+	--accent-info: var(--accent-purple);
+	--text-on-accent: var(--text-bright);
+	--transition: var(--duration-fast);
+	--font-xl: 20px;
+	--font-lg: 16px;
+	--font-md: 12px;
+	--font-sm: 11px;
+	--font-xs: 10px;
+	--radius-pill: 100%;
 }

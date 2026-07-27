@@ -50,7 +50,7 @@ function update() {
       id: def.id,
       name: def.name,
       level,
-      income: level > 0 ? formatIncome(inc) : '—',
+      income: level > 0 ? formatIncome(inc) : 'â€”',
       cost: maxed ? 'MAX' : (cost === 0 ? 'FREE' : formatNumber(cost)),
       affordable: affordable && !maxed,
       maxed,
