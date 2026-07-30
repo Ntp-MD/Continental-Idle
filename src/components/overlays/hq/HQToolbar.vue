@@ -18,23 +18,23 @@ const emit = defineEmits<{
 </script>
 
 <template>
-  <div class="hq-toolbar">
-    <div class="hq-toolbar__left">
-      <button class="hq-toolbar__btn" :class="{ 'is-active': props.viewMode === 'birdseye' }" @click="props.viewMode !== 'birdseye' && emit('toggleView')">Bird's Eye</button>
-      <button class="hq-toolbar__btn" :class="{ 'is-active': props.viewMode === 'fallout' }" @click="props.viewMode !== 'fallout' && emit('toggleView')">Fallout</button>
-      <button class="hq-toolbar__btn" :class="{ 'is-active': props.showLabels }" @click="emit('toggleLabels')">Labels</button>
+  <div class="hq_toolbar">
+    <div class="hq_toolbar__left">
+      <button class="hq_toolbar__btn" :class="{ 'is_active': props.viewMode === 'birdseye' }" @click="props.viewMode !== 'birdseye' && emit('toggleView')">Bird's Eye</button>
+      <button class="hq_toolbar__btn" :class="{ 'is_active': props.viewMode === 'fallout' }" @click="props.viewMode !== 'fallout' && emit('toggleView')">Fallout</button>
+      <button class="hq_toolbar__btn" :class="{ 'is_active': props.showLabels }" @click="emit('toggleLabels')">Labels</button>
     </div>
-    <div class="hq-toolbar__right">
-      <span class="hq-toolbar__currency" title="Golden Coins">🪙 {{ Math.floor(props.goldenCoins) }}</span>
-      <span v-if="props.royalMarks > 0" class="hq-toolbar__currency" title="Royal Marks">👑 {{ Math.floor(props.royalMarks) }}</span>
+    <div class="hq_toolbar__right">
+      <span class="hq_toolbar__currency" title="Golden Coins">🪙 {{ Math.floor(props.goldenCoins) }}</span>
+      <span v-if="props.royalMarks > 0" class="hq_toolbar__currency" title="Royal Marks">👑 {{ Math.floor(props.royalMarks) }}</span>
       <button
-        class="hq-toolbar__btn hq-toolbar__call"
+        class="hq_toolbar__btn hq_toolbar__call"
         :disabled="!props.canCallVisitor || props.visitorCount > 0"
         @click="emit('callVisitor')"
       >Call Visitors (🪙10)</button>
       <button
         v-if="props.royalMarks > 0"
-        class="hq-toolbar__btn hq-toolbar__scroll"
+        class="hq_toolbar__btn hq_toolbar__scroll"
         :disabled="!props.canUseRoyalMark || props.visitorCount > 0"
         @click="emit('royalMarkScroll')"
       >Royal Scroll (👑1)</button>
@@ -43,7 +43,7 @@ const emit = defineEmits<{
 </template>
 
 <style scoped>
-.hq-toolbar {
+.hq_toolbar {
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -53,12 +53,12 @@ const emit = defineEmits<{
   gap: 8px;
   flex-wrap: wrap;
 }
-.hq-toolbar__left, .hq-toolbar__right {
+.hq_toolbar__left, .hq_toolbar__right {
   display: flex;
   align-items: center;
   gap: 6px;
 }
-.hq-toolbar__btn {
+.hq_toolbar__btn {
   background: #1a1a1a;
   color: #888;
   border: 1px solid #333;
@@ -69,30 +69,30 @@ const emit = defineEmits<{
   font-family: Georgia, serif;
   transition: all 0.15s;
 }
-.hq-toolbar__btn:hover {
+.hq_toolbar__btn:hover {
   border-color: #c9a84c;
   color: #c9a84c;
 }
-.hq-toolbar__btn.is-active {
+.hq_toolbar__btn.is_active {
   background: #c9a84c;
   color: #1a1a1a;
   border-color: #c9a84c;
 }
-.hq-toolbar__btn:disabled {
+.hq_toolbar__btn:disabled {
   opacity: 0.4;
   cursor: not-allowed;
 }
-.hq-toolbar__currency {
+.hq_toolbar__currency {
   font-size: 12px;
   color: #c9a84c;
   font-family: Georgia, serif;
 }
-.hq-toolbar__call {
+.hq_toolbar__call {
   background: #2a2a1a;
   border-color: #c9a84c;
   color: #c9a84c;
 }
-.hq-toolbar__scroll {
+.hq_toolbar__scroll {
   background: #2a1a2a;
   border-color: #9c27b0;
   color: #ce93d8;

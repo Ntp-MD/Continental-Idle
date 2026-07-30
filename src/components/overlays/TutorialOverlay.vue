@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, computed } from 'vue'
-import { tutorialManager, TUTORIAL_STEPS } from '@/engine/tutorial-manager'
-import { eventBus } from '@/engine/event-bus'
-import type { TutorialStep } from '@/engine/tutorial-manager'
+import { tutorialManager, TUTORIAL_STEPS } from '@/engine/tutorialManager'
+import { eventBus } from '@/engine/eventBus'
+import type { TutorialStep } from '@/engine/tutorialManager'
 
 const visible = ref(false)
 const step = ref<TutorialStep | null>(null)
@@ -44,28 +44,28 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div v-if="visible && step" class="tutorial-overlay">
-    <div class="tutorial-overlay__card">
-      <div class="tutorial-overlay__header">
-        <span class="tutorial-overlay__badge">{{ stepIndex + 1 }}/{{ totalSteps }}</span>
-        <span class="tutorial-overlay__title">{{ step.title }}</span>
-        <button class="tutorial-overlay__skip" @click="skip">SKIP</button>
+  <div v-if="visible && step" class="tutorial_overlay">
+    <div class="tutorial_overlay__card">
+      <div class="tutorial_overlay__header">
+        <span class="tutorial_overlay__badge">{{ stepIndex + 1 }}/{{ totalSteps }}</span>
+        <span class="tutorial_overlay__title">{{ step.title }}</span>
+        <button class="tutorial_overlay__skip" @click="skip">SKIP</button>
       </div>
 
-      <div class="tutorial-overlay__progress">
-        <div class="tutorial-overlay__progress-fill" :style="{ width: progress + '%' }"></div>
+      <div class="tutorial_overlay__progress">
+        <div class="tutorial_overlay__progress_fill" :style="{ width: progress + '%' }"></div>
       </div>
 
-      <p class="tutorial-overlay__hint">{{ step.hint }}</p>
+      <p class="tutorial_overlay__hint">{{ step.hint }}</p>
 
-      <div class="tutorial-overlay__actions">
+      <div class="tutorial_overlay__actions">
         <button
-          class="tutorial-overlay__btn tutorial-overlay__btn--prev"
+          class="tutorial_overlay__btn tutorial_overlay__btn__prev"
           :disabled="stepIndex === 0"
           @click="prev"
         >◀ Back</button>
         <button
-          class="tutorial-overlay__btn tutorial-overlay__btn--next"
+          class="tutorial_overlay__btn tutorial_overlay__btn__next"
           @click="next"
         >{{ stepIndex === totalSteps - 1 ? 'Finish' : 'Next ▶' }}</button>
       </div>

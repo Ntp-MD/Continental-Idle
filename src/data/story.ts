@@ -1,6 +1,6 @@
 import type { BranchId } from '@/types'
 import { getBranchDef } from './branches'
-import { getAIName, getAITemperamentForBranch } from './ai-owners'
+import { getAIName, getAITemperamentForBranch } from './aiOwners'
 
 export interface StoryContext {
   hqName: string

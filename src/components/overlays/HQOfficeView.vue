@@ -1,30 +1,30 @@
 <script setup lang="ts">
 import { ref, shallowRef, onMounted, onUnmounted, nextTick, markRaw, triggerRef, computed } from 'vue'
-import { gameState } from '@/engine/game-state'
+import { gameState } from '@/engine/gameState'
 import { getBranchDef } from '@/data/branches'
 import { BUILDINGS } from '@/data/buildings'
 import { STAFF_MAP } from '@/data/staff'
 import { ASSASSIN_MAP } from '@/data/assassins'
-import { getAIOwner } from '@/engine/ai-owner-manager'
-import { getVisitors, callVisitor, royalMarkScroll, hireVisitor, dismissVisitor, canCallVisitor, canUseRoyalMarkScroll } from '@/engine/visitor-manager'
-import { fireStaff } from '@/engine/staff-manager'
-import { fireAssassin } from '@/engine/assassin-manager'
-import { eventBus } from '@/engine/event-bus'
+import { getAIOwner } from '@/engine/aiOwnerManager'
+import { getVisitors, callVisitor, royalMarkScroll, hireVisitor, dismissVisitor, canCallVisitor, canUseRoyalMarkScroll } from '@/engine/visitorManager'
+import { fireStaff } from '@/engine/staffManager'
+import { fireAssassin } from '@/engine/assassinManager'
+import { eventBus } from '@/engine/eventBus'
 import type { FloorId, VisitorEntry } from '@/types'
 
-import HQRoomLayer from './hq/HQRoomLayer.vue'
-import HQFalloutView from './hq/HQFalloutView.vue'
-import HQNpcLayer from './hq/HQNpcLayer.vue'
-import type { NpcDot } from './hq/HQNpcLayer.vue'
-import HQVisitorCard from './hq/HQVisitorCard.vue'
-import HQToolbar from './hq/HQToolbar.vue'
-import HQFloorSelector from './hq/HQFloorSelector.vue'
+import HQRoomLayer from './hq/hqRoomLayer.vue'
+import HQFalloutView from './hq/hqFalloutView.vue'
+import HQNpcLayer from './hq/hqNpcLayer.vue'
+import type { NpcDot } from './hq/hqNpcLayer.vue'
+import HQVisitorCard from './hq/hqVisitorCard.vue'
+import HQToolbar from './hq/hqToolbar.vue'
+import HQFloorSelector from './hq/hqFloorSelector.vue'
 import {
   SVG_W, SVG_H,
   FLOOR_IDS, getRoomsOnFloor, ROOM_ANCHORS,
   STAFF_COLORS, ASSASSIN_COLORS, GUEST_COLORS,
   getBuildingFloor, getGuestRoomTier, isFloorUnlocked,
-} from './hq/hq-layout'
+} from './hq/hqLayout'
 
 const props = defineProps<{ inline?: boolean }>()
 const emit = defineEmits<{ close: [] }>()
@@ -434,7 +434,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div :class="props.inline ? 'hq-office hq-office--inline' : 'hq-office hq-office--overlay'" @click.self="!props.inline && emit('close')">
+  <div :class="props.inline ? 'hq_office hq_office__inline' : 'hq_office hq_office__overlay'" @click.self="!props.inline && emit('close')">
     <HQToolbar
       :view-mode="viewMode" :show-labels="showLabels"
       :golden-coins="goldenCoins" :royal-marks="royalMarks"
@@ -444,77 +444,77 @@ onUnmounted(() => {
       @toggle-labels="showLabels = !showLabels"
       @call-visitor="onCallVisitor" @royal-mark-scroll="onRoyalMarkScroll"
     />
-    <div class="hq-office__content">
+    <div class="hq_office__content">
       <template v-if="viewMode === 'birdseye'">
-        <div class="hq-office__main">
-          <svg :viewBox="`0 0 ${SVG_W} ${SVG_H}`" class="hq-office__svg" preserveAspectRatio="xMidYMid meet">
+        <div class="hq_office__main">
+          <svg :viewBox="`0 0 ${SVG_W} ${SVG_H}`" class="hq_office__svg" preserveAspectRatio="xMidYMid meet">
             <HQRoomLayer :floor="selectedFloor" :unlocked="floorUnlocked" :building-levels="buildingLevels" />
             <HQNpcLayer v-if="floorUnlocked" :dots="currentFloorDots" :show-labels="showLabels" :selected-npc-id="selectedNpcId" @click="onNpcClick" />
           </svg>
         </div>
-        <div class="hq-office__sidebar">
+        <div class="hq_office__sidebar">
           <HQFloorSelector :selected-floor="selectedFloor" :buildings="buildingsUnlocked" :npc-dots="npcDotsByFloor" @select="selectedFloor = $event" />
         </div>
       </template>
       <template v-else>
-        <div class="hq-office__fallout">
+        <div class="hq_office__fallout">
           <HQFalloutView :buildings="buildingsUnlocked" :npc-dots="npcDotsByFloor" :show-labels="showLabels" @select-floor="selectedFloor = $event; viewMode = 'birdseye'" />
         </div>
       </template>
     </div>
-    <div v-if="visitors.length > 0 && selectedFloor === '1'" class="hq-office__visitors">
+    <div v-if="visitors.length > 0 && selectedFloor === '1'" class="hq_office__visitors">
       <HQVisitorCard v-for="v in visitors" :key="v.id" :visitor="v" :branch-currency="branchCurrency" @hire="onHireVisitor" @dismiss="onDismissVisitor" />
     </div>
-    <div v-if="selectedNpc && !selectedVisitor" class="hq-office__stats-panel">
-      <div class="hq-office__stats-header">
+    <div v-if="selectedNpc && !selectedVisitor" class="hq_office__stats_panel">
+      <div class="hq_office__stats_header">
         <span>{{ selectedNpc.dot.name }} Lv.{{ selectedNpc.dot.level }}</span>
-        <span class="hq-office__stats-rarity">{{ selectedNpc.dot.rarity }}</span>
-        <button class="hq-office__stats-close" @click="selectedNpcId = null">×</button>
+        <span class="hq_office__stats_rarity">{{ selectedNpc.dot.rarity }}</span>
+        <button class="hq_office__stats_close" @click="selectedNpcId = null">×</button>
       </div>
-      <div class="hq-office__stats-body">
-        <div class="hq-office__stats-row">
+      <div class="hq_office__stats_body">
+        <div class="hq_office__stats_row">
           <span>PREC</span><b>{{ selectedNpc.data.stats.precision }}</b>
           <span>SPD</span><b>{{ selectedNpc.data.stats.speed }}</b>
         </div>
-        <div class="hq-office__stats-row">
+        <div class="hq_office__stats_row">
           <span>CHA</span><b>{{ selectedNpc.data.stats.charisma }}</b>
           <span>LCK</span><b>{{ selectedNpc.data.stats.luck }}</b>
         </div>
-        <div class="hq-office__stats-traits">Traits: {{ selectedNpc.data.traits.join(', ') || '—' }}</div>
-        <button v-if="selectedNpc.type === 'staff'" class="hq-office__fire-btn" @click="onFireStaff(selectedNpc.data.id)">Fire Staff</button>
-        <button v-else class="hq-office__fire-btn" @click="onFireAssassin(selectedNpc.data.id)">Fire Assassin</button>
+        <div class="hq_office__stats_traits">Traits: {{ selectedNpc.data.traits.join(', ') || '—' }}</div>
+        <button v-if="selectedNpc.type === 'staff'" class="hq_office__fire_btn" @click="onFireStaff(selectedNpc.data.id)">Fire Staff</button>
+        <button v-else class="hq_office__fire_btn" @click="onFireAssassin(selectedNpc.data.id)">Fire Assassin</button>
       </div>
     </div>
-    <div v-if="selectedVisitor" class="hq-office__visitor-detail">
+    <div v-if="selectedVisitor" class="hq_office__visitor_detail">
       <HQVisitorCard :visitor="selectedVisitor" :branch-currency="branchCurrency" @hire="onHireVisitor" @dismiss="onDismissVisitor" />
-      <button class="hq-office__stats-close" @click="selectedVisitor = null; selectedNpcId = null">×</button>
+      <button class="hq_office__stats_close" @click="selectedVisitor = null; selectedNpcId = null">×</button>
     </div>
-    <div v-if="props.inline" class="hq-office__info"><span>{{ hqName }} — {{ hqOwner }}</span></div>
+    <div v-if="props.inline" class="hq_office__info"><span>{{ hqName }} — {{ hqOwner }}</span></div>
   </div>
 </template>
 
 <style scoped>
-.hq-office { display: flex; flex-direction: column; background: #0d0d0d; border: 1px solid #333; border-radius: 6px; overflow: hidden; }
-.hq-office--inline { height: 100%; min-height: 400px; }
-.hq-office--overlay { position: fixed; inset: 0; z-index: 100; background: rgba(0,0,0,0.85); }
-.hq-office__content { display: flex; flex: 1; overflow: hidden; }
-.hq-office__main { flex: 1; overflow: hidden; display: flex; align-items: center; justify-content: center; }
-.hq-office__svg { width: 100%; height: 100%; max-height: 600px; }
-.hq-office__sidebar { width: 200px; flex-shrink: 0; overflow-y: auto; border-left: 1px solid #222; padding: 4px; }
-.hq-office__fallout { flex: 1; overflow: auto; padding: 8px; }
-.hq-office__visitors { display: flex; gap: 8px; padding: 8px; flex-wrap: wrap; border-top: 1px solid #222; }
-.hq-office__stats-panel { position: absolute; right: 220px; top: 60px; background: #1a1a1a; border: 1px solid #c9a84c; border-radius: 6px; padding: 10px; min-width: 220px; z-index: 10; }
-.hq-office--inline .hq-office__stats-panel { position: relative; right: auto; top: auto; margin: 4px; }
-.hq-office__stats-header { display: flex; align-items: center; gap: 8px; border-bottom: 1px solid #333; padding-bottom: 6px; margin-bottom: 8px; font-family: Georgia, serif; color: #c9a84c; font-size: 13px; }
-.hq-office__stats-rarity { font-weight: bold; font-size: 14px; }
-.hq-office__stats-close { margin-left: auto; background: none; border: none; color: #888; font-size: 18px; cursor: pointer; }
-.hq-office__stats-body { font-size: 11px; color: #aaa; }
-.hq-office__stats-row { display: grid; grid-template-columns: auto auto auto auto; gap: 6px; margin-bottom: 4px; align-items: center; }
-.hq-office__stats-row span { color: #666; font-size: 9px; }
-.hq-office__stats-row b { color: #c9a84c; }
-.hq-office__stats-traits { font-size: 10px; color: #777; margin: 6px 0; }
-.hq-office__fire-btn { width: 100%; background: #3a1a1a; color: #ff5252; border: 1px solid #5a2a2a; border-radius: 4px; padding: 6px; font-size: 11px; cursor: pointer; margin-top: 6px; }
-.hq-office__fire-btn:hover { background: #5a2a2a; }
-.hq-office__visitor-detail { position: relative; display: inline-block; }
-.hq-office__info { padding: 4px 12px; font-size: 11px; color: #666; font-family: Georgia, serif; border-top: 1px solid #222; }
+.hq_office { display: flex; flex-direction: column; background: #0d0d0d; border: 1px solid #333; border-radius: 6px; overflow: hidden; }
+.hq_office__inline { height: 100%; min-height: 400px; }
+.hq_office__overlay { position: fixed; inset: 0; z-index: 100; background: rgba(0,0,0,0.85); }
+.hq_office__content { display: flex; flex: 1; overflow: hidden; }
+.hq_office__main { flex: 1; overflow: hidden; display: flex; align-items: center; justify-content: center; }
+.hq_office__svg { width: 100%; height: 100%; max-height: 600px; }
+.hq_office__sidebar { width: 200px; flex-shrink: 0; overflow-y: auto; border-left: 1px solid #222; padding: 4px; }
+.hq_office__fallout { flex: 1; overflow: auto; padding: 8px; }
+.hq_office__visitors { display: flex; gap: 8px; padding: 8px; flex-wrap: wrap; border-top: 1px solid #222; }
+.hq_office__stats_panel { position: absolute; right: 220px; top: 60px; background: #1a1a1a; border: 1px solid #c9a84c; border-radius: 6px; padding: 10px; min-width: 220px; z-index: 10; }
+.hq_office__inline .hq_office__stats_panel { position: relative; right: auto; top: auto; margin: 4px; }
+.hq_office__stats_header { display: flex; align-items: center; gap: 8px; border-bottom: 1px solid #333; padding-bottom: 6px; margin-bottom: 8px; font-family: Georgia, serif; color: #c9a84c; font-size: 13px; }
+.hq_office__stats_rarity { font-weight: bold; font-size: 14px; }
+.hq_office__stats_close { margin-left: auto; background: none; border: none; color: #888; font-size: 18px; cursor: pointer; }
+.hq_office__stats_body { font-size: 11px; color: #aaa; }
+.hq_office__stats_row { display: grid; grid-template-columns: auto auto auto auto; gap: 6px; margin-bottom: 4px; align-items: center; }
+.hq_office__stats_row span { color: #666; font-size: 9px; }
+.hq_office__stats_row b { color: #c9a84c; }
+.hq_office__stats_traits { font-size: 10px; color: #777; margin: 6px 0; }
+.hq_office__fire_btn { width: 100%; background: #3a1a1a; color: #ff5252; border: 1px solid #5a2a2a; border-radius: 4px; padding: 6px; font-size: 11px; cursor: pointer; margin-top: 6px; }
+.hq_office__fire_btn:hover { background: #5a2a2a; }
+.hq_office__visitor_detail { position: relative; display: inline-block; }
+.hq_office__info { padding: 4px 12px; font-size: 11px; color: #666; font-family: Georgia, serif; border-top: 1px solid #222; }
 </style>

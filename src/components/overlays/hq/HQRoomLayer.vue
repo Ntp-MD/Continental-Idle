@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { FloorId } from '@/types'
-import { SVG_W, SVG_H, GOLD, GOLD_DIM, GOLD_DARK, BG_DARK, BG_DARKER, BG_CORRIDOR, getRoomsOnFloor, getRoomFurniture, FLOOR_NAMES, ELEVATOR_POS, CORRIDOR_LAYOUT, DOOR_LAYOUT, DOOR_WIDTHS } from './hq-layout'
+import { SVG_W, SVG_H, GOLD, GOLD_DIM, GOLD_DARK, BG_DARK, BG_DARKER, BG_CORRIDOR, getRoomsOnFloor, getRoomFurniture, FLOOR_NAMES, ELEVATOR_POS, CORRIDOR_LAYOUT, DOOR_LAYOUT, DOOR_WIDTHS } from './hqLayout'
 
 const props = defineProps<{
   floor: FloorId
@@ -18,7 +18,7 @@ const WALL_THICKNESS = 6
     <rect :x="WALL_THICKNESS" :y="WALL_THICKNESS" :width="SVG_W - WALL_THICKNESS * 2" :height="SVG_H - WALL_THICKNESS * 2" :fill="BG_DARK" :stroke="GOLD_DARK" stroke-width="0.5"/>
 
     <!-- Corridors -->
-    <g v-for="(seg, i) in CORRIDOR_LAYOUT[props.floor]" :key="'corr-' + i">
+    <g v-for="(seg, i) in CORRIDOR_LAYOUT[props.floor]" :key="'corr_' + i">
       <rect :x="seg.x" :y="seg.y" :width="seg.w" :height="seg.h" :fill="BG_CORRIDOR" :stroke="GOLD_DARK" stroke-width="0.5"/>
       <!-- Dashed center line -->
       <line v-if="seg.vertical" :x1="seg.x + seg.w / 2" :y1="seg.y + 8" :x2="seg.x + seg.w / 2" :y2="seg.y + seg.h - 8" :stroke="GOLD_DARK" stroke-width="0.5" stroke-dasharray="6 4"/>
@@ -41,7 +41,7 @@ const WALL_THICKNESS = 6
       <!-- Room fill -->
       <rect :x="room.x" :y="room.y" :width="room.w" :height="room.h" :fill="room.visual ? '#0a0a0a' : '#151515'" :stroke="room.visual ? GOLD_DARK : GOLD_DIM" stroke-width="1.5"/>
       <!-- Furniture (room-relative via transform) -->
-      <g class="hq-furniture" :transform="`translate(${room.x}, ${room.y})`">
+      <g class="hq_furniture" :transform="`translate(${room.x}, ${room.y})`">
         <template v-for="f in getRoomFurniture(room.id)" :key="`${room.id}-f-${f.x}-${f.y}`">
           <rect v-if="f.type === 'rect'" :x="f.x" :y="f.y" :width="f.w" :height="f.h" :fill="f.fill" :stroke="f.stroke" :stroke-width="f.strokeWidth" :stroke-dasharray="f.strokeDasharray" :opacity="f.opacity"/>
           <circle v-else-if="f.type === 'circle'" :cx="f.x" :cy="f.y" :r="f.r" :fill="f.fill" :stroke="f.stroke" :stroke-width="f.strokeWidth" :opacity="f.opacity"/>
@@ -69,7 +69,7 @@ const WALL_THICKNESS = 6
     </g>
 
     <!-- Doors -->
-    <g v-for="(door, i) in DOOR_LAYOUT[props.floor]" :key="'door-' + i">
+    <g v-for="(door, i) in DOOR_LAYOUT[props.floor]" :key="'door_' + i">
       <!-- Door gap (cut through wall into corridor color) -->
       <rect
         v-if="door.side === 'top' || door.side === 'bottom'"

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { FloorId } from '@/types'
-import { GOLD, GOLD_DIM, GOLD_DARK, BG_DARK, BG_DARKER, BG_CORRIDOR, isFloorUnlocked } from './hq-layout'
+import { GOLD, GOLD_DIM, GOLD_DARK, BG_DARK, BG_DARKER, BG_CORRIDOR, isFloorUnlocked } from './hqLayout'
 
 interface SimpleDot {
   id?: string
@@ -66,7 +66,7 @@ function npcInBand(band: Band): SimpleDot[] {
 </script>
 
 <template>
-  <svg :viewBox="`0 0 ${FALLOUT_W} ${totalH}`" class="hq-fallout-view" preserveAspectRatio="xMidYMid meet">
+  <svg :viewBox="`0 0 ${FALLOUT_W} ${totalH}`" class="hq_fallout_view" preserveAspectRatio="xMidYMid meet">
     <!-- Elevator shaft -->
     <rect x="0" y="0" :width="ELEVATOR_W" :height="totalH" :fill="BG_CORRIDOR" :stroke="GOLD_DIM" stroke-width="1"/>
     <text :x="ELEVATOR_W / 2" :y="20" text-anchor="middle" font-size="8" :fill="GOLD_DIM" writing-mode="tb">ELEVATOR</text>
@@ -89,7 +89,7 @@ function npcInBand(band: Band): SimpleDot[] {
         <!-- Floor numbers for multi-floor bands -->
         <text
           v-for="(f, fi) in band.floors"
-          :key="'fn-' + f"
+          :key="'fn_' + f"
           :x="ELEVATOR_W + 12 + fi * 80"
           :y="band.y + 32"
           font-family="Georgia,serif" font-size="8" :fill="GOLD_DIM"
@@ -107,7 +107,7 @@ function npcInBand(band: Band): SimpleDot[] {
 </template>
 
 <style scoped>
-.hq-fallout-view {
+.hq_fallout_view {
   width: 100%;
   height: 100%;
 }

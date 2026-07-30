@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch, inject } from 'vue'
-import { useAssetsStore, dragState, endAssetDrag, endRoomTemplateDrag } from '../blueprint-store'
-import { findAssetCached, validateRoomAnchors } from '../asset-utils'
+import { useAssetsStore, dragState, endAssetDrag, endRoomTemplateDrag } from '../blueprintStore'
+import { findAssetCached, validateRoomAnchors } from '../assetUtils'
 import { svgTransform as svgTransformGeo, roundedRectPath } from '../geometry'
 import { useToast } from '../composables/useToast'
 import type { ObjectData, RoomData, EntityRef } from '../types'
@@ -9,9 +9,9 @@ import { useCanvasViewport } from '../composables/useCanvasViewport'
 import { useCanvasSelection } from '../composables/useCanvasSelection'
 import { useCanvasDragDrop } from '../composables/useCanvasDragDrop'
 import { useWallPaintTool } from '../composables/useWallPaintTool'
-import WalkableGridPanel from './WalkableGridPanel.vue'
+import WalkableGridPanel from './walkableGridPanel.vue'
 import { useNpcSimulation } from '../composables/useNpcSimulation'
-import { renderSvgInto as renderSvgContent } from '../svg-sanitizer'
+import { renderSvgInto as renderSvgContent } from '../svgSanitizer'
 
 const vSvgContent = {
   mounted(el: Element, binding: { value: string }) {
@@ -399,7 +399,7 @@ function onKeyUp(e: KeyboardEvent) {
   if (e.code === 'Space') spaceDown.value = false
 }
 
-const ZOOM_STORAGE_KEY = 'blueprint-zoom-state'
+const ZOOM_STORAGE_KEY = 'blueprint_zoom_state'
 
 onMounted(() => {
   window.addEventListener('keydown', onKeyDown)
@@ -683,7 +683,7 @@ function isRoomSelected(id: string): boolean {
                 v-svg-content="assetSvg(obj.type)"
                 :transform="svgTransform(obj)"
                 :data-obj-id="obj.id"
-                :class="{ 'editor__canvas__selected': isObjectSelected(obj.id), 'editor__canvas__collapsed': obj.collapsed, 'editor__canvas__dragging__item': moving?.id === obj.id, 'editor__canvas__locked': obj.locked, 'editor__canvas__no-outer-wall': !hasOuterWall(obj) }"
+                :class="{ 'editor__canvas__selected': isObjectSelected(obj.id), 'editor__canvas__collapsed': obj.collapsed, 'editor__canvas__dragging__item': moving?.id === obj.id, 'editor__canvas__locked': obj.locked, 'editor__canvas__no_outer_wall': !hasOuterWall(obj) }"
                 :style="{ cursor: moving?.id === obj.id ? 'grabbing' : 'move' }"
               />
             </template>
@@ -703,10 +703,10 @@ function isRoomSelected(id: string): boolean {
               :style="{ stroke: 'var(--text-primary)', cursor: moving?.id === obj.id ? 'grabbing' : 'move' }"
             />
             <template v-if="showWalkableOverlay && obj.walkableGrid">
-              <template v-for="(row, gr) in obj.walkableGrid" :key="'wg-' + obj.id + '-' + gr">
+              <template v-for="(row, gr) in obj.walkableGrid" :key="'wg_' + obj.id + '-' + gr">
                 <rect
                   v-for="(cell, gc) in row"
-                  :key="'wg-' + obj.id + '-' + gr + '-' + gc"
+                  :key="'wg_' + obj.id + '-' + gr + '-' + gc"
                   :x="obj.x + gc * (obj.w / row.length)"
                   :y="obj.y + gr * (obj.h / obj.walkableGrid.length)"
                   :width="obj.w / row.length"
@@ -772,7 +772,7 @@ function isRoomSelected(id: string): boolean {
         <g v-if="dragState.assetId && paletteGhost && paletteGhostParts">
           <rect
             v-for="(p, i) in paletteGhostParts"
-            :key="'ghost-part-' + i"
+            :key="'ghost_part_' + i"
             :x="p.x" :y="p.y" :width="p.w" :height="p.h"
             :style="{ fill: 'color-mix(in srgb, var(--accent-blue) 15%, transparent)', stroke: 'var(--accent-blue)' }"
             stroke-width="1.5"
@@ -895,7 +895,7 @@ function isRoomSelected(id: string): boolean {
   pointer-events: none;
 }
 
-:deep(.editor__canvas__no-outer-wall .svg-role--wall) {
+:deep(.editor__canvas__no_outer_wall .svg_role__wall) {
   display: none;
 }
 
@@ -951,7 +951,7 @@ function isRoomSelected(id: string): boolean {
   color: var(--accent-purple);
 }
 
-.editor__canvas__mode__badge__npc-preview {
+.editor__canvas__mode__badge__npc_preview {
   border-color: var(--accent-blue);
   color: var(--accent-blue);
 }

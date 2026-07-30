@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { autoplayBot, type AutoplaySpeed } from '@/engine/autoplay'
-import { eventBus } from '@/engine/event-bus'
+import { eventBus } from '@/engine/eventBus'
 
 const running = ref(autoplayBot.isRunning())
 const speed = ref<AutoplaySpeed>(autoplayBot.getSpeed())
@@ -53,72 +53,72 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="autoplay-panel">
-    <div class="autoplay-panel__header">
-      <h2 class="autoplay-panel__title">AI Autoplay</h2>
+  <div class="autoplay_panel">
+    <div class="autoplay_panel__header">
+      <h2 class="autoplay_panel__title">AI Autoplay</h2>
       <button
-        class="autoplay-panel__toggle"
-        :class="{ 'autoplay-panel__toggle--active': running }"
+        class="autoplay_panel__toggle"
+        :class="{ 'autoplay_panel__toggle__active': running }"
         @click="toggleAutoplay"
       >
         {{ running ? 'STOP' : 'START' }}
       </button>
     </div>
 
-    <div class="autoplay-panel__speeds">
-      <span class="autoplay-panel__label">Speed:</span>
+    <div class="autoplay_panel__speeds">
+      <span class="autoplay_panel__label">Speed:</span>
       <button
         v-for="s in speeds"
         :key="s"
-        class="autoplay-panel__speed-btn"
-        :class="{ 'autoplay-panel__speed-btn--active': speed === s }"
+        class="autoplay_panel__speed_btn"
+        :class="{ 'autoplay_panel__speed_btn__active': speed === s }"
         @click="changeSpeed(s)"
       >
         {{ s }}x
       </button>
     </div>
 
-    <div class="autoplay-panel__stats">
-      <div class="autoplay-panel__stat">
-        <span class="autoplay-panel__stat-label">branch</span>
-        <span class="autoplay-panel__stat-value">{{ status.activeBranch }}</span>
+    <div class="autoplay_panel__stats">
+      <div class="autoplay_panel__stat">
+        <span class="autoplay_panel__stat_label">branch</span>
+        <span class="autoplay_panel__stat_value">{{ status.activeBranch }}</span>
       </div>
-      <div class="autoplay-panel__stat">
-        <span class="autoplay-panel__stat-label">Currency</span>
-        <span class="autoplay-panel__stat-value">{{ status.activeCurrency }}</span>
+      <div class="autoplay_panel__stat">
+        <span class="autoplay_panel__stat_label">Currency</span>
+        <span class="autoplay_panel__stat_value">{{ status.activeCurrency }}</span>
       </div>
-      <div class="autoplay-panel__stat">
-        <span class="autoplay-panel__stat-label">Income</span>
-        <span class="autoplay-panel__stat-value">{{ status.activeIncome }}</span>
+      <div class="autoplay_panel__stat">
+        <span class="autoplay_panel__stat_label">Income</span>
+        <span class="autoplay_panel__stat_value">{{ status.activeIncome }}</span>
       </div>
-      <div class="autoplay-panel__stat">
-        <span class="autoplay-panel__stat-label">Prestige</span>
-        <span class="autoplay-panel__stat-value">{{ status.totalPrestige }}</span>
+      <div class="autoplay_panel__stat">
+        <span class="autoplay_panel__stat_label">Prestige</span>
+        <span class="autoplay_panel__stat_value">{{ status.totalPrestige }}</span>
       </div>
-      <div class="autoplay-panel__stat">
-        <span class="autoplay-panel__stat-label">Favor</span>
-        <span class="autoplay-panel__stat-value">{{ status.tableFavor }}</span>
+      <div class="autoplay_panel__stat">
+        <span class="autoplay_panel__stat_label">Favor</span>
+        <span class="autoplay_panel__stat_value">{{ status.tableFavor }}</span>
       </div>
-      <div class="autoplay-panel__stat">
-        <span class="autoplay-panel__stat-label">Conquered</span>
-        <span class="autoplay-panel__stat-value">{{ status.conqueredCount }}/{{ status.totalBranches }}</span>
+      <div class="autoplay_panel__stat">
+        <span class="autoplay_panel__stat_label">Conquered</span>
+        <span class="autoplay_panel__stat_value">{{ status.conqueredCount }}/{{ status.totalBranches }}</span>
       </div>
     </div>
 
-    <div class="autoplay-panel__progress-bar">
+    <div class="autoplay_panel__progress_bar">
       <div
-        class="autoplay-panel__progress-fill"
+        class="autoplay_panel__progress_fill"
         :style="{ width: (status.conqueredCount / status.totalBranches * 100) + '%' }"
       ></div>
     </div>
 
-    <div class="autoplay-panel__log">
-      <div class="autoplay-panel__log-title">Action Log</div>
-      <div class="autoplay-panel__log-list">
-        <div v-for="(entry, i) in logEntries" :key="i" class="autoplay-panel__log-entry">
+    <div class="autoplay_panel__log">
+      <div class="autoplay_panel__log_title">Action Log</div>
+      <div class="autoplay_panel__log_list">
+        <div v-for="(entry, i) in logEntries" :key="i" class="autoplay_panel__log_entry">
           {{ entry }}
         </div>
-        <div v-if="logEntries.length === 0" class="autoplay-panel__log-empty">
+        <div v-if="logEntries.length === 0" class="autoplay_panel__log_empty">
           No actions yet. Press START to begin.
         </div>
       </div>
@@ -127,7 +127,7 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
-.autoplay-panel {
+.autoplay_panel {
   position: fixed;
   bottom: 16px;
   right: 16px;
@@ -143,21 +143,21 @@ onUnmounted(() => {
   box-shadow: var(--shadow-panel);
 }
 
-.autoplay-panel__header {
+.autoplay_panel__header {
   display: flex;
   justify-content: space-between;
   align-items: center;
   margin-bottom: var(--gap-sm);
 }
 
-.autoplay-panel__title {
+.autoplay_panel__title {
   font-size: 16px;
   font-weight: 700;
   margin: 0;
   color: var(--text-bright);
 }
 
-.autoplay-panel__toggle {
+.autoplay_panel__toggle {
   padding: var(--gap-xs) var(--gap-md);
   border: none;
   border-radius: 6px;
@@ -169,25 +169,25 @@ onUnmounted(() => {
   transition: all 0.2s;
 }
 
-.autoplay-panel__toggle--active {
+.autoplay_panel__toggle__active {
   background: var(--accent-red);
   color: var(--text-bright);
 }
 
-.autoplay-panel__speeds {
+.autoplay_panel__speeds {
   display: flex;
   align-items: center;
   gap: var(--gap-xs);
   margin-bottom: var(--gap-sm);
 }
 
-.autoplay-panel__label {
+.autoplay_panel__label {
   font-size: 12px;
   color: var(--text-dim);
   margin-right: var(--gap-xs);
 }
 
-.autoplay-panel__speed-btn {
+.autoplay_panel__speed_btn {
   padding: var(--gap-xs) var(--gap-sm);
   border: 1px solid rgba(255, 255, 255, 0.10);
   border-radius: 4px;
@@ -198,38 +198,38 @@ onUnmounted(() => {
   transition: all 0.15s;
 }
 
-.autoplay-panel__speed-btn--active {
+.autoplay_panel__speed_btn__active {
   background: var(--autoplay-speed-active);
   color: var(--text-bright);
   border-color: var(--autoplay-speed-active);
 }
 
-.autoplay-panel__stats {
+.autoplay_panel__stats {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: var(--gap-xs);
   margin-bottom: var(--gap-sm);
 }
 
-.autoplay-panel__stat {
+.autoplay_panel__stat {
   display: flex;
   flex-direction: column;
   gap: var(--gap-xs);
 }
 
-.autoplay-panel__stat-label {
+.autoplay_panel__stat_label {
   font-size: 10px;
   color: var(--autoplay-text-dim);
   text-transform: uppercase;
 }
 
-.autoplay-panel__stat-value {
+.autoplay_panel__stat_value {
   font-size: 13px;
   font-weight: 600;
   color: var(--text-primary);
 }
 
-.autoplay-panel__progress-bar {
+.autoplay_panel__progress_bar {
   height: 4px;
   background: rgba(255, 255, 255, 0.08);
   border-radius: 2px;
@@ -237,48 +237,48 @@ onUnmounted(() => {
   margin-bottom: var(--gap-sm);
 }
 
-.autoplay-panel__progress-fill {
+.autoplay_panel__progress_fill {
   height: 100%;
   background: linear-gradient(90deg, var(--autoplay-progress-1), var(--autoplay-progress-2));
   transition: width 0.3s;
 }
 
-.autoplay-panel__log {
+.autoplay_panel__log {
   border-top: 1px solid rgba(255, 255, 255, 0.08);
   padding-top: var(--gap-sm);
 }
 
-.autoplay-panel__log-title {
+.autoplay_panel__log_title {
   font-size: 11px;
   color: var(--autoplay-text-dim);
   text-transform: uppercase;
   margin-bottom: var(--gap-xs);
 }
 
-.autoplay-panel__log-list {
+.autoplay_panel__log_list {
   max-height: 140px;
   overflow-y: auto;
   font-size: 11px;
   line-height: 1.5;
 }
 
-.autoplay-panel__log-entry {
+.autoplay_panel__log_entry {
   color: var(--text-secondary);
   padding: var(--gap-xs) 0;
   border-bottom: 1px solid rgba(255, 255, 255, 0.03);
 }
 
-.autoplay-panel__log-empty {
+.autoplay_panel__log_empty {
   color: var(--node-locked);
   font-style: italic;
   padding: var(--gap-sm) 0;
 }
 
-.autoplay-panel__log-list::-webkit-scrollbar {
+.autoplay_panel__log_list::-webkit-scrollbar {
   width: 4px;
 }
 
-.autoplay-panel__log-list::-webkit-scrollbar-thumb {
+.autoplay_panel__log_list::-webkit-scrollbar-thumb {
   background: rgba(255, 255, 255, 0.15);
   border-radius: 2px;
 }

@@ -2,12 +2,12 @@ import type { VisitorEntry, Rarity, CharacterStats, BranchId } from '@/types'
 import { STAFF_TYPES, STAFF_MAP } from '@/data/staff'
 import { ASSASSIN_TYPES, ASSASSIN_MAP } from '@/data/assassins'
 import { RARITY_CONFIG, CALL_VISITOR_RARITY, ROYAL_MARK_RARITY, RANDOM_SPAWN_RARITY, STAFF_SPAWN_CHANCE, rollRarity, getRarityCostMult } from '@/data/rarity'
-import { gameState } from './game-state'
-import { eventBus } from './event-bus'
-import { eventEngine } from './event-engine'
-import { hireStaff, assignStaff } from './staff-manager'
-import { hireAssassin } from './assassin-manager'
-import { getExtraStaffSlots } from './skill-manager'
+import { gameState } from './gameState'
+import { eventBus } from './eventBus'
+import { eventEngine } from './eventEngine'
+import { hireStaff, assignStaff } from './staffManager'
+import { hireAssassin } from './assassinManager'
+import { getExtraStaffSlots } from './skillManager'
 
 const VISITOR_TIMEOUT_MS = 2 * 60 * 60 * 1000
 const RANDOM_SPAWN_CHANCE = 0.02

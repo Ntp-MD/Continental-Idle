@@ -1,12 +1,12 @@
 import type { BranchId } from '@/types'
 import { BUILDINGS } from '@/data/buildings'
 import { BRANCHES } from '@/data/branches'
-import { gameState } from './game-state'
+import { gameState } from './gameState'
 import { getPrestigeReputationKeepRatio } from './abilities'
-import { getTotalPrestigeFavorMult } from './skill-manager'
-import { getRoyalFavorMult, getSovereignBuffMult } from './royal-manager'
-import { isUpgradePurchased } from './upgrade-manager'
-import { eventBus } from './event-bus'
+import { getTotalPrestigeFavorMult } from './skillManager'
+import { getRoyalFavorMult, getSovereignBuffMult } from './royalManager'
+import { isUpgradePurchased } from './upgradeManager'
+import { eventBus } from './eventBus'
 
 export function getPrestigeFavor(branchId?: BranchId): number {
   const state = gameState.get()

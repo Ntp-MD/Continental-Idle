@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { FloorId } from '@/types'
-import { FLOOR_IDS, FLOOR_NAMES, THUMB_W, THUMB_H, SVG_W, SVG_H, GOLD, GOLD_DIM, BG_DARK, BG_DARKER, isFloorUnlocked, getRoomsOnFloor } from './hq-layout'
+import { FLOOR_IDS, FLOOR_NAMES, THUMB_W, THUMB_H, SVG_W, SVG_H, GOLD, GOLD_DIM, BG_DARK, BG_DARKER, isFloorUnlocked, getRoomsOnFloor } from './hqLayout'
 
 const props = defineProps<{
   selectedFloor: FloorId
@@ -19,15 +19,15 @@ function thumbScaleY(y: number): number {
 </script>
 
 <template>
-  <div class="hq-floor-selector">
+  <div class="hq_floor_selector">
     <div
       v-for="floor in FLOOR_IDS"
       :key="floor"
-      class="hq-floor-selector__item"
-      :class="{ 'is-selected': floor === props.selectedFloor, 'is-locked': !isFloorUnlocked(floor, props.buildings) }"
+      class="hq_floor_selector__item"
+      :class="{ 'is_selected': floor === props.selectedFloor, 'is_locked': !isFloorUnlocked(floor, props.buildings) }"
       @click="emit('select', floor)"
     >
-      <svg :viewBox="`0 0 ${THUMB_W} ${THUMB_H}`" class="hq-floor-selector__thumb" preserveAspectRatio="xMidYMid meet">
+      <svg :viewBox="`0 0 ${THUMB_W} ${THUMB_H}`" class="hq_floor_selector__thumb" preserveAspectRatio="xMidYMid meet">
         <rect x="0" y="0" :width="THUMB_W" :height="THUMB_H" :fill="floor === props.selectedFloor ? BG_DARK : BG_DARKER" :stroke="floor === props.selectedFloor ? GOLD : GOLD_DIM" stroke-width="1"/>
         <template v-if="isFloorUnlocked(floor, props.buildings)">
           <rect
@@ -39,7 +39,7 @@ function thumbScaleY(y: number): number {
           />
           <circle
             v-for="(dot, i) in (props.npcDots[floor] || [])"
-            :key="'dot-' + i"
+            :key="'dot_' + i"
             :cx="thumbScaleX(dot.x)" :cy="thumbScaleY(dot.y)"
             r="1.5" :fill="dot.color"
           />
@@ -48,13 +48,13 @@ function thumbScaleY(y: number): number {
           <text :x="THUMB_W / 2" :y="THUMB_H / 2" text-anchor="middle" dominant-baseline="middle" font-size="14" fill="#444">🔒</text>
         </template>
       </svg>
-      <span class="hq-floor-selector__label">{{ floor === 'G' ? 'G' : 'F' + floor }} · {{ FLOOR_NAMES[floor] }}</span>
+      <span class="hq_floor_selector__label">{{ floor === 'G' ? 'G' : 'F' + floor }} · {{ FLOOR_NAMES[floor] }}</span>
     </div>
   </div>
 </template>
 
 <style scoped>
-.hq-floor-selector {
+.hq_floor_selector {
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -62,27 +62,27 @@ function thumbScaleY(y: number): number {
   max-height: 600px;
   padding-right: 4px;
 }
-.hq-floor-selector__item {
+.hq_floor_selector__item {
   cursor: pointer;
   border-radius: 4px;
   overflow: hidden;
   transition: transform 0.15s;
 }
-.hq-floor-selector__item:hover {
+.hq_floor_selector__item:hover {
   transform: scale(1.02);
 }
-.hq-floor-selector__item.is-selected {
+.hq_floor_selector__item.is_selected {
   box-shadow: 0 0 6px rgba(201, 168, 76, 0.4);
 }
-.hq-floor-selector__item.is-locked {
+.hq_floor_selector__item.is_locked {
   opacity: 0.5;
 }
-.hq-floor-selector__thumb {
+.hq_floor_selector__thumb {
   display: block;
   width: 100%;
   height: 60px;
 }
-.hq-floor-selector__label {
+.hq_floor_selector__label {
   display: block;
   font-size: 9px;
   color: #888;

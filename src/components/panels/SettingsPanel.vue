@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, watch } from 'vue'
-import { gameState } from '@/engine/game-state'
+import { gameState } from '@/engine/gameState'
 import { useToast } from '@/composables/useToast'
 import type { GameSettings } from '@/types'
 
@@ -36,13 +36,13 @@ function applySettingsToDOM() {
   const s = settings.value
 
   root.style.setProperty('--font-scale', String(s.fontScale))
-  root.classList.toggle('high-contrast', s.highContrast)
-  root.classList.toggle('reduced-motion', s.reducedMotion)
-  root.classList.toggle('one-hand-mode', s.oneHandMode)
-  root.classList.remove('cb-deuteranopia', 'cb-protanopia', 'cb-tritanopia')
+  root.classList.toggle('high_contrast', s.highContrast)
+  root.classList.toggle('reduced_motion', s.reducedMotion)
+  root.classList.toggle('one_hand_mode', s.oneHandMode)
+  root.classList.remove('cb_deuteranopia', 'cb_protanopia', 'cb_tritanopia')
   const validModes = ['deuteranopia', 'protanopia', 'tritanopia']
   if (s.colorBlindMode !== 'none' && validModes.includes(s.colorBlindMode)) {
-    root.classList.add(`cb-${s.colorBlindMode}`)
+    root.classList.add(`cb_${s.colorBlindMode}`)
   }
 }
 
@@ -66,15 +66,15 @@ watch(() => props.visible, (v) => { if (v) update() })
 </script>
 
 <template>
-  <div v-if="visible" class="game-panel" @click.self="emit('close')">
-    <div class="game-panel__content" role="dialog" aria-modal="true" aria-labelledby="panel-title-settings">
-      <h2 id="panel-title-settings" class="game-panel__title">Settings</h2>
+  <div v-if="visible" class="game_panel" @click.self="emit('close')">
+    <div class="game_panel__content" role="dialog" aria-modal="true" aria-labelledby="panel_title_settings">
+      <h2 id="panel_title_settings" class="game_panel__title">Settings</h2>
 
-      <div class="section-header">Accessibility</div>
+      <div class="section_header">Accessibility</div>
 
-      <div class="settings-row">
-        <label class="settings-label" for="setting-colorblind">Color Blind Mode</label>
-        <select id="setting-colorblind" v-model="settings.colorBlindMode" @change="apply" class="settings-select">
+      <div class="settings_row">
+        <label class="settings_label" for="setting-colorblind">Color Blind Mode</label>
+        <select id="setting_colorblind" v-model="settings.colorBlindMode" @change="apply" class="settings_select">
           <option value="none">None</option>
           <option value="deuteranopia">Deuteranopia</option>
           <option value="protanopia">Protanopia</option>
@@ -82,38 +82,38 @@ watch(() => props.visible, (v) => { if (v) update() })
         </select>
       </div>
 
-      <div class="settings-row">
-        <label class="settings-label" for="setting-contrast">High Contrast</label>
-        <input id="setting-contrast" type="checkbox" v-model="settings.highContrast" @change="apply" class="settings-checkbox" />
+      <div class="settings_row">
+        <label class="settings_label" for="setting-contrast">High Contrast</label>
+        <input id="setting_contrast" type="checkbox" v-model="settings.highContrast" @change="apply" class="settings_checkbox" />
       </div>
 
-      <div class="settings-row">
-        <label class="settings-label" for="setting-motion">Reduced Motion</label>
-        <input id="setting-motion" type="checkbox" v-model="settings.reducedMotion" @change="apply" class="settings-checkbox" />
+      <div class="settings_row">
+        <label class="settings_label" for="setting-motion">Reduced Motion</label>
+        <input id="setting_motion" type="checkbox" v-model="settings.reducedMotion" @change="apply" class="settings_checkbox" />
       </div>
 
-      <div class="settings-row">
-        <label class="settings-label" for="setting-onehand">One-Hand Mode</label>
-        <input id="setting-onehand" type="checkbox" v-model="settings.oneHandMode" @change="apply" class="settings-checkbox" />
+      <div class="settings_row">
+        <label class="settings_label" for="setting-onehand">One-Hand Mode</label>
+        <input id="setting_onehand" type="checkbox" v-model="settings.oneHandMode" @change="apply" class="settings_checkbox" />
       </div>
 
-      <div class="settings-row">
-        <label class="settings-label" for="setting-fontscale">Font Scale: {{ settings.fontScale.toFixed(1) }}x</label>
+      <div class="settings_row">
+        <label class="settings_label" for="setting-fontscale">Font Scale: {{ settings.fontScale.toFixed(1) }}x</label>
         <input
-          id="setting-fontscale"
+          id="setting_fontscale"
           type="range"
           min="0.8"
           max="1.5"
           step="0.1"
           v-model.number="settings.fontScale"
           @input="apply"
-          class="settings-slider"
+          class="settings_slider"
         />
       </div>
 
-      <div class="settings-panel__actions">
-        <button class="game-panel__close settings-panel__btn" @click="reset">Reset</button>
-        <button class="game-panel__close settings-panel__btn" @click="emit('close')">Close</button>
+      <div class="settings_panel__actions">
+        <button class="game_panel__close settings_panel__btn" @click="reset">Reset</button>
+        <button class="game_panel__close settings_panel__btn" @click="emit('close')">Close</button>
       </div>
     </div>
   </div>

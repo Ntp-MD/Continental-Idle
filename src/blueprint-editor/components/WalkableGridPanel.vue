@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { ref, watch, computed, onMounted, onBeforeUnmount, nextTick } from 'vue'
-import { useAssetsStore } from '../blueprint-store'
+import { useAssetsStore } from '../blueprintStore'
 import { useToast } from '../composables/useToast'
 import { useWalkableGridPanel } from '../composables/useWalkableGridPanel'
-import { renderSvgInto } from '../svg-sanitizer'
+import { renderSvgInto } from '../svgSanitizer'
 import type { AssetDef, TileState, TileEdges } from '../types'
 
 type BorderSide = 'top' | 'right' | 'bottom' | 'left'
@@ -363,7 +363,7 @@ onBeforeUnmount(() => {
               <span v-for="c in gridCols" :key="c" class="walkable__grid__editor__col__header">{{ c }}</span>
             </div>
             <div class="walkable__grid__editor__preview__content">
-              <div class="walkable__grid__editor__preview__row-headers">
+              <div class="walkable__grid__editor__preview__row_headers">
                 <span v-for="(_, r) in gridTiles" :key="r" class="walkable__grid__editor__row__header">{{ r + 1 }}</span>
               </div>
               <div
@@ -518,7 +518,7 @@ onBeforeUnmount(() => {
   gap: 0;
 }
 
-.walkable__grid__editor__preview__row-headers {
+.walkable__grid__editor__preview__row_headers {
   display: flex;
   flex-direction: column;
   gap: 0;

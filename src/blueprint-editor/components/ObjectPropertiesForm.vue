@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { ref, watch, computed, onBeforeUnmount } from 'vue'
-import { useAssetsStore } from '../blueprint-store'
+import { useAssetsStore } from '../blueprintStore'
 import { useToast } from '../composables/useToast'
 import { useAsyncAction } from '../composables/useAsyncAction'
 import type { ObjectData } from '../types'
-import TagPicker from './TagPicker.vue'
+import TagPicker from './tagPicker.vue'
 
 const props = defineProps<{ object: ObjectData }>()
 const store = useAssetsStore()
@@ -172,79 +172,79 @@ function removeAnchor(index: number) {
 </script>
 
 <template>
-  <div class="properties-panel__content">
-    <div class="properties-panel__section">
-      <div class="properties-panel__section-title">Object</div>
-      <div class="properties-panel__row">
+  <div class="properties_panel__content">
+    <div class="properties_panel__section">
+      <div class="properties_panel__section_title">Object</div>
+      <div class="properties_panel__row">
       <label>ID</label>
-      <div class="properties-panel__id-row">
-        <input type="text" :value="object.id" disabled class="input input--readonly" title="Object ID" />
-        <button class="btn btn-sm" @click="copyId(object.id)">Copy</button>
+      <div class="properties_panel__id_row">
+        <input type="text" :value="object.id" disabled class="input input__readonly" title="Object ID" />
+        <button class="btn btn_sm" @click="copyId(object.id)">Copy</button>
       </div>
     </div>
-    <div class="properties-panel__row">
+    <div class="properties_panel__row">
       <label>X</label>
-      <input class="input" type="number" v-model.number="fields.x" :class="{ 'input--error': errorFields.x }" @change="commitField('x')" />
+      <input class="input" type="number" v-model.number="fields.x" :class="{ 'input__error': errorFields.x }" @change="commitField('x')" />
     </div>
-    <div class="properties-panel__row">
+    <div class="properties_panel__row">
       <label>Y</label>
-      <input class="input" type="number" v-model.number="fields.y" :class="{ 'input--error': errorFields.y }" @change="commitField('y')" />
+      <input class="input" type="number" v-model.number="fields.y" :class="{ 'input__error': errorFields.y }" @change="commitField('y')" />
     </div>
-    <div class="properties-panel__row">
+    <div class="properties_panel__row">
       <label>Rotation</label>
-      <span class="properties-panel__value">{{ object.rotation }}°</span>
+      <span class="properties_panel__value">{{ object.rotation }}°</span>
     </div>
-    <div class="properties-panel__row">
+    <div class="properties_panel__row">
       <label>Label</label>
       <input class="input" type="text" v-model="fields.objLabel" @change="commitField('objLabel')" placeholder="Custom label" />
     </div>
-    <div class="properties-panel__row">
+    <div class="properties_panel__row">
       <label>Linked Room</label>
       <select class="input" :value="linkedRoomId" @change="onRoomLinkChange">
         <option value="">None</option>
         <option v-for="room in roomOptions" :key="room.id" :value="room.id">{{ room.label }}</option>
       </select>
     </div>
-    <div v-if="object.tileStates && object.tileStates.length > 0" class="properties-panel__row">
+    <div v-if="object.tileStates && object.tileStates.length > 0" class="properties_panel__row">
       <label></label>
       <label>
         <input type="checkbox" v-model="entranceRequired" /> Require entrance (block boundary)
       </label>
     </div>
     </div>
-    <div class="properties-panel__section">
-      <div class="properties-panel__section-title">NPC Anchors</div>
-      <div class="properties-panel__hint">Points where NPCs stand when targeting this object. Coordinates are relative to the object's top-left corner.</div>
-      <div v-for="(anchor, i) in anchors" :key="'anchor-' + i" class="properties-panel__row">
+    <div class="properties_panel__section">
+      <div class="properties_panel__section_title">NPC Anchors</div>
+      <div class="properties_panel__hint">Points where NPCs stand when targeting this object. Coordinates are relative to the object's top-left corner.</div>
+      <div v-for="(anchor, i) in anchors" :key="'anchor_' + i" class="properties_panel__row">
         <label>A{{ i + 1 }}</label>
-        <div class="properties-panel__anchor-row">
-          <input class="input input--readonly" type="number" :value="anchor[0]" @change="anchor[0] = +($event.target as HTMLInputElement).value; updateAnchors()" style="width: 48px" />
-          <input class="input input--readonly" type="number" :value="anchor[1]" @change="anchor[1] = +($event.target as HTMLInputElement).value; updateAnchors()" style="width: 48px" />
-          <button class="btn btn-sm btn__danger" @click="removeAnchor(i)">×</button>
+        <div class="properties_panel__anchor_row">
+          <input class="input input__readonly" type="number" :value="anchor[0]" @change="anchor[0] = +($event.target as HTMLInputElement).value; updateAnchors()" style="width: 48px" />
+          <input class="input input__readonly" type="number" :value="anchor[1]" @change="anchor[1] = +($event.target as HTMLInputElement).value; updateAnchors()" style="width: 48px" />
+          <button class="btn btn_sm btn__danger" @click="removeAnchor(i)">×</button>
         </div>
       </div>
-      <button class="btn btn-sm btn__dashed" @click="addAnchor">+ Add Anchor</button>
+      <button class="btn btn_sm btn__dashed" @click="addAnchor">+ Add Anchor</button>
     </div>
-    <div class="properties-panel__section">
-      <div class="properties-panel__section-title">Instance Properties</div>
-    <div class="properties-panel__row">
+    <div class="properties_panel__section">
+      <div class="properties_panel__section_title">Instance Properties</div>
+    <div class="properties_panel__row">
       <label>Instance Label</label>
       <input class="input" type="text" v-model="instanceLabel" @change="saveInstanceLabel" placeholder="Unique label for this instance" />
     </div>
-    <div class="properties-panel__row">
+    <div class="properties_panel__row">
       <label>Notes</label>
       <textarea v-model="customNotes" @change="saveCustomNotes" placeholder="Add notes..." class="textarea" rows="2"></textarea>
     </div>
-    <div class="properties-panel__row">
+    <div class="properties_panel__row">
       <label>Tags</label>
       <TagPicker :model-value="customTags" @update:model-value="saveCustomTags" placeholder="tag1, tag2, tag3" />
     </div>
-    <div class="properties-panel__btn-group">
+    <div class="properties_panel__btn_group">
       <button class="btn" @click="rotate">Rotate (R)</button>
       <button class="btn" @click="toggleLock">{{ object.locked ? 'Unlock' : 'Lock' }}</button>
       <button v-if="object.linkGroupId" class="btn" @click="doUnlink">Unlink</button>
     </div>
-    <div class="properties-panel__delete-section">
+    <div class="properties_panel__delete_section">
       <button class="btn btn__success" :disabled="pending" @click="onSave">Save</button>
       <button class="btn" :disabled="pending" @click="store.select(null); store.selectAsset(null)">Deselect</button>
       <button class="btn btn__danger" :disabled="pending" @click="remove">Delete</button>

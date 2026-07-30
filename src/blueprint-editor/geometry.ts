@@ -1,5 +1,5 @@
 import type { AssetDef, ObjectData, Rotation, Rect } from './types'
-import { findAsset, findAssetCached } from './asset-utils'
+import { findAsset, findAssetCached } from './assetUtils'
 
 export function assetSizeFor(
   type: string,

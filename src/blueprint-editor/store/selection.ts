@@ -1,6 +1,6 @@
 import { computed } from 'vue'
 import type { RoomData, ObjectData, RoomTemplate, EntityRef } from '../types'
-import { findAssetCached } from '../asset-utils'
+import { findAssetCached } from '../assetUtils'
 import { state, currentFloor, assetMap } from './state'
 
 export function findRoomTemplate(id: string): RoomTemplate | undefined {

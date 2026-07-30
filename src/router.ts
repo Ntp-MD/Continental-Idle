@@ -6,12 +6,12 @@ const router = createRouter({
     {
       path: '/',
       name: 'game',
-      component: () => import('@/layouts/GameLayout.vue'),
+      component: () => import('@/layouts/gameLayout.vue'),
     },
     {
       path: '/editor',
       name: 'editor',
-      component: () => import('@/blueprint-editor/App.vue'),
+      component: () => import('@/layouts/gameLayout.vue'),
     },
   ],
 })

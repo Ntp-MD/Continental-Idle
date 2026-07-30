@@ -1,6 +1,6 @@
 import type { AssetDef, WalkableGrid, TileState, TileEdges } from '../types'
 import { aabbOverlap } from '../collision'
-import { ASSET_REGISTRY } from '../asset-registry'
+import { ASSET_REGISTRY } from '../assetRegistry'
 import {
   state, toast, clamp, withStateLock, initAssetFields,
 } from './state'

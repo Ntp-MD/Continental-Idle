@@ -1,12 +1,12 @@
 /* Layout */
-.game-layout {
+.game_layout {
 	display: flex;
 	flex-direction: column;
 	width: 100%;
 	height: 100%;
 }
 
-.game-header {
+.game_header {
 	background: var(--gradient-header);
 	border-bottom: 1px solid var(--border-dim);
 	padding: var(--gap-sm) var(--gap-md);
@@ -18,7 +18,7 @@
 	position: relative;
 }
 
-.game-header::after {
+.game_header::after {
 	content: '';
 	position: absolute;
 	bottom: 0;
@@ -29,7 +29,7 @@
 	opacity: 0.3;
 }
 
-.game-header__title {
+.game_header__title {
 	font-size: 14px;
 	font-weight: 600;
 	color: var(--accent-gold);
@@ -39,13 +39,13 @@
 	text-shadow: 0 0 20px rgba(240, 192, 64, 0.2);
 }
 
-.game-header__currencies {
+.game_header__currencies {
 	display: flex;
 	gap: var(--gap-md);
 	align-items: baseline;
 }
 
-.game-header__currency {
+.game_header__currency {
 	display: flex;
 	align-items: baseline;
 	gap: var(--gap-xs);
@@ -54,11 +54,11 @@
 	transition: background var(--duration-fast);
 }
 
-.game-header__currency:hover {
+.game_header__currency:hover {
 	background: var(--accent-gold-dim);
 }
 
-.game-header__currency-label {
+.game_header__currency_label {
 	font-size: 9px;
 	text-transform: uppercase;
 	color: var(--text-dim);
@@ -66,28 +66,28 @@
 	letter-spacing: 0.5px;
 }
 
-.game-header__currency-value {
+.game_header__currency_value {
 	color: var(--accent-gold);
 	font-weight: 700;
 	font-size: 13px;
 	font-variant-numeric: tabular-nums;
 }
 
-.game-header__currency-value--income {
+.game_header__currency_value__income {
 	color: var(--accent-green);
 }
 
-.game-header__currency-value--favor {
+.game_header__currency_value__favor {
 	color: var(--accent-orange);
 }
 
-.game-header__currency--debt .game-header__currency-label,
-.game-header__currency--debt .game-header__currency-value {
+.game_header__currency__debt .game_header__currency_label,
+.game_header__currency__debt .game_header__currency_value {
 	color: var(--accent-orange);
 }
 
 /* Theme Tabs */
-.theme-tabs {
+.theme_tabs {
 	display: flex;
 	gap: 0;
 	background: var(--bg-primary);
@@ -98,19 +98,19 @@
 	scrollbar-color: var(--border-dim) var(--bg-primary);
 }
 
-.theme-tabs::-webkit-scrollbar {
+.theme_tabs::-webkit-scrollbar {
 	height: 4px;
 }
 
-.theme-tabs::-webkit-scrollbar-track {
+.theme_tabs::-webkit-scrollbar-track {
 	background: var(--bg-primary);
 }
 
-.theme-tabs::-webkit-scrollbar-thumb {
+.theme_tabs::-webkit-scrollbar-thumb {
 	background: var(--border-dim);
 }
 
-.theme-tabs__tab {
+.theme_tabs__tab {
 	padding: var(--gap-sm) var(--gap-md);
 	border: none;
 	border-bottom: 2px solid transparent;
@@ -126,7 +126,7 @@
 	transition: color var(--duration-fast), border-color var(--duration-fast);
 }
 
-.theme-tabs__tab:hover {
+.theme_tabs__tab:hover {
 	color: var(--text-primary);
 	border-bottom-color: var(--border-dim);
 	transform: none;
@@ -134,31 +134,31 @@
 	background: transparent;
 }
 
-.theme-tabs__tab--active {
+.theme_tabs__tab__active {
 	color: var(--accent-gold);
 	border-bottom-color: var(--accent-gold);
 }
 
-.theme-tabs__tab--locked {
+.theme_tabs__tab__locked {
 	opacity: 0.3;
 	cursor: not-allowed;
 }
 
 /* World Map */
-.world-map {
+.world_map {
 	position: relative;
 	background: var(--bg-primary);
 	flex: 1;
 	overflow: hidden;
 }
 
-.world-map__svg {
+.world_map__svg {
 	display: block;
 	width: 100%;
 	height: 100%;
 }
 
-.world-map__controls {
+.world_map__controls {
 	position: absolute;
 	top: 8px;
 	right: 8px;
@@ -167,7 +167,7 @@
 	gap: var(--gap-xs);
 }
 
-.world-map__btn {
+.world_map__btn {
 	background: var(--bg-card);
 	border: 1px solid var(--border-dim);
 	border-radius: var(--radius-sm);
@@ -180,7 +180,7 @@
 	box-shadow: var(--shadow-card);
 }
 
-.world-map__btn:hover {
+.world_map__btn:hover {
 	border-color: var(--accent-gold);
 	background: var(--bg-card-hover);
 	color: var(--accent-gold);
@@ -188,7 +188,7 @@
 	box-shadow: var(--shadow-glow-gold);
 }
 
-.world-map__status {
+.world_map__status {
 	position: absolute;
 	top: 50%;
 	left: 50%;
@@ -200,19 +200,19 @@
 	z-index: 5;
 }
 
-.world-map__status--loading {
+.world_map__status__loading {
 	color: var(--text-secondary);
 	background: var(--bg-card);
 	border: 1px solid var(--border-dim);
 }
 
-.world-map__status--error {
+.world_map__status__error {
 	color: var(--accent-orange);
 	background: var(--bg-card);
 	border: 1px solid var(--accent-orange);
 }
 
-.world-map__legend {
+.world_map__legend {
 	position: absolute;
 	bottom: 8px;
 	left: 8px;
@@ -222,19 +222,19 @@
 	color: var(--text-dim);
 }
 
-.world-map__legend-item {
+.world_map__legend_item {
 	display: flex;
 	align-items: center;
 	gap: var(--gap-xs);
 }
 
-.world-map__legend-dot {
+.world_map__legend_dot {
 	width: 8px;
 	height: 8px;
 	border-radius: 50%;
 }
 
-.world-map__tooltip {
+.world_map__tooltip {
 	position: absolute;
 	background: var(--bg-card);
 	border: 1px solid var(--accent-gold);
@@ -255,7 +255,7 @@
 	to { opacity: 1; transform: scale(1); }
 }
 
-.world-map__tooltip-name {
+.world_map__tooltip_name {
 	color: var(--accent-gold);
 	font-weight: 700;
 	font-size: 11px;
@@ -264,12 +264,12 @@
 	margin-bottom: var(--gap-xs);
 }
 
-.world-map__tooltip-row {
+.world_map__tooltip_row {
 	color: var(--text-secondary);
 	margin: 3px 0;
 }
 
-.world-map__tooltip-val {
+.world_map__tooltip_val {
 	color: var(--accent-green);
 	font-weight: 600;
 }
@@ -289,30 +289,30 @@
 	fill: #222;
 }
 
-.node-group {
+.node_group {
 	cursor: pointer;
 }
 
-.node-circle {
+.node_circle {
 	transition: r 0.15s;
 }
 
-.node-group:hover .node-circle {
+.node_group:hover .node_circle {
 	r: 8;
 }
 
-.node-ring {
+.node_ring {
 	fill: none;
 	stroke-width: 1.5px;
 	opacity: 0;
 	transition: opacity 0.2s;
 }
 
-.node-ring.visible {
+.node_ring.visible {
 	opacity: 0.6;
 }
 
-.node-pulse {
+.node_pulse {
 	fill: none;
 	stroke-width: 2px;
 	opacity: 0;
@@ -331,11 +331,11 @@
 	}
 }
 
-.node-label {
+.node_label {
 	font-family: inherit;
 }
 
-.connection-line {
+.connection_line {
 	stroke: var(--border-dim);
 	stroke-width: 1px;
 	stroke-dasharray: 4 3;
@@ -343,14 +343,14 @@
 	fill: none;
 }
 
-.connection-line.active-route {
+.connection_line.active_route {
 	stroke: var(--accent-gold);
 	opacity: 0.4;
 	stroke-dasharray: none;
 }
 
 /* Attack lines — animated dashes flowing from attacker to target */
-.attack-line {
+.attack_line {
 	stroke: var(--accent-attack);
 	stroke-width: 1.5px;
 	stroke-dasharray: 6 4;
@@ -366,7 +366,7 @@
 }
 
 /* Target node under attack — defensive pulse */
-.node-group.node-locked .node-circle[style*="fill: var(--node-locked)"] {
+.node_group.node_locked .node_circle[style*="fill: var(--node-locked)"] {
 	animation: node-defend-pulse 1.5s ease-in-out infinite;
 }
 
@@ -385,7 +385,7 @@
 }
 
 /* Supply route lines — animated dashes flowing between branches */
-.supply-line {
+.supply_line {
 	stroke-dasharray: 8 6;
 	animation: supply-dash-flow 1.5s linear infinite;
 }
@@ -397,14 +397,14 @@
 }
 
 /* Main Content */
-.game-main {
+.game_main {
 	flex: 1;
 	display: flex;
 	overflow: hidden;
 }
 
 /* Sidebar */
-.game-sidebar {
+.game_sidebar {
 	width: 320px;
 	background: var(--bg-tertiary);
 	border-right: 1px solid var(--border-dim);
@@ -416,7 +416,7 @@
 	            opacity var(--duration-fast);
 }
 
-.game-sidebar--collapsed {
+.game_sidebar__collapsed {
 	width: 0;
 	padding: 0;
 	overflow: hidden;
@@ -425,7 +425,7 @@
 }
 
 /* Map Area — main content */
-.game-map-area {
+.game_map_area {
 	flex: 1;
 	position: relative;
 	display: flex;
@@ -434,7 +434,7 @@
 }
 
 /* Map Tabs */
-.game-map-tabs {
+.game_map_tabs {
 	display: flex;
 	gap: 0;
 	flex-shrink: 0;
@@ -444,7 +444,7 @@
 	padding: 0 var(--gap-sm);
 }
 
-.game-map-tabs__btn {
+.game_map_tabs__btn {
 	background: transparent;
 	border: none;
 	border-bottom: 2px solid transparent;
@@ -462,7 +462,7 @@
 	box-shadow: none;
 }
 
-.game-map-tabs__btn:hover {
+.game_map_tabs__btn:hover {
 	color: var(--text-primary);
 	background: var(--bg-card);
 	border-color: transparent;
@@ -470,7 +470,7 @@
 	box-shadow: none;
 }
 
-.game-map-tabs__btn--active {
+.game_map_tabs__btn__active {
 	color: var(--accent-gold);
 	border-bottom-color: var(--accent-gold);
 	background: var(--bg-card);
@@ -478,7 +478,7 @@
 }
 
 /* Inline HQ Office in map area */
-.game-map-area .hq-office--inline {
+.game_map_area .hq_office__inline {
 	flex: 1;
 	display: flex;
 	flex-direction: column;
@@ -487,7 +487,7 @@
 	min-height: 0;
 }
 
-.game-map-area .hq-office--inline .hq-office__svg-wrap {
+.game_map_area .hq_office__inline .hq_office__svg_wrap {
 	flex: 1;
 	display: flex;
 	align-items: center;
@@ -499,29 +499,29 @@
 	max-height: 100%;
 }
 
-.game-map-area .hq-office--inline .hq-office__svg {
+.game_map_area .hq_office__inline .hq_office__svg {
 	width: 100%;
 	height: 100%;
 }
 
-.game-map-area .hq-office--inline .hq-office__legend {
+.game_map_area .hq_office__inline .hq_office__legend {
 	flex-shrink: 0;
 	max-height: 60px;
 	overflow-y: auto;
 }
 
-.game-map-area .world-map {
+.game_map_area .world_map {
 	flex: 1;
 	border-bottom: none;
 }
 
-.game-map-area .world-map__svg {
+.game_map_area .world_map__svg {
 	height: 100%;
 	min-height: 300px;
 }
 
 /* Map Action Buttons */
-.game-map-actions {
+.game_map_actions {
 	position: absolute;
 	bottom: 12px;
 	left: 50%;
@@ -537,7 +537,7 @@
 	border-radius: var(--radius-md);
 }
 
-.game-map-actions__btn {
+.game_map_actions__btn {
 	background: transparent;
 	border: 1px solid transparent;
 	border-radius: var(--radius-sm);
@@ -553,7 +553,7 @@
 	box-shadow: none;
 }
 
-.game-map-actions__btn:hover {
+.game_map_actions__btn:hover {
 	border-color: var(--accent-gold);
 	color: var(--accent-gold);
 	background: var(--accent-gold-dim);
@@ -562,7 +562,7 @@
 }
 
 /* Status Bar */
-.game-status {
+.game_status {
 	background: var(--bg-secondary);
 	border-top: 1px solid var(--border-subtle);
 	padding: 3px var(--gap-md);
@@ -575,170 +575,170 @@
 }
 
 @media (max-width: 1280px) {
-	.game-map-actions {
+	.game_map_actions {
 		flex-wrap: wrap;
 		max-width: 95%;
 	}
 }
 
 @media (max-width: 1024px) {
-	.game-sidebar {
+	.game_sidebar {
 		width: 260px;
 	}
 
-	.game-header {
+	.game_header {
 		padding: var(--gap-sm) var(--gap-md);
 		gap: var(--gap-sm);
 	}
 
-	.game-header__currencies {
+	.game_header__currencies {
 		flex-wrap: wrap;
 		gap: var(--gap-sm);
 	}
 }
 
 @media (min-width: 1440px) {
-	.game-sidebar {
+	.game_sidebar {
 		width: 360px;
 	}
 
-	.game-header {
+	.game_header {
 		padding: var(--gap-sm) var(--gap-md);
 	}
 
-	.game-header__title {
+	.game_header__title {
 		font-size: 18px;
 	}
 
-	.game-header__currency-value {
+	.game_header__currency_value {
 		font-size: 15px;
 	}
 
-	.game-map-actions__btn {
+	.game_map_actions__btn {
 		padding: var(--gap-sm) var(--gap-md);
 		font-size: 12px;
 	}
 
-	.building-card__name {
+	.building_card__name {
 		font-size: 13px;
 	}
 
-	.building-card__rate {
+	.building_card__rate {
 		font-size: 12px;
 	}
 }
 
 @media (min-width: 1920px) {
-	.game-sidebar {
+	.game_sidebar {
 		width: 420px;
 	}
 
-	.game-header {
+	.game_header {
 		padding: var(--gap-sm) var(--gap-lg);
 	}
 
-	.game-header__title {
+	.game_header__title {
 		font-size: 20px;
 	}
 
-	.game-header__currency-value {
+	.game_header__currency_value {
 		font-size: 16px;
 	}
 
-	.game-map-actions__btn {
+	.game_map_actions__btn {
 		padding: var(--gap-sm) var(--gap-md);
 		font-size: 13px;
 	}
 
-	.game-panel__content {
+	.game_panel__content {
 		width: 90vw;
 		max-width: 90vw;
 	}
 
-	.game-panel__content--wide {
+	.game_panel__content__wide {
 		width: 92vw;
 		max-width: 92vw;
 	}
 
-	.supply-route-panel {
+	.supply_route_panel {
 		width: 92vw;
 		max-width: 92vw;
 	}
 
-	.power-balance-panel {
+	.power_balance_panel {
 		width: 92vw;
 		max-width: 92vw;
 	}
 }
 
 @media (max-width: 768px) {
-	.game-header {
+	.game_header {
 		flex-wrap: wrap;
 		padding: var(--gap-sm) var(--gap-sm);
 		gap: var(--gap-sm);
 	}
 
-	.game-header__currencies {
+	.game_header__currencies {
 		flex-wrap: wrap;
 		gap: var(--gap-sm);
 	}
 
-	.game-main {
+	.game_main {
 		flex-direction: column;
 	}
 
-	.game-sidebar {
+	.game_sidebar {
 		width: 100%;
 		max-height: 40vh;
 		border-right: none;
 		border-bottom: 1px solid var(--border-dim);
 	}
 
-	.game-sidebar--collapsed {
+	.game_sidebar__collapsed {
 		max-height: 0;
 		border-bottom: none;
 	}
 
-	.game-map-actions {
+	.game_map_actions {
 		flex-wrap: wrap;
 		justify-content: center;
 		max-width: 90vw;
 	}
 
-	.game-map-actions__btn {
+	.game_map_actions__btn {
 		padding: var(--gap-xs) var(--gap-sm);
 		font-size: 10px;
 	}
 }
 
 @media (max-width: 480px) {
-	.game-header__title {
+	.game_header__title {
 		font-size: 12px;
 		letter-spacing: 1px;
 	}
 
-	.game-header__currencies {
+	.game_header__currencies {
 		gap: var(--gap-sm);
 	}
 
-	.game-header__currency-label {
+	.game_header__currency_label {
 		font-size: 9px;
 	}
 
-	.game-header__currency-value {
+	.game_header__currency_value {
 		font-size: 12px;
 	}
 
-	.heat-meter__bar {
+	.heat_meter__bar {
 		width: 50px;
 	}
 
-	.game-map-actions {
+	.game_map_actions {
 		flex-direction: column;
 		gap: var(--gap-xs);
 	}
 
-	.game-map-actions__btn {
+	.game_map_actions__btn {
 		width: 100%;
 		text-align: center;
 	}

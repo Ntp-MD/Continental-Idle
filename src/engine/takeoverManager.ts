@@ -1,9 +1,9 @@
 import type { BranchId } from '@/types'
-import { gameState } from './game-state'
-import { eventBus } from './event-bus'
+import { gameState } from './gameState'
+import { eventBus } from './eventBus'
 import { BRANCHES } from '@/data/branches'
-import { getAssassinCombatDamage, getAssassinXpMult } from './assassin-manager'
-import { defeatAIOwner } from './ai-owner-manager'
+import { getAssassinCombatDamage, getAssassinXpMult } from './assassinManager'
+import { defeatAIOwner } from './aiOwnerManager'
 
 const HQ_HEALTH_BASE = 1000
 const HQ_HEALTH_PER_PRESTIGE = 500

@@ -7,9 +7,9 @@ const NS = 'http://www.w3.org/2000/svg'
 const W = 1200, H = 600
 const GRID_SIZE = 25
 
-const GRID_LINE = { stroke: '#d4d4d0', 'stroke-width': 0.5 }
-const WALL_EXT = { stroke: '#1a1a1a', 'stroke-width': 2, fill: 'none' }
-const WALL_INT = { stroke: '#1a1a1a', 'stroke-width': 1.5, fill: 'none' }
+const GRID_LINE = { stroke: '#d4d4d0', 'stroke_width': 0.5 }
+const WALL_EXT = { stroke: '#1a1a1a', 'stroke_width': 2, fill: 'none' }
+const WALL_INT = { stroke: '#1a1a1a', 'stroke_width': 1.5, fill: 'none' }
 const COL_FILL = '#1a1a1a'
 
 const CAT: Record<string, string> = {
@@ -26,7 +26,7 @@ const ELEVATOR = {
   h: 50,
   fill: '#ebebe9',
   stroke: '#1a1a1a',
-  'stroke-width': 1.5,
+  'stroke_width': 1.5,
 }
 
 const FLOORS = [
@@ -87,10 +87,10 @@ function drawGrid(g: Element) {
 function drawElevator(g: Element, x: number, y: number, count = 1) {
   for (let i = 0; i < count; i++) {
     const cx = x + i * ELEVATOR.w
-    const r = el('rect', { x: cx, y, width: ELEVATOR.w, height: ELEVATOR.h, fill: ELEVATOR.fill, stroke: ELEVATOR.stroke, 'stroke-width': ELEVATOR['stroke-width'] }, g)
+    const r = el('rect', { x: cx, y, width: ELEVATOR.w, height: ELEVATOR.h, fill: ELEVATOR.fill, stroke: ELEVATOR.stroke, 'stroke_width': ELEVATOR['stroke_width'] }, g)
     el('title', {}, r).textContent = 'Elevator'
-    el('rect', { x: cx + 4, y: y + 4, width: ELEVATOR.w - 8, height: ELEVATOR.h - 8, fill: 'none', stroke: ELEVATOR.stroke, 'stroke-width': 0.7 }, g)
-    el('line', { x1: cx + ELEVATOR.w / 2, y1: y + 4, x2: cx + ELEVATOR.w / 2, y2: y + ELEVATOR.h - 4, stroke: ELEVATOR.stroke, 'stroke-width': 1 }, g)
+    el('rect', { x: cx + 4, y: y + 4, width: ELEVATOR.w - 8, height: ELEVATOR.h - 8, fill: 'none', stroke: ELEVATOR.stroke, 'stroke_width': 0.7 }, g)
+    el('line', { x1: cx + ELEVATOR.w / 2, y1: y + 4, x2: cx + ELEVATOR.w / 2, y2: y + ELEVATOR.h - 4, stroke: ELEVATOR.stroke, 'stroke_width': 1 }, g)
   }
 }
 
@@ -105,19 +105,19 @@ function drawDoor(g: Element, x: number, y: number, orient: string, swing: strin
   const half = size / 2, gap = 3
   if (orient === 'h') {
     el('rect', { x: x - half - gap, y: y - 2, width: size + gap * 2, height: 4, fill: '#f7f7f5' }, g)
-    if (swing === 'down') el('line', { x1: x - half, y1: y, x2: x - half, y2: y + half, stroke: '#1a1a1a', 'stroke-width': 1 }, g)
-    else el('line', { x1: x - half, y1: y, x2: x - half, y2: y - half, stroke: '#1a1a1a', 'stroke-width': 1 }, g)
+    if (swing === 'down') el('line', { x1: x - half, y1: y, x2: x - half, y2: y + half, stroke: '#1a1a1a', 'stroke_width': 1 }, g)
+    else el('line', { x1: x - half, y1: y, x2: x - half, y2: y - half, stroke: '#1a1a1a', 'stroke_width': 1 }, g)
   } else {
     el('rect', { x: x - 2, y: y - half - gap, width: 4, height: size + gap * 2, fill: '#f7f7f5' }, g)
-    if (swing === 'right') el('line', { x1: x, y1: y - half, x2: x + half, y2: y - half, stroke: '#1a1a1a', 'stroke-width': 1 }, g)
-    else el('line', { x1: x, y1: y - half, x2: x - half, y2: y - half, stroke: '#1a1a1a', 'stroke-width': 1 }, g)
+    if (swing === 'right') el('line', { x1: x, y1: y - half, x2: x + half, y2: y - half, stroke: '#1a1a1a', 'stroke_width': 1 }, g)
+    else el('line', { x1: x, y1: y - half, x2: x - half, y2: y - half, stroke: '#1a1a1a', 'stroke_width': 1 }, g)
   }
 }
 
 function drawLabel(g: Element, cx: number, cy: number, text: string, sub: string | null, size = 12) {
-  el('text', { x: cx, y: cy, 'text-anchor': 'middle', 'font-size': size, fill: '#333333', 'letter-spacing': '1' }, g).textContent = text.toUpperCase()
+  el('text', { x: cx, y: cy, 'text_anchor': 'middle', 'font_size': size, fill: '#333333', 'letter_spacing': '1' }, g).textContent = text.toUpperCase()
   if (sub) {
-    el('text', { x: cx, y: cy + 14, 'text-anchor': 'middle', 'font-size': 9, fill: '#666666' }, g).textContent = sub.toUpperCase()
+    el('text', { x: cx, y: cy + 14, 'text_anchor': 'middle', 'font_size': 9, fill: '#666666' }, g).textContent = sub.toUpperCase()
   }
 }
 
@@ -129,9 +129,9 @@ function drawCol(g: Element, x: number, y: number, w: number, h: number) {
 function drawFurn(g: Element, x: number, y: number, w: number, h: number, shape: string | null, label: string | null) {
   let e: SVGElement
   if (shape === 'circle') {
-    e = el('ellipse', { cx: x + w / 2, cy: y + h / 2, rx: w / 2, ry: h / 2, fill: '#ebebe9', stroke: '#999999', 'stroke-width': 0.75 }, g)
+    e = el('ellipse', { cx: x + w / 2, cy: y + h / 2, rx: w / 2, ry: h / 2, fill: '#ebebe9', stroke: '#999999', 'stroke_width': 0.75 }, g)
   } else {
-    e = el('rect', { x, y, width: w, height: h, rx: shape === 'round' ? 10 : 0, fill: '#ebebe9', stroke: '#999999', 'stroke-width': 0.75 }, g)
+    e = el('rect', { x, y, width: w, height: h, rx: shape === 'round' ? 10 : 0, fill: '#ebebe9', stroke: '#999999', 'stroke_width': 0.75 }, g)
   }
   if (label) el('title', {}, e).textContent = label
 }
@@ -166,11 +166,11 @@ function drawLobby(g: Element) {
 
   for (let mx = 0; mx < 1200; mx += 100) {
     for (let my = 450; my < 600; my += 75) {
-      el('rect', { x: mx, y: my, width: 100, height: 75, fill: 'none', stroke: '#e0e0de', 'stroke-width': 0.4 }, g)
+      el('rect', { x: mx, y: my, width: 100, height: 75, fill: 'none', stroke: '#e0e0de', 'stroke_width': 0.4 }, g)
     }
   }
 
-  el('rect', { x: 300, y: 340, width: 600, height: 90, fill: 'none', stroke: '#ccc8c0', 'stroke-width': 0.5, 'stroke-dasharray': '4 3' }, g)
+  el('rect', { x: 300, y: 340, width: 600, height: 90, fill: 'none', stroke: '#ccc8c0', 'stroke_width': 0.5, 'stroke_dasharray': '4 3' }, g)
 
   drawDoor(g, 600, 175, 'h', 'down')
   drawDoor(g, 175, 350, 'v', 'right')
@@ -277,7 +277,7 @@ function drawLobby(g: Element) {
   drawFurn(g, 425, 560, 25, 25, 'circle', 'Plant')
   drawFurn(g, 750, 560, 25, 25, 'circle', 'Plant')
 
-  el('rect', { x: 500, y: 575, width: 200, height: 20, fill: 'none', stroke: '#bbb7af', 'stroke-width': 0.6, 'stroke-dasharray': '3 2' }, g)
+  el('rect', { x: 500, y: 575, width: 200, height: 20, fill: 'none', stroke: '#bbb7af', 'stroke_width': 0.6, 'stroke_dasharray': '3 2' }, g)
 
   drawLabel(g, 600, 90, 'Reception Office', 'Back Office')
   drawLabel(g, 87, 350, 'Concierge', 'Guest Services · Luggage')
@@ -316,54 +316,54 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="blueprint-preview" @click.self="emit('close')">
-    <div class="blueprint-preview__content" role="dialog" aria-modal="true" aria-labelledby="panel-title-blueprint">
-      <div class="blueprint-preview__header">
+  <div class="blueprint_preview" @click.self="emit('close')">
+    <div class="blueprint_preview__content" role="dialog" aria-modal="true" aria-labelledby="panel_title_blueprint">
+      <div class="blueprint_preview__header">
         <div>
-          <h2 id="panel-title-blueprint" class="blueprint-preview__title">The Continental</h2>
-          <div class="blueprint-preview__sub">Architectural Floor Plan Survey · High Table Property Registry</div>
+          <h2 id="panel_title_blueprint" class="blueprint_preview__title">The Continental</h2>
+          <div class="blueprint_preview__sub">Architectural Floor Plan Survey · High Table Property Registry</div>
         </div>
-        <div class="blueprint-preview__doc-id">
+        <div class="blueprint_preview__doc_id">
           DWG NO. CONT-IDLE-000<br>
           SCALE 1 : 100 · SHEET {{ sheetNumber }} / 22
         </div>
       </div>
 
-      <div class="blueprint-preview__tabs">
+      <div class="blueprint_preview__tabs">
         <button
           v-for="f in FLOORS"
           :key="f.id"
-          class="blueprint-preview__tab"
-          :class="{ 'blueprint-preview__tab--active': f.id === currentFloor }"
+          class="blueprint_preview__tab"
+          :class="{ 'blueprint_preview__tab__active': f.id === currentFloor }"
           @click="currentFloor = f.id"
         >{{ f.id === 'G' ? 'G' : 'F' + f.id }}</button>
       </div>
 
-      <div class="blueprint-preview__sheet">
-        <div class="blueprint-preview__legend">
-          <span class="blueprint-preview__floor-label">
+      <div class="blueprint_preview__sheet">
+        <div class="blueprint_preview__legend">
+          <span class="blueprint_preview__floor_label">
             Floor {{ currentFloorData.id === 'G' ? 'G' : currentFloorData.id }} — {{ currentFloorData.name }}
           </span>
-          <span class="blueprint-preview__floor-info">{{ currentFloorData.info }}</span>
-          <span v-for="cat in currentFloorCats" :key="cat" class="blueprint-preview__legend-item">
-            <i class="blueprint-preview__legend-swatch" :style="{ background: CAT[cat] }"></i>
+          <span class="blueprint_preview__floor_info">{{ currentFloorData.info }}</span>
+          <span v-for="cat in currentFloorCats" :key="cat" class="blueprint_preview__legend_item">
+            <i class="blueprint_preview__legend_swatch" :style="{ background: CAT[cat] }"></i>
             {{ CAT_LABEL[cat] }}
           </span>
         </div>
-        <svg ref="svgRef" :viewBox="`0 0 ${W} ${H}`" xmlns="http://www.w3.org/2000/svg" class="blueprint-preview__svg"></svg>
+        <svg ref="svgRef" :viewBox="`0 0 ${W} ${H}`" xmlns="http://www.w3.org/2000/svg" class="blueprint_preview__svg"></svg>
       </div>
 
-      <div class="blueprint-preview__footer">
+      <div class="blueprint_preview__footer">
         Adjudicator copy · No business may be conducted on the premises · Continental-Idle reference plan
       </div>
 
-      <button class="game-panel__close" @click="emit('close')">Close</button>
+      <button class="game_panel__close" @click="emit('close')">Close</button>
     </div>
   </div>
 </template>
 
 <style scoped>
-.blueprint-preview {
+.blueprint_preview {
   position: fixed;
   inset: 0;
   background: rgba(0, 0, 0, 0.7);
@@ -375,7 +375,7 @@ onMounted(() => {
   padding: 20px;
 }
 
-.blueprint-preview__content {
+.blueprint_preview__content {
   background: #e9e9e6;
   border-radius: 8px;
   max-width: 1280px;
@@ -385,7 +385,7 @@ onMounted(() => {
   color: #222222;
 }
 
-.blueprint-preview__header {
+.blueprint_preview__header {
   display: flex;
   justify-content: space-between;
   align-items: flex-end;
@@ -394,7 +394,7 @@ onMounted(() => {
   margin-bottom: 18px;
 }
 
-.blueprint-preview__title {
+.blueprint_preview__title {
   margin: 0;
   font-family: 'Times New Roman', Georgia, serif;
   letter-spacing: 6px;
@@ -404,7 +404,7 @@ onMounted(() => {
   text-transform: uppercase;
 }
 
-.blueprint-preview__sub {
+.blueprint_preview__sub {
   font-size: 11px;
   letter-spacing: 3px;
   color: #666666;
@@ -412,7 +412,7 @@ onMounted(() => {
   text-transform: uppercase;
 }
 
-.blueprint-preview__doc-id {
+.blueprint_preview__doc_id {
   text-align: right;
   font-size: 11px;
   color: #666666;
@@ -420,14 +420,14 @@ onMounted(() => {
   letter-spacing: 1px;
 }
 
-.blueprint-preview__tabs {
+.blueprint_preview__tabs {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
   margin-bottom: 18px;
 }
 
-.blueprint-preview__tab {
+.blueprint_preview__tab {
   background: #ffffff;
   border: 1px solid #aaaaaa;
   color: #666666;
@@ -439,31 +439,31 @@ onMounted(() => {
   transition: all 0.15s ease;
 }
 
-.blueprint-preview__tab:hover {
+.blueprint_preview__tab:hover {
   border-color: #333333;
   color: #222222;
 }
 
-.blueprint-preview__tab--active {
+.blueprint_preview__tab__active {
   background: #333333;
   color: #ffffff;
   border-color: #333333;
   font-weight: bold;
 }
 
-.blueprint-preview__sheet {
+.blueprint_preview__sheet {
   background: #ffffff;
   border: 1px solid #aaaaaa;
   position: relative;
 }
 
-.blueprint-preview__svg {
+.blueprint_preview__svg {
   display: block;
   width: 100%;
   height: auto;
 }
 
-.blueprint-preview__legend {
+.blueprint_preview__legend {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -475,7 +475,7 @@ onMounted(() => {
   letter-spacing: 0.5px;
 }
 
-.blueprint-preview__floor-label {
+.blueprint_preview__floor_label {
   font-size: 13px;
   font-weight: bold;
   color: #222222;
@@ -483,25 +483,25 @@ onMounted(() => {
   text-transform: uppercase;
 }
 
-.blueprint-preview__floor-info {
+.blueprint_preview__floor_info {
   color: #666666;
   font-size: 10px;
 }
 
-.blueprint-preview__legend-item {
+.blueprint_preview__legend_item {
   display: flex;
   align-items: center;
   gap: 6px;
 }
 
-.blueprint-preview__legend-swatch {
+.blueprint_preview__legend_swatch {
   display: inline-block;
   width: 14px;
   height: 10px;
   border: 1px solid #666666;
 }
 
-.blueprint-preview__footer {
+.blueprint_preview__footer {
   text-align: center;
   margin-top: 12px;
   font-size: 10px;
@@ -510,7 +510,7 @@ onMounted(() => {
   text-transform: uppercase;
 }
 
-.blueprint-preview__content :deep(.game-panel__close) {
+.blueprint_preview__content :deep(.game_panel__close) {
   margin-top: 16px;
 }
 </style>

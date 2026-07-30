@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, computed } from 'vue'
-import { useAssetsStore } from '../blueprint-store'
+import { useAssetsStore } from '../blueprintStore'
 import { useToast } from '../composables/useToast'
 
 const store = useAssetsStore()
@@ -87,9 +87,9 @@ async function onToggleWalkable(floor: { id: string; name: string; defaultWalkab
   </button>
 
   <Teleport to="body">
-    <div v-if="open" class="floor__overlay" role="dialog" aria-modal="true" aria-labelledby="floor-overlay-title" @click.stop>
+    <div v-if="open" class="floor__overlay" role="dialog" aria-modal="true" aria-labelledby="floor_overlay_title" @click.stop>
       <div class="floor__overlay__header">
-        <span id="floor-overlay-title" class="floor__overlay__title">Floors ({{ store.state.layout.floors.length }})</span>
+        <span id="floor_overlay_title" class="floor__overlay__title">Floors ({{ store.state.layout.floors.length }})</span>
         <button class="btn btn__dashed" @click="async () => { await store.addFloor(); useToast().success('Floor added') }">+ Add</button>
         <button class="btn btn__ghost btn__icon btn__text__danger" aria-label="Close floor panel" @click="close">✕</button>
       </div>

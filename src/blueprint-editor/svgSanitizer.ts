@@ -51,7 +51,7 @@ export function renderSvgInto(container: SVGElement, html: string): void {
   Array.from(doc.documentElement.children).forEach(child => {
     const node = document.importNode(child, true) as SVGElement
     const role = node.getAttribute('data-role')
-    if (role) node.classList.add(`svg-role--${role}`)
+    if (role) node.classList.add(`svg_role__${role}`)
     container.appendChild(node)
   })
 }

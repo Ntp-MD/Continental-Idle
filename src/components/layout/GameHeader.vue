@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
-import { gameState } from '@/engine/game-state'
-import { getBranchIncomePerSecond } from '@/engine/income-engine'
-import { getTotalDebt, getDebtCount } from '@/engine/debt-manager'
+import { gameState } from '@/engine/gameState'
+import { getBranchIncomePerSecond } from '@/engine/incomeEngine'
+import { getTotalDebt, getDebtCount } from '@/engine/debtManager'
 import { formatNumber, formatIncome } from '@/engine/format'
-import { eventBus } from '@/engine/event-bus'
+import { eventBus } from '@/engine/eventBus'
 import { getBranchDef } from '@/data/branches'
 
 const currency = ref('0')
@@ -85,69 +85,69 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <header class="game-header">
-    <h1 class="game-header__title">
+  <header class="game_header">
+    <h1 class="game_header__title">
       Continental — {{ branchName }}
-      <span v-if="isHq" class="game-header__hq-badge">HQ</span>
+      <span v-if="isHq" class="game_header__hq_badge">HQ</span>
     </h1>
-    <div class="game-header__currencies">
-      <div class="game-header__currency">
-        <span class="game-header__currency-label">Gold</span>
-        <span class="game-header__currency-value">{{ currency }}</span>
+    <div class="game_header__currencies">
+      <div class="game_header__currency">
+        <span class="game_header__currency_label">Gold</span>
+        <span class="game_header__currency_value">{{ currency }}</span>
       </div>
-      <div v-if="goldenCoins !== '0'" class="game-header__currency">
-        <span class="game-header__currency-label">GC</span>
-        <span class="game-header__currency-value" style="color: #c9a84c">{{ goldenCoins }}</span>
+      <div v-if="goldenCoins !== '0'" class="game_header__currency">
+        <span class="game_header__currency_label">GC</span>
+        <span class="game_header__currency_value" style="color: #c9a84c">{{ goldenCoins }}</span>
       </div>
-      <div v-if="royalMarks !== '0'" class="game-header__currency">
-        <span class="game-header__currency-label">RM</span>
-        <span class="game-header__currency-value" style="color: #b8860b">{{ royalMarks }}</span>
+      <div v-if="royalMarks !== '0'" class="game_header__currency">
+        <span class="game_header__currency_label">RM</span>
+        <span class="game_header__currency_value" style="color: #b8860b">{{ royalMarks }}</span>
       </div>
-      <div class="game-header__currency">
-        <span class="game-header__currency-label">Income</span>
-        <span class="game-header__currency-value game-header__currency-value--income">{{ income }}</span>
+      <div class="game_header__currency">
+        <span class="game_header__currency_label">Income</span>
+        <span class="game_header__currency_value game_header__currency_value__income">{{ income }}</span>
       </div>
-      <div v-if="inactiveIncome !== '0/s'" class="game-header__currency">
-        <span class="game-header__currency-label">Idle</span>
-        <span class="game-header__currency-value game-header__currency-value--income">{{ inactiveIncome }}</span>
+      <div v-if="inactiveIncome !== '0/s'" class="game_header__currency">
+        <span class="game_header__currency_label">Idle</span>
+        <span class="game_header__currency_value game_header__currency_value__income">{{ inactiveIncome }}</span>
       </div>
-      <div class="game-header__currency">
-        <span class="game-header__currency-label">Favor</span>
-        <span class="game-header__currency-value game-header__currency-value--favor">{{ favor }}</span>
-        <span v-if="prestigeMult > 0" class="game-header__currency-sub">+{{ prestigeMult }}%</span>
+      <div class="game_header__currency">
+        <span class="game_header__currency_label">Favor</span>
+        <span class="game_header__currency_value game_header__currency_value__favor">{{ favor }}</span>
+        <span v-if="prestigeMult > 0" class="game_header__currency_sub">+{{ prestigeMult }}%</span>
       </div>
-      <div class="game-header__currency">
-        <span class="game-header__currency-label">Prestige</span>
-        <span class="game-header__currency-value">{{ prestige }}</span>
+      <div class="game_header__currency">
+        <span class="game_header__currency_label">Prestige</span>
+        <span class="game_header__currency_value">{{ prestige }}</span>
       </div>
-      <div class="game-header__currency">
-        <span class="game-header__currency-label">Rep</span>
-        <span class="game-header__currency-value">{{ reputation }}</span>
+      <div class="game_header__currency">
+        <span class="game_header__currency_label">Rep</span>
+        <span class="game_header__currency_value">{{ reputation }}</span>
       </div>
-      <div class="game-header__currency">
-        <span class="game-header__currency-label">Guests</span>
-        <span class="game-header__currency-value">{{ satisfaction }}%</span>
+      <div class="game_header__currency">
+        <span class="game_header__currency_label">Guests</span>
+        <span class="game_header__currency_value">{{ satisfaction }}%</span>
       </div>
-      <div v-if="permBonus > 0" class="game-header__currency">
-        <span class="game-header__currency-label">Perm</span>
-        <span class="game-header__currency-value game-header__currency-value--income">+{{ permBonus }}%</span>
+      <div v-if="permBonus > 0" class="game_header__currency">
+        <span class="game_header__currency_label">Perm</span>
+        <span class="game_header__currency_value game_header__currency_value__income">+{{ permBonus }}%</span>
       </div>
-      <div class="heat-meter" :class="{ 'heat-meter--critical': heat >= 8 }">
-        <span class="heat-meter__label">Heat</span>
-        <div class="heat-meter__bar">
-          <div class="heat-meter__fill" :style="{ width: (heat / 10 * 100) + '%' }"></div>
+      <div class="heat_meter" :class="{ 'heat_meter__critical': heat >= 8 }">
+        <span class="heat_meter__label">Heat</span>
+        <div class="heat_meter__bar">
+          <div class="heat_meter__fill" :style="{ width: (heat / 10 * 100) + '%' }"></div>
         </div>
-        <span class="heat-meter__value">{{ heat }}/10</span>
-        <span v-if="heat >= 8" class="heat-meter__warning">?</span>
+        <span class="heat_meter__value">{{ heat }}/10</span>
+        <span v-if="heat >= 8" class="heat_meter__warning">?</span>
       </div>
-      <div v-if="debtCount > 0" class="game-header__currency game-header__currency--debt" :class="{ 'game-header__currency--debt-warning': debtWarning }">
-        <span class="game-header__currency-label">Debt</span>
-        <span class="game-header__currency-value">{{ debtTotal }} ({{ debtCount }})</span>
-        <span v-if="debtWarning" class="game-header__currency-warning">?</span>
+      <div v-if="debtCount > 0" class="game_header__currency game_header__currency__debt" :class="{ 'game_header__currency__debt_warning': debtWarning }">
+        <span class="game_header__currency_label">Debt</span>
+        <span class="game_header__currency_value">{{ debtTotal }} ({{ debtCount }})</span>
+        <span v-if="debtWarning" class="game_header__currency_warning">?</span>
       </div>
-      <div v-if="graceMinutes > 0" class="game-header__currency game-header__currency--grace">
-        <span class="game-header__currency-label">Grace</span>
-        <span class="game-header__currency-value">{{ graceMinutes }}m</span>
+      <div v-if="graceMinutes > 0" class="game_header__currency game_header__currency__grace">
+        <span class="game_header__currency_label">Grace</span>
+        <span class="game_header__currency_value">{{ graceMinutes }}m</span>
       </div>
     </div>
   </header>

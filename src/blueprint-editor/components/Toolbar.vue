@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { ref, computed, watch, inject } from 'vue'
-import { useAssetsStore } from '../blueprint-store'
+import { useAssetsStore } from '../blueprintStore'
 import { useToast } from '../composables/useToast'
 import { useAsyncAction } from '../composables/useAsyncAction'
-import FloorTabs from './FloorTabs.vue'
-import NpcSettingsModal from './NpcSettingsModal.vue'
+import FloorTabs from './floorTabs.vue'
+import NpcSettingsModal from './npcSettingsModal.vue'
 import { useNpcSimulation } from '../composables/useNpcSimulation'
 
 const store = useAssetsStore()
@@ -14,7 +14,7 @@ const { pending, run } = useAsyncAction()
 const npcSimulation = inject('npcSimulation') as ReturnType<typeof useNpcSimulation>
 const { npcs, isPaused, pause, resume, stop, reset } = npcSimulation
 const showNpcSettings = ref(false)
-const showShortcuts = ref(false)
+const showSettings = ref(false)
 
 function onNpcSettings() {
   showNpcSettings.value = true
@@ -53,10 +53,9 @@ watch(() => store.state.layout.canvas, (c) => {
 })
 
 async function applyCanvasSize() {
-  const ok = window.confirm('Changing canvas size will re-snap all rooms/objects to the new grid. Continue?')
-  if (!ok) return
   await run(() => store.resizeCanvas(widthInput.value, heightInput.value, tileInput.value)).catch(() => {})
   toast.info('Canvas resized')
+  showSettings.value = false
 }
 
 async function onSave() {
@@ -90,23 +89,12 @@ async function onClearAll() {
 <template>
   <div class="editor__toolbar">
     <div class="editor__toolbar__group">
-      <button class="btn btn__ghost btn__icon" @click="showShortcuts = !showShortcuts" title="Keyboard Shortcuts" aria-label="Keyboard shortcuts">?</button>
-    </div>
-
-    <div class="editor__toolbar__group">
-      <label class="editor__toolbar__field">
-        <span>W</span>
-        <input class="input" type="number" v-model.number="widthInput" min="100" step="25" />
-      </label>
-      <label class="editor__toolbar__field">
-        <span>H</span>
-        <input class="input" type="number" v-model.number="heightInput" min="100" step="25" />
-      </label>
-      <label class="editor__toolbar__field">
-        <span>Tile</span>
-        <input class="input" type="number" v-model.number="tileInput" min="5" step="5" />
-      </label>
-      <button class="btn" @click="applyCanvasSize">Apply</button>
+      <button class="btn btn__ghost btn__icon" @click="showSettings = true" title="Canvas Settings & Shortcuts" aria-label="Canvas settings">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"/>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+        </svg>
+      </button>
     </div>
 
     <div class="editor__toolbar__group editor__toolbar__group__mode">
@@ -179,25 +167,47 @@ async function onClearAll() {
     <NpcSettingsModal :open="showNpcSettings" @close="showNpcSettings = false" />
 
     <Teleport to="body">
-      <div v-if="showShortcuts" class="editor__shortcuts__overlay" @click.self="showShortcuts = false">
-        <div class="editor__shortcuts__panel">
-          <div class="editor__shortcuts__header">
-            <span>Keyboard Shortcuts</span>
-            <button class="btn btn__ghost btn__icon" @click="showShortcuts = false" aria-label="Close">✕</button>
+      <div v-if="showSettings" class="editor__settings__overlay" @click.self="showSettings = false">
+        <div class="editor__settings__panel">
+          <div class="editor__settings__header">
+            <span>Canvas Settings</span>
+            <button class="btn btn__ghost btn__icon" @click="showSettings = false" aria-label="Close">✕</button>
           </div>
-          <div class="editor__shortcuts__body">
-            <div class="editor__shortcuts__row"><kbd>Delete</kbd><span>Delete selected</span></div>
-            <div class="editor__shortcuts__row"><kbd>R</kbd><span>Rotate object</span></div>
-            <div class="editor__shortcuts__row"><kbd>L</kbd><span>Lock/unlock object</span></div>
-            <div class="editor__shortcuts__row"><kbd>Ctrl+C</kbd><span>Copy selected</span></div>
-            <div class="editor__shortcuts__row"><kbd>Ctrl+V</kbd><span>Paste objects</span></div>
-            <div class="editor__shortcuts__row"><kbd>Ctrl+L</kbd><span>Link selected objects</span></div>
-            <div class="editor__shortcuts__row"><kbd>Shift+Click</kbd><span>Add to selection</span></div>
-            <div class="editor__shortcuts__row"><kbd>Arrow Keys</kbd><span>Move selected by 1 tile</span></div>
-            <div class="editor__shortcuts__row"><kbd>Space+Drag</kbd><span>Pan canvas</span></div>
-            <div class="editor__shortcuts__row"><kbd>Ctrl+0</kbd><span>Fit to screen</span></div>
-            <div class="editor__shortcuts__row"><kbd>+/-</kbd><span>Zoom in/out</span></div>
-            <div class="editor__shortcuts__row"><kbd>Esc</kbd><span>Deselect / cancel drag</span></div>
+          <div class="editor__settings__body">
+            <div class="editor__settings__section">
+              <div class="editor__settings__section_title">Canvas Size</div>
+              <div class="editor__settings__row">
+                <label>Width</label>
+                <input class="input" type="number" v-model.number="widthInput" min="100" step="25" />
+              </div>
+              <div class="editor__settings__row">
+                <label>Height</label>
+                <input class="input" type="number" v-model.number="heightInput" min="100" step="25" />
+              </div>
+              <div class="editor__settings__row">
+                <label>Tile Size</label>
+                <input class="input" type="number" v-model.number="tileInput" min="5" step="5" />
+              </div>
+              <button class="btn btn__primary btn__block" :disabled="pending" @click="applyCanvasSize">Apply</button>
+              <div class="editor__settings__hint">Changing canvas size will re-snap all rooms/objects to the new grid.</div>
+            </div>
+            <div class="editor__settings__section">
+              <div class="editor__settings__section_title">Keyboard Shortcuts</div>
+              <div class="editor__settings__shortcuts">
+                <div class="editor__settings__shortcut_row"><kbd>Delete</kbd><span>Delete selected</span></div>
+                <div class="editor__settings__shortcut_row"><kbd>R</kbd><span>Rotate object</span></div>
+                <div class="editor__settings__shortcut_row"><kbd>L</kbd><span>Lock/unlock object</span></div>
+                <div class="editor__settings__shortcut_row"><kbd>Ctrl+C</kbd><span>Copy selected</span></div>
+                <div class="editor__settings__shortcut_row"><kbd>Ctrl+V</kbd><span>Paste objects</span></div>
+                <div class="editor__settings__shortcut_row"><kbd>Ctrl+L</kbd><span>Link selected objects</span></div>
+                <div class="editor__settings__shortcut_row"><kbd>Shift+Click</kbd><span>Add to selection</span></div>
+                <div class="editor__settings__shortcut_row"><kbd>Arrow Keys</kbd><span>Move selected by 1 tile</span></div>
+                <div class="editor__settings__shortcut_row"><kbd>Space+Drag</kbd><span>Pan canvas</span></div>
+                <div class="editor__settings__shortcut_row"><kbd>Ctrl+0</kbd><span>Fit to screen</span></div>
+                <div class="editor__settings__shortcut_row"><kbd>+/-</kbd><span>Zoom in/out</span></div>
+                <div class="editor__settings__shortcut_row"><kbd>Esc</kbd><span>Deselect / cancel drag</span></div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -244,37 +254,6 @@ async function onClearAll() {
   flex-wrap: wrap;
 }
 
-.editor__toolbar__field {
-  display: flex;
-  align-items: center;
-  gap: var(--gap-xs);
-  font-size: var(--font-sm);
-  color: var(--text-primary);
-}
-
-.editor__toolbar__field span {
-  font-size: var(--font-xs);
-  color: var(--text-primary);
-  opacity: 0.7;
-}
-
-.editor__toolbar__field input {
-  width: 48px;
-  background: var(--bg-primary);
-  border: 1px solid var(--border-dim);
-  color: var(--text-primary);
-  padding: 3px var(--gap-xs);
-  border-radius: var(--radius-sm);
-  font-size: var(--font-xs);
-  transition: border-color var(--duration-fast) ease-out;
-}
-
-.editor__toolbar__field input:focus {
-  outline: none;
-  border-color: var(--accent-gold);
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent-gold) 15%, transparent);
-}
-
 .editor__toolbar__npc__counter,
 .editor__toolbar__npc__role__count {
   padding: var(--gap-xs) var(--gap-sm);
@@ -306,7 +285,7 @@ async function onClearAll() {
   font-weight: 500;
 }
 
-.editor__shortcuts__overlay {
+.editor__settings__overlay {
   position: fixed;
   inset: 0;
   z-index: 200;
@@ -316,8 +295,8 @@ async function onClearAll() {
   background: color-mix(in srgb, var(--bg-primary) 60%, transparent);
 }
 
-.editor__shortcuts__panel {
-  width: min(360px, calc(100vw - 32px));
+.editor__settings__panel {
+  width: min(380px, calc(100vw - 32px));
   background: var(--bg-secondary);
   border: 1px solid var(--border-dim);
   border-radius: var(--radius-md);
@@ -325,7 +304,7 @@ async function onClearAll() {
   box-shadow: 0 8px 32px color-mix(in srgb, var(--bg-primary) 50%, transparent);
 }
 
-.editor__shortcuts__header {
+.editor__settings__header {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -336,23 +315,80 @@ async function onClearAll() {
   font-size: var(--font-md);
 }
 
-.editor__shortcuts__body {
+.editor__settings__body {
   padding: var(--gap-md);
   display: flex;
   flex-direction: column;
-  gap: var(--gap-xs);
-  max-height: 60vh;
+  gap: var(--gap-md);
+  max-height: 70vh;
   overflow-y: auto;
 }
 
-.editor__shortcuts__row {
+.editor__settings__section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-sm);
+}
+
+.editor__settings__section_title {
+  font-size: var(--font-xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-primary);
+  opacity: 0.7;
+}
+
+.editor__settings__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--gap-sm);
+  font-size: var(--font-sm);
+}
+
+.editor__settings__row label {
+  min-width: 70px;
+  color: var(--text-primary);
+}
+
+.editor__settings__row input {
+  flex: 1;
+  min-width: 0;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-dim);
+  color: var(--text-primary);
+  padding: var(--gap-xs) var(--gap-sm);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-sm);
+}
+
+.editor__settings__row input:focus {
+  outline: none;
+  border-color: var(--accent-gold);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent-gold) 15%, transparent);
+}
+
+.editor__settings__hint {
+  font-size: var(--font-xs);
+  color: var(--text-dim);
+  line-height: 1.4;
+}
+
+.editor__settings__shortcuts {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-xs);
+}
+
+.editor__settings__shortcut_row {
   display: flex;
   align-items: center;
   gap: var(--gap-md);
   font-size: var(--font-sm);
 }
 
-.editor__shortcuts__row kbd {
+.editor__settings__shortcut_row kbd {
   display: inline-block;
   min-width: 100px;
   padding: 2px var(--gap-sm);
@@ -365,7 +401,7 @@ async function onClearAll() {
   text-align: center;
 }
 
-.editor__shortcuts__row span {
+.editor__settings__shortcut_row span {
   color: var(--text-secondary);
 }
 </style>

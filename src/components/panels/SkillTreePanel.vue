@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, watch } from 'vue'
-import { gameState } from '@/engine/game-state'
-import { upgradeSkill, canUpgradeSkill, getSkillLevel } from '@/engine/skill-manager'
+import { gameState } from '@/engine/gameState'
+import { upgradeSkill, canUpgradeSkill, getSkillLevel } from '@/engine/skillManager'
 import { SKILL_MAX_LEVEL, getBranchNodes } from '@/data/skills'
 import { formatNumber } from '@/engine/format'
-import { eventBus } from '@/engine/event-bus'
+import { eventBus } from '@/engine/eventBus'
 import type { SkillTreeState } from '@/types'
 
 const props = defineProps<{ visible: boolean }>()
@@ -72,30 +72,30 @@ watch(() => props.visible, (v) => { if (v) update() })
 </script>
 
 <template>
-  <div v-if="visible" class="game-panel" @click.self="emit('close')">
-    <div class="game-panel__content" role="dialog" aria-modal="true" aria-labelledby="panel-title-skills">
-      <h2 id="panel-title-skills" class="game-panel__title">Skill Tree</h2>
-      <div class="skill-tree__favor">Table Favor: {{ formatNumber(favor) }}</div>
+  <div v-if="visible" class="game_panel" @click.self="emit('close')">
+    <div class="game_panel__content" role="dialog" aria-modal="true" aria-labelledby="panel_title_skills">
+      <h2 id="panel_title_skills" class="game_panel__title">Skill Tree</h2>
+      <div class="skill_tree__favor">Table Favor: {{ formatNumber(favor) }}</div>
 
-      <div v-for="branch in branches" :key="branch.key" class="skill-branch">
-        <div class="section-header">{{ branch.name }} — Lv.{{ branch.level }}/{{ SKILL_MAX_LEVEL }}</div>
-        <div v-for="node in branch.nodes" :key="node.level" class="skill-node">
-          <div class="skill-node__info">
-            <div class="skill-node__name" :class="{ 'skill-node__name--unlocked': node.unlocked }">
+      <div v-for="branch in branches" :key="branch.key" class="skill_branch">
+        <div class="section_header">{{ branch.name }} — Lv.{{ branch.level }}/{{ SKILL_MAX_LEVEL }}</div>
+        <div v-for="node in branch.nodes" :key="node.level" class="skill_node">
+          <div class="skill_node__info">
+            <div class="skill_node__name" :class="{ 'skill_node__name__unlocked': node.unlocked }">
               {{ node.unlocked ? '✓' : '○' }} {{ node.name }}
             </div>
-            <div class="skill-node__desc">{{ node.description }}</div>
+            <div class="skill_node__desc">{{ node.description }}</div>
           </div>
           <button
             v-if="!node.unlocked && node.canUpgrade"
-            class="skill-node__btn"
+            class="skill_node__btn"
             @click="doUpgrade(branch.key)"
           >{{ node.favorCost }} F</button>
-          <span v-else-if="!node.unlocked" class="skill-node__cost-locked">{{ node.favorCost }} F</span>
+          <span v-else-if="!node.unlocked" class="skill_node__cost_locked">{{ node.favorCost }} F</span>
         </div>
       </div>
 
-      <button class="game-panel__close" @click="emit('close')">Close</button>
+      <button class="game_panel__close" @click="emit('close')">Close</button>
     </div>
   </div>
 </template>

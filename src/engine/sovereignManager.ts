@@ -1,9 +1,9 @@
-import { gameState } from './game-state'
-import { eventBus } from './event-bus'
+import { gameState } from './gameState'
+import { eventBus } from './eventBus'
 import { BRANCHES } from '@/data/branches'
-import { rollDecrees } from '@/data/royal-decrees'
+import { rollDecrees } from '@/data/royalDecrees'
 import type { RoyalDecree } from '@/types'
-import type { RoyalDecreeTemplate } from '@/data/royal-decrees'
+import type { RoyalDecreeTemplate } from '@/data/royalDecrees'
 
 const DECREE_COOLDOWN = 24 * 3600 * 1000 // 24h in ms
 const SANDBOX_LOOP_COOLDOWN = 3600 * 1000 // 1h in ms

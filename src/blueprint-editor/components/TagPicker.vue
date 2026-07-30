@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { useAssetsStore } from '../blueprint-store'
+import { useAssetsStore } from '../blueprintStore'
 
 const props = withDefaults(defineProps<{
   modelValue: string[]

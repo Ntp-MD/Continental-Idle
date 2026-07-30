@@ -3,12 +3,12 @@ import { BUILDINGS, BUILDING_MAP, BUILDING_INCOME_GROWTH } from '@/data/building
 import { STAFF_MAP } from '@/data/staff'
 import { getTraitMultiplier } from '@/data/traits'
 import { getChefAllBuildingBonus, getConciergePassiveBonus, getBartenderFreezeImmune } from './abilities'
-import { hasEnforcer } from './assassin-manager'
-import { getTotalIncomeMult } from './skill-manager'
-import { getRoyalBuildingsIncome, getRoyalIncomeMult, getSovereignBuffMult } from './royal-manager'
-import { sovereignManager } from './sovereign-manager'
-import { gameState } from './game-state'
-import { eventBus } from './event-bus'
+import { hasEnforcer } from './assassinManager'
+import { getTotalIncomeMult } from './skillManager'
+import { getRoyalBuildingsIncome, getRoyalIncomeMult, getSovereignBuffMult } from './royalManager'
+import { sovereignManager } from './sovereignManager'
+import { gameState } from './gameState'
+import { eventBus } from './eventBus'
 
 let _suppressUIEvents = false
 

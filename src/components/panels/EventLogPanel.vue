@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
-import { gameState } from '@/engine/game-state'
+import { gameState } from '@/engine/gameState'
 import { getBranchDef } from '@/data/branches'
 import { EVENTS } from '@/data/events'
-import { eventBus } from '@/engine/event-bus'
+import { eventBus } from '@/engine/eventBus'
 
 interface LogEntry {
   id: string
@@ -101,26 +101,26 @@ watch(() => props.visible, (v) => { if (v) update() })
 </script>
 
 <template>
-  <div v-if="visible" class="game-panel" @click.self="emit('close')">
-    <div class="game-panel__content" role="dialog" aria-modal="true" aria-labelledby="panel-title-eventlog">
-      <h2 id="panel-title-eventlog" class="game-panel__title">Event History</h2>
-      <div class="event-log__filters">
-        <button class="event-log__filter" :class="{ 'event-log__filter--active': filter === 'all' }" @click="filter = 'all'">All</button>
-        <button class="event-log__filter" :class="{ 'event-log__filter--active': filter === 'resolved' }" @click="filter = 'resolved'">Resolved</button>
-        <button class="event-log__filter" :class="{ 'event-log__filter--active': filter === 'ignored' }" @click="filter = 'ignored'">Ignored</button>
-        <button class="event-log__filter" :class="{ 'event-log__filter--active': filter === 'ai' }" @click="filter = 'ai'">AI Events</button>
+  <div v-if="visible" class="game_panel" @click.self="emit('close')">
+    <div class="game_panel__content" role="dialog" aria-modal="true" aria-labelledby="panel_title_eventlog">
+      <h2 id="panel_title_eventlog" class="game_panel__title">Event History</h2>
+      <div class="event_log__filters">
+        <button class="event_log__filter" :class="{ 'event_log__filter__active': filter === 'all' }" @click="filter = 'all'">All</button>
+        <button class="event_log__filter" :class="{ 'event_log__filter__active': filter === 'resolved' }" @click="filter = 'resolved'">Resolved</button>
+        <button class="event_log__filter" :class="{ 'event_log__filter__active': filter === 'ignored' }" @click="filter = 'ignored'">Ignored</button>
+        <button class="event_log__filter" :class="{ 'event_log__filter__active': filter === 'ai' }" @click="filter = 'ai'">AI Events</button>
       </div>
-      <div class="event-log">
-        <div v-if="filteredEntries.length === 0" class="event-log__empty">No events recorded yet</div>
-        <div v-for="e in filteredEntries" :key="e.id" class="event-log__row" :class="e.outcome === 'ignored' ? 'event-log__row--ignored' : ''">
-          <span class="event-log__time">{{ e.time }}</span>
-          <span class="event-log__branch">{{ e.branchName }}</span>
-          <span class="event-log__name">{{ e.eventName }}</span>
-          <span class="event-log__choice">{{ e.choice }}</span>
-          <span class="event-log__outcome" :class="e.outcome === 'ignored' ? 'event-log__outcome--ignored' : 'event-log__outcome--resolved'">{{ e.outcome }}</span>
+      <div class="event_log">
+        <div v-if="filteredEntries.length === 0" class="event_log__empty">No events recorded yet</div>
+        <div v-for="e in filteredEntries" :key="e.id" class="event_log__row" :class="e.outcome === 'ignored' ? 'event_log__row__ignored' : ''">
+          <span class="event_log__time">{{ e.time }}</span>
+          <span class="event_log__branch">{{ e.branchName }}</span>
+          <span class="event_log__name">{{ e.eventName }}</span>
+          <span class="event_log__choice">{{ e.choice }}</span>
+          <span class="event_log__outcome" :class="e.outcome === 'ignored' ? 'event_log__outcome__ignored' : 'event_log__outcome__resolved'">{{ e.outcome }}</span>
         </div>
       </div>
-      <button class="game-panel__close" @click="emit('close')" aria-label="Close event history panel">?</button>
+      <button class="game_panel__close" @click="emit('close')" aria-label="Close event history panel">?</button>
     </div>
   </div>
 </template>

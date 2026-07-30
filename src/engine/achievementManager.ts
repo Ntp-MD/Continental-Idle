@@ -1,5 +1,5 @@
-import { gameState } from './game-state'
-import { eventBus } from './event-bus'
+import { gameState } from './gameState'
+import { eventBus } from './eventBus'
 import { ACHIEVEMENTS, ACHIEVEMENT_MAP } from '@/data/achievements'
 import type { AchievementDefinition } from '@/data/achievements'
 

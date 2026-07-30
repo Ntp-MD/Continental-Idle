@@ -208,52 +208,52 @@ label {
 		font-size: 13px;
 	}
 
-	.building-card__buy {
+	.building_card__buy {
 		min-height: 44px;
 		padding: var(--gap-sm) var(--gap-md);
 	}
 
-	.buy-multiplier__btn {
+	.buy_multiplier__btn {
 		min-height: 44px;
 	}
 
-	.world-map__btn {
+	.world_map__btn {
 		min-height: 44px;
 		min-width: 44px;
 		padding: var(--gap-xs) var(--gap-sm);
 	}
 
-	.game-map-actions__btn {
+	.game_map_actions__btn {
 		min-height: 44px;
 		padding: var(--gap-sm) var(--gap-md);
 	}
 
-	.skill-node__btn {
+	.skill_node__btn {
 		min-height: 36px;
 		padding: var(--gap-xs) var(--gap-sm);
 	}
 
-	.staff-hire__btn {
+	.staff_hire__btn {
 		min-height: 40px;
 		padding: var(--gap-xs) var(--gap-sm);
 	}
 
-	.ach-cat-btn {
+	.ach_cat_btn {
 		min-height: 40px;
 		padding: var(--gap-xs) var(--gap-sm);
 	}
 
-	.royal-tab-btn {
+	.royal_tab_btn {
 		min-height: 40px;
 		padding: var(--gap-xs) var(--gap-sm);
 	}
 
-	.tutorial-overlay__btn {
+	.tutorial_overlay__btn {
 		min-height: 44px;
 		padding: var(--gap-sm) var(--gap-md);
 	}
 
-	.sov-decree-card {
+	.sov_decree_card {
 		min-height: 44px;
 	}
 }

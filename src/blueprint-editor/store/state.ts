@@ -1,8 +1,8 @@
 import { reactive, computed } from 'vue'
 import type { LayoutData, AssetDef, FloorData, EditorMode, SelectionState, Rect } from '../types'
-import { buildAssetMap, parseSvgRoles, buildWalkableGrid } from '../asset-utils'
+import { buildAssetMap, parseSvgRoles, buildWalkableGrid } from '../assetUtils'
 import { snap as _snap, clamp as _clamp } from '../geometry'
-import { ASSET_REGISTRY } from '../asset-registry'
+import { ASSET_REGISTRY } from '../assetRegistry'
 import { useToast } from '../composables/useToast'
 import { loadInitial, mergeAssetRegistry } from './migrate'
 

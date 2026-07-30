@@ -1,13 +1,13 @@
 import type { LayoutData, RoomData, ObjectData, AssetBase, AssetDef, LinkedPart, Rotation, RoomTemplate, RoomTemplateObject, TileState, NpcSimulationConfig, LegacyNpcSimulationConfig, NpcRole, NpcTask, NpcDeploymentPool } from '../types'
 import { isAssetDef, validateLayoutData, validateLayoutIntegrity, isNpcConfig } from '../types'
-import { findAssetCached, buildAssetMap } from '../asset-utils'
+import { findAssetCached, buildAssetMap } from '../assetUtils'
 import { normalizeObject, snap } from '../geometry'
 import { recalcCollapsed } from '../collision'
-import { EDITOR_CONFIG } from '../editor-config'
-import { ASSET_REGISTRY } from '../asset-registry'
+import { EDITOR_CONFIG } from '../editorConfig'
+import { ASSET_REGISTRY } from '../assetRegistry'
 import { editorLog } from './log'
 import { genId } from './ids'
-import { getDefaultNpcConfig } from './npc-default'
+import { getDefaultNpcConfig } from './npcDefault'
 
 export { EDITOR_CONFIG }
 export const LAYOUT_VERSION = EDITOR_CONFIG.layoutVersion

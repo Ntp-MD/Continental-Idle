@@ -4,14 +4,14 @@ import { STAFF_TYPES } from '@/data/staff'
 import { ASSASSIN_TYPES } from '@/data/assassins'
 import { SKILL_NODES } from '@/data/skills'
 import { EVENTS } from '@/data/events'
-import { SUPPLY_ROUTE_TYPES } from '@/data/supply-routes'
-import { AI_TEMPERAMENTS } from '@/data/ai-owners'
+import { SUPPLY_ROUTE_TYPES } from '@/data/supplyRoutes'
+import { AI_TEMPERAMENTS } from '@/data/aiOwners'
 import { TRAIT_EFFECTS } from '@/data/traits'
-import { UPGRADES } from '@/engine/upgrade-manager'
+import { UPGRADES } from '@/engine/upgradeManager'
 import { ACHIEVEMENTS } from '@/data/achievements'
-import { ROYAL_BUILDINGS } from '@/data/royal-buildings'
-import { ROYAL_SKILL_NODES } from '@/data/royal-skills'
-import { DECREE_POOL } from '@/data/royal-decrees'
+import { ROYAL_BUILDINGS } from '@/data/royalBuildings'
+import { ROYAL_SKILL_NODES } from '@/data/royalSkills'
+import { DECREE_POOL } from '@/data/royalDecrees'
 
 export interface WikiSection {
   id: string
@@ -655,7 +655,7 @@ export const wikiSections: WikiSection[] = [
     ]
   },
   {
-    id: 'supply-routes',
+    id: 'supplyRoutes',
     title: 'Underworld Supply Routes',
     content: [
       {
@@ -1109,7 +1109,7 @@ export const wikiSections: WikiSection[] = [
     ]
   },
   {
-    id: 'royal-buildings',
+    id: 'royalBuildings',
     title: 'Royal Buildings',
     content: [
       {

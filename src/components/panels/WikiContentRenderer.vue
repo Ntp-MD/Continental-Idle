@@ -58,7 +58,7 @@ function splitBold(text: string): TextSegment[] {
     </li>
   </ol>
   
-  <table v-else-if="content.type === 'table'" class="wiki-table">
+  <table v-else-if="content.type === 'table'" class="wiki_table">
     <thead>
       <tr>
         <th v-for="(header, idx) in content.headers" :key="idx">{{ header }}</th>
@@ -71,7 +71,7 @@ function splitBold(text: string): TextSegment[] {
     </tbody>
   </table>
   
-  <div v-else-if="content.type === 'info-box'" class="wiki-info">
+  <div v-else-if="content.type === 'info-box'" class="wiki_info">
     <h4>{{ content.title }}</h4>
     <ul>
       <li v-for="(item, idx) in content.content" :key="idx">
@@ -83,7 +83,7 @@ function splitBold(text: string): TextSegment[] {
     </ul>
   </div>
   
-  <div v-else-if="content.type === 'warning-box'" class="wiki-warning">
+  <div v-else-if="content.type === 'warning-box'" class="wiki_warning">
     <h4>{{ content.title }}</h4>
     <ul>
       <li v-for="(item, idx) in content.content" :key="idx">
@@ -99,48 +99,48 @@ function splitBold(text: string): TextSegment[] {
 </template>
 
 <style scoped>
-.wiki-table {
+.wiki_table {
   width: 100%;
   border-collapse: collapse;
   margin: var(--gap-md) 0;
 }
 
-.wiki-table th,
-.wiki-table td {
+.wiki_table th,
+.wiki_table td {
   border: 1px solid var(--text-primary);
   padding: var(--gap-sm);
   text-align: left;
 }
 
-.wiki-table th {
+.wiki_table th {
   background-color: var(--bg-card);
   color: var(--accent-gold);
 }
 
-.wiki-table tr:hover {
+.wiki_table tr:hover {
   background-color: var(--bg-card);
 }
 
-.wiki-info {
+.wiki_info {
   border: 1px solid var(--wiki-blue);
   padding: var(--gap-md);
   margin: var(--gap-md) 0;
   background-color: var(--wiki-blue-bg);
 }
 
-.wiki-info h4 {
+.wiki_info h4 {
   color: var(--wiki-blue);
   margin-bottom: var(--gap-sm);
 }
 
-.wiki-warning {
+.wiki_warning {
   border: 1px solid var(--wiki-red);
   padding: var(--gap-md);
   margin: var(--gap-md) 0;
   background-color: var(--wiki-red-bg);
 }
 
-.wiki-warning h4 {
+.wiki_warning h4 {
   color: var(--wiki-red);
   margin-bottom: var(--gap-sm);
 }

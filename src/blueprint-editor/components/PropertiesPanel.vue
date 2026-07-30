@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { useAssetsStore } from '../blueprint-store'
+import { useAssetsStore } from '../blueprintStore'
 import { useToast } from '../composables/useToast'
-import RoomPropertiesForm from './RoomPropertiesForm.vue'
-import ObjectPropertiesForm from './ObjectPropertiesForm.vue'
-import AssetPropertiesForm from './AssetPropertiesForm.vue'
-import TagPicker from './TagPicker.vue'
-import TagManagerModal from './TagManagerModal.vue'
+import RoomPropertiesForm from './roomPropertiesForm.vue'
+import ObjectPropertiesForm from './objectPropertiesForm.vue'
+import AssetPropertiesForm from './assetPropertiesForm.vue'
+import TagPicker from './tagPicker.vue'
+import TagManagerModal from './tagManagerModal.vue'
 
 const store = useAssetsStore()
 
@@ -108,59 +108,59 @@ async function updateZoneTags(id: string, tags: string[]) {
 </script>
 
 <template>
-  <div class="properties-panel">
-    <div class="properties-panel__header">
+  <div class="properties_panel">
+    <div class="properties_panel__header">
       <span>Properties</span>
-      <span class="properties-panel__floor-context">{{ store.currentFloor.value?.label ?? '—' }} · {{ store.currentFloor.value?.name ?? '' }}</span>
+      <span class="properties_panel__floor_context">{{ store.currentFloor.value?.label ?? '—' }} · {{ store.currentFloor.value?.name ?? '' }}</span>
     </div>
 
-    <div v-if="!room && !object && !asset && store.state.selectionState.items.length === 0" class="properties-panel__content">
-      <div class="properties-panel__section">
-        <div class="properties-panel__section-title">Properties</div>
-        <div class="properties-panel__empty">Select a room, object, or asset to edit properties.</div>
-        <div class="properties-panel__empty-hint">Click an asset in the palette to edit its definition. Click an object on the canvas to edit instance properties.</div>
-        <button class="btn btn-sm" @click="showTagManager = true">Manage Tags</button>
+    <div v-if="!room && !object && !asset && store.state.selectionState.items.length === 0" class="properties_panel__content">
+      <div class="properties_panel__section">
+        <div class="properties_panel__section_title">Properties</div>
+        <div class="properties_panel__empty">Select a room, object, or asset to edit properties.</div>
+        <div class="properties_panel__empty_hint">Click an asset in the palette to edit its definition. Click an object on the canvas to edit instance properties.</div>
+        <button class="btn btn_sm" @click="showTagManager = true">Manage Tags</button>
       </div>
-      <div class="properties-panel__section">
-        <div class="properties-panel__section-title">Zones</div>
+      <div class="properties_panel__section">
+        <div class="properties_panel__section_title">Zones</div>
         <button class="btn" @click="showZoneManager = !showZoneManager">{{ showZoneManager ? 'Close' : 'Manage Zones' }}</button>
-        <div v-if="showZoneManager" class="properties-panel__cat-manager">
-          <div v-for="zone in zones" :key="zone.id" class="properties-panel__zone-row">
-            <div class="properties-panel__cat-row">
+        <div v-if="showZoneManager" class="properties_panel__cat_manager">
+          <div v-for="zone in zones" :key="zone.id" class="properties_panel__zone_row">
+            <div class="properties_panel__cat_row">
               <input type="color" :value="zone.color" @change="updateZoneColor(zone.id, ($event.target as HTMLInputElement).value)" class="input input__color" />
               <input type="text" :value="zone.label" @change="updateZoneLabel(zone.id, ($event.target as HTMLInputElement).value)" class="input" />
-              <button class="btn btn__danger btn-sm" @click="deleteZone(zone.id)">×</button>
+              <button class="btn btn__danger btn_sm" @click="deleteZone(zone.id)">×</button>
             </div>
-            <div class="properties-panel__zone-pos">
+            <div class="properties_panel__zone_pos">
               <label title="Position X">X</label>
               <input class="input" type="number" title="Position X" :value="zone.x" @change="updateZoneX(zone.id, +($event.target as HTMLInputElement).value)" />
               <label title="Position Y">Y</label>
               <input class="input" type="number" title="Position Y" :value="zone.y" @change="updateZoneY(zone.id, +($event.target as HTMLInputElement).value)" />
             </div>
-            <div class="properties-panel__row">
+            <div class="properties_panel__row">
               <label title="NPC role tags">NPC Tags</label>
               <TagPicker :model-value="zone.tags ?? []" @update:model-value="updateZoneTags(zone.id, $event)" placeholder="rest, service, target" />
             </div>
-            <div class="properties-panel__zone-pos">
+            <div class="properties_panel__zone_pos">
               <label title="Width">W</label>
               <input class="input" type="number" title="Width" :value="zone.w" @change="updateZoneW(zone.id, +($event.target as HTMLInputElement).value)" />
               <label title="Height">H</label>
               <input class="input" type="number" title="Height" :value="zone.h" @change="updateZoneH(zone.id, +($event.target as HTMLInputElement).value)" />
             </div>
           </div>
-          <div class="properties-panel__cat-add">
+          <div class="properties_panel__cat_add">
             <input type="text" v-model="newZoneLabel" placeholder="Zone label" class="input" />
             <input type="color" v-model="newZoneColor" class="input input__color" />
           </div>
-          <div class="properties-panel__row">
+          <div class="properties_panel__row">
             <label>NPC Tags</label>
             <TagPicker v-model="newZoneTags" placeholder="rest, service, target" />
           </div>
-          <div class="properties-panel__row">
+          <div class="properties_panel__row">
             <label title="Width">W</label>
             <input class="input" type="number" min="25" step="25" title="Width" v-model.number="newZoneW" />
           </div>
-          <div class="properties-panel__row">
+          <div class="properties_panel__row">
             <label title="Height">H</label>
             <input class="input" type="number" min="25" step="25" title="Height" v-model.number="newZoneH" />
           </div>
@@ -170,32 +170,32 @@ async function updateZoneTags(id: string, tags: string[]) {
     </div>
 
     <!-- Multi-selection -->
-    <div v-if="store.state.selectionState.items.length >= 2" class="properties-panel__content">
-      <div class="properties-panel__section">
-        <div class="properties-panel__section-title">
+    <div v-if="store.state.selectionState.items.length >= 2" class="properties_panel__content">
+      <div class="properties_panel__section">
+        <div class="properties_panel__section_title">
           {{ store.state.selectionState.items.some(i => i.type === 'room') ? `${store.state.selectionState.items.filter(i => i.type === 'object').length} object(s) + room` : `${store.state.selectionState.items.length} objects selected` }}
         </div>
-        <div class="properties-panel__row">
+        <div class="properties_panel__row">
           <label>Tip</label>
-          <span class="properties-panel__value">Shift+click to add/remove</span>
+          <span class="properties_panel__value">Shift+click to add/remove</span>
         </div>
-        <div class="properties-panel__btn-group">
+        <div class="properties_panel__btn_group">
           <button v-if="store.state.selectionState.items.some(i => i.type === 'room')" class="btn" @click="doLink">Link to Room</button>
           <button v-if="store.state.selectionState.items.some(i => i.type === 'room')" class="btn" @click="doLinkAllInRoom">Link All in Room</button>
           <button v-else class="btn" @click="doLink">Link Objects</button>
         </div>
       </div>
-      <div class="properties-panel__section">
-        <div class="properties-panel__section-title">Save as Linked Set</div>
-        <div class="properties-panel__row">
+      <div class="properties_panel__section">
+        <div class="properties_panel__section_title">Save as Linked Set</div>
+        <div class="properties_panel__row">
           <label>Name</label>
           <input class="input" type="text" v-model="linkedName" placeholder="e.g. Table + Chairs" />
         </div>
         <button class="btn" @click="doCreateLinked">Save as Linked Asset</button>
       </div>
-      <div class="properties-panel__section">
-        <div class="properties-panel__section-title">Flatten to Single Asset</div>
-        <div class="properties-panel__row">
+      <div class="properties_panel__section">
+        <div class="properties_panel__section_title">Flatten to Single Asset</div>
+        <div class="properties_panel__row">
           <label>Name</label>
           <input class="input" type="text" v-model="flattenName" placeholder="e.g. Table + Chairs" />
         </div>
@@ -217,7 +217,7 @@ async function updateZoneTags(id: string, tags: string[]) {
 </template>
 
 <style scoped>
-.properties-panel {
+.properties_panel {
   width: 100%;
   max-width: 350px;
   min-width: 0;
@@ -230,7 +230,7 @@ async function updateZoneTags(id: string, tags: string[]) {
   box-shadow: -4px 0 24px color-mix(in srgb, var(--bg-primary) 20%, transparent);
 }
 
-.properties-panel__header {
+.properties_panel__header {
   padding: var(--gap-md);
   font-weight: 700;
   font-size: var(--font-md);
@@ -245,7 +245,7 @@ async function updateZoneTags(id: string, tags: string[]) {
   flex-shrink: 0;
 }
 
-.properties-panel__floor-context {
+.properties_panel__floor_context {
   font-size: var(--font-xs);
   font-weight: 400;
   letter-spacing: 0;
@@ -256,7 +256,7 @@ async function updateZoneTags(id: string, tags: string[]) {
   min-width: 0;
 }
 
-.properties-panel__empty {
+.properties_panel__empty {
   padding: var(--gap-md);
   font-size: var(--font-md);
   color: var(--text-primary);
@@ -265,7 +265,7 @@ async function updateZoneTags(id: string, tags: string[]) {
   flex-shrink: 0;
 }
 
-.properties-panel__empty-hint {
+.properties_panel__empty_hint {
   font-size: var(--font-sm);
   color: var(--text-primary);
   line-height: 1.6;
@@ -274,7 +274,7 @@ async function updateZoneTags(id: string, tags: string[]) {
   text-align: center;
 }
 
-.properties-panel__row {
+.properties_panel__row {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -282,13 +282,13 @@ async function updateZoneTags(id: string, tags: string[]) {
   font-size: var(--font-sm);
 }
 
-.properties-panel__id-row {
+.properties_panel__id_row {
   display: flex;
   gap: var(--gap-sm);
 }
 
-.properties-panel__row input,
-.properties-panel__row select {
+.properties_panel__row input,
+.properties_panel__row select {
   flex: 1;
   min-width: 0;
   background: var(--bg-primary);
@@ -300,20 +300,20 @@ async function updateZoneTags(id: string, tags: string[]) {
               box-shadow var(--duration-fast) ease-out;
 }
 
-.properties-panel__row input:focus,
-.properties-panel__row select:focus {
+.properties_panel__row input:focus,
+.properties_panel__row select:focus {
   outline: none;
   border-color: var(--accent-gold);
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent-gold) 15%, transparent);
 }
 
-.properties-panel__row label {
+.properties_panel__row label {
   color: var(--text-primary);
   min-width: 60px;
 }</style>
 
 <style>
-.properties-panel__content {
+.properties_panel__content {
   padding: var(--gap-md);
   display: flex;
   flex-direction: column;
@@ -323,7 +323,7 @@ async function updateZoneTags(id: string, tags: string[]) {
   min-height: 0;
 }
 
-.properties-panel__row {
+.properties_panel__row {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -331,8 +331,8 @@ async function updateZoneTags(id: string, tags: string[]) {
   font-size: var(--font-sm);
 }
 
-.properties-panel__row input,
-.properties-panel__row select {
+.properties_panel__row input,
+.properties_panel__row select {
   flex: 1;
   min-width: 0;
   background: var(--bg-primary);
@@ -344,14 +344,14 @@ async function updateZoneTags(id: string, tags: string[]) {
               box-shadow var(--duration-fast) ease-out;
 }
 
-.properties-panel__row input:focus,
-.properties-panel__row select:focus {
+.properties_panel__row input:focus,
+.properties_panel__row select:focus {
   outline: none;
   border-color: var(--accent-gold);
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent-gold) 15%, transparent);
 }
 
-.properties-panel__row label {
+.properties_panel__row label {
   color: var(--text-primary);
   min-width: 60px;
 }</style>

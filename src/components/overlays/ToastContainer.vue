@@ -12,12 +12,12 @@ const icons: Record<string, string> = {
 </script>
 
 <template>
-  <div class="toast-container" aria-live="polite">
+  <div class="toast_container" aria-live="polite">
     <div
       v-for="t in toasts"
       :key="t.id"
       class="toast"
-      :class="`toast--${t.type}`"
+      :class="`toast__${t.type}`"
     >
       <span class="toast__icon">{{ icons[t.type] }}</span>
       <span class="toast__msg">{{ t.message }}</span>
@@ -26,7 +26,7 @@ const icons: Record<string, string> = {
 </template>
 
 <style scoped>
-.toast-container {
+.toast_container {
   position: fixed;
   top: 16px;
   right: 16px;
@@ -71,42 +71,42 @@ const icons: Record<string, string> = {
   line-height: 1.4;
 }
 
-.toast--success {
+.toast__success {
   background: rgba(22, 24, 32, 0.95);
   border-left-color: #3dd68c;
   color: #e8e8ec;
 }
-.toast--success .toast__icon {
+.toast__success .toast__icon {
   background: rgba(61, 214, 140, 0.15);
   color: #3dd68c;
 }
 
-.toast--warning {
+.toast__warning {
   background: rgba(22, 24, 32, 0.95);
   border-left-color: #f59e0b;
   color: #e8e8ec;
 }
-.toast--warning .toast__icon {
+.toast__warning .toast__icon {
   background: rgba(245, 158, 11, 0.15);
   color: #f59e0b;
 }
 
-.toast--error {
+.toast__error {
   background: rgba(22, 24, 32, 0.95);
   border-left-color: #ef4444;
   color: #e8e8ec;
 }
-.toast--error .toast__icon {
+.toast__error .toast__icon {
   background: rgba(239, 68, 68, 0.15);
   color: #ef4444;
 }
 
-.toast--info {
+.toast__info {
   background: rgba(22, 24, 32, 0.95);
   border-left-color: #6a6a74;
   color: #e8e8ec;
 }
-.toast--info .toast__icon {
+.toast__info .toast__icon {
   background: rgba(106, 106, 116, 0.15);
   color: #a0a0a8;
 }

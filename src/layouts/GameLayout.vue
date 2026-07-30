@@ -1,41 +1,45 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, defineAsyncComponent } from 'vue'
-import StartScreen from '@/components/overlays/StartScreen.vue'
-import GameHeader from '@/components/layout/GameHeader.vue'
-import WorldMap from '@/components/layout/WorldMap.vue'
-import BuildingList from '@/components/layout/BuildingList.vue'
-import EventPrompt from '@/components/overlays/EventPrompt.vue'
-import StaffPanel from '@/components/panels/StaffPanel.vue'
-import PrestigePanel from '@/components/panels/PrestigePanel.vue'
-import SkillTreePanel from '@/components/panels/SkillTreePanel.vue'
-import SettingsPanel from '@/components/panels/SettingsPanel.vue'
-import TutorialOverlay from '@/components/overlays/TutorialOverlay.vue'
-import ToastContainer from '@/components/overlays/ToastContainer.vue'
-import BuffBar from '@/components/layout/BuffBar.vue'
-import EventLogPanel from '@/components/panels/EventLogPanel.vue'
-import BlueprintPreview from '@/components/panels/BlueprintPreview.vue'
-import AutoplayPanel from '@/components/overlays/AutoplayPanel.vue'
-import SupplyRoutePanel from '@/components/panels/SupplyRoutePanel.vue'
-import PowerBalancePanel from '@/components/panels/PowerBalancePanel.vue'
-import AchievementsPanel from '@/components/panels/AchievementsPanel.vue'
-import RoyalPanel from '@/components/panels/RoyalPanel.vue'
-import SovereignPanel from '@/components/panels/SovereignPanel.vue'
-import OfflineProgress from '@/components/overlays/OfflineProgress.vue'
-import ErrorBoundary from '@/components/overlays/ErrorBoundary.vue'
+import { ref, onMounted, onUnmounted, defineAsyncComponent, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import StartScreen from '@/components/overlays/startScreen.vue'
+import GameHeader from '@/components/layout/gameHeader.vue'
+import WorldMap from '@/components/layout/worldMap.vue'
+import BuildingList from '@/components/layout/buildingList.vue'
+import EventPrompt from '@/components/overlays/eventPrompt.vue'
+import StaffPanel from '@/components/panels/staffPanel.vue'
+import PrestigePanel from '@/components/panels/prestigePanel.vue'
+import SkillTreePanel from '@/components/panels/skillTreePanel.vue'
+import SettingsPanel from '@/components/panels/settingsPanel.vue'
+import TutorialOverlay from '@/components/overlays/tutorialOverlay.vue'
+import ToastContainer from '@/components/overlays/toastContainer.vue'
+import BuffBar from '@/components/layout/buffBar.vue'
+import EventLogPanel from '@/components/panels/eventLogPanel.vue'
+import BlueprintPreview from '@/components/panels/blueprintPreview.vue'
+import AutoplayPanel from '@/components/overlays/autoplayPanel.vue'
+import SupplyRoutePanel from '@/components/panels/supplyRoutePanel.vue'
+import PowerBalancePanel from '@/components/panels/powerBalancePanel.vue'
+import AchievementsPanel from '@/components/panels/achievementsPanel.vue'
+import RoyalPanel from '@/components/panels/royalPanel.vue'
+import SovereignPanel from '@/components/panels/sovereignPanel.vue'
+import OfflineProgress from '@/components/overlays/offlineProgress.vue'
+import ErrorBoundary from '@/components/overlays/errorBoundary.vue'
 import { autoplayBot } from '@/engine/autoplay'
-import { gameState } from '@/engine/game-state'
-import { gameLoop } from '@/engine/game-loop'
-import { tutorialManager } from '@/engine/tutorial-manager'
-import { eventEngine } from '@/engine/event-engine'
-import { eventBus } from '@/engine/event-bus'
+import { gameState } from '@/engine/gameState'
+import { gameLoop } from '@/engine/gameLoop'
+import { tutorialManager } from '@/engine/tutorialManager'
+import { eventEngine } from '@/engine/eventEngine'
+import { eventBus } from '@/engine/eventBus'
 import { useToast } from '@/composables/useToast'
 import { formatNumber } from '@/engine/format'
 import { getBranchDef } from '@/data/branches'
-const HQOfficeView = defineAsyncComponent(() => import('@/components/overlays/HQOfficeView.vue'))
-const Wiki = defineAsyncComponent(() => import('@/components/panels/Wiki.vue'))
+const HQOfficeView = defineAsyncComponent(() => import('@/components/overlays/hqOfficeView.vue'))
+const Wiki = defineAsyncComponent(() => import('@/components/panels/wiki.vue'))
+const BlueprintEditor = defineAsyncComponent(() => import('@/blueprint-editor/blueprintEditor.vue'))
 import type { BranchId } from '@/types'
 
 const toast = useToast()
+const route = useRoute()
+const router = useRouter()
 
 const gameStarted = ref(false)
 const showStaff = ref(false)
@@ -53,6 +57,7 @@ const showPowerBalance = ref(false)
 const showAchievements = ref(false)
 const showRoyal = ref(false)
 const showSovereign = ref(false)
+const showEditor = ref(route.name === 'editor')
 const mapTab = ref<'world' | 'hq'>('world')
 const hasRoyalBranches = ref(false)
 
@@ -99,16 +104,30 @@ function openWiki() {
   showWiki.value = true
 }
 
+function openEditor() {
+  showEditor.value = true
+  router.push({ name: 'editor' })
+}
+
+function closeEditor() {
+  showEditor.value = false
+  router.push({ name: 'game' })
+}
+
+watch(() => route.name, (name) => {
+  showEditor.value = name === 'editor'
+})
+
 function applySettings() {
   const s = gameState.get().settings
   const root = document.documentElement
   root.style.setProperty('--font-scale', String(s.fontScale))
-  root.classList.toggle('high-contrast', s.highContrast)
-  root.classList.toggle('reduced-motion', s.reducedMotion)
-  root.classList.toggle('one-hand-mode', s.oneHandMode)
-  root.classList.remove('cb-deuteranopia', 'cb-protanopia', 'cb-tritanopia')
+  root.classList.toggle('high_contrast', s.highContrast)
+  root.classList.toggle('reduced_motion', s.reducedMotion)
+  root.classList.toggle('one_hand_mode', s.oneHandMode)
+  root.classList.remove('cb_deuteranopia', 'cb_protanopia', 'cb_tritanopia')
   const validModes = ['deuteranopia', 'protanopia', 'tritanopia']
-  if (s.colorBlindMode !== 'none' && validModes.includes(s.colorBlindMode)) root.classList.add(`cb-${s.colorBlindMode}`)
+  if (s.colorBlindMode !== 'none' && validModes.includes(s.colorBlindMode)) root.classList.add(`cb_${s.colorBlindMode}`)
 }
 
 function doSave() {
@@ -171,9 +190,10 @@ function handleKeydown(e: KeyboardEvent) {
     if (showAchievements.value) { showAchievements.value = false; return }
     if (showRoyal.value) { showRoyal.value = false; return }
     if (showSovereign.value) { showSovereign.value = false; return }
+    if (showEditor.value) { showEditor.value = false; return }
     if (showAutoplay.value) { showAutoplay.value = false; return }
   }
-  if (showSaveMenu.value && !((e.target as HTMLElement)?.closest('.game-map-actions__save-wrap'))) {
+  if (showSaveMenu.value && !((e.target as HTMLElement)?.closest('.game_map_actions__save_wrap'))) {
     showSaveMenu.value = false
   }
 }
@@ -324,7 +344,7 @@ function handleHQOfficeView() {
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 function handleOutsideClick(e: MouseEvent) {
-  if (showSaveMenu.value && !((e.target as HTMLElement)?.closest('.game-map-actions__save-wrap'))) {
+  if (showSaveMenu.value && !((e.target as HTMLElement)?.closest('.game_map_actions__save_wrap'))) {
     showSaveMenu.value = false
   }
 }
@@ -359,53 +379,55 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <StartScreen v-if="!gameStarted" @start="onStart" @quick-start="onQuickStart" />
+  <StartScreen v-if="!gameStarted && route.name !== 'editor'" @start="onStart" @quick-start="onQuickStart" />
+  <BlueprintEditor v-else-if="route.name === 'editor'" @close="closeEditor" />
   <ErrorBoundary v-else>
-    <div class="game-layout">
+    <div class="game_layout">
     <GameHeader />
     <BuffBar />
     <EventPrompt />
-    <div class="game-main">
-      <aside class="game-sidebar" :class="{ 'game-sidebar--collapsed': !showBuildings }">
+    <div class="game_main">
+      <aside class="game_sidebar" :class="{ 'game_sidebar__collapsed': !showBuildings }">
         <BuildingList />
       </aside>
-      <main class="game-map-area">
-        <div class="game-map-tabs">
-          <button class="game-map-tabs__btn" :class="{ 'game-map-tabs__btn--active': mapTab === 'world' }" @click="mapTab = 'world'">World Map</button>
-          <button class="game-map-tabs__btn" :class="{ 'game-map-tabs__btn--active': mapTab === 'hq' }" @click="mapTab = 'hq'">HQ Office</button>
+      <main class="game_map_area">
+        <div class="game_map_tabs">
+          <button class="game_map_tabs__btn" :class="{ 'game_map_tabs__btn__active': mapTab === 'world' }" @click="mapTab = 'world'">World Map</button>
+          <button class="game_map_tabs__btn" :class="{ 'game_map_tabs__btn__active': mapTab === 'hq' }" @click="mapTab = 'hq'">HQ Office</button>
         </div>
         <WorldMap v-show="mapTab === 'world'" />
         <HQOfficeView v-if="mapTab === 'hq'" inline />
-        <div class="game-map-actions">
-          <button class="game-map-actions__btn" @click="showBuildings = !showBuildings" :aria-label="showBuildings ? 'Hide buildings panel' : 'Show buildings panel'">
+        <div class="game_map_actions">
+          <button class="game_map_actions__btn" @click="showBuildings = !showBuildings" :aria-label="showBuildings ? 'Hide buildings panel' : 'Show buildings panel'">
             {{ showBuildings ? '\u25C0 Hide' : '\u25B6 Buildings' }}
           </button>
-          <button class="game-map-actions__btn" id="btn-staff" @click="openStaff" aria-label="Open staff panel">Staff</button>
-          <button class="game-map-actions__btn" id="btn-prestige" @click="openPrestige" aria-label="Open prestige panel">Prestige</button>
-          <button class="game-map-actions__btn" @click="openSkills" aria-label="Open skill tree panel">Skills</button>
-          <button class="game-map-actions__btn" @click="openSettings" aria-label="Open settings panel">Settings</button>
-          <button class="game-map-actions__btn" @click="openWiki" aria-label="Open wiki">Wiki</button>
-          <button class="game-map-actions__btn" @click="showBlueprint = true" aria-label="Open architectural blueprint preview">Blueprint</button>
-          <button class="game-map-actions__btn" @click="showSupplyRoutes = true" aria-label="Open supply routes panel">Routes</button>
-          <button class="game-map-actions__btn" @click="showPowerBalance = true" aria-label="Open power balance panel">Power</button>
-          <button class="game-map-actions__btn" @click="showAutoplay = !showAutoplay" :aria-label="showAutoplay ? 'Close autoplay panel' : 'Open autoplay panel'">AI Play</button>
-          <button class="game-map-actions__btn" @click="showEventLog = true" aria-label="Open event history panel">History</button>
-          <button class="game-map-actions__btn" @click="showAchievements = true" aria-label="Open achievements panel">Awards</button>
-          <button class="game-map-actions__btn" @click="showRoyal = true" aria-label="Open royal continental panel" :disabled="!hasRoyalBranches">Royal</button>
-          <button class="game-map-actions__btn" @click="showSovereign = true" aria-label="Open sovereign panel">Throne</button>
-          <div class="game-map-actions__save-wrap">
-            <button class="game-map-actions__btn" @click="showSaveMenu = !showSaveMenu">Save ?</button>
-            <div v-if="showSaveMenu" class="game-map-actions__save-menu">
-              <button class="game-map-actions__save-item" @click="doSave(); showSaveMenu = false">Save</button>
-              <button class="game-map-actions__save-item" @click="doExport">Export</button>
-              <button class="game-map-actions__save-item" @click="doImport">Import</button>
-              <button class="game-map-actions__save-item game-map-actions__save-item--danger" @click="doDeleteSave">Delete</button>
+          <button class="game_map_actions__btn" id="btn_staff" @click="openStaff" aria-label="Open staff panel">Staff</button>
+          <button class="game_map_actions__btn" id="btn_prestige" @click="openPrestige" aria-label="Open prestige panel">Prestige</button>
+          <button class="game_map_actions__btn" @click="openSkills" aria-label="Open skill tree panel">Skills</button>
+          <button class="game_map_actions__btn" @click="openSettings" aria-label="Open settings panel">Settings</button>
+          <button class="game_map_actions__btn" @click="openWiki" aria-label="Open wiki">Wiki</button>
+          <button class="game_map_actions__btn" @click="showBlueprint = true" aria-label="Open architectural blueprint preview">Blueprint</button>
+          <button class="game_map_actions__btn" @click="showSupplyRoutes = true" aria-label="Open supply routes panel">Routes</button>
+          <button class="game_map_actions__btn" @click="showPowerBalance = true" aria-label="Open power balance panel">Power</button>
+          <button class="game_map_actions__btn" @click="showAutoplay = !showAutoplay" :aria-label="showAutoplay ? 'Close autoplay panel' : 'Open autoplay panel'">AI Play</button>
+          <button class="game_map_actions__btn" @click="showEventLog = true" aria-label="Open event history panel">History</button>
+          <button class="game_map_actions__btn" @click="showAchievements = true" aria-label="Open achievements panel">Awards</button>
+          <button class="game_map_actions__btn" @click="showRoyal = true" aria-label="Open royal continental panel" :disabled="!hasRoyalBranches">Royal</button>
+          <button class="game_map_actions__btn" @click="showSovereign = true" aria-label="Open sovereign panel">Throne</button>
+          <button class="game_map_actions__btn" @click="openEditor" aria-label="Open blueprint editor">Editor</button>
+          <div class="game_map_actions__save_wrap">
+            <button class="game_map_actions__btn" @click="showSaveMenu = !showSaveMenu">Save ?</button>
+            <div v-if="showSaveMenu" class="game_map_actions__save_menu">
+              <button class="game_map_actions__save_item" @click="doSave(); showSaveMenu = false">Save</button>
+              <button class="game_map_actions__save_item" @click="doExport">Export</button>
+              <button class="game_map_actions__save_item" @click="doImport">Import</button>
+              <button class="game_map_actions__save_item game_map_actions__save_item__danger" @click="doDeleteSave">Delete</button>
             </div>
           </div>
         </div>
       </main>
     </div>
-    <footer class="game-status">
+    <footer class="game_status">
       <span>Continental Idle v1.0</span>
       <span>Autosave: 30s</span>
     </footer>
@@ -424,6 +446,7 @@ onUnmounted(() => {
     <AchievementsPanel :visible="showAchievements" @close="showAchievements = false" />
     <RoyalPanel :visible="showRoyal" @close="showRoyal = false" />
     <SovereignPanel :visible="showSovereign" @close="showSovereign = false" />
+    <BlueprintEditor v-if="showEditor" @close="closeEditor" />
     <OfflineProgress />
     </div>
   </ErrorBoundary>

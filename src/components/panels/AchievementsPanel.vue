@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
-import { achievementManager } from '@/engine/achievement-manager'
+import { achievementManager } from '@/engine/achievementManager'
 import { ACHIEVEMENTS, ACHIEVEMENT_CATEGORIES } from '@/data/achievements'
 import type { AchievementCategory } from '@/data/achievements'
-import { eventBus } from '@/engine/event-bus'
+import { eventBus } from '@/engine/eventBus'
 import { useToast } from '@/composables/useToast'
 
 const toast = useToast()
@@ -51,61 +51,61 @@ watch(() => props.visible, (v) => {
 </script>
 
 <template>
-  <div v-if="visible" class="game-panel" @click.self="emit('close')">
-    <div class="game-panel__content game-panel__content--wide" role="dialog" aria-modal="true" aria-labelledby="panel-title-achievements">
-      <h2 id="panel-title-achievements" class="game-panel__title">Achievements</h2>
+  <div v-if="visible" class="game_panel" @click.self="emit('close')">
+    <div class="game_panel__content game_panel__content__wide" role="dialog" aria-modal="true" aria-labelledby="panel_title_achievements">
+      <h2 id="panel_title_achievements" class="game_panel__title">Achievements</h2>
 
-      <div class="ach-progress">
-        <div class="ach-progress__bar">
-          <div class="ach-progress__fill" :style="{ width: progressPercent + '%' }"></div>
+      <div class="ach_progress">
+        <div class="ach_progress__bar">
+          <div class="ach_progress__fill" :style="{ width: progressPercent + '%' }"></div>
         </div>
-        <span class="ach-progress__text">{{ unlockedCount }} / {{ totalCount }} ({{ progressPercent }}%)</span>
+        <span class="ach_progress__text">{{ unlockedCount }} / {{ totalCount }} ({{ progressPercent }}%)</span>
       </div>
 
-      <div class="ach-categories">
+      <div class="ach_categories">
         <button
-          class="ach-cat-btn"
-          :class="{ 'ach-cat-btn--active': selectedCategory === 'all' }"
+          class="ach_cat_btn"
+          :class="{ 'ach_cat_btn__active': selectedCategory === 'all' }"
           @click="selectedCategory = 'all'"
         >All</button>
         <button
           v-for="cat in ACHIEVEMENT_CATEGORIES"
           :key="cat.id"
-          class="ach-cat-btn"
-          :class="{ 'ach-cat-btn--active': selectedCategory === cat.id }"
+          class="ach_cat_btn"
+          :class="{ 'ach_cat_btn__active': selectedCategory === cat.id }"
           @click="selectedCategory = cat.id"
         >{{ cat.icon }} {{ cat.name }}</button>
       </div>
 
-      <div class="ach-list">
+      <div class="ach_list">
         <div
           v-for="ach in filteredAchievements"
           :key="ach.id"
-          class="ach-item"
-          :class="{ 'ach-item--unlocked': unlockedSet.has(ach.id), 'ach-item--locked': !unlockedSet.has(ach.id) }"
+          class="ach_item"
+          :class="{ 'ach_item__unlocked': unlockedSet.has(ach.id), 'ach_item__locked': !unlockedSet.has(ach.id) }"
         >
-          <div class="ach-item__icon">{{ ach.icon }}</div>
-          <div class="ach-item__body">
-            <div class="ach-item__name">{{ ach.name }}</div>
-            <div class="ach-item__desc">{{ ach.description }}</div>
-            <div class="ach-item__reward">
+          <div class="ach_item__icon">{{ ach.icon }}</div>
+          <div class="ach_item__body">
+            <div class="ach_item__name">{{ ach.name }}</div>
+            <div class="ach_item__desc">{{ ach.description }}</div>
+            <div class="ach_item__reward">
               <span v-if="ach.reward.type === 'tableFavor'">Reward: +{{ ach.reward.value }} Table Favor</span>
               <span v-else>Reward: +{{ (ach.reward.value * 100).toFixed(0) }}% Permanent Income</span>
             </div>
           </div>
-          <div class="ach-item__status">
-            <span v-if="unlockedSet.has(ach.id)" class="ach-item__check">&#x2713;</span>
-            <span v-else class="ach-item__lock">&#x1F512;</span>
+          <div class="ach_item__status">
+            <span v-if="unlockedSet.has(ach.id)" class="ach_item__check">&#x2713;</span>
+            <span v-else class="ach_item__lock">&#x1F512;</span>
           </div>
         </div>
       </div>
 
-      <div v-if="recentUnlock" class="ach-recent">
-        <span class="ach-recent__icon">{{ recentUnlock.icon }}</span>
-        <span class="ach-recent__text">{{ recentUnlock.name }} — {{ recentUnlock.description }}</span>
+      <div v-if="recentUnlock" class="ach_recent">
+        <span class="ach_recent__icon">{{ recentUnlock.icon }}</span>
+        <span class="ach_recent__text">{{ recentUnlock.name }} — {{ recentUnlock.description }}</span>
       </div>
 
-      <button class="game-panel__close" @click="emit('close')">Close</button>
+      <button class="game_panel__close" @click="emit('close')">Close</button>
     </div>
   </div>
 </template>

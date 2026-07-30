@@ -1,8 +1,8 @@
 import type { BranchId } from '@/types'
-import { gameState } from './game-state'
-import { getTotalDebtReduction } from './skill-manager'
-import { hasRoyalGuard } from './assassin-manager'
-import { eventBus } from './event-bus'
+import { gameState } from './gameState'
+import { getTotalDebtReduction } from './skillManager'
+import { hasRoyalGuard } from './assassinManager'
+import { eventBus } from './eventBus'
 
 const DEBT_COLLECTION_RATE = 0.05
 const DEBT_INTEREST_RATE = 0.01

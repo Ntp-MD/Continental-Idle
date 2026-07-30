@@ -1,7 +1,7 @@
-import { gameState } from './game-state'
-import { eventBus } from './event-bus'
-import { ROYAL_BUILDINGS, ROYAL_BUILDING_MAP, ROYAL_BUILDING_INCOME_GROWTH } from '@/data/royal-buildings'
-import { ROYAL_SKILL_MAX_LEVEL, getRoyalSkillNode } from '@/data/royal-skills'
+import { gameState } from './gameState'
+import { eventBus } from './eventBus'
+import { ROYAL_BUILDINGS, ROYAL_BUILDING_MAP, ROYAL_BUILDING_INCOME_GROWTH } from '@/data/royalBuildings'
+import { ROYAL_SKILL_MAX_LEVEL, getRoyalSkillNode } from '@/data/royalSkills'
 import type { BranchId, BranchState } from '@/types'
 
 // === Royal Building Income ===

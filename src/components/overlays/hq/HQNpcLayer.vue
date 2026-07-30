@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { GOLD, GOLD_DIM } from './hq-layout'
+import { GOLD, GOLD_DIM } from './hqLayout'
 import { getRarityColor } from '@/data/rarity'
 import type { Rarity } from '@/types'
 
@@ -41,7 +41,7 @@ function rarityColor(rarity: Rarity): string {
         :fill="dot.color"
         stroke="#fff"
         stroke-width="0.8"
-        :class="{ 'hq-npc-dot--selected': dot.id === props.selectedNpcId, 'hq-npc-dot--visitor': dot.isVisitor }"
+        :class="{ 'hq_npc_dot__selected': dot.id === props.selectedNpcId, 'hq_npc_dot__visitor': dot.isVisitor }"
         @click="emit('click', dot)"
         style="cursor: pointer"
       />
@@ -64,11 +64,11 @@ function rarityColor(rarity: Rarity): string {
 </template>
 
 <style scoped>
-.hq-npc-dot--selected {
+.hq_npc_dot__selected {
   stroke-width: 2;
   filter: drop-shadow(0 0 4px #c9a84c);
 }
-.hq-npc-dot--visitor {
+.hq_npc_dot__visitor {
   animation: pulse 1s ease-in-out infinite alternate;
 }
 @keyframes pulse {

@@ -1,6 +1,6 @@
 import { ref, computed, watch, type Ref, type ComputedRef } from 'vue'
-import { dragState, endAssetDrag, endRoomTemplateDrag } from '../blueprint-store'
-import { findAssetCached } from '../asset-utils'
+import { dragState, endAssetDrag, endRoomTemplateDrag } from '../blueprintStore'
+import { findAssetCached } from '../assetUtils'
 import { useToast } from './useToast'
 import type { FloorData } from '../types'
 import type { AssetsStore } from '../store/index'

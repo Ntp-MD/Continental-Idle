@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
-import { gameState } from '@/engine/game-state'
-import { eventBus } from '@/engine/event-bus'
+import { gameState } from '@/engine/gameState'
+import { eventBus } from '@/engine/eventBus'
 
 interface BuffDisplay {
   id: string
@@ -57,15 +57,15 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div v-if="buffs.length > 0" class="buff-bar">
+  <div v-if="buffs.length > 0" class="buff_bar">
     <div
       v-for="b in buffs"
       :key="b.id"
-      class="buff-bar__item"
-      :class="b.type === 'debuff' ? 'buff-bar__item--debuff' : 'buff-bar__item--buff'"
+      class="buff_bar__item"
+      :class="b.type === 'debuff' ? 'buff_bar__item__debuff' : 'buff_bar__item__buff'"
     >
-      <span class="buff-bar__label">{{ b.label }}</span>
-      <span class="buff-bar__timer">{{ b.remaining }}s</span>
+      <span class="buff_bar__label">{{ b.label }}</span>
+      <span class="buff_bar__timer">{{ b.remaining }}s</span>
     </div>
   </div>
 </template>

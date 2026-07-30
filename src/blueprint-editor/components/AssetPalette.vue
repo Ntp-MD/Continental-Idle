@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
-import { useAssetsStore, startAssetDrag, startRoomTemplateDrag } from '../blueprint-store'
+import { useAssetsStore, startAssetDrag, startRoomTemplateDrag } from '../blueprintStore'
 import { useToast } from '../composables/useToast'
 import { useAsyncAction } from '../composables/useAsyncAction'
 import type { AssetDef } from '../types'

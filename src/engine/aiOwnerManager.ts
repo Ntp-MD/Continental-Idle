@@ -1,12 +1,12 @@
 import type { BranchId, AIOwnerState, AITemperament, EventDefinition } from '@/types'
-import { gameState } from './game-state'
-import { eventBus } from './event-bus'
+import { gameState } from './gameState'
+import { eventBus } from './eventBus'
 import { BRANCHES, getBranchDef } from '@/data/branches'
-import { getAIName, getAITemperamentForBranch, getTemperamentDef } from '@/data/ai-owners'
-import { getBranchIncomePerSecond } from './income-engine'
-import { getAIEventTemplate, buildAIEventDefinition } from '@/data/ai-events'
-import type { AIEventType } from '@/data/ai-events'
-export type { AIEventType } from '@/data/ai-events'
+import { getAIName, getAITemperamentForBranch, getTemperamentDef } from '@/data/aiOwners'
+import { getBranchIncomePerSecond } from './incomeEngine'
+import { getAIEventTemplate, buildAIEventDefinition } from '@/data/aiEvents'
+import type { AIEventType } from '@/data/aiEvents'
+export type { AIEventType } from '@/data/aiEvents'
 
 export function createAIOwner(branchId: BranchId): AIOwnerState {
   const temperament = getAITemperamentForBranch(branchId)

@@ -6,7 +6,7 @@ import {
   CONTINENT_LABELS, CONTINENT_COLORS,
   getBranchesByContinent, type Continent
 } from '@/data/branches'
-import { gameState } from '@/engine/game-state'
+import { gameState } from '@/engine/gameState'
 import { getPrologue, getStoryContext } from '@/data/story'
 import type { BranchId } from '@/types'
 
@@ -80,37 +80,37 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="start-screen">
+  <div class="start_screen">
     <!-- Loading overlay -->
-    <div v-if="loading" class="start-screen__loading">
-      <div class="start-screen__loading-text">CONTINENTAL OS v2.0</div>
-      <div class="start-screen__loading-bar">
-        <div class="start-screen__loading-bar-fill" :style="{ width: loadingProgress + '%' }"></div>
+    <div v-if="loading" class="start_screen__loading">
+      <div class="start_screen__loading_text">CONTINENTAL OS v2.0</div>
+      <div class="start_screen__loading_bar">
+        <div class="start_screen__loading_bar_fill" :style="{ width: loadingProgress + '%' }"></div>
       </div>
-      <div class="start-screen__loading-status">{{ loadingText }}</div>
+      <div class="start_screen__loading_status">{{ loadingText }}</div>
     </div>
 
-    <div v-else class="start-screen__content">
-      <h1 class="start-screen__title">CONTINENTAL IDLE</h1>
-      <p class="start-screen__subtitle">The High Table Awaits</p>
+    <div v-else class="start_screen__content">
+      <h1 class="start_screen__title">CONTINENTAL IDLE</h1>
+      <p class="start_screen__subtitle">The High Table Awaits</p>
 
       <!-- Prologue -->
-      <div class="start-screen__story">
-        <div class="start-screen__story-icon">?</div>
-        <div class="start-screen__story-text">
-          <p class="start-screen__story-line" v-for="(line, i) in prologue.split('\n\n')" :key="i">{{ line }}</p>
+      <div class="start_screen__story">
+        <div class="start_screen__story_icon">?</div>
+        <div class="start_screen__story_text">
+          <p class="start_screen__story_line" v-for="(line, i) in prologue.split('\n\n')" :key="i">{{ line }}</p>
         </div>
       </div>
 
-      <p class="start-screen__subtitle">Choose Your Headquarters</p>
+      <p class="start_screen__subtitle">Choose Your Headquarters</p>
 
       <!-- Starter HQ cards -->
-      <div class="start-screen__options">
+      <div class="start_screen__options">
         <div
           v-for="branch in starterOptions"
           :key="branch.id"
-          class="start-screen__option"
-          :class="{ 'start-screen__option--active': selected === branch.id }"
+          class="start_screen__option"
+          :class="{ 'start_screen__option__active': selected === branch.id }"
           :style="{ '--branch-accent': branch.accentColor }"
           @click="selectBranch(branch.id)"
           @keydown.enter="selectBranch(branch.id)"
@@ -119,28 +119,28 @@ onUnmounted(() => {
           :aria-label="`Select ${branch.name} as headquarters`"
           :aria-pressed="selected === branch.id"
         >
-          <div class="start-screen__option-name">{{ branch.name }}</div>
-          <div class="start-screen__option-city">{{ branch.city }}</div>
-          <div class="start-screen__option-currency">{{ branch.currency }}</div>
-          <div v-if="selected === branch.id" class="start-screen__option-check">? SELECTED</div>
+          <div class="start_screen__option_name">{{ branch.name }}</div>
+          <div class="start_screen__option_city">{{ branch.city }}</div>
+          <div class="start_screen__option_currency">{{ branch.currency }}</div>
+          <div v-if="selected === branch.id" class="start_screen__option_check">? SELECTED</div>
         </div>
       </div>
 
       <!-- All locations by continent -->
-      <div class="start-screen__world">
-        <div class="start-screen__world-title">World Map — 37 Continental Branches</div>
-        <div v-for="cont in continents" :key="cont" class="start-screen__continent">
-          <div class="start-screen__continent-label" :style="{ color: CONTINENT_COLORS[cont] }">
+      <div class="start_screen__world">
+        <div class="start_screen__world_title">World Map — 37 Continental Branches</div>
+        <div v-for="cont in continents" :key="cont" class="start_screen__continent">
+          <div class="start_screen__continent_label" :style="{ color: CONTINENT_COLORS[cont] }">
             {{ CONTINENT_LABELS[cont] }}
           </div>
-          <div class="start-screen__continent-nodes">
+          <div class="start_screen__continent_nodes">
             <div
               v-for="branch in getBranchesByContinent(cont)"
               :key="branch.id"
-              class="start-screen__node"
+              class="start_screen__node"
               :class="{
-                'start-screen__node--active': selected === branch.id,
-                'start-screen__node--starter': branch.unlockPrestige === 0
+                'start_screen__node__active': selected === branch.id,
+                'start_screen__node__starter': branch.unlockPrestige === 0
               }"
               :style="{ '--branch-accent': branch.accentColor }"
               @click="selectBranch(branch.id)"
@@ -150,42 +150,42 @@ onUnmounted(() => {
               :aria-label="`Select ${branch.name}`"
               :aria-pressed="selected === branch.id"
             >
-              <span class="start-screen__node-dot" :style="{ background: branch.accentColor }"></span>
-              <span class="start-screen__node-name">{{ branch.name }}</span>
-              <span class="start-screen__node-prestige" v-if="branch.unlockPrestige > 0">P{{ branch.unlockPrestige }}</span>
-              <span class="start-screen__node-prestige start-screen__node-prestige--free" v-else>FREE</span>
+              <span class="start_screen__node_dot" :style="{ background: branch.accentColor }"></span>
+              <span class="start_screen__node_name">{{ branch.name }}</span>
+              <span class="start_screen__node_prestige" v-if="branch.unlockPrestige > 0">P{{ branch.unlockPrestige }}</span>
+              <span class="start_screen__node_prestige start_screen__node_prestige__free" v-else>FREE</span>
             </div>
           </div>
         </div>
       </div>
 
       <!-- Selected HQ info -->
-      <div class="start-screen__selected-info" :style="{ '--branch-accent': selectedDef.accentColor }">
-        <span class="start-screen__selected-name">{{ selectedDef.name }}</span>
-        <span class="start-screen__selected-city">{{ selectedDef.city }}</span>
-        <span class="start-screen__selected-currency">Currency: {{ selectedDef.currency }}</span>
+      <div class="start_screen__selected_info" :style="{ '--branch-accent': selectedDef.accentColor }">
+        <span class="start_screen__selected_name">{{ selectedDef.name }}</span>
+        <span class="start_screen__selected_city">{{ selectedDef.city }}</span>
+        <span class="start_screen__selected_currency">Currency: {{ selectedDef.currency }}</span>
       </div>
 
-      <div class="start-screen__info">
+      <div class="start_screen__info">
         <p>As the <strong>{{ storyContext.playerTitle }}</strong>, your HQ generates <strong>1.2x income</strong> and is your starting Continental branch.</p>
         <p>Conquer rival AI controllers, establish supply routes, and claim your seat at the High Table.</p>
       </div>
 
-      <button class="start-screen__btn" @click="startGame">
+      <button class="start_screen__btn" @click="startGame">
         START NEW GAME
       </button>
 
-      <button class="start-screen__btn-continue" @click="quickStart">
+      <button class="start_screen__btn_continue" @click="quickStart">
         QUICK START + AI AUTOPLAY
       </button>
 
-      <button v-if="gameState.hasSave()" class="start-screen__btn-continue" @click="continueGame">
+      <button v-if="gameState.hasSave()" class="start_screen__btn_continue" @click="continueGame">
         CONTINUE SAVED GAME
       </button>
 
     </div>
 
-    <button class="start-screen__editor-btn" @click="router.push({ name: 'editor' })" aria-label="Open Blueprint Editor">
+    <button class="start_screen__editor_btn" @click="router.push({ name: 'editor' })" aria-label="Open Blueprint Editor">
       Blueprint Editor
     </button>
   </div>

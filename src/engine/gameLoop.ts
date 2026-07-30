@@ -1,8 +1,8 @@
-import { gameState } from './game-state'
-import { runGameTick } from './tick-engine'
-import { achievementManager } from './achievement-manager'
-import { sovereignManager } from './sovereign-manager'
-import { eventBus } from './event-bus'
+import { gameState } from './gameState'
+import { runGameTick } from './tickEngine'
+import { achievementManager } from './achievementManager'
+import { sovereignManager } from './sovereignManager'
+import { eventBus } from './eventBus'
 
 const AUTOSAVE_INTERVAL = 30 // seconds
 

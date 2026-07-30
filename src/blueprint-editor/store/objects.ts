@@ -1,5 +1,5 @@
 import type { ObjectData, RoomData, Rect, AssetDef, LinkedPart, Rotation, EntityRef, TileState } from '../types'
-import { findAssetCached } from '../asset-utils'
+import { findAssetCached } from '../assetUtils'
 import { assetSizeFor } from '../geometry'
 import { aabbOverlap, objectOverlapsAny, roomOverlapsAny, recalcCollapsed } from '../collision'
 import {

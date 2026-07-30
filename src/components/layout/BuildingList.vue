@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
-import { gameState } from '@/engine/game-state'
+import { gameState } from '@/engine/gameState'
 import { BUILDINGS } from '@/data/buildings'
-import { getBuildingIncome, getBuildingCost, getAffordableLevels, purchaseBuilding } from '@/engine/income-engine'
+import { getBuildingIncome, getBuildingCost, getAffordableLevels, purchaseBuilding } from '@/engine/incomeEngine'
 import { formatNumber, formatIncome } from '@/engine/format'
-import { eventBus } from '@/engine/event-bus'
-import { tutorialManager } from '@/engine/tutorial-manager'
+import { eventBus } from '@/engine/eventBus'
+import { tutorialManager } from '@/engine/tutorialManager'
 
 const buildings = ref<Array<{
   id: string
@@ -111,45 +111,45 @@ onUnmounted(() => {
 
 <template>
   <div>
-    <div class="section-header">Buildings</div>
-    <div class="buy-multiplier">
+    <div class="section_header">Buildings</div>
+    <div class="buy_multiplier">
       <button
-        class="buy-multiplier__btn"
-        :class="{ 'buy-multiplier__btn--active': buyMultiplier === 1 }"
+        class="buy_multiplier__btn"
+        :class="{ 'buy_multiplier__btn__active': buyMultiplier === 1 }"
         aria-label="Buy multiplier: 1"
         @click="setMult(1)"
       >x1</button>
       <button
-        class="buy-multiplier__btn"
-        :class="{ 'buy-multiplier__btn--active': buyMultiplier === 10 }"
+        class="buy_multiplier__btn"
+        :class="{ 'buy_multiplier__btn__active': buyMultiplier === 10 }"
         aria-label="Buy multiplier: 10"
         @click="setMult(10)"
       >x10</button>
       <button
-        class="buy-multiplier__btn"
-        :class="{ 'buy-multiplier__btn--active': buyMultiplier === 100 }"
+        class="buy_multiplier__btn"
+        :class="{ 'buy_multiplier__btn__active': buyMultiplier === 100 }"
         aria-label="Buy multiplier: 100"
         @click="setMult(100)"
       >x100</button>
       <button
-        class="buy-multiplier__btn"
-        :class="{ 'buy-multiplier__btn--active': buyMultiplier === 0 }"
+        class="buy_multiplier__btn"
+        :class="{ 'buy_multiplier__btn__active': buyMultiplier === 0 }"
         aria-label="Buy multiplier: max affordable"
         @click="setMult(0)"
       >MAX</button>
     </div>
-    <div v-for="b in buildings" :key="b.id" class="building-card">
-      <div class="building-card__info">
-        <span class="building-card__name">{{ b.name }}</span>
-        <span class="building-card__level">Lv.{{ b.level }}</span>
-        <span class="building-card__rate">{{ b.income }}</span>
+    <div v-for="b in buildings" :key="b.id" class="building_card">
+      <div class="building_card__info">
+        <span class="building_card__name">{{ b.name }}</span>
+        <span class="building_card__level">Lv.{{ b.level }}</span>
+        <span class="building_card__rate">{{ b.income }}</span>
       </div>
-      <div class="building-card__actions">
-        <div class="building-card__cost" :class="{ 'building-card__cost--affordable': b.affordable }">{{ b.cost }}</div>
-        <div v-if="b.buyCount > 0 && !b.maxed" class="building-card__buy-count">x{{ b.buyCount }}</div>
+      <div class="building_card__actions">
+        <div class="building_card__cost" :class="{ 'building_card__cost__affordable': b.affordable }">{{ b.cost }}</div>
+        <div v-if="b.buyCount > 0 && !b.maxed" class="building_card__buy_count">x{{ b.buyCount }}</div>
         <button
-          class="building-card__buy"
-          :class="{ 'building-card__buy--disabled': !b.affordable }"
+          class="building_card__buy"
+          :class="{ 'building_card__buy__disabled': !b.affordable }"
           :disabled="!b.affordable"
           :aria-label="`Buy ${b.name}, level ${b.level}, cost ${b.cost}`"
           @click="debouncedBuy(b.id)"

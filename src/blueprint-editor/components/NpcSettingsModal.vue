@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, watch, inject, computed } from 'vue'
-import { useAssetsStore } from '../blueprint-store'
+import { useAssetsStore } from '../blueprintStore'
 import { useNpcSimulation } from '../composables/useNpcSimulation'
 import { useAsyncAction } from '../composables/useAsyncAction'
 import { useToast } from '../composables/useToast'
@@ -255,9 +255,9 @@ function onClose() {
 <template>
   <Teleport to="body">
     <div v-if="open" class="npc__settings__modal" @click.self="onClose">
-      <div class="npc__settings__modal__dialog" role="dialog" aria-modal="true" aria-labelledby="npc-settings-title">
+      <div class="npc__settings__modal__dialog" role="dialog" aria-modal="true" aria-labelledby="npc_settings_title">
         <div class="npc__settings__modal__header">
-          <span id="npc-settings-title" class="npc__settings__modal__title">NPC Behavior Manager</span>
+          <span id="npc_settings_title" class="npc__settings__modal__title">NPC Behavior Manager</span>
           <button class="npc__settings__modal__close" @click="onClose" aria-label="Close">✕</button>
         </div>
 

@@ -1,5 +1,5 @@
-import { gameState } from './game-state'
-import { eventBus } from './event-bus'
+import { gameState } from './gameState'
+import { eventBus } from './eventBus'
 import type { BranchId } from '@/types'
 
 const LAY_LOW_COST = 5

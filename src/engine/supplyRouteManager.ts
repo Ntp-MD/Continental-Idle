@@ -1,10 +1,10 @@
 import type { BranchId, SupplyRoute, SupplyRouteType } from '@/types'
-import { gameState } from './game-state'
-import { eventBus } from './event-bus'
-import { getRouteTypeDef } from '@/data/supply-routes'
-import { getTotalIncomeMult } from './skill-manager'
-import { getRoyalIncomeMult, getSovereignBuffMult } from './royal-manager'
-import { sovereignManager } from './sovereign-manager'
+import { gameState } from './gameState'
+import { eventBus } from './eventBus'
+import { getRouteTypeDef } from '@/data/supplyRoutes'
+import { getTotalIncomeMult } from './skillManager'
+import { getRoyalIncomeMult, getSovereignBuffMult } from './royalManager'
+import { sovereignManager } from './sovereignManager'
 
 const MAX_ROUTES_PER_BRANCH = 3
 const HIJACK_ASSASSIN_LOYALTY_COST = 20

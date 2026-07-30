@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
-import { gameState } from '@/engine/game-state'
-import { getTotalOfflineEfficiency } from '@/engine/skill-manager'
+import { gameState } from '@/engine/gameState'
+import { getTotalOfflineEfficiency } from '@/engine/skillManager'
 import { formatNumber, formatTime } from '@/engine/format'
 import { getBranchDef } from '@/data/branches'
 import type { BranchId } from '@/types'
@@ -67,20 +67,20 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div v-if="visible" class="game-panel" @click.self="dismiss">
-    <div class="game-panel__content" role="dialog" aria-modal="true" aria-labelledby="offline-title">
-      <h2 id="offline-title" class="game-panel__title">Welcome Back</h2>
-      <div class="offline-progress">
-        <p class="offline-progress__time">You were away for {{ offlineTimeDisplay }}</p>
-        <p class="offline-progress__efficiency">Offline efficiency: {{ offlineEfficiencyPct }}%</p>
-        <p class="offline-progress__total">Total earnings: {{ totalEarned }}</p>
-        <div class="offline-progress__list">
-          <div v-for="e in earnings" :key="e.branchId" class="offline-progress__row">
-            <span class="offline-progress__branch">{{ e.branchName }}</span>
-            <span class="offline-progress__amount">{{ e.amount }}</span>
+  <div v-if="visible" class="game_panel" @click.self="dismiss">
+    <div class="game_panel__content" role="dialog" aria-modal="true" aria-labelledby="offline_title">
+      <h2 id="offline_title" class="game_panel__title">Welcome Back</h2>
+      <div class="offline_progress">
+        <p class="offline_progress__time">You were away for {{ offlineTimeDisplay }}</p>
+        <p class="offline_progress__efficiency">Offline efficiency: {{ offlineEfficiencyPct }}%</p>
+        <p class="offline_progress__total">Total earnings: {{ totalEarned }}</p>
+        <div class="offline_progress__list">
+          <div v-for="e in earnings" :key="e.branchId" class="offline_progress__row">
+            <span class="offline_progress__branch">{{ e.branchName }}</span>
+            <span class="offline_progress__amount">{{ e.amount }}</span>
           </div>
         </div>
-        <button class="offline-progress__btn" @click="dismiss" aria-label="Collect offline earnings">COLLECT</button>
+        <button class="offline_progress__btn" @click="dismiss" aria-label="Collect offline earnings">COLLECT</button>
       </div>
     </div>
   </div>

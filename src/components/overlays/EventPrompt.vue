@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
-import { eventEngine } from '@/engine/event-engine'
-import { eventBus } from '@/engine/event-bus'
-import { gameState } from '@/engine/game-state'
-import { DEFENDER_LOYALTY_THRESHOLD } from '@/engine/event-engine'
+import { eventEngine } from '@/engine/eventEngine'
+import { eventBus } from '@/engine/eventBus'
+import { gameState } from '@/engine/gameState'
+import { DEFENDER_LOYALTY_THRESHOLD } from '@/engine/eventEngine'
 import { shouldRevealEventOutcomes } from '@/engine/abilities'
 import { useToast } from '@/composables/useToast'
 import type { RaidData } from '@/types'
@@ -120,48 +120,48 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div v-if="visible" class="event-prompt" role="dialog" aria-modal="true" aria-labelledby="event-prompt-title">
-    <div class="event-prompt__header">
-      <span class="event-prompt__icon">?</span>
-      <span class="event-prompt__text" id="event-prompt-title">{{ eventName }}</span>
-      <span class="event-prompt__timer">{{ timer }}s</span>
+  <div v-if="visible" class="event_prompt" role="dialog" aria-modal="true" aria-labelledby="event_prompt_title">
+    <div class="event_prompt__header">
+      <span class="event_prompt__icon">?</span>
+      <span class="event_prompt__text" id="event_prompt_title">{{ eventName }}</span>
+      <span class="event_prompt__timer">{{ timer }}s</span>
     </div>
-    <div class="event-prompt__desc">{{ eventDesc }}</div>
+    <div class="event_prompt__desc">{{ eventDesc }}</div>
 
-    <div v-if="raidData" class="event-prompt__raid-info">
-      <div class="event-prompt__raid-row">
-        <span class="event-prompt__raid-label">Attackers:</span>
-        <span class="event-prompt__raid-value">{{ raidData.attackers.length }} (Power: {{ raidData.attackerPower }})</span>
+    <div v-if="raidData" class="event_prompt__raid_info">
+      <div class="event_prompt__raid_row">
+        <span class="event_prompt__raid_label">Attackers:</span>
+        <span class="event_prompt__raid_value">{{ raidData.attackers.length }} (Power: {{ raidData.attackerPower }})</span>
       </div>
-      <div v-for="a in raidData.attackers" :key="a.name" class="event-prompt__raid-attacker">
+      <div v-for="a in raidData.attackers" :key="a.name" class="event_prompt__raid_attacker">
         {{ a.name }} — Lv.{{ a.level }} | PRE {{ a.precision }} SPD {{ a.speed }}
       </div>
-      <div class="event-prompt__raid-row">
-        <span class="event-prompt__raid-label">Your defenders:</span>
-        <span class="event-prompt__raid-value">{{ raidData.defenderCount }} (Power: {{ raidData.defenderPower }})</span>
+      <div class="event_prompt__raid_row">
+        <span class="event_prompt__raid_label">Your defenders:</span>
+        <span class="event_prompt__raid_value">{{ raidData.defenderCount }} (Power: {{ raidData.defenderPower }})</span>
       </div>
-      <div v-if="raidData.defenderCount > 0" class="event-prompt__raid-row">
-        <span class="event-prompt__raid-label">Win chance:</span>
-        <span class="event-prompt__raid-value event-prompt__raid-win">{{ Math.round(raidData.winChance * 100) }}%</span>
+      <div v-if="raidData.defenderCount > 0" class="event_prompt__raid_row">
+        <span class="event_prompt__raid_label">Win chance:</span>
+        <span class="event_prompt__raid_value event_prompt__raid_win">{{ Math.round(raidData.winChance * 100) }}%</span>
       </div>
     </div>
 
-    <div class="event-prompt__timer-bar">
-      <div class="event-prompt__timer-fill" :style="{ width: (timer / maxTimer * 100) + '%' }"></div>
+    <div class="event_prompt__timer_bar">
+      <div class="event_prompt__timer_fill" :style="{ width: (timer / maxTimer * 100) + '%' }"></div>
     </div>
-    <div class="event-prompt__actions">
+    <div class="event_prompt__actions">
       <button
         v-for="c in choices"
         :key="c.id"
         :disabled="c.disabled"
         :aria-disabled="c.disabled"
-        :class="{ 'event-prompt__btn--disabled': c.disabled }"
+        :class="{ 'event_prompt__btn__disabled': c.disabled }"
         @click="!c.disabled && resolve(c.id)"
       >
         {{ c.label }}
-        <span v-if="revealOutcomes && c.isBest" class="event-prompt__badge event-prompt__badge--best">? Best</span>
-        <span v-if="revealOutcomes && c.isSafe" class="event-prompt__badge event-prompt__badge--safe">?? Safe</span>
-        <span v-if="c.details" class="event-prompt__details">{{ c.details }}</span>
+        <span v-if="revealOutcomes && c.isBest" class="event_prompt__badge event_prompt__badge__best">? Best</span>
+        <span v-if="revealOutcomes && c.isSafe" class="event_prompt__badge event_prompt__badge__safe">?? Safe</span>
+        <span v-if="c.details" class="event_prompt__details">{{ c.details }}</span>
       </button>
     </div>
   </div>

@@ -1,10 +1,10 @@
 import type { BranchId, StaffEntry, CharacterStats, Rarity } from '@/types'
 import { STAFF_MAP } from '@/data/staff'
 import { getTraitMultiplier } from '@/data/traits'
-import { getTotalStaffXpMult, getExtraStaffSlots } from './skill-manager'
-import { getSovereignBuffMult } from './royal-manager'
-import { gameState } from './game-state'
-import { eventBus } from './event-bus'
+import { getTotalStaffXpMult, getExtraStaffSlots } from './skillManager'
+import { getSovereignBuffMult } from './royalManager'
+import { gameState } from './gameState'
+import { eventBus } from './eventBus'
 import { RARITY_CONFIG, rollRarityFromConfig, getRarityCostMult } from '@/data/rarity'
 
 function generateId(): string {

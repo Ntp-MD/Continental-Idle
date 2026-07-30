@@ -1,15 +1,15 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { gameState } from '@/engine/game-state'
+import { gameState } from '@/engine/gameState'
 import { getBranchDef } from '@/data/branches'
-import { SUPPLY_ROUTE_TYPES } from '@/data/supply-routes'
+import { SUPPLY_ROUTE_TYPES } from '@/data/supplyRoutes'
 import {
   getSupplyRoutes, canEstablishRoute, establishRoute, canHijackRoute, hijackRoute,
   stabilizeRoute, dismantleRoute, getStabilizeCost,
   getHijackableRoutes, getHijackSuccessChance
-} from '@/engine/supply-route-manager'
+} from '@/engine/supplyRouteManager'
 import { formatNumber } from '@/engine/format'
-import { eventBus } from '@/engine/event-bus'
+import { eventBus } from '@/engine/eventBus'
 import type { SupplyRouteType, BranchId, SupplyRoute } from '@/types'
 
 const props = defineProps<{ visible: boolean }>()
@@ -170,51 +170,51 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div v-if="visible" class="game-panel" @click.self="emit('close')">
-    <div class="game-panel__content supply-route-panel" role="dialog" aria-modal="true" aria-labelledby="supply-route-title">
-      <h2 id="supply-route-title" class="game-panel__title">Underworld Supply Routes</h2>
+  <div v-if="visible" class="game_panel" @click.self="emit('close')">
+    <div class="game_panel__content supply_route_panel" role="dialog" aria-modal="true" aria-labelledby="supply_route_title">
+      <h2 id="supply_route_title" class="game_panel__title">Underworld Supply Routes</h2>
 
-      <div v-if="message" class="supply-route__message" :class="`supply-route__message--${messageType}`">
+      <div v-if="message" class="supply_route__message" :class="`supply_route__message__${messageType}`">
         {{ message }}
       </div>
 
       <!-- Active Routes -->
-      <section class="supply-route__section">
-        <h3 class="supply-route__heading">Active Routes ({{ routes.length }})</h3>
-        <div v-if="routes.length > 0" class="supply-route__summary">
-          <span class="supply-route__summary-item">Total Income: {{ formatNumber(totalRouteIncome) }}/tick</span>
-          <span class="supply-route__summary-item">Player Routes: {{ routes.filter(r => !r.aiOwned).length }}</span>
-          <span v-if="aiRouteCount > 0" class="supply-route__summary-item">AI Routes: {{ aiRouteCount }} (hijackable)</span>
+      <section class="supply_route__section">
+        <h3 class="supply_route__heading">Active Routes ({{ routes.length }})</h3>
+        <div v-if="routes.length > 0" class="supply_route__summary">
+          <span class="supply_route__summary_item">Total Income: {{ formatNumber(totalRouteIncome) }}/tick</span>
+          <span class="supply_route__summary_item">Player Routes: {{ routes.filter(r => !r.aiOwned).length }}</span>
+          <span v-if="aiRouteCount > 0" class="supply_route__summary_item">AI Routes: {{ aiRouteCount }} (hijackable)</span>
         </div>
-        <div v-if="routes.length === 0" class="supply-route__empty">
+        <div v-if="routes.length === 0" class="supply_route__empty">
           No supply routes established yet.
         </div>
-        <div v-else class="supply-route__list">
-          <div v-for="route in routes" :key="route.id" class="supply-route__card">
-            <div class="supply-route__card-header">
-              <span class="supply-route__icon" :style="{ color: getRouteTypeColor(route.type) }">{{ getRouteTypeIcon(route.type) }}</span>
-              <span class="supply-route__type-name">{{ getRouteTypeName(route.type) }}</span>
-              <span v-if="route.hijacked" class="supply-route__hijacked-badge">HIJACKED</span>
+        <div v-else class="supply_route__list">
+          <div v-for="route in routes" :key="route.id" class="supply_route__card">
+            <div class="supply_route__card_header">
+              <span class="supply_route__icon" :style="{ color: getRouteTypeColor(route.type) }">{{ getRouteTypeIcon(route.type) }}</span>
+              <span class="supply_route__type_name">{{ getRouteTypeName(route.type) }}</span>
+              <span v-if="route.hijacked" class="supply_route__hijacked_badge">HIJACKED</span>
             </div>
-            <div class="supply-route__route-info">
+            <div class="supply_route__route_info">
               {{ getBranchDef(route.from)?.name || route.from }} → {{ getBranchDef(route.to)?.name || route.to }}
             </div>
-            <div class="supply-route__stats">
-              <span class="supply-route__stat">
+            <div class="supply_route__stats">
+              <span class="supply_route__stat">
                 Stability: <span :style="{ color: getStabilityColor(route.stability) }">{{ route.stability.toFixed(0) }}%</span>
               </span>
-              <span class="supply-route__stat">
+              <span class="supply_route__stat">
                 Income: {{ formatNumber(getRouteIncome(route)) }}/tick
               </span>
             </div>
-            <div class="supply-route__stability-bar">
-              <div class="supply-route__stability-fill" :style="{ width: route.stability + '%', background: getStabilityColor(route.stability) }"></div>
+            <div class="supply_route__stability_bar">
+              <div class="supply_route__stability_fill" :style="{ width: route.stability + '%', background: getStabilityColor(route.stability) }"></div>
             </div>
-            <div class="supply-route__actions">
-              <button class="supply-route__btn supply-route__btn--stabilize" @click="doStabilize(route.id)">
+            <div class="supply_route__actions">
+              <button class="supply_route__btn supply_route__btn__stabilize" @click="doStabilize(route.id)">
                 Stabilize ({{ formatNumber(getStabilizeCost(route.id)) }})
               </button>
-              <button class="supply-route__btn supply-route__btn--dismantle" @click="doDismantle(route.id)">
+              <button class="supply_route__btn supply_route__btn__dismantle" @click="doDismantle(route.id)">
                 Dismantle
               </button>
             </div>
@@ -223,56 +223,56 @@ onUnmounted(() => {
       </section>
 
       <!-- Establish New Route -->
-      <section class="supply-route__section">
-        <h3 class="supply-route__heading">Establish New Route</h3>
-        <div class="supply-route__form">
-          <label class="supply-route__label">
+      <section class="supply_route__section">
+        <h3 class="supply_route__heading">Establish New Route</h3>
+        <div class="supply_route__form">
+          <label class="supply_route__label">
             Type
-            <select v-model="selectedType" class="supply-route__select">
+            <select v-model="selectedType" class="supply_route__select">
               <option v-for="t in SUPPLY_ROUTE_TYPES" :key="t.id" :value="t.id">
                 {{ t.icon }} {{ t.name }} ({{ formatNumber(t.establishCost) }})
               </option>
             </select>
           </label>
-          <label class="supply-route__label">
+          <label class="supply_route__label">
             From
-            <select v-model="selectedFrom" class="supply-route__select">
+            <select v-model="selectedFrom" class="supply_route__select">
               <option v-for="b in unlockedBranches" :key="b" :value="b">{{ getBranchDef(b)?.name || b }}</option>
             </select>
           </label>
-          <label class="supply-route__label">
+          <label class="supply_route__label">
             To
-            <select v-model="selectedTo" class="supply-route__select">
+            <select v-model="selectedTo" class="supply_route__select">
               <option v-for="b in availableToBranches" :key="b" :value="b">{{ getBranchDef(b)?.name || b }}</option>
             </select>
           </label>
         </div>
-        <p v-if="selectedTypeDef" class="supply-route__desc">{{ selectedTypeDef.description }}</p>
-        <p class="supply-route__cost">Cost: {{ formatNumber(establishCost) }} | Funds: {{ formatNumber(activeBranchCurrency) }}</p>
-        <button class="supply-route__btn supply-route__btn--establish" :disabled="!canEstablish" @click="doEstablish">
+        <p v-if="selectedTypeDef" class="supply_route__desc">{{ selectedTypeDef.description }}</p>
+        <p class="supply_route__cost">Cost: {{ formatNumber(establishCost) }} | Funds: {{ formatNumber(activeBranchCurrency) }}</p>
+        <button class="supply_route__btn supply_route__btn__establish" :disabled="!canEstablish" @click="doEstablish">
           Establish Route
         </button>
       </section>
 
       <!-- Hijack Routes -->
-      <section v-if="hijackableRoutes.length > 0" class="supply-route__section">
-        <h3 class="supply-route__heading">Hijackable Routes</h3>
-        <p class="supply-route__hint">Send an assassin to steal a route from another branch. Requires an idle assassin with loyalty ≥ 20.</p>
-        <div class="supply-route__list">
-          <div v-for="route in hijackableRoutes" :key="route.id" class="supply-route__card supply-route__card--hijack">
-            <div class="supply-route__card-header">
-              <span class="supply-route__icon" :style="{ color: getRouteTypeColor(route.type) }">{{ getRouteTypeIcon(route.type) }}</span>
-              <span class="supply-route__type-name">{{ getRouteTypeName(route.type) }}</span>
+      <section v-if="hijackableRoutes.length > 0" class="supply_route__section">
+        <h3 class="supply_route__heading">Hijackable Routes</h3>
+        <p class="supply_route__hint">Send an assassin to steal a route from another branch. Requires an idle assassin with loyalty ≥ 20.</p>
+        <div class="supply_route__list">
+          <div v-for="route in hijackableRoutes" :key="route.id" class="supply_route__card supply_route__card__hijack">
+            <div class="supply_route__card_header">
+              <span class="supply_route__icon" :style="{ color: getRouteTypeColor(route.type) }">{{ getRouteTypeIcon(route.type) }}</span>
+              <span class="supply_route__type_name">{{ getRouteTypeName(route.type) }}</span>
             </div>
-            <div class="supply-route__route-info">
+            <div class="supply_route__route_info">
               {{ getBranchDef(route.from)?.name || route.from }} → {{ getBranchDef(route.to)?.name || route.to }}
             </div>
-            <div class="supply-route__stats">
-              <span class="supply-route__stat">Stability: {{ route.stability.toFixed(0) }}%</span>
-              <span class="supply-route__stat">Success: {{ canHijack(route.id) ? getHijackChance(route.id) + '%' : 'N/A' }}</span>
+            <div class="supply_route__stats">
+              <span class="supply_route__stat">Stability: {{ route.stability.toFixed(0) }}%</span>
+              <span class="supply_route__stat">Success: {{ canHijack(route.id) ? getHijackChance(route.id) + '%' : 'N/A' }}</span>
             </div>
             <button
-              class="supply-route__btn supply-route__btn--hijack"
+              class="supply_route__btn supply_route__btn__hijack"
               :disabled="!canHijack(route.id)"
               @click="doHijack(route.id)"
             >
@@ -282,7 +282,7 @@ onUnmounted(() => {
         </div>
       </section>
 
-      <button class="game-panel__close" @click="emit('close')" aria-label="Close supply routes panel">✕</button>
+      <button class="game_panel__close" @click="emit('close')" aria-label="Close supply routes panel">✕</button>
     </div>
   </div>
 </template>

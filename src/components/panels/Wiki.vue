@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { wikiSections } from '@/data/wiki'
-import WikiContentRenderer from '@/components/panels/WikiContentRenderer.vue'
+import WikiContentRenderer from '@/components/panels/wikiContentRenderer.vue'
 
 const emit = defineEmits<{
   close: []
@@ -15,11 +15,11 @@ function scrollToSection(id: string) {
 </script>
 
 <template>
-  <div class="wiki-overlay" @click.self="emit('close')">
-    <div class="wiki-container" role="dialog" aria-modal="true" aria-labelledby="wiki-title">
-      <div class="wiki-header">
-        <h1 class="wiki-title" id="wiki-title">Continental Idle</h1>
-        <p class="wiki-subtitle">An idle/incremental game set in the Continental Hotel universe</p>
+  <div class="wiki_overlay" @click.self="emit('close')">
+    <div class="wiki_container" role="dialog" aria-modal="true" aria-labelledby="wiki_title">
+      <div class="wiki_header">
+        <h1 class="wiki_title" id="wiki_title">Continental Idle</h1>
+        <p class="wiki_subtitle">An idle/incremental game set in the Continental Hotel universe</p>
       </div>
 
       <div class="toc">
@@ -31,7 +31,7 @@ function scrollToSection(id: string) {
         </ul>
       </div>
 
-      <div v-for="section in wikiSections" :key="section.id" class="wiki-section" :id="section.id">
+      <div v-for="section in wikiSections" :key="section.id" class="wiki_section" :id="section.id">
         <h2>{{ section.title }}</h2>
         <div v-for="(content, idx) in section.content" :key="idx">
           <WikiContentRenderer :content="content" />
@@ -48,7 +48,7 @@ function scrollToSection(id: string) {
   box-sizing: border-box;
 }
 
-.wiki-overlay {
+.wiki_overlay {
   position: fixed;
   top: 0;
   left: 0;
@@ -60,7 +60,7 @@ function scrollToSection(id: string) {
   padding: var(--gap-md);
 }
 
-.wiki-container {
+.wiki_container {
   font-family: 'Courier New', monospace;
   background-color: var(--bg-primary);
   color: var(--text-primary);
@@ -71,14 +71,14 @@ function scrollToSection(id: string) {
   margin: 0 auto;
 }
 
-.wiki-header {
+.wiki_header {
   border: 1px solid var(--accent-gold);
   padding: var(--gap-md);
   margin-bottom: var(--gap-md);
   background-color: var(--bg-tertiary);
 }
 
-.wiki-title {
+.wiki_title {
   font-size: 2.5em;
   color: var(--accent-gold);
   border-bottom: 1px solid var(--accent-gold);
@@ -86,19 +86,19 @@ function scrollToSection(id: string) {
   margin-bottom: var(--gap-sm);
 }
 
-.wiki-subtitle {
+.wiki_subtitle {
   color: var(--text-dim);
   font-size: 1.1em;
 }
 
-.wiki-section {
+.wiki_section {
   border: 1px solid var(--text-primary);
   padding: var(--gap-md);
   margin-bottom: var(--gap-md);
   background-color: var(--bg-tertiary);
 }
 
-.wiki-section h2 {
+.wiki_section h2 {
   color: var(--accent-gold);
   border-bottom: 1px solid var(--accent-gold);
   padding-bottom: var(--gap-sm);
@@ -106,90 +106,90 @@ function scrollToSection(id: string) {
   font-size: 1.8em;
 }
 
-.wiki-section h3 {
+.wiki_section h3 {
   color: var(--text-primary);
   margin: var(--gap-md) 0 var(--gap-sm) 0;
   font-size: 1.4em;
 }
 
-.wiki-section h4 {
+.wiki_section h4 {
   color: var(--text-dim);
   margin: var(--gap-md) 0 var(--gap-sm) 0;
   font-size: 1.2em;
 }
 
-.wiki-section p {
+.wiki_section p {
   margin-bottom: var(--gap-md);
 }
 
-.wiki-section ul {
+.wiki_section ul {
   margin-left: var(--gap-md);
   margin-bottom: var(--gap-md);
 }
 
-.wiki-section li {
+.wiki_section li {
   margin-bottom: var(--gap-sm);
 }
 
-.wiki-section ol {
+.wiki_section ol {
   margin-left: var(--gap-md);
   margin-bottom: var(--gap-md);
 }
 
-.wiki-table {
+.wiki_table {
   width: 100%;
   border-collapse: collapse;
   margin: var(--gap-md) 0;
 }
 
-.wiki-table th,
-.wiki-table td {
+.wiki_table th,
+.wiki_table td {
   border: 1px solid var(--text-primary);
   padding: var(--gap-sm);
   text-align: left;
 }
 
-.wiki-table th {
+.wiki_table th {
   background-color: var(--bg-card);
   color: var(--accent-gold);
 }
 
-.wiki-table tr:hover {
+.wiki_table tr:hover {
   background-color: var(--bg-card);
 }
 
-.wiki-box {
+.wiki_box {
   border: 1px solid var(--accent-green);
   padding: var(--gap-md);
   margin: var(--gap-md) 0;
   background-color: var(--wiki-green-bg);
 }
 
-.wiki-box h4 {
+.wiki_box h4 {
   color: var(--accent-green);
   margin-bottom: var(--gap-sm);
 }
 
-.wiki-warning {
+.wiki_warning {
   border: 1px solid var(--wiki-red);
   padding: var(--gap-md);
   margin: var(--gap-md) 0;
   background-color: var(--wiki-red-bg);
 }
 
-.wiki-warning h4 {
+.wiki_warning h4 {
   color: var(--wiki-red);
   margin-bottom: var(--gap-sm);
 }
 
-.wiki-info {
+.wiki_info {
   border: 1px solid var(--wiki-blue);
   padding: var(--gap-md);
   margin: var(--gap-md) 0;
   background-color: var(--wiki-blue-bg);
 }
 
-.wiki-info h4 {
+.wiki_info h4 {
   color: var(--wiki-blue);
   margin-bottom: var(--gap-sm);
 }
@@ -224,7 +224,7 @@ function scrollToSection(id: string) {
   text-decoration: underline;
 }
 
-.branch-badge {
+.branch_badge {
   display: inline-block;
   padding: var(--gap-xs) var(--gap-sm);
   margin: var(--gap-xs);
@@ -232,15 +232,15 @@ function scrollToSection(id: string) {
   font-size: 0.9em;
 }
 
-.branch-badge.new-york { border-color: var(--branch-new-york); color: var(--branch-new-york); }
-.branch-badge.rome { border-color: var(--branch-rome); color: var(--branch-rome); }
-.branch-badge.casablanca { border-color: var(--branch-casablanca); color: var(--branch-casablanca); }
-.branch-badge.osaka { border-color: var(--branch-osaka); color: var(--branch-osaka); }
-.branch-badge.paris { border-color: var(--branch-paris); color: var(--branch-paris); }
-.branch-badge.berlin { border-color: var(--branch-berlin); color: var(--branch-berlin); }
-.branch-badge.dubai { border-color: var(--branch-dubai); color: var(--branch-dubai); }
+.branch_badge.new_york { border-color: var(--branch-new-york); color: var(--branch-new-york); }
+.branch_badge.rome { border-color: var(--branch-rome); color: var(--branch-rome); }
+.branch_badge.casablanca { border-color: var(--branch-casablanca); color: var(--branch-casablanca); }
+.branch_badge.osaka { border-color: var(--branch-osaka); color: var(--branch-osaka); }
+.branch_badge.paris { border-color: var(--branch-paris); color: var(--branch-paris); }
+.branch_badge.berlin { border-color: var(--branch-berlin); color: var(--branch-berlin); }
+.branch_badge.dubai { border-color: var(--branch-dubai); color: var(--branch-dubai); }
 
-.stat-box {
+.stat_box {
   display: inline-block;
   border: 1px solid var(--accent-gold);
   padding: var(--gap-sm) var(--gap-md);
@@ -248,12 +248,12 @@ function scrollToSection(id: string) {
   text-align: center;
 }
 
-.stat-box .label {
+.stat_box .label {
   font-size: 0.8em;
   color: var(--text-dim);
 }
 
-.stat-box .value {
+.stat_box .value {
   font-size: 1.2em;
   color: var(--accent-gold);
 }
@@ -289,63 +289,63 @@ pre code {
 }
 
 @media (max-width: 768px) {
-  .wiki-overlay {
+  .wiki_overlay {
     padding: var(--gap-sm);
   }
 
-  .wiki-container {
+  .wiki_container {
     padding: var(--gap-sm);
   }
 
-  .wiki-title {
+  .wiki_title {
     font-size: 1.6em;
   }
 
-  .wiki-subtitle {
+  .wiki_subtitle {
     font-size: 0.95em;
   }
 
-  .wiki-section {
+  .wiki_section {
     padding: var(--gap-sm);
   }
 
-  .wiki-section h2 {
+  .wiki_section h2 {
     font-size: 1.4em;
   }
 
-  .wiki-section h3 {
+  .wiki_section h3 {
     font-size: 1.2em;
   }
 
-  .wiki-table {
+  .wiki_table {
     display: block;
     overflow-x: auto;
   }
 
-  .wiki-header {
+  .wiki_header {
     padding: var(--gap-sm);
   }
 }
 
 @media (max-width: 480px) {
-  .wiki-container {
+  .wiki_container {
     padding: var(--gap-sm);
   }
 
-  .wiki-title {
+  .wiki_title {
     font-size: 1.3em;
     letter-spacing: 1px;
   }
 
-  .wiki-section {
+  .wiki_section {
     padding: var(--gap-sm);
   }
 
-  .wiki-section h2 {
+  .wiki_section h2 {
     font-size: 1.2em;
   }
 
-  .wiki-header {
+  .wiki_header {
     padding: var(--gap-sm);
   }
 }
