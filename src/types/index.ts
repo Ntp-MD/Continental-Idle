@@ -96,6 +96,12 @@ export interface MarkerDebt {
   branch: BranchId
 }
 
+export interface NpcPosition {
+  x: number
+  y: number
+  floor: FloorId
+}
+
 export interface BranchState {
   currency: number
   lifetimeEarnings: number
@@ -113,6 +119,7 @@ export interface BranchState {
   hqMaxHealth: number
   aiOwnerDefeated: boolean
   royalBuildings: Record<string, BuildingState>
+  npcPositions: Record<string, NpcPosition>
 }
 
 export interface WorldMapState {

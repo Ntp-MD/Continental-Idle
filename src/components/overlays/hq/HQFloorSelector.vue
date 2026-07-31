@@ -19,15 +19,15 @@ function thumbScaleY(y: number): number {
 </script>
 
 <template>
-  <div class="hq_floor_selector">
+  <div class="hqfloorselector">
     <div
       v-for="floor in FLOOR_IDS"
       :key="floor"
-      class="hq_floor_selector__item"
-      :class="{ 'is_selected': floor === props.selectedFloor, 'is_locked': !isFloorUnlocked(floor, props.buildings) }"
+      class="hqfloorselector__item"
+      :class="{ 'is__selected': floor === props.selectedFloor, 'is__locked': !isFloorUnlocked(floor, props.buildings) }"
       @click="emit('select', floor)"
     >
-      <svg :viewBox="`0 0 ${THUMB_W} ${THUMB_H}`" class="hq_floor_selector__thumb" preserveAspectRatio="xMidYMid meet">
+      <svg :viewBox="`0 0 ${THUMB_W} ${THUMB_H}`" class="hqfloorselector__thumb" preserveAspectRatio="xMidYMid meet">
         <rect x="0" y="0" :width="THUMB_W" :height="THUMB_H" :fill="floor === props.selectedFloor ? BG_DARK : BG_DARKER" :stroke="floor === props.selectedFloor ? GOLD : GOLD_DIM" stroke-width="1"/>
         <template v-if="isFloorUnlocked(floor, props.buildings)">
           <rect
@@ -48,13 +48,13 @@ function thumbScaleY(y: number): number {
           <text :x="THUMB_W / 2" :y="THUMB_H / 2" text-anchor="middle" dominant-baseline="middle" font-size="14" fill="#444">🔒</text>
         </template>
       </svg>
-      <span class="hq_floor_selector__label">{{ floor === 'G' ? 'G' : 'F' + floor }} · {{ FLOOR_NAMES[floor] }}</span>
+      <span class="hqfloorselector__label">{{ floor === 'G' ? 'G' : 'F' + floor }} · {{ FLOOR_NAMES[floor] }}</span>
     </div>
   </div>
 </template>
 
 <style scoped>
-.hq_floor_selector {
+.hqfloorselector {
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -62,27 +62,27 @@ function thumbScaleY(y: number): number {
   max-height: 600px;
   padding-right: 4px;
 }
-.hq_floor_selector__item {
+.hqfloorselector__item {
   cursor: pointer;
   border-radius: 4px;
   overflow: hidden;
   transition: transform 0.15s;
 }
-.hq_floor_selector__item:hover {
+.hqfloorselector__item:hover {
   transform: scale(1.02);
 }
-.hq_floor_selector__item.is_selected {
+.hqfloorselector__item.is__selected {
   box-shadow: 0 0 6px rgba(201, 168, 76, 0.4);
 }
-.hq_floor_selector__item.is_locked {
+.hqfloorselector__item.is__locked {
   opacity: 0.5;
 }
-.hq_floor_selector__thumb {
+.hqfloorselector__thumb {
   display: block;
   width: 100%;
   height: 60px;
 }
-.hq_floor_selector__label {
+.hqfloorselector__label {
   display: block;
   font-size: 9px;
   color: #888;

@@ -67,9 +67,10 @@ const assassinOptions = ref<Array<{ id: string; name: string; rank: string; cost
 const unlockedBranches = ref<Array<{ id: BranchId; name: string }>>([])
 const lendableBranches = ref<Array<{ id: BranchId; name: string }>>([])
 const upgradeList = ref<Array<{ id: string; name: string; description: string; cost: string; affordable: boolean; purchased: boolean }>>([])
+const activeBranchRef = ref<BranchId>('bangkok')
 const unlockedBuildings = computed(() => {
   const state = gameState.get()
-  const branch = state.branches[state.activeBranch]
+  const branch = state.branches[activeBranchRef.value]
   if (!branch) return []
   return BUILDINGS.filter(b => branch.buildings[b.id]?.unlocked)
 })
@@ -77,6 +78,7 @@ const unlockedBuildings = computed(() => {
 function update() {
   if (!props.visible) return
   const state = gameState.get()
+  activeBranchRef.value = state.activeBranch
   const branch = state.branches[state.activeBranch]
   if (!branch) return
 
@@ -205,15 +207,14 @@ function update() {
   }))
 }
 
-// Debounce utility to prevent rapid-fire clicks
-let lastActionTime = 0
 const ACTION_DEBOUNCE_MS = 200
 
 function createDebouncedAction<A extends unknown[]>(fn: (...args: A) => void): (...args: A) => void {
+  let lastCall = 0
   return (...args: A) => {
     const now = Date.now()
-    if (now - lastActionTime < ACTION_DEBOUNCE_MS) return
-    lastActionTime = now
+    if (now - lastCall < ACTION_DEBOUNCE_MS) return
+    lastCall = now
     fn(...args)
   }
 }
@@ -336,67 +337,67 @@ watch(() => props.visible, (v) => {
 </script>
 
 <template>
-  <div v-if="visible" class="game_panel" @click.self="emit('close')">
-    <div class="game_panel__content" role="dialog" aria-modal="true" aria-labelledby="panel_title_staff">
-      <h2 id="panel_title_staff" class="game_panel__title">Staff & Assassins</h2>
+  <div v-if="visible" class="panel" @click.self="emit('close')">
+    <div class="panel__content" role="dialog" aria-modal="true" aria-labelledby="panel__title__staff">
+      <h2 id="panel__title__staff" class="panel__title">Staff & Assassins</h2>
 
-      <div class="section_header">Hire Staff <span v-if="hireOptions[0]?.atCap" class="staff_section_note">(Cap reached)</span></div>
-      <div class="staff_hire">
+      <div class="section__header">Hire Staff <span v-if="hireOptions[0]?.atCap" class="staff__section__note">(Cap reached)</span></div>
+      <div class="staff__hire">
         <button
           v-for="opt in hireOptions" :key="opt.id"
-          class="staff_hire__btn"
+          class="btn btn__sm"
           :disabled="!opt.affordable"
           @click="debouncedDoHire(opt.id)"
         >{{ opt.name }} ({{ opt.cost }}){{ !opt.unlocked ? ' [LOCKED]' : opt.atCap ? ' [CAP]' : '' }}</button>
       </div>
-      <div class="staff_hire__abilities">
-        <div v-for="opt in hireOptions" :key="opt.id" v-show="opt.unlocked" class="staff_hire__ability">
-          <span class="staff_hire__ability_name">{{ opt.name }}</span>: {{ opt.maxAbility }}
+      <div class="staff__hire__abilities">
+        <div v-for="opt in hireOptions" :key="opt.id" v-show="opt.unlocked" class="staff__hire__ability">
+          <span class="staff__hire__abilityname">{{ opt.name }}</span>: {{ opt.maxAbility }}
         </div>
       </div>
 
       <template v-if="upgradeList.length > 0">
-        <div class="section_header">Upgrades</div>
-        <div class="upgrade_list">
-          <div v-for="u in upgradeList" :key="u.id" class="upgrade_card">
-            <div class="upgrade_card__info">
-              <span class="upgrade_card__name">{{ u.name }}</span>
-              <span class="upgrade_card__desc">{{ u.description }}</span>
+        <div class="section__header">Upgrades</div>
+        <div class="upgrade__list">
+          <div v-for="u in upgradeList" :key="u.id" class="card upgrade__card">
+            <div class="upgrade__card__info">
+              <span class="upgrade__card__name">{{ u.name }}</span>
+              <span class="upgrade__card__desc">{{ u.description }}</span>
             </div>
             <button
               v-if="!u.purchased"
-              class="upgrade_card__btn"
+              class="btn btn__warning btn__sm"
               :disabled="!u.affordable"
               @click="debouncedDoPurchaseUpgrade(u.id)"
             >{{ u.cost }}</button>
-            <span v-else class="upgrade_card__purchased">PURCHASED</span>
+            <span v-else class="upgrade__card__purchased">PURCHASED</span>
           </div>
         </div>
       </template>
 
-      <div class="section_header">Active Staff</div>
-      <div v-for="s in staffList" :key="s.id" class="staff_card">
-        <div class="staff_card__header">
-          <span class="staff_card__name">{{ s.typeName }} Lv.{{ s.level }}/{{ s.maxLevel }}</span>
-          <span class="staff_card__rarity" :style="{ color: getRarityColor(s.rarity) }">{{ s.rarity }}</span>
-          <span v-if="s.isVeteran" class="staff_card__veteran">VETERAN</span>
-          <span v-if="s.isMaxed" class="staff_card__maxed">MAX</span>
+      <div class="section__header">Active Staff</div>
+      <div v-for="s in staffList" :key="s.id" class="card staff__card">
+        <div class="staff__card__header">
+          <span class="staff__card__name">{{ s.typeName }} Lv.{{ s.level }}/{{ s.maxLevel }}</span>
+          <span class="staff__card__rarity" :style="{ color: getRarityColor(s.rarity) }">{{ s.rarity }}</span>
+          <span v-if="s.isVeteran" class="staff__card__veteran">VETERAN</span>
+          <span v-if="s.isMaxed" class="staff__card__maxed">MAX</span>
         </div>
-        <div class="staff_card__xp_bar">
-          <div class="staff_card__xp_fill" :style="{ width: s.xpPercent + '%' }"></div>
+        <div class="staff__card__xpbar">
+          <div class="staff__card__xpfill" :style="{ width: s.xpPercent + '%' }"></div>
         </div>
-        <div class="staff_card__stats">{{ s.statsDisplay }}</div>
-        <div v-if="s.traitNames.length > 0" class="staff_card__traits">
-          <span v-for="t in s.traitNames" :key="t" class="staff_card__trait">{{ t }}</span>
+        <div class="staff__card__stats">{{ s.statsDisplay }}</div>
+        <div v-if="s.traitNames.length > 0" class="staff__card__traits">
+          <span v-for="t in s.traitNames" :key="t" class="staff__card__trait">{{ t }}</span>
         </div>
-        <div v-if="s.bestMatchNames" class="staff_card__bestmatch">Best: {{ s.bestMatchNames }}</div>
-        <div v-if="s.isMaxed && s.maxAbility" class="staff_card__maxability">{{ s.maxAbility }}</div>
-        <div v-if="s.veteranPerk" class="staff_card__veteranperk">{{ s.veteranPerk }}</div>
-        <div class="staff_assign">
+        <div v-if="s.bestMatchNames" class="staff__card__best">Best: {{ s.bestMatchNames }}</div>
+        <div v-if="s.isMaxed && s.maxAbility" class="staff__card__max">{{ s.maxAbility }}</div>
+        <div v-if="s.veteranPerk" class="staff__card__perk">{{ s.veteranPerk }}</div>
+        <div class="staff__assign">
           <select
             :value="s.assignedTo || ''"
             @change="doAssign(s.id, ($event.target as HTMLSelectElement).value)"
-            class="staff_assign__select"
+            class="staff__assign__select"
             :aria-label="`Assign ${s.typeName} to building`"
           >
             <option value="">Unassigned</option>
@@ -405,18 +406,18 @@ watch(() => props.visible, (v) => {
           <button
             v-if="s.pendingLevelUp"
             @click="debouncedDoLevelUp(s.id)"
-            class="staff_assign__levelup"
+            class="btn__sm btn__orange"
           >Level Up ({{ s.levelUpCost }})</button>
-          <button @click="doFireStaff(s.id)" class="staff_assign__fire">Fire</button>
+          <button @click="doFireStaff(s.id)" class="staff__assign__fire">Fire</button>
         </div>
       </div>
 
       <template v-if="assassinOptions.length > 0">
-        <div class="section_header staff_section_gap">Hire Assassins <span class="staff_section_note">(Prestige 3+)</span> <span v-if="assassinOptions[0]?.atCap" class="staff_section_note">(Cap reached)</span></div>
-        <div class="staff_hire">
+        <div class="section__header staff__section__gap">Hire Assassins <span class="staff__section__note">(Prestige 3+)</span> <span v-if="assassinOptions[0]?.atCap" class="staff__section__note">(Cap reached)</span></div>
+        <div class="staff__hire">
           <button
             v-for="opt in assassinOptions" :key="opt.id"
-            class="staff_hire__btn"
+            class="btn btn__sm"
             :disabled="!opt.affordable"
             @click="debouncedDoHireAssassin(opt.id)"
           >
@@ -424,39 +425,39 @@ watch(() => props.visible, (v) => {
             {{ !opt.unlocked ? ' [LOCKED]' : opt.atCap ? ' [CAP]' : '' }}
           </button>
         </div>
-        <div class="assassin_abilities">
-          <div v-for="opt in assassinOptions" :key="opt.id" class="assassin_abilities__row">{{ opt.name }}: {{ opt.ability }}</div>
+        <div class="assassin__abilities">
+          <div v-for="opt in assassinOptions" :key="opt.id" class="assassin__abilities__row">{{ opt.name }}: {{ opt.ability }}</div>
         </div>
-        <div v-for="a in assassinList" :key="a.id" class="staff_card assassin_card">
-          <div class="assassin_card__header">
-            <span class="assassin_card__name">{{ a.typeName }} Lv.{{ a.level }}/{{ a.maxLevel }}</span>
-            <span class="staff_card__rarity" :style="{ color: getRarityColor(a.rarity) }">{{ a.rarity }}</span>
-            <span v-if="a.awakened" class="assassin_card__awakened">AWAKENED</span>
-            <span v-if="a.synergyCount > 0" class="assassin_card__synergy">Syn:{{ a.synergyCount }}</span>
+        <div v-for="a in assassinList" :key="a.id" class="staff__card assassin__card">
+          <div class="assassin__card__header">
+            <span class="assassin__card__name">{{ a.typeName }} Lv.{{ a.level }}/{{ a.maxLevel }}</span>
+            <span class="staff__card__rarity" :style="{ color: getRarityColor(a.rarity) }">{{ a.rarity }}</span>
+            <span v-if="a.awakened" class="assassin__card__awakened">AWAKENED</span>
+            <span v-if="a.synergyCount > 0" class="assassin__card__synergy">Syn:{{ a.synergyCount }}</span>
           </div>
-          <div class="assassin_card__ability">{{ a.ability }}</div>
-          <div v-if="!a.awakened" class="assassin_card__awakening_progress">Awakening: {{ a.awakeningProgress }}</div>
-          <div class="staff_card__xp_bar">
-            <div class="staff_card__xp_fill" :style="{ width: a.xpPercent + '%' }"></div>
+          <div class="assassin__card__ability">{{ a.ability }}</div>
+          <div v-if="!a.awakened" class="assassin__card__awakeningprogress">Awakening: {{ a.awakeningProgress }}</div>
+          <div class="staff__card__xpbar">
+            <div class="staff__card__xpfill" :style="{ width: a.xpPercent + '%' }"></div>
           </div>
-          <div class="assassin_card__loyalty_bar">
-            <div class="assassin_card__loyalty_fill" :style="{ width: a.loyaltyPercent + '%' }"></div>
+          <div class="assassin__card__bar">
+            <div class="assassin__card__fill" :style="{ width: a.loyaltyPercent + '%' }"></div>
           </div>
-          <div class="assassin_card__info">
+          <div class="assassin__card__info">
             <span>Loyalty: {{ a.loyalty }}%</span>
             <span>branch: {{ a.assignedBranch }}</span>
-            <span v-if="a.lentTo" class="assassin_card__lent">Lent to: {{ a.lentTo }}</span>
-            <button v-if="a.lentTo" class="assassin_card__recall" @click="doRecallAssassin(a.id)">Recall</button>
+            <span v-if="a.lentTo" class="assassin__card__lent">Lent to: {{ a.lentTo }}</span>
+            <button v-if="a.lentTo" class="assassin__card__recall" @click="doRecallAssassin(a.id)">Recall</button>
           </div>
-          <div class="assassin_card__stats">{{ a.statsDisplay }}</div>
-          <div v-if="a.traitNames.length > 0" class="staff_card__traits">
-            <span v-for="t in a.traitNames" :key="t" class="staff_card__trait">{{ t }}</span>
+          <div class="assassin__card__stats">{{ a.statsDisplay }}</div>
+          <div v-if="a.traitNames.length > 0" class="staff__card__traits">
+            <span v-for="t in a.traitNames" :key="t" class="staff__card__trait">{{ t }}</span>
           </div>
-          <div class="assassin_card__actions">
+          <div class="assassin__card__actions">
             <select
               :value="a.rawassignedBranch || ''"
               @change="doAssignAssassin(a.id, ($event.target as HTMLSelectElement).value)"
-              class="staff_assign__select"
+              class="staff__assign__select"
               :aria-label="`Assign ${a.typeName} to branch`"
             >
               <option value="">Unassigned</option>
@@ -465,7 +466,7 @@ watch(() => props.visible, (v) => {
             <select
               :value="''"
               @change="doLendAssassin(a.id, ($event.target as HTMLSelectElement).value)"
-              class="staff_assign__select"
+              class="staff__assign__select"
               :aria-label="`Lend ${a.typeName} to branch`"
             >
               <option value="">Lend to...</option>
@@ -474,19 +475,19 @@ watch(() => props.visible, (v) => {
             <button
               v-if="a.pendingLevelUp"
               @click="debouncedDoAssassinLevelUp(a.id)"
-              class="staff_assign__levelup"
+              class="btn__sm btn__orange"
             >Level Up ({{ a.levelUpCost }})</button>
-            <button @click="doFireAssassin(a.id)" class="staff_assign__fire">Fire</button>
+            <button @click="doFireAssassin(a.id)" class="staff__assign__fire">Fire</button>
           </div>
-          <div v-if="a.attackTarget" class="assassin_card__attack_status">
-            <span class="assassin_card__attack_target">Attacking: {{ a.attackTarget }}</span>
-            <button class="assassin_card__cancel_attack" @click="doCancelAttack(a.id)">Cancel</button>
+          <div v-if="a.attackTarget" class="assassin__card__attackstatus">
+            <span class="assassin__card__attacktarget">Attacking: {{ a.attackTarget }}</span>
+            <button class="assassin__card__cancelattack" @click="doCancelAttack(a.id)">Cancel</button>
           </div>
-          <div v-else-if="attackTargets.length > 0" class="assassin_card__attack_actions">
+          <div v-else-if="attackTargets.length > 0" class="assassin__card__attackactions">
             <select
               :value="a.rawAttackTarget || ''"
               @change="doSendAttack(a.id, ($event.target as HTMLSelectElement).value)"
-              class="staff_assign__select"
+              class="staff__assign__select"
               :aria-label="`Send ${a.typeName} to attack target`"
             >
               <option value="">Send to attack...</option>
@@ -497,36 +498,36 @@ watch(() => props.visible, (v) => {
       </template>
 
       <template v-if="debts.length > 0 || canLayLow() || canHostEvent() || canBribeOfficial() || canGoldenCoinIncomeBoost()">
-        <div class="section_header staff_section_gap">Golden Coin Actions</div>
-        <div class="golden_coin_actions">
-          <button v-if="canLayLow()" class="golden_coin_btn" @click="doLayLow">Lay Low ({{ getLayLowCost() }} GC, -3 Heat)</button>
-          <button v-if="canHostEvent()" class="golden_coin_btn" @click="doHostEvent">Host Event ({{ getHostEventCost() }} GC, +15 Guests)</button>
-          <button v-if="canBribeOfficial()" class="golden_coin_btn" @click="doBribeOfficial">Bribe Official ({{ getBribeOfficialCost() }} GC, -5 Heat)</button>
-          <button v-if="canGoldenCoinIncomeBoost()" class="golden_coin_btn" @click="doGoldenCoinIncomeBoost">Income Boost ({{ getGoldenCoinIncomeBoostCost() }} GC, 1.5x for {{ getGoldenCoinIncomeBoostDuration() }}s)</button>
+        <div class="section__header staff__section__gap">Golden Coin Actions</div>
+        <div class="actions actions__wrap">
+          <button v-if="canLayLow()" class="btn btn__warning" @click="doLayLow">Lay Low ({{ getLayLowCost() }} GC, -3 Heat)</button>
+          <button v-if="canHostEvent()" class="btn btn__warning" @click="doHostEvent">Host Event ({{ getHostEventCost() }} GC, +15 Guests)</button>
+          <button v-if="canBribeOfficial()" class="btn btn__warning" @click="doBribeOfficial">Bribe Official ({{ getBribeOfficialCost() }} GC, -5 Heat)</button>
+          <button v-if="canGoldenCoinIncomeBoost()" class="btn btn__warning" @click="doGoldenCoinIncomeBoost">Income Boost ({{ getGoldenCoinIncomeBoostCost() }} GC, 1.5x for {{ getGoldenCoinIncomeBoostDuration() }}s)</button>
         </div>
       </template>
 
       <template v-if="debts.length > 0">
-        <div class="section_header staff_section_gap">Marker Debts</div>
-        <div class="debt_info">
+        <div class="section__header staff__section__gap">Marker Debts</div>
+        <div class="debt__info">
           Total: {{ totalDebt }} — Debts auto-collect 5%/10s and accrue 1% interest/min
         </div>
-        <div v-for="d in debts" :key="d.id" class="staff_card debt_row">
-          <span class="debt_row__amount">{{ d.amount }}</span>
+        <div v-for="d in debts" :key="d.id" class="staff__card debt__row">
+          <span class="debt__row__amount">{{ d.amount }}</span>
           <button
             :disabled="!d.canRepay"
             @click="debouncedDoRepay(d.id)"
-            class="debt_row__repay"
+            class="btn__sm btn__orange"
           >Repay</button>
         </div>
         <button
           v-if="canRepayAll"
           @click="debouncedDoRepayAll"
-          class="debt_row__repay_all"
+          class="btn__orange debt__row__repaymax"
         >Repay All ({{ totalDebt }})</button>
       </template>
 
-      <button class="game_panel__close" @click="emit('close')">Close</button>
+      <button class="panel__close" @click="emit('close')">Close</button>
     </div>
   </div>
 </template>

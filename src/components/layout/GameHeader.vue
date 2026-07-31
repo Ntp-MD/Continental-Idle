@@ -85,69 +85,69 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <header class="game_header">
-    <h1 class="game_header__title">
+  <header class="game">
+    <h1 class="game__title">
       Continental — {{ branchName }}
-      <span v-if="isHq" class="game_header__hq_badge">HQ</span>
+      <span v-if="isHq" class="game__hqbadge">HQ</span>
     </h1>
-    <div class="game_header__currencies">
-      <div class="game_header__currency">
-        <span class="game_header__currency_label">Gold</span>
-        <span class="game_header__currency_value">{{ currency }}</span>
+    <div class="game__currencies">
+      <div class="game__currency">
+        <span class="game__currency__label">Gold</span>
+        <span class="game__currency__value">{{ currency }}</span>
       </div>
-      <div v-if="goldenCoins !== '0'" class="game_header__currency">
-        <span class="game_header__currency_label">GC</span>
-        <span class="game_header__currency_value" style="color: #c9a84c">{{ goldenCoins }}</span>
+      <div v-if="goldenCoins !== '0'" class="game__currency">
+        <span class="game__currency__label">GC</span>
+        <span class="game__currency__value" style="color: #c9a84c">{{ goldenCoins }}</span>
       </div>
-      <div v-if="royalMarks !== '0'" class="game_header__currency">
-        <span class="game_header__currency_label">RM</span>
-        <span class="game_header__currency_value" style="color: #b8860b">{{ royalMarks }}</span>
+      <div v-if="royalMarks !== '0'" class="game__currency">
+        <span class="game__currency__label">RM</span>
+        <span class="game__currency__value" style="color: #b8860b">{{ royalMarks }}</span>
       </div>
-      <div class="game_header__currency">
-        <span class="game_header__currency_label">Income</span>
-        <span class="game_header__currency_value game_header__currency_value__income">{{ income }}</span>
+      <div class="game__currency">
+        <span class="game__currency__label">Income</span>
+        <span class="game__currency__value game__currency__income">{{ income }}</span>
       </div>
-      <div v-if="inactiveIncome !== '0/s'" class="game_header__currency">
-        <span class="game_header__currency_label">Idle</span>
-        <span class="game_header__currency_value game_header__currency_value__income">{{ inactiveIncome }}</span>
+      <div v-if="inactiveIncome !== '0/s'" class="game__currency">
+        <span class="game__currency__label">Idle</span>
+        <span class="game__currency__value game__currency__income">{{ inactiveIncome }}</span>
       </div>
-      <div class="game_header__currency">
-        <span class="game_header__currency_label">Favor</span>
-        <span class="game_header__currency_value game_header__currency_value__favor">{{ favor }}</span>
-        <span v-if="prestigeMult > 0" class="game_header__currency_sub">+{{ prestigeMult }}%</span>
+      <div class="game__currency">
+        <span class="game__currency__label">Favor</span>
+        <span class="game__currency__value game__currency__favor">{{ favor }}</span>
+        <span v-if="prestigeMult > 0" class="game__currencysub">+{{ prestigeMult }}%</span>
       </div>
-      <div class="game_header__currency">
-        <span class="game_header__currency_label">Prestige</span>
-        <span class="game_header__currency_value">{{ prestige }}</span>
+      <div class="game__currency">
+        <span class="game__currency__label">Prestige</span>
+        <span class="game__currency__value">{{ prestige }}</span>
       </div>
-      <div class="game_header__currency">
-        <span class="game_header__currency_label">Rep</span>
-        <span class="game_header__currency_value">{{ reputation }}</span>
+      <div class="game__currency">
+        <span class="game__currency__label">Rep</span>
+        <span class="game__currency__value">{{ reputation }}</span>
       </div>
-      <div class="game_header__currency">
-        <span class="game_header__currency_label">Guests</span>
-        <span class="game_header__currency_value">{{ satisfaction }}%</span>
+      <div class="game__currency">
+        <span class="game__currency__label">Guests</span>
+        <span class="game__currency__value">{{ satisfaction }}%</span>
       </div>
-      <div v-if="permBonus > 0" class="game_header__currency">
-        <span class="game_header__currency_label">Perm</span>
-        <span class="game_header__currency_value game_header__currency_value__income">+{{ permBonus }}%</span>
+      <div v-if="permBonus > 0" class="game__currency">
+        <span class="game__currency__label">Perm</span>
+        <span class="game__currency__value game__currency__income">+{{ permBonus }}%</span>
       </div>
-      <div class="heat_meter" :class="{ 'heat_meter__critical': heat >= 8 }">
-        <span class="heat_meter__label">Heat</span>
-        <div class="heat_meter__bar">
-          <div class="heat_meter__fill" :style="{ width: (heat / 10 * 100) + '%' }"></div>
+      <div class="heat__meter" :class="{ 'heat__meter__critical': heat >= 8 }">
+        <span class="heat__meter__label">Heat</span>
+        <div class="heat__meter__bar">
+          <div class="heat__meter__fill" :style="{ width: (heat / 10 * 100) + '%' }"></div>
         </div>
-        <span class="heat_meter__value">{{ heat }}/10</span>
-        <span v-if="heat >= 8" class="heat_meter__warning">?</span>
+        <span class="heat__meter__value">{{ heat }}/10</span>
+        <span v-if="heat >= 8" class="heat__meter__warning">?</span>
       </div>
-      <div v-if="debtCount > 0" class="game_header__currency game_header__currency__debt" :class="{ 'game_header__currency__debt_warning': debtWarning }">
-        <span class="game_header__currency_label">Debt</span>
-        <span class="game_header__currency_value">{{ debtTotal }} ({{ debtCount }})</span>
-        <span v-if="debtWarning" class="game_header__currency_warning">?</span>
+      <div v-if="debtCount > 0" class="game__currency game__currency__debt" :class="{ 'game__currency__debtwarn': debtWarning }">
+        <span class="game__currency__label">Debt</span>
+        <span class="game__currency__value">{{ debtTotal }} ({{ debtCount }})</span>
+        <span v-if="debtWarning" class="game__currency__warning">?</span>
       </div>
-      <div v-if="graceMinutes > 0" class="game_header__currency game_header__currency__grace">
-        <span class="game_header__currency_label">Grace</span>
-        <span class="game_header__currency_value">{{ graceMinutes }}m</span>
+      <div v-if="graceMinutes > 0" class="game__currency game__currency__grace">
+        <span class="game__currency__label">Grace</span>
+        <span class="game__currency__value">{{ graceMinutes }}m</span>
       </div>
     </div>
   </header>

@@ -3,7 +3,7 @@ import { ref, computed, onMounted, onUnmounted, watch, inject } from 'vue'
 import { useAssetsStore, dragState, endAssetDrag, endRoomTemplateDrag } from '../blueprintStore'
 import { findAssetCached, validateRoomAnchors } from '../assetUtils'
 import { svgTransform as svgTransformGeo, roundedRectPath } from '../geometry'
-import { useToast } from '../composables/useToast'
+import { useToast } from '@/composables/useToast'
 import type { ObjectData, RoomData, EntityRef } from '../types'
 import { useCanvasViewport } from '../composables/useCanvasViewport'
 import { useCanvasSelection } from '../composables/useCanvasSelection'
@@ -44,8 +44,22 @@ watch(() => store.state.mode, (mode, previousMode) => {
   if (previousMode === 'npc-preview' && mode !== 'npc-preview') stopNpcSimulation()
 })
 
+const invalidAnchorKeys = computed(() => {
+  const currentFloor = floor.value
+  if (!currentFloor) return new Set<string>()
+
+  const keys = new Set<string>()
+  const objects = currentFloor.objects
+  for (const room of currentFloor.rooms) {
+    for (const [x, y] of validateRoomAnchors(room, objects).invalid) {
+      keys.add(`${room.id}:${x}:${y}`)
+    }
+  }
+  return keys
+})
+
 function isInvalidAnchor(room: RoomData, anchor: readonly [number, number]): boolean {
-  return validateRoomAnchors(room, floor.value?.objects ?? []).invalid.some(([x, y]) => x === anchor[0] && y === anchor[1])
+  return invalidAnchorKeys.value.has(`${room.id}:${anchor[0]}:${anchor[1]}`)
 }
 
 const ROOM_DEFAULT_FILL = '#e8e4dc'
@@ -399,7 +413,7 @@ function onKeyUp(e: KeyboardEvent) {
   if (e.code === 'Space') spaceDown.value = false
 }
 
-const ZOOM_STORAGE_KEY = 'blueprint_zoom_state'
+const ZOOM_STORAGE_KEY = 'blueprint-zoom-state'
 
 onMounted(() => {
   window.addEventListener('keydown', onKeyDown)
@@ -455,7 +469,7 @@ function roomStrokeStyle(room: RoomData): string {
   switch (room.roomType) {
     case 'wall': return 'var(--text-primary)'
     case 'entrance': return 'var(--accent-gold)'
-    case 'elevator': return 'var(--accent-purple)'
+    case 'elevator': return 'var(--accent-blue)'
     default: return 'var(--text-primary)'
   }
 }
@@ -471,7 +485,7 @@ function roomDashArray(room: RoomData): string | undefined {
 function assetSvg(type: string): string | undefined {
   const a = findAssetCached(store.assetMap(), type)
   const svg = a?.svg
-  return svg ? svg.replace(/var\(--blueprint-line\)/g, 'var(--object-detail-line)') : undefined
+  return svg ? svg.replace(/var\(--border-dim\)/g, 'var(--border-dim)') : undefined
 }
 
 function svgTransform(obj: ObjectData): string {
@@ -493,7 +507,7 @@ function isRoomSelected(id: string): boolean {
   <div
     :ref="vp.containerRef"
     class="editor__canvas"
-    :class="{ 'editor__canvas__panning': spaceDown, 'editor__canvas__dragging': !!panning, 'editor__canvas__wall__mode': store.state.mode === 'wall', 'editor__canvas__move__mode': store.state.mode === 'move', 'editor__canvas__erase__mode': store.state.mode === 'erase' }"
+    :class="{ 'editor__canvas__panning': spaceDown, 'editor__canvas__dragging': !!panning, 'editor__canvas__tool-mode__wall': store.state.mode === 'wall', 'editor__canvas__tool-mode__move': store.state.mode === 'move', 'editor__canvas__tool-mode__erase': store.state.mode === 'erase' }"
     @wheel="onWheel"
     @mousedown="onPanMouseDown"
     @mousemove="onContainerMouseMove"
@@ -518,7 +532,7 @@ function isRoomSelected(id: string): boolean {
         <rect :width="canvas.width" :height="canvas.height" :style="{ fill: 'var(--bg-secondary)' }" />
 
         <!-- Rulers (outside canvas, Photoshop-style) -->
-        <g class="editor__canvas__ruler__group" style="pointer-events: none">
+        <g class="editor__ruler__grouppassive" style="pointer-events: none">
           <!-- Top ruler background -->
           <rect :x="-RULER_SIZE" :y="-RULER_SIZE" :width="canvas.width + RULER_SIZE" :height="RULER_SIZE" :style="{ fill: 'var(--bg-secondary)', stroke: 'var(--border-dim)' }" stroke-width="0.5" />
           <!-- Left ruler background -->
@@ -613,7 +627,7 @@ function isRoomSelected(id: string): boolean {
               :style="{ stroke: roomStrokeStyle(room), cursor: moving?.id === room.id ? 'grabbing' : 'move' }"
               :stroke-width="roomStrokeWidth(room)"
               :stroke-dasharray="roomDashArray(room)"
-              :class="{ 'editor__canvas__selected': isRoomSelected(room.id), 'editor__canvas__dragging__item': moving?.id === room.id, 'editor__canvas__locked': room.locked }"
+              :class="{ 'editor__canvas__selected': isRoomSelected(room.id), 'editor__canvas__dragitem': moving?.id === room.id, 'editor__canvas__locked': room.locked }"
             />
             <rect
               v-else
@@ -624,7 +638,7 @@ function isRoomSelected(id: string): boolean {
               :stroke-width="roomStrokeWidth(room)"
               :stroke-dasharray="roomDashArray(room)"
               :rx="room.radius ?? 0"
-              :class="{ 'editor__canvas__selected': isRoomSelected(room.id), 'editor__canvas__dragging__item': moving?.id === room.id, 'editor__canvas__locked': room.locked }"
+              :class="{ 'editor__canvas__selected': isRoomSelected(room.id), 'editor__canvas__dragitem': moving?.id === room.id, 'editor__canvas__locked': room.locked }"
             />
             <path
               v-if="isRoomSelected(room.id) && roundedRectPath(room.x + (room.padding ?? 0), room.y + (room.padding ?? 0), room.w - (room.padding ?? 0) * 2, room.h - (room.padding ?? 0) * 2, room.rx)"
@@ -663,7 +677,7 @@ function isRoomSelected(id: string): boolean {
             </text>
           </g>
 
-          <g v-if="store.state.mode === 'npc-preview'" class="editor__canvas__npc__layer" style="pointer-events: none">
+          <g v-if="store.state.mode === 'npc-preview'" class="editor__npc__layeroverlay" style="pointer-events: none">
             <g v-for="npc in currentFloorNpcs" :key="npc.id">
               <circle :cx="npc.x" :cy="npc.y" r="6" :fill="npc.color" opacity="0.25" />
               <circle :cx="npc.x" :cy="npc.y" r="4" :fill="npc.color" stroke="var(--text-bright)" stroke-width="1" />
@@ -683,7 +697,7 @@ function isRoomSelected(id: string): boolean {
                 v-svg-content="assetSvg(obj.type)"
                 :transform="svgTransform(obj)"
                 :data-obj-id="obj.id"
-                :class="{ 'editor__canvas__selected': isObjectSelected(obj.id), 'editor__canvas__collapsed': obj.collapsed, 'editor__canvas__dragging__item': moving?.id === obj.id, 'editor__canvas__locked': obj.locked, 'editor__canvas__no_outer_wall': !hasOuterWall(obj) }"
+                :class="{ 'editor__canvas__selected': isObjectSelected(obj.id), 'editor__canvas__collapsed': obj.collapsed, 'editor__canvas__dragitem': moving?.id === obj.id, 'editor__canvas__locked': obj.locked, 'editor__canvas__nowall': !hasOuterWall(obj) }"
                 :style="{ cursor: moving?.id === obj.id ? 'grabbing' : 'move' }"
               />
             </template>
@@ -691,7 +705,7 @@ function isRoomSelected(id: string): boolean {
               v-else-if="roundedRectPath(obj.x + (obj.padding ?? 0), obj.y + (obj.padding ?? 0), obj.w - (obj.padding ?? 0) * 2, obj.h - (obj.padding ?? 0) * 2, obj.rx)"
               :d="roundedRectPath(obj.x + (obj.padding ?? 0), obj.y + (obj.padding ?? 0), obj.w - (obj.padding ?? 0) * 2, obj.h - (obj.padding ?? 0) * 2, obj.rx)!"
               :fill="objFillColor(obj)" stroke-width="1"
-              :class="{ 'editor__canvas__selected': isObjectSelected(obj.id), 'editor__canvas__collapsed': obj.collapsed, 'editor__canvas__dragging__item': moving?.id === obj.id, 'editor__canvas__linked': !!obj.linkGroupId, 'editor__canvas__locked': obj.locked }"
+              :class="{ 'editor__canvas__selected': isObjectSelected(obj.id), 'editor__canvas__collapsed': obj.collapsed, 'editor__canvas__dragitem': moving?.id === obj.id, 'editor__canvas__linked': !!obj.linkGroupId, 'editor__canvas__locked': obj.locked }"
               :style="{ stroke: 'var(--text-primary)', cursor: moving?.id === obj.id ? 'grabbing' : 'move' }"
             />
             <rect
@@ -699,7 +713,7 @@ function isRoomSelected(id: string): boolean {
               :x="obj.x + (obj.padding ?? 0)" :y="obj.y + (obj.padding ?? 0)" :width="obj.w - (obj.padding ?? 0) * 2" :height="obj.h - (obj.padding ?? 0) * 2"
               :fill="objFillColor(obj)" stroke-width="1"
               :rx="obj.radius ?? 0"
-              :class="{ 'editor__canvas__selected': isObjectSelected(obj.id), 'editor__canvas__collapsed': obj.collapsed, 'editor__canvas__dragging__item': moving?.id === obj.id, 'editor__canvas__linked': !!obj.linkGroupId, 'editor__canvas__locked': obj.locked }"
+              :class="{ 'editor__canvas__selected': isObjectSelected(obj.id), 'editor__canvas__collapsed': obj.collapsed, 'editor__canvas__dragitem': moving?.id === obj.id, 'editor__canvas__linked': !!obj.linkGroupId, 'editor__canvas__locked': obj.locked }"
               :style="{ stroke: 'var(--text-primary)', cursor: moving?.id === obj.id ? 'grabbing' : 'move' }"
             />
             <template v-if="showWalkableOverlay && obj.walkableGrid">
@@ -730,7 +744,7 @@ function isRoomSelected(id: string): boolean {
               {{ assetLabel(obj.type) }}
             </text>
             <g v-if="obj.linkGroupId" style="pointer-events: none">
-              <circle :cx="obj.x + obj.w - 4" :cy="obj.y + 4" r="3" fill="var(--accent-cyan)" stroke="var(--bg-primary)" stroke-width="0.5" />
+              <circle :cx="obj.x + obj.w - 4" :cy="obj.y + 4" r="3" fill="var(--accent-blue)" stroke="var(--bg-primary)" stroke-width="0.5" />
               <text :x="obj.x + obj.w - 4" :y="obj.y + 5.5" text-anchor="middle" font-size="4" fill="var(--bg-primary)">L</text>
             </g>
             <template v-if="(isObjectSelected(obj.id) || store.state.mode === 'npc-preview' || showWalkableOverlay) && obj.anchorPoints && obj.anchorPoints.length > 0">
@@ -751,10 +765,10 @@ function isRoomSelected(id: string): boolean {
           :x="wallDrag.x" :y="wallDrag.y" :width="wallDrag.w" :height="wallDrag.h"
           :style="{
             fill: wallDrag.isZone
-              ? (wallDrag.valid ? 'color-mix(in srgb, var(--accent-purple) 15%, transparent)' : 'color-mix(in srgb, var(--accent-red) 15%, transparent)')
+              ? (wallDrag.valid ? 'color-mix(in srgb, var(--accent-blue) 15%, transparent)' : 'color-mix(in srgb, var(--accent-red) 15%, transparent)')
               : (wallDrag.valid ? 'color-mix(in srgb, var(--accent-green) 15%, transparent)' : 'color-mix(in srgb, var(--accent-red) 15%, transparent)'),
             stroke: wallDrag.isZone
-              ? (wallDrag.valid ? 'var(--accent-purple)' : 'var(--accent-red)')
+              ? (wallDrag.valid ? 'var(--accent-blue)' : 'var(--accent-red)')
               : (wallDrag.valid ? 'var(--accent-green)' : 'var(--accent-red)')
           }"
           stroke-width="1.5"
@@ -799,21 +813,21 @@ function isRoomSelected(id: string): boolean {
         </g>
       </svg>
 
-    <div class="editor__canvas__floor__title" v-if="floor">
-      <span class="editor__canvas__floor__label">{{ floor.label }}</span>
-      <span class="editor__canvas__floor__name">{{ floor.name }}</span>
+    <div class="editor__floor__titlefloat" v-if="floor">
+      <span class="editor__floor__labelhstack">{{ floor.label }}</span>
+      <span class="editor__floor__namebold">{{ floor.name }}</span>
     </div>
 
-    <div class="editor__canvas__floor__nav" v-if="floor">
-      <button class="editor__canvas__floor__nav__btn" @click="switchFloor(-1)" :disabled="floorIndex === 0" title="Previous floor" aria-label="Previous floor">▲</button>
-      <span class="editor__canvas__floor__nav__label">{{ floorIndex + 1 }}/{{ store.state.layout.floors.length }}</span>
-      <button class="editor__canvas__floor__nav__btn" @click="switchFloor(1)" :disabled="floorIndex === store.state.layout.floors.length - 1" title="Next floor" aria-label="Next floor">▼</button>
+    <div class="editor__floor__navhstack" v-if="floor">
+      <button class="editor__floor__navbutton" @click="switchFloor(-1)" :disabled="floorIndex === 0" title="Previous floor" aria-label="Previous floor">▲</button>
+      <span class="editor__floor__navlabel">{{ floorIndex + 1 }}/{{ store.state.layout.floors.length }}</span>
+      <button class="editor__floor__navbutton" @click="switchFloor(1)" :disabled="floorIndex === store.state.layout.floors.length - 1" title="Next floor" aria-label="Next floor">▼</button>
     </div>
 
-    <div class="editor__canvas__mode__badge" :class="`editor__canvas__mode__badge__${store.state.mode}`">
+    <div class="editor__modebadge__float" :class="`editor__modebadge__${store.state.mode.replace('-', '')}`">
       {{ modeLabel }}
     </div>
-    <div class="editor__canvas__mode__hint" v-if="modeHint">
+    <div class="editor__mode__hintfloat" v-if="modeHint">
       {{ modeHint }}
     </div>
 
@@ -821,15 +835,15 @@ function isRoomSelected(id: string): boolean {
       {{ mouseCoords.x }}, {{ mouseCoords.y }}
     </div>
 
-    <div class="editor__canvas__zoom__controls">
-      <button class="editor__canvas__zoom__btn" @click="zoomBy(1 / 1.25)" title="Zoom Out (-)" aria-label="Zoom out">−</button>
-      <span class="editor__canvas__zoom__display" aria-label="Zoom level">{{ zoomPercent }}%</span>
-      <button class="editor__canvas__zoom__btn" @click="zoomBy(1.25)" title="Zoom In (+)" aria-label="Zoom in">+</button>
-      <button class="editor__canvas__zoom__btn editor__canvas__zoom__btn__fit" @click="fitToScreen" title="Fit to Screen (Ctrl+0)" aria-label="Fit to screen">Fit</button>
-      <button class="editor__canvas__zoom__btn editor__canvas__zoom__btn__fit" @click="centerView" title="Center View" aria-label="Center view">Center</button>
-      <button class="editor__canvas__zoom__btn editor__canvas__zoom__btn__fit" @click="toggleGrid" title="Toggle Grid" aria-label="Toggle grid">Grid</button>
-      <button class="editor__canvas__zoom__btn editor__canvas__zoom__btn__fit" @click="toggleLabels" title="Toggle Labels" aria-label="Toggle labels">Labels</button>
-      <button class="editor__canvas__zoom__btn editor__canvas__zoom__btn__fit" :class="{ 'editor__canvas__zoom__btn__active': showWalkableOverlay }" @click="toggleWalkableOverlay" title="Toggle Navigation View (walkable + anchors + entrances)" aria-label="Toggle navigation view">Nav</button>
+    <div class="editor__zoom__controlshstack">
+      <button class="editor__zoombtn__icon" @click="zoomBy(1 / 1.25)" title="Zoom Out (-)" aria-label="Zoom out">−</button>
+      <span class="editor__zoom__displaylabel" aria-label="Zoom level">{{ zoomPercent }}%</span>
+      <button class="editor__zoombtn__icon" @click="zoomBy(1.25)" title="Zoom In (+)" aria-label="Zoom in">+</button>
+      <button class="editor__zoombtn__icon editor__zoom__control" @click="fitToScreen" title="Fit to Screen (Ctrl+0)" aria-label="Fit to screen">Fit</button>
+      <button class="editor__zoombtn__icon editor__zoom__control" @click="centerView" title="Center View" aria-label="Center view">Center</button>
+      <button class="editor__zoombtn__icon editor__zoom__control" @click="toggleGrid" title="Toggle Grid" aria-label="Toggle grid">Grid</button>
+      <button class="editor__zoombtn__icon editor__zoom__control" @click="toggleLabels" title="Toggle Labels" aria-label="Toggle labels">Labels</button>
+      <button class="editor__zoombtn__icon editor__zoom__control" :class="{ 'editor__zoombtn__active': showWalkableOverlay }" @click="toggleWalkableOverlay" title="Toggle Navigation View (walkable + anchors + entrances)" aria-label="Toggle navigation view">Nav</button>
     </div>
     <WalkableGridPanel />
   </div>
@@ -860,19 +874,16 @@ function isRoomSelected(id: string): boolean {
   cursor: grabbing !important;
 }
 
-.editor__canvas__wall__mode .editor__canvas__svg {
+.editor__canvas__tool-mode__wall .editor__canvas__svg,
+.editor__canvas__tool-mode__erase .editor__canvas__svg {
   cursor: crosshair;
 }
 
-.editor__canvas__move__mode .editor__canvas__svg {
+.editor__canvas__tool-mode__move .editor__canvas__svg {
   cursor: grab;
 }
 
-.editor__canvas__erase__mode .editor__canvas__svg {
-  cursor: crosshair;
-}
-
-.editor__canvas__move__mode.editor__canvas__dragging .editor__canvas__svg {
+.editor__canvas__tool-mode__move.editor__canvas__dragging .editor__canvas__svg {
   cursor: grabbing;
 }
 
@@ -895,12 +906,12 @@ function isRoomSelected(id: string): boolean {
   pointer-events: none;
 }
 
-:deep(.editor__canvas__no_outer_wall .svg_role__wall) {
+:deep(.editor__canvas__nowall .svg_role__wall) {
   display: none;
 }
 
 .editor__canvas__linked {
-  stroke: var(--accent-cyan);
+  stroke: var(--accent-blue);
   stroke-width: 1.5px;
 }
 
@@ -908,11 +919,24 @@ function isRoomSelected(id: string): boolean {
   opacity: 0.6;
 }
 
-.editor__canvas__ruler__group {
+.editor__canvas__collapsed {
+  opacity: 0.4;
+}
+
+.editor__canvas__dragitem {
+  opacity: 0.7;
+}
+
+.editor__zoom__control {
+  min-width: 48px;
+  text-align: center;
+}
+
+.editor__ruler__grouppassive {
   pointer-events: none;
 }
 
-.editor__canvas__mode__badge {
+.editor__modebadge__float {
   position: absolute;
   top: 16px;
   left: 50%;
@@ -926,37 +950,37 @@ function isRoomSelected(id: string): boolean {
   z-index: 50;
 }
 
-.editor__canvas__mode__badge__wall {
+.editor__modebadge__wall {
   border-color: var(--accent-gold);
   color: var(--accent-gold);
 }
 
-.editor__canvas__mode__badge__object {
-  border-color: var(--accent-purple);
-  color: var(--accent-purple);
-}
-
-.editor__canvas__mode__badge__move {
-  border-color: var(--accent-green);
-  color: var(--accent-green);
-}
-
-.editor__canvas__mode__badge__erase {
-  border-color: var(--accent-red);
-  color: var(--accent-red);
-}
-
-.editor__canvas__mode__badge__zone {
-  border-color: var(--accent-purple);
-  color: var(--accent-purple);
-}
-
-.editor__canvas__mode__badge__npc_preview {
+.editor__modebadge__object {
   border-color: var(--accent-blue);
   color: var(--accent-blue);
 }
 
-.editor__canvas__mode__hint {
+.editor__modebadge__move {
+  border-color: var(--accent-green);
+  color: var(--accent-green);
+}
+
+.editor__modebadge__erase {
+  border-color: var(--accent-red);
+  color: var(--accent-red);
+}
+
+.editor__modebadge__zone {
+  border-color: var(--accent-blue);
+  color: var(--accent-blue);
+}
+
+.editor__modebadge__npcpreview {
+  border-color: var(--accent-blue);
+  color: var(--accent-blue);
+}
+
+.editor__mode__hintfloat {
   position: absolute;
   top: 44px;
   left: 50%;
@@ -972,7 +996,7 @@ function isRoomSelected(id: string): boolean {
   z-index: 50;
 }
 
-.editor__canvas__floor__title {
+.editor__floor__titlefloat {
   position: absolute;
   bottom: 16px;
   left: 16px;
@@ -985,17 +1009,17 @@ function isRoomSelected(id: string): boolean {
   height: fit-content;
 }
 
-.editor__canvas__floor__label {
+.editor__floor__labelhstack {
   display: inline-flex;
   align-items: center;
   gap: var(--gap-xs);
 }
 
-.editor__canvas__floor__name {
+.editor__floor__namebold {
   font-weight: 600;
 }
 
-.editor__canvas__floor__nav {
+.editor__floor__navhstack {
   position: absolute;
   top: 16px;
   right: 16px;
@@ -1009,7 +1033,7 @@ function isRoomSelected(id: string): boolean {
   z-index: 50;
 }
 
-.editor__canvas__floor__nav__btn {
+.editor__floor__navbutton {
   background: transparent;
   border: 1px solid var(--border-dim);
   color: var(--text-secondary);
@@ -1023,17 +1047,17 @@ function isRoomSelected(id: string): boolean {
   font-size: 10px;
 }
 
-.editor__canvas__floor__nav__btn:hover:not(:disabled) {
+.editor__floor__navbutton:hover:not(:disabled) {
   border-color: var(--accent-blue);
   color: var(--accent-blue);
 }
 
-.editor__canvas__floor__nav__btn:disabled {
+.editor__floor__navbutton:disabled {
   opacity: 0.3;
   cursor: not-allowed;
 }
 
-.editor__canvas__floor__nav__label {
+.editor__floor__navlabel {
   font-size: var(--font-xs);
   color: var(--text-dim);
   min-width: 32px;
@@ -1055,7 +1079,7 @@ function isRoomSelected(id: string): boolean {
   font-variant-numeric: tabular-nums;
 }
 
-.editor__canvas__zoom__controls {
+.editor__zoom__controlshstack {
   position: absolute;
   bottom: 16px;
   right: 16px;
@@ -1069,7 +1093,7 @@ function isRoomSelected(id: string): boolean {
   z-index: 50;
 }
 
-.editor__canvas__zoom__btn {
+.editor__zoombtn__icon {
   width: 28px;
   height: 28px;
   display: inline-flex;
@@ -1077,19 +1101,19 @@ function isRoomSelected(id: string): boolean {
   justify-content: center;
 }
 
-.editor__canvas__zoom__btn__active {
-  background: var(--accent-gold-dim);
+.editor__zoombtn__active {
+  background: color-mix(in srgb, var(--accent-gold) 12%, transparent);
   border-color: var(--accent-gold);
   color: var(--accent-gold);
 }
 
-.editor__canvas__zoom__display {
+.editor__zoom__displaylabel {
   min-width: 48px;
   text-align: center;
   font-size: var(--font-xs);
 }
 
-.editor__canvas__npc__layer {
+.editor__npc__layeroverlay {
   position: absolute;
   inset: 0;
   pointer-events: none;

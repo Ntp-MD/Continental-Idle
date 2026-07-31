@@ -99,7 +99,8 @@ class SovereignManager {
           })
         }
         break
-      // incomeMultiplier and ongoing effects are handled via active decrees check
+      case 'incomeMultiplier':
+        break
     }
   }
 

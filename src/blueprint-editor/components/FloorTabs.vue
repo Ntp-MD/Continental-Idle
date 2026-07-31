@@ -1,14 +1,22 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { useAssetsStore } from '../blueprintStore'
-import { useToast } from '../composables/useToast'
+import { useToast } from '@/composables/useToast'
+import { useFocusTrap } from '../../composables/useFocusTrap'
+import { sanitizeString } from '../../utils/sanitize'
 
 const store = useAssetsStore()
 
 const open = ref(false)
 const editingId = ref<string | null>(null)
-const editingName = ref('')
+const editingNameRaw = ref('')
+const editingName = computed({
+  get: () => editingNameRaw.value,
+  set: (v: string) => { editingNameRaw.value = sanitizeString(v) },
+})
 const dragIndex = ref<number | null>(null)
+const containerRef = ref<HTMLElement>()
+useFocusTrap(open, containerRef)
 
 const currentFloor = computed(() =>
   store.state.layout.floors.find(f => f.id === store.state.currentFloorId)
@@ -44,12 +52,12 @@ onUnmounted(() => {
 
 function startRename(id: string, name: string) {
   editingId.value = id
-  editingName.value = name
+  editingNameRaw.value = name
 }
 
 async function commitRename() {
   if (editingId.value) {
-    await store.renameFloor(editingId.value, editingName.value.trim() || 'Unnamed')
+    await store.renameFloor(editingId.value, editingNameRaw.value.trim() || 'Unnamed')
     useToast().info('Floor renamed')
   }
   editingId.value = null
@@ -83,13 +91,13 @@ async function onToggleWalkable(floor: { id: string; name: string; defaultWalkab
   <button class="floor__trigger" @click.stop="toggle">
     <span class="floor__trigger__label">{{ currentFloor?.label ?? '—' }}</span>
     <span class="floor__trigger__name">{{ currentFloor?.name ?? 'No Floor' }}</span>
-    <span class="floor__trigger__caret" :class="{ 'floor__trigger__caret__open': open }">▾</span>
+    <span class="floor__trigger__caret" :class="{ 'floor__trigger__caretrotated': open }">▾</span>
   </button>
 
   <Teleport to="body">
-    <div v-if="open" class="floor__overlay" role="dialog" aria-modal="true" aria-labelledby="floor_overlay_title" @click.stop>
+    <div v-if="open" ref="containerRef" class="floor__overlay" role="dialog" aria-modal="true" aria-labelledby="floor__overlay__title" @click.self="close">
       <div class="floor__overlay__header">
-        <span id="floor_overlay_title" class="floor__overlay__title">Floors ({{ store.state.layout.floors.length }})</span>
+        <span id="floor__overlay__title" class="floor__overlay__title">Floors ({{ store.state.layout.floors.length }})</span>
         <button class="btn btn__dashed" @click="async () => { await store.addFloor(); useToast().success('Floor added') }">+ Add</button>
         <button class="btn btn__ghost btn__icon btn__text__danger" aria-label="Close floor panel" @click="close">✕</button>
       </div>
@@ -98,7 +106,7 @@ async function onToggleWalkable(floor: { id: string; name: string; defaultWalkab
           v-for="(floor, index) in store.state.layout.floors"
           :key="floor.id"
           class="floor__overlay__item"
-          :class="{ 'floor__overlay__item__active': floor.id === store.state.currentFloorId }"
+          :class="{ 'floor__overlay__active': floor.id === store.state.currentFloorId }"
           :title="floor.label + ' — ' + floor.name"
           draggable="true"
           @dragstart="onDragStart(index)"
@@ -106,16 +114,17 @@ async function onToggleWalkable(floor: { id: string; name: string; defaultWalkab
           @drop="onDrop(index)"
           @click="store.selectFloor(floor.id)"
         >
-          <span class="floor__overlay__item__label">{{ floor.label }}</span>
+          <span class="floor__overlay__dimlabel">{{ floor.label }}</span>
           <input
             v-if="editingId === floor.id"
             v-model="editingName"
-            class="floor__overlay__rename__input"
+            class="floor__overlay__dimlabel"
+            aria-label="Rename floor"
             @click.stop
             @keydown.enter="commitRename"
             @blur="commitRename"
           />
-          <span v-else class="floor__overlay__item__name" @dblclick.stop="startRename(floor.id, floor.name)">{{ floor.name }}</span>
+          <span v-else class="floor__overlay__itembold" @dblclick.stop="startRename(floor.id, floor.name)">{{ floor.name }}</span>
           <label class="floor__overlay__walkable" title="Default walkable for empty areas on this floor" @click.stop>
             <input
               type="checkbox"
@@ -170,7 +179,7 @@ async function onToggleWalkable(floor: { id: string; name: string; defaultWalkab
   transition: transform var(--duration-fast) ease-out;
 }
 
-.floor__trigger__caret__open {
+.floor__trigger__caretrotated {
   transform: rotate(180deg);
 }
 
@@ -228,15 +237,19 @@ async function onToggleWalkable(floor: { id: string; name: string; defaultWalkab
   background: var(--bg-secondary);
 }
 
-.floor__overlay__item__name {
+.floor__overlay__itembold {
   font-weight: 500;
 }
 
-.floor__overlay__item__label,
-.floor__overlay__rename__input {
+.floor__overlay__dimlabel {
   font-size: var(--font-xs);
   opacity: 0.7;
   flex: 1;
+}
+
+.floor__overlay__active {
+  border-color: var(--accent-gold);
+  background: color-mix(in srgb, var(--accent-gold) 12%, transparent);
 }
 
 .floor__overlay__walkable {

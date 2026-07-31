@@ -111,45 +111,45 @@ onUnmounted(() => {
 
 <template>
   <div>
-    <div class="section_header">Buildings</div>
-    <div class="buy_multiplier">
+    <div class="section__header">Buildings</div>
+    <div class="buy">
       <button
-        class="buy_multiplier__btn"
-        :class="{ 'buy_multiplier__btn__active': buyMultiplier === 1 }"
+        class="buy__btn"
+        :class="{ 'buy__btn__active': buyMultiplier === 1 }"
         aria-label="Buy multiplier: 1"
         @click="setMult(1)"
       >x1</button>
       <button
-        class="buy_multiplier__btn"
-        :class="{ 'buy_multiplier__btn__active': buyMultiplier === 10 }"
+        class="buy__btn"
+        :class="{ 'buy__btn__active': buyMultiplier === 10 }"
         aria-label="Buy multiplier: 10"
         @click="setMult(10)"
       >x10</button>
       <button
-        class="buy_multiplier__btn"
-        :class="{ 'buy_multiplier__btn__active': buyMultiplier === 100 }"
+        class="buy__btn"
+        :class="{ 'buy__btn__active': buyMultiplier === 100 }"
         aria-label="Buy multiplier: 100"
         @click="setMult(100)"
       >x100</button>
       <button
-        class="buy_multiplier__btn"
-        :class="{ 'buy_multiplier__btn__active': buyMultiplier === 0 }"
+        class="buy__btn"
+        :class="{ 'buy__btn__active': buyMultiplier === 0 }"
         aria-label="Buy multiplier: max affordable"
         @click="setMult(0)"
       >MAX</button>
     </div>
-    <div v-for="b in buildings" :key="b.id" class="building_card">
-      <div class="building_card__info">
-        <span class="building_card__name">{{ b.name }}</span>
-        <span class="building_card__level">Lv.{{ b.level }}</span>
-        <span class="building_card__rate">{{ b.income }}</span>
+    <div v-for="b in buildings" :key="b.id" class="card building">
+      <div class="building__info">
+        <span class="building__name">{{ b.name }}</span>
+        <span class="building__level">Lv.{{ b.level }}</span>
+        <span class="building__rate">{{ b.income }}</span>
       </div>
-      <div class="building_card__actions">
-        <div class="building_card__cost" :class="{ 'building_card__cost__affordable': b.affordable }">{{ b.cost }}</div>
-        <div v-if="b.buyCount > 0 && !b.maxed" class="building_card__buy_count">x{{ b.buyCount }}</div>
+      <div class="building__actions">
+        <div class="building__cost" :class="{ 'building__cost__affordable': b.affordable }">{{ b.cost }}</div>
+        <div v-if="b.buyCount > 0 && !b.maxed" class="building__buycount">x{{ b.buyCount }}</div>
         <button
-          class="building_card__buy"
-          :class="{ 'building_card__buy__disabled': !b.affordable }"
+          class="building__buy"
+          :class="{ 'building__buy__disabled': !b.affordable }"
           :disabled="!b.affordable"
           :aria-label="`Buy ${b.name}, level ${b.level}, cost ${b.cost}`"
           @click="debouncedBuy(b.id)"

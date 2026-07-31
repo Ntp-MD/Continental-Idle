@@ -71,7 +71,7 @@ async function onDropdownClick(tag: string) {
         class="tag__picker__chip"
       >
         {{ tag }}
-        <button class="tag__picker__chip__remove" @click.stop="removeTag(tag)">×</button>
+        <button class="tag__picker__chipbtn" @click.stop="removeTag(tag)">×</button>
       </span>
       <input
         v-model="inputValue"
@@ -131,7 +131,7 @@ async function onDropdownClick(tag: string) {
   white-space: nowrap;
 }
 
-.tag__picker__chip__remove {
+.tag__picker__chipbtn {
   background: transparent;
   border: none;
   color: var(--accent-red);

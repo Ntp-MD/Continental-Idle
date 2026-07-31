@@ -1,6 +1,9 @@
 <script setup lang="ts">
+import ErrorBoundary from '@/components/overlays/errorBoundary.vue'
 </script>
 
 <template>
-  <router-view />
+  <ErrorBoundary>
+    <router-view />
+  </ErrorBoundary>
 </template>

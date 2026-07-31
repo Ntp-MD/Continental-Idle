@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { FloorId } from '@/types'
-import { SVG_W, SVG_H, GOLD, GOLD_DIM, GOLD_DARK, BG_DARK, BG_DARKER, BG_CORRIDOR, getRoomsOnFloor, getRoomFurniture, FLOOR_NAMES, ELEVATOR_POS, CORRIDOR_LAYOUT, DOOR_LAYOUT, DOOR_WIDTHS } from './hqLayout'
+import { SVG_W, SVG_H, GOLD, GOLD_DIM, GOLD_DARK, BG_DARK, BG_DARKER, BG_CORRIDOR, getRoomsOnFloor, getObjectsOnFloor, getZonesOnFloor, getRoomFurniture, FLOOR_NAMES, ELEVATOR_POS, CORRIDOR_LAYOUT, DOOR_LAYOUT, DOOR_WIDTHS } from './hqLayout'
 
 const props = defineProps<{
   floor: FloorId
@@ -16,6 +16,12 @@ const WALL_THICKNESS = 6
     <!-- Outer walls -->
     <rect x="0" y="0" :width="SVG_W" :height="SVG_H" :fill="BG_DARKER" :stroke="GOLD_DIM" stroke-width="2"/>
     <rect :x="WALL_THICKNESS" :y="WALL_THICKNESS" :width="SVG_W - WALL_THICKNESS * 2" :height="SVG_H - WALL_THICKNESS * 2" :fill="BG_DARK" :stroke="GOLD_DARK" stroke-width="0.5"/>
+
+    <!-- Synced editor zones -->
+    <g v-for="zone in getZonesOnFloor(props.floor)" :key="`zone-${zone.id}`" opacity="0.18">
+      <rect :x="zone.x" :y="zone.y" :width="zone.w" :height="zone.h" :fill="zone.color || GOLD_DIM" :stroke="GOLD_DIM" stroke-width="1" stroke-dasharray="4 3" />
+      <text :x="zone.x + 4" :y="zone.y + 12" font-size="8" :fill="GOLD_DIM">{{ zone.label }}</text>
+    </g>
 
     <!-- Corridors -->
     <g v-for="(seg, i) in CORRIDOR_LAYOUT[props.floor]" :key="'corr_' + i">
@@ -41,7 +47,7 @@ const WALL_THICKNESS = 6
       <!-- Room fill -->
       <rect :x="room.x" :y="room.y" :width="room.w" :height="room.h" :fill="room.visual ? '#0a0a0a' : '#151515'" :stroke="room.visual ? GOLD_DARK : GOLD_DIM" stroke-width="1.5"/>
       <!-- Furniture (room-relative via transform) -->
-      <g class="hq_furniture" :transform="`translate(${room.x}, ${room.y})`">
+      <g class="hqfurniture" :transform="`translate(${room.x}, ${room.y})`">
         <template v-for="f in getRoomFurniture(room.id)" :key="`${room.id}-f-${f.x}-${f.y}`">
           <rect v-if="f.type === 'rect'" :x="f.x" :y="f.y" :width="f.w" :height="f.h" :fill="f.fill" :stroke="f.stroke" :stroke-width="f.strokeWidth" :stroke-dasharray="f.strokeDasharray" :opacity="f.opacity"/>
           <circle v-else-if="f.type === 'circle'" :cx="f.x" :cy="f.y" :r="f.r" :fill="f.fill" :stroke="f.stroke" :stroke-width="f.strokeWidth" :opacity="f.opacity"/>
@@ -66,6 +72,12 @@ const WALL_THICKNESS = 6
         :x="room.x + room.w / 2" :y="room.y + room.h / 2 + 10"
         text-anchor="middle" font-family="Georgia,serif" font-size="7" :fill="GOLD_DARK" letter-spacing="2"
       >VISUAL ONLY</text>
+    </g>
+
+    <!-- Synced editor objects -->
+    <g v-for="object in getObjectsOnFloor(props.floor)" :key="`object-${object.id}`" :transform="`rotate(${object.rotation ?? 0} ${object.x + object.w / 2} ${object.y + object.h / 2})`">
+      <rect :x="object.x" :y="object.y" :width="object.w" :height="object.h" :fill="object.fillColor || BG_DARKER" :stroke="GOLD_DARK" stroke-width="1" opacity="0.8" />
+      <text v-if="object.label" :x="object.x + object.w / 2" :y="object.y + object.h / 2" text-anchor="middle" dominant-baseline="middle" font-size="7" :fill="GOLD_DIM">{{ object.label }}</text>
     </g>
 
     <!-- Doors -->

@@ -30,6 +30,12 @@ import type { BranchId, SkillTreeState, BranchState, AssassinEntry, SupplyRouteT
 
 export type AutoplaySpeed = 1 | 10 | 100 | 1000
 
+const _staffTypeMap = new Map(STAFF_TYPES.map(s => [s.id, s]))
+const _assassinTypeMap = new Map(ASSASSIN_TYPES.map(a => [a.id, a]))
+const _buildingMap = new Map(BUILDINGS.map(b => [b.id, b]))
+const _branchMap = new Map(BRANCHES.map(b => [b.id, b]))
+const _upgradeMap = new Map(UPGRADES.map(u => [u.id, u]))
+
 interface AutoplayLogEntry {
   time: number
   message: string
@@ -341,7 +347,7 @@ class AutoplayBot {
 
     if (bestBranch !== state.activeBranch) {
       gameState.setActiveBranch(bestBranch)
-      const def = BRANCHES.find(t => t.id === bestBranch)
+      const def = _branchMap.get(bestBranch)
       this.logAction(`Switched to ${def?.name || bestBranch}`)
     }
   }
@@ -603,8 +609,8 @@ class AutoplayBot {
 
     for (const visitor of [...vis]) {
       const def = visitor.isAssassin
-        ? ASSASSIN_TYPES.find(a => a.id === visitor.typeId)
-        : STAFF_TYPES.find(s => s.id === visitor.typeId)
+        ? _assassinTypeMap.get(visitor.typeId)
+        : _staffTypeMap.get(visitor.typeId)
       if (!def) {
         dismissVisitor(visitor.id)
         continue
@@ -777,7 +783,7 @@ class AutoplayBot {
   private assignStaffOptimally(staffId: string, branch: BranchState, branchId: BranchId): void {
     const staff = branch.staff[staffId]
     if (!staff) return
-    const def = STAFF_TYPES.find(s => s.id === staff.typeId)
+    const def = _staffTypeMap.get(staff.typeId)
     if (!def) return
 
     // Find matching buildings that are unlocked and have level > 0
@@ -793,7 +799,7 @@ class AutoplayBot {
 
     if (matchingBuildings.length > 0) {
       assignStaff(staffId, matchingBuildings[0].bId, branchId)
-      const bldgDef = BUILDINGS.find(b => b.id === matchingBuildings[0].bId)
+      const bldgDef = _buildingMap.get(matchingBuildings[0].bId)
       this.logAction(`Assigned ${def.name} to ${bldgDef?.name || matchingBuildings[0].bId}`)
       return
     }
@@ -810,7 +816,7 @@ class AutoplayBot {
 
     if (anyBuildings.length > 0) {
       assignStaff(staffId, anyBuildings[0].bId, branchId)
-      const bldgDef = BUILDINGS.find(b => b.id === anyBuildings[0].bId)
+      const bldgDef = _buildingMap.get(anyBuildings[0].bId)
       this.logAction(`Assigned ${def.name} to ${bldgDef?.name || anyBuildings[0].bId}`)
     }
   }
@@ -824,7 +830,7 @@ class AutoplayBot {
     const staffList = Object.values(branch.staff)
     for (const staff of staffList) {
       if (!staff.assignedTo) continue
-      const def = STAFF_TYPES.find(s => s.id === staff.typeId)
+      const def = _staffTypeMap.get(staff.typeId)
       if (!def) continue
 
       // Is current assignment a bestMatch?
@@ -840,7 +846,7 @@ class AutoplayBot {
       if (betterBuilding) {
         const branchIdForAssign = targetBranch || state.activeBranch
         assignStaff(staff.id, betterBuilding, branchIdForAssign)
-        const bldgDef = BUILDINGS.find(b => b.id === betterBuilding)
+        const bldgDef = _buildingMap.get(betterBuilding)
         this.logAction(`Reassigned ${def.name} to ${bldgDef?.name || betterBuilding}`)
       }
     }
@@ -856,7 +862,7 @@ class AutoplayBot {
       if (staff.pendingLevelUp) {
         const ok = confirmLevelUp(staff.id, branchIdForLevelUp)
         if (ok) {
-          const def = STAFF_TYPES.find(s => s.id === staff.typeId)
+          const def = _staffTypeMap.get(staff.typeId)
           this.logAction(`Staff ${def?.name || staff.typeId} leveled up to ${staff.level}`)
         }
       }
@@ -949,7 +955,7 @@ class AutoplayBot {
       if (assassin.pendingLevelUp) {
         const ok = confirmAssassinLevelUp(assassin.id, branchIdForLevelUp)
         if (ok) {
-          const def = ASSASSIN_TYPES.find(a => a.id === assassin.typeId)
+          const def = _assassinTypeMap.get(assassin.typeId)
           this.logAction(`Assassin ${def?.name || assassin.typeId} leveled up to ${assassin.level}`)
         }
       }
@@ -1068,7 +1074,7 @@ class AutoplayBot {
     try {
       for (const id of priority) {
         if (branch.upgrades.includes(id)) continue
-        const def = UPGRADES.find(u => u.id === id)
+        const def = _upgradeMap.get(id)
         if (!def) continue
         if (branch.currency < def.cost) continue
         const ok = purchaseUpgrade(id)
@@ -1270,7 +1276,7 @@ class AutoplayBot {
   } {
     const state = gameState.get()
     const branch = state.branches[state.activeBranch]
-    const def = BRANCHES.find(t => t.id === state.activeBranch)
+    const def = _branchMap.get(state.activeBranch)
     return {
       running: this.running,
       speed: this.speed,

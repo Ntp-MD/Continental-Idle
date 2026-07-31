@@ -2,8 +2,8 @@ const RAW_CONFIG = {
   layoutVersion: 2,
   historyLimit: 50,
   syncKey: 'blueprint-synced-layout',
-  saveEndpoint: '/__save-layout',
-  assetsSaveEndpoint: '/__save-assets',
+  saveEndpoint: import.meta.env.VITE_BLUEPRINT_SAVE_ENDPOINT || '/__save-layout',
+  assetsSaveEndpoint: import.meta.env.VITE_BLUEPRINT_ASSETS_ENDPOINT || '/__save-assets',
   saveDebounceMs: 500,
   defaultCanvas: {
     width: 1200,

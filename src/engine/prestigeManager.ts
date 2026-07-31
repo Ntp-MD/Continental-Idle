@@ -1,6 +1,7 @@
 import type { BranchId } from '@/types'
 import { BUILDINGS } from '@/data/buildings'
 import { BRANCHES } from '@/data/branches'
+import { rollVeteranPerk } from '@/data/staff'
 import { gameState } from './gameState'
 import { getPrestigeReputationKeepRatio } from './abilities'
 import { getTotalPrestigeFavorMult } from './skillManager'
@@ -61,7 +62,7 @@ export function doPrestige(branchId?: BranchId): boolean {
       const hasOldGuard = staff.traits.includes('oldGuard')
       if ((hasOldGuard || staff.prestigeSurvivedCount >= 3) && !staff.veteran) {
         staff.veteran = true
-        staff.veteranPerk = 'Survived ' + staff.prestigeSurvivedCount + ' prestiges'
+        staff.veteranPerk = rollVeteranPerk()
       }
     }
     staff.level = 1

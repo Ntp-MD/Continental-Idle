@@ -44,28 +44,28 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div v-if="visible && step" class="tutorial_overlay">
-    <div class="tutorial_overlay__card">
-      <div class="tutorial_overlay__header">
-        <span class="tutorial_overlay__badge">{{ stepIndex + 1 }}/{{ totalSteps }}</span>
-        <span class="tutorial_overlay__title">{{ step.title }}</span>
-        <button class="tutorial_overlay__skip" @click="skip">SKIP</button>
+  <div v-if="visible && step" class="tutorial">
+    <div class="tutorial__card">
+      <div class="tutorial__header">
+        <span class="tutorial__badge">{{ stepIndex + 1 }}/{{ totalSteps }}</span>
+        <span class="tutorial__title">{{ step.title }}</span>
+        <button class="tutorial__skip" @click="skip">SKIP</button>
       </div>
 
-      <div class="tutorial_overlay__progress">
-        <div class="tutorial_overlay__progress_fill" :style="{ width: progress + '%' }"></div>
+      <div class="tutorial__progress">
+        <div class="tutorial__progressfill" :style="{ width: progress + '%' }"></div>
       </div>
 
-      <p class="tutorial_overlay__hint">{{ step.hint }}</p>
+      <p class="tutorial__hint">{{ step.hint }}</p>
 
-      <div class="tutorial_overlay__actions">
+      <div class="tutorial__actions">
         <button
-          class="tutorial_overlay__btn tutorial_overlay__btn__prev"
+          class="tutorial__btn tutorial__btn__prev"
           :disabled="stepIndex === 0"
           @click="prev"
         >◀ Back</button>
         <button
-          class="tutorial_overlay__btn tutorial_overlay__btn__next"
+          class="tutorial__btn tutorial__btn__next"
           @click="next"
         >{{ stepIndex === totalSteps - 1 ? 'Finish' : 'Next ▶' }}</button>
       </div>

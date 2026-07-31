@@ -120,48 +120,48 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div v-if="visible" class="event_prompt" role="dialog" aria-modal="true" aria-labelledby="event_prompt_title">
-    <div class="event_prompt__header">
-      <span class="event_prompt__icon">?</span>
-      <span class="event_prompt__text" id="event_prompt_title">{{ eventName }}</span>
-      <span class="event_prompt__timer">{{ timer }}s</span>
+  <div v-if="visible" class="event" role="dialog" aria-modal="true" aria-labelledby="event__title">
+    <div class="event__header">
+      <span class="event__icon">?</span>
+      <span class="event__text" id="event__title">{{ eventName }}</span>
+      <span class="event__timer">{{ timer }}s</span>
     </div>
-    <div class="event_prompt__desc">{{ eventDesc }}</div>
+    <div class="event__desc">{{ eventDesc }}</div>
 
-    <div v-if="raidData" class="event_prompt__raid_info">
-      <div class="event_prompt__raid_row">
-        <span class="event_prompt__raid_label">Attackers:</span>
-        <span class="event_prompt__raid_value">{{ raidData.attackers.length }} (Power: {{ raidData.attackerPower }})</span>
+    <div v-if="raidData" class="event__raidinfo">
+      <div class="event__raidrow">
+        <span class="event__raidlabel">Attackers:</span>
+        <span class="event__raidvalue">{{ raidData.attackers.length }} (Power: {{ raidData.attackerPower }})</span>
       </div>
-      <div v-for="a in raidData.attackers" :key="a.name" class="event_prompt__raid_attacker">
+      <div v-for="a in raidData.attackers" :key="a.name" class="event__raidattacker">
         {{ a.name }} — Lv.{{ a.level }} | PRE {{ a.precision }} SPD {{ a.speed }}
       </div>
-      <div class="event_prompt__raid_row">
-        <span class="event_prompt__raid_label">Your defenders:</span>
-        <span class="event_prompt__raid_value">{{ raidData.defenderCount }} (Power: {{ raidData.defenderPower }})</span>
+      <div class="event__raidrow">
+        <span class="event__raidlabel">Your defenders:</span>
+        <span class="event__raidvalue">{{ raidData.defenderCount }} (Power: {{ raidData.defenderPower }})</span>
       </div>
-      <div v-if="raidData.defenderCount > 0" class="event_prompt__raid_row">
-        <span class="event_prompt__raid_label">Win chance:</span>
-        <span class="event_prompt__raid_value event_prompt__raid_win">{{ Math.round(raidData.winChance * 100) }}%</span>
+      <div v-if="raidData.defenderCount > 0" class="event__raidrow">
+        <span class="event__raidlabel">Win chance:</span>
+        <span class="event__raidvalue event__raidwin">{{ Math.round(raidData.winChance * 100) }}%</span>
       </div>
     </div>
 
-    <div class="event_prompt__timer_bar">
-      <div class="event_prompt__timer_fill" :style="{ width: (timer / maxTimer * 100) + '%' }"></div>
+    <div class="event__timerbar">
+      <div class="event__timerfill" :style="{ width: (timer / maxTimer * 100) + '%' }"></div>
     </div>
-    <div class="event_prompt__actions">
+    <div class="event__actions">
       <button
         v-for="c in choices"
         :key="c.id"
         :disabled="c.disabled"
         :aria-disabled="c.disabled"
-        :class="{ 'event_prompt__btn__disabled': c.disabled }"
+        :class="{ 'event__btn__disabled': c.disabled }"
         @click="!c.disabled && resolve(c.id)"
       >
         {{ c.label }}
-        <span v-if="revealOutcomes && c.isBest" class="event_prompt__badge event_prompt__badge__best">? Best</span>
-        <span v-if="revealOutcomes && c.isSafe" class="event_prompt__badge event_prompt__badge__safe">?? Safe</span>
-        <span v-if="c.details" class="event_prompt__details">{{ c.details }}</span>
+        <span v-if="revealOutcomes && c.isBest" class="event__badge event__badge__best">? Best</span>
+        <span v-if="revealOutcomes && c.isSafe" class="event__badge event__badge__safe">?? Safe</span>
+        <span v-if="c.details" class="event__details">{{ c.details }}</span>
       </button>
     </div>
   </div>

@@ -35,6 +35,7 @@ function createDefaultBranchState(): BranchState {
     hqMaxHealth: 1000,
     aiOwnerDefeated: false,
     royalBuildings: {},
+    npcPositions: {},
   }
 }
 
@@ -108,6 +109,7 @@ class GameStateManager {
   private state: GameState
   private _mutationLock = false
   private _pendingSave = false
+  private _queue: Array<() => void> = []
   private toast = useToast()
 
   constructor() {
@@ -121,6 +123,7 @@ class GameStateManager {
   withLock<T>(fn: () => T): T | undefined {
     if (this._mutationLock) {
       this._pendingSave = true
+      this._queue.push(fn)
       return undefined
     }
     this._mutationLock = true
@@ -133,6 +136,19 @@ class GameStateManager {
       return result
     } finally {
       this._mutationLock = false
+      while (this._queue.length > 0 && !this._mutationLock) {
+        const next = this._queue.shift()!
+        this._mutationLock = true
+        try {
+          next()
+          if (this._pendingSave) {
+            this._pendingSave = false
+            this.save()
+          }
+        } finally {
+          this._mutationLock = false
+        }
+      }
     }
   }
 
@@ -643,6 +659,7 @@ class GameStateManager {
     // Migrate branches missing royalBuildings
     Object.values(save.branches).forEach(branch => {
       if (!branch.royalBuildings) branch.royalBuildings = {}
+      if (!branch.npcPositions) branch.npcPositions = {}
       // Clamp currency and lifetimeEarnings to non-negative
       if (typeof branch.currency === 'number') branch.currency = Math.max(0, branch.currency)
       if (typeof branch.lifetimeEarnings === 'number') branch.lifetimeEarnings = Math.max(0, branch.lifetimeEarnings)

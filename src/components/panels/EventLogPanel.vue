@@ -101,26 +101,26 @@ watch(() => props.visible, (v) => { if (v) update() })
 </script>
 
 <template>
-  <div v-if="visible" class="game_panel" @click.self="emit('close')">
-    <div class="game_panel__content" role="dialog" aria-modal="true" aria-labelledby="panel_title_eventlog">
-      <h2 id="panel_title_eventlog" class="game_panel__title">Event History</h2>
-      <div class="event_log__filters">
-        <button class="event_log__filter" :class="{ 'event_log__filter__active': filter === 'all' }" @click="filter = 'all'">All</button>
-        <button class="event_log__filter" :class="{ 'event_log__filter__active': filter === 'resolved' }" @click="filter = 'resolved'">Resolved</button>
-        <button class="event_log__filter" :class="{ 'event_log__filter__active': filter === 'ignored' }" @click="filter = 'ignored'">Ignored</button>
-        <button class="event_log__filter" :class="{ 'event_log__filter__active': filter === 'ai' }" @click="filter = 'ai'">AI Events</button>
+  <div v-if="visible" class="panel" @click.self="emit('close')">
+    <div class="panel__content" role="dialog" aria-modal="true" aria-labelledby="panel__title__eventlog">
+      <h2 id="panel__title__eventlog" class="panel__title">Event History</h2>
+      <div class="eventlog__filters">
+        <button class="btn__filter" :class="{ 'btn__filter__active': filter === 'all' }" @click="filter = 'all'">All</button>
+        <button class="btn__filter" :class="{ 'btn__filter__active': filter === 'resolved' }" @click="filter = 'resolved'">Resolved</button>
+        <button class="btn__filter" :class="{ 'btn__filter__active': filter === 'ignored' }" @click="filter = 'ignored'">Ignored</button>
+        <button class="btn__filter" :class="{ 'btn__filter__active': filter === 'ai' }" @click="filter = 'ai'">AI Events</button>
       </div>
-      <div class="event_log">
-        <div v-if="filteredEntries.length === 0" class="event_log__empty">No events recorded yet</div>
-        <div v-for="e in filteredEntries" :key="e.id" class="event_log__row" :class="e.outcome === 'ignored' ? 'event_log__row__ignored' : ''">
-          <span class="event_log__time">{{ e.time }}</span>
-          <span class="event_log__branch">{{ e.branchName }}</span>
-          <span class="event_log__name">{{ e.eventName }}</span>
-          <span class="event_log__choice">{{ e.choice }}</span>
-          <span class="event_log__outcome" :class="e.outcome === 'ignored' ? 'event_log__outcome__ignored' : 'event_log__outcome__resolved'">{{ e.outcome }}</span>
+      <div class="eventlog">
+        <div v-if="filteredEntries.length === 0" class="eventlog__empty">No events recorded yet</div>
+        <div v-for="e in filteredEntries" :key="e.id" class="eventlog__row" :class="e.outcome === 'ignored' ? 'eventlog__row__ignored' : ''">
+          <span class="eventlog__time">{{ e.time }}</span>
+          <span class="eventlog__branch">{{ e.branchName }}</span>
+          <span class="eventlog__name">{{ e.eventName }}</span>
+          <span class="eventlog__choice">{{ e.choice }}</span>
+          <span class="eventlog__outcome" :class="e.outcome === 'ignored' ? 'eventlog__outcome__ignored' : 'eventlog__outcome__resolved'">{{ e.outcome }}</span>
         </div>
       </div>
-      <button class="game_panel__close" @click="emit('close')" aria-label="Close event history panel">?</button>
+      <button class="panel__close" @click="emit('close')" aria-label="Close event history panel">?</button>
     </div>
   </div>
 </template>

@@ -58,7 +58,7 @@ function splitBold(text: string): TextSegment[] {
     </li>
   </ol>
   
-  <table v-else-if="content.type === 'table'" class="wiki_table">
+  <table v-else-if="content.type === 'table'" class="wiki__table">
     <thead>
       <tr>
         <th v-for="(header, idx) in content.headers" :key="idx">{{ header }}</th>
@@ -71,7 +71,7 @@ function splitBold(text: string): TextSegment[] {
     </tbody>
   </table>
   
-  <div v-else-if="content.type === 'info-box'" class="wiki_info">
+  <div v-else-if="content.type === 'info-box'" class="wiki__info">
     <h4>{{ content.title }}</h4>
     <ul>
       <li v-for="(item, idx) in content.content" :key="idx">
@@ -83,7 +83,7 @@ function splitBold(text: string): TextSegment[] {
     </ul>
   </div>
   
-  <div v-else-if="content.type === 'warning-box'" class="wiki_warning">
+  <div v-else-if="content.type === 'warning-box'" class="wiki__warning">
     <h4>{{ content.title }}</h4>
     <ul>
       <li v-for="(item, idx) in content.content" :key="idx">
@@ -99,49 +99,49 @@ function splitBold(text: string): TextSegment[] {
 </template>
 
 <style scoped>
-.wiki_table {
+.wiki__table {
   width: 100%;
   border-collapse: collapse;
   margin: var(--gap-md) 0;
 }
 
-.wiki_table th,
-.wiki_table td {
+.wiki__table th,
+.wiki__table td {
   border: 1px solid var(--text-primary);
   padding: var(--gap-sm);
   text-align: left;
 }
 
-.wiki_table th {
+.wiki__table th {
   background-color: var(--bg-card);
   color: var(--accent-gold);
 }
 
-.wiki_table tr:hover {
+.wiki__table tr:hover {
   background-color: var(--bg-card);
 }
 
-.wiki_info {
-  border: 1px solid var(--wiki-blue);
+.wiki__info {
+  border: 1px solid var(--accent-blue);
   padding: var(--gap-md);
   margin: var(--gap-md) 0;
-  background-color: var(--wiki-blue-bg);
+  background-color: var(--bg-secondary);
 }
 
-.wiki_info h4 {
-  color: var(--wiki-blue);
+.wiki__info h4 {
+  color: var(--accent-blue);
   margin-bottom: var(--gap-sm);
 }
 
-.wiki_warning {
-  border: 1px solid var(--wiki-red);
+.wiki__warning {
+  border: 1px solid var(--accent-red);
   padding: var(--gap-md);
   margin: var(--gap-md) 0;
-  background-color: var(--wiki-red-bg);
+  background-color: var(--bg-tertiary);
 }
 
-.wiki_warning h4 {
-  color: var(--wiki-red);
+.wiki__warning h4 {
+  color: var(--accent-red);
   margin-bottom: var(--gap-sm);
 }
 

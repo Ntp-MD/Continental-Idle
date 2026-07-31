@@ -13,6 +13,18 @@ import type { AIOwnerState, BranchId } from '@/types'
 const props = defineProps<{ visible: boolean }>()
 const emit = defineEmits(['close'])
 
+const ACTION_DEBOUNCE_MS = 200
+
+function createDebouncedAction<A extends unknown[]>(fn: (...args: A) => void): (...args: A) => void {
+  let lastCall = 0
+  return (...args: A) => {
+    const now = Date.now()
+    if (now - lastCall < ACTION_DEBOUNCE_MS) return
+    lastCall = now
+    fn(...args)
+  }
+}
+
 const owners = ref<AIOwnerState[]>([])
 const playerPower = ref(0)
 const aiPower = ref(0)
@@ -140,6 +152,9 @@ function handleAIActionLog(e: Event) {
   addRelationLog(`${detail.ownerName}: ${detail.eventType}`, 'ai')
 }
 
+const debouncedDoSendGift = createDebouncedAction(doSendGift)
+const debouncedDoProposeTruce = createDebouncedAction(doProposeTruce)
+
 onMounted(() => {
   refresh()
   eventBus.on('income:tick', refresh)
@@ -169,81 +184,81 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div v-if="visible" class="game_panel" @click.self="emit('close')">
-    <div class="game_panel__content power_balance_panel" role="dialog" aria-modal="true" aria-labelledby="power_balance_title">
-      <h2 id="power_balance_title" class="game_panel__title">Power Balance</h2>
+  <div v-if="visible" class="panel" @click.self="emit('close')">
+    <div class="panel__content powerbalance__panel" role="dialog" aria-modal="true" aria-labelledby="powerbalance__title">
+      <h2 id="powerbalance__title" class="panel__title">Power Balance</h2>
 
       <!-- Balance Summary -->
-      <section class="power_balance__summary">
-        <div class="power_balance__bars">
-          <div class="power_balance__bar power_balance__bar__player">
-            <span class="power_balance__bar_label">You</span>
-            <div class="power_balance__bar_track">
-              <div class="power_balance__bar_fill power_balance__bar_fill__player"
+      <section class="powerbalance__summary">
+        <div class="powerbalance__bars">
+          <div class="powerbalance__bar powerbalance__bar__player">
+            <span class="powerbalance__barlabel">You</span>
+            <div class="powerbalance__bartrack">
+              <div class="powerbalance__barfill powerbalance__barfill__player"
                 :style="{ width: (playerPower + aiPower > 0 ? Math.min(100, (playerPower / (playerPower + aiPower)) * 100) : 50) + '%' }">
               </div>
             </div>
-            <span class="power_balance__bar_value">{{ formatNumber(playerPower) }}</span>
+            <span class="powerbalance__barvalue">{{ formatNumber(playerPower) }}</span>
           </div>
-          <div class="power_balance__bar power_balance__bar__ai">
-            <span class="power_balance__bar_label">AI</span>
-            <div class="power_balance__bar_track">
-              <div class="power_balance__bar_fill power_balance__bar_fill__ai"
+          <div class="powerbalance__bar powerbalance__bar__ai">
+            <span class="powerbalance__barlabel">AI</span>
+            <div class="powerbalance__bartrack">
+              <div class="powerbalance__barfill powerbalance__barfill__ai"
                 :style="{ width: (playerPower + aiPower > 0 ? Math.min(100, (aiPower / (playerPower + aiPower)) * 100) : 50) + '%' }">
               </div>
             </div>
-            <span class="power_balance__bar_value">{{ formatNumber(aiPower) }}</span>
+            <span class="powerbalance__barvalue">{{ formatNumber(aiPower) }}</span>
           </div>
         </div>
-        <div class="power_balance__status" :style="{ color: balanceColor }">
+        <div class="powerbalance__status" :style="{ color: balanceColor }">
           Status: {{ balanceLabel }}
         </div>
       </section>
 
       <!-- AI Owners List -->
-      <section class="power_balance__section">
-        <h3 class="power_balance__heading">AI Controllers ({{ activeOwners.length }} active)</h3>
-        <div v-if="activeOwners.length === 0" class="power_balance__empty">
+      <section class="powerbalance__section">
+        <h3 class="powerbalance__heading">AI Controllers ({{ activeOwners.length }} active)</h3>
+        <div v-if="activeOwners.length === 0" class="powerbalance__empty">
           All AI controllers have been defeated.
         </div>
-        <div v-else class="power_balance__list">
-          <div v-for="owner in activeOwners" :key="owner.branchId" class="power_balance__card">
-            <div class="power_balance__card_header">
-              <span class="power_balance__icon" :style="{ color: getTemperamentColor(owner.temperament) }">
+        <div v-else class="powerbalance__list">
+          <div v-for="owner in activeOwners" :key="owner.branchId" class="card__panel">
+            <div class="powerbalance__head">
+              <span class="powerbalance__icon" :style="{ color: getTemperamentColor(owner.temperament) }">
                 {{ getTemperamentIcon(owner.temperament) }}
               </span>
-              <span class="power_balance__owner_name">{{ owner.name }}</span>
-              <span class="power_balance__branch_name">{{ getBranchDef(owner.branchId)?.name }}</span>
-              <span class="power_balance__threat_badge" :style="{ color: getThreatColor(owner.branchId), borderColor: getThreatColor(owner.branchId) }">
+              <span class="powerbalance__ownername">{{ owner.name }}</span>
+              <span class="powerbalance__branchname">{{ getBranchDef(owner.branchId)?.name }}</span>
+              <span class="powerbalance__threatbadge" :style="{ color: getThreatColor(owner.branchId), borderColor: getThreatColor(owner.branchId) }">
                 {{ getThreatLabel(owner.branchId) }}
               </span>
             </div>
-            <div class="power_balance__owner_stats">
-              <span class="power_balance__stat">
+            <div class="powerbalance__ownerstats">
+              <span class="powerbalance__stat">
                 Power: <strong>{{ formatNumber(owner.power) }}</strong>
               </span>
-              <span class="power_balance__stat">
+              <span class="powerbalance__stat">
                 Type: <strong>{{ getTemperamentName(owner.temperament) }}</strong>
               </span>
-              <span class="power_balance__stat">
+              <span class="powerbalance__stat">
                 Relations: <span :style="{ color: getRelationsColor(owner.relations) }">{{ getRelationsLabel(owner.relations) }}</span>
               </span>
             </div>
-            <div class="power_balance__power_bar">
-              <div class="power_balance__power_fill"
+            <div class="powerbalance__powerbar">
+              <div class="powerbalance__powerfill"
                 :style="{ width: getPowerPercent(owner) + '%', background: getTemperamentColor(owner.temperament) }">
               </div>
             </div>
-            <div class="power_balance__diplomacy">
+            <div class="powerbalance__diplomacy">
               <button
-                class="power_balance__diplo_btn"
+                class="powerbalance__diplobtn"
                 :disabled="!canSendGift(owner.branchId)"
-                @click="doSendGift(owner.branchId)"
+                @click="debouncedDoSendGift(owner.branchId)"
               >Send Gift (500K)</button>
               <button
-                class="power_balance__diplo_btn"
+                class="powerbalance__diplobtn"
                 :disabled="!canProposeTruce(owner.branchId)"
-                @click="doProposeTruce(owner.branchId)"
+                @click="debouncedDoProposeTruce(owner.branchId)"
               >Propose Truce (5 GC)</button>
             </div>
           </div>
@@ -251,27 +266,27 @@ onUnmounted(() => {
       </section>
 
       <!-- Defeated Owners -->
-      <section v-if="defeatedOwners.length > 0" class="power_balance__section">
-        <h3 class="power_balance__heading">Defeated ({{ defeatedOwners.length }})</h3>
-        <div class="power_balance__defeated_list">
-          <span v-for="owner in defeatedOwners" :key="owner.branchId" class="power_balance__defeated_item">
+      <section v-if="defeatedOwners.length > 0" class="powerbalance__section">
+        <h3 class="powerbalance__heading">Defeated ({{ defeatedOwners.length }})</h3>
+        <div class="powerbalance__defeateds">
+          <span v-for="owner in defeatedOwners" :key="owner.branchId" class="powerbalance__defeatedone">
             {{ getTemperamentIcon(owner.temperament) }} {{ owner.name }} ({{ getBranchDef(owner.branchId)?.name }})
           </span>
         </div>
       </section>
 
       <!-- Relations Log -->
-      <section v-if="relationLog.length > 0" class="power_balance__section">
-        <h3 class="power_balance__heading">Relations Log</h3>
-        <div class="power_balance__log">
-          <div v-for="entry in relationLog" :key="entry.id" class="power_balance__log_entry" :class="'power_balance__log_entry__' + entry.type">
-            <span class="power_balance__log_time">{{ entry.time }}</span>
-            <span class="power_balance__log_text">{{ entry.text }}</span>
+      <section v-if="relationLog.length > 0" class="powerbalance__section">
+        <h3 class="powerbalance__heading">Relations Log</h3>
+        <div class="powerbalance__log">
+          <div v-for="entry in relationLog" :key="entry.id" class="powerbalance__entry" :class="'powerbalance__entry__' + entry.type">
+            <span class="powerbalance__logtime">{{ entry.time }}</span>
+            <span class="powerbalance__logtext">{{ entry.text }}</span>
           </div>
         </div>
       </section>
 
-      <button class="game_panel__close" @click="emit('close')" aria-label="Close power balance panel">✕</button>
+      <button class="panel__close" @click="emit('close')" aria-label="Close power balance panel">✕</button>
     </div>
   </div>
 </template>

@@ -56,6 +56,7 @@ export function initiateTakeover(branchId: BranchId): boolean {
 
 export function tickTakeoverProgress(): void {
   const state = gameState.get()
+  const unlockedSet = new Set(state.worldMap.unlockedBranches)
 
   BRANCHES.forEach(def => {
     const targetBranch = state.branches[def.id]
@@ -65,7 +66,8 @@ export function tickTakeoverProgress(): void {
 
     let totalDamage = 0
 
-    state.worldMap.unlockedBranches.forEach(sourceBranchId => {
+    // O(B×U) where B=total branches, U=unlocked branches — both are small fixed constants (~10)
+    unlockedSet.forEach(sourceBranchId => {
       const sourceBranch = state.branches[sourceBranchId]
       if (!sourceBranch) return
 
@@ -106,8 +108,6 @@ export function tickTakeoverProgress(): void {
             }
           })
         })
-
-        eventBus.emit('takeover:complete', { branchId: def.id })
         eventBus.emit('branch:unlock', { branchId: def.id })
         defeatAIOwner(def.id)
       }

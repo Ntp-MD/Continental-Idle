@@ -1,8 +1,10 @@
 <script setup lang="ts">
-import { ref, watch, onBeforeUnmount, computed } from 'vue'
+import { ref, watch, computed } from 'vue'
 import { useAssetsStore } from '../blueprintStore'
-import { useToast } from '../composables/useToast'
+import { useToast } from '@/composables/useToast'
 import { useAsyncAction } from '../composables/useAsyncAction'
+import { useFieldError } from '../composables/useFieldError'
+import { useClipboardCopy } from '../composables/useClipboardCopy'
 import { validateRoomAnchors } from '../assetUtils'
 import type { EntrancePoint, RoomData, RoomType } from '../types'
 import TagPicker from './tagPicker.vue'
@@ -10,32 +12,15 @@ import TagPicker from './tagPicker.vue'
 const props = defineProps<{ room: RoomData }>()
 const store = useAssetsStore()
 const { pending, run } = useAsyncAction()
+const { errorFields, flashError } = useFieldError()
+const { copyId } = useClipboardCopy()
 
 const fields = ref({ x: 0, y: 0, w: 0, h: 0, label: '', category: '', roomType: 'room' as RoomType, walkable: true, radius: 0, padding: 0, fillColor: '', rxTL: 0, rxTR: 0, rxBR: 0, rxBL: 0 })
 const roomTags = ref<string[]>([])
 const entrances = ref<EntrancePoint[]>([])
 const anchors = ref<[number, number][]>([])
 const invalidAnchorCount = computed(() => validateRoomAnchors(props.room, store.currentFloor.value?.objects ?? []).invalid.length)
-const errorFields = ref<Record<string, boolean>>({})
 const rxSync = ref(true)
-const flashErrorTimers = new Map<string, number>()
-
-const FLASH_ERROR_MS = 1200
-function flashError(field: string) {
-  const existing = flashErrorTimers.get(field)
-  if (existing) window.clearTimeout(existing)
-  errorFields.value[field] = true
-  const id = window.setTimeout(() => {
-    errorFields.value[field] = false
-    flashErrorTimers.delete(field)
-  }, FLASH_ERROR_MS)
-  flashErrorTimers.set(field, id)
-}
-
-onBeforeUnmount(() => {
-  for (const id of flashErrorTimers.values()) window.clearTimeout(id)
-  flashErrorTimers.clear()
-})
 
 watch(() => props.room, (room) => {
   errorFields.value = {}
@@ -144,52 +129,43 @@ async function onSave() {
   useToast().success('Properties saved')
 }
 
-async function copyId(id: string) {
-  try {
-    await navigator.clipboard.writeText(id)
-    useToast().success('ID copied')
-  } catch {
-    useToast().warning('Copy failed')
-  }
-}
-
 async function remove() {
   await run(() => store.deleteSelected())
 }
 </script>
 
 <template>
-  <div class="properties_panel__content">
-    <div class="properties_panel__section">
-      <div class="properties_panel__section_title">Room</div>
-      <div class="properties_panel__row">
+  <div class="properties__content">
+    <div class="properties__section">
+      <div class="properties__title">Room</div>
+      <div class="properties__row">
       <label>ID</label>
-      <div class="properties_panel__id_row">
+      <div class="properties__idrow">
         <input type="text" :value="room.id" disabled class="input input__readonly" title="Room ID" />
-        <button class="btn btn_sm" @click="copyId(room.id)">Copy</button>
+        <button class="btn btn__sm" @click="copyId(room.id)">Copy</button>
       </div>
     </div>
-    <div class="properties_panel__row">
+    <div class="properties__row">
       <label>X</label>
       <input class="input" type="number" v-model.number="fields.x" :class="{ 'input__error': errorFields.x }" @change="commitField('x')" />
     </div>
-    <div class="properties_panel__row">
+    <div class="properties__row">
       <label>Y</label>
       <input class="input" type="number" v-model.number="fields.y" :class="{ 'input__error': errorFields.y }" @change="commitField('y')" />
     </div>
-    <div class="properties_panel__row">
+    <div class="properties__row">
       <label>Width</label>
       <input class="input" type="number" v-model.number="fields.w" :class="{ 'input__error': errorFields.w }" @change="commitField('w')" />
     </div>
-    <div class="properties_panel__row">
+    <div class="properties__row">
       <label>Height</label>
       <input class="input" type="number" v-model.number="fields.h" :class="{ 'input__error': errorFields.h }" @change="commitField('h')" />
     </div>
-    <div class="properties_panel__row">
+    <div class="properties__row">
       <label>Label</label>
       <input class="input" type="text" v-model="fields.label" @change="commitField('label')" />
     </div>
-    <div class="properties_panel__row">
+    <div class="properties__row">
       <label>Category</label>
       <select class="input" v-model="fields.category" @change="commitField('category')">
         <option value="">— Select —</option>
@@ -201,7 +177,7 @@ async function remove() {
         <option value="open">Open</option>
       </select>
     </div>
-    <div class="properties_panel__row">
+    <div class="properties__row">
       <label>Room Type</label>
       <select class="input" v-model="fields.roomType" @change="onRoomTypeChange">
         <option value="room">Room</option>
@@ -235,94 +211,94 @@ async function remove() {
         </optgroup>
       </select>
     </div>
-    <div class="properties_panel__row">
+    <div class="properties__row">
       <label>NPC Tags</label>
       <TagPicker :model-value="roomTags" @update:model-value="saveRoomTags" placeholder="rest, service, target" />
     </div>
-    <div class="properties_panel__row">
+    <div class="properties__row">
       <label>Walkable</label>
-      <label class="properties_panel__rx_sync">
+      <label class="properties__rxsync">
         <input type="checkbox" v-model="fields.walkable" @change="onWalkableToggle" /> NPC can walk here
       </label>
     </div>
-    <div class="properties_panel__section">
-      <div class="properties_panel__section_title">NPC Navigation</div>
-      <div class="properties_panel__row">
+    <div class="properties__section">
+      <div class="properties__title">NPC Navigation</div>
+      <div class="properties__row">
         <label>Anchors</label>
-        <button class="btn btn_sm" @click="addAnchor">+ Add</button>
+        <button class="btn btn__sm" @click="addAnchor">+ Add</button>
       </div>
-      <div v-if="invalidAnchorCount > 0" class="properties_panel__warning">{{ invalidAnchorCount }} anchor(s) are blocked or outside the room.</div>
-      <div v-for="(anchor, index) in anchors" :key="`anchor-${index}`" class="properties_panel__row">
+      <div v-if="invalidAnchorCount > 0" class="properties__warning">{{ invalidAnchorCount }} anchor(s) are blocked or outside the room.</div>
+      <div v-for="(anchor, index) in anchors" :key="`anchor-${index}`" class="properties__row">
         <label>#{{ index + 1 }}</label>
-        <div class="properties_panel__id_row">
+        <div class="properties__idrow">
           <input class="input" type="number" min="0" :max="fields.w" v-model.number="anchor[0]" @change="updateAnchors" />
           <input class="input" type="number" min="0" :max="fields.h" v-model.number="anchor[1]" @change="updateAnchors" />
-          <button class="btn btn_sm" @click="removeAnchor(index)">×</button>
+          <button class="btn btn__sm" @click="removeAnchor(index)">×</button>
         </div>
       </div>
-      <div class="properties_panel__row">
+      <div class="properties__row">
         <label>Entrances</label>
-        <button class="btn btn_sm" @click="addEntrance">+ Add</button>
+        <button class="btn btn__sm" @click="addEntrance">+ Add</button>
       </div>
-      <div v-for="(entrance, index) in entrances" :key="`entrance-${index}`" class="properties_panel__row">
+      <div v-for="(entrance, index) in entrances" :key="`entrance-${index}`" class="properties__row">
         <label>#{{ index + 1 }}</label>
-        <div class="properties_panel__id_row">
+        <div class="properties__idrow">
           <select class="input" v-model="entrance.side" @change="updateEntrances">
             <option value="top">Top</option><option value="bottom">Bottom</option><option value="left">Left</option><option value="right">Right</option>
           </select>
           <input class="input" type="number" min="0" v-model.number="entrance.offset" @change="updateEntrances" />
           <input class="input" type="number" min="1" v-model.number="entrance.width" @change="updateEntrances" />
-          <button class="btn btn_sm" @click="removeEntrance(index)">×</button>
+          <button class="btn btn__sm" @click="removeEntrance(index)">×</button>
         </div>
       </div>
     </div>
-    <div class="properties_panel__row">
+    <div class="properties__row">
       <label>Radius</label>
       <input class="input" type="number" min="0" v-model.number="fields.radius" @change="commitField('radius')" />
     </div>
-    <div class="properties_panel__row">
+    <div class="properties__row">
       <label>Padding</label>
       <input class="input" type="number" min="0" v-model.number="fields.padding" @change="commitField('padding')" />
     </div>
-    <div class="properties_panel__row">
+    <div class="properties__row">
       <label>Corner Radius</label>
-      <div class="properties_panel__rx_grid">
-        <div class="properties_panel__rx_corner">
-          <span class="properties_panel__rx_label">↖ TL</span>
-          <input type="number" min="0" v-model.number="fields.rxTL" @input="onRxInput('rxTL')" class="input input_compact" />
+      <div class="properties__rxgrid">
+        <div class="properties__rxcorner">
+          <span class="properties__rxlabel">↖ TL</span>
+          <input type="number" min="0" v-model.number="fields.rxTL" @input="onRxInput('rxTL')" class="input input__compact" />
         </div>
-        <div class="properties_panel__rx_corner">
-          <span class="properties_panel__rx_label">TR ↗</span>
-          <input type="number" min="0" v-model.number="fields.rxTR" @input="onRxInput('rxTR')" class="input input_compact" />
+        <div class="properties__rxcorner">
+          <span class="properties__rxlabel">TR ↗</span>
+          <input type="number" min="0" v-model.number="fields.rxTR" @input="onRxInput('rxTR')" class="input input__compact" />
         </div>
-        <div class="properties_panel__rx_corner">
-          <span class="properties_panel__rx_label">↙ BL</span>
-          <input type="number" min="0" v-model.number="fields.rxBL" @input="onRxInput('rxBL')" class="input input_compact" />
+        <div class="properties__rxcorner">
+          <span class="properties__rxlabel">↙ BL</span>
+          <input type="number" min="0" v-model.number="fields.rxBL" @input="onRxInput('rxBL')" class="input input__compact" />
         </div>
-        <div class="properties_panel__rx_corner">
-          <span class="properties_panel__rx_label">BR ↘</span>
-          <input type="number" min="0" v-model.number="fields.rxBR" @input="onRxInput('rxBR')" class="input input_compact" />
+        <div class="properties__rxcorner">
+          <span class="properties__rxlabel">BR ↘</span>
+          <input type="number" min="0" v-model.number="fields.rxBR" @input="onRxInput('rxBR')" class="input input__compact" />
         </div>
       </div>
     </div>
-    <div class="properties_panel__row">
+    <div class="properties__row">
       <label></label>
-      <label class="properties_panel__rx_sync">
+      <label class="properties__rxsync">
         <input type="checkbox" v-model="rxSync" /> Sync all corners
       </label>
     </div>
-    <div class="properties_panel__row">
+    <div class="properties__row">
       <label>Fill Color</label>
-      <div class="properties_panel__color_row">
+      <div class="properties__colorrow">
         <input type="color" :value="fields.fillColor || '#e8e4dc'" @input="fields.fillColor = ($event.target as HTMLInputElement).value; commitField('fillColor')" class="input input__color" />
-        <button class="btn btn_sm" @click="clearFillColor">Reset</button>
+        <button class="btn btn__sm" @click="clearFillColor">Reset</button>
       </div>
     </div>
-    <div class="properties_panel__btn_group">
+    <div class="properties__btngroup">
       <button class="btn" @click="saveAsTemplate">Save as Template</button>
       <button class="btn" @click="saveRoomWithObjects">Save Room + Objects</button>
     </div>
-    <div class="properties_panel__delete_section">
+    <div class="properties__deletesection">
       <button class="btn btn__success" :disabled="pending" @click="onSave">Save</button>
       <button class="btn" :disabled="pending" @click="store.select(null); store.selectAsset(null)">Deselect</button>
       <button class="btn btn__danger" :disabled="pending" @click="remove">Delete</button>

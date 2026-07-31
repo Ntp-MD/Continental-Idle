@@ -109,73 +109,73 @@ watch(() => props.visible, (v) => {
 </script>
 
 <template>
-  <div v-if="visible" class="game_panel" @click.self="emit('close')">
-    <div class="game_panel__content game_panel__content__wide" role="dialog" aria-modal="true" aria-labelledby="panel_title_sovereign">
-      <h2 id="panel_title_sovereign" class="game_panel__title">Sovereign of the High Table</h2>
+  <div v-if="visible" class="panel" @click.self="emit('close')">
+    <div class="panel__content panel__content__wide" role="dialog" aria-modal="true" aria-labelledby="panel__title__sovereign">
+      <h2 id="panel__title__sovereign" class="panel__title">Sovereign of the High Table</h2>
 
       <template v-if="!isSovereign">
-        <div class="sov_locked">
-          <p class="sov_locked__title">The High Table Awaits</p>
-          <p class="sov_locked__desc">Conquer all 36 rival branches, establish Royal Continental on all, and defeat all AI controllers to claim sovereignty.</p>
-          <div class="sov_progress">
-            <div class="sov_progress__row">Branches Conquered: <span class="sov_progress__val">{{ conqueredCount }} / 36</span></div>
-            <div class="sov_progress__row">Royal Continentals: <span class="sov_progress__val">{{ royalCount }} / 36</span></div>
-            <div class="sov_progress__row">AI Controllers Defeated: <span class="sov_progress__val">{{ aiDefeatedCount }} / 36</span></div>
+        <div class="sov__locked">
+          <p class="sov__locked__title">The High Table Awaits</p>
+          <p class="sov__locked__desc">Conquer all 36 rival branches, establish Royal Continental on all, and defeat all AI controllers to claim sovereignty.</p>
+          <div class="sov__progress">
+            <div class="sov__progress__row">Branches Conquered: <span class="sov__progress__val">{{ conqueredCount }} / 36</span></div>
+            <div class="sov__progress__row">Royal Continentals: <span class="sov__progress__val">{{ royalCount }} / 36</span></div>
+            <div class="sov__progress__row">AI Controllers Defeated: <span class="sov__progress__val">{{ aiDefeatedCount }} / 36</span></div>
           </div>
         </div>
       </template>
 
       <template v-else>
-        <div class="sov_header">
-          <p class="sov_header__title">&#x1F451; The Sovereign of the High Table</p>
-          <p class="sov_header__effect">All buffs from all sources doubled. Sandbox+ loops: {{ sandboxLoops }}</p>
+        <div class="sov__header">
+          <p class="sov__header__title">&#x1F451; The Sovereign of the High Table</p>
+          <p class="sov__header__effect">All buffs from all sources doubled. Sandbox+ loops: {{ sandboxLoops }}</p>
         </div>
 
         <!-- Royal Decrees -->
-        <div class="sov_section">
-          <h3 class="sov_section__title">Royal Decrees</h3>
-          <p class="sov_section__desc">Choose 1 of 3 random global buffs every 24 hours.</p>
+        <div class="sov__section">
+          <h3 class="sov__section__title">Royal Decrees</h3>
+          <p class="sov__section__desc">Choose 1 of 3 random global buffs every 24 hours.</p>
 
           <template v-if="canDecree">
-            <div class="sov_decree_choices">
+            <div class="sovchoices">
               <div
                 v-for="(choice, i) in decreeChoices"
                 :key="i"
-                class="sov_decree_card"
+                class="decree__card"
                 @click="chooseDecree(choice)"
               >
-                <div class="sov_decree_card__name">{{ choice.name }}</div>
-                <div class="sov_decree_card__desc">{{ choice.description }}</div>
+                <div class="decree__card__name">{{ choice.name }}</div>
+                <div class="decree__card__desc">{{ choice.description }}</div>
               </div>
             </div>
           </template>
           <template v-else>
-            <p class="sov_decree_cooldown">Next decree available in: {{ timeUntilDecree }}</p>
+            <p class="sovcooldown">Next decree available in: {{ timeUntilDecree }}</p>
           </template>
 
-          <div v-if="activeDecrees.length > 0" class="sov_active_decrees">
-            <div class="sov_active_decrees__label">Active Decrees:</div>
-            <div v-for="(d, i) in activeDecrees" :key="i" class="sov_active_decree">
-              <span class="sov_active_decree__name">{{ d.name }}</span>
-              <span class="sov_active_decree__desc">{{ d.description }}</span>
-              <span class="sov_active_decree__timer" :class="{ 'sov_active_decree__timer__permanent': d.expiresAt === null }">{{ d.timeLeft }}</span>
+          <div v-if="activeDecrees.length > 0" class="sovdecrees">
+            <div class="sovdecrees__label">Active Decrees:</div>
+            <div v-for="(d, i) in activeDecrees" :key="i" class="sovdecree">
+              <span class="sovdecree__name">{{ d.name }}</span>
+              <span class="sovdecree__desc">{{ d.description }}</span>
+              <span class="sovdecree__timer" :class="{ 'sovdecree__timer__permanent': d.expiresAt === null }">{{ d.timeLeft }}</span>
             </div>
           </div>
         </div>
 
         <!-- Sandbox+ -->
-        <div class="sov_section">
-          <h3 class="sov_section__title">Sandbox+ Mode</h3>
-          <p class="sov_section__desc">Reset for increasing rewards. Each loop grants +10% to all rewards.</p>
-          <div class="sov_sandbox">
-            <div class="sov_sandbox__info">Current Loop: {{ sandboxLoops }}</div>
-            <div class="sov_sandbox__mult">Reward Multiplier: {{ (1 + 0.10 * sandboxLoops).toFixed(1) }}x</div>
-            <button class="sov_sandbox__btn" @click="doSandboxLoop">Execute Loop (+{{ Math.floor(100 * (1 + 0.10 * (sandboxLoops + 1))) }} Marks, +{{ Math.floor(50 * (1 + 0.10 * (sandboxLoops + 1))) }} Favor)</button>
+        <div class="sov__section">
+          <h3 class="sov__section__title">Sandbox+ Mode</h3>
+          <p class="sov__section__desc">Reset for increasing rewards. Each loop grants +10% to all rewards.</p>
+          <div class="sov__sandbox">
+            <div class="sov__sandbox__info">Current Loop: {{ sandboxLoops }}</div>
+            <div class="sov__sandbox__mult">Reward Multiplier: {{ (1 + 0.10 * sandboxLoops).toFixed(1) }}x</div>
+            <button class="btn__gold sov__sandbox__btn" @click="doSandboxLoop">Execute Loop (+{{ Math.floor(100 * (1 + 0.10 * (sandboxLoops + 1))) }} Marks, +{{ Math.floor(50 * (1 + 0.10 * (sandboxLoops + 1))) }} Favor)</button>
           </div>
         </div>
       </template>
 
-      <button class="game_panel__close" @click="emit('close')">Close</button>
+      <button class="panel__close" @click="emit('close')">Close</button>
     </div>
   </div>
 </template>

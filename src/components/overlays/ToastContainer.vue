@@ -12,7 +12,7 @@ const icons: Record<string, string> = {
 </script>
 
 <template>
-  <div class="toast_container" aria-live="polite">
+  <div class="toast__container" aria-live="polite">
     <div
       v-for="t in toasts"
       :key="t.id"
@@ -26,7 +26,7 @@ const icons: Record<string, string> = {
 </template>
 
 <style scoped>
-.toast_container {
+.toast__container {
   position: fixed;
   top: 16px;
   right: 16px;

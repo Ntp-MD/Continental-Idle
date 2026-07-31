@@ -66,7 +66,7 @@ function npcInBand(band: Band): SimpleDot[] {
 </script>
 
 <template>
-  <svg :viewBox="`0 0 ${FALLOUT_W} ${totalH}`" class="hq_fallout_view" preserveAspectRatio="xMidYMid meet">
+  <svg :viewBox="`0 0 ${FALLOUT_W} ${totalH}`" class="hqfalloutview" preserveAspectRatio="xMidYMid meet">
     <!-- Elevator shaft -->
     <rect x="0" y="0" :width="ELEVATOR_W" :height="totalH" :fill="BG_CORRIDOR" :stroke="GOLD_DIM" stroke-width="1"/>
     <text :x="ELEVATOR_W / 2" :y="20" text-anchor="middle" font-size="8" :fill="GOLD_DIM" writing-mode="tb">ELEVATOR</text>
@@ -107,7 +107,7 @@ function npcInBand(band: Band): SimpleDot[] {
 </template>
 
 <style scoped>
-.hq_fallout_view {
+.hqfalloutview {
   width: 100%;
   height: 100%;
 }

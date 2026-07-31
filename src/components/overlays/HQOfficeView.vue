@@ -23,8 +23,10 @@ import {
   SVG_W, SVG_H,
   FLOOR_IDS, getRoomsOnFloor, ROOM_ANCHORS,
   STAFF_COLORS, ASSASSIN_COLORS, GUEST_COLORS,
-  getBuildingFloor, getGuestRoomTier, isFloorUnlocked,
+  getBuildingFloor, getGuestRoomTier, isFloorUnlocked, applySyncedLayout,
 } from './hq/hqLayout'
+import { findNpcPath } from '@/engine/npcPathfinding'
+import { getGuestCount } from '@/engine/guestManager'
 
 const props = defineProps<{ inline?: boolean }>()
 const emit = defineEmits<{ close: [] }>()
@@ -57,6 +59,8 @@ interface AnimDot {
   path: [number, number][]
   pauseTimer: number
   floor: FloorId
+  /** Role: staff prefer their assigned building room. */
+  focusRoom?: string
 }
 
 const animStaff = ref<AnimDot[]>([])
@@ -114,8 +118,51 @@ function updateSidebarDots(): void {
 
 function randAnchor(floor: FloorId, roomId: string): [number, number] {
   const anchors = ROOM_ANCHORS[floor]?.[roomId]
-  if (!anchors || anchors.length === 0) return [600, 300]
-  return anchors[Math.floor(Math.random() * anchors.length)]
+  if (anchors && anchors.length > 0) return anchors[Math.floor(Math.random() * anchors.length)]
+  const room = getRoomsOnFloor(floor).find(item => item.id === roomId)
+  if (room) return [room.x + room.w / 2, room.y + room.h / 2]
+  return [SVG_W / 2, SVG_H / 2]
+}
+
+/** Build a corridor-routed path from (x,y) to a random anchor in the room. */
+function pathToRoom(floor: FloorId, from: [number, number], roomId: string): [number, number][] {
+  const dest = randAnchor(floor, roomId)
+  return findNpcPath(floor, { x: from[0], y: from[1] }, { x: dest[0], y: dest[1] })
+}
+
+/** Pick a random room on the floor and route a corridor path to it.
+ *  When `focusRoom` is given, NPCs head there ~70% of the time and wander otherwise. */
+function pathToRandomRoom(floor: FloorId, from: [number, number], focusRoom?: string): [number, number][] {
+  const rooms = getRoomsOnFloor(floor)
+  if (rooms.length === 0) return [from]
+  if (focusRoom && rooms.some(r => r.id === focusRoom) && Math.random() < 0.7) {
+    return pathToRoom(floor, from, focusRoom)
+  }
+  const room = rooms[Math.floor(Math.random() * rooms.length)]
+  return pathToRoom(floor, from, room.id)
+}
+
+/** Persist current staff/assassin dot positions to the branch so they survive HQ close/reopen. */
+function saveNpcPositions(): void {
+  const state = gameState.get()
+  const branch = state.branches[state.hqBranch]
+  if (!branch) return
+  const positions = branch.npcPositions
+  staffDots.value.forEach(d => {
+    positions[d.id] = { x: d.x, y: d.y, floor: (d.floor as FloorId) || '1' }
+  })
+  assassinDots.value.forEach(d => {
+    positions[d.id] = { x: d.x, y: d.y, floor: (d.floor as FloorId) || '9' }
+  })
+}
+
+/** Restore a saved position for an NPC id, or null if none. */
+function restorePosition(id: string): { x: number; y: number; floor: FloorId } | null {
+  const branch = gameState.get().branches[gameState.get().hqBranch]
+  if (!branch) return null
+  const saved = branch.npcPositions[id]
+  if (!saved) return null
+  return { x: saved.x, y: saved.y, floor: saved.floor }
 }
 
 function getStaffFloor(assignedTo: string | null): FloorId {
@@ -143,22 +190,29 @@ function initStaff(): void {
 
     const floor = getStaffFloor(staff.assignedTo)
     const roomId = staff.assignedTo || 'reception'
-    const [x, y] = randAnchor(floor, roomId)
-    const dest = randAnchor(floor, roomId)
+    const saved = restorePosition(staff.id)
+    const x = saved?.x ?? randAnchor(floor, roomId)[0]
+    const y = saved?.y ?? randAnchor(floor, roomId)[1]
+    const useFloor = saved?.floor ?? floor
+    const path = saved
+      ? pathToRandomRoom(useFloor, [x, y])
+      : pathToRoom(useFloor, [x, y], roomId)
+    const dest = path[path.length - 1] || [x, y]
 
     dots.push({
       id: staff.id, x, y,
       color: STAFF_COLORS[staff.typeId] || '#aaa',
       name: def.name, profession: def.name,
       level: staff.level, rarity: staff.rarity,
-      floor,
+      floor: useFloor,
     })
     anims.push({
       id: staff.id, x, y,
       targetX: dest[0], targetY: dest[1],
       speed: 0.2 + Math.random() * 0.3,
-      pathIdx: 0, path: [[x, y], dest],
-      pauseTimer: Math.floor(Math.random() * 80), floor,
+      pathIdx: 0, path,
+      pauseTimer: Math.floor(Math.random() * 80), floor: useFloor,
+      focusRoom: staff.assignedTo || undefined,
     })
   })
 
@@ -180,22 +234,28 @@ function initAssassins(): void {
     const def = ASSASSIN_MAP[assassin.typeId]
     if (!def) return
 
-    const [x, y] = randAnchor(floor, 'armory')
-    const dest = randAnchor(floor, 'armory')
+    const saved = restorePosition(assassin.id)
+    const x = saved?.x ?? randAnchor(floor, 'armory')[0]
+    const y = saved?.y ?? randAnchor(floor, 'armory')[1]
+    const useFloor = saved?.floor ?? floor
+    const path = saved
+      ? pathToRandomRoom(useFloor, [x, y])
+      : pathToRoom(useFloor, [x, y], 'armory')
+    const dest = path[path.length - 1] || [x, y]
 
     dots.push({
       id: assassin.id, x, y,
       color: ASSASSIN_COLORS[assassin.typeId] || '#ff1744',
       name: def.name, profession: def.name,
       level: assassin.level, rarity: assassin.rarity,
-      floor,
+      floor: useFloor,
     })
     anims.push({
       id: assassin.id, x, y,
       targetX: dest[0], targetY: dest[1],
       speed: 0.3 + Math.random() * 0.4,
-      pathIdx: 0, path: [[x, y], dest],
-      pauseTimer: Math.floor(Math.random() * 60), floor,
+      pathIdx: 0, path,
+      pauseTimer: Math.floor(Math.random() * 60), floor: useFloor,
     })
   })
 
@@ -213,7 +273,8 @@ function initGuests(): void {
   const anims: AnimDot[] = []
 
   const PATRON_NAMES = ['Mr. Smith', 'Ms. Chen', 'Mr. Volkov', 'Ms. Dubois', 'Mr. Okafor', 'Ms. Rossi', 'Mr. Lindqvist', 'Ms. Yamamoto', 'Mr. Reyes', 'Ms. Novak', 'Mr. Almasi', 'Ms. Park']
-  const totalGuests = 30
+  const state = gameState.get()
+  const totalGuests = Math.max(8, getGuestCount(state.hqBranch))
 
   for (let i = 0; i < totalGuests; i++) {
     const floor = floors[Math.floor(Math.random() * floors.length)] as FloorId
@@ -222,7 +283,8 @@ function initGuests(): void {
     if (!room) continue
 
     const [x, y] = randAnchor(floor, room.id)
-    const dest = randAnchor(floor, room.id)
+    const path = pathToRoom(floor, [x, y], room.id)
+    const dest = path[path.length - 1] || [x, y]
 
     dots.push({
       id: 'guest_' + i, x, y,
@@ -236,7 +298,7 @@ function initGuests(): void {
       id: 'guest_' + i, x, y,
       targetX: dest[0], targetY: dest[1],
       speed: 0.15 + Math.random() * 0.35,
-      pathIdx: 0, path: [[x, y], dest],
+      pathIdx: 0, path,
       pauseTimer: Math.floor(Math.random() * 60), floor,
     })
   }
@@ -263,7 +325,8 @@ function initAmbientPatrons(dots: NpcDot[], anims: AnimDot[]): void {
     if (!roomIds) continue
     const roomId = roomIds[Math.floor(Math.random() * roomIds.length)]
     const [x, y] = randAnchor(floor, roomId)
-    const dest = randAnchor(floor, roomId)
+    const path = pathToRoom(floor, [x, y], roomId)
+    const dest = path[path.length - 1] || [x, y]
 
     dots.push({
       id: 'ambient_' + i, x, y,
@@ -277,7 +340,7 @@ function initAmbientPatrons(dots: NpcDot[], anims: AnimDot[]): void {
       id: 'ambient_' + i, x, y,
       targetX: dest[0], targetY: dest[1],
       speed: 0.1 + Math.random() * 0.25,
-      pathIdx: 0, path: [[x, y], dest],
+      pathIdx: 0, path,
       pauseTimer: Math.floor(Math.random() * 100),
       floor,
     })
@@ -286,10 +349,12 @@ function initAmbientPatrons(dots: NpcDot[], anims: AnimDot[]): void {
 
 function initVisitors(): void {
   visitors.value = getVisitors()
+  const receptionAnchors = ROOM_ANCHORS['1']?.reception || [[600, 300] as [number, number]]
   const dots: NpcDot[] = visitors.value.map((v, i) => {
     const def = v.isAssassin ? ASSASSIN_MAP[v.typeId] : STAFF_MAP[v.typeId]
+    const [x, y] = receptionAnchors[i % receptionAnchors.length]
     return {
-      id: v.id, x: 200 + i * 80, y: 420,
+      id: v.id, x, y,
       color: v.isAssassin ? (ASSASSIN_COLORS[v.typeId] || '#ff1744') : (STAFF_COLORS[v.typeId] || '#aaa'),
       name: def?.name || v.typeId,
       profession: v.isAssassin ? 'Assassin' : 'Staff',
@@ -313,21 +378,26 @@ function animate(): void {
           a.pathIdx++
           if (a.pathIdx >= a.path.length) {
             a.pauseTimer = 60 + Math.floor(Math.random() * 120)
-            const rooms = getRoomsOnFloor(a.floor)
-            const room = rooms[Math.floor(Math.random() * rooms.length)]
-            if (room) {
-              const dest = randAnchor(a.floor, room.id)
-              a.path = [[a.x, a.y], dest]
-              a.pathIdx = 0
-              a.targetX = dest[0]; a.targetY = dest[1]
-            }
+            const newPath = pathToRandomRoom(a.floor, [a.x, a.y], a.focusRoom)
+            a.path = newPath
+            a.pathIdx = 0
+            const dest = newPath[newPath.length - 1] || [a.x, a.y]
+            a.targetX = dest[0]; a.targetY = dest[1]
           }
         } else {
           a.x += (dx / dist) * a.speed
           a.y += (dy / dist) * a.speed
         }
       }
-      if (dots[i]) { dots[i].x = a.x; dots[i].y = a.y }
+      if (dots[i]) {
+        dots[i].x = a.x; dots[i].y = a.y
+        // Mark staff focused when resting in their assigned room
+        if (a.focusRoom && a.pathIdx >= a.path.length) {
+          dots[i].focused = true
+        } else if (a.focusRoom) {
+          dots[i].focused = false
+        }
+      }
     }
   }
   updateDots(animStaff.value, staffDots.value)
@@ -408,6 +478,23 @@ const floorUnlocked = computed(() => isFloorUnlocked(selectedFloor.value, buildi
 
 function refreshVisitors(): void { initVisitors() }
 
+function handleBlueprintSync(): void {
+  applySyncedLayout()
+  initStaff()
+  initAssassins()
+  initGuests()
+  initVisitors()
+  updateSidebarDots()
+}
+
+function handleVisibilityChange(): void {
+  if (document.visibilityState === 'hidden') {
+    if (rafId !== null) { cancelAnimationFrame(rafId); rafId = null }
+  } else if (rafId === null) {
+    rafId = requestAnimationFrame(animate)
+  }
+}
+
 onMounted(() => {
   const state = gameState.get()
   const def = getBranchDef(state.hqBranch)
@@ -420,21 +507,26 @@ onMounted(() => {
   eventBus.on('visitor:left', refreshVisitors)
   eventBus.on('visitor:hired', refreshVisitors)
   eventBus.on('visitor:dismissed', refreshVisitors)
+  window.addEventListener('blueprint:sync', handleBlueprintSync)
+  document.addEventListener('visibilitychange', handleVisibilityChange)
   nextTick(() => { rafId = requestAnimationFrame(animate) })
 })
 
 onUnmounted(() => {
   if (rafId !== null) cancelAnimationFrame(rafId)
   if (sidebarUpdateTimer !== null) { clearTimeout(sidebarUpdateTimer); sidebarUpdateTimer = null }
+  saveNpcPositions()
   eventBus.off('visitor:arrived', refreshVisitors)
   eventBus.off('visitor:left', refreshVisitors)
   eventBus.off('visitor:hired', refreshVisitors)
   eventBus.off('visitor:dismissed', refreshVisitors)
+  window.removeEventListener('blueprint:sync', handleBlueprintSync)
+  document.removeEventListener('visibilitychange', handleVisibilityChange)
 })
 </script>
 
 <template>
-  <div :class="props.inline ? 'hq_office hq_office__inline' : 'hq_office hq_office__overlay'" @click.self="!props.inline && emit('close')">
+  <div :class="props.inline ? 'hqoffice hqoffice__inline' : 'hqoffice hqoffice__overlay'" @click.self="!props.inline && emit('close')">
     <HQToolbar
       :view-mode="viewMode" :show-labels="showLabels"
       :golden-coins="goldenCoins" :royal-marks="royalMarks"
@@ -444,77 +536,77 @@ onUnmounted(() => {
       @toggle-labels="showLabels = !showLabels"
       @call-visitor="onCallVisitor" @royal-mark-scroll="onRoyalMarkScroll"
     />
-    <div class="hq_office__content">
+    <div class="hqoffice__content">
       <template v-if="viewMode === 'birdseye'">
-        <div class="hq_office__main">
-          <svg :viewBox="`0 0 ${SVG_W} ${SVG_H}`" class="hq_office__svg" preserveAspectRatio="xMidYMid meet">
+        <div class="hqoffice__main">
+          <svg :viewBox="`0 0 ${SVG_W} ${SVG_H}`" class="hqoffice__svg" preserveAspectRatio="xMidYMid meet">
             <HQRoomLayer :floor="selectedFloor" :unlocked="floorUnlocked" :building-levels="buildingLevels" />
             <HQNpcLayer v-if="floorUnlocked" :dots="currentFloorDots" :show-labels="showLabels" :selected-npc-id="selectedNpcId" @click="onNpcClick" />
           </svg>
         </div>
-        <div class="hq_office__sidebar">
+        <div class="hqoffice__sidebar">
           <HQFloorSelector :selected-floor="selectedFloor" :buildings="buildingsUnlocked" :npc-dots="npcDotsByFloor" @select="selectedFloor = $event" />
         </div>
       </template>
       <template v-else>
-        <div class="hq_office__fallout">
+        <div class="hqoffice__fallout">
           <HQFalloutView :buildings="buildingsUnlocked" :npc-dots="npcDotsByFloor" :show-labels="showLabels" @select-floor="selectedFloor = $event; viewMode = 'birdseye'" />
         </div>
       </template>
     </div>
-    <div v-if="visitors.length > 0 && selectedFloor === '1'" class="hq_office__visitors">
+    <div v-if="visitors.length > 0 && selectedFloor === '1'" class="hqoffice__visitors">
       <HQVisitorCard v-for="v in visitors" :key="v.id" :visitor="v" :branch-currency="branchCurrency" @hire="onHireVisitor" @dismiss="onDismissVisitor" />
     </div>
-    <div v-if="selectedNpc && !selectedVisitor" class="hq_office__stats_panel">
-      <div class="hq_office__stats_header">
+    <div v-if="selectedNpc && !selectedVisitor" class="hqoffice__statspanel">
+      <div class="hqoffice__statshead">
         <span>{{ selectedNpc.dot.name }} Lv.{{ selectedNpc.dot.level }}</span>
-        <span class="hq_office__stats_rarity">{{ selectedNpc.dot.rarity }}</span>
-        <button class="hq_office__stats_close" @click="selectedNpcId = null">×</button>
+        <span class="hqoffice__statsrarity">{{ selectedNpc.dot.rarity }}</span>
+        <button class="hqoffice__statsclose" @click="selectedNpcId = null">×</button>
       </div>
-      <div class="hq_office__stats_body">
-        <div class="hq_office__stats_row">
+      <div class="hqoffice__statsbody">
+        <div class="hqoffice__statsrow">
           <span>PREC</span><b>{{ selectedNpc.data.stats.precision }}</b>
           <span>SPD</span><b>{{ selectedNpc.data.stats.speed }}</b>
         </div>
-        <div class="hq_office__stats_row">
+        <div class="hqoffice__statsrow">
           <span>CHA</span><b>{{ selectedNpc.data.stats.charisma }}</b>
           <span>LCK</span><b>{{ selectedNpc.data.stats.luck }}</b>
         </div>
-        <div class="hq_office__stats_traits">Traits: {{ selectedNpc.data.traits.join(', ') || '—' }}</div>
-        <button v-if="selectedNpc.type === 'staff'" class="hq_office__fire_btn" @click="onFireStaff(selectedNpc.data.id)">Fire Staff</button>
-        <button v-else class="hq_office__fire_btn" @click="onFireAssassin(selectedNpc.data.id)">Fire Assassin</button>
+        <div class="hqoffice__statstraits">Traits: {{ selectedNpc.data.traits.join(', ') || '—' }}</div>
+        <button v-if="selectedNpc.type === 'staff'" class="hqoffice__firebtn" @click="onFireStaff(selectedNpc.data.id)">Fire Staff</button>
+        <button v-else class="hqoffice__firebtn" @click="onFireAssassin(selectedNpc.data.id)">Fire Assassin</button>
       </div>
     </div>
-    <div v-if="selectedVisitor" class="hq_office__visitor_detail">
+    <div v-if="selectedVisitor" class="hqoffice__visitor">
       <HQVisitorCard :visitor="selectedVisitor" :branch-currency="branchCurrency" @hire="onHireVisitor" @dismiss="onDismissVisitor" />
-      <button class="hq_office__stats_close" @click="selectedVisitor = null; selectedNpcId = null">×</button>
+      <button class="hqoffice__statsclose" @click="selectedVisitor = null; selectedNpcId = null">×</button>
     </div>
-    <div v-if="props.inline" class="hq_office__info"><span>{{ hqName }} — {{ hqOwner }}</span></div>
+    <div v-if="props.inline" class="hqoffice__info"><span>{{ hqName }} — {{ hqOwner }}</span></div>
   </div>
 </template>
 
 <style scoped>
-.hq_office { display: flex; flex-direction: column; background: #0d0d0d; border: 1px solid #333; border-radius: 6px; overflow: hidden; }
-.hq_office__inline { height: 100%; min-height: 400px; }
-.hq_office__overlay { position: fixed; inset: 0; z-index: 100; background: rgba(0,0,0,0.85); }
-.hq_office__content { display: flex; flex: 1; overflow: hidden; }
-.hq_office__main { flex: 1; overflow: hidden; display: flex; align-items: center; justify-content: center; }
-.hq_office__svg { width: 100%; height: 100%; max-height: 600px; }
-.hq_office__sidebar { width: 200px; flex-shrink: 0; overflow-y: auto; border-left: 1px solid #222; padding: 4px; }
-.hq_office__fallout { flex: 1; overflow: auto; padding: 8px; }
-.hq_office__visitors { display: flex; gap: 8px; padding: 8px; flex-wrap: wrap; border-top: 1px solid #222; }
-.hq_office__stats_panel { position: absolute; right: 220px; top: 60px; background: #1a1a1a; border: 1px solid #c9a84c; border-radius: 6px; padding: 10px; min-width: 220px; z-index: 10; }
-.hq_office__inline .hq_office__stats_panel { position: relative; right: auto; top: auto; margin: 4px; }
-.hq_office__stats_header { display: flex; align-items: center; gap: 8px; border-bottom: 1px solid #333; padding-bottom: 6px; margin-bottom: 8px; font-family: Georgia, serif; color: #c9a84c; font-size: 13px; }
-.hq_office__stats_rarity { font-weight: bold; font-size: 14px; }
-.hq_office__stats_close { margin-left: auto; background: none; border: none; color: #888; font-size: 18px; cursor: pointer; }
-.hq_office__stats_body { font-size: 11px; color: #aaa; }
-.hq_office__stats_row { display: grid; grid-template-columns: auto auto auto auto; gap: 6px; margin-bottom: 4px; align-items: center; }
-.hq_office__stats_row span { color: #666; font-size: 9px; }
-.hq_office__stats_row b { color: #c9a84c; }
-.hq_office__stats_traits { font-size: 10px; color: #777; margin: 6px 0; }
-.hq_office__fire_btn { width: 100%; background: #3a1a1a; color: #ff5252; border: 1px solid #5a2a2a; border-radius: 4px; padding: 6px; font-size: 11px; cursor: pointer; margin-top: 6px; }
-.hq_office__fire_btn:hover { background: #5a2a2a; }
-.hq_office__visitor_detail { position: relative; display: inline-block; }
-.hq_office__info { padding: 4px 12px; font-size: 11px; color: #666; font-family: Georgia, serif; border-top: 1px solid #222; }
+.hqoffice { display: flex; flex-direction: column; background: #0d0d0d; border: 1px solid #333; border-radius: 6px; overflow: hidden; }
+.hqoffice__inline { height: 100%; min-height: 400px; }
+.hqoffice__overlay { position: fixed; inset: 0; z-index: 100; background: rgba(0,0,0,0.85); }
+.hqoffice__content { display: flex; flex: 1; overflow: hidden; }
+.hqoffice__main { flex: 1; overflow: hidden; display: flex; align-items: center; justify-content: center; }
+.hqoffice__svg { width: 100%; height: 100%; max-height: 600px; }
+.hqoffice__sidebar { width: 200px; flex-shrink: 0; overflow-y: auto; border-left: 1px solid #222; padding: 4px; }
+.hqoffice__fallout { flex: 1; overflow: auto; padding: 8px; }
+.hqoffice__visitors { display: flex; gap: 8px; padding: 8px; flex-wrap: wrap; border-top: 1px solid #222; }
+.hqoffice__statspanel { position: absolute; right: 220px; top: 60px; background: #1a1a1a; border: 1px solid #c9a84c; border-radius: 6px; padding: 10px; min-width: 220px; z-index: 10; }
+.hqoffice__inline .hqoffice__statspanel { position: relative; right: auto; top: auto; margin: 4px; }
+.hqoffice__statshead { display: flex; align-items: center; gap: 8px; border-bottom: 1px solid #333; padding-bottom: 6px; margin-bottom: 8px; font-family: Georgia, serif; color: #c9a84c; font-size: 13px; }
+.hqoffice__statsrarity { font-weight: bold; font-size: 14px; }
+.hqoffice__statsclose { margin-left: auto; background: none; border: none; color: #888; font-size: 18px; cursor: pointer; }
+.hqoffice__statsbody { font-size: 11px; color: #aaa; }
+.hqoffice__statsrow { display: grid; grid-template-columns: auto auto auto auto; gap: 6px; margin-bottom: 4px; align-items: center; }
+.hqoffice__statsrow span { color: #666; font-size: 9px; }
+.hqoffice__statsrow b { color: #c9a84c; }
+.hqoffice__statstraits { font-size: 10px; color: #777; margin: 6px 0; }
+.hqoffice__firebtn { width: 100%; background: #3a1a1a; color: #ff5252; border: 1px solid #5a2a2a; border-radius: 4px; padding: 6px; font-size: 11px; cursor: pointer; margin-top: 6px; }
+.hqoffice__firebtn:hover { background: #5a2a2a; }
+.hqoffice__visitor { position: relative; display: inline-block; }
+.hqoffice__info { padding: 4px 12px; font-size: 11px; color: #666; font-family: Georgia, serif; border-top: 1px solid #222; }
 </style>

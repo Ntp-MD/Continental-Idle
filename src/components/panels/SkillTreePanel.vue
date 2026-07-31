@@ -72,30 +72,30 @@ watch(() => props.visible, (v) => { if (v) update() })
 </script>
 
 <template>
-  <div v-if="visible" class="game_panel" @click.self="emit('close')">
-    <div class="game_panel__content" role="dialog" aria-modal="true" aria-labelledby="panel_title_skills">
-      <h2 id="panel_title_skills" class="game_panel__title">Skill Tree</h2>
-      <div class="skill_tree__favor">Table Favor: {{ formatNumber(favor) }}</div>
+  <div v-if="visible" class="panel" @click.self="emit('close')">
+    <div class="panel__content" role="dialog" aria-modal="true" aria-labelledby="panel__title__skills">
+      <h2 id="panel__title__skills" class="panel__title">Skill Tree</h2>
+      <div class="skill__tree__favor">Table Favor: {{ formatNumber(favor) }}</div>
 
-      <div v-for="branch in branches" :key="branch.key" class="skill_branch">
-        <div class="section_header">{{ branch.name }} — Lv.{{ branch.level }}/{{ SKILL_MAX_LEVEL }}</div>
-        <div v-for="node in branch.nodes" :key="node.level" class="skill_node">
-          <div class="skill_node__info">
-            <div class="skill_node__name" :class="{ 'skill_node__name__unlocked': node.unlocked }">
+      <div v-for="branch in branches" :key="branch.key" class="skill__branch">
+        <div class="section__header">{{ branch.name }} — Lv.{{ branch.level }}/{{ SKILL_MAX_LEVEL }}</div>
+        <div v-for="node in branch.nodes" :key="node.level" class="card skill">
+          <div class="skill__info">
+            <div class="skill__name" :class="{ 'skill__name__unlocked': node.unlocked }">
               {{ node.unlocked ? '✓' : '○' }} {{ node.name }}
             </div>
-            <div class="skill_node__desc">{{ node.description }}</div>
+            <div class="skill__desc">{{ node.description }}</div>
           </div>
           <button
             v-if="!node.unlocked && node.canUpgrade"
-            class="skill_node__btn"
+            class="btn btn__warning btn__sm"
             @click="doUpgrade(branch.key)"
           >{{ node.favorCost }} F</button>
-          <span v-else-if="!node.unlocked" class="skill_node__cost_locked">{{ node.favorCost }} F</span>
+          <span v-else-if="!node.unlocked" class="skill__costlocked">{{ node.favorCost }} F</span>
         </div>
       </div>
 
-      <button class="game_panel__close" @click="emit('close')">Close</button>
+      <button class="panel__close" @click="emit('close')">Close</button>
     </div>
   </div>
 </template>

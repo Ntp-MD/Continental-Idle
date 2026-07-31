@@ -20,7 +20,7 @@ const store = useAssetsStore()
 const npcSimulation = useNpcSimulation(
   () => store.state.layout.npcConfig ?? getDefaultNpcConfig(),
   () => store.currentFloor.value,
-  () => ({ w: store.state.layout.canvas.width, h: store.state.layout.canvas.height }),
+  () => ({ w: store.state.layout.canvas.width, h: store.state.layout.canvas.height, tileSize: store.state.layout.canvas.tileSize }),
   (id: string) => store.state.layout.floors.find(f => f.id === id),
   (id: string) => store.assetMap().get(id)?.tags,
 )
@@ -57,25 +57,5 @@ provide('npcSimulation', npcSimulation)
   flex: 1;
   display: flex;
   min-height: 0;
-}
-
-.editor__back_btn {
-  position: absolute;
-  top: var(--gap-sm);
-  left: var(--gap-sm);
-  z-index: 1001;
-  padding: var(--gap-xs) var(--gap-sm);
-  background: var(--bg-card);
-  border: 1px solid var(--border-dim);
-  border-radius: var(--radius-sm);
-  color: var(--text-primary);
-  font-size: var(--font-size-sm);
-  cursor: pointer;
-  transition: all var(--duration-fast) var(--ease-out);
-}
-
-.editor__back_btn:hover {
-  border-color: var(--accent-gold);
-  color: var(--accent-gold);
 }
 </style>

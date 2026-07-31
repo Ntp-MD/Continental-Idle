@@ -1,18 +1,20 @@
 <script setup lang="ts">
-import { ref, watch, computed, onBeforeUnmount } from 'vue'
+import { ref, watch, computed } from 'vue'
 import { useAssetsStore } from '../blueprintStore'
-import { useToast } from '../composables/useToast'
+import { useToast } from '@/composables/useToast'
 import { useAsyncAction } from '../composables/useAsyncAction'
+import { useFieldError } from '../composables/useFieldError'
+import { useClipboardCopy } from '../composables/useClipboardCopy'
 import type { ObjectData } from '../types'
 import TagPicker from './tagPicker.vue'
 
 const props = defineProps<{ object: ObjectData }>()
 const store = useAssetsStore()
 const { pending, run } = useAsyncAction()
+const { errorFields, flashError } = useFieldError()
+const { copyId } = useClipboardCopy()
 
 const fields = ref({ x: 0, y: 0, w: 0, h: 0, objLabel: '' })
-const errorFields = ref<Record<string, boolean>>({})
-const flashErrorTimers = new Map<string, number>()
 
 const customNotes = ref('')
 const customTags = ref<string[]>([])
@@ -33,23 +35,6 @@ watch(entranceRequired, async (v) => {
   } catch {
     entranceRequired.value = !v
   }
-})
-
-const FLASH_ERROR_MS = 1200
-function flashError(field: string) {
-  const existing = flashErrorTimers.get(field)
-  if (existing) window.clearTimeout(existing)
-  errorFields.value[field] = true
-  const id = window.setTimeout(() => {
-    errorFields.value[field] = false
-    flashErrorTimers.delete(field)
-  }, FLASH_ERROR_MS)
-  flashErrorTimers.set(field, id)
-}
-
-onBeforeUnmount(() => {
-  for (const id of flashErrorTimers.values()) window.clearTimeout(id)
-  flashErrorTimers.clear()
 })
 
 watch(() => props.object, (obj) => {
@@ -142,15 +127,6 @@ async function onRoomLinkChange(e: Event) {
   }
 }
 
-async function copyId(id: string) {
-  try {
-    await navigator.clipboard.writeText(id)
-    useToast().success('ID copied')
-  } catch {
-    useToast().warning('Copy failed')
-  }
-}
-
 async function onSave() {
   await run(() => store.saveLayout())
   useToast().success('Properties saved')
@@ -172,79 +148,79 @@ function removeAnchor(index: number) {
 </script>
 
 <template>
-  <div class="properties_panel__content">
-    <div class="properties_panel__section">
-      <div class="properties_panel__section_title">Object</div>
-      <div class="properties_panel__row">
+  <div class="properties__content">
+    <div class="properties__section">
+      <div class="properties__title">Object</div>
+      <div class="properties__row">
       <label>ID</label>
-      <div class="properties_panel__id_row">
+      <div class="properties__idrow">
         <input type="text" :value="object.id" disabled class="input input__readonly" title="Object ID" />
-        <button class="btn btn_sm" @click="copyId(object.id)">Copy</button>
+        <button class="btn btn__sm" @click="copyId(object.id)">Copy</button>
       </div>
     </div>
-    <div class="properties_panel__row">
+    <div class="properties__row">
       <label>X</label>
       <input class="input" type="number" v-model.number="fields.x" :class="{ 'input__error': errorFields.x }" @change="commitField('x')" />
     </div>
-    <div class="properties_panel__row">
+    <div class="properties__row">
       <label>Y</label>
       <input class="input" type="number" v-model.number="fields.y" :class="{ 'input__error': errorFields.y }" @change="commitField('y')" />
     </div>
-    <div class="properties_panel__row">
+    <div class="properties__row">
       <label>Rotation</label>
-      <span class="properties_panel__value">{{ object.rotation }}°</span>
+      <span class="properties__value">{{ object.rotation }}°</span>
     </div>
-    <div class="properties_panel__row">
+    <div class="properties__row">
       <label>Label</label>
       <input class="input" type="text" v-model="fields.objLabel" @change="commitField('objLabel')" placeholder="Custom label" />
     </div>
-    <div class="properties_panel__row">
+    <div class="properties__row">
       <label>Linked Room</label>
       <select class="input" :value="linkedRoomId" @change="onRoomLinkChange">
         <option value="">None</option>
         <option v-for="room in roomOptions" :key="room.id" :value="room.id">{{ room.label }}</option>
       </select>
     </div>
-    <div v-if="object.tileStates && object.tileStates.length > 0" class="properties_panel__row">
+    <div v-if="object.tileStates && object.tileStates.length > 0" class="properties__row">
       <label></label>
       <label>
         <input type="checkbox" v-model="entranceRequired" /> Require entrance (block boundary)
       </label>
     </div>
     </div>
-    <div class="properties_panel__section">
-      <div class="properties_panel__section_title">NPC Anchors</div>
-      <div class="properties_panel__hint">Points where NPCs stand when targeting this object. Coordinates are relative to the object's top-left corner.</div>
-      <div v-for="(anchor, i) in anchors" :key="'anchor_' + i" class="properties_panel__row">
+    <div class="properties__section">
+      <div class="properties__title">NPC Anchors</div>
+      <div class="properties__hint">Points where NPCs stand when targeting this object. Coordinates are relative to the object's top-left corner.</div>
+      <div v-for="(anchor, i) in anchors" :key="'anchor_' + i" class="properties__row">
         <label>A{{ i + 1 }}</label>
-        <div class="properties_panel__anchor_row">
+        <div class="properties__anchorrow">
           <input class="input input__readonly" type="number" :value="anchor[0]" @change="anchor[0] = +($event.target as HTMLInputElement).value; updateAnchors()" style="width: 48px" />
           <input class="input input__readonly" type="number" :value="anchor[1]" @change="anchor[1] = +($event.target as HTMLInputElement).value; updateAnchors()" style="width: 48px" />
-          <button class="btn btn_sm btn__danger" @click="removeAnchor(i)">×</button>
+          <button class="btn btn__sm btn__danger" @click="removeAnchor(i)">×</button>
         </div>
       </div>
-      <button class="btn btn_sm btn__dashed" @click="addAnchor">+ Add Anchor</button>
+      <button class="btn btn__sm btn__dashed" @click="addAnchor">+ Add Anchor</button>
     </div>
-    <div class="properties_panel__section">
-      <div class="properties_panel__section_title">Instance Properties</div>
-    <div class="properties_panel__row">
+    <div class="properties__section">
+      <div class="properties__title">Instance Properties</div>
+    <div class="properties__row">
       <label>Instance Label</label>
       <input class="input" type="text" v-model="instanceLabel" @change="saveInstanceLabel" placeholder="Unique label for this instance" />
     </div>
-    <div class="properties_panel__row">
+    <div class="properties__row">
       <label>Notes</label>
       <textarea v-model="customNotes" @change="saveCustomNotes" placeholder="Add notes..." class="textarea" rows="2"></textarea>
     </div>
-    <div class="properties_panel__row">
+    <div class="properties__row">
       <label>Tags</label>
       <TagPicker :model-value="customTags" @update:model-value="saveCustomTags" placeholder="tag1, tag2, tag3" />
     </div>
-    <div class="properties_panel__btn_group">
+    <div class="properties__btngroup">
       <button class="btn" @click="rotate">Rotate (R)</button>
       <button class="btn" @click="toggleLock">{{ object.locked ? 'Unlock' : 'Lock' }}</button>
       <button v-if="object.linkGroupId" class="btn" @click="doUnlink">Unlink</button>
     </div>
-    <div class="properties_panel__delete_section">
+    <div class="properties__deletesection">
       <button class="btn btn__success" :disabled="pending" @click="onSave">Save</button>
       <button class="btn" :disabled="pending" @click="store.select(null); store.selectAsset(null)">Deselect</button>
       <button class="btn btn__danger" :disabled="pending" @click="remove">Delete</button>

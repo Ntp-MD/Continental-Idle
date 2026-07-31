@@ -122,12 +122,12 @@ function applySettings() {
   const s = gameState.get().settings
   const root = document.documentElement
   root.style.setProperty('--font-scale', String(s.fontScale))
-  root.classList.toggle('high_contrast', s.highContrast)
-  root.classList.toggle('reduced_motion', s.reducedMotion)
-  root.classList.toggle('one_hand_mode', s.oneHandMode)
-  root.classList.remove('cb_deuteranopia', 'cb_protanopia', 'cb_tritanopia')
+  root.classList.toggle('high__contrast', s.highContrast)
+  root.classList.toggle('reduced__motion', s.reducedMotion)
+  root.classList.toggle('one__hand', s.oneHandMode)
+  root.classList.remove('cb__deuteranopia', 'cb__protanopia', 'cb__tritanopia')
   const validModes = ['deuteranopia', 'protanopia', 'tritanopia']
-  if (s.colorBlindMode !== 'none' && validModes.includes(s.colorBlindMode)) root.classList.add(`cb_${s.colorBlindMode}`)
+  if (s.colorBlindMode !== 'none' && validModes.includes(s.colorBlindMode)) root.classList.add(`cb__${s.colorBlindMode}`)
 }
 
 function doSave() {
@@ -193,7 +193,7 @@ function handleKeydown(e: KeyboardEvent) {
     if (showEditor.value) { showEditor.value = false; return }
     if (showAutoplay.value) { showAutoplay.value = false; return }
   }
-  if (showSaveMenu.value && !((e.target as HTMLElement)?.closest('.game_map_actions__save_wrap'))) {
+  if (showSaveMenu.value && !((e.target as HTMLElement)?.closest('.mapactions__savewrap'))) {
     showSaveMenu.value = false
   }
 }
@@ -344,7 +344,7 @@ function handleHQOfficeView() {
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 function handleOutsideClick(e: MouseEvent) {
-  if (showSaveMenu.value && !((e.target as HTMLElement)?.closest('.game_map_actions__save_wrap'))) {
+  if (showSaveMenu.value && !((e.target as HTMLElement)?.closest('.mapactions__savewrap'))) {
     showSaveMenu.value = false
   }
 }
@@ -382,52 +382,52 @@ onUnmounted(() => {
   <StartScreen v-if="!gameStarted && route.name !== 'editor'" @start="onStart" @quick-start="onQuickStart" />
   <BlueprintEditor v-else-if="route.name === 'editor'" @close="closeEditor" />
   <ErrorBoundary v-else>
-    <div class="game_layout">
+    <div class="game__layout">
     <GameHeader />
     <BuffBar />
     <EventPrompt />
-    <div class="game_main">
-      <aside class="game_sidebar" :class="{ 'game_sidebar__collapsed': !showBuildings }">
+    <div class="game__main">
+      <aside class="game__sidebar" :class="{ 'game__sidebar__collapsed': !showBuildings }">
         <BuildingList />
       </aside>
-      <main class="game_map_area">
-        <div class="game_map_tabs">
-          <button class="game_map_tabs__btn" :class="{ 'game_map_tabs__btn__active': mapTab === 'world' }" @click="mapTab = 'world'">World Map</button>
-          <button class="game_map_tabs__btn" :class="{ 'game_map_tabs__btn__active': mapTab === 'hq' }" @click="mapTab = 'hq'">HQ Office</button>
+      <main class="game__map__area">
+        <div class="maptabs">
+          <button class="maptabs__btn" :class="{ 'maptabs__btn__active': mapTab === 'world' }" @click="mapTab = 'world'">World Map</button>
+          <button class="maptabs__btn" :class="{ 'maptabs__btn__active': mapTab === 'hq' }" @click="mapTab = 'hq'">HQ Office</button>
         </div>
         <WorldMap v-show="mapTab === 'world'" />
         <HQOfficeView v-if="mapTab === 'hq'" inline />
-        <div class="game_map_actions">
-          <button class="game_map_actions__btn" @click="showBuildings = !showBuildings" :aria-label="showBuildings ? 'Hide buildings panel' : 'Show buildings panel'">
+        <div class="mapactions">
+          <button class="mapactions__btn" @click="showBuildings = !showBuildings" :aria-label="showBuildings ? 'Hide buildings panel' : 'Show buildings panel'">
             {{ showBuildings ? '\u25C0 Hide' : '\u25B6 Buildings' }}
           </button>
-          <button class="game_map_actions__btn" id="btn_staff" @click="openStaff" aria-label="Open staff panel">Staff</button>
-          <button class="game_map_actions__btn" id="btn_prestige" @click="openPrestige" aria-label="Open prestige panel">Prestige</button>
-          <button class="game_map_actions__btn" @click="openSkills" aria-label="Open skill tree panel">Skills</button>
-          <button class="game_map_actions__btn" @click="openSettings" aria-label="Open settings panel">Settings</button>
-          <button class="game_map_actions__btn" @click="openWiki" aria-label="Open wiki">Wiki</button>
-          <button class="game_map_actions__btn" @click="showBlueprint = true" aria-label="Open architectural blueprint preview">Blueprint</button>
-          <button class="game_map_actions__btn" @click="showSupplyRoutes = true" aria-label="Open supply routes panel">Routes</button>
-          <button class="game_map_actions__btn" @click="showPowerBalance = true" aria-label="Open power balance panel">Power</button>
-          <button class="game_map_actions__btn" @click="showAutoplay = !showAutoplay" :aria-label="showAutoplay ? 'Close autoplay panel' : 'Open autoplay panel'">AI Play</button>
-          <button class="game_map_actions__btn" @click="showEventLog = true" aria-label="Open event history panel">History</button>
-          <button class="game_map_actions__btn" @click="showAchievements = true" aria-label="Open achievements panel">Awards</button>
-          <button class="game_map_actions__btn" @click="showRoyal = true" aria-label="Open royal continental panel" :disabled="!hasRoyalBranches">Royal</button>
-          <button class="game_map_actions__btn" @click="showSovereign = true" aria-label="Open sovereign panel">Throne</button>
-          <button class="game_map_actions__btn" @click="openEditor" aria-label="Open blueprint editor">Editor</button>
-          <div class="game_map_actions__save_wrap">
-            <button class="game_map_actions__btn" @click="showSaveMenu = !showSaveMenu">Save ?</button>
-            <div v-if="showSaveMenu" class="game_map_actions__save_menu">
-              <button class="game_map_actions__save_item" @click="doSave(); showSaveMenu = false">Save</button>
-              <button class="game_map_actions__save_item" @click="doExport">Export</button>
-              <button class="game_map_actions__save_item" @click="doImport">Import</button>
-              <button class="game_map_actions__save_item game_map_actions__save_item__danger" @click="doDeleteSave">Delete</button>
+          <button class="mapactions__btn" id="btn__staff" @click="openStaff" aria-label="Open staff panel">Staff</button>
+          <button class="mapactions__btn" id="btn__prestige" @click="openPrestige" aria-label="Open prestige panel">Prestige</button>
+          <button class="mapactions__btn" @click="openSkills" aria-label="Open skill tree panel">Skills</button>
+          <button class="mapactions__btn" @click="openSettings" aria-label="Open settings panel">Settings</button>
+          <button class="mapactions__btn" @click="openWiki" aria-label="Open wiki">Wiki</button>
+          <button class="mapactions__btn" @click="showBlueprint = true" aria-label="Open architectural blueprint preview">Blueprint</button>
+          <button class="mapactions__btn" @click="showSupplyRoutes = true" aria-label="Open supply routes panel">Routes</button>
+          <button class="mapactions__btn" @click="showPowerBalance = true" aria-label="Open power balance panel">Power</button>
+          <button class="mapactions__btn" @click="showAutoplay = !showAutoplay" :aria-label="showAutoplay ? 'Close autoplay panel' : 'Open autoplay panel'">AI Play</button>
+          <button class="mapactions__btn" @click="showEventLog = true" aria-label="Open event history panel">History</button>
+          <button class="mapactions__btn" @click="showAchievements = true" aria-label="Open achievements panel">Awards</button>
+          <button class="mapactions__btn" @click="showRoyal = true" aria-label="Open royal continental panel" :disabled="!hasRoyalBranches">Royal</button>
+          <button class="mapactions__btn" @click="showSovereign = true" aria-label="Open sovereign panel">Throne</button>
+          <button class="mapactions__btn" @click="openEditor" aria-label="Open blueprint editor">Editor</button>
+          <div class="mapactions__savewrap">
+            <button class="mapactions__btn" @click="showSaveMenu = !showSaveMenu">Save ?</button>
+            <div v-if="showSaveMenu" class="mapactions__savemenu">
+              <button class="mapactions__saveitem" @click="doSave(); showSaveMenu = false">Save</button>
+              <button class="mapactions__saveitem" @click="doExport">Export</button>
+              <button class="mapactions__saveitem" @click="doImport">Import</button>
+              <button class="mapactions__saveitem mapactions__save__danger" @click="doDeleteSave">Delete</button>
             </div>
           </div>
         </div>
       </main>
     </div>
-    <footer class="game_status">
+    <footer class="game__status">
       <span>Continental Idle v1.0</span>
       <span>Autosave: 30s</span>
     </footer>

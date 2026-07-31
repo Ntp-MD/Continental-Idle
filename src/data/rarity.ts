@@ -32,6 +32,7 @@ export const RANDOM_SPAWN_RARITY: Record<Rarity, number> = {
   D: 0.40, C: 0.30, B: 0.20, A: 0.08, S: 0.02,
 }
 
+/** Probability that a randomly spawned visitor is staff; assassin probability is (1 - chance). */
 export const STAFF_SPAWN_CHANCE = 0.70
 
 export const RARITY_ORDER: Rarity[] = ['D', 'C', 'B', 'A', 'S']

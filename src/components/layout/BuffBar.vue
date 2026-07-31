@@ -57,15 +57,15 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div v-if="buffs.length > 0" class="buff_bar">
+  <div v-if="buffs.length > 0" class="buff">
     <div
       v-for="b in buffs"
       :key="b.id"
-      class="buff_bar__item"
-      :class="b.type === 'debuff' ? 'buff_bar__item__debuff' : 'buff_bar__item__buff'"
+      class="buff__item"
+      :class="b.type === 'debuff' ? 'buff__item__debuff' : 'buff__item__buff'"
     >
-      <span class="buff_bar__label">{{ b.label }}</span>
-      <span class="buff_bar__timer">{{ b.remaining }}s</span>
+      <span class="buff__label">{{ b.label }}</span>
+      <span class="buff__timer">{{ b.remaining }}s</span>
     </div>
   </div>
 </template>

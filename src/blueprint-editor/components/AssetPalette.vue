@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
 import { useAssetsStore, startAssetDrag, startRoomTemplateDrag } from '../blueprintStore'
-import { useToast } from '../composables/useToast'
+import { useToast } from '@/composables/useToast'
 import { useAsyncAction } from '../composables/useAsyncAction'
+import { sanitizeString } from '../../utils/sanitize'
 import type { AssetDef } from '../types'
 
 const store = useAssetsStore()
@@ -53,7 +54,11 @@ const categoryOrder = computed(() => {
 })
 
 const showAddForm = ref(false)
-const newName = ref('')
+const newNameRaw = ref('')
+const newName = computed({
+  get: () => newNameRaw.value,
+  set: (v: string) => { newNameRaw.value = sanitizeString(v) },
+})
 const newW = ref(1)
 const newH = ref(1)
 const newRx = ref(0)
@@ -89,7 +94,7 @@ async function submitNewAsset() {
   const rx = newRx.value > 0 ? { tl: newRx.value, tr: newRx.value, br: newRx.value, bl: newRx.value } : undefined
   await run(() => store.addAsset(newName.value.trim(), newW.value, newH.value, undefined, undefined, rx, newBgColor.value || undefined))
   useToast().success('Asset added')
-  newName.value = ''
+  newNameRaw.value = ''
   newW.value = 1
   newH.value = 1
   newRx.value = 0
@@ -146,39 +151,39 @@ function onItemClick(assetId: string) {
     <div class="asset__palette__scroll">
       <div v-if="!Object.values(grouped).some(g => g.length)" class="asset__palette__empty">No assets found</div>
       <div v-for="cat in categoryOrder" :key="cat" class="asset__palette__category">
-        <div class="asset__palette__category__title">{{ ORIGIN_LABELS[cat] ?? cat }}</div>
-        <div v-if="!grouped[cat]?.length" class="asset__palette__category__empty">No items</div>
+        <div class="asset__palette__categorylabel">{{ ORIGIN_LABELS[cat] ?? cat }}</div>
+        <div v-if="!grouped[cat]?.length" class="asset__palette__dimlabel">No items</div>
         <template v-for="asset in grouped[cat]" :key="asset.id">
           <div
             class="asset__palette__item"
-            :class="{ 'asset__palette__item__selected': store.state.selectedAssetId === asset.id, 'asset__palette__item__linked': !!asset.linkedParts }"
+            :class="{ 'asset__palette__selected': store.state.selectedAssetId === asset.id, 'asset__palette__linked': !!asset.linkedParts }"
             @mousedown="onAssetMouseDown(asset.id, $event)"
             @click="onItemClick(asset.id)"
           >
-            <span class="asset__palette__item__icon">{{ assetIcon(asset) }}</span>
-            <span class="asset__palette__item__name">{{ asset.name }}</span>
-            <span class="asset__palette__item__size">{{ assetSizeLabel(asset) }}</span>
+            <span class="asset__palette__itemicon">{{ assetIcon(asset) }}</span>
+            <span class="asset__palette__itemtruncate">{{ asset.name }}</span>
+            <span class="asset__palette__dimlabel">{{ assetSizeLabel(asset) }}</span>
           </div>
         </template>
       </div>
 
       <div v-if="roomTemplates.length > 0" class="asset__palette__category">
-        <div class="asset__palette__category__title">Room Templates</div>
+        <div class="asset__palette__categorylabel">Room Templates</div>
         <div class="asset__palette__hint">Select a room, then click "Save as Template" in properties to create one. Drag onto canvas to place.</div>
         <div
           v-for="tpl in roomTemplates"
           :key="tpl.id"
-          class="asset__palette__item asset__palette__item__room__template"
+          class="asset__palette__item asset__palette__roomaccent"
           @mousedown="onRoomTemplateMouseDown(tpl.id, $event)"
         >
-          <span class="asset__palette__item__icon">▢</span>
-          <span class="asset__palette__item__name">{{ tpl.name }}</span>
-          <span class="asset__palette__item__size">{{ tpl.w }}×{{ tpl.h }}</span>
+          <span class="asset__palette__itemicon">▢</span>
+          <span class="asset__palette__itemtruncate">{{ tpl.name }}</span>
+          <span class="asset__palette__dimlabel">{{ tpl.w }}×{{ tpl.h }}</span>
           <button class="btn btn__ghost btn__icon btn__text__danger" @click.stop="onDeleteRoomTemplate(tpl.id)" title="Delete template" aria-label="Delete room template">×</button>
         </div>
       </div>
       <div v-else class="asset__palette__category">
-        <div class="asset__palette__category__title">Room Templates</div>
+        <div class="asset__palette__categorylabel">Room Templates</div>
         <div class="asset__palette__hint">Select a room in the canvas, then click "Save as Template" in properties to create a reusable room template.</div>
       </div>
     </div>
@@ -192,28 +197,28 @@ function onItemClick(assetId: string) {
       </button>
 
       <div v-if="showAddForm" class="asset__palette__form">
-        <input class="input" v-model="newName" placeholder="Asset name" />
-        <div class="asset__palette__form__row">
-          <input class="input input__num" type="number" min="1" v-model.number="newW" placeholder="W" />
-          <span>×</span>
-          <input class="input input__num" type="number" min="1" v-model.number="newH" placeholder="H" />
+        <input id="asset__new__name" class="input" v-model="newName" placeholder="Asset name" aria-label="Asset name" />
+        <div class="asset__palette__formhstack">
+          <input id="asset__new__w" class="input input__num" type="number" min="1" v-model.number="newW" placeholder="W" aria-label="Asset width in tiles" />
+          <span aria-hidden="true">×</span>
+          <input id="asset__new__h" class="input input__num" type="number" min="1" v-model.number="newH" placeholder="H" aria-label="Asset height in tiles" />
         </div>
-        <input class="input" type="number" min="0" v-model.number="newRx" placeholder="Corner radius (0 = none)" />
-        <div class="asset__palette__form__row">
-          <input type="color" v-model="newBgColor" class="input input__color" />
-          <input class="input" :value="newBgColor || 'var(--text-bright)'" @input="newBgColor = ($event.target as HTMLInputElement).value" placeholder="Bg color" />
+        <input id="asset__new__rx" class="input" type="number" min="0" v-model.number="newRx" placeholder="Corner radius (0 = none)" aria-label="Corner radius (0 = none)" />
+        <div class="asset__palette__formhstack">
+          <input type="color" v-model="newBgColor" class="input input__color" aria-label="Asset background color" />
+          <input id="asset__new__bgcolor" class="input" :value="newBgColor || 'var(--text-bright)'" @input="newBgColor = ($event.target as HTMLInputElement).value" placeholder="Bg color" aria-label="Background color hex value" />
         </div>
         <button class="btn btn__primary btn__block" :disabled="pending" @click="submitNewAsset">Add Asset</button>
       </div>
 
       <div v-if="showSvgForm" class="asset__palette__form">
-        <input class="input" v-model="svgName" placeholder="Asset name" />
-        <div class="asset__palette__form__row">
-          <input class="input input__num" type="number" min="1" :value="svgW" disabled placeholder="W (auto)" />
-          <span>×</span>
-          <input class="input input__num" type="number" min="1" :value="svgH" disabled placeholder="H (auto)" />
+        <input class="input" v-model="svgName" placeholder="Asset name" aria-label="SVG asset name" />
+        <div class="asset__palette__formhstack">
+          <input class="input input__num" type="number" min="1" :value="svgW" disabled placeholder="W (auto)" aria-label="SVG width (auto)" />
+          <span aria-hidden="true">×</span>
+          <input class="input input__num" type="number" min="1" :value="svgH" disabled placeholder="H (auto)" aria-label="SVG height (auto)" />
         </div>
-        <textarea class="textarea" v-model="svgContent" placeholder="Paste SVG here (must include viewBox)..." rows="6"></textarea>
+        <textarea class="textarea" v-model="svgContent" placeholder="Paste SVG here (must include viewBox)..." rows="6" aria-label="SVG content"></textarea>
         <button class="btn btn__primary btn__block" :disabled="pending" @click="submitSvgAsset">Import SVG</button>
       </div>
     </div>
@@ -265,13 +270,14 @@ function onItemClick(assetId: string) {
   border-bottom: 1px solid var(--border-dim);
 }
 
-.asset__palette__form {
+.asset__palette__form,
+.asset__palette__category {
   display: flex;
   flex-direction: column;
   gap: var(--gap-xs);
 }
 
-.asset__palette__form__row {
+.asset__palette__formhstack {
   display: flex;
   align-items: center;
   gap: var(--gap-xs);
@@ -293,13 +299,7 @@ function onItemClick(assetId: string) {
   opacity: 0.7;
 }
 
-.asset__palette__category {
-  display: flex;
-  flex-direction: column;
-  gap: var(--gap-xs);
-}
-
-.asset__palette__category__title {
+.asset__palette__categorylabel {
   padding: var(--gap-xs) var(--gap-sm);
   font-size: var(--font-xs);
   font-weight: 700;
@@ -309,10 +309,11 @@ function onItemClick(assetId: string) {
   opacity: 0.7;
 }
 
-.asset__palette__category__empty {
+.asset__palette__dimlabel {
   padding: var(--gap-xs) var(--gap-sm);
   font-size: var(--font-xs);
-  opacity: 0.5;
+  opacity: 0.7;
+  white-space: nowrap;
 }
 
 .asset__palette__hint {
@@ -341,7 +342,7 @@ function onItemClick(assetId: string) {
   border-color: var(--accent-gold);
 }
 
-.asset__palette__item__icon {
+.asset__palette__itemicon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -351,7 +352,7 @@ function onItemClick(assetId: string) {
   font-size: var(--font-lg);
 }
 
-.asset__palette__item__name {
+.asset__palette__itemtruncate {
   flex: 1;
   min-width: 0;
   overflow: hidden;
@@ -360,13 +361,16 @@ function onItemClick(assetId: string) {
   font-size: var(--font-sm);
 }
 
-.asset__palette__item__size {
-  font-size: var(--font-xs);
-  opacity: 0.7;
-  white-space: nowrap;
-}
-
-.asset__palette__item__room__template {
+.asset__palette__roomaccent {
   border-style: dashed;
   border-color: color-mix(in srgb, var(--accent-gold) 50%, transparent);
+}
+
+.asset__palette__selected {
+  border-color: var(--accent-gold);
+  background: color-mix(in srgb, var(--accent-gold) 12%, transparent);
+}
+
+.asset__palette__linked {
+  border-color: var(--accent-blue);
 }</style>

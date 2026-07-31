@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { useAssetsStore } from '../blueprintStore'
-import { useToast } from '../composables/useToast'
+import { useToast } from '@/composables/useToast'
 import RoomPropertiesForm from './roomPropertiesForm.vue'
 import ObjectPropertiesForm from './objectPropertiesForm.vue'
 import AssetPropertiesForm from './assetPropertiesForm.vue'
@@ -108,61 +108,61 @@ async function updateZoneTags(id: string, tags: string[]) {
 </script>
 
 <template>
-  <div class="properties_panel">
-    <div class="properties_panel__header">
+  <div class="properties">
+    <div class="properties__header">
       <span>Properties</span>
-      <span class="properties_panel__floor_context">{{ store.currentFloor.value?.label ?? '—' }} · {{ store.currentFloor.value?.name ?? '' }}</span>
+      <span class="properties__floor">{{ store.currentFloor.value?.label ?? '—' }} · {{ store.currentFloor.value?.name ?? '' }}</span>
     </div>
 
-    <div v-if="!room && !object && !asset && store.state.selectionState.items.length === 0" class="properties_panel__content">
-      <div class="properties_panel__section">
-        <div class="properties_panel__section_title">Properties</div>
-        <div class="properties_panel__empty">Select a room, object, or asset to edit properties.</div>
-        <div class="properties_panel__empty_hint">Click an asset in the palette to edit its definition. Click an object on the canvas to edit instance properties.</div>
-        <button class="btn btn_sm" @click="showTagManager = true">Manage Tags</button>
+    <div v-if="!room && !object && !asset && store.state.selectionState.items.length === 0" class="properties__content">
+      <div class="properties__section">
+        <div class="properties__title">Properties</div>
+        <div class="properties__empty">Select a room, object, or asset to edit properties.</div>
+        <div class="properties__hint">Click an asset in the palette to edit its definition. Click an object on the canvas to edit instance properties.</div>
+        <button class="btn btn__sm" @click="showTagManager = true">Manage Tags</button>
       </div>
-      <div class="properties_panel__section">
-        <div class="properties_panel__section_title">Zones</div>
+      <div class="properties__section">
+        <div class="properties__title">Zones</div>
         <button class="btn" @click="showZoneManager = !showZoneManager">{{ showZoneManager ? 'Close' : 'Manage Zones' }}</button>
-        <div v-if="showZoneManager" class="properties_panel__cat_manager">
-          <div v-for="zone in zones" :key="zone.id" class="properties_panel__zone_row">
-            <div class="properties_panel__cat_row">
-              <input type="color" :value="zone.color" @change="updateZoneColor(zone.id, ($event.target as HTMLInputElement).value)" class="input input__color" />
-              <input type="text" :value="zone.label" @change="updateZoneLabel(zone.id, ($event.target as HTMLInputElement).value)" class="input" />
-              <button class="btn btn__danger btn_sm" @click="deleteZone(zone.id)">×</button>
+        <div v-if="showZoneManager" class="properties__cats">
+          <div v-for="zone in zones" :key="zone.id" class="properties__zonerow">
+            <div class="properties__catrow">
+              <input :id="'zone__color__' + zone.id" type="color" :value="zone.color" @change="updateZoneColor(zone.id, ($event.target as HTMLInputElement).value)" class="input input__color" aria-label="Zone color" />
+              <input :id="'zone__label__' + zone.id" type="text" :value="zone.label" @change="updateZoneLabel(zone.id, ($event.target as HTMLInputElement).value)" class="input" aria-label="Zone label" />
+              <button class="btn btn__danger btn__sm" @click="deleteZone(zone.id)" aria-label="Delete zone">×</button>
             </div>
-            <div class="properties_panel__zone_pos">
-              <label title="Position X">X</label>
-              <input class="input" type="number" title="Position X" :value="zone.x" @change="updateZoneX(zone.id, +($event.target as HTMLInputElement).value)" />
-              <label title="Position Y">Y</label>
-              <input class="input" type="number" title="Position Y" :value="zone.y" @change="updateZoneY(zone.id, +($event.target as HTMLInputElement).value)" />
+            <div class="properties__zonepos">
+              <label :for="'zone__x__' + zone.id" title="Position X">X</label>
+              <input :id="'zone__x__' + zone.id" class="input" type="number" title="Position X" :value="zone.x" @change="updateZoneX(zone.id, +($event.target as HTMLInputElement).value)" />
+              <label :for="'zone__y__' + zone.id" title="Position Y">Y</label>
+              <input :id="'zone__y__' + zone.id" class="input" type="number" title="Position Y" :value="zone.y" @change="updateZoneY(zone.id, +($event.target as HTMLInputElement).value)" />
             </div>
-            <div class="properties_panel__row">
+            <div class="properties__row">
               <label title="NPC role tags">NPC Tags</label>
               <TagPicker :model-value="zone.tags ?? []" @update:model-value="updateZoneTags(zone.id, $event)" placeholder="rest, service, target" />
             </div>
-            <div class="properties_panel__zone_pos">
-              <label title="Width">W</label>
-              <input class="input" type="number" title="Width" :value="zone.w" @change="updateZoneW(zone.id, +($event.target as HTMLInputElement).value)" />
-              <label title="Height">H</label>
-              <input class="input" type="number" title="Height" :value="zone.h" @change="updateZoneH(zone.id, +($event.target as HTMLInputElement).value)" />
+            <div class="properties__zonepos">
+              <label :for="'zone__w__' + zone.id" title="Width">W</label>
+              <input :id="'zone__w__' + zone.id" class="input" type="number" title="Width" :value="zone.w" @change="updateZoneW(zone.id, +($event.target as HTMLInputElement).value)" />
+              <label :for="'zone__h__' + zone.id" title="Height">H</label>
+              <input :id="'zone__h__' + zone.id" class="input" type="number" title="Height" :value="zone.h" @change="updateZoneH(zone.id, +($event.target as HTMLInputElement).value)" />
             </div>
           </div>
-          <div class="properties_panel__cat_add">
-            <input type="text" v-model="newZoneLabel" placeholder="Zone label" class="input" />
-            <input type="color" v-model="newZoneColor" class="input input__color" />
+          <div class="properties__catadd">
+            <input id="new__zone__label" type="text" v-model="newZoneLabel" placeholder="Zone label" class="input" aria-label="New zone label" />
+            <input id="new__zone__color" type="color" v-model="newZoneColor" class="input input__color" aria-label="New zone color" />
           </div>
-          <div class="properties_panel__row">
+          <div class="properties__row">
             <label>NPC Tags</label>
             <TagPicker v-model="newZoneTags" placeholder="rest, service, target" />
           </div>
-          <div class="properties_panel__row">
-            <label title="Width">W</label>
-            <input class="input" type="number" min="25" step="25" title="Width" v-model.number="newZoneW" />
+          <div class="properties__row">
+            <label for="new__zone__w" title="Width">W</label>
+            <input id="new__zone__w" class="input" type="number" min="25" step="25" title="Width" v-model.number="newZoneW" />
           </div>
-          <div class="properties_panel__row">
-            <label title="Height">H</label>
-            <input class="input" type="number" min="25" step="25" title="Height" v-model.number="newZoneH" />
+          <div class="properties__row">
+            <label for="new__zone__h" title="Height">H</label>
+            <input id="new__zone__h" class="input" type="number" min="25" step="25" title="Height" v-model.number="newZoneH" />
           </div>
           <button class="btn" @click="addZone">+ Add Zone</button>
         </div>
@@ -170,32 +170,32 @@ async function updateZoneTags(id: string, tags: string[]) {
     </div>
 
     <!-- Multi-selection -->
-    <div v-if="store.state.selectionState.items.length >= 2" class="properties_panel__content">
-      <div class="properties_panel__section">
-        <div class="properties_panel__section_title">
+    <div v-if="store.state.selectionState.items.length >= 2" class="properties__content">
+      <div class="properties__section">
+        <div class="properties__title">
           {{ store.state.selectionState.items.some(i => i.type === 'room') ? `${store.state.selectionState.items.filter(i => i.type === 'object').length} object(s) + room` : `${store.state.selectionState.items.length} objects selected` }}
         </div>
-        <div class="properties_panel__row">
+        <div class="properties__row">
           <label>Tip</label>
-          <span class="properties_panel__value">Shift+click to add/remove</span>
+          <span class="properties__value">Shift+click to add/remove</span>
         </div>
-        <div class="properties_panel__btn_group">
+        <div class="properties__btngroup">
           <button v-if="store.state.selectionState.items.some(i => i.type === 'room')" class="btn" @click="doLink">Link to Room</button>
           <button v-if="store.state.selectionState.items.some(i => i.type === 'room')" class="btn" @click="doLinkAllInRoom">Link All in Room</button>
           <button v-else class="btn" @click="doLink">Link Objects</button>
         </div>
       </div>
-      <div class="properties_panel__section">
-        <div class="properties_panel__section_title">Save as Linked Set</div>
-        <div class="properties_panel__row">
+      <div class="properties__section">
+        <div class="properties__title">Save as Linked Set</div>
+        <div class="properties__row">
           <label>Name</label>
           <input class="input" type="text" v-model="linkedName" placeholder="e.g. Table + Chairs" />
         </div>
         <button class="btn" @click="doCreateLinked">Save as Linked Asset</button>
       </div>
-      <div class="properties_panel__section">
-        <div class="properties_panel__section_title">Flatten to Single Asset</div>
-        <div class="properties_panel__row">
+      <div class="properties__section">
+        <div class="properties__title">Flatten to Single Asset</div>
+        <div class="properties__row">
           <label>Name</label>
           <input class="input" type="text" v-model="flattenName" placeholder="e.g. Table + Chairs" />
         </div>
@@ -217,7 +217,7 @@ async function updateZoneTags(id: string, tags: string[]) {
 </template>
 
 <style scoped>
-.properties_panel {
+.properties {
   width: 100%;
   max-width: 350px;
   min-width: 0;
@@ -230,7 +230,7 @@ async function updateZoneTags(id: string, tags: string[]) {
   box-shadow: -4px 0 24px color-mix(in srgb, var(--bg-primary) 20%, transparent);
 }
 
-.properties_panel__header {
+.properties__header {
   padding: var(--gap-md);
   font-weight: 700;
   font-size: var(--font-md);
@@ -245,7 +245,7 @@ async function updateZoneTags(id: string, tags: string[]) {
   flex-shrink: 0;
 }
 
-.properties_panel__floor_context {
+.properties__floor {
   font-size: var(--font-xs);
   font-weight: 400;
   letter-spacing: 0;
@@ -256,7 +256,7 @@ async function updateZoneTags(id: string, tags: string[]) {
   min-width: 0;
 }
 
-.properties_panel__empty {
+.properties__empty {
   padding: var(--gap-md);
   font-size: var(--font-md);
   color: var(--text-primary);
@@ -265,7 +265,7 @@ async function updateZoneTags(id: string, tags: string[]) {
   flex-shrink: 0;
 }
 
-.properties_panel__empty_hint {
+.properties__hint {
   font-size: var(--font-sm);
   color: var(--text-primary);
   line-height: 1.6;
@@ -274,84 +274,10 @@ async function updateZoneTags(id: string, tags: string[]) {
   text-align: center;
 }
 
-.properties_panel__row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--gap-sm);
-  font-size: var(--font-sm);
-}
-
-.properties_panel__id_row {
+.properties__idrow {
   display: flex;
   gap: var(--gap-sm);
 }
 
-.properties_panel__row input,
-.properties_panel__row select {
-  flex: 1;
-  min-width: 0;
-  background: var(--bg-primary);
-  border: 1px solid var(--border-dim);
-  color: var(--text-primary);
-  padding: var(--gap-xs) var(--gap-sm);
-  border-radius: var(--radius-sm);
-  transition: border-color var(--duration-fast) ease-out,
-              box-shadow var(--duration-fast) ease-out;
-}
 
-.properties_panel__row input:focus,
-.properties_panel__row select:focus {
-  outline: none;
-  border-color: var(--accent-gold);
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent-gold) 15%, transparent);
-}
-
-.properties_panel__row label {
-  color: var(--text-primary);
-  min-width: 60px;
-}</style>
-
-<style>
-.properties_panel__content {
-  padding: var(--gap-md);
-  display: flex;
-  flex-direction: column;
-  gap: var(--gap-sm);
-  overflow-y: auto;
-  flex: 1;
-  min-height: 0;
-}
-
-.properties_panel__row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--gap-sm);
-  font-size: var(--font-sm);
-}
-
-.properties_panel__row input,
-.properties_panel__row select {
-  flex: 1;
-  min-width: 0;
-  background: var(--bg-primary);
-  border: 1px solid var(--border-dim);
-  color: var(--text-primary);
-  padding: var(--gap-xs) var(--gap-sm);
-  border-radius: var(--radius-sm);
-  transition: border-color var(--duration-fast) ease-out,
-              box-shadow var(--duration-fast) ease-out;
-}
-
-.properties_panel__row input:focus,
-.properties_panel__row select:focus {
-  outline: none;
-  border-color: var(--accent-gold);
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent-gold) 15%, transparent);
-}
-
-.properties_panel__row label {
-  color: var(--text-primary);
-  min-width: 60px;
-}</style>
+</style>

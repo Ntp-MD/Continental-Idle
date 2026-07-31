@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, watch, computed, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { useAssetsStore } from '../blueprintStore'
-import { useToast } from '../composables/useToast'
+import { useToast } from '@/composables/useToast'
 import { useWalkableGridPanel } from '../composables/useWalkableGridPanel'
 import { renderSvgInto } from '../svgSanitizer'
 import type { AssetDef, TileState, TileEdges } from '../types'
@@ -11,9 +11,9 @@ type BorderSide = 'top' | 'right' | 'bottom' | 'left'
 const store = useAssetsStore()
 const { showWalkableGridPanel, closeWalkableGridPanel } = useWalkableGridPanel()
 
-const svgAsset = computed(() => {
+const gridAsset = computed(() => {
   const a = store.selectedAsset.value
-  return a && a.svg ? a : undefined
+  return a && !a.linkedParts ? a : undefined
 })
 
 const gridTiles = ref<TileState[][]>([])
@@ -22,7 +22,7 @@ const gridBrush = ref<TileState>('walkable')
 const isDraggingGrid = ref(false)
 const gridDirty = ref(false)
 const savedGridKey = ref('')
-const previousSvgAssetId = ref<string | null>(null)
+const previousGridAssetId = ref<string | null>(null)
 const isRestoring = ref(false)
 
 const gridBrushes: { value: TileState; label: string; icon: string; color: string }[] = [
@@ -46,23 +46,24 @@ const GRID_GAP = 1
 const tilePreviewW = computed(() => gridCols.value * tilePx.value + (gridCols.value - 1) * GRID_GAP)
 const tilePreviewH = computed(() => gridTiles.value.length * tilePx.value + (gridTiles.value.length - 1) * GRID_GAP)
 const svgPreviewW = computed(() => {
-  const a = svgAsset.value
+  const a = gridAsset.value
   if (!a || !a.svgViewBox || a.svgViewBox.w === 0 || a.svgViewBox.h === 0) return tilePreviewW.value
   const scale = Math.min(tilePreviewW.value / a.svgViewBox.w, tilePreviewH.value / a.svgViewBox.h)
   return Math.round(a.svgViewBox.w * scale)
 })
 const svgPreviewH = computed(() => {
-  const a = svgAsset.value
+  const a = gridAsset.value
   if (!a || !a.svgViewBox || a.svgViewBox.w === 0 || a.svgViewBox.h === 0) return tilePreviewH.value
   const scale = Math.min(tilePreviewW.value / a.svgViewBox.w, tilePreviewH.value / a.svgViewBox.h)
   return Math.round(a.svgViewBox.h * scale)
 })
 const svgPreviewViewBox = computed(() => {
-  const a = svgAsset.value
+  const a = gridAsset.value
   if (!a || !a.svgViewBox) return ''
   return `0 0 ${a.svgViewBox.w} ${a.svgViewBox.h}`
 })
-const previewSvg = computed(() => svgAsset.value?.svg?.replace(/var\(--blueprint-line\)/g, 'var(--object-detail-line)') ?? '')
+const previewSvg = computed(() => gridAsset.value?.svg?.replace(/var\(--border-dim\)/g, 'var(--border-dim)') ?? '')
+const hasSvgPreview = computed(() => !!gridAsset.value?.svg)
 
 const previewSvgEl = ref<SVGSVGElement | null>(null)
 
@@ -78,11 +79,11 @@ watch(previewSvg, () => {
 onMounted(renderPreview)
 
 const assetSignature = computed(() => ({
-  id: svgAsset.value?.id,
-  w: svgAsset.value?.w,
-  h: svgAsset.value?.h,
-  tileStates: svgAsset.value?.tileStates,
-  tileEdges: svgAsset.value?.tileEdges,
+  id: gridAsset.value?.id,
+  w: gridAsset.value?.w,
+  h: gridAsset.value?.h,
+  tileStates: gridAsset.value?.tileStates,
+  tileEdges: gridAsset.value?.tileEdges,
 }))
 
 watch(assetSignature, (newSig, oldSig) => {
@@ -92,25 +93,25 @@ watch(assetSignature, (newSig, oldSig) => {
   }
 
   const sameId = newSig.id === oldSig?.id
-  if (!sameId && gridDirty.value && previousSvgAssetId.value) {
+  if (!sameId && gridDirty.value && previousGridAssetId.value) {
     if (!window.confirm('You have unsaved walkable grid changes. Discard them?')) {
       isRestoring.value = true
-      store.selectAsset(previousSvgAssetId.value)
+      store.selectAsset(previousGridAssetId.value)
       return
     }
   }
 
-  if (svgAsset.value) {
-    initGridTiles(svgAsset.value)
+  if (gridAsset.value) {
+    initGridTiles(gridAsset.value)
     savedGridKey.value = gridKey()
     gridDirty.value = false
-    previousSvgAssetId.value = svgAsset.value.id
+    previousGridAssetId.value = gridAsset.value.id
   } else {
     gridTiles.value = []
     gridEdges.value = []
     savedGridKey.value = ''
     gridDirty.value = false
-    previousSvgAssetId.value = null
+    previousGridAssetId.value = null
   }
 }, { immediate: true })
 
@@ -268,7 +269,7 @@ function tileIcon(state: TileState): string {
 }
 
 async function saveGrid() {
-  const a = svgAsset.value
+  const a = gridAsset.value
   if (!a) return
   const states = gridTiles.value.map(row => [...row])
   const grid = states.map(row => row.map(t => t === 'walkable' || t === 'entrance'))
@@ -285,7 +286,7 @@ const isDragging = ref(false)
 const dragStart = ref({ x: 0, y: 0, panelX: 0, panelY: 0 })
 
 function onHeaderMouseDown(e: MouseEvent) {
-  if ((e.target as HTMLElement).closest('.walkable__grid__panel__close')) return
+  if ((e.target as HTMLElement).closest('.walkablegrid__button')) return
   isDragging.value = true
   dragStart.value = { x: e.clientX, y: e.clientY, panelX: pos.value.x, panelY: pos.value.y }
   window.addEventListener('mousemove', onWindowMouseMove)
@@ -316,21 +317,21 @@ onBeforeUnmount(() => {
 
 <template>
   <div
-    v-if="svgAsset && showWalkableGridPanel"
-    class="walkable__grid__panel"
+    v-if="gridAsset && showWalkableGridPanel"
+    class="walkablegrid__panel"
     :style="{ left: `${pos.x}px`, top: `${pos.y}px` }"
     @mousedown.stop
     @wheel.stop
   >
-    <div class="walkable__grid__panel__header" @mousedown="onHeaderMouseDown">
-      <span>Walkable Grid — {{ svgAsset.name }}</span>
-      <span class="walkable__grid__panel__size">{{ gridCols }}×{{ gridTiles.length }}</span>
-      <button class="walkable__grid__panel__close" @click.stop="closeWalkableGridPanel" title="Close">×</button>
+    <div class="walkablegrid__header__button" @mousedown="onHeaderMouseDown">
+      <span>Walkable Grid — {{ gridAsset.name }}</span>
+      <span class="walkablegrid__dim__label">{{ gridCols }}×{{ gridTiles.length }}</span>
+      <button class="walkablegrid__button" @click.stop="closeWalkableGridPanel" title="Close" aria-label="Close walkable grid editor">×</button>
     </div>
 
-    <div class="walkable__grid__panel__body">
-      <div class="walkable__grid__editor" :style="{ '--tile-size': tilePx + 'px' }" @mouseup="onDragEnd" @mouseleave="onDragEnd">
-        <div class="walkable__grid__editor__brushes">
+    <div class="walkablegrid__body__vstack">
+      <div class="walkablegrid__editor card__primary" :style="{ '--tile-size': tilePx + 'px' }" @mouseup="onDragEnd" @mouseleave="onDragEnd">
+        <div class="layout__wrap">
           <button
             v-for="b in gridBrushes"
             :key="b.value"
@@ -341,80 +342,82 @@ onBeforeUnmount(() => {
             :aria-label="'Select ' + b.label + ' brush'"
             @click="gridBrush = b.value"
           >
-            <span class="walkable__grid__editor__brush__swatch" :style="{ background: b.color }">{{ b.icon }}</span>
-            <span class="walkable__grid__editor__brush__label">{{ b.label }}</span>
+            <span class="walkablegrid__brush__icon" :style="{ background: b.color }">{{ b.icon }}</span>
+            <span class="walkablegrid__label">{{ b.label }}</span>
           </button>
         </div>
 
-        <div class="walkable__grid__editor__hint">
+        <div class="walkablegrid__dim__label">
           Click tile body to paint state · Click near a tile edge to toggle its wall
         </div>
 
-        <div class="walkable__grid__editor__zoom">
-          <button class="btn btn__ghost btn__icon" @click="tilePx = Math.max(16, tilePx - 4)" title="Smaller tiles">−</button>
-          <span class="walkable__grid__editor__zoom__label">{{ tilePx }}px</span>
-          <button class="btn btn__ghost btn__icon" @click="tilePx = Math.min(64, tilePx + 4)" title="Larger tiles">+</button>
+        <div class="walkablegrid__zoom__row">
+          <button class="btn btn__ghost btn__icon" @click="tilePx = Math.max(16, tilePx - 4)" title="Smaller tiles" aria-label="Decrease tile size">−</button>
+          <span class="walkablegrid__zoom__label">{{ tilePx }}px</span>
+          <button class="btn btn__ghost btn__icon" @click="tilePx = Math.min(64, tilePx + 4)" title="Larger tiles" aria-label="Increase tile size">+</button>
         </div>
 
-        <div class="walkable__grid__editor__body">
-          <div class="walkable__grid__editor__preview">
-            <div class="walkable__grid__editor__col__headers">
-              <span class="walkable__grid__editor__corner"></span>
-              <span v-for="c in gridCols" :key="c" class="walkable__grid__editor__col__header">{{ c }}</span>
+        <div class="walkablegrid__body__centered">
+          <div class="walkablegrid__vstack">
+            <div class="walkablegrid__col__hstack">
+              <span class="walkablegrid__centered"></span>
+              <span v-for="c in gridCols" :key="c" class="walkablegrid__col__centered">{{ c }}</span>
             </div>
-            <div class="walkable__grid__editor__preview__content">
-              <div class="walkable__grid__editor__preview__row_headers">
-                <span v-for="(_, r) in gridTiles" :key="r" class="walkable__grid__editor__row__header">{{ r + 1 }}</span>
+            <div class="walkablegrid__preview__hstack">
+              <div class="walkablegrid__preview__vstack">
+                <span v-for="(_, r) in gridTiles" :key="r" class="walkablegrid__row__centered">{{ r + 1 }}</span>
               </div>
               <div
-                class="walkable__grid__editor__preview__stage"
+                class="walkablegrid__preview__centered card__primary"
                 :style="{ width: `${tilePreviewW}px`, height: `${tilePreviewH}px` }"
               >
                 <svg
+                  v-if="hasSvgPreview"
                   ref="previewSvgEl"
                   :viewBox="svgPreviewViewBox"
                   :width="svgPreviewW"
                   :height="svgPreviewH"
                   preserveAspectRatio="xMidYMid meet"
-                  class="walkable__grid__editor__svg"
+                  class="walkablegrid__float"
                 ></svg>
+                <div v-else class="walkablegrid__float walkablegrid__preview__shape"></div>
               </div>
             </div>
           </div>
 
-          <div class="walkable__grid__editor__grid">
-            <div class="walkable__grid__editor__col__headers">
-              <span class="walkable__grid__editor__corner"></span>
-              <span v-for="c in gridCols" :key="c" class="walkable__grid__editor__col__header" :title="'Fill column ' + c" @click="fillGridCol(c - 1)">{{ c }}</span>
+          <div class="walkablegrid__vstack">
+            <div class="walkablegrid__col__hstack">
+              <span class="walkablegrid__centered"></span>
+              <span v-for="c in gridCols" :key="c" class="walkablegrid__col__centered" :title="'Fill column ' + c" @click="fillGridCol(c - 1)">{{ c }}</span>
             </div>
-            <div v-for="(row, r) in gridTiles" :key="r" class="walkable__grid__editor__row">
-              <span class="walkable__grid__editor__row__header" :title="'Fill row ' + (r + 1)" @click="fillGridRow(r)">{{ r + 1 }}</span>
+            <div v-for="(row, r) in gridTiles" :key="r" class="walkablegrid__row__hstack">
+              <span class="walkablegrid__row__centered" :title="'Fill row ' + (r + 1)" @click="fillGridRow(r)">{{ r + 1 }}</span>
               <button
                 v-for="(state, c) in row"
                 :key="c"
                 type="button"
-                class="walkable__grid__editor__tile"
+                class="walkablegrid__centered"
                 :style="{ background: tileBg(state), border: tileBorder(state) }"
                 :aria-label="state + ' tile, row ' + (r + 1) + ' column ' + (c + 1)"
                 @mousedown.prevent="onTileDown(r, c, $event)"
                 @mouseenter="onTileEnter(r, c)"
               >
-                <span class="walkable__grid__editor__tile__icon">{{ tileIcon(state) }}</span>
-                <span v-if="gridEdges[r]?.[c]?.top" class="walkable__grid__editor__tile__edge walkable__grid__editor__tile__edge__top"></span>
-                <span v-if="gridEdges[r]?.[c]?.right" class="walkable__grid__editor__tile__edge walkable__grid__editor__tile__edge__right"></span>
-                <span v-if="gridEdges[r]?.[c]?.bottom" class="walkable__grid__editor__tile__edge walkable__grid__editor__tile__edge__bottom"></span>
-                <span v-if="gridEdges[r]?.[c]?.left" class="walkable__grid__editor__tile__edge walkable__grid__editor__tile__edge__left"></span>
+                <span class="walkablegrid__tile__passive">{{ tileIcon(state) }}</span>
+                <span v-if="gridEdges[r]?.[c]?.top" class="walkablegrid__tile__overlay walkablegrid__edge__top"></span>
+                <span v-if="gridEdges[r]?.[c]?.right" class="walkablegrid__tile__overlay walkablegrid__edge__right"></span>
+                <span v-if="gridEdges[r]?.[c]?.bottom" class="walkablegrid__tile__overlay walkablegrid__edge__bottom"></span>
+                <span v-if="gridEdges[r]?.[c]?.left" class="walkablegrid__tile__overlay walkablegrid__edge__left"></span>
               </button>
             </div>
           </div>
         </div>
 
-        <div class="walkable__grid__editor__actions">
-          <button class="btn" @click="fillAllTiles('walkable')">All Walkable</button>
-          <button class="btn" @click="fillAllTiles('blocked')">All Blocked</button>
-          <button class="btn" @click="blockOuterSides">Outer Walls</button>
-          <button class="btn" @click="clearAllEdges">Clear Edges</button>
-          <button class="btn btn__success" :class="{ 'btn__dirty': gridDirty }" @click="saveGrid">Save Grid{{ gridDirty ? ' *' : '' }}</button>
+        <div class="layout__wrap">
+          <button class="btn" @click="fillAllTiles('walkable')" aria-label="Set all tiles walkable">All Walkable</button>
+          <button class="btn" @click="fillAllTiles('blocked')" aria-label="Set all tiles blocked">All Blocked</button>
+          <button class="btn" @click="blockOuterSides" aria-label="Block outer walls">Outer Walls</button>
+          <button class="btn" @click="clearAllEdges" aria-label="Clear all edges">Clear Edges</button>
+          <button class="btn btn__success" :class="{ 'btn__dirty': gridDirty }" @click="saveGrid" aria-label="Save grid">Save Grid{{ gridDirty ? ' *' : '' }}</button>
         </div>
       </div>
     </div>
@@ -424,7 +427,7 @@ onBeforeUnmount(() => {
 
 <style scoped>
 
-.walkable__grid__panel {
+.walkablegrid__panel {
   position: absolute;
   z-index: 200;
   width: max-content;
@@ -440,7 +443,7 @@ onBeforeUnmount(() => {
   user-select: none;
 }
 
-.walkable__grid__panel__header {
+.walkablegrid__header__button {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -455,7 +458,7 @@ onBeforeUnmount(() => {
   user-select: none;
 }
 
-.walkable__grid__panel__close {
+.walkablegrid__button {
   background: none;
   border: none;
   color: var(--text-primary);
@@ -466,16 +469,17 @@ onBeforeUnmount(() => {
   transition: color var(--duration-fast) ease-out;
 }
 
-.walkable__grid__panel__close:hover {
+.walkablegrid__button:hover {
   color: var(--accent-red);
 }
 
-.walkable__grid__panel__size {
+.walkablegrid__dim__label {
   font-size: var(--font-xs);
   opacity: 0.7;
+  text-align: center;
 }
 
-.walkable__grid__panel__body {
+.walkablegrid__body__vstack {
   flex: 1;
   overflow: auto;
   padding: var(--gap-md);
@@ -484,18 +488,14 @@ onBeforeUnmount(() => {
   gap: var(--gap-sm);
 }
 
-.walkable__grid__editor {
+.walkablegrid__editor {
   display: flex;
   flex-direction: column;
   gap: var(--gap-sm);
-  padding: var(--gap-sm);
-  background: var(--bg-primary);
-  border: 1px solid var(--border-dim);
-  border-radius: var(--radius-sm);
   user-select: none;
 }
 
-.walkable__grid__editor__body {
+.walkablegrid__body__centered {
   display: flex;
   flex-direction: row;
   gap: var(--gap-md);
@@ -503,7 +503,7 @@ onBeforeUnmount(() => {
   justify-content: center;
 }
 
-.walkable__grid__editor__preview {
+.walkablegrid__vstack {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
@@ -511,60 +511,64 @@ onBeforeUnmount(() => {
   flex-shrink: 0;
 }
 
-.walkable__grid__editor__preview__content {
+.walkablegrid__preview__hstack {
   display: flex;
   flex-direction: row;
   align-items: flex-start;
   gap: 0;
 }
 
-.walkable__grid__editor__preview__row_headers {
+.walkablegrid__preview__vstack {
   display: flex;
   flex-direction: column;
   gap: 0;
 }
 
-.walkable__grid__editor__preview__stage {
+.walkablegrid__preview__centered {
   position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--bg-primary);
-  border: 1px solid var(--border-dim);
-  border-radius: var(--radius-sm);
   overflow: hidden;
   flex-shrink: 0;
   box-sizing: border-box;
 }
 
-.walkable__grid__editor__svg {
+.walkablegrid__float {
   position: absolute;
   left: 0;
   top: 0;
   display: block;
 }
 
-.walkable__grid__editor__zoom {
+.walkablegrid__preview__shape {
+  width: 100%;
+  height: 100%;
+  border: 1px solid var(--border-dim);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--bg-card) 50%, transparent);
+}
+
+.walkablegrid__zoom__row {
   display: flex;
   align-items: center;
   gap: var(--gap-xs);
   justify-content: center;
 }
 
-.walkable__grid__editor__zoom__label {
+.walkablegrid__zoom__label {
   font-size: var(--font-xs);
   color: var(--text-dim);
   min-width: 36px;
   text-align: center;
 }
 
-.walkable__grid__editor__brushes {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--gap-xs);
+.walkablegrid__editor > .layout__wrap {
+  padding-top: var(--gap-sm);
+  border-top: 1px solid var(--border-dim);
 }
 
-.walkable__grid__editor__brush__swatch {
+.walkablegrid__brush__icon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -575,31 +579,18 @@ onBeforeUnmount(() => {
   font-size: var(--font-xs);
 }
 
-.walkable__grid__editor__brush__label {
+.walkablegrid__label {
   font-size: var(--font-xs);
 }
 
-.walkable__grid__editor__hint {
-  font-size: var(--font-xs);
-  opacity: 0.7;
-  text-align: center;
-}
-
-.walkable__grid__editor__grid {
-  display: flex;
-  flex-direction: column;
-  gap: 0;
-}
-
-.walkable__grid__editor__col__headers {
+.walkablegrid__col__hstack {
   display: flex;
   align-items: center;
   gap: 0;
 }
 
-.walkable__grid__editor__corner,
-.walkable__grid__editor__col__header,
-.walkable__grid__editor__row__header {
+.walkablegrid__col__centered,
+.walkablegrid__row__centered {
   width: var(--tile-size, 32px);
   height: var(--tile-size, 32px);
   display: inline-flex;
@@ -610,13 +601,13 @@ onBeforeUnmount(() => {
   cursor: pointer;
 }
 
-.walkable__grid__editor__row {
+.walkablegrid__row__hstack {
   display: flex;
   align-items: center;
   gap: 0;
 }
 
-.walkable__grid__editor__tile {
+.walkablegrid__centered {
   position: relative;
   width: var(--tile-size, 32px);
   height: var(--tile-size, 32px);
@@ -629,49 +620,41 @@ onBeforeUnmount(() => {
   font-size: var(--font-xs);
 }
 
-.walkable__grid__editor__tile__icon {
+.walkablegrid__tile__passive {
   pointer-events: none;
 }
 
-.walkable__grid__editor__tile__edge {
+.walkablegrid__tile__overlay {
   position: absolute;
   background: var(--text-primary);
   pointer-events: none;
 }
 
-.walkable__grid__editor__tile__edge__top {
+.walkablegrid__edge__top {
   top: 0;
   left: 0;
   right: 0;
   height: 2px;
 }
 
-.walkable__grid__editor__tile__edge__right {
+.walkablegrid__edge__right {
   top: 0;
   right: 0;
   bottom: 0;
   width: 2px;
 }
 
-.walkable__grid__editor__tile__edge__bottom {
+.walkablegrid__edge__bottom {
   bottom: 0;
   left: 0;
   right: 0;
   height: 2px;
 }
 
-.walkable__grid__editor__tile__edge__left {
+.walkablegrid__edge__left {
   top: 0;
   left: 0;
   bottom: 0;
   width: 2px;
-}
-
-.walkable__grid__editor__actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--gap-xs);
-  padding-top: var(--gap-sm);
-  border-top: 1px solid var(--border-dim);
 }
 </style>

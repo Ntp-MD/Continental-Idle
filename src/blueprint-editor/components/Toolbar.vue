@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, inject } from 'vue'
 import { useAssetsStore } from '../blueprintStore'
-import { useToast } from '../composables/useToast'
+import { useToast } from '@/composables/useToast'
 import { useAsyncAction } from '../composables/useAsyncAction'
 import FloorTabs from './floorTabs.vue'
 import NpcSettingsModal from './npcSettingsModal.vue'
@@ -63,6 +63,10 @@ async function onSave() {
   toast.success('Layout saved')
 }
 
+function onSyncToGame() {
+  if (store.syncToGame()) toast.success('Blueprint synced to game')
+}
+
 async function onClear() {
   if (!window.confirm('Clear all rooms and objects on this floor?')) return
   try {
@@ -97,40 +101,46 @@ async function onClearAll() {
       </button>
     </div>
 
-    <div class="editor__toolbar__group editor__toolbar__group__mode">
+    <div class="editor__toolbar__group editor__toolbar__mode">
       <button
         class="btn"
         :class="{ 'btn__warning': store.state.mode === 'wall' }"
         @click="store.setMode('wall')"
+        aria-label="Switch to wall mode"
       >Wall</button>
       <button
         class="btn"
         :class="{ 'btn__warning': store.state.mode === 'zone' }"
         @click="store.setMode('zone')"
+        aria-label="Switch to zone mode"
       >Zone</button>
       <button
         class="btn"
         :class="{ 'btn__warning': store.state.mode === 'object' }"
         @click="store.setMode('object')"
+        aria-label="Switch to object mode"
       >Object</button>
       <button
         class="btn"
         :class="{ 'btn__warning': store.state.mode === 'move' }"
         @click="store.setMode('move')"
+        aria-label="Switch to move mode"
       >Move</button>
       <button
         class="btn"
         :class="{ 'btn__warning': store.state.mode === 'erase' }"
         @click="store.setMode('erase')"
         title="Erase wall tiles (click room edges to trim)"
+        aria-label="Switch to erase mode"
       >Erase</button>
     </div>
 
-    <div class="editor__toolbar__group editor__toolbar__group__npc__mode">
+    <div class="editor__toolbar__group editor__toolbar__npcmode">
       <button
         class="btn"
         @click="onNpcSettings"
         title="Configure NPC roles, tasks, and behavior"
+        aria-label="Open NPC behavior settings"
       >NPC Settings</button>
       <button
         class="btn"
@@ -140,72 +150,75 @@ async function onClearAll() {
       >Deploy NPCs</button>
     </div>
 
-    <div v-if="store.state.mode === 'npc-preview'" class="editor__toolbar__group editor__toolbar__group__npc">
-      <div class="editor__toolbar__npc__counter">Total: {{ total }}</div>
-      <div class="editor__toolbar__npc__roles">
-        <div v-for="[type, count] in countsByRole" :key="type" class="editor__toolbar__npc__role">
-          <span class="editor__toolbar__npc__role__name">{{ type }}</span>
-          <span class="editor__toolbar__npc__role__count">{{ count }}</span>
+    <div v-if="store.state.mode === 'npc-preview'" class="editor__toolbar__group editor__toolbar__npcgroup">
+      <div class="editor__toolbar__npcpanel card__primary--compact">Total: {{ total }}</div>
+      <div class="layout__wrap">
+        <div v-for="[type, count] in countsByRole" :key="type" class="editor__toolbar__npchstack">
+          <span class="editor__toolbar__rolebold">{{ type }}</span>
+          <span class="editor__toolbar__rolepanel card__primary--compact">{{ count }}</span>
         </div>
       </div>
-      <button class="btn" @click="onTogglePause">{{ isPaused ? 'Resume' : 'Pause' }}</button>
-      <button class="btn" @click="onStop">Stop</button>
-      <button class="btn btn__danger" @click="onReset">Reset</button>
-      <button class="btn" @click="onClose">Close</button>
+      <button class="btn" @click="onTogglePause" :aria-label="isPaused ? 'Resume NPC simulation' : 'Pause NPC simulation'">{{ isPaused ? 'Resume' : 'Pause' }}</button>
+      <button class="btn" @click="onStop" aria-label="Stop NPC simulation">Stop</button>
+      <button class="btn btn__danger" @click="onReset" aria-label="Reset NPC simulation">Reset</button>
+      <button class="btn" @click="onClose" aria-label="Close NPC preview">Close</button>
     </div>
 
     <div class="editor__toolbar__group">
-      <button class="btn btn__primary" :disabled="pending" @click="onSave" title="Save layout to assets-store.ts">Save</button>
-      <button class="btn btn__danger" :disabled="pending" @click="onClear" title="Clear all rooms and objects on this floor">Clear Floor</button>
-      <button class="btn btn__danger" :disabled="pending" @click="onClearAll" title="Clear all rooms and objects on every floor">Clear All Floors</button>
+      <button class="btn btn__primary" :disabled="pending" @click="onSave" title="Save layout to assets-store.ts" aria-label="Save layout">Save</button>
+      <button class="btn btn__success" @click="onSyncToGame" title="Apply blueprint layout to the main game" aria-label="Sync blueprint to game">Sync Game</button>
+      <button class="btn btn__danger" :disabled="pending" @click="onClear" title="Clear all rooms and objects on this floor" aria-label="Clear current floor">Clear Floor</button>
+      <button class="btn btn__danger" :disabled="pending" @click="onClearAll" title="Clear all rooms and objects on every floor" aria-label="Clear all floors">Clear All Floors</button>
     </div>
 
-    <div class="editor__toolbar__group editor__toolbar__group__sync">
+    <div class="editor__toolbar__group editor__toolbar__sync">
       <FloorTabs />
     </div>
+
+    <button class="editor__toolbar__backbtn" @click="emit('close')" aria-label="Back to start screen">◀ Back</button>
 
     <NpcSettingsModal :open="showNpcSettings" @close="showNpcSettings = false" />
 
     <Teleport to="body">
-      <div v-if="showSettings" class="editor__settings__overlay" @click.self="showSettings = false">
-        <div class="editor__settings__panel">
-          <div class="editor__settings__header">
+      <div v-if="showSettings" class="modal__overlay editorsettings__overlay" @click.self="showSettings = false">
+        <div class="editorsettings__panel">
+          <div class="editorsettings__header">
             <span>Canvas Settings</span>
             <button class="btn btn__ghost btn__icon" @click="showSettings = false" aria-label="Close">✕</button>
           </div>
-          <div class="editor__settings__body">
-            <div class="editor__settings__section">
-              <div class="editor__settings__section_title">Canvas Size</div>
-              <div class="editor__settings__row">
-                <label>Width</label>
-                <input class="input" type="number" v-model.number="widthInput" min="100" step="25" />
+          <div class="editorsettings__body">
+            <div class="editorsettings__section">
+              <div class="editorsettings__title">Canvas Size</div>
+              <div class="editorsettings__row">
+                <label for="canvas__width">Width</label>
+                <input id="canvas__width" class="input" type="number" v-model.number="widthInput" min="100" step="25" />
               </div>
-              <div class="editor__settings__row">
-                <label>Height</label>
-                <input class="input" type="number" v-model.number="heightInput" min="100" step="25" />
+              <div class="editorsettings__row">
+                <label for="canvas__height">Height</label>
+                <input id="canvas__height" class="input" type="number" v-model.number="heightInput" min="100" step="25" />
               </div>
-              <div class="editor__settings__row">
-                <label>Tile Size</label>
-                <input class="input" type="number" v-model.number="tileInput" min="5" step="5" />
+              <div class="editorsettings__row">
+                <label for="canvas__tile">Tile Size</label>
+                <input id="canvas__tile" class="input" type="number" v-model.number="tileInput" min="5" step="5" />
               </div>
-              <button class="btn btn__primary btn__block" :disabled="pending" @click="applyCanvasSize">Apply</button>
-              <div class="editor__settings__hint">Changing canvas size will re-snap all rooms/objects to the new grid.</div>
+              <button class="btn btn__primary btn__block" :disabled="pending" @click="applyCanvasSize" aria-label="Apply canvas size">Apply</button>
+              <div class="editorsettings__hint">Changing canvas size will re-snap all rooms/objects to the new grid.</div>
             </div>
-            <div class="editor__settings__section">
-              <div class="editor__settings__section_title">Keyboard Shortcuts</div>
-              <div class="editor__settings__shortcuts">
-                <div class="editor__settings__shortcut_row"><kbd>Delete</kbd><span>Delete selected</span></div>
-                <div class="editor__settings__shortcut_row"><kbd>R</kbd><span>Rotate object</span></div>
-                <div class="editor__settings__shortcut_row"><kbd>L</kbd><span>Lock/unlock object</span></div>
-                <div class="editor__settings__shortcut_row"><kbd>Ctrl+C</kbd><span>Copy selected</span></div>
-                <div class="editor__settings__shortcut_row"><kbd>Ctrl+V</kbd><span>Paste objects</span></div>
-                <div class="editor__settings__shortcut_row"><kbd>Ctrl+L</kbd><span>Link selected objects</span></div>
-                <div class="editor__settings__shortcut_row"><kbd>Shift+Click</kbd><span>Add to selection</span></div>
-                <div class="editor__settings__shortcut_row"><kbd>Arrow Keys</kbd><span>Move selected by 1 tile</span></div>
-                <div class="editor__settings__shortcut_row"><kbd>Space+Drag</kbd><span>Pan canvas</span></div>
-                <div class="editor__settings__shortcut_row"><kbd>Ctrl+0</kbd><span>Fit to screen</span></div>
-                <div class="editor__settings__shortcut_row"><kbd>+/-</kbd><span>Zoom in/out</span></div>
-                <div class="editor__settings__shortcut_row"><kbd>Esc</kbd><span>Deselect / cancel drag</span></div>
+            <div class="editorsettings__section">
+              <div class="editorsettings__title">Keyboard Shortcuts</div>
+              <div class="editorsettings__shortcuts">
+                <div class="editorsettings__shortcutrow"><kbd>Delete</kbd><span>Delete selected</span></div>
+                <div class="editorsettings__shortcutrow"><kbd>R</kbd><span>Rotate object</span></div>
+                <div class="editorsettings__shortcutrow"><kbd>L</kbd><span>Lock/unlock object</span></div>
+                <div class="editorsettings__shortcutrow"><kbd>Ctrl+C</kbd><span>Copy selected</span></div>
+                <div class="editorsettings__shortcutrow"><kbd>Ctrl+V</kbd><span>Paste objects</span></div>
+                <div class="editorsettings__shortcutrow"><kbd>Ctrl+L</kbd><span>Link selected objects</span></div>
+                <div class="editorsettings__shortcutrow"><kbd>Shift+Click</kbd><span>Add to selection</span></div>
+                <div class="editorsettings__shortcutrow"><kbd>Arrow Keys</kbd><span>Move selected by 1 tile</span></div>
+                <div class="editorsettings__shortcutrow"><kbd>Space+Drag</kbd><span>Pan canvas</span></div>
+                <div class="editorsettings__shortcutrow"><kbd>Ctrl+0</kbd><span>Fit to screen</span></div>
+                <div class="editorsettings__shortcutrow"><kbd>+/-</kbd><span>Zoom in/out</span></div>
+                <div class="editorsettings__shortcutrow"><kbd>Esc</kbd><span>Deselect / cancel drag</span></div>
               </div>
             </div>
           </div>
@@ -217,6 +230,13 @@ async function onClearAll() {
 
 
 <style scoped>
+.layout__wrap {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-xs);
+  flex-wrap: wrap;
+}
+
 
 .editor__toolbar {
   display: flex;
@@ -233,6 +253,23 @@ async function onClearAll() {
   min-height: 48px;
 }
 
+.editor__toolbar__backbtn {
+  margin-left: auto;
+  padding: var(--gap-xs) var(--gap-sm);
+  background: var(--bg-card);
+  border: 1px solid var(--border-dim);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-size: var(--font-sm);
+  cursor: pointer;
+  transition: all var(--duration-fast) var(--ease-out);
+}
+
+.editor__toolbar__backbtn:hover {
+  border-color: var(--accent-gold);
+  color: var(--accent-gold);
+}
+
 .editor__toolbar__group {
   display: flex;
   align-items: center;
@@ -244,33 +281,8 @@ async function onClearAll() {
   flex-wrap: wrap;
 }
 
-.editor__toolbar__group__mode,
-.editor__toolbar__group__npc__mode,
-.editor__toolbar__group__npc,
-.editor__toolbar__group__sync {
-  display: flex;
-  align-items: center;
-  gap: var(--gap-xs);
-  flex-wrap: wrap;
-}
 
-.editor__toolbar__npc__counter,
-.editor__toolbar__npc__role__count {
-  padding: var(--gap-xs) var(--gap-sm);
-  background: var(--bg-primary);
-  border: 1px solid var(--border-dim);
-  border-radius: var(--radius-sm);
-  font-size: var(--font-xs);
-}
-
-.editor__toolbar__npc__roles {
-  display: flex;
-  align-items: center;
-  gap: var(--gap-xs);
-  flex-wrap: wrap;
-}
-
-.editor__toolbar__npc__role {
+.editor__toolbar__npchstack {
   display: inline-flex;
   align-items: center;
   gap: var(--gap-xs);
@@ -281,21 +293,15 @@ async function onClearAll() {
   font-size: var(--font-xs);
 }
 
-.editor__toolbar__npc__role__name {
+.editor__toolbar__rolebold {
   font-weight: 500;
 }
 
-.editor__settings__overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 200;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: color-mix(in srgb, var(--bg-primary) 60%, transparent);
+.editorsettings__overlay {
+  z-index: 1001;
 }
 
-.editor__settings__panel {
+.editorsettings__panel {
   width: min(380px, calc(100vw - 32px));
   background: var(--bg-secondary);
   border: 1px solid var(--border-dim);
@@ -304,7 +310,7 @@ async function onClearAll() {
   box-shadow: 0 8px 32px color-mix(in srgb, var(--bg-primary) 50%, transparent);
 }
 
-.editor__settings__header {
+.editorsettings__header {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -315,7 +321,7 @@ async function onClearAll() {
   font-size: var(--font-md);
 }
 
-.editor__settings__body {
+.editorsettings__body {
   padding: var(--gap-md);
   display: flex;
   flex-direction: column;
@@ -324,13 +330,13 @@ async function onClearAll() {
   overflow-y: auto;
 }
 
-.editor__settings__section {
+.editorsettings__section {
   display: flex;
   flex-direction: column;
   gap: var(--gap-sm);
 }
 
-.editor__settings__section_title {
+.editorsettings__title {
   font-size: var(--font-xs);
   font-weight: 700;
   text-transform: uppercase;
@@ -339,7 +345,7 @@ async function onClearAll() {
   opacity: 0.7;
 }
 
-.editor__settings__row {
+.editorsettings__row {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -347,12 +353,12 @@ async function onClearAll() {
   font-size: var(--font-sm);
 }
 
-.editor__settings__row label {
+.editorsettings__row label {
   min-width: 70px;
   color: var(--text-primary);
 }
 
-.editor__settings__row input {
+.editorsettings__row input {
   flex: 1;
   min-width: 0;
   background: var(--bg-primary);
@@ -363,32 +369,32 @@ async function onClearAll() {
   font-size: var(--font-sm);
 }
 
-.editor__settings__row input:focus {
+.editorsettings__row input:focus {
   outline: none;
   border-color: var(--accent-gold);
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent-gold) 15%, transparent);
 }
 
-.editor__settings__hint {
+.editorsettings__hint {
   font-size: var(--font-xs);
   color: var(--text-dim);
   line-height: 1.4;
 }
 
-.editor__settings__shortcuts {
+.editorsettings__shortcuts {
   display: flex;
   flex-direction: column;
   gap: var(--gap-xs);
 }
 
-.editor__settings__shortcut_row {
+.editorsettings__shortcutrow {
   display: flex;
   align-items: center;
   gap: var(--gap-md);
   font-size: var(--font-sm);
 }
 
-.editor__settings__shortcut_row kbd {
+.editorsettings__shortcutrow kbd {
   display: inline-block;
   min-width: 100px;
   padding: 2px var(--gap-sm);
@@ -401,7 +407,7 @@ async function onClearAll() {
   text-align: center;
 }
 
-.editor__settings__shortcut_row span {
+.editorsettings__shortcutrow span {
   color: var(--text-secondary);
 }
 </style>

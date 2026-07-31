@@ -67,20 +67,20 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div v-if="visible" class="game_panel" @click.self="dismiss">
-    <div class="game_panel__content" role="dialog" aria-modal="true" aria-labelledby="offline_title">
-      <h2 id="offline_title" class="game_panel__title">Welcome Back</h2>
-      <div class="offline_progress">
-        <p class="offline_progress__time">You were away for {{ offlineTimeDisplay }}</p>
-        <p class="offline_progress__efficiency">Offline efficiency: {{ offlineEfficiencyPct }}%</p>
-        <p class="offline_progress__total">Total earnings: {{ totalEarned }}</p>
-        <div class="offline_progress__list">
-          <div v-for="e in earnings" :key="e.branchId" class="offline_progress__row">
-            <span class="offline_progress__branch">{{ e.branchName }}</span>
-            <span class="offline_progress__amount">{{ e.amount }}</span>
+  <div v-if="visible" class="panel" @click.self="dismiss">
+    <div class="panel__content" role="dialog" aria-modal="true" aria-labelledby="offline__title">
+      <h2 id="offline__title" class="panel__title">Welcome Back</h2>
+      <div class="offline__progress">
+        <p class="offline__progress__time">You were away for {{ offlineTimeDisplay }}</p>
+        <p class="offline__progress__efficiency">Offline efficiency: {{ offlineEfficiencyPct }}%</p>
+        <p class="offline__progress__total">Total earnings: {{ totalEarned }}</p>
+        <div class="offline__progress__list">
+          <div v-for="e in earnings" :key="e.branchId" class="offline__progress__row">
+            <span class="offline__progress__branch">{{ e.branchName }}</span>
+            <span class="offline__progress__amount">{{ e.amount }}</span>
           </div>
         </div>
-        <button class="offline_progress__btn" @click="dismiss" aria-label="Collect offline earnings">COLLECT</button>
+        <button class="btn btn__gold btn__block" @click="dismiss" aria-label="Collect offline earnings">COLLECT</button>
       </div>
     </div>
   </div>

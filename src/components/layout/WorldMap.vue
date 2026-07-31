@@ -30,6 +30,8 @@ let zoomBehavior: d3.ZoomBehavior<SVGSVGElement, unknown> | null = null
 let svgSel: d3.Selection<SVGSVGElement, unknown, null, undefined> | null = null
 let gSel: d3.Selection<SVGGraphicsElement, unknown, null, undefined> | null = null
 let cachedWorld: { features: Array<{ type: string; geometry: unknown }> } | null = null
+let redrawFrameId: number | null = null
+let resizeFrameId: number | null = null
 
 function getNodeState(branchId: BranchId): string {
   const state = gameState.get()
@@ -131,10 +133,10 @@ function drawAttackLines(projection: d3.GeoProjection) {
   const routes = getActiveAttackRoutes()
   if (routes.length === 0) return
 
-  gSel.selectAll('.attack_line').remove()
-  gSel.selectAll('.attack_plane').remove()
+  gSel.selectAll('.attackline').remove()
+  gSel.selectAll('[data-map-layer="attack-plane"]').remove()
 
-  const attackLayer = gSel.insert('g', '.node_group').attr('class', 'attack_layer')
+  const attackLayer = gSel.insert('g', '.nodegroup').attr('data-map-layer', 'attack')
 
   routes.forEach((route, idx) => {
     const fromDef = BRANCHES.find(b => b.id === route.from)
@@ -161,35 +163,33 @@ function drawAttackLines(projection: d3.GeoProjection) {
     const routeId = `attack-path-${idx}`
 
     attackLayer.append('path')
-      .attr('class', 'attack_line')
+      .attr('class', 'attackline')
       .attr('d', pathD)
       .attr('id', routeId)
       .style('fill', 'none')
-      .style('stroke', 'var(--accent-attack)')
+      .style('stroke', 'var(--accent-red)')
       .style('stroke_width', '1.5px')
       .style('stroke_dasharray', '6 4')
       .style('opacity', '0.7')
       .style('pointer_events', 'none')
 
     const planeGroup = attackLayer.append('g')
-      .attr('class', 'attack_plane')
+      .attr('data-map-layer', 'attack-plane')
       .style('pointer_events', 'none')
 
     planeGroup.append('text')
-      .attr('class', 'attack_plane__icon')
       .attr('text_anchor', 'middle')
       .attr('dy', 3)
       .style('font_size', '10px')
-      .style('fill', 'var(--accent-attack)')
+      .style('fill', 'var(--accent-red)')
       .text('\u2708')
 
     if (route.attackerCount > 1) {
       planeGroup.append('text')
-        .attr('class', 'attack_plane__count')
         .attr('text_anchor', 'middle')
         .attr('dy', -6)
         .style('font_size', '7px')
-        .style('fill', 'var(--accent-attack)')
+        .style('fill', 'var(--accent-red)')
         .style('font_weight', 'bold')
         .text(`x${route.attackerCount}`)
     }
@@ -212,10 +212,10 @@ function drawSupplyRoutes(projection: d3.GeoProjection) {
   const supplyRoutes = getSupplyRoutes()
   if (supplyRoutes.length === 0) return
 
-  gSel.selectAll('.supply_line').remove()
-  gSel.selectAll('.supply_truck').remove()
+  gSel.selectAll('.supplyline').remove()
+  gSel.selectAll('[data-map-layer="supply-truck"]').remove()
 
-  const supplyLayer = gSel.insert('g', '.node_group').attr('class', 'supply_layer')
+  const supplyLayer = gSel.insert('g', '.nodegroup').attr('data-map-layer', 'supply')
 
   supplyRoutes.forEach((route, idx) => {
     const fromDef = BRANCHES.find(b => b.id === route.from)
@@ -245,7 +245,7 @@ function drawSupplyRoutes(projection: d3.GeoProjection) {
     const opacity = 0.3 + (route.stability / 100) * 0.5
 
     supplyLayer.append('path')
-      .attr('class', 'supply_line')
+      .attr('class', 'supplyline')
       .attr('d', pathD)
       .attr('id', routeId)
       .style('fill', 'none')
@@ -256,11 +256,10 @@ function drawSupplyRoutes(projection: d3.GeoProjection) {
       .style('pointer_events', 'none')
 
     const truckGroup = supplyLayer.append('g')
-      .attr('class', 'supply_truck')
+      .attr('data-map-layer', 'supply-truck')
       .style('pointer_events', 'none')
 
     truckGroup.append('text')
-      .attr('class', 'supply_truck__icon')
       .attr('text_anchor', 'middle')
       .attr('dy', 3)
       .style('font_size', '9px')
@@ -319,13 +318,13 @@ function drawNodes(projection: d3.GeoProjection) {
     }
   }
 
-  gSel.selectAll('.connection_line')
+  gSel.selectAll('.connectionline')
     .data(connectionPairs)
     .enter()
-    .insert('line', '.node_group')
+    .insert('line', '.nodegroup')
     .attr('class', d => {
       const hasHQ = d.from === getBranchDef(state.hqBranch).name || d.to === getBranchDef(state.hqBranch).name
-      return 'connection_line' + (hasHQ ? ' active-route' : '')
+      return 'connectionline' + (hasHQ ? ' active__route' : '')
     })
     .attr('x1', d => d.x1)
     .attr('y1', d => d.y1)
@@ -333,11 +332,11 @@ function drawNodes(projection: d3.GeoProjection) {
     .attr('y2', d => d.y2)
 
   // Node groups
-  const nodeGroups = gSel.selectAll('.node_group')
+  const nodeGroups = gSel.selectAll('.nodegroup')
     .data(nodes)
     .enter()
     .append('g')
-    .attr('class', d => `node-group node-${d.nodeState}`)
+    .attr('class', d => d.nodeState === 'locked' ? 'nodegroup nodelocked' : 'nodegroup')
     .attr('transform', d => {
       const coords = projection([d.lon, d.lat])
       return coords ? `translate(${coords[0]},${coords[1]})` : ''
@@ -350,15 +349,15 @@ function drawNodes(projection: d3.GeoProjection) {
   // Pulse rings for HQ and active
   nodeGroups.filter(d => d.nodeState === 'hq' || d.nodeState === 'active')
     .append('circle')
-    .attr('class', 'node_pulse')
+    .attr('class', 'nodepulse')
     .attr('r', 8)
     .style('stroke', d => d.nodeState === 'hq' ? 'var(--accent-gold)' : 'var(--accent-green)')
 
   // Hover ring
   nodeGroups.append('circle')
-    .attr('class', 'node_ring')
+    .attr('class', 'nodering')
     .attr('r', 12)
-    .style('stroke', d => d.nodeState === 'hq' ? 'var(--accent-gold)' : d.nodeState === 'active' ? 'var(--accent-green)' : 'var(--node-locked)')
+    .style('stroke', d => d.nodeState === 'hq' ? 'var(--accent-gold)' : d.nodeState === 'active' ? 'var(--accent-green)' : 'var(--text-dim)')
 
   // Node shape - HQ is office rectangle, others are circles
   nodeGroups.each(function(this: SVGGElement, d: NodeData) {
@@ -366,8 +365,7 @@ function drawNodes(projection: d3.GeoProjection) {
     if (d.nodeState === 'hq') {
       // Office rectangle for HQ
       g.append('rect')
-        .attr('class', 'node_office')
-        .attr('x', -8)
+                .attr('x', -8)
         .attr('y', -6)
         .attr('width', 16)
         .attr('height', 12)
@@ -378,12 +376,12 @@ function drawNodes(projection: d3.GeoProjection) {
       // Circle for other nodes
       g.append('circle')
         .attr('r', 6)
-        .attr('class', 'node_circle')
+        .attr('class', 'nodecircle')
         .style('fill', () => {
           if (d.nodeState === 'active') return 'var(--accent-green)'
-          if (d.nodeState === 'conquered') return 'var(--accent-purple)'
+          if (d.nodeState === 'conquered') return 'var(--accent-blue)'
           if (d.nodeState === 'royal') return 'var(--accent-blue)'
-          return 'var(--node-locked)'
+          return 'var(--text-dim)'
         })
         .style('stroke', d.id === state.activeBranch ? 'var(--text-bright)' : 'none')
         .style('stroke_width', '2px')
@@ -392,8 +390,7 @@ function drawNodes(projection: d3.GeoProjection) {
 
   // Node icon
   nodeGroups.append('text')
-    .attr('class', 'node_icon')
-    .attr('dy', 3)
+        .attr('dy', 3)
     .attr('text_anchor', 'middle')
     .style('font_size', '9px')
     .style('fill', 'var(--bg-primary)')
@@ -402,21 +399,21 @@ function drawNodes(projection: d3.GeoProjection) {
 
   // Node label
   nodeGroups.append('text')
-    .attr('class', 'node_label')
+    .attr('class', 'nodelabel')
     .attr('dy', 16)
     .attr('text_anchor', 'middle')
     .style('font_size', '8px')
-    .style('fill', d => d.nodeState === 'locked' ? 'var(--node-label-locked)' : 'var(--node-label-active)')
+    .style('fill', d => d.nodeState === 'locked' ? 'var(--text-dim)' : 'var(--text-dim)')
     .style('pointer_events', 'none')
     .text(d => d.name)
 
   // Takeover progress ring + HQ Health Bar
   nodeGroups.filter(d => d.takeoverProgress > 0 && d.nodeState === 'locked')
     .append('circle')
-    .attr('class', 'node_takeover_ring')
+    .attr('data-map-element', 'takeover-ring')
     .attr('r', 9)
     .style('fill', 'none')
-    .style('stroke', 'var(--accent-takeover)')
+    .style('stroke', 'var(--accent-gold)')
     .style('stroke_width', '2px')
     .style('stroke_dasharray', d => {
       const circumference = 2 * Math.PI * 9
@@ -430,11 +427,11 @@ function drawNodes(projection: d3.GeoProjection) {
 
   nodeGroups.filter(d => d.takeoverProgress > 0 && d.nodeState === 'locked')
     .append('text')
-    .attr('class', 'node_takeover_label')
+    .attr('data-map-element', 'takeover-label')
     .attr('dy', -12)
     .attr('text_anchor', 'middle')
     .style('font_size', '7px')
-    .style('fill', 'var(--accent-takeover)')
+    .style('fill', 'var(--accent-gold)')
     .style('pointer_events', 'none')
     .text(d => `${d.takeoverProgress.toFixed(0)}%`)
 
@@ -447,30 +444,30 @@ function drawNodes(projection: d3.GeoProjection) {
       const barY = 14
 
       g.append('rect')
-        .attr('class', 'node_hpbar_bg')
+        .attr('data-map-element', 'hpbar-bg')
         .attr('x', -barWidth / 2)
         .attr('y', barY)
         .attr('width', barWidth)
         .attr('height', barHeight)
-        .style('fill', 'var(--hpbar-bg)')
+        .style('fill', 'var(--border-dim)')
         .style('pointer_events', 'none')
 
       g.append('rect')
-        .attr('class', 'node_hpbar_fill')
+        .attr('data-map-element', 'hpbar-fill')
         .attr('x', -barWidth / 2)
         .attr('y', barY)
         .attr('width', barWidth * d.hqHealthPercent / 100)
         .attr('height', barHeight)
-        .style('fill', d.hqHealthPercent > 50 ? 'var(--accent-hp-high)' : d.hqHealthPercent > 25 ? 'var(--accent-hp-mid)' : 'var(--accent-hp-low)')
+        .style('fill', d.hqHealthPercent > 50 ? 'var(--accent-green)' : d.hqHealthPercent > 25 ? 'var(--accent-gold)' : 'var(--accent-red)')
         .style('pointer_events', 'none')
 
       if (d.attackerCount > 0) {
         g.append('text')
-          .attr('class', 'node_attacker_count')
+          .attr('data-map-element', 'attacker-count')
           .attr('dy', barY + 10)
           .attr('text_anchor', 'middle')
           .style('font_size', '6px')
-          .style('fill', 'var(--accent-attack)')
+          .style('fill', 'var(--accent-red)')
           .style('pointer_events', 'none')
           .text(`\u2694 ${d.attackerCount}`)
       }
@@ -505,7 +502,7 @@ function drawNodes(projection: d3.GeoProjection) {
       } else {
         tooltipTakeover.value = ''
       }
-      d3.select(this).select('.node_ring').classed('visible', true)
+      d3.select(this).select('.nodering').classed('visible', true)
     })
     .on('mousemove', function (event) {
       const rect = svgRef.value!.getBoundingClientRect()
@@ -514,7 +511,7 @@ function drawNodes(projection: d3.GeoProjection) {
     })
     .on('mouseout', function () {
       tooltipVisible.value = false
-      d3.select(this).select('.node_ring').classed('visible', false)
+      d3.select(this).select('.nodering').classed('visible', false)
     })
     .on('click', function(this: SVGGElement, event: MouseEvent, d: NodeData) {
       event.stopPropagation()
@@ -568,12 +565,12 @@ function drawNodes(projection: d3.GeoProjection) {
 
 function redrawNodes() {
   if (!gSel) return
-  gSel.selectAll('.node_group').remove()
-  gSel.selectAll('.connection_line').remove()
-  gSel.selectAll('.attack_line').remove()
-  gSel.selectAll('.attack_plane').remove()
-  gSel.selectAll('.supply_line').remove()
-  gSel.selectAll('.supply_truck').remove()
+  gSel.selectAll('.nodegroup').remove()
+  gSel.selectAll('.connectionline').remove()
+  gSel.selectAll('.attackline').remove()
+  gSel.selectAll('[data-map-layer="attack-plane"]').remove()
+  gSel.selectAll('.supplyline').remove()
+  gSel.selectAll('[data-map-layer="supply-truck"]').remove()
   const w = svgRef.value?.clientWidth || 800
   const h = svgRef.value?.clientHeight || 400
   const projection = d3.geoMercator()
@@ -612,26 +609,26 @@ function updateTakeoverProgress() {
   drawAttackLines(projection)
   drawSupplyRoutes(projection)
 
-  gSel.selectAll<SVGGElement, NodeData>('.node_group').each(function(d: NodeData) {
+  gSel.selectAll<SVGGElement, NodeData>('.nodegroup').each(function(d: NodeData) {
     const progress = getTakeoverProgress(d.id)
     const hpPercent = getHqHealthPercent(d.id)
     const attackerCount = getAttackersOnTarget(d.id)
     const sel = d3.select(this)
-    const existingRing = sel.select('.node_takeover_ring')
-    const existingLabel = sel.select('.node_takeover_label')
-    const existingHpBg = sel.select('.node_hpbar_bg')
-    const existingHpFill = sel.select('.node_hpbar_fill')
-    const existingAttacker = sel.select('.node_attacker_count')
+    const existingRing = sel.select('[data-map-element="takeover-ring"]')
+    const existingLabel = sel.select('[data-map-element="takeover-label"]')
+    const existingHpBg = sel.select('[data-map-element="hpbar-bg"]')
+    const existingHpFill = sel.select('[data-map-element="hpbar-fill"]')
+    const existingAttacker = sel.select('[data-map-element="attacker-count"]')
 
     if (progress > 0 && d.nodeState === 'locked') {
       const circumference = 2 * Math.PI * 9
       const filled = (progress / 100) * circumference
       if (existingRing.empty()) {
         sel.append('circle')
-          .attr('class', 'node_takeover_ring')
+          .attr('data-map-element', 'takeover-ring')
           .attr('r', 9)
           .style('fill', 'none')
-          .style('stroke', 'var(--accent-takeover)')
+          .style('stroke', 'var(--accent-gold)')
           .style('stroke_width', '2px')
           .style('stroke_dasharray', `${filled} ${circumference}`)
           .style('stroke_dashoffset', '0')
@@ -639,11 +636,11 @@ function updateTakeoverProgress() {
           .style('transform_origin', 'center')
           .style('pointer_events', 'none')
         sel.append('text')
-          .attr('class', 'node_takeover_label')
+          .attr('data-map-element', 'takeover-label')
           .attr('dy', -12)
           .attr('text_anchor', 'middle')
           .style('font_size', '7px')
-          .style('fill', 'var(--accent-takeover)')
+          .style('fill', 'var(--accent-gold)')
           .style('pointer_events', 'none')
           .text(`${progress.toFixed(0)}%`)
 
@@ -651,36 +648,36 @@ function updateTakeoverProgress() {
         const barHeight = 3
         const barY = 14
         sel.append('rect')
-          .attr('class', 'node_hpbar_bg')
+          .attr('data-map-element', 'hpbar-bg')
           .attr('x', -barWidth / 2)
           .attr('y', barY)
           .attr('width', barWidth)
           .attr('height', barHeight)
-          .style('fill', 'var(--hpbar-bg)')
+          .style('fill', 'var(--border-dim)')
           .style('pointer_events', 'none')
         sel.append('rect')
-          .attr('class', 'node_hpbar_fill')
+          .attr('data-map-element', 'hpbar-fill')
           .attr('x', -barWidth / 2)
           .attr('y', barY)
           .attr('width', barWidth * hpPercent / 100)
           .attr('height', barHeight)
-          .style('fill', hpPercent > 50 ? 'var(--accent-hp-high)' : hpPercent > 25 ? 'var(--accent-hp-mid)' : 'var(--accent-hp-low)')
+          .style('fill', hpPercent > 50 ? 'var(--accent-green)' : hpPercent > 25 ? 'var(--accent-gold)' : 'var(--accent-red)')
           .style('pointer_events', 'none')
       } else {
         existingRing.style('stroke_dasharray', `${filled} ${circumference}`)
         existingLabel.text(`${progress.toFixed(0)}%`)
         existingHpFill
           .attr('width', 24 * hpPercent / 100)
-          .style('fill', hpPercent > 50 ? 'var(--accent-hp-high)' : hpPercent > 25 ? 'var(--accent-hp-mid)' : 'var(--accent-hp-low)')
+          .style('fill', hpPercent > 50 ? 'var(--accent-green)' : hpPercent > 25 ? 'var(--accent-gold)' : 'var(--accent-red)')
       }
 
       if (attackerCount > 0 && existingAttacker.empty()) {
         sel.append('text')
-          .attr('class', 'node_attacker_count')
+          .attr('data-map-element', 'attacker-count')
           .attr('dy', 24)
           .attr('text_anchor', 'middle')
           .style('font_size', '6px')
-          .style('fill', 'var(--accent-attack)')
+          .style('fill', 'var(--accent-red)')
           .style('pointer_events', 'none')
           .text(`\u2694 ${attackerCount}`)
       } else if (attackerCount > 0) {
@@ -698,8 +695,24 @@ function updateTakeoverProgress() {
   })
 }
 
+function scheduleRedraw(): void {
+  if (redrawFrameId !== null) return
+  redrawFrameId = requestAnimationFrame(() => {
+    redrawFrameId = null
+    redrawNodes()
+  })
+}
+
+function handleResize(): void {
+  if (resizeFrameId !== null) return
+  resizeFrameId = requestAnimationFrame(() => {
+    resizeFrameId = null
+    drawMap()
+  })
+}
+
 function update() {
-  redrawNodes()
+  scheduleRedraw()
 }
 
 onMounted(() => {
@@ -718,15 +731,17 @@ onMounted(() => {
   eventBus.on('supplyroute:hijacked', update)
   eventBus.on('supplyroute:collapsed', update)
   eventBus.on('supplyroute:dismantled', update)
-  window.addEventListener('resize', drawMap)
+  window.addEventListener('resize', handleResize)
 })
 
 onUnmounted(() => {
+  if (redrawFrameId !== null) cancelAnimationFrame(redrawFrameId)
+  if (resizeFrameId !== null) cancelAnimationFrame(resizeFrameId)
   eventBus.off('supplyroute:established', update)
   eventBus.off('supplyroute:hijacked', update)
   eventBus.off('supplyroute:collapsed', update)
   eventBus.off('supplyroute:dismantled', update)
-  window.removeEventListener('resize', drawMap)
+  window.removeEventListener('resize', handleResize)
   eventBus.off('branch:unlock', update)
   eventBus.off('branch:royal', update)
   eventBus.off('prestige:reset', update)
@@ -741,57 +756,57 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="world_map">
-    <svg ref="svgRef" class="world_map__svg"></svg>
+  <div class="map">
+    <svg ref="svgRef" class="map__svg"></svg>
 
-    <div v-if="mapLoading" class="world_map__status world_map__status__loading">
+    <div v-if="mapLoading" class="map__status map__status__loading">
       Loading world map...
     </div>
-    <div v-if="mapError" class="world_map__status world_map__status__error">
+    <div v-if="mapError" class="map__status map__status__error">
       Map data unavailable — showing branches only
     </div>
 
-    <div class="world_map__controls">
-      <button class="world_map__btn" aria-label="Zoom in" @click="zoomIn">+</button>
-      <button class="world_map__btn" aria-label="Zoom out" @click="zoomOut">-</button>
-      <button class="world_map__btn" aria-label="Reset zoom" @click="resetZoom">Reset</button>
+    <div class="map__controls">
+      <button class="map__btn" aria-label="Zoom in" @click="zoomIn">+</button>
+      <button class="map__btn" aria-label="Zoom out" @click="zoomOut">-</button>
+      <button class="map__btn" aria-label="Reset zoom" @click="resetZoom">Reset</button>
     </div>
 
-    <div class="world_map__legend">
-      <div class="world_map__legend_item">
-        <span class="world_map__legend_dot" style="background: var(--accent-gold);"></span>
+    <div class="map__legend">
+      <div class="map__legenditem">
+        <span class="map__legenddot" style="background: var(--accent-gold);"></span>
         HQ
       </div>
-      <div class="world_map__legend_item">
-        <span class="world_map__legend_dot" style="background: var(--accent-green);"></span>
+      <div class="map__legenditem">
+        <span class="map__legenddot" style="background: var(--accent-green);"></span>
         Active
       </div>
-      <div class="world_map__legend_item">
-        <span class="world_map__legend_dot" style="background: var(--accent-purple);"></span>
+      <div class="map__legenditem">
+        <span class="map__legenddot" style="background: var(--accent-blue);"></span>
         Conquered
       </div>
-      <div class="world_map__legend_item">
-        <span class="world_map__legend_dot" style="background: var(--accent-blue);"></span>
+      <div class="map__legenditem">
+        <span class="map__legenddot" style="background: var(--accent-blue);"></span>
         Royal
       </div>
-      <div class="world_map__legend_item">
-        <span class="world_map__legend_dot" style="background: var(--node-locked);"></span>
+      <div class="map__legenditem">
+        <span class="map__legenddot" style="background: var(--text-dim);"></span>
         Locked
       </div>
     </div>
 
     <div
       v-if="tooltipVisible"
-      class="world_map__tooltip"
+      class="map__tooltip"
       role="tooltip"
       :style="{ left: tooltipX + 'px', top: tooltipY + 'px' }"
     >
-      <div class="world_map__tooltip_name">{{ tooltipName }}</div>
-      <div class="world_map__tooltip_row">Owner: <span class="world_map__tooltip_val">{{ tooltipOwner }}</span></div>
-      <div class="world_map__tooltip_row">State: <span class="world_map__tooltip_val">{{ tooltipState }}</span></div>
-      <div class="world_map__tooltip_row">Prestige: <span class="world_map__tooltip_val">{{ tooltipPrestige }}</span></div>
-      <div class="world_map__tooltip_row">Income: <span class="world_map__tooltip_val">{{ tooltipIncome }}</span></div>
-      <div v-if="tooltipTakeover" class="world_map__tooltip_row" style="color: var(--accent-orange);">{{ tooltipTakeover }}</div>
+      <div class="map__tooltipname">{{ tooltipName }}</div>
+      <div class="map__tooltiprow">Owner: <span class="map__tooltipval">{{ tooltipOwner }}</span></div>
+      <div class="map__tooltiprow">State: <span class="map__tooltipval">{{ tooltipState }}</span></div>
+      <div class="map__tooltiprow">Prestige: <span class="map__tooltipval">{{ tooltipPrestige }}</span></div>
+      <div class="map__tooltiprow">Income: <span class="map__tooltipval">{{ tooltipIncome }}</span></div>
+      <div v-if="tooltipTakeover" class="map__tooltiprow" style="color: var(--accent-gold);">{{ tooltipTakeover }}</div>
     </div>
   </div>
 </template>

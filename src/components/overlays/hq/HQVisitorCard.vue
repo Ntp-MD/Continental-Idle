@@ -55,42 +55,42 @@ function traitList(v: VisitorEntry): string {
 </script>
 
 <template>
-  <div class="hq_visitor_card">
-    <div class="hq_visitor_card__header" :style="{ borderColor: getRarityColor(props.visitor.rarity) }">
-      <span class="hq_visitor_card__rarity" :style="{ color: getRarityColor(props.visitor.rarity) }">{{ props.visitor.rarity }}</span>
-      <span class="hq_visitor_card__name">{{ getTypeName(props.visitor) }}</span>
-      <span class="hq_visitor_card__type">{{ props.visitor.isAssassin ? 'Assassin' : 'Staff' }}</span>
+  <div class="hqvisitor__card">
+    <div class="hqvisitor__card__header" :style="{ borderColor: getRarityColor(props.visitor.rarity) }">
+      <span class="hqvisitor__card__rarity" :style="{ color: getRarityColor(props.visitor.rarity) }">{{ props.visitor.rarity }}</span>
+      <span class="hqvisitor__card__name">{{ getTypeName(props.visitor) }}</span>
+      <span class="hqvisitor__card__type">{{ props.visitor.isAssassin ? 'Assassin' : 'Staff' }}</span>
     </div>
-    <div class="hq_visitor_card__stats">
-      <div class="hq_visitor_card__stat"><span>PREC</span><b>{{ props.visitor.stats.precision }}</b></div>
-      <div class="hq_visitor_card__stat"><span>SPD</span><b>{{ props.visitor.stats.speed }}</b></div>
-      <div class="hq_visitor_card__stat"><span>CHA</span><b>{{ props.visitor.stats.charisma }}</b></div>
-      <div class="hq_visitor_card__stat"><span>LCK</span><b>{{ props.visitor.stats.luck }}</b></div>
+    <div class="hqvisitor__card__stats">
+      <div class="hqvisitor__card__stat"><span>PREC</span><b>{{ props.visitor.stats.precision }}</b></div>
+      <div class="hqvisitor__card__stat"><span>SPD</span><b>{{ props.visitor.stats.speed }}</b></div>
+      <div class="hqvisitor__card__stat"><span>CHA</span><b>{{ props.visitor.stats.charisma }}</b></div>
+      <div class="hqvisitor__card__stat"><span>LCK</span><b>{{ props.visitor.stats.luck }}</b></div>
     </div>
-    <div class="hq_visitor_card__traits">Traits: {{ traitList(props.visitor) }}</div>
-    <div class="hq_visitor_card__timer" :class="{ 'hq_visitor_card__timer__urgent': isExpiringSoon }">
+    <div class="hqvisitor__card__traits">Traits: {{ traitList(props.visitor) }}</div>
+    <div class="hqvisitor__card__timer" :class="{ 'hqvisitor__card__timerurgent': isExpiringSoon }">
       Leaves in {{ timeLeft }}
     </div>
-    <div class="hq_visitor_card__actions">
+    <div class="hqvisitor__card__actions">
       <button
-        class="hq_visitor_card__hire"
+        class="hqvisitor__card__hire"
         :disabled="!canAfford(props.visitor)"
         @click="emit('hire', props.visitor.id)"
       >Hire ({{ formatNumber(getHireCost(props.visitor)) }})</button>
-      <button class="hq_visitor_card__dismiss" @click="emit('dismiss', props.visitor.id)">Dismiss</button>
+      <button class="hqvisitor__card__dismiss" @click="emit('dismiss', props.visitor.id)">Dismiss</button>
     </div>
   </div>
 </template>
 
 <style scoped>
-.hq_visitor_card {
+.hqvisitor__card {
   background: #1a1a1a;
   border: 1px solid #8a7340;
   border-radius: 6px;
   padding: 10px;
   min-width: 200px;
 }
-.hq_visitor_card__header {
+.hqvisitor__card__header {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -98,56 +98,56 @@ function traitList(v: VisitorEntry): string {
   padding-bottom: 6px;
   margin-bottom: 8px;
 }
-.hq_visitor_card__rarity {
+.hqvisitor__card__rarity {
   font-weight: bold;
   font-size: 14px;
 }
-.hq_visitor_card__name {
+.hqvisitor__card__name {
   font-family: Georgia, serif;
   color: #c9a84c;
   font-size: 13px;
 }
-.hq_visitor_card__type {
+.hqvisitor__card__type {
   font-size: 10px;
   color: #666;
   margin-left: auto;
 }
-.hq_visitor_card__stats {
+.hqvisitor__card__stats {
   display: grid;
   grid-template-columns: 1fr 1fr 1fr 1fr;
   gap: 4px;
   margin-bottom: 6px;
 }
-.hq_visitor_card__stat {
+.hqvisitor__card__stat {
   text-align: center;
   font-size: 10px;
   color: #888;
 }
-.hq_visitor_card__stat b {
+.hqvisitor__card__stat b {
   display: block;
   color: #c9a84c;
   font-size: 13px;
 }
-.hq_visitor_card__traits {
+.hqvisitor__card__traits {
   font-size: 10px;
   color: #777;
   margin-bottom: 8px;
 }
-.hq_visitor_card__timer {
+.hqvisitor__card__timer {
   font-size: 10px;
   color: #888;
   margin-bottom: 8px;
   text-align: right;
 }
-.hq_visitor_card__timer__urgent {
+.hqvisitor__card__timerurgent {
   color: #ff5722;
   font-weight: bold;
 }
-.hq_visitor_card__actions {
+.hqvisitor__card__actions {
   display: flex;
   gap: 6px;
 }
-.hq_visitor_card__hire {
+.hqvisitor__card__hire {
   flex: 1;
   background: #c9a84c;
   color: #1a1a1a;
@@ -158,12 +158,12 @@ function traitList(v: VisitorEntry): string {
   cursor: pointer;
   font-weight: bold;
 }
-.hq_visitor_card__hire:disabled {
+.hqvisitor__card__hire:disabled {
   background: #333;
   color: #666;
   cursor: not-allowed;
 }
-.hq_visitor_card__dismiss {
+.hqvisitor__card__dismiss {
   background: #333;
   color: #999;
   border: 1px solid #555;

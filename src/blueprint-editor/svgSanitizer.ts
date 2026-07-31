@@ -19,7 +19,7 @@ function sanitizeSvgNode(node: Element): boolean {
       node.removeAttribute(attr.name)
       continue
     }
-    if (name === 'style' && /(expression|javascript:|url\s*\(\s*['"]?(javascript|data|blob):)/i.test(attr.value)) {
+    if (name === 'style' && /(expression|javascript:|vbscript:|mhtml:|@import|behavior:|binding:|url\s*\(\s*['"]?(javascript|data|blob|vbscript|mhtml):)/i.test(attr.value)) {
       node.removeAttribute(attr.name)
       continue
     }

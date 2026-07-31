@@ -316,54 +316,54 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="blueprint_preview" @click.self="emit('close')">
-    <div class="blueprint_preview__content" role="dialog" aria-modal="true" aria-labelledby="panel_title_blueprint">
-      <div class="blueprint_preview__header">
+  <div class="blueprint__preview" @click.self="emit('close')">
+    <div class="blueprint__preview__content" role="dialog" aria-modal="true" aria-labelledby="panel__title__blueprint">
+      <div class="blueprint__preview__header">
         <div>
-          <h2 id="panel_title_blueprint" class="blueprint_preview__title">The Continental</h2>
-          <div class="blueprint_preview__sub">Architectural Floor Plan Survey · High Table Property Registry</div>
+          <h2 id="panel__title__blueprint" class="blueprint__preview__title">The Continental</h2>
+          <div class="blueprint__preview__sub">Architectural Floor Plan Survey · High Table Property Registry</div>
         </div>
-        <div class="blueprint_preview__doc_id">
+        <div class="blueprint__preview__docid">
           DWG NO. CONT-IDLE-000<br>
           SCALE 1 : 100 · SHEET {{ sheetNumber }} / 22
         </div>
       </div>
 
-      <div class="blueprint_preview__tabs">
+      <div class="blueprint__preview__tabs">
         <button
           v-for="f in FLOORS"
           :key="f.id"
-          class="blueprint_preview__tab"
-          :class="{ 'blueprint_preview__tab__active': f.id === currentFloor }"
+          class="blueprint__preview__tab"
+          :class="{ 'blueprint__preview__tabactive': f.id === currentFloor }"
           @click="currentFloor = f.id"
         >{{ f.id === 'G' ? 'G' : 'F' + f.id }}</button>
       </div>
 
-      <div class="blueprint_preview__sheet">
-        <div class="blueprint_preview__legend">
-          <span class="blueprint_preview__floor_label">
+      <div class="blueprint__preview__sheet">
+        <div class="blueprint__preview__legend">
+          <span class="blueprint__preview__floorlabel">
             Floor {{ currentFloorData.id === 'G' ? 'G' : currentFloorData.id }} — {{ currentFloorData.name }}
           </span>
-          <span class="blueprint_preview__floor_info">{{ currentFloorData.info }}</span>
-          <span v-for="cat in currentFloorCats" :key="cat" class="blueprint_preview__legend_item">
-            <i class="blueprint_preview__legend_swatch" :style="{ background: CAT[cat] }"></i>
+          <span class="blueprint__preview__floorinfo">{{ currentFloorData.info }}</span>
+          <span v-for="cat in currentFloorCats" :key="cat" class="blueprint__preview__legenditem">
+            <i class="blueprint__preview__legendswatch" :style="{ background: CAT[cat] }"></i>
             {{ CAT_LABEL[cat] }}
           </span>
         </div>
-        <svg ref="svgRef" :viewBox="`0 0 ${W} ${H}`" xmlns="http://www.w3.org/2000/svg" class="blueprint_preview__svg"></svg>
+        <svg ref="svgRef" :viewBox="`0 0 ${W} ${H}`" xmlns="http://www.w3.org/2000/svg" class="blueprint__preview__svg"></svg>
       </div>
 
-      <div class="blueprint_preview__footer">
+      <div class="blueprint__preview__footer">
         Adjudicator copy · No business may be conducted on the premises · Continental-Idle reference plan
       </div>
 
-      <button class="game_panel__close" @click="emit('close')">Close</button>
+      <button class="panel__close" @click="emit('close')">Close</button>
     </div>
   </div>
 </template>
 
 <style scoped>
-.blueprint_preview {
+.blueprint__preview {
   position: fixed;
   inset: 0;
   background: rgba(0, 0, 0, 0.7);
@@ -375,7 +375,7 @@ onMounted(() => {
   padding: 20px;
 }
 
-.blueprint_preview__content {
+.blueprint__preview__content {
   background: #e9e9e6;
   border-radius: 8px;
   max-width: 1280px;
@@ -385,7 +385,7 @@ onMounted(() => {
   color: #222222;
 }
 
-.blueprint_preview__header {
+.blueprint__preview__header {
   display: flex;
   justify-content: space-between;
   align-items: flex-end;
@@ -394,7 +394,7 @@ onMounted(() => {
   margin-bottom: 18px;
 }
 
-.blueprint_preview__title {
+.blueprint__preview__title {
   margin: 0;
   font-family: 'Times New Roman', Georgia, serif;
   letter-spacing: 6px;
@@ -404,7 +404,7 @@ onMounted(() => {
   text-transform: uppercase;
 }
 
-.blueprint_preview__sub {
+.blueprint__preview__sub {
   font-size: 11px;
   letter-spacing: 3px;
   color: #666666;
@@ -412,7 +412,7 @@ onMounted(() => {
   text-transform: uppercase;
 }
 
-.blueprint_preview__doc_id {
+.blueprint__preview__docid {
   text-align: right;
   font-size: 11px;
   color: #666666;
@@ -420,14 +420,14 @@ onMounted(() => {
   letter-spacing: 1px;
 }
 
-.blueprint_preview__tabs {
+.blueprint__preview__tabs {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
   margin-bottom: 18px;
 }
 
-.blueprint_preview__tab {
+.blueprint__preview__tab {
   background: #ffffff;
   border: 1px solid #aaaaaa;
   color: #666666;
@@ -439,31 +439,31 @@ onMounted(() => {
   transition: all 0.15s ease;
 }
 
-.blueprint_preview__tab:hover {
+.blueprint__preview__tab:hover {
   border-color: #333333;
   color: #222222;
 }
 
-.blueprint_preview__tab__active {
+.blueprint__preview__tabactive {
   background: #333333;
   color: #ffffff;
   border-color: #333333;
   font-weight: bold;
 }
 
-.blueprint_preview__sheet {
+.blueprint__preview__sheet {
   background: #ffffff;
   border: 1px solid #aaaaaa;
   position: relative;
 }
 
-.blueprint_preview__svg {
+.blueprint__preview__svg {
   display: block;
   width: 100%;
   height: auto;
 }
 
-.blueprint_preview__legend {
+.blueprint__preview__legend {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -475,7 +475,7 @@ onMounted(() => {
   letter-spacing: 0.5px;
 }
 
-.blueprint_preview__floor_label {
+.blueprint__preview__floorlabel {
   font-size: 13px;
   font-weight: bold;
   color: #222222;
@@ -483,25 +483,25 @@ onMounted(() => {
   text-transform: uppercase;
 }
 
-.blueprint_preview__floor_info {
+.blueprint__preview__floorinfo {
   color: #666666;
   font-size: 10px;
 }
 
-.blueprint_preview__legend_item {
+.blueprint__preview__legenditem {
   display: flex;
   align-items: center;
   gap: 6px;
 }
 
-.blueprint_preview__legend_swatch {
+.blueprint__preview__legendswatch {
   display: inline-block;
   width: 14px;
   height: 10px;
   border: 1px solid #666666;
 }
 
-.blueprint_preview__footer {
+.blueprint__preview__footer {
   text-align: center;
   margin-top: 12px;
   font-size: 10px;
@@ -510,7 +510,7 @@ onMounted(() => {
   text-transform: uppercase;
 }
 
-.blueprint_preview__content :deep(.game_panel__close) {
+.blueprint__preview__content :deep(.panel__close) {
   margin-top: 16px;
 }
 </style>

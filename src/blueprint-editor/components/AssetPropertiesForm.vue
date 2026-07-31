@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { ref, watch, computed } from 'vue'
 import { useAssetsStore } from '../blueprintStore'
-import { useToast } from '../composables/useToast'
+import { useToast } from '@/composables/useToast'
 import { useAsyncAction } from '../composables/useAsyncAction'
 import { useWalkableGridPanel } from '../composables/useWalkableGridPanel'
+import { useClipboardCopy } from '../composables/useClipboardCopy'
 import type { AssetDef } from '../types'
 import TagPicker from './tagPicker.vue'
 
@@ -11,6 +12,7 @@ const props = defineProps<{ asset: AssetDef }>()
 const store = useAssetsStore()
 const { pending, run } = useAsyncAction()
 const { showWalkableGridPanel, openWalkableGridPanel, closeWalkableGridPanel } = useWalkableGridPanel()
+const { copyId } = useClipboardCopy()
 
 const assetFields = ref({ name: '', w: 1, h: 1, pxW: 0, pxH: 0, usePx: false, defaultPadding: 0, rxTL: 0, rxTR: 0, rxBR: 0, rxBL: 0, defaultBgColor: '' })
 const assetRxSync = ref(true)
@@ -94,15 +96,6 @@ async function saveAssetTags(tags: string[]) {
   await store.updateAsset(props.asset.id, { tags })
 }
 
-async function copyId(id: string) {
-  try {
-    await navigator.clipboard.writeText(id)
-    useToast().success('ID copied')
-  } catch {
-    useToast().warning('Copy failed')
-  }
-}
-
 async function onRotateAsset() {
   if (!isSvgAsset.value || !props.asset.svgViewBox) return
   await store.rotateAsset(props.asset.id)
@@ -132,91 +125,91 @@ async function deleteAsset() {
 </script>
 
 <template>
-  <div class="properties_panel__content">
+  <div class="properties__content">
     <!-- General -->
-    <div class="properties_panel__section">
-      <div class="properties_panel__section_title properties_panel__section_title__toggle" @click="toggleSection('general')">
+    <div class="properties__section">
+      <div class="properties__title properties__titletoggle" @click="toggleSection('general')">
         <span>General</span>
-        <span class="properties_panel__collapse_arrow">{{ collapsedSections.general ? '▸' : '▾' }}</span>
+        <span class="properties__collapsearrow">{{ collapsedSections.general ? '▸' : '▾' }}</span>
       </div>
-    <div v-show="!collapsedSections.general" class="properties_panel__section__content">
-    <div class="properties_panel__row">
+    <div v-show="!collapsedSections.general" class="properties__section__content">
+    <div class="properties__row">
       <label>ID</label>
-      <div class="properties_panel__id_row">
+      <div class="properties__idrow">
         <input type="text" :value="asset.id" disabled class="input input__readonly" title="Asset ID" />
-        <button class="btn btn_sm" @click="copyId(asset.id)">Copy</button>
+        <button class="btn btn__sm" @click="copyId(asset.id)">Copy</button>
       </div>
     </div>
-    <div v-if="isLinkedAsset" class="alert alert_info alert_sm">
-      <span class="properties_panel__collapsed_icon">⛓</span>
+    <div v-if="isLinkedAsset" class="alert alert__info alert__sm">
+      <span class="properties__collapsedicon">⛓</span>
       <span>Linked set — {{ linkedPartCount }} objects. Drag to place all parts linked together.</span>
     </div>
-    <div class="properties_panel__row">
+    <div class="properties__row">
       <label>Name</label>
       <input class="input" type="text" v-model="assetFields.name" @change="commitField('name')" />
     </div>
-    <div class="properties_panel__row">
+    <div class="properties__row">
       <label>NPC Tags</label>
       <TagPicker :model-value="assetTags" @update:model-value="saveAssetTags" placeholder="rest, service, target" />
     </div>
-    <div v-if="isSvgAsset" class="properties_panel__row">
+    <div v-if="isSvgAsset" class="properties__row">
       <label>Rotate Origin</label>
-      <button class="btn btn_sm" @click="onRotateAsset">↻ 90°</button>
+      <button class="btn btn__sm" @click="onRotateAsset">↻ 90°</button>
     </div>
     </div>
     </div>
 
     <!-- Dimensions -->
-    <div class="properties_panel__section">
-      <div class="properties_panel__section_title properties_panel__section_title__toggle" @click="toggleSection('dimensions')">
+    <div class="properties__section">
+      <div class="properties__title properties__titletoggle" @click="toggleSection('dimensions')">
         <span>Dimensions & Style</span>
-        <span class="properties_panel__collapse_arrow">{{ collapsedSections.dimensions ? '▸' : '▾' }}</span>
+        <span class="properties__collapsearrow">{{ collapsedSections.dimensions ? '▸' : '▾' }}</span>
       </div>
-    <div v-show="!collapsedSections.dimensions" class="properties_panel__section__content">
+    <div v-show="!collapsedSections.dimensions" class="properties__section__content">
     <template v-if="!isLinkedAsset">
-      <div v-if="!isSvgAsset" class="properties_panel__row">
+      <div v-if="!isSvgAsset" class="properties__row">
         <label>Unit Mode</label>
-        <div class="properties_panel__unit_toggle">
-          <button class="btn btn_sm" :class="{ 'btn__warning': !assetFields.usePx }" @click="assetFields.usePx ? toggleUsePx() : null">Tiles</button>
-          <button class="btn btn_sm" :class="{ 'btn__warning': assetFields.usePx }" @click="!assetFields.usePx ? toggleUsePx() : null">Pixels</button>
+        <div class="properties__unittoggle">
+          <button class="btn btn__sm" :class="{ 'btn__warning': !assetFields.usePx }" @click="assetFields.usePx ? toggleUsePx() : null">Tiles</button>
+          <button class="btn btn__sm" :class="{ 'btn__warning': assetFields.usePx }" @click="!assetFields.usePx ? toggleUsePx() : null">Pixels</button>
         </div>
       </div>
       <template v-if="!assetFields.usePx">
-        <div class="properties_panel__row">
+        <div class="properties__row">
           <label>Width (tiles)</label>
           <input class="input" type="number" min="1" v-model.number="assetFields.w" @change="commitField('w')" />
         </div>
-        <div class="properties_panel__row">
+        <div class="properties__row">
           <label>Height (tiles)</label>
           <input class="input" type="number" min="1" v-model.number="assetFields.h" @change="commitField('h')" />
         </div>
       </template>
       <template v-else>
-        <div class="properties_panel__row">
+        <div class="properties__row">
           <label>Width (px)</label>
           <input type="number" min="1" v-model.number="assetFields.pxW" @change="commitField('pxW')" />
         </div>
-        <div class="properties_panel__row">
+        <div class="properties__row">
           <label>Height (px)</label>
           <input type="number" min="1" v-model.number="assetFields.pxH" @change="commitField('pxH')" />
         </div>
       </template>
     </template>
-    <div class="properties_panel__row">
+    <div class="properties__row">
       <label>Default Padding</label>
       <input type="number" min="0" v-model.number="assetFields.defaultPadding" @change="commitField('defaultPadding')" />
     </div>
-    <div class="properties_panel__row">
+    <div class="properties__row">
       <label>Bg Color</label>
-      <div class="properties_panel__color_row">
+      <div class="properties__colorrow">
         <input type="color" :value="assetFields.defaultBgColor || 'var(--text-bright)'" @input="assetFields.defaultBgColor = ($event.target as HTMLInputElement).value; commitField('defaultBgColor')" class="input input__color" />
-        <button class="btn btn_sm" @click="clearAssetBgColor">Reset</button>
+        <button class="btn btn__sm" @click="clearAssetBgColor">Reset</button>
       </div>
     </div>
-    <div v-if="isSvgAsset" class="properties_panel__row properties_panel__row__toggle">
+    <div class="properties__row properties__row__toggle">
       <label>Entrance Only</label>
       <button
-        class="btn btn_sm"
+        class="btn btn__sm"
         :class="{ 'btn__success': entranceRequired, 'btn__danger': !entranceRequired }"
         @click="entranceRequired = !entranceRequired"
         :title="entranceRequired ? 'NPCs can only enter through tiles marked entrance in the walkable grid' : 'NPCs can freely walk across all walkable tiles'"
@@ -224,31 +217,31 @@ async function deleteAsset() {
         {{ entranceRequired ? 'ON' : 'OFF' }}
       </button>
     </div>
-    <template v-if="!isLinkedAsset && !isSvgAsset">
-      <div class="properties_panel__row">
+    <template v-if="!isLinkedAsset">
+      <div class="properties__row">
         <label>Corner Radius</label>
-        <div class="properties_panel__rx_grid">
-          <div class="properties_panel__rx_corner">
-            <span class="properties_panel__rx_label">↖ TL</span>
-            <input type="number" min="0" v-model.number="assetFields.rxTL" @input="onRxInput('rxTL')" class="input input_num input_compact" />
+        <div class="properties__rxgrid">
+          <div class="properties__rxcorner">
+            <span class="properties__rxlabel">↖ TL</span>
+            <input type="number" min="0" v-model.number="assetFields.rxTL" @input="onRxInput('rxTL')" class="input input__num input__compact" />
           </div>
-          <div class="properties_panel__rx_corner">
-            <span class="properties_panel__rx_label">TR ↗</span>
-            <input type="number" min="0" v-model.number="assetFields.rxTR" @input="onRxInput('rxTR')" class="input input_num input_compact" />
+          <div class="properties__rxcorner">
+            <span class="properties__rxlabel">TR ↗</span>
+            <input type="number" min="0" v-model.number="assetFields.rxTR" @input="onRxInput('rxTR')" class="input input__num input__compact" />
           </div>
-          <div class="properties_panel__rx_corner">
-            <span class="properties_panel__rx_label">↙ BL</span>
-            <input type="number" min="0" v-model.number="assetFields.rxBL" @input="onRxInput('rxBL')" class="input input_num input_compact" />
+          <div class="properties__rxcorner">
+            <span class="properties__rxlabel">↙ BL</span>
+            <input type="number" min="0" v-model.number="assetFields.rxBL" @input="onRxInput('rxBL')" class="input input__num input__compact" />
           </div>
-          <div class="properties_panel__rx_corner">
-            <span class="properties_panel__rx_label">BR ↘</span>
-            <input type="number" min="0" v-model.number="assetFields.rxBR" @input="onRxInput('rxBR')" class="input input_num input_compact" />
+          <div class="properties__rxcorner">
+            <span class="properties__rxlabel">BR ↘</span>
+            <input type="number" min="0" v-model.number="assetFields.rxBR" @input="onRxInput('rxBR')" class="input input__num input__compact" />
           </div>
         </div>
       </div>
-      <div class="properties_panel__row">
+      <div class="properties__row">
         <label></label>
-        <label class="properties_panel__rx_sync">
+        <label class="properties__rxsync">
           <input type="checkbox" v-model="assetRxSync" /> Sync all corners
         </label>
       </div>
@@ -256,36 +249,36 @@ async function deleteAsset() {
     </div>
     </div>
 
-    <div v-if="assetInUse" class="alert alert_info alert_sm">
-      <span class="properties_panel__collapsed_icon">i</span>
+    <div v-if="assetInUse" class="alert alert__info alert__sm">
+      <span class="properties__collapsedicon">i</span>
       <span>Asset is placed on floors — changes apply to all instances.</span>
     </div>
-    <div v-if="collapsedCount > 0" class="alert alert_danger alert_sm">
-      <span class="properties_panel__collapsed_icon">✕</span>
+    <div v-if="collapsedCount > 0" class="alert alert__danger alert__sm">
+      <span class="properties__collapsedicon">✕</span>
       <span>{{ collapsedCount }} object(s) collapsed — overlapping! Shown in red on canvas.</span>
     </div>
-    <div v-if="isSvgAsset" class="properties_panel__delete_section">
+    <div v-if="!isLinkedAsset" class="properties__deletesection">
       <button class="btn btn__warning" @click="showWalkableGridPanel ? closeWalkableGridPanel() : openWalkableGridPanel()">
         {{ showWalkableGridPanel ? 'Close Walkable Grid' : 'Manage Walkable Grid' }}
       </button>
     </div>
-    <div class="properties_panel__delete_section">
+    <div class="properties__deletesection">
       <button class="btn btn__primary" :disabled="pending" @click="onSave">Save Asset</button>
     </div>
-    <div class="properties_panel__delete_section properties_panel__delete_section__alone">
+    <div class="properties__deletesection properties__deletesection__alone">
       <button class="btn btn__danger" :disabled="pending" @click="deleteAsset">Delete Asset</button>
     </div>
   </div>
 </template>
 
 <style scoped>
-.properties_panel__section__content {
+.properties__section__content {
   display: flex;
   flex-direction: column;
   gap: var(--gap-sm);
 }
 
-.properties_panel__section_title__toggle {
+.properties__titletoggle {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -294,11 +287,8 @@ async function deleteAsset() {
   transition: color var(--duration-fast) ease-out;
 }
 
-.properties_panel__section_title__toggle:hover {
-  color: var(--accent-gold);
-}
-
-.properties_panel__section_title__toggle:hover .properties_panel__collapse_arrow {
+.properties__titletoggle:hover,
+.properties__titletoggle:hover .properties__collapsearrow {
   color: var(--accent-gold);
 }
 

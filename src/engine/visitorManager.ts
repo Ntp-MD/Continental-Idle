@@ -1,13 +1,14 @@
-import type { VisitorEntry, Rarity, CharacterStats, BranchId } from '@/types'
+import type { VisitorEntry, Rarity, BranchId, AssassinEntry, StaffEntry } from '@/types'
 import { STAFF_TYPES, STAFF_MAP } from '@/data/staff'
 import { ASSASSIN_TYPES, ASSASSIN_MAP } from '@/data/assassins'
-import { RARITY_CONFIG, CALL_VISITOR_RARITY, ROYAL_MARK_RARITY, RANDOM_SPAWN_RARITY, STAFF_SPAWN_CHANCE, rollRarity, getRarityCostMult } from '@/data/rarity'
+import { CALL_VISITOR_RARITY, ROYAL_MARK_RARITY, RANDOM_SPAWN_RARITY, STAFF_SPAWN_CHANCE, rollRarity, getRarityCostMult } from '@/data/rarity'
 import { gameState } from './gameState'
 import { eventBus } from './eventBus'
 import { eventEngine } from './eventEngine'
 import { hireStaff, assignStaff } from './staffManager'
 import { hireAssassin } from './assassinManager'
 import { getExtraStaffSlots } from './skillManager'
+import { rollStats, rollTraits } from './npcStats'
 
 const VISITOR_TIMEOUT_MS = 2 * 60 * 60 * 1000
 const RANDOM_SPAWN_CHANCE = 0.02
@@ -22,46 +23,14 @@ function generateVisitorId(): string {
   return 'visitor_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6)
 }
 
-function rollStats(rarity: Rarity, isAssassin: boolean): CharacterStats {
-  const cfg = RARITY_CONFIG[rarity]
-  const budget = cfg.statBudget + (isAssassin ? 4 : 0)
-  const min = cfg.statMin + (isAssassin ? 1 : 0)
-  const max = cfg.statMax + (isAssassin ? 2 : 0)
-  const stats = { precision: min, speed: min, charisma: min, luck: min }
-  let remaining = budget - (min * 4)
-  const keys: (keyof CharacterStats)[] = ['precision', 'speed', 'charisma', 'luck']
-  while (remaining > 0) {
-    if (keys.every(k => stats[k] >= max)) break
-    const key = keys[Math.floor(Math.random() * keys.length)]
-    if (stats[key] < max) {
-      stats[key]++
-      remaining--
-    }
-  }
-  return stats
+function rollVisitorStats(rarity: Rarity, isAssassin: boolean) {
+  return isAssassin
+    ? rollStats(rarity, { statBudgetBonus: 4, statMinBonus: 1, statMaxBonus: 2 })
+    : rollStats(rarity)
 }
 
-function rollTraits(rarity: Rarity): string[] {
-  const cfg = RARITY_CONFIG[rarity]
-  const traits: string[] = []
-  const positivePool = ['workaholic', 'nightOwl', 'silverTongue', 'luckyCharm', 'perfectionist', 'naturalLeader', 'shadowTouched', 'bloodhound', 'oldGuard', 'efficient']
-  const negativePool = ['lazy', 'hotHeaded', 'clumsy', 'superstitious', 'greedy']
-  const rarePool = ['legendary', 'untouchable', 'mentor', 'shadowBond', 'goldenTouch']
-
-  if (Math.random() < cfg.traitRareChance) {
-    traits.push(rarePool[Math.floor(Math.random() * rarePool.length)])
-  } else {
-    for (let i = 0; i < 2; i++) {
-      if (Math.random() < cfg.traitPositiveChance) {
-        const t = positivePool[Math.floor(Math.random() * positivePool.length)]
-        if (!traits.includes(t)) traits.push(t)
-      }
-    }
-  }
-  if (Math.random() < cfg.traitNegativeChance) {
-    traits.push(negativePool[Math.floor(Math.random() * negativePool.length)])
-  }
-  return traits
+function rollVisitorTraits(rarity: Rarity, _isAssassin: boolean): string[] {
+  return rollTraits(rarity, { maxPositive: 2, allowNegative: true })
 }
 
 function pickRole(): { typeId: string; isAssassin: boolean } {
@@ -84,8 +53,8 @@ function createVisitor(rarity: Rarity): VisitorEntry {
     isAssassin,
     rarity,
     level: 1,
-    stats: rollStats(rarity, isAssassin),
-    traits: rollTraits(rarity),
+    stats: rollVisitorStats(rarity, isAssassin),
+    traits: rollVisitorTraits(rarity, isAssassin),
     arrivedAt: now,
     expiresAt: now + VISITOR_TIMEOUT_MS,
   }
@@ -111,7 +80,7 @@ export function callVisitor(): boolean {
 
   state.goldenCoins -= CALL_VISITOR_COST
 
-  const count = Math.min(MAX_VISITORS, 5)
+  const count = MAX_VISITORS
   for (let i = 0; i < count; i++) {
     const rarity = rollRarity(CALL_VISITOR_RARITY)
     getVis().push(createVisitor(rarity))
@@ -161,9 +130,18 @@ export function hireVisitor(visitorId: string, branchId?: BranchId): boolean {
     const assassinCap = branch.upgrades.includes('armoryExpansion') ? 4 : 3
     if (Object.keys(branch.assassins).length >= assassinCap) return false
 
+    // Two-step deduction: pay the rarity premium first, then hireAssassin
+    // deducts the base cost. If the inner hire fails, refund the premium.
     const rarityPremium = cost - def.hireCost
     if (rarityPremium > 0) branch.currency -= rarityPremium
-    const hired = hireAssassin(visitor.typeId, id)
+    let hired: AssassinEntry | null = null
+    try {
+      hired = hireAssassin(visitor.typeId, id)
+    } catch (err) {
+      if (rarityPremium > 0) branch.currency += rarityPremium
+      console.error('hireVisitor: hireAssassin threw', err)
+      return false
+    }
     if (!hired) {
       if (rarityPremium > 0) branch.currency += rarityPremium
       return false
@@ -181,9 +159,18 @@ export function hireVisitor(visitorId: string, branchId?: BranchId): boolean {
     const maxStaff = 5 + getExtraStaffSlots()
     if (Object.keys(branch.staff).length >= maxStaff) return false
 
+    // Two-step deduction: pay the rarity premium first, then hireStaff
+    // deducts the base cost. If the inner hire fails, refund the premium.
     const rarityPremium = cost - def.hireCost
     if (rarityPremium > 0) branch.currency -= rarityPremium
-    const hired = hireStaff(visitor.typeId, id)
+    let hired: StaffEntry | null = null
+    try {
+      hired = hireStaff(visitor.typeId, id)
+    } catch (err) {
+      if (rarityPremium > 0) branch.currency += rarityPremium
+      console.error('hireVisitor: hireStaff threw', err)
+      return false
+    }
     if (!hired) {
       if (rarityPremium > 0) branch.currency += rarityPremium
       return false
