@@ -6,9 +6,9 @@ import {
 	state, toast, snap, clamp, assetMap,
 	currentFloor, isValidColor, withStateLock, initAssetFields,
 } from './state'
-import { genId } from './ids'
+import { genId } from './utils'
 import { selectedRoom, selectedObject, selectedObjectIds, select as selectEntity, clearSelection, toggleMultiSelect as toggleMultiSelectEntity } from './selection'
-import { getLinkedObjects } from './helpers'
+import { getLinkedObjects } from './utils'
 import { saveLayout, saveAssets } from './persistence'
 
 export async function addObject(type: string, x: number, y: number): Promise<ObjectData | null> {

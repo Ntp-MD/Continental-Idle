@@ -1,0 +1,255 @@
+/* === Blueprint Editor Properties Panel Helper Classes === */
+.properties__title {
+	font-size: var(--font-sm);
+	font-weight: 600;
+	color: var(--accent-gold);
+	text-transform: uppercase;
+	letter-spacing: 0.5px;
+	padding: var(--gap-xs) 0;
+	border-bottom: 1px solid var(--border-dim);
+	margin-bottom: var(--gap-xs);
+}
+
+.properties__section {
+	display: flex;
+	flex-direction: column;
+	gap: var(--gap-sm);
+}
+
+.properties__empty {
+	font-size: var(--font-sm);
+	color: var(--text-dim);
+	text-align: center;
+	padding: var(--gap-md) 0;
+}
+
+.properties__hint {
+	font-size: var(--font-xs);
+	color: var(--text-dim);
+	text-align: center;
+	padding: var(--gap-xs) 0 var(--gap-sm);
+	line-height: 1.5;
+}
+
+.properties__row {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: var(--gap-sm);
+	font-size: var(--font-sm);
+}
+
+.properties__row input,
+.properties__row select {
+	flex: 1;
+	min-width: 0;
+	background: var(--bg-primary);
+	border: 1px solid var(--border-dim);
+	color: var(--text-primary);
+	padding: var(--gap-xs) var(--gap-sm);
+	border-radius: var(--radius-sm);
+	transition: border-color var(--duration-fast) ease-out,
+		box-shadow var(--duration-fast) ease-out;
+}
+
+.properties__row input:focus,
+.properties__row select:focus {
+	outline: none;
+	border-color: var(--accent-gold);
+	box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent-gold) 15%, transparent);
+}
+
+.properties__row label {
+	color: var(--text-primary);
+	min-width: 60px;
+}
+
+.properties__row__toggle {
+	flex-direction: row;
+	justify-content: flex-start;
+}
+
+.properties__content {
+	padding: var(--gap-md);
+	display: flex;
+	flex-direction: column;
+	gap: var(--gap-sm);
+	overflow-y: auto;
+	flex: 1;
+	min-height: 0;
+}
+
+.input__error {
+	border-color: var(--accent-red) !important;
+	box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent-red) 15%, transparent) !important;
+}
+
+.properties__value {
+	font-size: var(--font-sm);
+	color: var(--text-secondary);
+}
+
+.properties__idrow {
+	display: flex;
+	gap: var(--gap-sm);
+	align-items: center;
+}
+
+.properties__colorrow {
+	display: flex;
+	gap: var(--gap-sm);
+	align-items: center;
+}
+
+.properties__anchorrow {
+	display: flex;
+	gap: var(--gap-xs);
+	align-items: center;
+}
+
+.properties__deletesection {
+	display: flex;
+	gap: var(--gap-sm);
+	padding-top: var(--gap-sm);
+}
+
+.properties__deletesection__alone {
+	border-top: 1px solid var(--border-dim);
+	margin-top: var(--gap-sm);
+}
+
+.properties__btngroup {
+	display: flex;
+	gap: var(--gap-sm);
+	flex-wrap: wrap;
+	padding-top: var(--gap-sm);
+}
+
+.properties__warning {
+	font-size: var(--font-xs);
+	color: var(--accent-red);
+	padding: var(--gap-xs) var(--gap-sm);
+	background: color-mix(in srgb, var(--accent-red) 8%, transparent);
+	border-radius: var(--radius-sm);
+}
+
+.properties__cats {
+	display: flex;
+	flex-direction: column;
+	gap: var(--gap-xs);
+	padding: var(--gap-sm);
+	background: var(--bg-primary);
+	border: 1px solid var(--border-dim);
+	border-radius: var(--radius-sm);
+}
+
+.properties__catrow {
+	display: flex;
+	gap: var(--gap-xs);
+	align-items: center;
+}
+
+.properties__catadd {
+	display: flex;
+	gap: var(--gap-xs);
+	align-items: center;
+	padding-top: var(--gap-xs);
+	border-top: 1px solid var(--border-dim);
+}
+
+.properties__zonerow {
+	display: flex;
+	flex-direction: column;
+	gap: var(--gap-xs);
+	padding: var(--gap-sm);
+	background: var(--bg-primary);
+	border: 1px solid var(--border-dim);
+	border-radius: var(--radius-sm);
+}
+
+.properties__zonepos {
+	display: flex;
+	gap: var(--gap-xs);
+	align-items: center;
+}
+
+.properties__zonepos label {
+	min-width: 12px;
+	text-align: center;
+}
+
+.properties__unittoggle {
+	display: flex;
+	gap: var(--gap-xs);
+}
+
+.properties__rxgrid {
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	gap: var(--gap-xs);
+}
+
+.properties__rxcorner {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	align-items: center;
+}
+
+.properties__rxlabel {
+	font-size: var(--font-xs);
+	color: var(--text-dim);
+}
+
+.properties__rxsync {
+	display: flex;
+	align-items: center;
+	gap: var(--gap-xs);
+	font-size: var(--font-xs);
+	color: var(--text-secondary);
+	text-transform: none;
+	letter-spacing: 0;
+	font-weight: 400;
+	cursor: pointer;
+}
+
+.properties__rxsync input[type="checkbox"] {
+	width: 14px;
+	height: 14px;
+	accent-color: var(--accent-gold);
+}
+
+.properties__collapsearrow {
+	color: var(--text-dim);
+	font-size: var(--font-xs);
+}
+
+.properties__collapsedicon {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 18px;
+	height: 18px;
+	border-radius: var(--radius-pill);
+	background: var(--bg-tertiary);
+	font-size: var(--font-xs);
+	font-weight: 700;
+	flex-shrink: 0;
+}
+
+/* Blueprint editor tag/chip role */
+.tag {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--gap-xs);
+	padding: var(--gap-xs) var(--gap-sm);
+	background: var(--bg-tertiary);
+	border: 1px solid var(--border-dim);
+	border-radius: var(--radius-sm);
+	font-size: var(--font-xs);
+	color: var(--text-secondary);
+}
+
+.tag__name {
+	flex: 1;
+}

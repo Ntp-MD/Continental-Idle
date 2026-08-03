@@ -1,4 +1,6 @@
 import type { FloorId } from '@/types'
+import type { FloorLayoutData } from '@/blueprint-editor/types'
+import { buildRuntimeLayout } from '@/blueprint-editor/store/dataLoader'
 
 export interface RoomLayout {
 	id: string
@@ -209,40 +211,82 @@ export const FLOOR_LAYOUT: Record<FloorId, RoomLayout[]> = {
 export const FLOOR_OBJECTS: Record<FloorId, SyncedObjectLayout[]> = Object.fromEntries(FLOOR_IDS.map(id => [id, []])) as unknown as Record<FloorId, SyncedObjectLayout[]>
 export const FLOOR_ZONES: Record<FloorId, SyncedZoneLayout[]> = Object.fromEntries(FLOOR_IDS.map(id => [id, []])) as unknown as Record<FloorId, SyncedZoneLayout[]>
 
-export function applySyncedLayout(): void {
-	try {
-		const raw = localStorage.getItem('blueprint-synced-layout')
-		if (!raw) return
-		const data = JSON.parse(raw) as {
-			floors?: Record<string, {
-				rooms?: Array<{ id: string; x: number; y: number; w: number; h: number; label: string; sub?: string; visual?: boolean; levelKey?: string; roomNum?: number }>
-				objects?: SyncedObjectLayout[]
-				zones?: SyncedZoneLayout[]
-			}>
+export interface SyncedLayoutData {
+	floors?: Record<string, {
+		rooms?: Array<{ id: string; x: number; y: number; w: number; h: number; label: string; sub?: string; visual?: boolean; levelKey?: string; roomNum?: number }>
+		objects?: SyncedObjectLayout[]
+		zones?: SyncedZoneLayout[]
+	}>
+}
+
+function floorIdFromEditorLabel(label: string): FloorId | null {
+	if (label === 'G') return 'G'
+	const match = label.match(/^F(\d+)$/)
+	if (!match) return null
+	const floorNumber = Number(match[1])
+	return floorNumber === 0 ? 'G' : FLOOR_IDS.includes(String(floorNumber) as FloorId) ? String(floorNumber) as FloorId : null
+}
+
+function savedLayoutSyncData(layout: FloorLayoutData): SyncedLayoutData {
+	const floors: NonNullable<SyncedLayoutData['floors']> = {}
+	for (const floor of layout.floors) {
+		const floorId = floorIdFromEditorLabel(floor.label)
+		if (!floorId) continue
+		floors[floorId] = {
+			rooms: floor.rooms.map(room => ({
+				id: room.id,
+				x: room.x,
+				y: room.y,
+				w: room.w,
+				h: room.h,
+				label: room.label,
+			})),
+			objects: floor.objects.map(object => ({
+				id: object.id,
+				type: object.type,
+				x: object.x,
+				y: object.y,
+				w: object.w,
+				h: object.h,
+				rotation: object.rotation,
+				fillColor: object.fillColor,
+				label: object.label,
+			})),
+			zones: (floor.zones ?? []).map(zone => ({
+				id: zone.id,
+				x: zone.x,
+				y: zone.y,
+				w: zone.w,
+				h: zone.h,
+				label: zone.label,
+				color: zone.color,
+			})),
 		}
-		if (!data.floors) return
-		for (const floorId of FLOOR_IDS) {
-			const syncedFloor = data.floors[floorId]
-			if (!syncedFloor) continue
-			if (Array.isArray(syncedFloor.rooms) && syncedFloor.rooms.length > 0) {
-				FLOOR_LAYOUT[floorId] = syncedFloor.rooms.map(r => ({
-					id: r.id,
-					x: r.x,
-					y: r.y,
-					w: r.w,
-					h: r.h,
-					label: r.label,
-					sub: r.sub ?? '',
-					visual: r.visual,
-					levelKey: r.levelKey,
-					roomNum: r.roomNum,
-				}))
-			}
-			FLOOR_OBJECTS[floorId] = Array.isArray(syncedFloor.objects) ? syncedFloor.objects : []
-			FLOOR_ZONES[floorId] = Array.isArray(syncedFloor.zones) ? syncedFloor.zones : []
+	}
+	return { floors }
+}
+
+export function applySyncedLayout(data: SyncedLayoutData = savedLayoutSyncData(buildRuntimeLayout())): void {
+	if (!data.floors) return
+	for (const floorId of FLOOR_IDS) {
+		const syncedFloor = data.floors[floorId]
+		if (!syncedFloor) continue
+		if (Array.isArray(syncedFloor.rooms) && syncedFloor.rooms.length > 0) {
+			FLOOR_LAYOUT[floorId] = syncedFloor.rooms.map(r => ({
+				id: r.id,
+				x: r.x,
+				y: r.y,
+				w: r.w,
+				h: r.h,
+				label: r.label,
+				sub: r.sub ?? '',
+				visual: r.visual,
+				levelKey: r.levelKey,
+				roomNum: r.roomNum,
+			}))
 		}
-	} catch {
-		// ignore — fall back to hardcoded layout
+		FLOOR_OBJECTS[floorId] = Array.isArray(syncedFloor.objects) ? syncedFloor.objects : []
+		FLOOR_ZONES[floorId] = Array.isArray(syncedFloor.zones) ? syncedFloor.zones : []
 	}
 }
 

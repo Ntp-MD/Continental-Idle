@@ -7,7 +7,7 @@ import PropertiesPanel from './components/propertiesPanel.vue'
 import ToastContainer from './components/toastContainer.vue'
 import { useAssetsStore } from './blueprintStore'
 import { useNpcSimulation } from './composables/useNpcSimulation'
-import { getDefaultNpcConfig } from './store/npc'
+import { getDefaultNpcConfig } from './store/npcDefault'
 
 const emit = defineEmits<{ close: [] }>()
 
@@ -47,8 +47,6 @@ provide('npcSimulation', npcSimulation)
   z-index: 1000;
   display: flex;
   flex-direction: column;
-  width: 100%;
-  height: 100vh;
   background: var(--bg-primary);
   overflow: hidden;
 }

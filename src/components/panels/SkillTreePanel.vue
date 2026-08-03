@@ -88,7 +88,7 @@ watch(() => props.visible, (v) => { if (v) update() })
           </div>
           <button
             v-if="!node.unlocked && node.canUpgrade"
-            class="btn btn__warning btn__sm"
+            class="btn__warning btn__sm"
             @click="doUpgrade(branch.key)"
           >{{ node.favorCost }} F</button>
           <span v-else-if="!node.unlocked" class="skill__costlocked">{{ node.favorCost }} F</span>
@@ -99,3 +99,61 @@ watch(() => props.visible, (v) => { if (v) update() })
     </div>
   </div>
 </template>
+
+<style scoped>
+.skill__tree__favor {
+	font-size: var(--font-sm);
+	color: var(--accent-gold);
+	margin-bottom: var(--gap-sm);
+}
+
+.skill__branch {
+	display: flex;
+	flex-direction: column;
+	gap: var(--gap-sm);
+	margin-bottom: var(--gap-md);
+}
+
+.skill__branch > .section__header {
+	margin-bottom: 0;
+}
+
+.skill {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	transition: border-color var(--duration-fast), background var(--duration-fast);
+}
+
+.skill:hover {
+	background: var(--bg-card-hover);
+}
+
+.skill__info {
+	flex: 1;
+}
+
+.skill__name {
+	font-size: var(--font-sm);
+	color: var(--text-secondary);
+}
+
+.skill__name__unlocked {
+	color: var(--accent-gold);
+}
+
+.skill__desc {
+	font-size: var(--font-xs);
+	color: var(--text-dim);
+}
+
+.skill .btn {
+	font-size: var(--font-xs);
+	padding: var(--gap-xs) var(--gap-xs);
+}
+
+.skill__costlocked {
+	font-size: var(--font-xs);
+	color: var(--text-dim);
+}
+</style>

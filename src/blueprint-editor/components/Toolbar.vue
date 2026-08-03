@@ -4,7 +4,7 @@ import { useAssetsStore } from '../blueprintStore'
 import { useToast } from '@/composables/useToast'
 import { useAsyncAction } from '../composables/useAsyncAction'
 import FloorTabs from './floorTabs.vue'
-import NpcSettingsModal from './npcSettingsModal.vue'
+import NpcBehaviorModal from './npcBehaviorModal.vue'
 import { useNpcSimulation } from '../composables/useNpcSimulation'
 
 const store = useAssetsStore()
@@ -53,9 +53,21 @@ watch(() => store.state.layout.canvas, (c) => {
 })
 
 async function applyCanvasSize() {
-  await run(() => store.resizeCanvas(widthInput.value, heightInput.value, tileInput.value)).catch(() => {})
-  toast.info('Canvas resized')
-  showSettings.value = false
+  const canvas = store.state.layout.canvas
+  const hasPlacedContent = store.state.layout.floors.some(floor =>
+    floor.rooms.length > 0 || floor.objects.length > 0 || (floor.zones?.length ?? 0) > 0,
+  )
+  const changed = widthInput.value !== canvas.width || heightInput.value !== canvas.height || tileInput.value !== canvas.tileSize
+
+  if (changed && hasPlacedContent && !window.confirm('Changing canvas settings will snap and clamp placed rooms, objects, and zones to the new grid and bounds. Continue?')) return
+
+  try {
+    await run(() => store.resizeCanvas(widthInput.value, heightInput.value, tileInput.value))
+    toast.info('Canvas resized')
+    showSettings.value = false
+  } catch {
+    toast.error('Failed to resize canvas')
+  }
 }
 
 async function onSave() {
@@ -92,99 +104,91 @@ async function onClearAll() {
 
 <template>
   <div class="editor__toolbar">
-    <div class="editor__toolbar__group">
-      <button class="btn btn__ghost btn__icon" @click="showSettings = true" title="Canvas Settings & Shortcuts" aria-label="Canvas settings">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <circle cx="12" cy="12" r="3"/>
-          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
-        </svg>
-      </button>
-    </div>
+    <button class="btn__ghost btn__icon" @click="showSettings = true" title="Canvas Settings & Shortcuts" aria-label="Canvas settings">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="3"/>
+        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+      </svg>
+    </button>
 
-    <div class="editor__toolbar__group editor__toolbar__mode">
+
       <button
-        class="btn"
+       
         :class="{ 'btn__warning': store.state.mode === 'wall' }"
         @click="store.setMode('wall')"
         aria-label="Switch to wall mode"
       >Wall</button>
       <button
-        class="btn"
+       
         :class="{ 'btn__warning': store.state.mode === 'zone' }"
         @click="store.setMode('zone')"
         aria-label="Switch to zone mode"
       >Zone</button>
       <button
-        class="btn"
+       
         :class="{ 'btn__warning': store.state.mode === 'object' }"
         @click="store.setMode('object')"
         aria-label="Switch to object mode"
       >Object</button>
       <button
-        class="btn"
+       
         :class="{ 'btn__warning': store.state.mode === 'move' }"
         @click="store.setMode('move')"
         aria-label="Switch to move mode"
       >Move</button>
       <button
-        class="btn"
+       
         :class="{ 'btn__warning': store.state.mode === 'erase' }"
         @click="store.setMode('erase')"
         title="Erase wall tiles (click room edges to trim)"
         aria-label="Switch to erase mode"
       >Erase</button>
-    </div>
 
-    <div class="editor__toolbar__group editor__toolbar__npcmode">
+
       <button
-        class="btn"
+
         @click="onNpcSettings"
         title="Configure NPC roles, tasks, and behavior"
         aria-label="Open NPC behavior settings"
-      >NPC Settings</button>
+      >NPC Behavior</button>
       <button
-        class="btn"
+       
         :class="{ 'btn__warning': store.state.mode === 'npc-preview' }"
         @click="onDeployNpc"
         title="Deploy NPCs on current floor (configure roles first)"
       >Deploy NPCs</button>
-    </div>
 
-    <div v-if="store.state.mode === 'npc-preview'" class="editor__toolbar__group editor__toolbar__npcgroup">
-      <div class="editor__toolbar__npcpanel card__primary--compact">Total: {{ total }}</div>
+    <template v-if="store.state.mode === 'npc-preview'">
+      <div class="card card__primary card__compact">Total: {{ total }}</div>
       <div class="layout__wrap">
         <div v-for="[type, count] in countsByRole" :key="type" class="editor__toolbar__npchstack">
           <span class="editor__toolbar__rolebold">{{ type }}</span>
-          <span class="editor__toolbar__rolepanel card__primary--compact">{{ count }}</span>
+          <span class="card card__primary card__compact">{{ count }}</span>
         </div>
       </div>
-      <button class="btn" @click="onTogglePause" :aria-label="isPaused ? 'Resume NPC simulation' : 'Pause NPC simulation'">{{ isPaused ? 'Resume' : 'Pause' }}</button>
-      <button class="btn" @click="onStop" aria-label="Stop NPC simulation">Stop</button>
-      <button class="btn btn__danger" @click="onReset" aria-label="Reset NPC simulation">Reset</button>
-      <button class="btn" @click="onClose" aria-label="Close NPC preview">Close</button>
-    </div>
+      <button @click="onTogglePause" :aria-label="isPaused ? 'Resume NPC simulation' : 'Pause NPC simulation'">{{ isPaused ? 'Resume' : 'Pause' }}</button>
+      <button @click="onStop" aria-label="Stop NPC simulation">Stop</button>
+      <button class="btn__danger" @click="onReset" aria-label="Reset NPC simulation">Reset</button>
+      <button @click="onClose" aria-label="Close NPC preview">Close</button>
+    </template>
 
-    <div class="editor__toolbar__group">
-      <button class="btn btn__primary" :disabled="pending" @click="onSave" title="Save layout to assets-store.ts" aria-label="Save layout">Save</button>
-      <button class="btn btn__success" @click="onSyncToGame" title="Apply blueprint layout to the main game" aria-label="Sync blueprint to game">Sync Game</button>
-      <button class="btn btn__danger" :disabled="pending" @click="onClear" title="Clear all rooms and objects on this floor" aria-label="Clear current floor">Clear Floor</button>
-      <button class="btn btn__danger" :disabled="pending" @click="onClearAll" title="Clear all rooms and objects on every floor" aria-label="Clear all floors">Clear All Floors</button>
-    </div>
+    <button class="btn__primary" :disabled="pending" @click="onSave" title="Save layout to assets-store.ts" aria-label="Save layout">Save</button>
+    <button class="btn__success" @click="onSyncToGame" title="Apply blueprint layout to the main game" aria-label="Sync blueprint to game">Sync Game</button>
+    <button class="btn__danger" :disabled="pending" @click="onClear" title="Clear all rooms and objects on this floor" aria-label="Clear current floor">Clear Floor</button>
+    <button class="btn__danger" :disabled="pending" @click="onClearAll" title="Clear all rooms and objects on every floor" aria-label="Clear all floors">Clear All Floors</button>
 
-    <div class="editor__toolbar__group editor__toolbar__sync">
-      <FloorTabs />
-    </div>
+    <FloorTabs />
 
     <button class="editor__toolbar__backbtn" @click="emit('close')" aria-label="Back to start screen">◀ Back</button>
 
-    <NpcSettingsModal :open="showNpcSettings" @close="showNpcSettings = false" />
+    <NpcBehaviorModal :open="showNpcSettings" @close="showNpcSettings = false" />
 
     <Teleport to="body">
       <div v-if="showSettings" class="modal__overlay editorsettings__overlay" @click.self="showSettings = false">
         <div class="editorsettings__panel">
           <div class="editorsettings__header">
             <span>Canvas Settings</span>
-            <button class="btn btn__ghost btn__icon" @click="showSettings = false" aria-label="Close">✕</button>
+            <button class="btn__ghost btn__icon" @click="showSettings = false" aria-label="Close">✕</button>
           </div>
           <div class="editorsettings__body">
             <div class="editorsettings__section">
@@ -201,7 +205,7 @@ async function onClearAll() {
                 <label for="canvas__tile">Tile Size</label>
                 <input id="canvas__tile" class="input" type="number" v-model.number="tileInput" min="5" step="5" />
               </div>
-              <button class="btn btn__primary btn__block" :disabled="pending" @click="applyCanvasSize" aria-label="Apply canvas size">Apply</button>
+              <button class="btn__primary" :disabled="pending" @click="applyCanvasSize" aria-label="Apply canvas size">Apply</button>
               <div class="editorsettings__hint">Changing canvas size will re-snap all rooms/objects to the new grid.</div>
             </div>
             <div class="editorsettings__section">
@@ -268,17 +272,6 @@ async function onClearAll() {
 .editor__toolbar__backbtn:hover {
   border-color: var(--accent-gold);
   color: var(--accent-gold);
-}
-
-.editor__toolbar__group {
-  display: flex;
-  align-items: center;
-  gap: var(--gap-xs);
-  padding: var(--gap-xs) var(--gap-sm);
-  background: var(--bg-card);
-  border: 1px solid var(--border-dim);
-  border-radius: var(--radius-md);
-  flex-wrap: wrap;
 }
 
 

@@ -41,6 +41,11 @@ button {
 	transition: all var(--duration-fast) var(--ease-out);
 	position: relative;
 	overflow: hidden;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: var(--gap-xs);
+	white-space: nowrap;
 }
 
 button::after {

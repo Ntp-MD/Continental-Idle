@@ -451,3 +451,46 @@ onUnmounted(() => {
     </div>
   </ErrorBoundary>
 </template>
+
+<style scoped>
+.mapactions__savewrap {
+	position: relative;
+}
+
+.mapactions__savemenu {
+	position: absolute;
+	bottom: 100%;
+	left: 0;
+	background: var(--bg-card);
+	border: 1px solid var(--border-dim);
+	min-width: 100px;
+	z-index: 10;
+}
+
+.mapactions__saveitem {
+	display: block;
+	text-align: left;
+	padding: var(--gap-xs) var(--gap-sm);
+	font-size: var(--font-xs);
+	font-family: inherit;
+	background: transparent;
+	border: none;
+	border-bottom: 1px solid var(--border-dim);
+	color: var(--text-secondary);
+	cursor: pointer;
+}
+
+.mapactions__saveitem:hover {
+	background: var(--bg-tertiary);
+	color: var(--text-primary);
+}
+
+.mapactions__save__danger {
+	color: var(--accent-red);
+}
+
+.mapactions__save__danger:hover {
+	background: var(--accent-red);
+	color: var(--bg-primary);
+}
+</style>

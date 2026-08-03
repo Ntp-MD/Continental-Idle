@@ -98,8 +98,8 @@ async function onToggleWalkable(floor: { id: string; name: string; defaultWalkab
     <div v-if="open" ref="containerRef" class="floor__overlay" role="dialog" aria-modal="true" aria-labelledby="floor__overlay__title" @click.self="close">
       <div class="floor__overlay__header">
         <span id="floor__overlay__title" class="floor__overlay__title">Floors ({{ store.state.layout.floors.length }})</span>
-        <button class="btn btn__dashed" @click="async () => { await store.addFloor(); useToast().success('Floor added') }">+ Add</button>
-        <button class="btn btn__ghost btn__icon btn__text__danger" aria-label="Close floor panel" @click="close">✕</button>
+        <button class="btn__dashed" @click="async () => { await store.addFloor(); useToast().success('Floor added') }">+ Add</button>
+        <button class="btn__ghost btn__icon btn__text__danger" aria-label="Close floor panel" @click="close">✕</button>
       </div>
       <div class="floor__overlay__body">
         <div
@@ -133,8 +133,8 @@ async function onToggleWalkable(floor: { id: string; name: string; defaultWalkab
             />
             <span>Walk</span>
           </label>
-          <button class="btn btn__ghost" title="Duplicate" aria-label="Duplicate floor" @click.stop="async () => { await store.duplicateFloor(floor.id); useToast().success('Floor duplicated') }">⧉</button>
-          <button class="btn btn__ghost btn__text__danger" title="Delete" aria-label="Delete floor" @click.stop="onDeleteFloor(floor.id)">✕</button>
+          <button class="btn__ghost" title="Duplicate" aria-label="Duplicate floor" @click.stop="async () => { await store.duplicateFloor(floor.id); useToast().success('Floor duplicated') }">⧉</button>
+          <button class="btn__ghost btn__text__danger" title="Delete" aria-label="Delete floor" @click.stop="onDeleteFloor(floor.id)">✕</button>
         </div>
       </div>
     </div>

@@ -122,8 +122,8 @@ watch(() => props.visible, (v) => {
             <div class="prestige__item">- Upgrades purchased</div>
           </div>
           <div class="actions actions__fill">
-            <button class="btn btn__ghost" @click="cancelPrestige">CANCEL</button>
-            <button class="btn btn__gold" @click="confirmPrestige">ASCEND</button>
+            <button class="btn__ghost" @click="cancelPrestige">CANCEL</button>
+            <button class="btn__gold" @click="confirmPrestige">ASCEND</button>
           </div>
         </div>
       </template>
@@ -132,3 +132,124 @@ watch(() => props.visible, (v) => {
     </div>
   </div>
 </template>
+
+<style scoped>
+.prestige__info {
+	text-align: center;
+	padding: var(--gap-md) 0;
+}
+
+.prestige__info__desc {
+	color: var(--text-secondary);
+	font-size: var(--font-sm);
+	margin-bottom: var(--gap-sm);
+}
+
+.prestige__info__row {
+	color: var(--text-secondary);
+	font-size: var(--font-sm);
+}
+
+.prestige__info__val {
+	color: var(--text-primary);
+}
+
+.prestige__info__favor {
+	margin: var(--gap-md) 0;
+	font-size: var(--font-xl);
+	color: var(--accent-gold);
+	font-weight: 700;
+	text-shadow: 0 0 20px rgba(240, 192, 64, 0.3);
+}
+
+.prestige__info__hint {
+	color: var(--text-dim);
+	font-size: var(--font-xs);
+	margin-bottom: var(--gap-md);
+}
+
+.prestige__info__btn {
+	border-color: var(--accent-gold);
+	color: var(--accent-gold);
+	padding: var(--gap-sm) var(--gap-md);
+	font-size: var(--font-md);
+}
+
+.prestige {
+	padding: var(--gap-sm) 0;
+}
+
+.prestige__title {
+	font-size: var(--font-lg);
+	color: var(--accent-red);
+	text-transform: uppercase;
+	letter-spacing: 1px;
+	text-align: center;
+	margin-bottom: var(--gap-md);
+}
+
+.prestige__section {
+	margin-bottom: var(--gap-sm);
+}
+
+.prestige__label {
+	font-size: var(--font-sm);
+	text-transform: uppercase;
+	letter-spacing: 1px;
+	margin-bottom: var(--gap-xs);
+}
+
+.prestige__label__lose {
+	color: var(--accent-red);
+}
+
+.prestige__label__gain {
+	color: var(--accent-green);
+}
+
+.prestige__label__keep {
+	color: var(--accent-blue);
+}
+
+.prestige__item {
+	font-size: var(--font-sm);
+	color: var(--text-secondary);
+	padding-left: var(--gap-sm);
+	line-height: 1.6;
+}
+
+.prestige .actions {
+	margin-top: var(--gap-md);
+}
+
+.prestige .actions .btn {
+	padding: var(--gap-sm) var(--gap-md);
+	font-size: var(--font-md);
+}
+
+.prestige__overview {
+	margin-top: var(--gap-md);
+	padding: var(--gap-sm);
+	background: var(--bg-card);
+	border-radius: var(--radius-sm);
+	border: 1px solid var(--border-dim);
+}
+
+.prestige__overview__title {
+	font-size: var(--font-md);
+	color: var(--text-primary);
+	text-transform: uppercase;
+	margin-bottom: var(--gap-sm);
+}
+
+.prestige__overview__row {
+	font-size: var(--font-sm);
+	color: var(--text-dim);
+	padding: var(--gap-xs) 0;
+}
+
+.prestige__overview__val {
+	color: var(--text-primary);
+	font-weight: bold;
+}
+</style>

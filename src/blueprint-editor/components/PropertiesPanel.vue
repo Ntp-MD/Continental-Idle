@@ -7,6 +7,7 @@ import ObjectPropertiesForm from './objectPropertiesForm.vue'
 import AssetPropertiesForm from './assetPropertiesForm.vue'
 import TagPicker from './tagPicker.vue'
 import TagManagerModal from './tagManagerModal.vue'
+import { isHexColor } from '../store/state'
 
 const store = useAssetsStore()
 
@@ -63,6 +64,10 @@ const zones = computed(() => store.currentFloor.value?.zones ?? [])
 async function addZone() {
   const floor = store.currentFloor.value
   if (!floor) return
+  if (newZoneColor.value && !isHexColor(newZoneColor.value)) {
+    useToast().warning('Zone color must be a hex code')
+    return
+  }
   const t = store.state.layout.canvas.tileSize
   const x = Math.round((floor.rooms[0]?.x ?? 0) / t) * t
   const y = Math.round((floor.rooms[0]?.y ?? 0) / t) * t
@@ -79,6 +84,10 @@ async function deleteZone(id: string) {
 }
 
 async function updateZoneColor(id: string, color: string) {
+  if (!isHexColor(color)) {
+    useToast().warning('Zone color must be a hex code')
+    return
+  }
   await store.updateZone(id, { color })
 }
 
@@ -113,23 +122,30 @@ async function updateZoneTags(id: string, tags: string[]) {
       <span>Properties</span>
       <span class="properties__floor">{{ store.currentFloor.value?.label ?? '—' }} · {{ store.currentFloor.value?.name ?? '' }}</span>
     </div>
-
-    <div v-if="!room && !object && !asset && store.state.selectionState.items.length === 0" class="properties__content">
+<div v-if="!room && !object && !asset && store.state.selectionState.items.length === 0" class="properties__content">
       <div class="properties__section">
         <div class="properties__title">Properties</div>
         <div class="properties__empty">Select a room, object, or asset to edit properties.</div>
         <div class="properties__hint">Click an asset in the palette to edit its definition. Click an object on the canvas to edit instance properties.</div>
-        <button class="btn btn__sm" @click="showTagManager = true">Manage Tags</button>
+        <button class="btn__sm" @click="showTagManager = true">Manage Tags</button>
       </div>
       <div class="properties__section">
         <div class="properties__title">Zones</div>
-        <button class="btn" @click="showZoneManager = !showZoneManager">{{ showZoneManager ? 'Close' : 'Manage Zones' }}</button>
+        <button @click="showZoneManager = !showZoneManager">{{ showZoneManager ? 'Close' : 'Manage Zones' }}</button>
         <div v-if="showZoneManager" class="properties__cats">
           <div v-for="zone in zones" :key="zone.id" class="properties__zonerow">
             <div class="properties__catrow">
-              <input :id="'zone__color__' + zone.id" type="color" :value="zone.color" @change="updateZoneColor(zone.id, ($event.target as HTMLInputElement).value)" class="input input__color" aria-label="Zone color" />
+              <input
+                :id="'zone__color__' + zone.id"
+                class="input"
+                type="text"
+                :value="zone.color"
+                placeholder="#RRGGBB"
+                @change="updateZoneColor(zone.id, ($event.target as HTMLInputElement).value)"
+                aria-label="Zone color hex value"
+              />
               <input :id="'zone__label__' + zone.id" type="text" :value="zone.label" @change="updateZoneLabel(zone.id, ($event.target as HTMLInputElement).value)" class="input" aria-label="Zone label" />
-              <button class="btn btn__danger btn__sm" @click="deleteZone(zone.id)" aria-label="Delete zone">×</button>
+              <button class="btn__danger btn__sm" @click="deleteZone(zone.id)" aria-label="Delete zone">×</button>
             </div>
             <div class="properties__zonepos">
               <label :for="'zone__x__' + zone.id" title="Position X">X</label>
@@ -150,7 +166,14 @@ async function updateZoneTags(id: string, tags: string[]) {
           </div>
           <div class="properties__catadd">
             <input id="new__zone__label" type="text" v-model="newZoneLabel" placeholder="Zone label" class="input" aria-label="New zone label" />
-            <input id="new__zone__color" type="color" v-model="newZoneColor" class="input input__color" aria-label="New zone color" />
+            <input
+              id="new__zone__color"
+              type="text"
+              v-model="newZoneColor"
+              class="input"
+              placeholder="#RRGGBB"
+              aria-label="New zone color hex value"
+            />
           </div>
           <div class="properties__row">
             <label>NPC Tags</label>
@@ -164,7 +187,7 @@ async function updateZoneTags(id: string, tags: string[]) {
             <label for="new__zone__h" title="Height">H</label>
             <input id="new__zone__h" class="input" type="number" min="25" step="25" title="Height" v-model.number="newZoneH" />
           </div>
-          <button class="btn" @click="addZone">+ Add Zone</button>
+          <button @click="addZone">+ Add Zone</button>
         </div>
       </div>
     </div>
@@ -180,9 +203,9 @@ async function updateZoneTags(id: string, tags: string[]) {
           <span class="properties__value">Shift+click to add/remove</span>
         </div>
         <div class="properties__btngroup">
-          <button v-if="store.state.selectionState.items.some(i => i.type === 'room')" class="btn" @click="doLink">Link to Room</button>
-          <button v-if="store.state.selectionState.items.some(i => i.type === 'room')" class="btn" @click="doLinkAllInRoom">Link All in Room</button>
-          <button v-else class="btn" @click="doLink">Link Objects</button>
+          <button v-if="store.state.selectionState.items.some(i => i.type === 'room')" @click="doLink">Link to Room</button>
+          <button v-if="store.state.selectionState.items.some(i => i.type === 'room')" @click="doLinkAllInRoom">Link All in Room</button>
+          <button v-else @click="doLink">Link Objects</button>
         </div>
       </div>
       <div class="properties__section">
@@ -191,7 +214,7 @@ async function updateZoneTags(id: string, tags: string[]) {
           <label>Name</label>
           <input class="input" type="text" v-model="linkedName" placeholder="e.g. Table + Chairs" />
         </div>
-        <button class="btn" @click="doCreateLinked">Save as Linked Asset</button>
+        <button @click="doCreateLinked">Save as Linked Asset</button>
       </div>
       <div class="properties__section">
         <div class="properties__title">Flatten to Single Asset</div>
@@ -199,7 +222,7 @@ async function updateZoneTags(id: string, tags: string[]) {
           <label>Name</label>
           <input class="input" type="text" v-model="flattenName" placeholder="e.g. Table + Chairs" />
         </div>
-        <button class="btn btn__success" @click="doFlatten">Flatten to SVG Asset</button>
+        <button class="btn__success" @click="doFlatten">Flatten to SVG Asset</button>
       </div>
     </div>
 

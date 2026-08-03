@@ -1,6 +1,8 @@
 import { ASSASSIN_TYPES } from '@/data/assassins'
 import { STAFF_TYPES } from '@/data/staff'
 import type { NpcRole, NpcSimulationConfig, NpcTask } from '../types'
+import { state } from './state'
+import { saveNpcConfig } from './persistence'
 
 export interface NpcRoleMeta {
 	category: 'staff' | 'assassin' | 'custom'
@@ -18,19 +20,19 @@ const ASSASSIN_ROLE_TAGS: Record<string, string[]> = {
 }
 
 const ROLE_COLORS: Record<string, string> = {
-	concierge: 'var(--accent-blue)',
-	bartender: 'var(--accent-gold)',
-	chef: 'var(--accent-green)',
-	cleaner: 'var(--text-secondary)',
-	sommelier: 'var(--accent-gold)',
-	intelOfficer: 'var(--accent-blue)',
-	adjudicator: 'var(--accent-blue)',
-	vaultKeeper: 'var(--accent-gold)',
-	streetSamurai: 'var(--accent-red)',
-	enforcer: 'var(--accent-red)',
-	shadowBlade: 'var(--accent-red)',
-	royalGuard: 'var(--accent-gold)',
-	highTableEnforcer: 'var(--accent-red)',
+	concierge: '#3b82f6',
+	bartender: '#f0c040',
+	chef: '#3dd68c',
+	cleaner: '#a0a0a8',
+	sommelier: '#f0c040',
+	intelOfficer: '#3b82f6',
+	adjudicator: '#3b82f6',
+	vaultKeeper: '#f0c040',
+	streetSamurai: '#ef4444',
+	enforcer: '#ef4444',
+	shadowBlade: '#ef4444',
+	royalGuard: '#f0c040',
+	highTableEnforcer: '#ef4444',
 }
 
 function getRoleTags(roleId: string): string[] {
@@ -62,7 +64,7 @@ export const NPC_ROLE_META: Record<string, NpcRoleMeta> = Object.fromEntries([
 export const NPC_ROLE_PRESETS: NpcRole[] = [...STAFF_TYPES, ...ASSASSIN_TYPES].map(role => ({
 	id: role.id,
 	label: getRoleLabel(role.id),
-	color: ROLE_COLORS[role.id] ?? 'var(--accent-blue)',
+	color: ROLE_COLORS[role.id] ?? '#3b82f6',
 	behavior: {
 		focusTaskId: `task-${role.id}`,
 		focusChance: 100,
@@ -90,19 +92,29 @@ export function getDefaultNpcConfig(): NpcSimulationConfig {
 }
 
 export function mergeNpcConfig(config: NpcSimulationConfig): NpcSimulationConfig {
-	const roles = [...config.roles]
-	const tasks = [...config.tasks]
-	const roleIds = new Set(roles.map(role => role.id))
-	const taskIds = new Set(tasks.map(task => task.id))
+	const roleIds = new Set(config.roles.map(role => role.id))
+	const taskIds = new Set(config.tasks.map(task => task.id))
 
-	for (const preset of NPC_ROLE_PRESETS) {
-		if (!roleIds.has(preset.id)) {
-			roles.push({ ...preset, behavior: { ...preset.behavior, restrictedTaskIds: [] } })
-		}
+	return {
+		...config,
+		roles: config.roles.map(role => ({
+			...role,
+			behavior: {
+				...role.behavior,
+				restrictedTaskIds: role.behavior.restrictedTaskIds.filter(id => taskIds.has(id)),
+			},
+		})),
+		tasks: config.tasks,
+		pool: config.pool.filter(entry => roleIds.has(entry.roleId)),
 	}
-	for (const preset of NPC_TASK_PRESETS) {
-		if (!taskIds.has(preset.id)) tasks.push({ ...preset, tags: [...preset.tags] })
-	}
+}
 
-	return { ...config, roles, tasks }
+function deepClone<T>(value: T): T {
+	return JSON.parse(JSON.stringify(value))
+}
+
+export async function updateNpcConfig(config: NpcSimulationConfig): Promise<void> {
+	state.layout.npcConfig = deepClone(config)
+	const saved = await saveNpcConfig()
+	if (!saved) throw new Error('NPC configuration was not saved to npcConfig.json')
 }

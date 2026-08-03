@@ -1,10 +1,10 @@
 import type { AssetDef, WalkableGrid, TileState, TileEdges } from '../types'
 import { aabbOverlap } from '../collision'
-import { ASSET_REGISTRY } from '../assetRegistry'
+import { assetCatalog } from './dataLoader'
 import {
-	state, toast, clamp, withStateLock, initAssetFields,
+	state, toast, clamp, withStateLock, initAssetFields, isValidColor,
 } from './state'
-import { genId } from './ids'
+import { genId } from './utils'
 import { saveAssets, saveLayout } from './persistence'
 
 export async function addAsset(name: string, w: number, h: number, pxW?: number, pxH?: number, defaultRx?: { tl: number; tr: number; br: number; bl: number }, defaultBgColor?: string): Promise<AssetDef> {
@@ -15,7 +15,11 @@ export async function addAsset(name: string, w: number, h: number, pxW?: number,
 		if (pxW !== undefined && pxW > 0) asset.pxW = Math.floor(pxW)
 		if (pxH !== undefined && pxH > 0) asset.pxH = Math.floor(pxH)
 		if (defaultRx && (defaultRx.tl > 0 || defaultRx.tr > 0 || defaultRx.br > 0 || defaultRx.bl > 0)) asset.defaultRx = defaultRx
-		if (defaultBgColor && /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(defaultBgColor)) asset.defaultBgColor = defaultBgColor
+		if (defaultBgColor && !isValidColor(defaultBgColor)) {
+			toast.warning('Background color must be a hex code')
+			return asset
+		}
+		if (defaultBgColor) asset.defaultBgColor = defaultBgColor
 		state.assetRegistry.push(asset)
 		await saveAssets()
 		return asset
@@ -128,6 +132,10 @@ export async function updateAsset(id: string, patch: Partial<Pick<AssetDef, 'nam
 			toast.warning('Asset not found')
 			return
 		}
+		if (patch.defaultBgColor !== undefined && !isValidColor(patch.defaultBgColor)) {
+			toast.warning('Background color must be a hex code')
+			return
+		}
 		if (patch.name !== undefined) asset.name = patch.name
 		if (patch.w !== undefined) asset.w = Math.max(1, Math.floor(patch.w))
 		if (patch.h !== undefined) asset.h = Math.max(1, Math.floor(patch.h))
@@ -140,7 +148,7 @@ export async function updateAsset(id: string, patch: Partial<Pick<AssetDef, 'nam
 			asset.defaultRx = (r.tl > 0 || r.tr > 0 || r.br > 0 || r.bl > 0) ? r : undefined
 		}
 		if (patch.defaultBgColor !== undefined) {
-			asset.defaultBgColor = (patch.defaultBgColor && /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(patch.defaultBgColor)) ? patch.defaultBgColor : undefined
+			asset.defaultBgColor = patch.defaultBgColor || undefined
 		}
 		if (patch.walkable !== undefined) asset.walkable = patch.walkable
 		if (patch.entranceRequired !== undefined) asset.entranceRequired = patch.entranceRequired
@@ -208,7 +216,7 @@ export async function updateAsset(id: string, patch: Partial<Pick<AssetDef, 'nam
 	})
 }
 
-const DEFAULT_ASSET_IDS = new Set([...ASSET_REGISTRY].map(a => a.id))
+const DEFAULT_ASSET_IDS = new Set([...assetCatalog].map(a => a.id))
 
 export async function deleteAsset(id: string): Promise<boolean> {
 	const inUse = state.layout.floors.some(f => f.objects.some(o => o.type === id))

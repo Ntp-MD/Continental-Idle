@@ -3,6 +3,8 @@ import '@/styles/variables.css'
 import '@/styles/base.css'
 import '@/styles/layout.css'
 import '@/styles/components.css'
+import '@/styles/accessibility.css'
+import '@/blueprint-editor/editor.css'
 import App from './app.vue'
 import router from './router'
 

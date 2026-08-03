@@ -124,3 +124,83 @@ watch(() => props.visible, (v) => { if (v) update() })
     </div>
   </div>
 </template>
+
+<style scoped>
+.eventlog {
+	max-height: 400px;
+	overflow-y: auto;
+	overflow-x: auto;
+	margin-bottom: var(--gap-sm);
+}
+
+.eventlog__empty {
+	text-align: center;
+	color: var(--text-dim);
+	padding: var(--gap-md);
+	font-size: var(--font-sm);
+}
+
+.eventlog__row {
+	display: flex;
+	align-items: center;
+	gap: var(--gap-sm);
+	padding: var(--gap-xs) 0;
+	border-bottom: 1px solid var(--border-dim);
+	font-size: var(--font-xs);
+}
+
+.eventlog__row__ignored {
+	opacity: 0.6;
+}
+
+.eventlog__filters {
+	display: flex;
+	gap: var(--gap-xs);
+	margin-bottom: var(--gap-sm);
+}
+
+.eventlog__time {
+	color: var(--text-dim);
+	flex-shrink: 0;
+	width: 50px;
+}
+
+.eventlog__branch {
+	color: var(--text-secondary);
+	flex-shrink: 0;
+	width: 80px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.eventlog__name {
+	color: var(--text-primary);
+	flex: 1;
+}
+
+.eventlog__choice {
+	color: var(--text-secondary);
+	flex-shrink: 0;
+	max-width: 120px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.eventlog__outcome {
+	flex-shrink: 0;
+	font-size: var(--font-xs);
+	padding: var(--gap-xs) var(--gap-xs);
+}
+
+.eventlog__outcome__resolved {
+	color: var(--accent-green);
+	border: 1px solid var(--accent-green);
+}
+
+.eventlog__outcome__ignored {
+	color: var(--accent-red);
+	border: 1px solid var(--accent-red);
+}
+</style>

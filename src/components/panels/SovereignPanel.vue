@@ -144,8 +144,8 @@ watch(() => props.visible, (v) => {
                 class="decree__card"
                 @click="chooseDecree(choice)"
               >
-                <div class="decree__card__name">{{ choice.name }}</div>
-                <div class="decree__card__desc">{{ choice.description }}</div>
+                <div class="card__name__lg">{{ choice.name }}</div>
+                <div class="card__desc__dim">{{ choice.description }}</div>
               </div>
             </div>
           </template>
@@ -179,3 +179,163 @@ watch(() => props.visible, (v) => {
     </div>
   </div>
 </template>
+
+<style scoped>
+.sov__locked {
+	text-align: center;
+	padding: var(--gap-md);
+}
+
+.sov__locked__title {
+	font-size: var(--font-lg);
+	color: var(--accent-gold);
+	margin-bottom: var(--gap-sm);
+}
+
+.sov__locked__desc {
+	font-size: var(--font-sm);
+	color: var(--text-dim);
+	margin-bottom: var(--gap-md);
+}
+
+.sov__progress {
+	display: flex;
+	flex-direction: column;
+	gap: var(--gap-xs);
+	text-align: left;
+}
+
+.sov__progress__row {
+	font-size: var(--font-sm);
+	color: var(--text-dim);
+}
+
+.sov__progress__val {
+	color: var(--accent-gold);
+	font-weight: bold;
+}
+
+.sov__header {
+	display: flex;
+	flex-direction: column;
+	gap: var(--gap-xs);
+	text-align: center;
+	margin-bottom: var(--gap-md);
+}
+
+.sov__header__title {
+	font-size: var(--font-lg);
+	color: var(--accent-gold);
+}
+
+.sov__header__effect {
+	font-size: var(--font-sm);
+	color: var(--text-dim);
+}
+
+.sov__section {
+	margin-bottom: var(--gap-md);
+}
+
+.sov__section__title {
+	font-size: var(--font-md);
+	color: var(--accent-gold);
+	text-transform: uppercase;
+	margin-bottom: var(--gap-xs);
+}
+
+.sov__section__desc {
+	font-size: var(--font-xs);
+	color: var(--text-dim);
+	margin-bottom: var(--gap-sm);
+}
+
+.sovchoices {
+	display: flex;
+	gap: var(--gap-sm);
+	flex-wrap: wrap;
+}
+
+.decree__card {
+	background: var(--bg-card);
+	border: 1px solid var(--border-dim);
+	padding: var(--gap-sm);
+	cursor: pointer;
+	flex: 1;
+	min-width: 140px;
+	transition: all var(--duration-fast);
+}
+
+.decree__card:hover {
+	border-color: var(--accent-gold);
+	background: var(--bg-secondary);
+}
+
+.sovcooldown {
+	font-size: var(--font-sm);
+	color: var(--text-dim);
+	padding: var(--gap-sm);
+}
+
+.sovdecrees {
+	margin-top: var(--gap-sm);
+}
+
+.sovdecrees__label {
+	font-size: var(--font-sm);
+	color: var(--text-primary);
+	margin-bottom: var(--gap-xs);
+}
+
+.sovdecree {
+	display: flex;
+	gap: var(--gap-sm);
+	font-size: var(--font-xs);
+	padding: var(--gap-xs) 0;
+}
+
+.sovdecree__name {
+	color: var(--accent-gold);
+	font-weight: bold;
+}
+
+.sovdecree__desc {
+	color: var(--text-dim);
+}
+
+.sovdecree__timer {
+	color: var(--accent-gold);
+	font-weight: bold;
+	margin-left: auto;
+}
+
+.sovdecree__timer__permanent {
+	color: var(--text-dim);
+	font-weight: normal;
+}
+
+.sov__sandbox {
+	display: flex;
+	flex-direction: column;
+	gap: var(--gap-xs);
+	text-align: center;
+	padding: var(--gap-sm);
+}
+
+.sov__sandbox__info {
+	font-size: var(--font-sm);
+	color: var(--text-dim);
+}
+
+.sov__sandbox__mult {
+	font-size: var(--font-md);
+	color: var(--accent-gold);
+	font-weight: bold;
+}
+
+.sov__sandbox__btn {
+	font-size: var(--font-sm);
+	border-radius: var(--radius-sm);
+	cursor: pointer;
+}
+</style>

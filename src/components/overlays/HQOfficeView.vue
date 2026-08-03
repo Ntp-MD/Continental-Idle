@@ -12,19 +12,20 @@ import { fireAssassin } from '@/engine/assassinManager'
 import { eventBus } from '@/engine/eventBus'
 import type { FloorId, VisitorEntry } from '@/types'
 
-import HQRoomLayer from './hq/hqRoomLayer.vue'
-import HQFalloutView from './hq/hqFalloutView.vue'
-import HQNpcLayer from './hq/hqNpcLayer.vue'
-import type { NpcDot } from './hq/hqNpcLayer.vue'
-import HQVisitorCard from './hq/hqVisitorCard.vue'
-import HQToolbar from './hq/hqToolbar.vue'
-import HQFloorSelector from './hq/hqFloorSelector.vue'
+import HQRoomLayer from './hqRoomLayer.vue'
+import HQFalloutView from './hqFalloutView.vue'
+import HQNpcLayer from './hqNpcLayer.vue'
+import type { NpcDot } from './hqNpcLayer.vue'
+import HQVisitorCard from './hqVisitorCard.vue'
+import HQToolbar from './hqToolbar.vue'
+import HQFloorSelector from './hqFloorSelector.vue'
 import {
   SVG_W, SVG_H,
   FLOOR_IDS, getRoomsOnFloor, ROOM_ANCHORS,
   STAFF_COLORS, ASSASSIN_COLORS, GUEST_COLORS,
   getBuildingFloor, getGuestRoomTier, isFloorUnlocked, applySyncedLayout,
-} from './hq/hqLayout'
+} from './hqLayout'
+import type { SyncedLayoutData } from './hqLayout'
 import { findNpcPath } from '@/engine/npcPathfinding'
 import { getGuestCount } from '@/engine/guestManager'
 
@@ -478,8 +479,9 @@ const floorUnlocked = computed(() => isFloorUnlocked(selectedFloor.value, buildi
 
 function refreshVisitors(): void { initVisitors() }
 
-function handleBlueprintSync(): void {
-  applySyncedLayout()
+function handleBlueprintSync(event: Event): void {
+  const detail = event instanceof CustomEvent ? event.detail as SyncedLayoutData : undefined
+  applySyncedLayout(detail)
   initStaff()
   initAssassins()
   initGuests()
@@ -586,27 +588,27 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
-.hqoffice { display: flex; flex-direction: column; background: #0d0d0d; border: 1px solid #333; border-radius: 6px; overflow: hidden; }
+.hqoffice { display: flex; flex-direction: column; background: var(--bg-primary); border: 1px solid var(--border-dim); border-radius: 6px; overflow: hidden; }
 .hqoffice__inline { height: 100%; min-height: 400px; }
-.hqoffice__overlay { position: fixed; inset: 0; z-index: 100; background: rgba(0,0,0,0.85); }
+.hqoffice__overlay { position: fixed; inset: 0; z-index: 100; background: color-mix(in srgb, var(--bg-primary) 85%, transparent); }
 .hqoffice__content { display: flex; flex: 1; overflow: hidden; }
 .hqoffice__main { flex: 1; overflow: hidden; display: flex; align-items: center; justify-content: center; }
 .hqoffice__svg { width: 100%; height: 100%; max-height: 600px; }
-.hqoffice__sidebar { width: 200px; flex-shrink: 0; overflow-y: auto; border-left: 1px solid #222; padding: 4px; }
-.hqoffice__fallout { flex: 1; overflow: auto; padding: 8px; }
-.hqoffice__visitors { display: flex; gap: 8px; padding: 8px; flex-wrap: wrap; border-top: 1px solid #222; }
-.hqoffice__statspanel { position: absolute; right: 220px; top: 60px; background: #1a1a1a; border: 1px solid #c9a84c; border-radius: 6px; padding: 10px; min-width: 220px; z-index: 10; }
-.hqoffice__inline .hqoffice__statspanel { position: relative; right: auto; top: auto; margin: 4px; }
-.hqoffice__statshead { display: flex; align-items: center; gap: 8px; border-bottom: 1px solid #333; padding-bottom: 6px; margin-bottom: 8px; font-family: Georgia, serif; color: #c9a84c; font-size: 13px; }
+.hqoffice__sidebar { width: 200px; flex-shrink: 0; overflow-y: auto; border-left: 1px solid var(--border-dim); padding: var(--gap-xs); }
+.hqoffice__fallout { flex: 1; overflow: auto; padding: var(--gap-sm); }
+.hqoffice__visitors { display: flex; gap: var(--gap-sm); padding: var(--gap-sm); flex-wrap: wrap; border-top: 1px solid var(--border-dim); }
+.hqoffice__statspanel { position: absolute; right: 220px; top: 60px; background: var(--bg-secondary); border: 1px solid var(--accent-gold); border-radius: 6px; padding: 10px; min-width: 220px; z-index: 10; }
+.hqoffice__inline .hqoffice__statspanel { position: relative; right: auto; top: auto; margin: var(--gap-xs); }
+.hqoffice__statshead { display: flex; align-items: center; gap: var(--gap-sm); border-bottom: 1px solid var(--border-dim); padding-bottom: 6px; margin-bottom: var(--gap-sm); font-family: Georgia, serif; color: var(--accent-gold); font-size: 13px; }
 .hqoffice__statsrarity { font-weight: bold; font-size: 14px; }
-.hqoffice__statsclose { margin-left: auto; background: none; border: none; color: #888; font-size: 18px; cursor: pointer; }
-.hqoffice__statsbody { font-size: 11px; color: #aaa; }
-.hqoffice__statsrow { display: grid; grid-template-columns: auto auto auto auto; gap: 6px; margin-bottom: 4px; align-items: center; }
-.hqoffice__statsrow span { color: #666; font-size: 9px; }
-.hqoffice__statsrow b { color: #c9a84c; }
-.hqoffice__statstraits { font-size: 10px; color: #777; margin: 6px 0; }
-.hqoffice__firebtn { width: 100%; background: #3a1a1a; color: #ff5252; border: 1px solid #5a2a2a; border-radius: 4px; padding: 6px; font-size: 11px; cursor: pointer; margin-top: 6px; }
-.hqoffice__firebtn:hover { background: #5a2a2a; }
+.hqoffice__statsclose { margin-left: auto; background: none; border: none; color: var(--text-secondary); font-size: 18px; cursor: pointer; }
+.hqoffice__statsbody { font-size: var(--font-sm); color: var(--text-secondary); }
+.hqoffice__statsrow { display: grid; grid-template-columns: auto auto auto auto; gap: 6px; margin-bottom: var(--gap-xs); align-items: center; }
+.hqoffice__statsrow span { color: var(--text-dim); font-size: 9px; }
+.hqoffice__statsrow b { color: var(--accent-gold); }
+.hqoffice__statstraits { font-size: var(--font-xs); color: var(--text-dim); margin: 6px 0; }
+.hqoffice__firebtn { width: 100%; background: color-mix(in srgb, var(--accent-red) 20%, var(--bg-primary)); color: var(--accent-red); border: 1px solid color-mix(in srgb, var(--accent-red) 35%, var(--bg-primary)); border-radius: var(--radius-sm); padding: 6px; font-size: var(--font-sm); cursor: pointer; margin-top: 6px; }
+.hqoffice__firebtn:hover { background: color-mix(in srgb, var(--accent-red) 35%, var(--bg-primary)); }
 .hqoffice__visitor { position: relative; display: inline-block; }
-.hqoffice__info { padding: 4px 12px; font-size: 11px; color: #666; font-family: Georgia, serif; border-top: 1px solid #222; }
+.hqoffice__info { padding: var(--gap-xs) 12px; font-size: var(--font-sm); color: var(--text-dim); font-family: Georgia, serif; border-top: 1px solid var(--border-dim); }
 </style>

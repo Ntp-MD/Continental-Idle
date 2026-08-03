@@ -110,51 +110,130 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div>
+  <div class="buildinglist">
     <div class="section__header">Buildings</div>
     <div class="buy">
       <button
-        class="buy__btn"
-        :class="{ 'buy__btn__active': buyMultiplier === 1 }"
+        class="btn__fill btn__sm btn__muted"
+        :class="{ 'btn__active': buyMultiplier === 1 }"
         aria-label="Buy multiplier: 1"
         @click="setMult(1)"
       >x1</button>
       <button
-        class="buy__btn"
-        :class="{ 'buy__btn__active': buyMultiplier === 10 }"
+        class="btn__fill btn__sm btn__muted"
+        :class="{ 'btn__active': buyMultiplier === 10 }"
         aria-label="Buy multiplier: 10"
         @click="setMult(10)"
       >x10</button>
       <button
-        class="buy__btn"
-        :class="{ 'buy__btn__active': buyMultiplier === 100 }"
+        class="btn__fill btn__sm btn__muted"
+        :class="{ 'btn__active': buyMultiplier === 100 }"
         aria-label="Buy multiplier: 100"
         @click="setMult(100)"
       >x100</button>
       <button
-        class="buy__btn"
-        :class="{ 'buy__btn__active': buyMultiplier === 0 }"
+        class="btn__fill btn__sm btn__muted"
+        :class="{ 'btn__active': buyMultiplier === 0 }"
         aria-label="Buy multiplier: max affordable"
         @click="setMult(0)"
       >MAX</button>
     </div>
-    <div v-for="b in buildings" :key="b.id" class="card building">
-      <div class="building__info">
-        <span class="building__name">{{ b.name }}</span>
-        <span class="building__level">Lv.{{ b.level }}</span>
-        <span class="building__rate">{{ b.income }}</span>
-      </div>
-      <div class="building__actions">
-        <div class="building__cost" :class="{ 'building__cost__affordable': b.affordable }">{{ b.cost }}</div>
-        <div v-if="b.buyCount > 0 && !b.maxed" class="building__buycount">x{{ b.buyCount }}</div>
-        <button
-          class="building__buy"
-          :class="{ 'building__buy__disabled': !b.affordable }"
-          :disabled="!b.affordable"
-          :aria-label="`Buy ${b.name}, level ${b.level}, cost ${b.cost}`"
-          @click="debouncedBuy(b.id)"
-        >BUY</button>
+    <div class="buildinglist__items">
+      <div v-for="b in buildings" :key="b.id" class="card building">
+        <div class="building__info">
+          <span class="building__name">{{ b.name }}</span>
+          <span class="building__level">Lv.{{ b.level }}</span>
+          <span class="building__rate">{{ b.income }}</span>
+        </div>
+        <div class="building__actions">
+          <div class="building__cost" :class="{ 'building__cost__affordable': b.affordable }">{{ b.cost }}</div>
+          <div v-if="b.buyCount > 0 && !b.maxed" class="building__buycount">x{{ b.buyCount }}</div>
+          <button
+            class="btn__success btn__sm"
+            :disabled="!b.affordable"
+            :aria-label="`Buy ${b.name}, level ${b.level}, cost ${b.cost}`"
+            @click="debouncedBuy(b.id)"
+          >BUY</button>
+        </div>
       </div>
     </div>
   </div>
 </template>
+
+<style scoped>
+.buildinglist {
+	display: flex;
+	flex-direction: column;
+	gap: var(--gap-sm);
+}
+
+.buildinglist > .section__header,
+.buildinglist > .buy {
+	margin-bottom: 0;
+}
+
+.buy {
+	display: flex;
+	gap: var(--gap-xs);
+}
+
+.buildinglist__items {
+	display: flex;
+	flex-direction: column;
+	gap: var(--gap-sm);
+}
+
+.building {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	transition: all var(--duration-fast) var(--ease-out);
+	box-shadow: var(--shadow-card);
+}
+
+.building:hover {
+	border-color: var(--accent-gold);
+	background: var(--bg-card-hover);
+	box-shadow: var(--shadow-card-hover);
+	transform: translateY(-1px);
+}
+
+.building__name {
+	font-size: var(--font-sm);
+	font-weight: 600;
+	color: var(--text-primary);
+}
+
+.building__level {
+	font-size: var(--font-xs);
+	color: var(--text-dim);
+	font-variant-numeric: tabular-nums;
+}
+
+.building__rate {
+	font-size: var(--font-sm);
+	color: var(--accent-green);
+	font-weight: 600;
+	font-variant-numeric: tabular-nums;
+}
+
+.building__cost {
+	font-size: var(--font-xs);
+	color: var(--text-dim);
+	font-variant-numeric: tabular-nums;
+}
+
+.building__cost__affordable {
+	color: var(--accent-green);
+}
+
+.building__buycount {
+	font-size: var(--font-xs);
+	color: var(--accent-gold);
+	margin-top: 2px;
+}
+
+.building__actions {
+	text-align: right;
+}
+</style>

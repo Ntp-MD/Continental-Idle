@@ -46,7 +46,7 @@ async function onKeydown(e: KeyboardEvent) {
     <div class="tagmanager__dialog__vstack">
       <div class="tagmanager__space__row">
         <span class="tagmanager__title__label">Tag Manager</span>
-        <button class="btn btn__ghost btn__icon" @click="emit('close')" aria-label="Close">✕</button>
+        <button class="btn__ghost btn__icon" @click="emit('close')" aria-label="Close">✕</button>
       </div>
       <div class="tagmanager__body__vstack">
         <div class="tagmanager__add__hstack">
@@ -56,7 +56,7 @@ async function onKeydown(e: KeyboardEvent) {
             placeholder="New tag name..."
             @keydown="onKeydown"
           />
-          <button class="btn btn__primary" @click="addTag">Add</button>
+          <button class="btn__primary" @click="addTag">Add</button>
         </div>
         <div class="tagmanager__search__hstack">
           <input
@@ -75,7 +75,7 @@ async function onKeydown(e: KeyboardEvent) {
             class="tag"
           >
             <span class="tag__name">{{ tag }}</span>
-            <button class="btn btn__ghost btn__icon btn__text__danger" @click="removeTag(tag)">×</button>
+            <button class="btn__ghost btn__icon btn__text__danger" @click="removeTag(tag)">×</button>
           </div>
         </div>
       </div>

@@ -155,7 +155,7 @@ function removeAnchor(index: number) {
       <label>ID</label>
       <div class="properties__idrow">
         <input type="text" :value="object.id" disabled class="input input__readonly" title="Object ID" />
-        <button class="btn btn__sm" @click="copyId(object.id)">Copy</button>
+        <button class="btn__sm" @click="copyId(object.id)">Copy</button>
       </div>
     </div>
     <div class="properties__row">
@@ -196,10 +196,10 @@ function removeAnchor(index: number) {
         <div class="properties__anchorrow">
           <input class="input input__readonly" type="number" :value="anchor[0]" @change="anchor[0] = +($event.target as HTMLInputElement).value; updateAnchors()" style="width: 48px" />
           <input class="input input__readonly" type="number" :value="anchor[1]" @change="anchor[1] = +($event.target as HTMLInputElement).value; updateAnchors()" style="width: 48px" />
-          <button class="btn btn__sm btn__danger" @click="removeAnchor(i)">×</button>
+          <button class="btn__sm btn__danger" @click="removeAnchor(i)">×</button>
         </div>
       </div>
-      <button class="btn btn__sm btn__dashed" @click="addAnchor">+ Add Anchor</button>
+      <button class="btn__sm btn__dashed" @click="addAnchor">+ Add Anchor</button>
     </div>
     <div class="properties__section">
       <div class="properties__title">Instance Properties</div>
@@ -216,14 +216,14 @@ function removeAnchor(index: number) {
       <TagPicker :model-value="customTags" @update:model-value="saveCustomTags" placeholder="tag1, tag2, tag3" />
     </div>
     <div class="properties__btngroup">
-      <button class="btn" @click="rotate">Rotate (R)</button>
-      <button class="btn" @click="toggleLock">{{ object.locked ? 'Unlock' : 'Lock' }}</button>
-      <button v-if="object.linkGroupId" class="btn" @click="doUnlink">Unlink</button>
+      <button @click="rotate">Rotate (R)</button>
+      <button @click="toggleLock">{{ object.locked ? 'Unlock' : 'Lock' }}</button>
+      <button v-if="object.linkGroupId" @click="doUnlink">Unlink</button>
     </div>
     <div class="properties__deletesection">
-      <button class="btn btn__success" :disabled="pending" @click="onSave">Save</button>
-      <button class="btn" :disabled="pending" @click="store.select(null); store.selectAsset(null)">Deselect</button>
-      <button class="btn btn__danger" :disabled="pending" @click="remove">Delete</button>
+      <button class="btn__success" :disabled="pending" @click="onSave">Save</button>
+      <button :disabled="pending" @click="store.select(null); store.selectAsset(null)">Deselect</button>
+      <button class="btn__danger" :disabled="pending" @click="remove">Delete</button>
     </div>
     </div>
   </div>

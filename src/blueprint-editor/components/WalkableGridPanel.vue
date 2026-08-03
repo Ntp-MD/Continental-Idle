@@ -330,13 +330,13 @@ onBeforeUnmount(() => {
     </div>
 
     <div class="walkablegrid__body__vstack">
-      <div class="walkablegrid__editor card__primary" :style="{ '--tile-size': tilePx + 'px' }" @mouseup="onDragEnd" @mouseleave="onDragEnd">
+      <div class="walkablegrid__editor card card__primary" :style="{ '--tile-size': tilePx + 'px' }" @mouseup="onDragEnd" @mouseleave="onDragEnd">
         <div class="layout__wrap">
           <button
             v-for="b in gridBrushes"
             :key="b.value"
             type="button"
-            class="btn"
+           
             :class="{ 'btn__active': gridBrush === b.value }"
             :aria-pressed="gridBrush === b.value"
             :aria-label="'Select ' + b.label + ' brush'"
@@ -352,9 +352,9 @@ onBeforeUnmount(() => {
         </div>
 
         <div class="walkablegrid__zoom__row">
-          <button class="btn btn__ghost btn__icon" @click="tilePx = Math.max(16, tilePx - 4)" title="Smaller tiles" aria-label="Decrease tile size">−</button>
+          <button class="btn__ghost btn__icon" @click="tilePx = Math.max(16, tilePx - 4)" title="Smaller tiles" aria-label="Decrease tile size">−</button>
           <span class="walkablegrid__zoom__label">{{ tilePx }}px</span>
-          <button class="btn btn__ghost btn__icon" @click="tilePx = Math.min(64, tilePx + 4)" title="Larger tiles" aria-label="Increase tile size">+</button>
+          <button class="btn__ghost btn__icon" @click="tilePx = Math.min(64, tilePx + 4)" title="Larger tiles" aria-label="Increase tile size">+</button>
         </div>
 
         <div class="walkablegrid__body__centered">
@@ -368,7 +368,7 @@ onBeforeUnmount(() => {
                 <span v-for="(_, r) in gridTiles" :key="r" class="walkablegrid__row__centered">{{ r + 1 }}</span>
               </div>
               <div
-                class="walkablegrid__preview__centered card__primary"
+                class="walkablegrid__preview__centered card card__primary"
                 :style="{ width: `${tilePreviewW}px`, height: `${tilePreviewH}px` }"
               >
                 <svg
@@ -413,11 +413,11 @@ onBeforeUnmount(() => {
         </div>
 
         <div class="layout__wrap">
-          <button class="btn" @click="fillAllTiles('walkable')" aria-label="Set all tiles walkable">All Walkable</button>
-          <button class="btn" @click="fillAllTiles('blocked')" aria-label="Set all tiles blocked">All Blocked</button>
-          <button class="btn" @click="blockOuterSides" aria-label="Block outer walls">Outer Walls</button>
-          <button class="btn" @click="clearAllEdges" aria-label="Clear all edges">Clear Edges</button>
-          <button class="btn btn__success" :class="{ 'btn__dirty': gridDirty }" @click="saveGrid" aria-label="Save grid">Save Grid{{ gridDirty ? ' *' : '' }}</button>
+          <button @click="fillAllTiles('walkable')" aria-label="Set all tiles walkable">All Walkable</button>
+          <button @click="fillAllTiles('blocked')" aria-label="Set all tiles blocked">All Blocked</button>
+          <button @click="blockOuterSides" aria-label="Block outer walls">Outer Walls</button>
+          <button @click="clearAllEdges" aria-label="Clear all edges">Clear Edges</button>
+          <button class="btn__success" :class="{ 'btn__dirty': gridDirty }" @click="saveGrid" aria-label="Save grid">Save Grid{{ gridDirty ? ' *' : '' }}</button>
         </div>
       </div>
     </div>

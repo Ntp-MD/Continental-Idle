@@ -155,14 +155,155 @@ onUnmounted(() => {
         :key="c.id"
         :disabled="c.disabled"
         :aria-disabled="c.disabled"
-        :class="{ 'event__btn__disabled': c.disabled }"
         @click="!c.disabled && resolve(c.id)"
       >
         {{ c.label }}
-        <span v-if="revealOutcomes && c.isBest" class="event__badge event__badge__best">? Best</span>
-        <span v-if="revealOutcomes && c.isSafe" class="event__badge event__badge__safe">?? Safe</span>
+        <span v-if="revealOutcomes && c.isBest" class="event__tag event__tag__best">? Best</span>
+        <span v-if="revealOutcomes && c.isSafe" class="event__tag event__tag__safe">?? Safe</span>
         <span v-if="c.details" class="event__details">{{ c.details }}</span>
       </button>
     </div>
   </div>
 </template>
+
+<style scoped>
+.event {
+	background: var(--bg-card);
+	border: 1px solid var(--accent-red);
+	border-radius: var(--radius-md);
+	padding: var(--gap-sm) var(--gap-md);
+	display: flex;
+	flex-direction: column;
+	gap: var(--gap-xs);
+	font-size: var(--font-sm);
+	box-shadow: 0 4px 20px rgba(239, 68, 68, 0.1);
+	animation: event-slide-in var(--duration-normal) var(--ease-out);
+}
+
+@keyframes event-slide-in {
+	from {
+		opacity: 0;
+		transform: translateY(-8px);
+	}
+
+	to {
+		opacity: 1;
+		transform: translateY(0);
+	}
+}
+
+.event__header {
+	display: flex;
+	align-items: center;
+	gap: var(--gap-sm);
+	flex-shrink: 0;
+}
+
+.event__icon {
+	color: var(--accent-red);
+	font-size: var(--font-lg);
+}
+
+.event__text {
+	flex: 1;
+	color: var(--text-primary);
+	font-weight: bold;
+	text-transform: uppercase;
+	letter-spacing: 1px;
+}
+
+.event__desc {
+	flex: 1;
+	color: var(--text-secondary);
+	font-size: var(--font-sm);
+	line-height: 1.4;
+}
+
+.event__timerbar {
+	height: 3px;
+	background: var(--bg-primary);
+	overflow: hidden;
+	flex-shrink: 0;
+}
+
+.event__timerfill {
+	height: 100%;
+	background: var(--accent-red);
+	transition: width var(--duration-normal) linear;
+}
+
+.event__timer {
+	color: var(--accent-red);
+	font-weight: bold;
+	flex-shrink: 0;
+}
+
+.event__actions {
+	display: flex;
+	gap: var(--gap-xs);
+	flex-shrink: 0;
+	flex-wrap: wrap;
+}
+
+.event__tag {
+	display: inline-block;
+	font-size: var(--font-xs);
+	padding: var(--gap-xs) var(--gap-xs);
+	border-radius: var(--radius-xs);
+	margin-left: var(--gap-xs);
+	font-weight: 700;
+}
+
+.event__tag__best {
+	background: color-mix(in srgb, var(--accent-gold) 20%, transparent);
+	color: var(--accent-gold);
+}
+
+.event__tag__safe {
+	background: color-mix(in srgb, var(--accent-green) 20%, transparent);
+	color: var(--accent-green);
+}
+
+.event__details {
+	display: block;
+	font-size: var(--font-xs);
+	color: var(--text-dim);
+	margin-top: var(--gap-xs);
+	font-style: italic;
+}
+
+.event__raidinfo {
+	display: flex;
+	flex-direction: column;
+	gap: var(--gap-xs);
+	padding: var(--gap-xs) var(--gap-sm);
+	border: 1px solid var(--border-dim);
+	background: var(--bg-primary);
+	font-size: var(--font-xs);
+}
+
+.event__raidrow {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+}
+
+.event__raidlabel {
+	color: var(--text-secondary);
+}
+
+.event__raidvalue {
+	color: var(--text-primary);
+	font-weight: bold;
+}
+
+.event__raidwin {
+	color: var(--accent-gold);
+}
+
+.event__raidattacker {
+	color: var(--accent-red);
+	font-size: var(--font-xs);
+	padding-left: var(--gap-sm);
+}
+</style>

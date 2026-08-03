@@ -345,7 +345,7 @@ watch(() => props.visible, (v) => {
       <div class="staff__hire">
         <button
           v-for="opt in hireOptions" :key="opt.id"
-          class="btn btn__sm"
+          class="btn__sm"
           :disabled="!opt.affordable"
           @click="debouncedDoHire(opt.id)"
         >{{ opt.name }} ({{ opt.cost }}){{ !opt.unlocked ? ' [LOCKED]' : opt.atCap ? ' [CAP]' : '' }}</button>
@@ -360,39 +360,39 @@ watch(() => props.visible, (v) => {
         <div class="section__header">Upgrades</div>
         <div class="upgrade__list">
           <div v-for="u in upgradeList" :key="u.id" class="card upgrade__card">
-            <div class="upgrade__card__info">
-              <span class="upgrade__card__name">{{ u.name }}</span>
-              <span class="upgrade__card__desc">{{ u.description }}</span>
+            <div class="card__info__col">
+              <span class="card__name__boldgold">{{ u.name }}</span>
+              <span class="card__desc__secondary">{{ u.description }}</span>
             </div>
             <button
               v-if="!u.purchased"
-              class="btn btn__warning btn__sm"
+              class="btn__warning btn__sm"
               :disabled="!u.affordable"
               @click="debouncedDoPurchaseUpgrade(u.id)"
             >{{ u.cost }}</button>
-            <span v-else class="upgrade__card__purchased">PURCHASED</span>
+            <span v-else class="card__purchased">PURCHASED</span>
           </div>
         </div>
       </template>
 
       <div class="section__header">Active Staff</div>
       <div v-for="s in staffList" :key="s.id" class="card staff__card">
-        <div class="staff__card__header">
-          <span class="staff__card__name">{{ s.typeName }} Lv.{{ s.level }}/{{ s.maxLevel }}</span>
-          <span class="staff__card__rarity" :style="{ color: getRarityColor(s.rarity) }">{{ s.rarity }}</span>
-          <span v-if="s.isVeteran" class="staff__card__veteran">VETERAN</span>
-          <span v-if="s.isMaxed" class="staff__card__maxed">MAX</span>
+        <div class="card__header">
+          <span class="card__name__gold">{{ s.typeName }} Lv.{{ s.level }}/{{ s.maxLevel }}</span>
+          <span class="card__rarity" :style="{ color: getRarityColor(s.rarity) }">{{ s.rarity }}</span>
+          <span v-if="s.isVeteran" class="badge badge__blue">VETERAN</span>
+          <span v-if="s.isMaxed" class="badge badge__gold">MAX</span>
         </div>
-        <div class="staff__card__xpbar">
-          <div class="staff__card__xpfill" :style="{ width: s.xpPercent + '%' }"></div>
+        <div class="card__xpbar">
+          <div class="card__xpfill" :style="{ width: s.xpPercent + '%' }"></div>
         </div>
-        <div class="staff__card__stats">{{ s.statsDisplay }}</div>
-        <div v-if="s.traitNames.length > 0" class="staff__card__traits">
-          <span v-for="t in s.traitNames" :key="t" class="staff__card__trait">{{ t }}</span>
+        <div class="card__stats">{{ s.statsDisplay }}</div>
+        <div v-if="s.traitNames.length > 0" class="card__traits">
+          <span v-for="t in s.traitNames" :key="t" class="card__trait">{{ t }}</span>
         </div>
-        <div v-if="s.bestMatchNames" class="staff__card__best">Best: {{ s.bestMatchNames }}</div>
-        <div v-if="s.isMaxed && s.maxAbility" class="staff__card__max">{{ s.maxAbility }}</div>
-        <div v-if="s.veteranPerk" class="staff__card__perk">{{ s.veteranPerk }}</div>
+        <div v-if="s.bestMatchNames" class="card__best">Best: {{ s.bestMatchNames }}</div>
+        <div v-if="s.isMaxed && s.maxAbility" class="card__max">{{ s.maxAbility }}</div>
+        <div v-if="s.veteranPerk" class="card__perk">{{ s.veteranPerk }}</div>
         <div class="staff__assign">
           <select
             :value="s.assignedTo || ''"
@@ -417,7 +417,7 @@ watch(() => props.visible, (v) => {
         <div class="staff__hire">
           <button
             v-for="opt in assassinOptions" :key="opt.id"
-            class="btn btn__sm"
+            class="btn__sm"
             :disabled="!opt.affordable"
             @click="debouncedDoHireAssassin(opt.id)"
           >
@@ -429,31 +429,31 @@ watch(() => props.visible, (v) => {
           <div v-for="opt in assassinOptions" :key="opt.id" class="assassin__abilities__row">{{ opt.name }}: {{ opt.ability }}</div>
         </div>
         <div v-for="a in assassinList" :key="a.id" class="staff__card assassin__card">
-          <div class="assassin__card__header">
-            <span class="assassin__card__name">{{ a.typeName }} Lv.{{ a.level }}/{{ a.maxLevel }}</span>
-            <span class="staff__card__rarity" :style="{ color: getRarityColor(a.rarity) }">{{ a.rarity }}</span>
-            <span v-if="a.awakened" class="assassin__card__awakened">AWAKENED</span>
-            <span v-if="a.synergyCount > 0" class="assassin__card__synergy">Syn:{{ a.synergyCount }}</span>
+          <div class="card__header">
+            <span class="card__name__muted">{{ a.typeName }} Lv.{{ a.level }}/{{ a.maxLevel }}</span>
+            <span class="card__rarity" :style="{ color: getRarityColor(a.rarity) }">{{ a.rarity }}</span>
+            <span v-if="a.awakened" class="badge badge__red">AWAKENED</span>
+            <span v-if="a.synergyCount > 0" class="card__synergy">Syn:{{ a.synergyCount }}</span>
           </div>
-          <div class="assassin__card__ability">{{ a.ability }}</div>
-          <div v-if="!a.awakened" class="assassin__card__awakeningprogress">Awakening: {{ a.awakeningProgress }}</div>
-          <div class="staff__card__xpbar">
-            <div class="staff__card__xpfill" :style="{ width: a.xpPercent + '%' }"></div>
+          <div class="card__ability">{{ a.ability }}</div>
+          <div v-if="!a.awakened" class="card__awakeningprogress">Awakening: {{ a.awakeningProgress }}</div>
+          <div class="card__xpbar">
+            <div class="card__xpfill" :style="{ width: a.xpPercent + '%' }"></div>
           </div>
-          <div class="assassin__card__bar">
-            <div class="assassin__card__fill" :style="{ width: a.loyaltyPercent + '%' }"></div>
+          <div class="card__bar">
+            <div class="card__fill" :style="{ width: a.loyaltyPercent + '%' }"></div>
           </div>
-          <div class="assassin__card__info">
+          <div class="card__info__wrap">
             <span>Loyalty: {{ a.loyalty }}%</span>
             <span>branch: {{ a.assignedBranch }}</span>
-            <span v-if="a.lentTo" class="assassin__card__lent">Lent to: {{ a.lentTo }}</span>
-            <button v-if="a.lentTo" class="assassin__card__recall" @click="doRecallAssassin(a.id)">Recall</button>
+            <span v-if="a.lentTo" class="card__lent">Lent to: {{ a.lentTo }}</span>
+            <button v-if="a.lentTo" class="btn__warning btn__sm" @click="doRecallAssassin(a.id)">Recall</button>
           </div>
-          <div class="assassin__card__stats">{{ a.statsDisplay }}</div>
-          <div v-if="a.traitNames.length > 0" class="staff__card__traits">
-            <span v-for="t in a.traitNames" :key="t" class="staff__card__trait">{{ t }}</span>
+          <div class="card__stats">{{ a.statsDisplay }}</div>
+          <div v-if="a.traitNames.length > 0" class="card__traits">
+            <span v-for="t in a.traitNames" :key="t" class="card__trait">{{ t }}</span>
           </div>
-          <div class="assassin__card__actions">
+          <div class="card__actions">
             <select
               :value="a.rawassignedBranch || ''"
               @change="doAssignAssassin(a.id, ($event.target as HTMLSelectElement).value)"
@@ -479,11 +479,11 @@ watch(() => props.visible, (v) => {
             >Level Up ({{ a.levelUpCost }})</button>
             <button @click="doFireAssassin(a.id)" class="staff__assign__fire">Fire</button>
           </div>
-          <div v-if="a.attackTarget" class="assassin__card__attackstatus">
-            <span class="assassin__card__attacktarget">Attacking: {{ a.attackTarget }}</span>
-            <button class="assassin__card__cancelattack" @click="doCancelAttack(a.id)">Cancel</button>
+          <div v-if="a.attackTarget" class="card__attackstatus">
+            <span class="card__attacktarget">Attacking: {{ a.attackTarget }}</span>
+            <button class="btn__danger btn__sm" @click="doCancelAttack(a.id)">Cancel</button>
           </div>
-          <div v-else-if="attackTargets.length > 0" class="assassin__card__attackactions">
+          <div v-else-if="attackTargets.length > 0" class="actions">
             <select
               :value="a.rawAttackTarget || ''"
               @change="doSendAttack(a.id, ($event.target as HTMLSelectElement).value)"
@@ -500,10 +500,10 @@ watch(() => props.visible, (v) => {
       <template v-if="debts.length > 0 || canLayLow() || canHostEvent() || canBribeOfficial() || canGoldenCoinIncomeBoost()">
         <div class="section__header staff__section__gap">Golden Coin Actions</div>
         <div class="actions actions__wrap">
-          <button v-if="canLayLow()" class="btn btn__warning" @click="doLayLow">Lay Low ({{ getLayLowCost() }} GC, -3 Heat)</button>
-          <button v-if="canHostEvent()" class="btn btn__warning" @click="doHostEvent">Host Event ({{ getHostEventCost() }} GC, +15 Guests)</button>
-          <button v-if="canBribeOfficial()" class="btn btn__warning" @click="doBribeOfficial">Bribe Official ({{ getBribeOfficialCost() }} GC, -5 Heat)</button>
-          <button v-if="canGoldenCoinIncomeBoost()" class="btn btn__warning" @click="doGoldenCoinIncomeBoost">Income Boost ({{ getGoldenCoinIncomeBoostCost() }} GC, 1.5x for {{ getGoldenCoinIncomeBoostDuration() }}s)</button>
+          <button v-if="canLayLow()" class="btn__warning" @click="doLayLow">Lay Low ({{ getLayLowCost() }} GC, -3 Heat)</button>
+          <button v-if="canHostEvent()" class="btn__warning" @click="doHostEvent">Host Event ({{ getHostEventCost() }} GC, +15 Guests)</button>
+          <button v-if="canBribeOfficial()" class="btn__warning" @click="doBribeOfficial">Bribe Official ({{ getBribeOfficialCost() }} GC, -5 Heat)</button>
+          <button v-if="canGoldenCoinIncomeBoost()" class="btn__warning" @click="doGoldenCoinIncomeBoost">Income Boost ({{ getGoldenCoinIncomeBoostCost() }} GC, 1.5x for {{ getGoldenCoinIncomeBoostDuration() }}s)</button>
         </div>
       </template>
 
@@ -531,3 +531,139 @@ watch(() => props.visible, (v) => {
     </div>
   </div>
 </template>
+
+<style scoped>
+.staff__card {
+	margin-bottom: var(--gap-sm);
+	transition: border-color var(--duration-fast), background var(--duration-fast);
+}
+
+.staff__card:hover {
+	border-color: var(--border-dim);
+	background: var(--bg-card-hover);
+}
+
+.staff__hire {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--gap-xs);
+	margin-bottom: var(--gap-md);
+}
+
+.staff__hire .btn {
+	font-size: var(--font-xs);
+	padding: var(--gap-xs) var(--gap-sm);
+}
+
+.staff__assign {
+	display: flex;
+	align-items: center;
+	gap: var(--gap-xs);
+	margin-top: var(--gap-xs);
+}
+
+.staff__assign__select {
+	background: var(--bg-secondary);
+	border: 1px solid var(--border-dim);
+	color: var(--text-secondary);
+	font-family: inherit;
+	font-size: var(--font-xs);
+	padding: var(--gap-xs) var(--gap-xs);
+	flex: 1;
+	min-width: 0;
+}
+
+.staff__assign__fire {
+	padding: var(--gap-xs) var(--gap-xs);
+	border-color: var(--accent-red);
+	color: var(--accent-red);
+	background: transparent;
+	flex-shrink: 0;
+}
+
+.staff__assign__fire:hover {
+	background: color-mix(in srgb, var(--accent-red) 10%, transparent);
+}
+
+.staff__section__gap {
+	margin-top: var(--gap-md);
+}
+
+.staff__section__note {
+	font-size: var(--font-xs);
+	color: var(--text-dim);
+}
+
+.staff__hire__abilities {
+	margin-bottom: var(--gap-sm);
+}
+
+.staff__hire__ability {
+	font-size: var(--font-xs);
+	color: var(--text-dim);
+	line-height: 1.6;
+}
+
+.staff__hire__abilityname {
+	color: var(--accent-gold);
+}
+
+.assassin__card {
+	padding: var(--gap-sm);
+}
+
+.assassin__abilities {
+	font-size: var(--font-xs);
+	color: var(--text-dim);
+	margin-bottom: var(--gap-sm);
+}
+
+.assassin__abilities__row {
+	line-height: 1.5;
+}
+
+.debt__info {
+	font-size: var(--font-xs);
+	color: var(--text-secondary);
+	margin-bottom: var(--gap-sm);
+}
+
+.debt__row {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+}
+
+.debt__row__amount {
+	color: var(--accent-gold);
+	font-size: var(--font-sm);
+}
+
+.debt__row__repaymax {
+	margin-top: var(--gap-xs);
+}
+
+.upgrade__list {
+	display: flex;
+	flex-direction: column;
+	gap: var(--gap-sm);
+	margin-bottom: var(--gap-md);
+}
+
+.upgrade__card {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	transition: all var(--duration-fast) var(--ease-out);
+}
+
+.upgrade__card:hover {
+	background: var(--bg-card-hover);
+	border-color: var(--accent-gold);
+}
+
+.upgrade__card .btn {
+	padding: var(--gap-xs) var(--gap-md);
+	font-size: var(--font-sm);
+}
+</style>

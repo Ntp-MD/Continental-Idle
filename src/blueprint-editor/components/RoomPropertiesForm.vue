@@ -6,6 +6,7 @@ import { useAsyncAction } from '../composables/useAsyncAction'
 import { useFieldError } from '../composables/useFieldError'
 import { useClipboardCopy } from '../composables/useClipboardCopy'
 import { validateRoomAnchors } from '../assetUtils'
+import { isHexColor } from '../store/state'
 import type { EntrancePoint, RoomData, RoomType } from '../types'
 import TagPicker from './tagPicker.vue'
 
@@ -32,6 +33,10 @@ watch(() => props.room, (room) => {
 
 async function commitField(field: 'x' | 'y' | 'w' | 'h' | 'label' | 'category' | 'roomType' | 'walkable' | 'radius' | 'fillColor' | 'padding') {
   if (field === 'fillColor') {
+    if (fields.value.fillColor && !isHexColor(fields.value.fillColor)) {
+      useToast().warning('Fill color must be a hex code')
+      return
+    }
     await store.updateRoomProps({ fillColor: fields.value.fillColor || undefined })
     return
   }
@@ -142,7 +147,7 @@ async function remove() {
       <label>ID</label>
       <div class="properties__idrow">
         <input type="text" :value="room.id" disabled class="input input__readonly" title="Room ID" />
-        <button class="btn btn__sm" @click="copyId(room.id)">Copy</button>
+        <button class="btn__sm" @click="copyId(room.id)">Copy</button>
       </div>
     </div>
     <div class="properties__row">
@@ -225,7 +230,7 @@ async function remove() {
       <div class="properties__title">NPC Navigation</div>
       <div class="properties__row">
         <label>Anchors</label>
-        <button class="btn btn__sm" @click="addAnchor">+ Add</button>
+        <button class="btn__sm" @click="addAnchor">+ Add</button>
       </div>
       <div v-if="invalidAnchorCount > 0" class="properties__warning">{{ invalidAnchorCount }} anchor(s) are blocked or outside the room.</div>
       <div v-for="(anchor, index) in anchors" :key="`anchor-${index}`" class="properties__row">
@@ -233,12 +238,12 @@ async function remove() {
         <div class="properties__idrow">
           <input class="input" type="number" min="0" :max="fields.w" v-model.number="anchor[0]" @change="updateAnchors" />
           <input class="input" type="number" min="0" :max="fields.h" v-model.number="anchor[1]" @change="updateAnchors" />
-          <button class="btn btn__sm" @click="removeAnchor(index)">×</button>
+          <button class="btn__sm" @click="removeAnchor(index)">×</button>
         </div>
       </div>
       <div class="properties__row">
         <label>Entrances</label>
-        <button class="btn btn__sm" @click="addEntrance">+ Add</button>
+        <button class="btn__sm" @click="addEntrance">+ Add</button>
       </div>
       <div v-for="(entrance, index) in entrances" :key="`entrance-${index}`" class="properties__row">
         <label>#{{ index + 1 }}</label>
@@ -248,7 +253,7 @@ async function remove() {
           </select>
           <input class="input" type="number" min="0" v-model.number="entrance.offset" @change="updateEntrances" />
           <input class="input" type="number" min="1" v-model.number="entrance.width" @change="updateEntrances" />
-          <button class="btn btn__sm" @click="removeEntrance(index)">×</button>
+          <button class="btn__sm" @click="removeEntrance(index)">×</button>
         </div>
       </div>
     </div>
@@ -290,18 +295,24 @@ async function remove() {
     <div class="properties__row">
       <label>Fill Color</label>
       <div class="properties__colorrow">
-        <input type="color" :value="fields.fillColor || '#e8e4dc'" @input="fields.fillColor = ($event.target as HTMLInputElement).value; commitField('fillColor')" class="input input__color" />
-        <button class="btn btn__sm" @click="clearFillColor">Reset</button>
+        <input
+          class="input"
+          v-model="fields.fillColor"
+          placeholder="#RRGGBB"
+          aria-label="Room fill color hex value"
+          @change="commitField('fillColor')"
+        />
+        <button class="btn__sm" @click="clearFillColor">Reset</button>
       </div>
     </div>
     <div class="properties__btngroup">
-      <button class="btn" @click="saveAsTemplate">Save as Template</button>
-      <button class="btn" @click="saveRoomWithObjects">Save Room + Objects</button>
+      <button @click="saveAsTemplate">Save as Template</button>
+      <button @click="saveRoomWithObjects">Save Room + Objects</button>
     </div>
     <div class="properties__deletesection">
-      <button class="btn btn__success" :disabled="pending" @click="onSave">Save</button>
-      <button class="btn" :disabled="pending" @click="store.select(null); store.selectAsset(null)">Deselect</button>
-      <button class="btn btn__danger" :disabled="pending" @click="remove">Delete</button>
+      <button class="btn__success" :disabled="pending" @click="onSave">Save</button>
+      <button :disabled="pending" @click="store.select(null); store.selectAsset(null)">Deselect</button>
+      <button class="btn__danger" :disabled="pending" @click="remove">Delete</button>
     </div>
     </div>
   </div>

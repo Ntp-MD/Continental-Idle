@@ -109,3 +109,160 @@ watch(() => props.visible, (v) => {
     </div>
   </div>
 </template>
+
+<style scoped>
+.ach__progress {
+	display: flex;
+	align-items: center;
+	gap: var(--gap-sm);
+	margin-bottom: var(--gap-sm);
+}
+
+.ach__progress__bar {
+	flex: 1;
+	height: 6px;
+	background: var(--bg-primary);
+	border: none;
+	border-radius: var(--radius-sm);
+	overflow: hidden;
+}
+
+.ach__progress__fill {
+	height: 100%;
+	background: var(--gradient-gold);
+	transition: width var(--duration-normal) var(--ease-out);
+	border-radius: var(--radius-sm);
+	box-shadow: 0 0 6px rgba(240, 192, 64, 0.3);
+}
+
+.ach__progress__text {
+	font-size: var(--font-sm);
+	color: var(--text-dim);
+	white-space: nowrap;
+}
+
+.ach__categories {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--gap-xs);
+	margin-bottom: var(--gap-sm);
+}
+
+
+
+.ach__list {
+	display: flex;
+	flex-direction: column;
+	gap: var(--gap-xs);
+	max-height: 50vh;
+	overflow-y: auto;
+}
+
+.ach__item {
+	display: flex;
+	align-items: center;
+	gap: var(--gap-sm);
+	transition: all var(--duration-fast) var(--ease-out);
+}
+
+.ach__item:hover {
+	background: var(--bg-card-hover);
+}
+
+.ach__item__unlocked {
+	border-color: var(--accent-gold);
+	background: color-mix(in srgb, var(--accent-gold) 12%, transparent);
+}
+
+.ach__item__locked {
+	opacity: 0.5;
+}
+
+.ach__item__icon {
+	font-size: var(--font-xl);
+	flex-shrink: 0;
+	width: 28px;
+	text-align: center;
+}
+
+.ach__item__body {
+	display: flex;
+	flex-direction: column;
+	gap: var(--gap-xs);
+	flex: 1;
+	min-width: 0;
+}
+
+.ach__item__name {
+	font-size: var(--font-md);
+	color: var(--text-primary);
+	font-weight: bold;
+}
+
+.ach__item__desc {
+	font-size: var(--font-xs);
+	color: var(--text-dim);
+}
+
+.ach__item__reward {
+	font-size: var(--font-xs);
+	color: var(--accent-green);
+}
+
+.ach__item__status {
+	flex-shrink: 0;
+	font-size: var(--font-lg);
+}
+
+.ach__item__check {
+	color: var(--accent-gold);
+}
+
+.ach__item__lock {
+	opacity: 0.5;
+}
+
+.ach__recent {
+	position: fixed;
+	bottom: 20px;
+	left: 50%;
+	transform: translateX(-50%);
+	background: var(--bg-card);
+	border: 1px solid var(--accent-gold);
+	border-radius: var(--radius-lg);
+	padding: var(--gap-sm) var(--gap-lg);
+	display: flex;
+	align-items: center;
+	gap: var(--gap-sm);
+	font-size: var(--font-md);
+	font-weight: 500;
+	color: var(--text-primary);
+	z-index: 3000;
+	animation: ach-slide-up 0.3s var(--ease-out);
+	box-shadow: var(--shadow-glow-gold), var(--shadow-panel);
+	backdrop-filter: blur(12px);
+	-webkit-backdrop-filter: blur(12px);
+}
+
+.ach__recent__icon {
+	font-size: var(--font-xl);
+}
+
+.ach__recent__text {
+	flex: 1;
+	font-size: var(--font-sm);
+	color: var(--text-primary);
+}
+
+@keyframes ach-slide-up {
+	from {
+		opacity: 0;
+		transform: translateX(-50%) translateY(20px);
+	}
+
+	to {
+		opacity: 1;
+		transform: translateX(-50%) translateY(0);
+	}
+}
+</style>

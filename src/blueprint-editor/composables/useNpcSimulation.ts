@@ -1,7 +1,7 @@
 import { ref, watch, type Ref } from 'vue'
 import type { FloorData, NpcSimDot, NpcRole, NpcTask, NpcSimulationConfig, ObjectData, TileEdges } from '../types'
 import { isNpcConfig } from '../types'
-import { getDefaultNpcConfig, mergeNpcConfig } from '../store/npc'
+import { getDefaultNpcConfig, mergeNpcConfig } from '../store/npcDefault'
 
 const npcs = ref<NpcSimDot[]>([])
 let animationId: number | null = null

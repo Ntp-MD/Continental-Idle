@@ -222,7 +222,7 @@ onUnmounted(() => {
           All AI controllers have been defeated.
         </div>
         <div v-else class="powerbalance__list">
-          <div v-for="owner in activeOwners" :key="owner.branchId" class="card__panel">
+          <div v-for="owner in activeOwners" :key="owner.branchId" class="card card__panel">
             <div class="powerbalance__head">
               <span class="powerbalance__icon" :style="{ color: getTemperamentColor(owner.temperament) }">
                 {{ getTemperamentIcon(owner.temperament) }}
@@ -290,3 +290,243 @@ onUnmounted(() => {
     </div>
   </div>
 </template>
+
+<style scoped>
+.powerbalance__panel {
+	width: 92vw;
+	max-width: 92vw;
+	max-height: 80vh;
+	overflow-y: auto;
+}
+
+.powerbalance__summary {
+	margin-bottom: var(--gap-md);
+	padding: var(--gap-sm);
+	background: var(--bg-tertiary);
+	border-radius: var(--radius-sm);
+	border: 1px solid var(--border-dim);
+}
+
+.powerbalance__bars {
+	display: flex;
+	flex-direction: column;
+	gap: var(--gap-sm);
+}
+
+.powerbalance__bar {
+	display: flex;
+	align-items: center;
+	gap: var(--gap-sm);
+	font-size: var(--font-sm);
+}
+
+.powerbalance__barlabel {
+	width: 30px;
+	color: var(--text-secondary);
+}
+
+.powerbalance__bartrack {
+	flex: 1;
+	height: 10px;
+	background: var(--bg-primary);
+	border-radius: var(--radius-sm);
+	overflow: hidden;
+}
+
+.powerbalance__barfill {
+	height: 100%;
+	transition: width var(--duration-normal) var(--ease-out);
+	border-radius: var(--radius-sm);
+}
+
+.powerbalance__barfill__player {
+	background: var(--gradient-gold);
+	box-shadow: 0 0 6px rgba(240, 192, 64, 0.3);
+}
+
+.powerbalance__barfill__ai {
+	background: linear-gradient(90deg, #ff5722 0%, #ff8a65 100%);
+	box-shadow: 0 0 6px rgba(255, 87, 34, 0.3);
+}
+
+.powerbalance__barvalue {
+	width: 60px;
+	text-align: right;
+	color: var(--text-primary);
+	font-weight: 600;
+}
+
+.powerbalance__status {
+	font-size: var(--font-md);
+	font-weight: 700;
+	text-align: center;
+	padding: var(--gap-xs);
+}
+
+.powerbalance__section {
+	margin-bottom: var(--gap-md);
+}
+
+.powerbalance__heading {
+	font-size: var(--font-md);
+	color: var(--text-primary);
+	margin-bottom: var(--gap-sm);
+	text-transform: uppercase;
+	letter-spacing: 1px;
+}
+
+.powerbalance__empty {
+	font-size: var(--font-md);
+	color: var(--text-secondary);
+	padding: var(--gap-sm);
+	text-align: center;
+	border: 1px dashed var(--border-dim);
+	border-radius: var(--radius-sm);
+}
+
+.powerbalance__list {
+	display: flex;
+	flex-direction: column;
+	gap: var(--gap-sm);
+}
+
+.powerbalance__list > .card {
+	display: flex;
+	flex-direction: column;
+	gap: var(--gap-xs);
+}
+
+.powerbalance__head {
+	display: flex;
+	align-items: center;
+	gap: var(--gap-xs);
+	flex-wrap: wrap;
+}
+
+.powerbalance__icon {
+	font-size: var(--font-lg);
+}
+
+.powerbalance__ownername {
+	font-size: var(--font-md);
+	font-weight: 600;
+	color: var(--text-primary);
+}
+
+.powerbalance__branchname {
+	font-size: var(--font-sm);
+	color: var(--text-secondary);
+}
+
+.powerbalance__threatbadge {
+	font-size: var(--font-xs);
+	padding: var(--gap-xs) var(--gap-xs);
+	border-radius: 3px;
+	border: 1px solid;
+	margin-left: auto;
+}
+
+.powerbalance__ownerstats {
+	display: flex;
+	gap: var(--gap-md);
+	font-size: var(--font-sm);
+	color: var(--text-secondary);
+	flex-wrap: wrap;
+}
+
+.powerbalance__stat {
+	white-space: nowrap;
+}
+
+.powerbalance__powerbar {
+	height: 4px;
+	background: var(--bg-primary);
+	border-radius: var(--radius-xs);
+	overflow: hidden;
+}
+
+.powerbalance__powerfill {
+	height: 100%;
+	transition: width var(--duration-normal);
+}
+
+.powerbalance__diplomacy {
+	display: flex;
+	gap: var(--gap-xs);
+}
+
+.powerbalance__diplobtn {
+	padding: var(--gap-xs) var(--gap-sm);
+	font-size: var(--font-sm);
+	border: 1px solid var(--border-dim);
+	border-radius: 3px;
+	background: var(--bg-tertiary);
+	color: var(--text-primary);
+	cursor: pointer;
+	transition: background var(--duration-fast), border-color var(--duration-fast);
+}
+
+.powerbalance__diplobtn:hover:not(:disabled) {
+	background: var(--bg-hover, rgba(255, 255, 255, 0.08));
+	border-color: var(--accent-blue, #c5a55a);
+}
+
+.powerbalance__diplobtn:disabled {
+	opacity: 0.4;
+	cursor: not-allowed;
+}
+
+.powerbalance__log {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	max-height: 200px;
+	overflow-y: auto;
+}
+
+.powerbalance__entry {
+	display: flex;
+	gap: var(--gap-xs);
+	font-size: var(--font-sm);
+	padding: var(--gap-xs) var(--gap-xs);
+	border-radius: var(--radius-xs);
+}
+
+.powerbalance__logtime {
+	color: var(--text-dim);
+	font-size: var(--font-xs);
+	flex-shrink: 0;
+}
+
+.powerbalance__logtext {
+	color: var(--text-secondary);
+}
+
+.powerbalance__entry__gift {
+	border-left: 2px solid #4caf50;
+}
+
+.powerbalance__entry__truce {
+	border-left: 2px solid #8bc34a;
+}
+
+.powerbalance__entry__ai {
+	border-left: 2px solid #ff9800;
+}
+
+.powerbalance__defeateds {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--gap-xs);
+}
+
+.powerbalance__defeatedone {
+	font-size: var(--font-sm);
+	color: var(--text-secondary);
+	padding: var(--gap-xs) var(--gap-sm);
+	background: var(--bg-tertiary);
+	border-radius: 3px;
+	border: 1px solid var(--border-dim);
+	opacity: 0.6;
+}
+</style>

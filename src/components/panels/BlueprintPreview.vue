@@ -377,7 +377,7 @@ onMounted(() => {
 
 .blueprint__preview__content {
   background: #e9e9e6;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   max-width: 1280px;
   width: 100%;
   padding: 28px 20px 20px;
@@ -405,16 +405,16 @@ onMounted(() => {
 }
 
 .blueprint__preview__sub {
-  font-size: 11px;
+  font-size: var(--font-sm);
   letter-spacing: 3px;
   color: #666666;
-  margin-top: 4px;
+  margin-top: var(--gap-xs);
   text-transform: uppercase;
 }
 
 .blueprint__preview__docid {
   text-align: right;
-  font-size: 11px;
+  font-size: var(--font-sm);
   color: #666666;
   line-height: 1.7;
   letter-spacing: 1px;
@@ -432,11 +432,11 @@ onMounted(() => {
   border: 1px solid #aaaaaa;
   color: #666666;
   font-family: inherit;
-  font-size: 12px;
+  font-size: var(--font-md);
   letter-spacing: 1px;
-  padding: 8px 12px;
+  padding: var(--gap-sm) 12px;
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: all var(--duration-fast) var(--ease-out);
 }
 
 .blueprint__preview__tab:hover {
@@ -446,7 +446,7 @@ onMounted(() => {
 
 .blueprint__preview__tabactive {
   background: #333333;
-  color: #ffffff;
+  color: var(--text-bright);
   border-color: #333333;
   font-weight: bold;
 }
@@ -485,7 +485,7 @@ onMounted(() => {
 
 .blueprint__preview__floorinfo {
   color: #666666;
-  font-size: 10px;
+  font-size: var(--font-xs);
 }
 
 .blueprint__preview__legenditem {
@@ -504,13 +504,13 @@ onMounted(() => {
 .blueprint__preview__footer {
   text-align: center;
   margin-top: 12px;
-  font-size: 10px;
+  font-size: var(--font-xs);
   letter-spacing: 2px;
   color: #999999;
   text-transform: uppercase;
 }
 
 .blueprint__preview__content :deep(.panel__close) {
-  margin-top: 16px;
+  margin-top: var(--gap-md);
 }
 </style>

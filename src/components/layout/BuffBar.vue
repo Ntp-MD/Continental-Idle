@@ -69,3 +69,44 @@ onUnmounted(() => {
     </div>
   </div>
 </template>
+
+<style scoped>
+.buff {
+	display: flex;
+	gap: var(--gap-xs);
+	padding: var(--gap-xs) var(--gap-sm);
+	background: var(--bg-secondary);
+	border-bottom: 1px solid var(--border-dim);
+	flex-shrink: 0;
+	overflow-x: auto;
+}
+
+.buff__item {
+	display: flex;
+	align-items: center;
+	gap: var(--gap-xs);
+	font-size: var(--font-xs);
+	font-weight: 500;
+	padding: var(--gap-xs) var(--gap-sm);
+	border: 1px solid;
+	border-radius: 100px;
+	flex-shrink: 0;
+}
+
+.buff__item__buff {
+	border-color: var(--accent-green);
+	color: var(--accent-green);
+	background: color-mix(in srgb, var(--accent-green) 10%, transparent);
+}
+
+.buff__item__debuff {
+	border-color: var(--accent-red);
+	color: var(--accent-red);
+	background: color-mix(in srgb, var(--accent-red) 10%, transparent);
+}
+
+.buff__timer {
+	font-weight: 700;
+	font-variant-numeric: tabular-nums;
+}
+</style>

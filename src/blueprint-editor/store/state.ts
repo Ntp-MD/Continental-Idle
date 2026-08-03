@@ -2,7 +2,7 @@ import { reactive, computed } from 'vue'
 import type { FloorLayoutData, AssetDef, FloorData, EditorMode, SelectionState, Rect } from '../types'
 import { buildAssetMap, parseSvgRoles, buildWalkableGrid } from '../assetUtils'
 import { snap as _snap, clamp as _clamp } from '../geometry'
-import { ASSET_REGISTRY } from '../assetRegistry'
+import { assetCatalog } from './dataLoader'
 import { useToast } from '@/composables/useToast'
 import { loadInitial, mergeAssetRegistry } from './migrate'
 
@@ -18,8 +18,12 @@ export interface EditorState {
 
 const HEX_COLOR_RE = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/
 
+export function isHexColor(c: string | undefined): c is string {
+	return typeof c === 'string' && HEX_COLOR_RE.test(c)
+}
+
 export function isValidColor(c: string | undefined): boolean {
-	return !c || (typeof c === 'string' && HEX_COLOR_RE.test(c))
+	return !c || isHexColor(c)
 }
 
 export const toast = useToast()
@@ -96,7 +100,7 @@ if (!state.layout.globalTags) state.layout.globalTags = [...state.globalTags]
 
 if (!state.layout.deletedDefaultIds) state.layout.deletedDefaultIds = []
 const deletedDefaultIds = new Set(state.layout.deletedDefaultIds)
-state.assetRegistry = mergeAssetRegistry([...ASSET_REGISTRY], state.assetRegistry, deletedDefaultIds)
+state.assetRegistry = mergeAssetRegistry([...assetCatalog], state.assetRegistry, deletedDefaultIds)
 
 export function initAssetFields(asset: AssetDef): void {
 	if (asset.svg) {

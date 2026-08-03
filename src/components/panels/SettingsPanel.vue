@@ -112,9 +112,63 @@ watch(() => props.visible, (v) => { if (v) syncFromState() })
       </div>
 
       <div class="actions">
-        <button class="btn btn__ghost btn__block" @click="reset">Reset</button>
-        <button class="btn btn__ghost btn__block" @click="emit('close')">Close</button>
+        <button class="btn__ghost" @click="reset">Reset</button>
+        <button class="btn__ghost" @click="emit('close')">Close</button>
       </div>
     </div>
   </div>
 </template>
+
+<style scoped>
+/* Settings Panel */
+.settings__row {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	padding: var(--gap-sm) 0;
+	border-bottom: 1px solid var(--border-dim);
+}
+
+.settings__label {
+	font-size: var(--font-sm);
+	color: var(--text-secondary);
+}
+
+.settings__select {
+	background: var(--bg-card);
+	border: 1px solid var(--border-dim);
+	border-radius: var(--radius-sm);
+	color: var(--text-primary);
+	font-family: var(--font-mono);
+	font-size: var(--font-sm);
+	padding: var(--gap-xs) var(--gap-sm);
+	transition: border-color var(--duration-fast);
+	flex: 1;
+	min-width: 0;
+	max-width: 180px;
+}
+
+.settings__select:hover {
+	border-color: var(--accent-gold);
+}
+
+.settings__checkbox {
+	width: 16px;
+	height: 16px;
+	accent-color: var(--accent-gold);
+	cursor: pointer;
+}
+
+.settings__slider {
+	width: 120px;
+	accent-color: var(--accent-gold);
+	cursor: pointer;
+}
+
+/* === Settings Panel Actions === */
+.settings__panel__actions {
+	display: flex;
+	gap: var(--gap-sm);
+	margin-top: var(--gap-md);
+}
+</style>

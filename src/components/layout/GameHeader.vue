@@ -152,3 +152,98 @@ onUnmounted(() => {
     </div>
   </header>
 </template>
+
+<style scoped>
+.heat__meter {
+	display: flex;
+	align-items: center;
+	gap: var(--gap-xs);
+}
+
+.heat__meter__label {
+	font-size: var(--font-xs);
+	color: var(--text-dim);
+	text-transform: uppercase;
+}
+
+.heat__meter__bar {
+	width: 80px;
+	height: 5px;
+	background: var(--bg-primary);
+	border: none;
+	border-radius: 3px;
+	overflow: hidden;
+}
+
+.heat__meter__fill {
+	height: 100%;
+	background: linear-gradient(90deg, var(--accent-gold) 0%, var(--accent-red) 100%);
+	transition: width var(--duration-normal) var(--ease-out);
+	border-radius: 3px;
+}
+
+.heat__meter__value {
+	font-size: var(--font-xs);
+	color: var(--accent-red);
+}
+
+.heat__meter__critical .heat__meter__fill {
+	background: var(--accent-red);
+	animation: heat-pulse 0.8s infinite alternate;
+}
+
+.heat__meter__critical .heat__meter__value {
+	color: var(--accent-red);
+	font-weight: bold;
+}
+
+.heat__meter__warning {
+	font-size: var(--font-md);
+	color: var(--accent-red);
+	animation: heat-pulse 0.8s infinite alternate;
+}
+
+.game__currency__debtwarn {
+	animation: heat-pulse 0.8s infinite alternate;
+}
+
+.game__currency__debtwarn .game__currency__value {
+	color: var(--accent-red);
+}
+
+.game__currency__warning {
+	font-size: var(--font-md);
+	color: var(--accent-red);
+}
+
+.game__hqbadge {
+	display: inline-block;
+	font-size: var(--font-xs);
+	background: var(--accent-gold);
+	color: var(--bg-primary);
+	padding: var(--gap-xs) var(--gap-xs);
+	margin-left: var(--gap-xs);
+	letter-spacing: 1px;
+}
+
+.game__currencysub {
+	font-size: var(--font-xs);
+	color: var(--accent-gold);
+	margin-left: var(--gap-xs);
+}
+
+.game__currency__grace .game__currency__label,
+.game__currency__grace .game__currency__value {
+	color: var(--accent-blue);
+}
+
+@keyframes heat-pulse {
+	from {
+		opacity: 0.6;
+	}
+
+	to {
+		opacity: 1;
+	}
+}
+</style>

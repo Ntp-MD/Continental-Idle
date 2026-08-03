@@ -4,6 +4,7 @@ import { useAssetsStore, startAssetDrag, startRoomTemplateDrag } from '../bluepr
 import { useToast } from '@/composables/useToast'
 import { useAsyncAction } from '../composables/useAsyncAction'
 import { sanitizeString } from '../../utils/sanitize'
+import { isHexColor } from '../store/state'
 import type { AssetDef } from '../types'
 
 const store = useAssetsStore()
@@ -91,6 +92,10 @@ async function submitNewAsset() {
     useToast().warning('Asset name cannot be empty')
     return
   }
+  if (newBgColor.value && !isHexColor(newBgColor.value)) {
+    useToast().warning('Background color must be a hex code')
+    return
+  }
   const rx = newRx.value > 0 ? { tl: newRx.value, tr: newRx.value, br: newRx.value, bl: newRx.value } : undefined
   await run(() => store.addAsset(newName.value.trim(), newW.value, newH.value, undefined, undefined, rx, newBgColor.value || undefined))
   useToast().success('Asset added')
@@ -146,7 +151,7 @@ function onItemClick(assetId: string) {
     <div class="asset__palette__header">Asset Palette</div>
     <div class="asset__palette__search">
       <input class="input" v-model="searchQuery" placeholder="Search assets..." type="text" aria-label="Search assets" />
-      <button v-if="searchQuery" class="btn btn__ghost btn__icon" @click="searchQuery = ''" aria-label="Clear search" title="Clear search">×</button>
+      <button v-if="searchQuery" class="btn__ghost btn__icon" @click="searchQuery = ''" aria-label="Clear search" title="Clear search">×</button>
     </div>
     <div class="asset__palette__scroll">
       <div v-if="!Object.values(grouped).some(g => g.length)" class="asset__palette__empty">No assets found</div>
@@ -179,7 +184,7 @@ function onItemClick(assetId: string) {
           <span class="asset__palette__itemicon">▢</span>
           <span class="asset__palette__itemtruncate">{{ tpl.name }}</span>
           <span class="asset__palette__dimlabel">{{ tpl.w }}×{{ tpl.h }}</span>
-          <button class="btn btn__ghost btn__icon btn__text__danger" @click.stop="onDeleteRoomTemplate(tpl.id)" title="Delete template" aria-label="Delete room template">×</button>
+          <button class="btn__ghost btn__icon btn__text__danger" @click.stop="onDeleteRoomTemplate(tpl.id)" title="Delete template" aria-label="Delete room template">×</button>
         </div>
       </div>
       <div v-else class="asset__palette__category">
@@ -189,10 +194,10 @@ function onItemClick(assetId: string) {
     </div>
 
     <div class="asset__palette__footer">
-      <button class="btn btn__dashed btn__block" @click="showAddForm = !showAddForm">
+      <button class="btn__dashed" @click="showAddForm = !showAddForm">
         {{ showAddForm ? 'Cancel' : '+ Add New Asset' }}
       </button>
-      <button class="btn btn__dashed btn__block" @click="showSvgForm = !showSvgForm">
+      <button class="btn__dashed" @click="showSvgForm = !showSvgForm">
         {{ showSvgForm ? 'Cancel' : '+ Import SVG Asset' }}
       </button>
 
@@ -204,11 +209,14 @@ function onItemClick(assetId: string) {
           <input id="asset__new__h" class="input input__num" type="number" min="1" v-model.number="newH" placeholder="H" aria-label="Asset height in tiles" />
         </div>
         <input id="asset__new__rx" class="input" type="number" min="0" v-model.number="newRx" placeholder="Corner radius (0 = none)" aria-label="Corner radius (0 = none)" />
-        <div class="asset__palette__formhstack">
-          <input type="color" v-model="newBgColor" class="input input__color" aria-label="Asset background color" />
-          <input id="asset__new__bgcolor" class="input" :value="newBgColor || 'var(--text-bright)'" @input="newBgColor = ($event.target as HTMLInputElement).value" placeholder="Bg color" aria-label="Background color hex value" />
-        </div>
-        <button class="btn btn__primary btn__block" :disabled="pending" @click="submitNewAsset">Add Asset</button>
+        <input
+          id="asset__new__bgcolor"
+          class="input"
+          v-model="newBgColor"
+          placeholder="#RRGGBB"
+          aria-label="Background color hex value"
+        />
+        <button class="btn__primary" :disabled="pending" @click="submitNewAsset">Add Asset</button>
       </div>
 
       <div v-if="showSvgForm" class="asset__palette__form">
@@ -219,7 +227,7 @@ function onItemClick(assetId: string) {
           <input class="input input__num" type="number" min="1" :value="svgH" disabled placeholder="H (auto)" aria-label="SVG height (auto)" />
         </div>
         <textarea class="textarea" v-model="svgContent" placeholder="Paste SVG here (must include viewBox)..." rows="6" aria-label="SVG content"></textarea>
-        <button class="btn btn__primary btn__block" :disabled="pending" @click="submitSvgAsset">Import SVG</button>
+        <button class="btn__primary" :disabled="pending" @click="submitSvgAsset">Import SVG</button>
       </div>
     </div>
   </div>

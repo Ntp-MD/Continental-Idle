@@ -137,8 +137,8 @@ onUnmounted(() => {
   right: 16px;
   width: min(320px, calc(100vw - 32px));
   background: var(--bg-overlay);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--text-bright) 15%, transparent);
+  border-radius: var(--radius-lg);
   padding: var(--gap-md);
   z-index: 9000;
   font-family: system-ui, sans-serif;
@@ -155,7 +155,7 @@ onUnmounted(() => {
 }
 
 .autoplay__panel__title {
-  font-size: 16px;
+  font-size: var(--font-lg);
   font-weight: 700;
   margin: 0;
   color: var(--text-bright);
@@ -170,7 +170,7 @@ onUnmounted(() => {
   cursor: pointer;
   background: var(--bg-card-hover);
   color: var(--text-secondary);
-  transition: all 0.2s;
+  transition: all var(--duration-normal) var(--ease-out);
 }
 
 .autoplay__panel__toggleactive {
@@ -186,20 +186,20 @@ onUnmounted(() => {
 }
 
 .autoplay__panel__label {
-  font-size: 12px;
+  font-size: var(--font-md);
   color: var(--text-dim);
   margin-right: var(--gap-xs);
 }
 
 .autoplay__panel__speedbtn {
   padding: var(--gap-xs) var(--gap-sm);
-  border: 1px solid rgba(255, 255, 255, 0.10);
-  border-radius: 4px;
+  border: 1px solid color-mix(in srgb, var(--text-bright) 10%, transparent);
+  border-radius: var(--radius-sm);
   background: transparent;
   color: var(--text-dim);
-  font-size: 12px;
+  font-size: var(--font-md);
   cursor: pointer;
-  transition: all 0.15s;
+  transition: all var(--duration-fast) var(--ease-out);
 }
 
 .autoplay__panel__speedbtnactive {
@@ -222,7 +222,7 @@ onUnmounted(() => {
 }
 
 .autoplay__panel__statlabel {
-  font-size: 10px;
+  font-size: var(--font-xs);
   color: var(--text-dim);
   text-transform: uppercase;
 }
@@ -235,8 +235,8 @@ onUnmounted(() => {
 
 .autoplay__panel__progressbar {
   height: 4px;
-  background: rgba(255, 255, 255, 0.08);
-  border-radius: 2px;
+  background: color-mix(in srgb, var(--text-bright) 8%, transparent);
+  border-radius: var(--radius-xs);
   overflow: hidden;
   margin-bottom: var(--gap-sm);
 }
@@ -244,16 +244,16 @@ onUnmounted(() => {
 .autoplay__panel__progressfill {
   height: 100%;
   background: linear-gradient(90deg, var(--accent-blue), var(--accent-green));
-  transition: width 0.3s;
+  transition: width var(--duration-normal) var(--ease-out);
 }
 
 .autoplay__panel__log {
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  border-top: 1px solid color-mix(in srgb, var(--text-bright) 8%, transparent);
   padding-top: var(--gap-sm);
 }
 
 .autoplay__panel__logtitle {
-  font-size: 11px;
+  font-size: var(--font-sm);
   color: var(--text-dim);
   text-transform: uppercase;
   margin-bottom: var(--gap-xs);
@@ -262,14 +262,14 @@ onUnmounted(() => {
 .autoplay__panel__loglist {
   max-height: 140px;
   overflow-y: auto;
-  font-size: 11px;
+  font-size: var(--font-sm);
   line-height: 1.5;
 }
 
 .autoplay__panel__entry {
   color: var(--text-secondary);
   padding: var(--gap-xs) 0;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+  border-bottom: 1px solid color-mix(in srgb, var(--text-bright) 3%, transparent);
 }
 
 .autoplay__panel__logempty {
@@ -283,7 +283,7 @@ onUnmounted(() => {
 }
 
 .autoplay__panel__loglist::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.15);
-  border-radius: 2px;
+  background: color-mix(in srgb, var(--text-bright) 15%, transparent);
+  border-radius: var(--radius-xs);
 }
 </style>

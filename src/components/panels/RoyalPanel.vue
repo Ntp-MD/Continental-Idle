@@ -190,8 +190,8 @@ watch(() => props.visible, (v) => {
               <div class="royal__building__rate">Income: {{ formatNumber(b.baseRate * Math.pow(1.08, getBuildingLevel(b.id))) }}/s</div>
             </div>
             <div class="royal__building__actions">
-              <button class="btn btn__ghost btn__sm" @click="debouncedBuyRoyalBuilding(b.id)">Buy ({{ getBuildingCost(b.id) }})</button>
-              <button class="btn btn__warning btn__sm" @click="debouncedBuyMaxRoyalBuilding(b.id)">MAX</button>
+              <button class="btn__ghost btn__sm" @click="debouncedBuyRoyalBuilding(b.id)">Buy ({{ getBuildingCost(b.id) }})</button>
+              <button class="btn__warning btn__sm" @click="debouncedBuyMaxRoyalBuilding(b.id)">MAX</button>
             </div>
           </div>
         </template>
@@ -247,7 +247,7 @@ watch(() => props.visible, (v) => {
               <div class="royalskill__cost">{{ node.royalMarkCost }} Marks</div>
               <button
                 v-if="getSkillLevel(branch) === node.level - 1"
-                class="btn btn__success btn__block btn__sm"
+                class="btn__success btn__sm"
                 :disabled="!canUpgradeRoyalSkill(branch)"
                 @click="debouncedTryUpgradeSkill(branch)"
               >Upgrade</button>
@@ -288,8 +288,8 @@ watch(() => props.visible, (v) => {
               <div class="royalpres__item">+ Royal Prestige Level {{ royalPrestige + 1 }}</div>
             </div>
             <div class="actions actions__center">
-              <button class="btn btn__ghost" @click="confirmingRoyal = false">CANCEL</button>
-              <button class="btn btn__gold" @click="debouncedConfirmRoyalPrestige">ASCEND</button>
+              <button class="btn__ghost" @click="confirmingRoyal = false">CANCEL</button>
+              <button class="btn__gold" @click="debouncedConfirmRoyalPrestige">ASCEND</button>
             </div>
           </div>
         </template>
@@ -299,3 +299,328 @@ watch(() => props.visible, (v) => {
     </div>
   </div>
 </template>
+
+<style scoped>
+.royal__header {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--gap-sm);
+	margin-bottom: var(--gap-sm);
+	font-size: var(--font-sm);
+	color: var(--text-dim);
+}
+
+.royal__header__val {
+	color: var(--accent-gold);
+	font-weight: bold;
+}
+
+.royal__header__warning {
+	color: var(--accent-red);
+	font-size: var(--font-xs);
+	width: 100%;
+}
+
+.royal__header__marks,
+.royal__header__prestige,
+.royal__header__branch {
+	display: inline-flex;
+	align-items: baseline;
+	gap: var(--gap-xs);
+}
+
+.royal__branches {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--gap-xs);
+	margin-bottom: var(--gap-sm);
+	font-size: var(--font-xs);
+}
+
+.royal__branches__label {
+	color: var(--text-dim);
+}
+
+.royal__branches__tag {
+	background: var(--bg-card);
+	border: 1px solid var(--accent-gold);
+	padding: var(--gap-xs) var(--gap-xs);
+	color: var(--text-primary);
+}
+
+.royal__tabs {
+	display: flex;
+	gap: var(--gap-xs);
+	margin-bottom: var(--gap-sm);
+}
+
+
+
+.royal__section {
+	max-height: 50vh;
+	overflow-y: auto;
+}
+
+.royal__section:has(> .royal__building) {
+	display: flex;
+	flex-direction: column;
+	gap: var(--gap-xs);
+}
+
+.royal__building {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	padding: var(--gap-sm) var(--gap-sm);
+	background: var(--bg-card);
+	border: 1px solid var(--border-dim);
+}
+
+.royal__building__info {
+	flex: 1;
+	min-width: 0;
+}
+
+.royal__building__name {
+	font-size: var(--font-md);
+	color: var(--text-primary);
+}
+
+.royal__building__lv {
+	font-size: var(--font-xs);
+	color: var(--accent-gold);
+}
+
+.royal__building__desc {
+	font-size: var(--font-xs);
+	color: var(--text-dim);
+}
+
+.royal__building__rate {
+	font-size: var(--font-xs);
+	color: var(--accent-green);
+}
+
+.royal__building__actions {
+	display: flex;
+	gap: var(--gap-xs);
+	flex-shrink: 0;
+}
+
+.royal__building__actions .btn {
+	font-size: var(--font-xs);
+	padding: var(--gap-xs) var(--gap-sm);
+}
+
+.royalskill__summary {
+	display: flex;
+	flex-direction: column;
+	gap: var(--gap-xs);
+	background: var(--bg-tertiary);
+	border: 1px solid var(--border-dim);
+	border-radius: var(--radius-sm);
+	padding: var(--gap-sm);
+	margin-bottom: var(--gap-md);
+}
+
+.royalskill__summary__title {
+	font-size: var(--font-sm);
+	color: var(--accent-gold);
+	text-transform: uppercase;
+	letter-spacing: 1px;
+}
+
+.royalskill__summary__grid {
+	display: grid;
+	grid-template-columns: repeat(3, 1fr);
+	gap: var(--gap-xs);
+}
+
+.royalskill__summary__item {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+}
+
+.royalskill__summary__label {
+	font-size: var(--font-xs);
+	color: var(--text-dim);
+}
+
+.royalskill__summary__val {
+	font-size: var(--font-md);
+	color: var(--accent-gold);
+	font-weight: bold;
+}
+
+.royalskill__branch {
+	margin-bottom: var(--gap-sm);
+}
+
+.royalskill__branch__title {
+	font-size: var(--font-md);
+	color: var(--accent-gold);
+	text-transform: uppercase;
+	margin-bottom: var(--gap-xs);
+}
+
+.royalskill__branch__nodes {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--gap-xs);
+}
+
+.royalskill {
+	display: flex;
+	flex-direction: column;
+	gap: var(--gap-xs);
+	background: var(--bg-card);
+	border: 1px solid var(--border-dim);
+	padding: var(--gap-xs) var(--gap-sm);
+	width: 120px;
+	font-size: var(--font-xs);
+}
+
+.royalskill__unlocked {
+	border-color: var(--accent-gold);
+}
+
+.royalskill__available {
+	border-color: var(--accent-green);
+	animation: royal-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes royal-pulse {
+
+	0%,
+	100% {
+		border-color: var(--accent-green);
+	}
+
+	50% {
+		border-color: var(--accent-gold);
+	}
+}
+
+.royalskill__level {
+	font-size: var(--font-xs);
+	color: var(--text-dim);
+}
+
+.royalskill__name {
+	font-size: var(--font-sm);
+	color: var(--text-primary);
+	font-weight: bold;
+}
+
+.royalskill__desc {
+	font-size: var(--font-xs);
+	color: var(--text-dim);
+}
+
+.royalskill__cost {
+	font-size: var(--font-xs);
+	color: var(--accent-gold);
+}
+
+.royalskill__btn {
+	font-size: var(--font-xs);
+	padding: var(--gap-xs) var(--gap-xs);
+	background: var(--bg-secondary);
+	border: 1px solid var(--accent-green);
+	color: var(--accent-green);
+	cursor: pointer;
+}
+
+.royalskill__btn:disabled {
+	opacity: 0.4;
+	cursor: not-allowed;
+}
+
+.royalskill__done {
+	color: var(--accent-gold);
+	font-size: var(--font-lg);
+}
+
+.royal__empty {
+	color: var(--text-dim);
+	font-size: var(--font-sm);
+	text-align: center;
+	padding: var(--gap-md);
+}
+
+.royalpres__info {
+	text-align: center;
+	padding: var(--gap-sm);
+}
+
+.royalpres__info__desc {
+	font-size: var(--font-sm);
+	color: var(--text-dim);
+	margin-bottom: var(--gap-sm);
+}
+
+.royalpres__info__row {
+	font-size: var(--font-sm);
+	color: var(--text-dim);
+	margin: var(--gap-xs) 0;
+}
+
+.royalpres__info__val {
+	color: var(--accent-gold);
+	font-weight: bold;
+}
+
+.royalpres__info__hint {
+	font-size: var(--font-xs);
+	color: var(--text-dim);
+	margin: var(--gap-xs) 0;
+}
+
+.royalpres__info__btn {
+	font-size: var(--font-md);
+	cursor: pointer;
+}
+
+.royalpres__info__btn:disabled {
+	opacity: 0.4;
+	cursor: not-allowed;
+}
+
+.royalpres {
+	display: flex;
+	flex-direction: column;
+	gap: var(--gap-sm);
+	text-align: center;
+	padding: var(--gap-sm);
+}
+
+.royalpres__title {
+	font-size: var(--font-lg);
+	color: var(--accent-gold);
+}
+
+.royalpres__section {
+	display: flex;
+	flex-direction: column;
+	gap: var(--gap-xs);
+	text-align: left;
+}
+
+.royalpres__label {
+	font-size: var(--font-sm);
+	color: var(--text-primary);
+}
+
+.royalpres__item {
+	font-size: var(--font-xs);
+	color: var(--text-dim);
+}
+
+
+
+.royalpres .actions .btn {
+	padding: var(--gap-xs) var(--gap-md);
+	font-size: var(--font-sm);
+}
+</style>

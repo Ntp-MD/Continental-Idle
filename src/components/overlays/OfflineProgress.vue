@@ -80,8 +80,72 @@ onUnmounted(() => {
             <span class="offline__progress__amount">{{ e.amount }}</span>
           </div>
         </div>
-        <button class="btn btn__gold btn__block" @click="dismiss" aria-label="Collect offline earnings">COLLECT</button>
+        <button class="btn__gold" @click="dismiss" aria-label="Collect offline earnings">COLLECT</button>
       </div>
     </div>
   </div>
 </template>
+
+<style scoped>
+/* === Offline Progress Panel === */
+.offline__progress {
+	display: flex;
+	flex-direction: column;
+	gap: var(--gap-sm);
+}
+
+.offline__progress__time,
+.offline__progress__efficiency,
+.offline__progress__total {
+	font-size: var(--font-sm);
+	color: var(--text-secondary);
+	text-align: center;
+}
+
+.offline__progress__total {
+	color: var(--accent-gold);
+	font-weight: 600;
+	font-size: var(--font-md);
+}
+
+.offline__progress__list {
+	display: flex;
+	flex-direction: column;
+	gap: var(--gap-xs);
+	padding: var(--gap-sm);
+	background: var(--bg-tertiary);
+	border: 1px solid var(--border-dim);
+	border-radius: var(--radius-sm);
+	max-height: 40vh;
+	overflow-y: auto;
+}
+
+.offline__progress__row {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	font-size: var(--font-sm);
+}
+
+.offline__progress__branch {
+	color: var(--text-secondary);
+}
+
+.offline__progress__amount {
+	color: var(--accent-green);
+	font-weight: 600;
+}
+
+.offline__progress .btn {
+	margin-top: var(--gap-md);
+	padding: var(--gap-sm) var(--gap-lg);
+	font-size: var(--font-md);
+	font-weight: 700;
+	letter-spacing: 1px;
+	transition: transform var(--duration-fast) var(--ease-out);
+}
+
+.offline__progress .btn:hover {
+	transform: scale(1.03);
+}
+</style>

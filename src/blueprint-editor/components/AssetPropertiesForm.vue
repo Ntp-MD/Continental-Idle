@@ -6,6 +6,7 @@ import { useAsyncAction } from '../composables/useAsyncAction'
 import { useWalkableGridPanel } from '../composables/useWalkableGridPanel'
 import { useClipboardCopy } from '../composables/useClipboardCopy'
 import type { AssetDef } from '../types'
+import { isHexColor } from '../store/state'
 import TagPicker from './tagPicker.vue'
 
 const props = defineProps<{ asset: AssetDef }>()
@@ -58,6 +59,10 @@ const assetInUse = computed(() => {
 
 async function commitField(field: 'name' | 'w' | 'h' | 'pxW' | 'pxH' | 'usePx' | 'defaultPadding' | 'defaultBgColor') {
   const val = assetFields.value[field]
+  if (field === 'defaultBgColor' && typeof val === 'string' && val && !isHexColor(val)) {
+    useToast().warning('Background color must be a hex code')
+    return
+  }
   await store.updateAsset(props.asset.id, { [field]: val } as Partial<Pick<AssetDef, 'name' | 'w' | 'h' | 'pxW' | 'pxH' | 'usePx' | 'defaultPadding' | 'defaultBgColor'>>)
 }
 
@@ -137,7 +142,7 @@ async function deleteAsset() {
       <label>ID</label>
       <div class="properties__idrow">
         <input type="text" :value="asset.id" disabled class="input input__readonly" title="Asset ID" />
-        <button class="btn btn__sm" @click="copyId(asset.id)">Copy</button>
+        <button class="btn__sm" @click="copyId(asset.id)">Copy</button>
       </div>
     </div>
     <div v-if="isLinkedAsset" class="alert alert__info alert__sm">
@@ -154,7 +159,7 @@ async function deleteAsset() {
     </div>
     <div v-if="isSvgAsset" class="properties__row">
       <label>Rotate Origin</label>
-      <button class="btn btn__sm" @click="onRotateAsset">↻ 90°</button>
+      <button class="btn__sm" @click="onRotateAsset">↻ 90°</button>
     </div>
     </div>
     </div>
@@ -170,8 +175,8 @@ async function deleteAsset() {
       <div v-if="!isSvgAsset" class="properties__row">
         <label>Unit Mode</label>
         <div class="properties__unittoggle">
-          <button class="btn btn__sm" :class="{ 'btn__warning': !assetFields.usePx }" @click="assetFields.usePx ? toggleUsePx() : null">Tiles</button>
-          <button class="btn btn__sm" :class="{ 'btn__warning': assetFields.usePx }" @click="!assetFields.usePx ? toggleUsePx() : null">Pixels</button>
+          <button class="btn__sm" :class="{ 'btn__warning': !assetFields.usePx }" @click="assetFields.usePx ? toggleUsePx() : null">Tiles</button>
+          <button class="btn__sm" :class="{ 'btn__warning': assetFields.usePx }" @click="!assetFields.usePx ? toggleUsePx() : null">Pixels</button>
         </div>
       </div>
       <template v-if="!assetFields.usePx">
@@ -202,14 +207,20 @@ async function deleteAsset() {
     <div class="properties__row">
       <label>Bg Color</label>
       <div class="properties__colorrow">
-        <input type="color" :value="assetFields.defaultBgColor || 'var(--text-bright)'" @input="assetFields.defaultBgColor = ($event.target as HTMLInputElement).value; commitField('defaultBgColor')" class="input input__color" />
-        <button class="btn btn__sm" @click="clearAssetBgColor">Reset</button>
+        <input
+          class="input"
+          v-model="assetFields.defaultBgColor"
+          placeholder="#RRGGBB"
+          aria-label="Asset background color hex value"
+          @change="commitField('defaultBgColor')"
+        />
+        <button class="btn__sm" type="button" @click="clearAssetBgColor">Reset</button>
       </div>
     </div>
     <div class="properties__row properties__row__toggle">
       <label>Entrance Only</label>
       <button
-        class="btn btn__sm"
+        class="btn__sm"
         :class="{ 'btn__success': entranceRequired, 'btn__danger': !entranceRequired }"
         @click="entranceRequired = !entranceRequired"
         :title="entranceRequired ? 'NPCs can only enter through tiles marked entrance in the walkable grid' : 'NPCs can freely walk across all walkable tiles'"
@@ -258,15 +269,15 @@ async function deleteAsset() {
       <span>{{ collapsedCount }} object(s) collapsed — overlapping! Shown in red on canvas.</span>
     </div>
     <div v-if="!isLinkedAsset" class="properties__deletesection">
-      <button class="btn btn__warning" @click="showWalkableGridPanel ? closeWalkableGridPanel() : openWalkableGridPanel()">
+      <button class="btn__warning" @click="showWalkableGridPanel ? closeWalkableGridPanel() : openWalkableGridPanel()">
         {{ showWalkableGridPanel ? 'Close Walkable Grid' : 'Manage Walkable Grid' }}
       </button>
     </div>
     <div class="properties__deletesection">
-      <button class="btn btn__primary" :disabled="pending" @click="onSave">Save Asset</button>
+      <button class="btn__primary" :disabled="pending" @click="onSave">Save Asset</button>
     </div>
     <div class="properties__deletesection properties__deletesection__alone">
-      <button class="btn btn__danger" :disabled="pending" @click="deleteAsset">Delete Asset</button>
+      <button class="btn__danger" :disabled="pending" @click="deleteAsset">Delete Asset</button>
     </div>
   </div>
 </template>

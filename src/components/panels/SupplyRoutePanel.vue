@@ -207,7 +207,7 @@ onUnmounted(() => {
           No supply routes established yet.
         </div>
         <div v-else class="supplyroute__list">
-          <div v-for="route in routes" :key="route.id" class="card__panel">
+          <div v-for="route in routes" :key="route.id" class="card card__panel">
             <div class="supplyroute__head">
               <span class="supplyroute__icon" :style="{ color: getRouteTypeColor(route.type) }">{{ getRouteTypeIcon(route.type) }}</span>
               <span class="supplyroute__type">{{ getRouteTypeName(route.type) }}</span>
@@ -228,10 +228,10 @@ onUnmounted(() => {
               <div class="supplyroute__fill" :style="{ width: route.stability + '%', background: getStabilityColor(route.stability) }"></div>
             </div>
             <div class="actions">
-              <button class="btn btn__success" @click="debouncedDoStabilize(route.id)">
+              <button class="btn__success" @click="debouncedDoStabilize(route.id)">
                 Stabilize ({{ formatNumber(getStabilizeCost(route.id)) }})
               </button>
-              <button class="btn btn__danger" @click="debouncedDoDismantle(route.id)">
+              <button class="btn__danger" @click="debouncedDoDismantle(route.id)">
                 Dismantle
               </button>
             </div>
@@ -266,7 +266,7 @@ onUnmounted(() => {
         </div>
         <p v-if="selectedTypeDef" class="supplyroute__desc">{{ selectedTypeDef.description }}</p>
         <p class="supplyroute__cost">Cost: {{ formatNumber(establishCost) }} | Funds: {{ formatNumber(activeBranchCurrency) }}</p>
-        <button class="btn btn__gold" :disabled="!canEstablish" @click="debouncedDoEstablish">
+        <button class="btn__gold" :disabled="!canEstablish" @click="debouncedDoEstablish">
           Establish Route
         </button>
       </section>
@@ -276,7 +276,7 @@ onUnmounted(() => {
         <h3 class="supplyroute__heading">Hijackable Routes</h3>
         <p class="supplyroute__hint">Send an assassin to steal a route from another branch. Requires an idle assassin with loyalty ≥ 20.</p>
         <div class="supplyroute__list">
-          <div v-for="route in hijackableRoutes" :key="route.id" class="card__panel card__danger">
+          <div v-for="route in hijackableRoutes" :key="route.id" class="card card__panel card__danger">
             <div class="supplyroute__head">
               <span class="supplyroute__icon" :style="{ color: getRouteTypeColor(route.type) }">{{ getRouteTypeIcon(route.type) }}</span>
               <span class="supplyroute__type">{{ getRouteTypeName(route.type) }}</span>
@@ -289,7 +289,7 @@ onUnmounted(() => {
               <span class="supplyroute__stat">Success: {{ canHijack(route.id) ? getHijackChance(route.id) + '%' : 'N/A' }}</span>
             </div>
             <button
-              class="btn btn__danger"
+              class="btn__danger"
               :disabled="!canHijack(route.id)"
               @click="debouncedDoHijack(route.id)"
             >
@@ -303,3 +303,199 @@ onUnmounted(() => {
     </div>
   </div>
 </template>
+
+<style scoped>
+.supplyroute__panel {
+	width: 92vw;
+	max-width: 92vw;
+	max-height: 80vh;
+	overflow-y: auto;
+}
+
+.supplyroute__message {
+	padding: var(--gap-sm) var(--gap-sm);
+	border-radius: var(--radius-sm);
+	margin-bottom: var(--gap-sm);
+	font-size: var(--font-md);
+	font-weight: 600;
+}
+
+.supplyroute__message__success {
+	background: rgba(76, 175, 80, 0.15);
+	color: var(--accent-green);
+	border: 1px solid var(--accent-green);
+}
+
+.supplyroute__message__error {
+	background: rgba(231, 76, 60, 0.15);
+	color: var(--accent-red);
+	border: 1px solid var(--accent-red);
+}
+
+.supplyroute__message__warning {
+	background: rgba(243, 156, 18, 0.15);
+	color: var(--accent-gold);
+	border: 1px solid var(--accent-gold);
+}
+
+.supplyroute__section {
+	margin-bottom: var(--gap-md);
+}
+
+.supplyroute__summary {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--gap-sm);
+	padding: var(--gap-xs) 0;
+	margin-bottom: var(--gap-xs);
+	border-bottom: 1px solid var(--border-dim);
+	font-size: var(--font-sm);
+	color: var(--accent-gold);
+	font-weight: bold;
+}
+
+.supplyroute__heading {
+	font-size: var(--font-md);
+	color: var(--text-primary);
+	margin-bottom: var(--gap-sm);
+	text-transform: uppercase;
+	letter-spacing: 1px;
+}
+
+.supplyroute__empty {
+	font-size: var(--font-md);
+	color: var(--text-secondary);
+	padding: var(--gap-sm);
+	text-align: center;
+	border: 1px dashed var(--border-dim);
+	border-radius: var(--radius-sm);
+}
+
+.supplyroute__list {
+	display: flex;
+	flex-direction: column;
+	gap: var(--gap-sm);
+}
+
+.supplyroute__head {
+	display: flex;
+	align-items: center;
+	gap: var(--gap-xs);
+	margin-bottom: var(--gap-xs);
+}
+
+.supplyroute__icon {
+	font-size: var(--font-lg);
+}
+
+.supplyroute__type {
+	font-size: var(--font-md);
+	font-weight: 600;
+	color: var(--text-primary);
+}
+
+.supplyroute__hijackedbadge {
+	font-size: var(--font-xs);
+	padding: var(--gap-xs) var(--gap-xs);
+	border-radius: 3px;
+	background: rgba(255, 87, 34, 0.20);
+	color: var(--accent-red);
+	border: 1px solid var(--accent-red);
+	margin-left: auto;
+}
+
+.supplyroute__info {
+	font-size: var(--font-sm);
+	color: var(--text-secondary);
+	margin-bottom: var(--gap-xs);
+}
+
+.supplyroute__stats {
+	display: flex;
+	gap: var(--gap-md);
+	font-size: var(--font-sm);
+	color: var(--text-secondary);
+	margin-bottom: var(--gap-xs);
+}
+
+.supplyroute__stat {
+	white-space: nowrap;
+}
+
+.supplyroute__bar {
+	height: 4px;
+	background: var(--bg-primary);
+	border-radius: 3px;
+	overflow: hidden;
+	margin-bottom: var(--gap-sm);
+}
+
+.supplyroute__fill {
+	height: 100%;
+	transition: width var(--duration-normal) var(--ease-out);
+	border-radius: 3px;
+}
+
+.supplyroute__panel .actions {
+	margin-top: var(--gap-xs);
+}
+
+.supplyroute__panel .actions .btn {
+	font-size: var(--font-sm);
+	padding: var(--gap-xs) var(--gap-sm);
+}
+
+.supplyroute__section > .btn {
+	margin-top: var(--gap-sm);
+	padding: var(--gap-sm) var(--gap-md);
+	font-size: var(--font-md);
+}
+
+.supplyroute__form {
+	display: flex;
+	gap: var(--gap-sm);
+	flex-wrap: wrap;
+	margin-bottom: var(--gap-sm);
+}
+
+.supplyroute__label {
+	display: flex;
+	flex-direction: column;
+	font-size: var(--font-sm);
+	color: var(--text-secondary);
+	gap: var(--gap-xs);
+	flex: 1;
+	min-width: 140px;
+}
+
+.supplyroute__select {
+	background: var(--bg-tertiary);
+	border: 1px solid var(--border-dim);
+	border-radius: var(--radius-sm);
+	padding: var(--gap-xs) var(--gap-sm);
+	color: var(--text-primary);
+	font-size: var(--font-md);
+	font-family: inherit;
+	min-width: 0;
+}
+
+.supplyroute__desc {
+	font-size: var(--font-sm);
+	color: var(--text-secondary);
+	margin-bottom: var(--gap-xs);
+	line-height: 1.4;
+}
+
+.supplyroute__cost {
+	font-size: var(--font-sm);
+	color: var(--text-primary);
+	margin-bottom: var(--gap-xs);
+}
+
+.supplyroute__hint {
+	font-size: var(--font-sm);
+	color: var(--text-secondary);
+	margin-bottom: var(--gap-sm);
+	line-height: 1.4;
+}
+</style>

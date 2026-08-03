@@ -2,7 +2,6 @@
 .game__layout {
 	display: flex;
 	flex-direction: column;
-	width: 100%;
 	height: 100%;
 }
 
@@ -243,7 +242,7 @@
 }
 
 .nodecircle {
-	transition: r 0.15s;
+	transition: r var(--duration-fast);
 }
 
 .nodegroup:hover .nodecircle {
@@ -254,7 +253,7 @@
 	fill: none;
 	stroke-width: 1.5px;
 	opacity: 0;
-	transition: opacity 0.2s;
+	transition: opacity var(--duration-fast);
 }
 
 .nodering.visible {

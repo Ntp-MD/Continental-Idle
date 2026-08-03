@@ -1,0 +1,162 @@
+{
+  "$schema": "blueprint-layout.v1.json",
+  "version": 2,
+  "canvas": {
+    "width": 1200,
+    "height": 600,
+    "tileSize": 25
+  },
+  "floors": [
+    {
+      "id": "floor-mr8wexze-1",
+      "name": "New Floor",
+      "label": "F0",
+      "rooms": [
+        {
+          "id": "room-2f10ca80eb",
+          "x": 950,
+          "y": 0,
+          "w": 250,
+          "h": 200,
+          "label": "Test Walk 1",
+          "roomType": "room",
+          "walkable": true,
+          "anchorPoints": [
+            [
+              125,
+              100
+            ]
+          ],
+          "tags": [
+            "Hygiene"
+          ]
+        }
+      ],
+      "objects": [
+        {
+          "id": "obj-a28105f577",
+          "type": "builtin-restroom-1",
+          "x": 275,
+          "y": 175,
+          "w": 75,
+          "h": 75,
+          "rotation": 0,
+          "subId": "sub-98370593e3",
+          "fillColor": "#eadf0b",
+          "collapsed": false,
+          "walkable": true,
+          "entranceRequired": false,
+          "rx": {
+            "tl": 0,
+            "tr": 0,
+            "br": 0,
+            "bl": 0
+          },
+          "walkableGrid": [
+            [
+              true,
+              true,
+              true
+            ],
+            [
+              true,
+              true,
+              true
+            ],
+            [
+              true,
+              true,
+              true
+            ]
+          ],
+          "tileStates": [
+            [
+              "walkable",
+              "walkable",
+              "walkable"
+            ],
+            [
+              "walkable",
+              "walkable",
+              "walkable"
+            ],
+            [
+              "walkable",
+              "walkable",
+              "walkable"
+            ]
+          ],
+          "tileEdges": [
+            [
+              {
+                "top": true,
+                "left": true
+              },
+              {
+                "top": true
+              },
+              {
+                "top": true,
+                "right": true
+              }
+            ],
+            [
+              {
+                "left": true
+              },
+              {},
+              {
+                "right": true
+              }
+            ],
+            [
+              {
+                "bottom": true,
+                "left": true
+              },
+              {
+                "bottom": false
+              },
+              {
+                "bottom": true,
+                "right": true
+              }
+            ]
+          ]
+        }
+      ],
+      "defaultWalkable": true,
+      "zones": []
+    },
+    {
+      "id": "floor-ecc4c8ee52",
+      "name": "New Floor",
+      "label": "F1",
+      "rooms": [
+        {
+          "id": "room-3eb482e4d5",
+          "x": 200,
+          "y": 175,
+          "w": 175,
+          "h": 125,
+          "label": "New Room",
+          "roomType": "room",
+          "walkable": true,
+          "anchorPoints": [
+            [
+              87.5,
+              62.5
+            ]
+          ]
+        }
+      ],
+      "objects": [],
+      "defaultWalkable": true,
+      "zones": []
+    }
+  ],
+  "roomTemplates": [],
+  "globalTags": [
+    "Hygiene"
+  ]
+}

@@ -1,13 +1,11 @@
 import type { FloorLayoutData, RoomData, ObjectData, AssetBase, AssetDef, LinkedPart, Rotation, RoomTemplate, RoomTemplateObject, TileState, NpcSimulationConfig, LegacyNpcSimulationConfig, NpcRole, NpcTask, NpcDeploymentPool } from '../types'
 import { isAssetDef, validateLayoutData, validateLayoutIntegrity, isNpcConfig } from '../types'
-import { SAVED_LAYOUT } from './floorLayout'
 import { findAssetCached, buildAssetMap } from '../assetUtils'
 import { normalizeObject, snap } from '../geometry'
 import { recalcCollapsed } from '../collision'
 import { EDITOR_CONFIG } from '../editorConfig'
-import { ASSET_REGISTRY } from '../assetRegistry'
-import { editorLog } from './log'
-import { genId } from './ids'
+import { assetCatalog, buildSavedLayout } from './dataLoader'
+import { editorLog, genId } from './utils'
 import { getDefaultNpcConfig } from './npcDefault'
 
 export { EDITOR_CONFIG }
@@ -89,10 +87,10 @@ function migrateNpcConfig(value: unknown): NpcSimulationConfig {
 			guest: '#22d3ee',
 			staff: '#f472b6',
 			visitor: '#a78bfa',
-			assassin: 'var(--accent-red)',
+			assassin: '#ef4444',
 		}
 		for (const roleId of Object.keys(old.roleBehaviors ?? {})) {
-			rawRoles.push({ id: roleId, label: roleId.charAt(0).toUpperCase() + roleId.slice(1), color: legacyColors[roleId] ?? '#22d3ee', focusTask: undefined, focusChance: 0, restrictedTasks: [] })
+			rawRoles.push({ id: roleId, label: roleId.charAt(0).toUpperCase() + roleId.slice(1), color: legacyColors[roleId] ?? '#3b82f6', focusTask: undefined, focusChance: 0, restrictedTasks: [] })
 		}
 		const selectedRole = old.role
 		if (!rawRoles.some(r => r.id === selectedRole)) {
@@ -167,7 +165,7 @@ function migrateNpcConfig(value: unknown): NpcSimulationConfig {
 }
 
 export function migrate(data: unknown): { layout: FloorLayoutData; legacyAssets: AssetDef[] } {
-	if (!data || typeof data !== 'object') return { layout: JSON.parse(JSON.stringify(SAVED_LAYOUT)), legacyAssets: [] }
+	if (!data || typeof data !== 'object') return { layout: JSON.parse(JSON.stringify(buildSavedLayout())), legacyAssets: [] }
 	const d = data as Record<string, unknown>
 	const canvas = d.canvas
 	const validCanvas = canvas && typeof canvas === 'object'
@@ -373,7 +371,7 @@ export function migrate(data: unknown): { layout: FloorLayoutData; legacyAssets:
 	delete migrated.instanceLabels
 	delete migrated.validationRules
 
-	const migratedAssetMap = buildAssetMap([...ASSET_REGISTRY, ...legacyAssets])
+	const migratedAssetMap = buildAssetMap([...assetCatalog, ...legacyAssets])
 	const t = migrated.canvas.tileSize
 	for (const asset of legacyAssets) {
 		if (asset.linkedParts) {
@@ -456,7 +454,7 @@ export function migrate(data: unknown): { layout: FloorLayoutData; legacyAssets:
 	}
 	if (!validateLayoutData(migrated as unknown)) {
 		editorLog.error('Migration', 'Migrated layout failed schema validation, falling back to default')
-		return { layout: JSON.parse(JSON.stringify(SAVED_LAYOUT)), legacyAssets: [] }
+		return { layout: JSON.parse(JSON.stringify(buildSavedLayout())), legacyAssets: [] }
 	}
 	return { layout: migrated, legacyAssets }
 }
@@ -466,7 +464,7 @@ export function loadInitial(): { layout: FloorLayoutData; legacyAssets: AssetDef
 	if (hmrData) {
 		try { return migrate(JSON.parse(hmrData)) } catch { /* fall through */ }
 	}
-	return migrate(JSON.parse(JSON.stringify(SAVED_LAYOUT)))
+	return migrate(JSON.parse(JSON.stringify(buildSavedLayout())))
 }
 
 function cloneAsset(a: AssetDef): AssetDef {

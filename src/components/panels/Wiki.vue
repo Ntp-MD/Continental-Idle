@@ -66,9 +66,6 @@ function scrollToSection(id: string) {
   color: var(--text-primary);
   line-height: 1.6;
   padding: var(--gap-md);
-  width: 100%;
-  max-width: 100%;
-  margin: 0 auto;
 }
 
 .wiki__header {
