@@ -75,7 +75,7 @@ function applyPenalty(effect: EventEffect, branchId: BranchId): void {
 	)
 	if (hasProtection) return
 
-	// Cleaner max ability: all negative event penalties negated
+
 	if (hasCleanerMaxed(branchId)) return
 
 	switch (effect.type) {
@@ -179,7 +179,7 @@ function generateRaid(branchId: BranchId): RaidData {
 		a.attackTarget === null &&
 		a.loyalty >= DEFENDER_LOYALTY_THRESHOLD
 	)
-	// Also count assassins lent TO this branch from other BRANCHES
+
 	state.worldMap.unlockedBranches.forEach(sourceId => {
 		if (sourceId === branchId) return
 		const sourceBranch = state.branches[sourceId]
@@ -244,15 +244,15 @@ class EventEngine {
 		const branch = state.branches[state.activeBranch]
 		if (!branch) return
 
-		// Excommunicado grace period
+
 		if (Date.now() < branch.excommunicadoGraceUntil) return
 
-		// Filter eligible events
+
 		const eligible = EVENTS.filter(e => {
 			if (e.branchLock && e.branchLock !== state.activeBranch) return false
-			// High Table Enforcer prevents excommunicado events
+
 			if (e.id === 'excommunicado' && hasHighTableEnforcer(state.activeBranch)) return false
-			// Raid cooldown check — separate from normal event cooldown
+
 			if (e.id === 'assassinRaid') {
 				const lastRaid = this.lastRaidTimes.get(state.activeBranch) || 0
 				if (now - lastRaid < RAID_COOLDOWN) return false
@@ -272,19 +272,19 @@ class EventEngine {
 
 		if (eligible.length === 0) return
 
-		// Weighted random selection
+
 		const heat = branch.heatLevel
 		const vipMult = getVipFrequencyMultiplier(state.activeBranch)
 		let totalWeight = 0
 		const weighted = eligible.map(e => {
-			// Sommelier VIP boost only applies to VIP guest arrival events
+
 			const isVipEvent = e.id === 'vipArrival'
 			const w = Math.max(1, (e.weight + e.heatModifier * heat) * (isVipEvent ? vipMult : 1))
 			totalWeight += w
 			return { event: e, weight: w }
 		})
 
-		// Random roll (base probability per tick is low)
+
 		const rollChance = 0.02
 		if (Math.random() > rollChance) return
 
@@ -337,7 +337,7 @@ class EventEngine {
 
 		const eventBranchId = this.activeEvent.branch
 
-		// Validate choice requirements
+
 		let hasAssassinDefender = false
 		if (choice.requires) {
 			if (choice.requires.assassinAssigned) {
@@ -366,14 +366,13 @@ class EventEngine {
 			}
 		}
 
-		// Apply reputation change (Shadow Blade doubles reputation gain, diplomacy skill adds %)
-		// Only amplify positive changes — penalties should not be worsened by bonuses
+
 		const repMult = choice.reputationChange > 0 && hasShadowBlade(eventBranchId) ? 2 : 1
 		const skillRepMult = choice.reputationChange > 0 ? getTotalReputationMult() : 1
 		const repChange = Math.round(choice.reputationChange * repMult * skillRepMult)
 		branch.reputation = Math.max(0, Math.min(10000, branch.reputation + repChange))
 
-		// Special combat resolution for assassinRaid fight choice
+
 		let raidWon = false
 		if (this.activeEvent.definition.id === 'assassinRaid' && choiceId === 'fight' && this.activeEvent.raidData) {
 			const raid = this.activeEvent.raidData
@@ -384,7 +383,7 @@ class EventEngine {
 				a.attackTarget === null &&
 				a.loyalty >= DEFENDER_LOYALTY_THRESHOLD
 			)
-			// Also include assassins lent TO this branch from other BRANCHES
+
 			state.worldMap.unlockedBranches.forEach(sourceId => {
 				if (sourceId === eventBranchId) return
 				const sourceBranch = state.branches[sourceId]
@@ -419,13 +418,13 @@ class EventEngine {
 				eventBus.emit('raid:result', { won: false, branchId: eventBranchId })
 			}
 		} else {
-			// Apply rewards
+
 			choice.rewards.forEach(reward => applyEffect(reward, eventBranchId))
 
-			// Apply penalties
+
 			choice.penalties.forEach(penalty => applyPenalty(penalty, eventBranchId))
 
-			// Special: markerForgiveness — clear cheapest debt on accept
+
 			if (this.activeEvent.definition.id === 'markerForgiveness' && choiceId === 'accept') {
 				if (branch.markerDebts.length > 0) {
 					const cheapest = branch.markerDebts.reduce((lowest, debt) => debt.amount < lowest.amount ? debt : lowest, branch.markerDebts[0])
@@ -434,16 +433,16 @@ class EventEngine {
 			}
 		}
 
-		// Guest satisfaction: resolving events improves it slightly (skip for raid fight — handled above)
+
 		if (!(this.activeEvent.definition.id === 'assassinRaid' && choiceId === 'fight')) {
 			branch.guestSatisfaction = Math.min(100, branch.guestSatisfaction + 2)
 		}
 
-		// Heat decay on resolve (Street Samurai reduces extra heat, skill tree adds reduction)
+
 		const heatReduction = (hasStreetSamurai(eventBranchId) ? 3 : 1) + getExtraHeatReduction()
 		branch.heatLevel = Math.max(0, branch.heatLevel - heatReduction)
 
-		// Apply custom heat change from choice (e.g. heatWave "Lay low" = -5)
+
 		if (choice.heatChange) {
 			const heatImmune = sovereignManager.hasActiveDecree('heatReduction') && sovereignManager.getActiveDecreeMult('heatReduction') === -1
 			if (!heatImmune || choice.heatChange < 0) {
@@ -451,7 +450,7 @@ class EventEngine {
 			}
 		}
 
-		// Update AI relations based on event choice
+
 		if (this.activeEvent.aiOwnerBranch) {
 			const ownerBranch = this.activeEvent.aiOwnerBranch
 			const eventId = this.activeEvent.definition.id
@@ -481,7 +480,7 @@ class EventEngine {
 			}
 		}
 
-		// Log
+
 		state.eventLog.push({
 			timestamp: Date.now(),
 			branch: this.activeEvent.branch,
@@ -514,7 +513,7 @@ class EventEngine {
 			branch.reputation = Math.max(0, branch.reputation - 15)
 			branch.guestSatisfaction = Math.max(0, branch.guestSatisfaction - 5)
 
-			// Ignoring AI events worsens relations slightly
+
 			if (activeEvent.aiOwnerBranch) {
 				worsenRelations(activeEvent.aiOwnerBranch, 5)
 			}
@@ -546,26 +545,26 @@ class EventEngine {
 		if (!branch) return
 		if (Date.now() < branch.excommunicadoGraceUntil) return
 
-		// Find AI owners who want to act on this branch
+
 		const activeOwners = getActiveAIOwners()
 		if (activeOwners.length === 0) return
 
-		// Filter by cooldown — only consider owners whose cooldown has elapsed
+
 		const eligible = activeOwners.filter(owner =>
 			this.tickCount - owner.lastActionTick >= owner.actionCooldown
 		)
 		if (eligible.length === 0) return
 
-		// Pick a random eligible AI owner
+
 		const owner = eligible[Math.floor(Math.random() * eligible.length)]
 		if (!owner) return
 
-		// Roll for action based on aggression and threat
+
 		const aggressionMult = owner.aggression * (1 + owner.threatLevel * 0.1)
 		const rollChance = 0.03 * aggressionMult
 		if (Math.random() > rollChance) return
 
-		// Pick event type using the shared logic from ai-owner-manager
+
 		const playerPower = getPlayerPower()
 		const eventType = pickAIEvent(owner, playerPower)
 		if (!eventType) return
@@ -573,7 +572,7 @@ class EventEngine {
 		const def = generateAIEvent(owner, eventType, state.activeBranch)
 		this.triggerEvent(def, owner.branchId)
 
-		// Update AI owner cooldown
+
 		owner.lastActionTick = this.tickCount
 		const temperamentDef = getTemperamentDef(owner.temperament)
 		owner.actionCooldown = temperamentDef.baseCooldown + Math.floor(Math.random() * 20)
@@ -594,7 +593,7 @@ class EventEngine {
 			this.checkForAIEvent()
 		}
 
-		// Auto-resolve timeout
+
 		if (this.activeEvent) {
 			const elapsed = (Date.now() - this.activeEvent.triggeredAt) / 1000
 			if (elapsed >= this.activeEvent.definition.autoResolveTimeout) {
@@ -610,13 +609,13 @@ class EventEngine {
 					const choiceFlag = action === 'best' ? 'isBest' : 'isSafe'
 					const preferred = choices.find(c => c[choiceFlag])
 
-					// Validate requirements before auto-resolving — fallback to ignore if preferred choice can't be taken
+
 					let choiceId: string | null = null
 					if (preferred) {
 						if (!preferred.requires || this.canMeetRequirements(preferred)) {
 							choiceId = preferred.id
 						} else {
-							// Preferred choice can't be taken — find first choice without requirements
+
 							const fallbackChoice = choices.find(c => !c.requires)
 							choiceId = (fallbackChoice || choices[0]).id
 						}
@@ -625,7 +624,7 @@ class EventEngine {
 					}
 
 					if (!this.resolveEvent(choiceId)) {
-						// If resolution still fails, ignore to prevent soft-lock
+
 						this.ignoreEvent()
 					}
 				}

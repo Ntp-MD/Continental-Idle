@@ -5,15 +5,15 @@ import { rollDecrees } from '@/data/royalDecrees'
 import type { RoyalDecree } from '@/types'
 import type { RoyalDecreeTemplate } from '@/data/royalDecrees'
 
-const DECREE_COOLDOWN = 24 * 3600 * 1000 // 24h in ms
-const SANDBOX_LOOP_COOLDOWN = 3600 * 1000 // 1h in ms
+const DECREE_COOLDOWN = 24 * 3600 * 1000
+const SANDBOX_LOOP_COOLDOWN = 3600 * 1000
 
 class SovereignManager {
   checkVictory(): boolean {
     const state = gameState.get()
     if (state.sovereign) return true
 
-    // All non-HQ branches must be conquered AND royal; HQ is already owned
+
     const nonHq = BRANCHES.filter(b => b.id !== state.hqBranch)
     const allConquered = nonHq.every(b => state.worldMap.conqueredBranches.includes(b.id))
     const allRoyal = nonHq.every(b => state.worldMap.royalBranches.includes(b.id))
@@ -58,7 +58,7 @@ class SovereignManager {
     state.royalDecrees.push(decree)
     state.lastDecreeAt = Date.now()
 
-    // Apply immediate effects
+
     this.applyDecree(decree)
 
     eventBus.emit('decree:issued', { name: decree.name, description: decree.description })
@@ -74,17 +74,17 @@ class SovereignManager {
         break
       case 'heatReduction':
         if (decree.value === 0) {
-          // Clear all heat
+
           Object.values(state.branches).forEach(b => { b.heatLevel = 0 })
         }
-        // For ongoing heat immunity, the decree is checked in game loop
+
         break
       case 'debtReduction':
         if (decree.value === 0) {
-          // Clear all debts
+
           Object.values(state.branches).forEach(b => { b.markerDebts = [] })
         } else if (decree.value > 0 && decree.value < 1) {
-          // Forgive percentage
+
           Object.values(state.branches).forEach(b => {
             b.markerDebts.forEach(d => { d.amount *= (1 - decree.value) })
           })
@@ -108,9 +108,9 @@ class SovereignManager {
     const state = gameState.get()
     const now = Date.now()
     return state.royalDecrees.filter(d => {
-      // One-time decrees (null duration, non-incomeMultiplier) are applied immediately and not ongoing
+
       if (d.expiresAt === null && d.type !== 'incomeMultiplier') return false
-      if (d.expiresAt === null) return true // incomeMultiplier with null duration = permanent (shouldn't happen but handle it)
+      if (d.expiresAt === null) return true
       return d.expiresAt > now
     })
   }
@@ -134,7 +134,7 @@ class SovereignManager {
     return this.getActiveDecrees().some(d => d.type === type)
   }
 
-  // Sandbox+ mode: after sovereign, can reset for increasing rewards
+
   canSandboxLoop(): boolean {
     const state = gameState.get()
     if (!state.sovereign) return false
@@ -150,11 +150,11 @@ class SovereignManager {
     state.sandboxLoops += 1
     const loopMult = 1 + 0.10 * state.sandboxLoops
 
-    // Grant royal marks based on loop count
+
     const marksReward = Math.floor(100 * loopMult)
     state.royalMarks += marksReward
 
-    // Grant table favor
+
     state.tableFavor += Math.floor(50 * loopMult)
 
     eventBus.emit('sandbox:loop', { loop: state.sandboxLoops, marks: marksReward })

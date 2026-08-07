@@ -1,11 +1,14 @@
 import type { FloorData } from '../types'
+import { normalizeAllowedRoleIds } from '../types'
 import { state } from './state'
 import { genId } from './utils'
 import { saveLayout } from './persistence'
 
 export async function addFloor(): Promise<FloorData> {
-	const n = state.layout.floors.length
-	const floor: FloorData = { id: genId('floor'), name: `New Floor`, label: `F${n}`, rooms: [], objects: [], zones: [], defaultWalkable: true }
+	const existing = new Set(state.layout.floors.map(f => f.label))
+	let n = 1
+	while (existing.has(`F${n}`)) n++
+	const floor: FloorData = { id: genId('floor'), name: `Floor ${n}`, label: `F${n}`, rooms: [], objects: [], defaultWalkable: true }
 	state.layout.floors.push(floor)
 	await saveLayout()
 	return floor
@@ -35,9 +38,6 @@ export async function duplicateFloor(id: string): Promise<void> {
 		roomIdMap.set(r.id, newId)
 		r.id = newId
 	})
-	if (copy.zones) {
-		copy.zones.forEach(z => (z.id = genId('zone')))
-	}
 	const idMap = new Map<string, string>()
 	const linkGroupMap = new Map<string, string>()
 	for (const o of copy.objects) {
@@ -81,27 +81,25 @@ export async function reorderFloors(fromIndex: number, toIndex: number): Promise
 	await saveLayout()
 }
 
-export async function clearFloor(id: string): Promise<void> {
-	const floor = state.layout.floors.find(f => f.id === id)
-	if (!floor) return
-	floor.rooms = []
-	floor.objects = []
-	floor.zones = []
-	state.selectionState = { primary: null, items: [] }
-	await saveLayout()
-}
-
-export async function clearAllFloors(): Promise<void> {
-	for (const floor of state.layout.floors) {
-		floor.rooms = []
-		floor.objects = []
-		floor.zones = []
-	}
-	state.selectionState = { primary: null, items: [] }
-	await saveLayout()
-}
-
 export function selectFloor(id: string) {
 	state.currentFloorId = id
 	state.selectionState = { primary: null, items: [] }
+}
+
+
+export async function updateFloor(
+	id: string,
+	patch: Partial<Pick<FloorData, 'allowedRoleIds' | 'defaultWalkable' | 'name' | 'label'>>,
+): Promise<void> {
+	const floor = state.layout.floors.find(f => f.id === id)
+	if (!floor) return
+	if (patch.allowedRoleIds !== undefined) {
+		const normalized = normalizeAllowedRoleIds(patch.allowedRoleIds)
+		if (normalized) floor.allowedRoleIds = normalized
+		else delete floor.allowedRoleIds
+	}
+	if (patch.defaultWalkable !== undefined) floor.defaultWalkable = patch.defaultWalkable
+	if (patch.name !== undefined) floor.name = patch.name
+	if (patch.label !== undefined) floor.label = patch.label
+	await saveLayout()
 }

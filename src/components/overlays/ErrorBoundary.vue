@@ -52,9 +52,9 @@ function doReload() {
 	background: var(--bg-card);
 	border: 1px solid var(--accent-red);
 	border-radius: var(--radius-lg);
-	padding: min(32px, 5vw);
-	width: 90vw;
-	max-width: 90vw;
+	padding: var(--gap-xl);
+	width: 100%;
+	max-width: 600px;
 	text-align: center;
 }
 

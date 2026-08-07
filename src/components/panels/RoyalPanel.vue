@@ -355,7 +355,6 @@ watch(() => props.visible, (v) => {
 }
 
 
-
 .royal__section {
 	max-height: 50vh;
 	overflow-y: auto;
@@ -616,7 +615,6 @@ watch(() => props.visible, (v) => {
 	font-size: var(--font-xs);
 	color: var(--text-dim);
 }
-
 
 
 .royalpres .actions .btn {

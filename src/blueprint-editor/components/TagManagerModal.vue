@@ -75,7 +75,7 @@ async function onKeydown(e: KeyboardEvent) {
             class="tag"
           >
             <span class="tag__name">{{ tag }}</span>
-            <button class="btn__ghost btn__icon btn__text__danger" @click="removeTag(tag)">×</button>
+            <button class="btn__danger btn__icon" @click="removeTag(tag)">×</button>
           </div>
         </div>
       </div>
@@ -159,4 +159,8 @@ async function onKeydown(e: KeyboardEvent) {
 
 .tagmanager__scroll__stack .tag {
   justify-content: space-between;
+}
+
+.tag__name {
+	flex: 1;
 }</style>

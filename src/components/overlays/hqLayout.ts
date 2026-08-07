@@ -1,6 +1,9 @@
+import { reactive } from 'vue'
 import type { FloorId } from '@/types'
-import type { FloorLayoutData } from '@/blueprint-editor/types'
-import { buildRuntimeLayout } from '@/blueprint-editor/store/dataLoader'
+import type { AnchorPoint, AssetDef, FloorLayoutData, InteractConfig, NpcSimulationConfig, ObjectData, SyncedLayoutPayload, SyncedObject, SyncedRoom, SyncedFloor } from '@/blueprint-editor/types'
+import { normalizeAllowedRoleIds, normalizeAnchorPoints, normalizeInteractConfig } from '@/blueprint-editor/types'
+import { originAssets, buildRuntimeLayout } from '@/blueprint-editor/store/dataLoader'
+import { buildAssetMap } from '@/blueprint-editor/assetUtils'
 
 export interface RoomLayout {
 	id: string
@@ -13,38 +16,25 @@ export interface RoomLayout {
 	visual?: boolean
 	levelKey?: string
 	roomNum?: number
+	roomType?: string
+	radius?: number
+	entrances?: Array<{ side: 'top' | 'bottom' | 'left' | 'right'; offset: number; width: number }>
+	tags?: string[]
+	anchorPoints?: AnchorPoint[]
+	interact?: InteractConfig
+	walkable?: boolean
 }
 
-export interface SyncedObjectLayout {
-	id: string
-	type: string
-	x: number
-	y: number
-	w: number
-	h: number
-	rotation?: number
-	fillColor?: string
-	label?: string
-}
+export type SyncedObjectLayout = SyncedObject
 
-export interface SyncedZoneLayout {
-	id: string
-	x: number
-	y: number
-	w: number
-	h: number
-	label: string
-	color: string
-}
-
-export const SVG_W = 1200
-export const SVG_H = 600
+export const SVG_W = 1600
+export const SVG_H = 1200
 export const THUMB_W = 200
 export const THUMB_H = 100
 
-export const FLOOR_IDS: FloorId[] = ['G', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11']
+const DEFAULT_FLOOR_IDS: FloorId[] = ['G', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11']
 
-export const FLOOR_NAMES: Record<FloorId, string> = {
+const DEFAULT_FLOOR_NAMES: Record<string, string> = {
 	G: 'Basement',
 	'1': 'Lobby',
 	'2': 'Restaurant & Bar',
@@ -58,6 +48,10 @@ export const FLOOR_NAMES: Record<FloorId, string> = {
 	'10': 'Intel & Management',
 	'11': 'Rooftop',
 }
+
+export const FLOOR_IDS = reactive<FloorId[]>([...DEFAULT_FLOOR_IDS]) as FloorId[]
+
+export const FLOOR_NAMES = reactive<Record<string, string>>({ ...DEFAULT_FLOOR_NAMES }) as Record<FloorId, string>
 
 interface RoomGridOptions {
 	cols: number
@@ -162,7 +156,7 @@ const F6_ROOMS = generateRoomGrid({ cols: 8, bands: 1, gap: 3, startNum: 601, ma
 const F7_ROOMS = generateRoomGrid({ cols: 4, bands: 1, gap: 6, startNum: 701, maxRooms: 8, levelKey: 'vip' })
 const F8_ROOMS = generateRoomGrid({ cols: 4, bands: 1, gap: 6, startNum: 801, maxRooms: 8, prefix: 'PH ', levelKey: 'vip' })
 
-export const FLOOR_LAYOUT: Record<FloorId, RoomLayout[]> = {
+const DEFAULT_FLOOR_LAYOUT: Record<string, RoomLayout[]> = {
 	G: [
 		{ id: 'loadingBay', x: 6, y: 6, w: 544, h: 244, label: 'Loading Bay', sub: 'Supply Receiving · Sorting', visual: true },
 		{ id: 'blackMarket', x: 650, y: 6, w: 544, h: 244, label: 'Black Market', sub: 'Hidden Trading Floor' },
@@ -208,89 +202,249 @@ export const FLOOR_LAYOUT: Record<FloorId, RoomLayout[]> = {
 	],
 }
 
-export const FLOOR_OBJECTS: Record<FloorId, SyncedObjectLayout[]> = Object.fromEntries(FLOOR_IDS.map(id => [id, []])) as unknown as Record<FloorId, SyncedObjectLayout[]>
-export const FLOOR_ZONES: Record<FloorId, SyncedZoneLayout[]> = Object.fromEntries(FLOOR_IDS.map(id => [id, []])) as unknown as Record<FloorId, SyncedZoneLayout[]>
+export const FLOOR_LAYOUT = reactive<Record<string, RoomLayout[]>>(JSON.parse(JSON.stringify(DEFAULT_FLOOR_LAYOUT))) as Record<FloorId, RoomLayout[]>
 
-export interface SyncedLayoutData {
-	floors?: Record<string, {
-		rooms?: Array<{ id: string; x: number; y: number; w: number; h: number; label: string; sub?: string; visual?: boolean; levelKey?: string; roomNum?: number }>
-		objects?: SyncedObjectLayout[]
-		zones?: SyncedZoneLayout[]
-	}>
+export const FLOOR_OBJECTS = reactive<Record<string, SyncedObjectLayout[]>>({}) as Record<FloorId, SyncedObjectLayout[]>
+
+export const FLOOR_ALLOWED_ROLES = reactive<Record<string, string[] | undefined>>({}) as Record<FloorId, string[] | undefined>
+
+export const FLOOR_DEFAULT_WALKABLE = reactive<Record<string, boolean>>({}) as Record<FloorId, boolean>
+for (const id of FLOOR_IDS) {
+	FLOOR_OBJECTS[id] = []
+	FLOOR_ALLOWED_ROLES[id] = undefined
+	FLOOR_DEFAULT_WALKABLE[id] = true
 }
+
+export const SYNCED_CANVAS = reactive({ width: SVG_W, height: SVG_H, tileSize: 1 })
+
+export type SyncedLayoutData = SyncedLayoutPayload
 
 function floorIdFromEditorLabel(label: string): FloorId | null {
 	if (label === 'G') return 'G'
 	const match = label.match(/^F(\d+)$/)
 	if (!match) return null
 	const floorNumber = Number(match[1])
-	return floorNumber === 0 ? 'G' : FLOOR_IDS.includes(String(floorNumber) as FloorId) ? String(floorNumber) as FloorId : null
+	return floorNumber === 0 ? 'G' : String(floorNumber)
 }
 
 function savedLayoutSyncData(layout: FloorLayoutData): SyncedLayoutData {
-	const floors: NonNullable<SyncedLayoutData['floors']> = {}
+	const assetMap = buildAssetMap(originAssets)
+	const resolveObjectTags = (object: ObjectData, asset: AssetDef | undefined): string[] => {
+		const tags = new Set<string>()
+		for (const tag of asset?.tags ?? []) tags.add(tag)
+		for (const tag of asset?.defaultCustomProps?.tags ?? []) tags.add(tag)
+		for (const tag of object.customProps?.tags ?? []) tags.add(tag)
+		tags.add(object.type)
+		if (asset?.defaultLabel) tags.add(asset.defaultLabel)
+		return [...tags]
+	}
+	const floors: Record<string, SyncedFloor> = {}
 	for (const floor of layout.floors) {
 		const floorId = floorIdFromEditorLabel(floor.label)
 		if (!floorId) continue
+		const allowedRoleIds = normalizeAllowedRoleIds(floor.allowedRoleIds)
 		floors[floorId] = {
-			rooms: floor.rooms.map(room => ({
-				id: room.id,
-				x: room.x,
-				y: room.y,
-				w: room.w,
-				h: room.h,
-				label: room.label,
-			})),
-			objects: floor.objects.map(object => ({
-				id: object.id,
-				type: object.type,
-				x: object.x,
-				y: object.y,
-				w: object.w,
-				h: object.h,
-				rotation: object.rotation,
-				fillColor: object.fillColor,
-				label: object.label,
-			})),
-			zones: (floor.zones ?? []).map(zone => ({
-				id: zone.id,
-				x: zone.x,
-				y: zone.y,
-				w: zone.w,
-				h: zone.h,
-				label: zone.label,
-				color: zone.color,
-			})),
+			defaultWalkable: floor.defaultWalkable ?? true,
+			...(allowedRoleIds ? { allowedRoleIds } : {}),
+			rooms: floor.rooms.map(room => {
+				const roomAnchors = normalizeAnchorPoints(room.anchorPoints)
+				const roomInteract = normalizeInteractConfig(room.interact)
+				const syncedRoom: SyncedRoom = {
+					id: room.id,
+					x: room.x,
+					y: room.y,
+					w: room.w,
+					h: room.h,
+					label: room.label,
+					roomType: room.roomType ?? 'room',
+					radius: room.radius ?? 0,
+					walkable: room.walkable ?? true,
+				}
+				if (room.entrances?.length) syncedRoom.entrances = room.entrances
+				if (roomAnchors?.length) syncedRoom.anchorPoints = roomAnchors
+				if (roomInteract) syncedRoom.interact = roomInteract
+				if (room.tags?.length) syncedRoom.tags = room.tags
+				return syncedRoom
+			}),
+			objects: floor.objects.map(object => {
+				const asset = assetMap.get(object.type)
+				const synced: SyncedObjectLayout = {
+					id: object.id,
+					type: object.type,
+					x: object.x,
+					y: object.y,
+					w: object.w,
+					h: object.h,
+					rotation: object.rotation,
+					walkable: asset?.walkable ?? false,
+					entranceRequired: asset?.entranceRequired ?? false,
+					tags: resolveObjectTags(object, asset),
+				}
+				if (object.fillColor) synced.fillColor = object.fillColor
+				if (object.label) synced.label = object.label
+				if (object.roomId) synced.roomId = object.roomId
+				const normalizedAnchors = normalizeAnchorPoints(asset?.anchorPoints)
+				if (normalizedAnchors?.length) synced.anchorPoints = normalizedAnchors
+				const normalizedInteract = normalizeInteractConfig(asset?.interact)
+				if (normalizedInteract) synced.interact = normalizedInteract
+				return synced
+			}),
 		}
 	}
-	return { floors }
+	const payload: SyncedLayoutPayload = {
+		version: 3,
+		canvas: layout.canvas,
+		floors,
+	}
+	if (layout.npcConfig) payload.npcConfig = layout.npcConfig
+	return payload
+}
+
+
+export const SYNCED_NPC_CONFIG = reactive<{ value: NpcSimulationConfig | null }>({ value: null }) as { value: NpcSimulationConfig | null }
+
+
+function generateDefaultFloorData(floorId: FloorId): void {
+	if (CORRIDOR_LAYOUT[floorId] === undefined) {
+		CORRIDOR_LAYOUT[floorId] = [
+			{ x: 550, y: 6, w: 100, h: 588, vertical: true, label: 'CORRIDOR' },
+			{ x: 6, y: 250, w: 544, h: 100 },
+			{ x: 650, y: 250, w: 544, h: 100 },
+		]
+	}
+	if (CORRIDOR_NODES[floorId] === undefined) {
+		CORRIDOR_NODES[floorId] = [
+			{ x: 278, y: 300 }, { x: 600, y: 300 }, { x: 922, y: 300 },
+			{ x: 600, y: 128 }, { x: 600, y: 472 },
+		]
+	}
+	if (ELEVATOR_POS[floorId] === undefined) {
+		ELEVATOR_POS[floorId] = { x: ELEVATOR_X, y: ELEVATOR_Y, r: ELEVATOR_R }
+	}
+	if (ELEVATOR_NODES[floorId] === undefined) {
+		ELEVATOR_NODES[floorId] = [ELEVATOR_X, ELEVATOR_Y]
+	}
+	if (DOOR_LAYOUT[floorId] === undefined) {
+		DOOR_LAYOUT[floorId] = [
+			doorBottom(278, 250, 'standard'), doorBottom(922, 250, 'standard'),
+			doorTop(278, 350, 'standard'), doorTop(922, 350, 'standard'),
+		]
+	}
+	if (ROOM_ANCHORS[floorId] === undefined) {
+		ROOM_ANCHORS[floorId] = {}
+	}
+	if (FLOOR_OBJECTS[floorId] === undefined) {
+		FLOOR_OBJECTS[floorId] = []
+	}
+	if (!(floorId in FLOOR_NAMES)) {
+		FLOOR_NAMES[floorId] = `Floor ${floorId === 'G' ? 'G' : floorId}`
+	}
+}
+
+
+function ensureFloorEntries(floorId: FloorId): void {
+	if (CORRIDOR_LAYOUT[floorId] === undefined) CORRIDOR_LAYOUT[floorId] = []
+	if (CORRIDOR_NODES[floorId] === undefined) CORRIDOR_NODES[floorId] = []
+	if (ELEVATOR_POS[floorId] === undefined) ELEVATOR_POS[floorId] = { x: 0, y: 0, r: 0 }
+	if (ELEVATOR_NODES[floorId] === undefined) ELEVATOR_NODES[floorId] = [0, 0]
+	if (DOOR_LAYOUT[floorId] === undefined) DOOR_LAYOUT[floorId] = []
+	if (ROOM_ANCHORS[floorId] === undefined) ROOM_ANCHORS[floorId] = {}
+	if (FLOOR_OBJECTS[floorId] === undefined) FLOOR_OBJECTS[floorId] = []
+	if (!(floorId in FLOOR_NAMES)) FLOOR_NAMES[floorId] = `Floor ${floorId === 'G' ? 'G' : floorId}`
+}
+
+
+function regenerateAnchors(floorId: FloorId): void {
+	const rooms = FLOOR_LAYOUT[floorId] || []
+	const anchors: Record<string, [number, number][]> = {}
+	for (const room of rooms) {
+		anchors[room.id] = room.anchorPoints?.map(anchor => [
+			Math.round(room.x + anchor.x),
+			Math.round(room.y + anchor.y),
+		]) ?? [[Math.round(room.x + room.w / 2), Math.round(room.y + room.h / 2)]]
+	}
+	ROOM_ANCHORS[floorId] = anchors
 }
 
 export function applySyncedLayout(data: SyncedLayoutData = savedLayoutSyncData(buildRuntimeLayout())): void {
+	if (data.canvas && data.canvas.width > 0 && data.canvas.height > 0 && data.canvas.tileSize > 0) {
+		SYNCED_CANVAS.width = data.canvas.width
+		SYNCED_CANVAS.height = data.canvas.height
+		SYNCED_CANVAS.tileSize = data.canvas.tileSize
+	}
 	if (!data.floors) return
-	for (const floorId of FLOOR_IDS) {
+
+	const syncedFloorIds = Object.keys(data.floors)
+	const sortedIds = syncedFloorIds.sort((a, b) => {
+		if (a === 'G') return -1
+		if (b === 'G') return 1
+		return Number(a) - Number(b)
+	})
+
+	const previousIds = new Set(FLOOR_IDS)
+	FLOOR_IDS.splice(0, FLOOR_IDS.length, ...sortedIds)
+
+	for (const floorId of sortedIds) {
 		const syncedFloor = data.floors[floorId]
 		if (!syncedFloor) continue
-		if (Array.isArray(syncedFloor.rooms) && syncedFloor.rooms.length > 0) {
-			FLOOR_LAYOUT[floorId] = syncedFloor.rooms.map(r => ({
-				id: r.id,
-				x: r.x,
-				y: r.y,
-				w: r.w,
-				h: r.h,
-				label: r.label,
-				sub: r.sub ?? '',
-				visual: r.visual,
-				levelKey: r.levelKey,
-				roomNum: r.roomNum,
-			}))
+
+		ensureFloorEntries(floorId)
+
+		FLOOR_DEFAULT_WALKABLE[floorId] = syncedFloor.defaultWalkable ?? true
+
+		if (Array.isArray(syncedFloor.rooms)) {
+			FLOOR_LAYOUT[floorId] = syncedFloor.rooms.map(r => {
+				const roomAnchors = normalizeAnchorPoints(r.anchorPoints)
+				const roomInteract = normalizeInteractConfig(r.interact)
+				const room: RoomLayout = {
+					id: r.id,
+					x: r.x,
+					y: r.y,
+					w: r.w,
+					h: r.h,
+					label: r.label,
+					sub: r.sub ?? '',
+					visual: r.visual,
+					levelKey: r.levelKey,
+					roomNum: r.roomNum,
+					roomType: r.roomType,
+					radius: r.radius,
+					walkable: r.walkable,
+				}
+				if (r.entrances?.length) room.entrances = r.entrances
+				if (roomAnchors?.length) room.anchorPoints = roomAnchors
+				if (roomInteract) room.interact = roomInteract
+				if (r.tags?.length) room.tags = r.tags
+				return room
+			})
+			regenerateAnchors(floorId)
 		}
 		FLOOR_OBJECTS[floorId] = Array.isArray(syncedFloor.objects) ? syncedFloor.objects : []
-		FLOOR_ZONES[floorId] = Array.isArray(syncedFloor.zones) ? syncedFloor.zones : []
+		FLOOR_ALLOWED_ROLES[floorId] = normalizeAllowedRoleIds(syncedFloor.allowedRoleIds)
 	}
-}
 
-applySyncedLayout()
+	for (const oldId of previousIds) {
+		if (!sortedIds.includes(oldId)) {
+			delete FLOOR_LAYOUT[oldId]
+			delete FLOOR_OBJECTS[oldId]
+			delete FLOOR_ALLOWED_ROLES[oldId]
+			delete FLOOR_DEFAULT_WALKABLE[oldId]
+			delete FLOOR_NAMES[oldId]
+			delete CORRIDOR_LAYOUT[oldId]
+			delete CORRIDOR_NODES[oldId]
+			delete ELEVATOR_POS[oldId]
+			delete ELEVATOR_NODES[oldId]
+			delete DOOR_LAYOUT[oldId]
+			delete ROOM_ANCHORS[oldId]
+		}
+	}
+
+	if (data.npcConfig) {
+		SYNCED_NPC_CONFIG.value = data.npcConfig
+	}
+
+	rebuildRoomToFloor()
+}
 
 export type FurnitureType = 'rect' | 'circle' | 'line' | 'path' | 'text' | 'ellipse'
 
@@ -757,38 +911,43 @@ for (const [roomId, [ox, oy]] of Object.entries(OLD_ROOM_POS)) {
 }
 
 export function getRoomFurniture(roomId: string): FurnitureElement[] {
+
+	for (const floorId of FLOOR_IDS) {
+		const objs = FLOOR_OBJECTS[floorId] ?? []
+		const roomObjs = objs.filter(o => o.roomId === roomId)
+		if (roomObjs.length > 0) {
+			return roomObjs.map(o => ({
+				type: 'rect' as FurnitureType,
+				x: o.x,
+				y: o.y,
+				w: o.w,
+				h: o.h,
+				fill: o.fillColor,
+			}))
+		}
+	}
+
 	if (ROOM_FURNITURE[roomId]) return ROOM_FURNITURE[roomId]
 	const room = Object.values(FLOOR_LAYOUT).flat().find(r => r.id === roomId)
 	if (room?.levelKey && ROOM_FURNITURE[room.levelKey]) return ROOM_FURNITURE[room.levelKey]
 	return []
 }
 
-export const ROOM_TO_FLOOR: Record<string, FloorId> = {
-	concierge: '1',
-	reception: '1',
-	lounge: '1',
-	entrance: '1',
-	kitchen: '2',
-	bar: '2',
-	loadingBay2: '2',
-	barLounge: '2',
-	laundry: '3',
-	staffRoom: '3',
-	guestRooms: '3',
-	vip: '7',
-	armory: '9',
-	safeHouse: '9',
-	controlCenter: '9',
-	safeHouseBunker: '9',
-	intelNetwork: '10',
-	managerOffice: '10',
-	datacenter: '10',
-	staffQuarters: '10',
-	blackMarket: 'G',
-	vault: 'G',
-	underground: 'G',
-	loadingBay: 'G',
-	rooftop: '11',
+
+export const ROOM_TO_FLOOR = reactive<Record<string, FloorId>>({}) as Record<string, FloorId>
+
+
+function rebuildRoomToFloor(): void {
+
+	for (const k of Object.keys(ROOM_TO_FLOOR)) delete ROOM_TO_FLOOR[k]
+	for (const floorId of FLOOR_IDS) {
+		for (const room of FLOOR_LAYOUT[floorId] ?? []) {
+			const tags = (room as { tags?: string[] }).tags ?? []
+			for (const tag of tags) {
+				if (!(tag in ROOM_TO_FLOOR)) ROOM_TO_FLOOR[tag] = floorId
+			}
+		}
+	}
 }
 
 export function getBuildingFloor(buildingId: string): FloorId {
@@ -816,7 +975,7 @@ export function isFloorUnlocked(floor: FloorId, buildings: Record<string, { leve
 		case '9': return buildings['armory']?.unlocked || buildings['safeHouse']?.unlocked
 		case '10': return buildings['intelNetwork']?.unlocked
 		case '11': return true
-		default: return false
+		default: return true
 	}
 }
 
@@ -828,10 +987,6 @@ export function getObjectsOnFloor(floor: FloorId): SyncedObjectLayout[] {
 	return FLOOR_OBJECTS[floor] || []
 }
 
-export function getZonesOnFloor(floor: FloorId): SyncedZoneLayout[] {
-	return FLOOR_ZONES[floor] || []
-}
-
 export interface CorridorSegment {
 	x: number
 	y: number
@@ -841,7 +996,7 @@ export interface CorridorSegment {
 	label?: string
 }
 
-export const CORRIDOR_LAYOUT: Record<FloorId, CorridorSegment[]> = {
+const DEFAULT_CORRIDOR_LAYOUT: Record<string, CorridorSegment[]> = {
 	G: [
 		{ x: 550, y: 6, w: 100, h: 588, vertical: true, label: 'MAIN CORRIDOR' },
 		{ x: 6, y: 250, w: 544, h: 100 },
@@ -907,12 +1062,14 @@ export const CORRIDOR_LAYOUT: Record<FloorId, CorridorSegment[]> = {
 	'11': [],
 }
 
+export const CORRIDOR_LAYOUT = reactive<Record<string, CorridorSegment[]>>(JSON.parse(JSON.stringify(DEFAULT_CORRIDOR_LAYOUT))) as Record<FloorId, CorridorSegment[]>
+
 export interface PathNode {
 	x: number
 	y: number
 }
 
-export const CORRIDOR_NODES: Record<FloorId, PathNode[]> = {
+const DEFAULT_CORRIDOR_NODES: Record<string, PathNode[]> = {
 	G: [{ x: 278, y: 300 }, { x: 600, y: 300 }, { x: 922, y: 300 }, { x: 600, y: 128 }, { x: 600, y: 472 }],
 	'1': [{ x: 278, y: 300 }, { x: 600, y: 300 }, { x: 922, y: 300 }, { x: 600, y: 128 }, { x: 600, y: 472 }],
 	'2': [{ x: 278, y: 300 }, { x: 600, y: 300 }, { x: 922, y: 300 }, { x: 600, y: 128 }, { x: 600, y: 472 }],
@@ -927,6 +1084,8 @@ export const CORRIDOR_NODES: Record<FloorId, PathNode[]> = {
 	'11': [],
 }
 
+export const CORRIDOR_NODES = reactive<Record<string, PathNode[]>>(JSON.parse(JSON.stringify(DEFAULT_CORRIDOR_NODES))) as Record<FloorId, PathNode[]>
+
 function generateAnchorsForGrid(rooms: RoomLayout[]): Record<string, [number, number][]> {
 	const result: Record<string, [number, number][]> = {}
 	for (const room of rooms) {
@@ -935,7 +1094,7 @@ function generateAnchorsForGrid(rooms: RoomLayout[]): Record<string, [number, nu
 	return result
 }
 
-export const ROOM_ANCHORS: Record<FloorId, Record<string, [number, number][]>> = {
+const DEFAULT_ROOM_ANCHORS: Record<string, Record<string, [number, number][]>> = {
 	G: {
 		loadingBay: [[140, 128], [280, 128], [180, 200], [380, 200]],
 		blackMarket: [[790, 128], [930, 128], [830, 200], [1030, 200]],
@@ -981,11 +1140,13 @@ export const ROOM_ANCHORS: Record<FloorId, Record<string, [number, number][]>> =
 	},
 }
 
+export const ROOM_ANCHORS = reactive<Record<string, Record<string, [number, number][]>>>(JSON.parse(JSON.stringify(DEFAULT_ROOM_ANCHORS))) as Record<FloorId, Record<string, [number, number][]>>
+
 export const ELEVATOR_X = 600
 export const ELEVATOR_Y = 300
 export const ELEVATOR_R = 42
 
-export const ELEVATOR_POS: Record<FloorId, { x: number; y: number; r: number }> = {
+const DEFAULT_ELEVATOR_POS: Record<string, { x: number; y: number; r: number }> = {
 	G: { x: ELEVATOR_X, y: ELEVATOR_Y, r: ELEVATOR_R },
 	'1': { x: 600, y: 50, r: ELEVATOR_R },
 	'2': { x: ELEVATOR_X, y: ELEVATOR_Y, r: ELEVATOR_R },
@@ -1000,7 +1161,9 @@ export const ELEVATOR_POS: Record<FloorId, { x: number; y: number; r: number }> 
 	'11': { x: ELEVATOR_X, y: ELEVATOR_Y, r: ELEVATOR_R },
 }
 
-export const ELEVATOR_NODES: Record<FloorId, [number, number]> = {
+export const ELEVATOR_POS = reactive<Record<string, { x: number; y: number; r: number }>>(JSON.parse(JSON.stringify(DEFAULT_ELEVATOR_POS))) as Record<FloorId, { x: number; y: number; r: number }>
+
+const DEFAULT_ELEVATOR_NODES: Record<string, [number, number]> = {
 	G: [ELEVATOR_X, ELEVATOR_Y],
 	'1': [600, 50],
 	'2': [ELEVATOR_X, ELEVATOR_Y],
@@ -1014,6 +1177,8 @@ export const ELEVATOR_NODES: Record<FloorId, [number, number]> = {
 	'10': [ELEVATOR_X, ELEVATOR_Y],
 	'11': [ELEVATOR_X, ELEVATOR_Y],
 }
+
+export const ELEVATOR_NODES = reactive<Record<string, [number, number]>>(JSON.parse(JSON.stringify(DEFAULT_ELEVATOR_NODES))) as Record<FloorId, [number, number]>
 
 export type DoorCategory = 'standard' | 'lobby' | 'sliding'
 
@@ -1071,7 +1236,7 @@ function generateDoorsForGrid(rooms: RoomLayout[], bands: 1 | 2, cat: DoorCatego
 	}
 	return doors
 }
-export const DOOR_LAYOUT: Record<FloorId, DoorDef[]> = {
+const DEFAULT_DOOR_LAYOUT: Record<string, DoorDef[]> = {
 	G: [
 		doorBottom(278, 250, 'standard'), doorBottom(922, 250, 'standard'),
 		doorTop(278, 350, 'standard'), doorTop(922, 350, 'standard'),
@@ -1103,6 +1268,8 @@ export const DOOR_LAYOUT: Record<FloorId, DoorDef[]> = {
 	],
 	'11': [],
 }
+
+export const DOOR_LAYOUT = reactive<Record<string, DoorDef[]>>(JSON.parse(JSON.stringify(DEFAULT_DOOR_LAYOUT))) as Record<FloorId, DoorDef[]>
 
 export const DOOR_WIDTHS: Record<DoorCategory, number> = {
 	standard: DW,

@@ -1,9 +1,5 @@
-/**
- * Shared geometric-series cost and affordability formulas for branch and royal buildings.
- *
- * Cost at level L: baseCost * costGrowth^L (summed over `count` consecutive levels).
- * Affordable levels solved via closed-form geometric series.
- */
+
+
 
 export function computeBuildingCost(baseCost: number, costGrowth: number, currentLevel: number, count: number = 1): number {
   let totalCost = 0

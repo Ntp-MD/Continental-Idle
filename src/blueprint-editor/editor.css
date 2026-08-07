@@ -33,10 +33,10 @@
 
 .properties__row {
 	display: flex;
-	align-items: center;
 	justify-content: space-between;
 	gap: var(--gap-sm);
 	font-size: var(--font-sm);
+	align-items: flex-end;
 }
 
 .properties__row input,
@@ -44,19 +44,6 @@
 	flex: 1;
 	min-width: 0;
 	background: var(--bg-primary);
-	border: 1px solid var(--border-dim);
-	color: var(--text-primary);
-	padding: var(--gap-xs) var(--gap-sm);
-	border-radius: var(--radius-sm);
-	transition: border-color var(--duration-fast) ease-out,
-		box-shadow var(--duration-fast) ease-out;
-}
-
-.properties__row input:focus,
-.properties__row select:focus {
-	outline: none;
-	border-color: var(--accent-gold);
-	box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent-gold) 15%, transparent);
 }
 
 .properties__row label {
@@ -67,6 +54,22 @@
 .properties__row__toggle {
 	flex-direction: row;
 	justify-content: flex-start;
+}
+
+.properties__row__inline {
+	display: flex;
+	align-items: center;
+	gap: var(--gap-sm);
+}
+
+.properties__row__pair {
+	display: flex;
+	gap: var(--gap-sm);
+}
+
+.properties__row__pair > .properties__row {
+	flex: 1;
+	min-width: 0;
 }
 
 .properties__content {
@@ -107,15 +110,10 @@
 	align-items: center;
 }
 
-.properties__deletesection {
+.properties__actions {
 	display: flex;
 	gap: var(--gap-sm);
 	padding-top: var(--gap-sm);
-}
-
-.properties__deletesection__alone {
-	border-top: 1px solid var(--border-dim);
-	margin-top: var(--gap-sm);
 }
 
 .properties__btngroup {
@@ -125,71 +123,15 @@
 	padding-top: var(--gap-sm);
 }
 
-.properties__warning {
-	font-size: var(--font-xs);
-	color: var(--accent-red);
-	padding: var(--gap-xs) var(--gap-sm);
-	background: color-mix(in srgb, var(--accent-red) 8%, transparent);
-	border-radius: var(--radius-sm);
-}
-
-.properties__cats {
-	display: flex;
-	flex-direction: column;
-	gap: var(--gap-xs);
-	padding: var(--gap-sm);
-	background: var(--bg-primary);
-	border: 1px solid var(--border-dim);
-	border-radius: var(--radius-sm);
-}
-
-.properties__catrow {
-	display: flex;
-	gap: var(--gap-xs);
-	align-items: center;
-}
-
-.properties__catadd {
-	display: flex;
-	gap: var(--gap-xs);
-	align-items: center;
-	padding-top: var(--gap-xs);
-	border-top: 1px solid var(--border-dim);
-}
-
-.properties__zonerow {
-	display: flex;
-	flex-direction: column;
-	gap: var(--gap-xs);
-	padding: var(--gap-sm);
-	background: var(--bg-primary);
-	border: 1px solid var(--border-dim);
-	border-radius: var(--radius-sm);
-}
-
-.properties__zonepos {
-	display: flex;
-	gap: var(--gap-xs);
-	align-items: center;
-}
-
-.properties__zonepos label {
-	min-width: 12px;
-	text-align: center;
-}
-
-.properties__unittoggle {
-	display: flex;
-	gap: var(--gap-xs);
-}
-
 .properties__rxgrid {
-	display: grid;
-	grid-template-columns: 1fr 1fr;
+	display: flex;
+	align-items: center;
 	gap: var(--gap-xs);
 }
 
 .properties__rxcorner {
+	flex: 1;
+	min-width: 0;
 	display: flex;
 	flex-direction: column;
 	gap: 2px;
@@ -202,39 +144,21 @@
 }
 
 .properties__rxsync {
-	display: flex;
-	align-items: center;
-	gap: var(--gap-xs);
-	font-size: var(--font-xs);
-	color: var(--text-secondary);
-	text-transform: none;
-	letter-spacing: 0;
-	font-weight: 400;
-	cursor: pointer;
+	width: 28px;
+	height: 28px;
+	padding: 0;
+	border-radius: var(--radius-xs);
+	background: var(--bg-primary);
+	color: var(--accent-red);
 }
 
-.properties__rxsync input[type="checkbox"] {
-	width: 14px;
-	height: 14px;
-	accent-color: var(--accent-gold);
+.properties__rxsync:hover {
+	border-color: var(--accent-gold);
 }
 
-.properties__collapsearrow {
-	color: var(--text-dim);
-	font-size: var(--font-xs);
-}
-
-.properties__collapsedicon {
-	display: inline-flex;
-	align-items: center;
-	justify-content: center;
-	width: 18px;
-	height: 18px;
-	border-radius: var(--radius-pill);
-	background: var(--bg-tertiary);
-	font-size: var(--font-xs);
-	font-weight: 700;
-	flex-shrink: 0;
+.properties__rxsync__active {
+	color: var(--accent-gold);
+	border-color: var(--accent-gold);
 }
 
 /* Blueprint editor tag/chip role */
@@ -248,8 +172,4 @@
 	border-radius: var(--radius-sm);
 	font-size: var(--font-xs);
 	color: var(--text-secondary);
-}
-
-.tag__name {
-	flex: 1;
 }

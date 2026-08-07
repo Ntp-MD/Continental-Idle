@@ -1,8 +1,9 @@
-import type { RoomData, ObjectData, AssetDef } from '../types'
+import type { RoomData, ObjectData, OriginAssetFile, SyncedFloor, SyncedRoom, SyncedObject, SyncedLayoutPayload } from '../types'
+import { normalizeAllowedRoleIds, normalizeAnchorPoints, normalizeInteractConfig, normalizeTileEdges, normalizeTileStates, normalizeWalkableGrid, normalizeOriginAssetFile, isNpcConfig } from '../types'
 import { state, toast, isStateLocked, withStateLock, assetMap } from './state'
 import { editorLog, editorFloorLabelToFloorId } from './utils'
-import { assetCatalog } from './dataLoader'
 import { EDITOR_CONFIG } from './migrate'
+import { serializeObject, serializeRoomTemplate } from '../assetUtils'
 
 let saveDebounceTimer: number | null = null
 let isSaving = false
@@ -12,12 +13,13 @@ let npcConfigSaveDebounceTimer: number | null = null
 let isSavingNpcConfig = false
 const MAX_SAVE_RETRIES = 3
 
+
 export async function saveLayout(): Promise<boolean> {
 	if (isStateLocked()) return saveLayoutLocked()
 	try {
 		return await withStateLock(saveLayoutLocked)
 	} catch (error) {
-		if (error instanceof Error && error.message === 'Operation in progress, please wait') {
+		if (error instanceof Error && error.message === 'Operation in progress') {
 			await new Promise(resolve => window.setTimeout(resolve, 0))
 			return saveLayout()
 		}
@@ -29,6 +31,7 @@ async function saveLayoutLocked(): Promise<boolean> {
 	if (isSaving) {
 		if (saveDebounceTimer) window.clearTimeout(saveDebounceTimer)
 		saveDebounceTimer = window.setTimeout(() => saveLayout(), EDITOR_CONFIG.saveDebounceMs)
+		editorLog.info('saveLayout', 'save deferred — another save in progress')
 		return true
 	}
 
@@ -39,9 +42,11 @@ async function saveLayoutLocked(): Promise<boolean> {
 		const body = JSON.stringify({
 			version: state.layout.version,
 			canvas: state.layout.canvas,
-			floors: state.layout.floors,
-			roomTemplates: state.layout.roomTemplates ?? [],
-			globalTags: state.layout.globalTags ?? [],
+			floors: state.layout.floors.map(f => ({
+				...f,
+				objects: f.objects.map(o => serializeObject(o)),
+			})),
+			roomTemplates: (state.layout.roomTemplates ?? []).map(serializeRoomTemplate),
 		})
 
 		const attemptSave = async (attempt: number): Promise<boolean> => {
@@ -89,32 +94,23 @@ async function saveLayoutLocked(): Promise<boolean> {
 	return success
 }
 
-/**
- * Extract custom assets (non-catalog IDs or overrides of catalog assets) and
- * deleted default IDs from the runtime `state.assetRegistry`.
- */
-function extractCustomAssets(): { customAssets: AssetDef[]; deletedDefaultIds: string[] } {
-	const catalogMap = new Map(assetCatalog.map(a => [a.id, a]))
-	const currentIds = new Set(state.assetRegistry.map(a => a.id))
-	const customAssets: AssetDef[] = []
-	for (const asset of state.assetRegistry) {
-		const catalogAsset = catalogMap.get(asset.id)
-		if (!catalogAsset) {
-			customAssets.push(asset)
-		} else if (JSON.stringify(asset) !== JSON.stringify(catalogAsset)) {
-			customAssets.push(asset)
-		}
-	}
-	const deletedDefaultIds = assetCatalog.filter(a => !currentIds.has(a.id)).map(a => a.id)
-	return { customAssets, deletedDefaultIds }
+function serializeOriginAssets(): OriginAssetFile {
+	const normalized = normalizeOriginAssetFile({
+		$schema: 'origin-assets.v1.json',
+		version: 1,
+		originAssets: state.assetRegistry,
+	})
+	if (!normalized) throw new Error('Origin asset registry failed normalization')
+	return normalized
 }
+
 
 export async function saveAssets(): Promise<void> {
 	if (isStateLocked()) return saveAssetsLocked()
 	try {
 		await withStateLock(saveAssetsLocked)
 	} catch (error) {
-		if (error instanceof Error && error.message === 'Operation in progress, please wait') {
+		if (error instanceof Error && error.message === 'Operation in progress') {
 			await new Promise(resolve => window.setTimeout(resolve, 0))
 			return saveAssets()
 		}
@@ -126,16 +122,14 @@ async function saveAssetsLocked(): Promise<void> {
 	if (isSavingAssets) {
 		if (assetsSaveDebounceTimer) window.clearTimeout(assetsSaveDebounceTimer)
 		assetsSaveDebounceTimer = window.setTimeout(() => saveAssets(), EDITOR_CONFIG.saveDebounceMs)
+		editorLog.info('saveAssets', 'save deferred — another save in progress')
 		return
 	}
 
 	isSavingAssets = true
 	let hasDebounced = false
 	try {
-		const { customAssets, deletedDefaultIds } = extractCustomAssets()
-		// Keep state.layout.deletedDefaultIds in sync for runtime use.
-		state.layout.deletedDefaultIds = deletedDefaultIds
-		const body = JSON.stringify({ customAssets, deletedDefaultIds })
+		const body = JSON.stringify(serializeOriginAssets())
 
 		const attemptSave = async (attempt: number): Promise<boolean> => {
 			try {
@@ -160,7 +154,7 @@ async function saveAssetsLocked(): Promise<void> {
 		if (!success) {
 			editorLog.error('saveAssets', 'All retries failed')
 			toast.error('Failed to save assets')
-			throw new Error('Assets were not saved to customAssets.json')
+			throw new Error('Origin assets were not saved to originAssets.json')
 		}
 	} finally {
 		isSavingAssets = false
@@ -174,12 +168,13 @@ async function saveAssetsLocked(): Promise<void> {
 	if (hasDebounced) await saveAssets()
 }
 
+
 export async function saveNpcConfig(): Promise<boolean> {
 	if (isStateLocked()) return saveNpcConfigLocked()
 	try {
 		return await withStateLock(saveNpcConfigLocked)
 	} catch (error) {
-		if (error instanceof Error && error.message === 'Operation in progress, please wait') {
+		if (error instanceof Error && error.message === 'Operation in progress') {
 			await new Promise(resolve => window.setTimeout(resolve, 0))
 			return saveNpcConfig()
 		}
@@ -191,6 +186,7 @@ async function saveNpcConfigLocked(): Promise<boolean> {
 	if (isSavingNpcConfig) {
 		if (npcConfigSaveDebounceTimer) window.clearTimeout(npcConfigSaveDebounceTimer)
 		npcConfigSaveDebounceTimer = window.setTimeout(() => saveNpcConfig(), EDITOR_CONFIG.saveDebounceMs)
+		editorLog.info('saveNpcConfig', 'save deferred — another save in progress')
 		return true
 	}
 
@@ -198,6 +194,11 @@ async function saveNpcConfigLocked(): Promise<boolean> {
 	let hasDebounced = false
 	let success = false
 	try {
+		if (!isNpcConfig(state.layout.npcConfig)) {
+			editorLog.error('saveNpcConfig', 'NPC config failed validation — aborting save')
+			toast.error('NPC config is malformed — cannot save')
+			return false
+		}
 		const body = JSON.stringify(state.layout.npcConfig)
 
 		const attemptSave = async (attempt: number): Promise<boolean> => {
@@ -240,65 +241,76 @@ async function saveNpcConfigLocked(): Promise<boolean> {
 
 export function syncToGame(): boolean {
 	try {
-		const synced: Record<string, {
-			defaultWalkable: boolean
-			rooms: Array<{ id: string; x: number; y: number; w: number; h: number; label: string; sub: string; radius: number; roomType: string; walkable: boolean; entrances?: unknown[]; anchorPoints?: [number, number][]; tags?: string[] }>
-			objects: Array<{ id: string; type: string; x: number; y: number; w: number; h: number; rotation: number; walkable: boolean; entranceRequired: boolean; walkableGrid?: boolean[][]; tileStates?: string[][]; roomId?: string; label?: string; fillColor?: string; tags?: string[] }>
-			zones: Array<{ id: string; x: number; y: number; w: number; h: number; label: string; color: string; tags?: string[] }>
-		}> = {}
+		const floors: Record<string, SyncedFloor> = {}
 		for (const floor of state.layout.floors) {
 			const floorId = editorFloorLabelToFloorId(floor.label)
 			if (!floorId) continue
-			synced[floorId] = {
+			const allowedRoleIds = normalizeAllowedRoleIds(floor.allowedRoleIds)
+			floors[floorId] = {
 				defaultWalkable: floor.defaultWalkable ?? true,
-				rooms: floor.rooms.map((r: RoomData) => ({
-					id: r.id,
-					x: r.x,
-					y: r.y,
-					w: r.w,
-					h: r.h,
-					label: r.label,
-					sub: '',
-					radius: r.radius ?? 0,
-					roomType: r.roomType ?? 'room',
-					walkable: r.walkable ?? true,
-					...(r.entrances ? { entrances: r.entrances } : {}),
-					...(r.anchorPoints ? { anchorPoints: r.anchorPoints } : {}),
-					...(r.tags ? { tags: r.tags } : {}),
-				})),
-				zones: (floor.zones ?? []).map(z => ({ ...z })),
-				objects: floor.objects.map((o: ObjectData) => ({
-					id: o.id,
-					type: o.type,
-					x: o.x,
-					y: o.y,
-					w: o.w,
-					h: o.h,
-					rotation: o.rotation,
-					fillColor: o.fillColor,
-					walkable: o.walkable ?? !o.isWall,
-					entranceRequired: o.entranceRequired ?? false,
-					...(o.walkableGrid ? { walkableGrid: o.walkableGrid } : {}),
-					...(o.tileStates ? { tileStates: o.tileStates } : {}),
-					...(o.roomId ? { roomId: o.roomId } : {}),
-					...(o.label ? { label: o.label } : {}),
-					...((() => {
-						const assetTags = assetMap().get(o.type)?.tags ?? []
-						const tags = [...assetTags, ...(o.customProps?.tags ?? [])]
-						return tags.length > 0 ? { tags: [...new Set(tags)] } : {}
-					})()),
-				})),
+				...(allowedRoleIds ? { allowedRoleIds } : {}),
+				rooms: floor.rooms.map((r: RoomData) => {
+					const roomAnchors = normalizeAnchorPoints(r.anchorPoints)
+					const roomInteract = normalizeInteractConfig(r.interact)
+					const room: SyncedRoom = {
+						id: r.id,
+						x: r.x,
+						y: r.y,
+						w: r.w,
+						h: r.h,
+						label: r.label,
+						roomType: r.roomType ?? 'room',
+						radius: r.radius ?? 0,
+						walkable: r.walkable ?? true,
+					}
+					if (r.entrances?.length) room.entrances = r.entrances
+					if (roomAnchors?.length) room.anchorPoints = roomAnchors
+					const ri = normalizeInteractConfig(r.interact)
+					if (ri) room.interact = ri
+					if (r.tags?.length) room.tags = r.tags
+					return room
+				}),
+				objects: floor.objects.map((o: ObjectData) => {
+					const asset = assetMap().get(o.type)
+					const anchors = normalizeAnchorPoints(asset?.anchorPoints)
+					const interact = normalizeInteractConfig(asset?.interact)
+					const walkableGrid = normalizeWalkableGrid(asset?.walkableGrid)
+					const tileStates = normalizeTileStates(asset?.tileStates)
+					const tileEdges = normalizeTileEdges(asset?.tileEdges)
+					const assetTags = asset?.tags ?? []
+					const tags = [...assetTags, ...(o.customProps?.tags ?? [])]
+					const obj: SyncedObject = {
+						id: o.id,
+						type: o.type,
+						x: o.x,
+						y: o.y,
+						w: o.w,
+						h: o.h,
+						rotation: o.rotation,
+						walkable: asset?.walkable ?? false,
+						entranceRequired: asset?.entranceRequired ?? false,
+					}
+					if (o.fillColor) obj.fillColor = o.fillColor
+					if (o.label) obj.label = o.label
+					if (o.roomId) obj.roomId = o.roomId
+					if (walkableGrid) obj.walkableGrid = walkableGrid
+					if (tileStates) obj.tileStates = tileStates
+					if (tileEdges) obj.tileEdges = tileEdges
+					if (anchors?.length) obj.anchorPoints = anchors
+					if (interact) obj.interact = interact
+					if (tags.length > 0) obj.tags = [...new Set(tags)]
+					return obj
+				}),
 			}
 		}
-		window.dispatchEvent(new CustomEvent('blueprint:sync', {
-			detail: {
-				version: 3,
-				canvas: state.layout.canvas,
-				npcConfig: state.layout.npcConfig,
-				floors: synced,
-				timestamp: Date.now(),
-			},
-		}))
+		const payload: SyncedLayoutPayload = {
+			version: 3,
+			canvas: state.layout.canvas,
+			floors,
+			timestamp: Date.now(),
+		}
+		if (state.layout.npcConfig) payload.npcConfig = state.layout.npcConfig
+		window.dispatchEvent(new CustomEvent('blueprint:sync', { detail: payload }))
 		return true
 	} catch (e) {
 		editorLog.error('syncToGame', e)

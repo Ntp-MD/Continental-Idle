@@ -100,7 +100,7 @@ export function sendAssassinToAttack(assassinId: string, targetBranchId: BranchI
 	if (!targetBranch) return false
 	if (targetBranch.aiOwnerDefeated) return false
 	if (targetBranch.hqHealth <= 0) return false
-	// Cannot attack BRANCHES that are already unlocked or conquered
+
 	if (state.worldMap.unlockedBranches.includes(targetBranchId)) return false
 	if (state.worldMap.conqueredBranches.includes(targetBranchId)) return false
 
@@ -275,13 +275,13 @@ export function tickAssassinLoyalty(): void {
 			} else if (!assassin.lentTo && !assassin.attackTarget && assassin.loyalty < 100) {
 				assassin.loyalty = Math.min(100, assassin.loyalty + 0.05)
 			}
-			// Awaken at max loyalty after surviving 3+ lends
+
 			if (!assassin.awakened && assassin.loyalty >= 100 && assassin.synergyCount >= 3) {
 				assassin.awakened = true
 				eventBus.emit('assassin:awakened', { assassinId: assassin.id, branchId })
 			}
 		})
-		// Count synergy: assassin + staff assigned to same building
+
 		const activeStaff = Object.values(branch.staff).filter(s => s.assignedTo !== null)
 		const synergyBuildings = new Set(
 			activeStaff
@@ -295,7 +295,7 @@ export function tickAssassinLoyalty(): void {
 	})
 }
 
-// Per-tick cache: branchId -> Set of assassin typeIds assigned to that branch
+
 let assassinTypeCache: Map<BranchId, Set<string>> | null = null
 
 function buildAssassinTypeCache(): void {

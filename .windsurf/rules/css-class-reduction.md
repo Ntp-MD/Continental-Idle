@@ -279,6 +279,101 @@ Defer to the project's global definitions of role, coincidental match, and uniqu
 
 ---
 
+## Base Layer Duplication Detection
+
+Identify and remove declarations in variant, state, subsystem, or component-specific classes that merely repeat what the base/reset layer (Tier 1) already provides to the same element. This is a declaration-level audit: the class may remain useful while several properties are redundant.
+
+### Core Principle
+
+The base/reset stylesheet (for example `base.css`) defines shared defaults for element selectors (`button`, `input`, `select`, `textarea`, `label`, headings, `*`). Every matching element inherits these defaults without needing a class. A variant, state, subsystem, or component-specific class must only declare the **delta** from the base — never re-declare properties the base already owns for that element.
+
+Before adding any declaration to a non-base class, verify the element it is applied to and check what the base layer already gives that element:
+
+- A `<button>` already receives `font-family`, `cursor`, `border`, `background`, `color`, `padding`, `text-transform`, `letter-spacing`, `font-size`, `font-weight`, `border-radius`, `transition`, `display: inline-flex`, `align-items: center`, `justify-content: center`, `gap`, `white-space`, and all `:hover` / `:active` / `:disabled` states from the base `button` rule.
+- An `<input>`, `<select>`, or `<textarea>` already receives `font-family`, `background`, `border`, `color`, `padding`, `font-size`, `border-radius`, `transition`, `box-sizing`, and all `:hover` / `:focus` / `:disabled` states from the base form-control rule.
+- A `<label>` already receives `font-size`, `color`, `text-transform`, `letter-spacing`, and `font-weight` from the base `label` rule.
+- A `<span>`, `<div>`, or other non-form element does **not** inherit button/input/label base styles. Re-declaring `display: inline-flex; align-items: center; justify-content: center` on a `<span>` class is **not** duplication — the base does not provide it. Report as `coincidental match, do not merge`.
+
+### Detection Process
+
+1. For each class being added or audited, identify the HTML element it is applied to in the Vue `<template>`.
+2. Look up that element in the base/reset stylesheet and list every property the base rule provides.
+3. Compare the class's declarations against the base list.
+4. Classify each declaration:
+   - **Redundant base duplication** — the base already sets the same property to the same value on this element. Remove it.
+   - **Intentional override** — the class changes the value the base sets (for example `background: var(--bg-primary)` overriding the base `background: var(--bg-card)`). Keep it, but confirm the override is intentional and documented by the variant's role.
+   - **Base-absent declaration** — the base does not set this property for this element. Keep it; it is a genuine delta.
+   - **Coincidental match** — the class targets a non-base element (for example a `<span>` styled like a button) and shares property names with the base by coincidence. Keep it; report as `coincidental match, do not merge`.
+5. Also audit `:hover`, `:focus`, `:active`, `:disabled`, and other state selectors on the class. If the base already defines the same state for the same element with the same values, the state selector is redundant.
+6. Remove only the redundant declarations, not the whole class.
+7. Run build and regression checks after editing.
+
+### Required Audit Output
+
+For each candidate, report:
+
+| Selector        | Declaration                      | Base source            | Element applied to | Classification                   | Confidence |
+| --------------- | -------------------------------- | ---------------------- | ------------------ | -------------------------------- | ---------- |
+| `.btn__primary` | `cursor: pointer`                | `button` (base.css:31) | `<button>`         | redundant base duplication       | high       |
+| `.btn__primary` | `background: var(--color-brand)` | `button` (base.css:33) | `<button>`         | intentional override             | high       |
+| `.icon-btn`     | `display: inline-flex`           | `button` (base.css:44) | `<span>`           | coincidental match, do not merge | high       |
+
+Use the exact phrase `redundant base duplication` for confirmed cases. Use `intentional override` when the class deliberately changes a base-provided value. Use `coincidental match, do not merge` when the class targets a non-base element that happens to share property names.
+
+### Safe Examples
+
+```css
+/* base.css already gives every <button> these properties */
+button {
+  cursor: pointer;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text);
+  padding: var(--space-xs) var(--space-sm);
+  border-radius: var(--radius-sm);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-xs);
+}
+
+/* redundant: re-declares base properties on a <button> class */
+.btn__primary {
+  cursor: pointer; /* redundant base duplication */
+  border: 1px solid var(--color-border); /* redundant base duplication */
+  display: inline-flex; /* redundant base duplication */
+  align-items: center; /* redundant base duplication */
+  justify-content: center; /* redundant base duplication */
+  gap: var(--space-xs); /* redundant base duplication */
+  background: var(--color-brand); /* intentional override */
+  color: var(--color-on-brand); /* intentional override */
+}
+
+/* correct: only the delta from base */
+.btn__primary {
+  background: var(--color-brand);
+  color: var(--color-on-brand);
+}
+
+/* coincidental: <span> is not a <button>, base does not provide these */
+.span-btn {
+  display: inline-flex; /* base-absent: keep */
+  align-items: center; /* base-absent: keep */
+  justify-content: center; /* base-absent: keep */
+  cursor: pointer; /* base-absent for <span>: keep */
+}
+```
+
+### Do Not Misclassify
+
+- A class on a `<button>` that sets `display: inline-flex` is **redundant base duplication**, not a unique layout need.
+- A class on a `<span>` or `<div>` that sets `display: inline-flex` is **base-absent** or **coincidental match**, not redundant — the base does not style that element.
+- A class that overrides `background` or `color` to a different value than the base is an **intentional override**, not redundant — keep it.
+- A class `:focus` selector that re-declares `outline: none; border-color: var(--accent-gold); box-shadow: ...` on an `<input>` is **redundant base duplication** when the base `input:focus` already sets the same values.
+- A class `:focus` selector that changes the focus color to a different accent is an **intentional override** — keep it.
+
+---
+
 ## Implicit Layout Redundancy Detection
 
 Identify declarations that repeat sizing or layout behavior already supplied by CSS formatting rules. This is a declaration-level audit: the class may remain useful while one property is redundant.

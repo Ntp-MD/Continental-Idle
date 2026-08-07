@@ -15,15 +15,15 @@ export const STAFF_MAP: Record<string, StaffDefinition> = Object.fromEntries(
   STAFF_TYPES.map(s => [s.id, s])
 )
 
-/** Veteran perks granted to staff that survive prestige resets. */
+
 export interface VeteranPerk {
   id: string
   label: string
-  /** Multiplier applied to XP gain (1 = no change). */
+
   xpMult: number
-  /** Multiplier applied to staff income contribution (1 = no change). */
+
   incomeMult: number
-  /** Multiplier applied to level-up cost (1 = no change). */
+
   costMult: number
 }
 
@@ -37,12 +37,12 @@ export const VETERAN_PERK_MAP: Record<string, VeteranPerk> = Object.fromEntries(
   VETERAN_PERKS.map(p => [p.id, p])
 )
 
-/** Pick a random veteran perk id. */
+
 export function rollVeteranPerk(): string {
   return VETERAN_PERKS[Math.floor(Math.random() * VETERAN_PERKS.length)].id
 }
 
-/** Look up a veteran perk by id, returning a no-op perk if unknown. */
+
 export function getVeteranPerk(id: string | null): VeteranPerk {
   if (id && VETERAN_PERK_MAP[id]) return VETERAN_PERK_MAP[id]
   return { id: 'none', label: '', xpMult: 1, incomeMult: 1, costMult: 1 }

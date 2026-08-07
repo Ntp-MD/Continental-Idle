@@ -178,6 +178,7 @@
 .modal__overlay {
 	position: fixed;
 	inset: 0;
+	z-index: 2000;
 	display: flex;
 	align-items: center;
 	justify-content: center;
@@ -280,33 +281,6 @@
 	}
 }
 
-.card__name__gold {
-	font-size: var(--font-sm);
-	font-weight: 600;
-	color: var(--accent-gold);
-}
-
-.card__level {
-	font-size: var(--font-xs);
-	color: var(--text-dim);
-	margin-top: 3px;
-}
-
-.card__xpbar {
-	height: 3px;
-	background: var(--bg-primary);
-	margin-top: var(--gap-xs);
-	overflow: hidden;
-	border-radius: var(--radius-xs);
-}
-
-.card__xpfill {
-	height: 100%;
-	background: linear-gradient(90deg, var(--accent-blue) 0%, var(--accent-blue) 100%);
-	transition: width var(--duration-normal) var(--ease-out);
-	border-radius: var(--radius-xs);
-}
-
 .card__rarity {
 	font-size: var(--font-xs);
 	font-weight: 600;
@@ -329,106 +303,10 @@
 	background: var(--bg-tertiary);
 }
 
-.card__best {
-	font-size: var(--font-xs);
-	color: var(--text-dim);
-	margin-top: var(--gap-xs);
-}
-
-.card__max {
-	font-size: var(--font-xs);
-	color: var(--accent-gold);
-	margin-top: var(--gap-xs);
-	border-top: 1px dashed var(--border-dim);
-	padding-top: var(--gap-xs);
-}
-
-.card__perk {
-	font-size: var(--font-xs);
-	color: var(--accent-blue);
-	margin-top: var(--gap-xs);
-}
-
-.card__name__muted {
-	font-size: var(--font-sm);
-	color: var(--text-primary);
-}
-
-.card__synergy {
-	font-size: var(--font-xs);
-	color: var(--accent-blue);
-}
-
-.card__ability {
-	font-size: var(--font-xs);
-	color: var(--text-dim);
-	margin-bottom: var(--gap-xs);
-}
-
-.card__bar {
-	height: 3px;
-	background: var(--bg-primary);
-	overflow: hidden;
-	margin-bottom: var(--gap-xs);
-}
-
-.card__fill {
-	height: 100%;
-	background: var(--accent-gold);
-	transition: width var(--duration-normal) var(--ease-out);
-}
-
-.card__info__wrap {
-	display: flex;
-	flex-wrap: wrap;
-	gap: var(--gap-sm);
-	font-size: var(--font-xs);
-	color: var(--text-secondary);
-	margin-bottom: var(--gap-xs);
-}
-
-.card__lent {
-	color: var(--accent-gold);
-}
-
 .card__actions {
 	display: flex;
 	gap: var(--gap-xs);
 	margin-top: var(--gap-xs);
-}
-
-.card__attackstatus {
-	display: flex;
-	align-items: center;
-	gap: var(--gap-xs);
-	margin-top: var(--gap-xs);
-}
-
-.card__attacktarget {
-	font-size: var(--font-xs);
-	color: var(--accent-red);
-}
-
-.card__info__col {
-	display: flex;
-	flex-direction: column;
-	gap: var(--gap-xs);
-}
-
-.card__name__boldgold {
-	font-weight: bold;
-	color: var(--accent-gold);
-}
-
-.card__desc__secondary {
-	font-size: var(--font-xs);
-	color: var(--text-secondary);
-}
-
-.card__purchased {
-	color: var(--accent-green);
-	font-weight: bold;
-	font-size: var(--font-xs);
 }
 
 /* === Building Card Actions === */
@@ -442,18 +320,6 @@
 	max-width: 92vw;
 }
 
-.card__name__lg {
-	font-size: var(--font-md);
-	color: var(--text-primary);
-	font-weight: bold;
-}
-
-.card__desc__dim {
-	font-size: var(--font-xs);
-	color: var(--text-dim);
-	margin-top: var(--gap-xs);
-}
-
 .panel__content > .actions {
 	padding: var(--gap-sm) 0;
 }
@@ -461,12 +327,6 @@
 .panel__content > .actions .btn {
 	padding: var(--gap-xs) var(--gap-sm);
 	font-size: var(--font-sm);
-}
-
-.card__awakeningprogress {
-	font-size: var(--font-xs);
-	color: var(--text-dim);
-	padding: var(--gap-xs) 0;
 }
 
 /* Reusable layout roles */
@@ -585,12 +445,10 @@
 .btn__ghost {
 	background: transparent;
 	border-color: transparent;
-	color: var(--text-secondary);
 	box-shadow: none;
 }
 
 .btn__ghost:hover {
-	background: var(--bg-card-hover);
 	border-color: var(--border-dim);
 	color: var(--text-primary);
 	box-shadow: none;
@@ -599,7 +457,6 @@
 
 .btn__ghost:active {
 	background: var(--bg-secondary);
-	transform: none;
 }
 
 .btn__dashed {
@@ -609,8 +466,6 @@
 }
 
 .btn__dashed:hover {
-	border-color: var(--accent-gold);
-	color: var(--accent-gold);
 	background: transparent;
 }
 
@@ -619,7 +474,6 @@
 }
 
 .btn__filter:hover {
-	border-color: var(--accent-gold);
 	color: var(--text-primary);
 }
 
@@ -649,19 +503,8 @@
 	font-size: var(--font-md);
 }
 
-.btn__text__danger {
-	color: var(--accent-red);
-}
-
-.btn__text__danger:hover {
-	color: var(--bg-primary);
-	background: var(--accent-red);
-	border-color: var(--accent-red);
-}
-
 .btn__sm {
 	padding: var(--gap-xs) var(--gap-xs);
-	font-size: var(--font-xs);
 	min-height: 20px;
 }
 
@@ -687,17 +530,11 @@
 	opacity: 0.5;
 	cursor: default;
 	box-shadow: none;
-	border-color: var(--border-dim);
 }
 
 .input__num {
 	width: 56px;
 	text-align: center;
-}
-
-
-.textarea {
-	width: 100%;
 }
 
 /* === Blueprint Editor Alert Components === */

@@ -338,4 +338,16 @@ watch(() => props.visible, (v) => {
 	border-radius: var(--radius-sm);
 	cursor: pointer;
 }
+
+.card__name__lg {
+	font-size: var(--font-md);
+	color: var(--text-primary);
+	font-weight: bold;
+}
+
+.card__desc__dim {
+	font-size: var(--font-xs);
+	color: var(--text-dim);
+	margin-top: var(--gap-xs);
+}
 </style>

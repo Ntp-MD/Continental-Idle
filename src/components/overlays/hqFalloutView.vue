@@ -1,6 +1,7 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import type { FloorId } from '@/types'
-import { GOLD, GOLD_DIM, GOLD_DARK, BG_DARK, BG_DARKER, BG_CORRIDOR, isFloorUnlocked } from './hqLayout'
+import { GOLD, GOLD_DIM, GOLD_DARK, BG_DARK, BG_DARKER, BG_CORRIDOR, isFloorUnlocked, FLOOR_IDS, FLOOR_NAMES } from './hqLayout'
 
 interface SimpleDot {
   id?: string
@@ -29,22 +30,15 @@ interface Band {
   y: number
 }
 
-const BANDS: Band[] = [
-  { floors: ['G'], label: 'Basement', y: 0 },
-  { floors: ['1'], label: 'Lobby', y: 0 },
-  { floors: ['2'], label: 'Restaurant & Bar', y: 0 },
-  { floors: ['3', '4', '5', '6'], label: 'Guest Rooms (F3-F6)', y: 0 },
-  { floors: ['7', '8'], label: 'VIP (F7-F8)', y: 0 },
-  { floors: ['9'], label: 'Security', y: 0 },
-  { floors: ['10'], label: 'Intel & Management', y: 0 },
-  { floors: ['11'], label: 'Rooftop', y: 0 },
-]
-
-BANDS.forEach((band, i) => {
-  band.y = i * (BAND_H + BAND_GAP)
+const BANDS = computed<Band[]>(() => {
+  return FLOOR_IDS.map((floorId, i) => ({
+    floors: [floorId],
+    label: FLOOR_NAMES[floorId] || `Floor ${floorId}`,
+    y: i * (BAND_H + BAND_GAP),
+  }))
 })
 
-const totalH = BANDS.length * (BAND_H + BAND_GAP)
+const totalH = computed(() => BANDS.value.length * (BAND_H + BAND_GAP))
 
 function bandUnlocked(band: Band): boolean {
   return band.floors.some(f => isFloorUnlocked(f, props.buildings))
@@ -105,10 +99,3 @@ function npcInBand(band: Band): SimpleDot[] {
     </g>
   </svg>
 </template>
-
-<style scoped>
-.hqfalloutview {
-  width: 100%;
-  height: 100%;
-}
-</style>

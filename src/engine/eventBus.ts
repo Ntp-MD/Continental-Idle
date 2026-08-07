@@ -1,4 +1,4 @@
-// Central Event Bus using native EventTarget (zero dependencies)
+
 
 class GameEventBus extends EventTarget {
   emit(topic: string, detail?: unknown): void {

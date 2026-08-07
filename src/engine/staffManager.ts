@@ -32,16 +32,16 @@ export function isStaffUnlocked(staffTypeId: string, branchId?: BranchId): boole
 	const unlock = def.unlock
 	if (unlock === 'start') return true
 
-	// Building-based unlock: check if building exists at level >= 1
+
 	if (branch.buildings[unlock]?.level >= 1) return true
 
-	// Prestige-based unlock: 'prestige:N'
+
 	if (unlock.startsWith('prestige:')) {
 		const required = parseInt(unlock.split(':')[1], 10)
 		return state.totalPrestige >= required
 	}
 
-	// Upgrade-based unlock: 'upgrade:xxx'
+
 	if (unlock.startsWith('upgrade:')) {
 		return branch.upgrades.includes(unlock.split(':')[1])
 	}
@@ -147,7 +147,7 @@ export function fireStaff(staffId: string, branchId?: BranchId): boolean {
 export function tickStaffXp(branchId?: BranchId): void {
 	const state = gameState.get()
 
-	// Tick XP for all unlocked BRANCHES, not just active
+
 	const branchesToTick = branchId ? [branchId] : state.worldMap.unlockedBranches
 
 	branchesToTick.forEach(targetBranchId => {
@@ -161,7 +161,7 @@ export function tickStaffXp(branchId?: BranchId): void {
 			if (!def) return
 			if (staff.level >= def.maxLevel) return
 
-			// Active branch gets full XP, inactive BRANCHES get 50%
+
 			const xpRate = targetBranchId === state.activeBranch ? 1.0 : 0.5
 			const traitXpMult = getTraitMultiplier(staff.traits, 'xpMult')
 			const skillXpMult = getTotalStaffXpMult()
@@ -175,7 +175,7 @@ export function tickStaffXp(branchId?: BranchId): void {
 				staff.pendingLevelUp = true
 			}
 
-			// Cap unconfirmed XP at 200%
+
 			if (staff.xp > threshold * 2) {
 				staff.xp = threshold * 2
 			}

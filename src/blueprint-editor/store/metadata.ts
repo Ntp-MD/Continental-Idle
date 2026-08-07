@@ -1,4 +1,4 @@
-import type { ObjectData, ObjectCustomProps } from '../types'
+import type { ObjectData } from '../types'
 import { objectOverlapsAny, recalcCollapsed } from '../collision'
 import { state, toast, snap, clamp, assetMap, currentFloor } from './state'
 import { genId } from './utils'
@@ -14,24 +14,14 @@ export function copySelected() {
 	if (objIds.length > 0) {
 		clipboard = floor.objects
 			.filter(o => objIds.includes(o.id))
-			.map(o => ({
-				...o,
-				walkableGrid: o.walkableGrid?.map(row => [...row]),
-				tileStates: o.tileStates?.map(row => [...row]),
-				tileEdges: o.tileEdges?.map(row => row.map(e => e ? { ...e } : e)),
-			}))
+			.map(o => ({ ...o }))
 		toast.info(`Copied ${clipboard.length} object(s)`)
 	} else {
 		const primary = state.selectionState.primary
 		if (primary?.type === 'object') {
 			const o = floor.objects.find(o => o.id === primary.id)
 			if (o) {
-				clipboard = [{
-					...o,
-					walkableGrid: o.walkableGrid?.map(row => [...row]),
-					tileStates: o.tileStates?.map(row => [...row]),
-					tileEdges: o.tileEdges?.map(row => row.map(e => e ? { ...e } : e)),
-				}]
+				clipboard = [{ ...o }]
 				toast.info('Copied 1 object')
 			}
 		}
@@ -57,7 +47,7 @@ export async function pasteObjects(): Promise<void> {
 			continue
 		}
 		newIds.push(newId)
-		const { locked, collapsed, linkGroupId, walkableGrid, tileStates, tileEdges, ...rest } = c
+		const { locked, collapsed, linkGroupId, ...rest } = c
 		const copy: ObjectData = {
 			...rest,
 			id: newId,
@@ -66,9 +56,6 @@ export async function pasteObjects(): Promise<void> {
 			y: rect.y,
 			w: rect.w,
 			h: rect.h,
-			...(walkableGrid ? { walkableGrid: walkableGrid.map(row => [...row]) } : {}),
-			...(tileStates ? { tileStates: tileStates.map(row => [...row]) } : {}),
-			...(tileEdges ? { tileEdges: tileEdges.map(row => row.map(e => e ? { ...e } : e)) } : {}),
 		}
 		pendingCopies.push(copy)
 	}
@@ -101,41 +88,4 @@ export async function pasteObjects(): Promise<void> {
 	recalcCollapsed(floor, assetMap())
 	await saveLayout()
 	toast.success(`Pasted ${newIds.length} object(s)`)
-}
-
-function findObjectBySubId(subId: string): ObjectData | undefined {
-	for (const floor of state.layout.floors) {
-		const obj = floor.objects.find(o => o.subId === subId)
-		if (obj) return obj
-	}
-	return undefined
-}
-
-export function getObjectCustomProps(subId: string): ObjectCustomProps | undefined {
-	return findObjectBySubId(subId)?.customProps
-}
-
-export async function setObjectCustomProps(subId: string, props: ObjectCustomProps): Promise<void> {
-	const obj = findObjectBySubId(subId)
-	if (!obj) return
-	obj.customProps = props
-	await saveLayout()
-}
-
-export function getInstanceLabel(subId: string): string | undefined {
-	return findObjectBySubId(subId)?.instanceLabel
-}
-
-export async function setInstanceLabel(subId: string, label: string): Promise<void> {
-	const obj = findObjectBySubId(subId)
-	if (!obj) return
-	obj.instanceLabel = label
-	await saveLayout()
-}
-
-export async function deleteInstanceLabel(subId: string): Promise<void> {
-	const obj = findObjectBySubId(subId)
-	if (!obj) return
-	delete obj.instanceLabel
-	await saveLayout()
 }

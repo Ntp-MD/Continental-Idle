@@ -4,7 +4,7 @@ import { achievementManager } from './achievementManager'
 import { sovereignManager } from './sovereignManager'
 import { eventBus } from './eventBus'
 
-const AUTOSAVE_INTERVAL = 30 // seconds
+const AUTOSAVE_INTERVAL = 30
 
 class GameLoop {
   private intervalId: number | null = null
@@ -35,7 +35,7 @@ class GameLoop {
 
     runGameTick(this.tickCount)
 
-    // Autosave (every 30s)
+
     if (this.tickCount % AUTOSAVE_INTERVAL === 0) {
       sovereignManager.checkVictory()
       if (gameState.save()) {

@@ -1,12 +1,14 @@
-import type { FloorLayoutData, RoomData, ObjectData, AssetBase, AssetDef, LinkedPart, Rotation, RoomTemplate, RoomTemplateObject, TileState, NpcSimulationConfig, LegacyNpcSimulationConfig, NpcRole, NpcTask, NpcDeploymentPool } from '../types'
-import { isAssetDef, validateLayoutData, validateLayoutIntegrity, isNpcConfig } from '../types'
-import { findAssetCached, buildAssetMap } from '../assetUtils'
+import type { FloorLayoutData, RoomData, ObjectData, AssetBase, AssetDef, LinkedPart, Rotation, RoomTemplate, RoomTemplateObject, NpcSimulationConfig, NpcRole, NpcTask, NpcDeploymentPool } from '../types'
+import { isAssetDef, validateLayoutData, validateLayoutIntegrity, isNpcConfig, normalizeAnchorPoints, normalizeInteractConfig, normalizeTileEdges, normalizeWalkableGrid, normalizeTileStates, normalizeAllowedRoleIds } from '../types'
+import { findAssetCached, buildAssetMap, validatePortalConfiguration } from '../assetUtils'
 import { normalizeObject, snap } from '../geometry'
 import { recalcCollapsed } from '../collision'
 import { EDITOR_CONFIG } from '../editorConfig'
-import { assetCatalog, buildSavedLayout } from './dataLoader'
+import { originAssets, buildSavedLayout } from './dataLoader'
 import { editorLog, genId } from './utils'
-import { getDefaultNpcConfig } from './npcDefault'
+import { migrateNpcConfig } from './migrateNpc'
+
+export { migrateNpcConfig }
 
 export { EDITOR_CONFIG }
 export const LAYOUT_VERSION = EDITOR_CONFIG.layoutVersion
@@ -28,8 +30,9 @@ function isRoomTemplateObject(value: unknown): value is RoomTemplateObject {
 	if (typeof o.type !== 'string' || !o.type.trim()) return false
 	if (typeof o.dx !== 'number' || !isFinite(o.dx)) return false
 	if (typeof o.dy !== 'number' || !isFinite(o.dy)) return false
-	if (typeof o.w !== 'number' || !isFinite(o.w) || o.w <= 0) return false
-	if (typeof o.h !== 'number' || !isFinite(o.h) || o.h <= 0) return false
+	if (o.w !== undefined && (typeof o.w !== 'number' || !isFinite(o.w) || o.w <= 0)) return false
+	if (o.h !== undefined && (typeof o.h !== 'number' || !isFinite(o.h) || o.h <= 0)) return false
+	if ((o.w === undefined) !== (o.h === undefined)) return false
 	if (![0, 90, 180, 270].includes(o.rotation as number)) return false
 	if (o.padding !== undefined && (typeof o.padding !== 'number' || o.padding <= 0)) return false
 	if (o.radius !== undefined && (typeof o.radius !== 'number' || !isFinite(o.radius))) return false
@@ -68,100 +71,19 @@ function isRoomTemplate(value: unknown): value is RoomTemplate {
 }
 
 
-function migrateNpcConfig(value: unknown): NpcSimulationConfig {
-	const fallback = getDefaultNpcConfig()
-	if (!value || typeof value !== 'object') return fallback
-	const c = value as Record<string, unknown>
-
-	if (isNpcConfig(c)) return c as NpcSimulationConfig
-
-	const speed = (typeof c.speed === 'number' && isFinite(c.speed)) ? c.speed : fallback.speed
-	const defaultRoleId = typeof c.defaultRoleId === 'string' ? c.defaultRoleId : (typeof c.role === 'string' ? c.role : fallback.defaultRoleId)
-
-	let rawRoles: { id?: string; label?: string; color?: string; focusTask?: string; focusChance?: number; restrictedTasks?: unknown[] }[] = []
-	if (Array.isArray(c.roles)) {
-		rawRoles = c.roles as { id?: string; label?: string; color?: string; focusTask?: string; focusChance?: number; restrictedTasks?: unknown[] }[]
-	} else if (c.roleBehaviors && typeof c.roleBehaviors === 'object') {
-		const old = c as unknown as LegacyNpcSimulationConfig
-		const legacyColors: Record<string, string> = {
-			guest: '#22d3ee',
-			staff: '#f472b6',
-			visitor: '#a78bfa',
-			assassin: '#ef4444',
-		}
-		for (const roleId of Object.keys(old.roleBehaviors ?? {})) {
-			rawRoles.push({ id: roleId, label: roleId.charAt(0).toUpperCase() + roleId.slice(1), color: legacyColors[roleId] ?? '#3b82f6', focusTask: undefined, focusChance: 0, restrictedTasks: [] })
-		}
-		const selectedRole = old.role
-		if (!rawRoles.some(r => r.id === selectedRole)) {
-			rawRoles.push({ id: selectedRole, label: selectedRole.charAt(0).toUpperCase() + selectedRole.slice(1), color: legacyColors[selectedRole] ?? '#22d3ee', focusTask: undefined, focusChance: 0, restrictedTasks: [] })
-		}
-	}
-
-	if (rawRoles.length === 0) return fallback
-
-	let pool: NpcDeploymentPool[] = []
-	if (Array.isArray(c.pool)) {
-		pool = c.pool.map((p: unknown) => {
-			const rec = p as Record<string, unknown>
-			return { roleId: typeof rec.roleId === 'string' ? rec.roleId : defaultRoleId, count: typeof rec.count === 'number' ? Math.max(0, Math.floor(rec.count)) : 0 }
-		}).filter(p => p.count > 0)
-	} else if (typeof c.count === 'number') {
-		pool = [{ roleId: defaultRoleId, count: Math.max(0, Math.floor(c.count)) }]
-	}
-	if (pool.length === 0) {
-		pool = [{ roleId: defaultRoleId, count: 10 }]
-	}
-
-	const existingTasks: NpcTask[] = Array.isArray(c.tasks)
-		? c.tasks.filter((t: unknown) => {
-			const rec = t as Record<string, unknown>
-			return rec && typeof rec.id === 'string' && typeof rec.label === 'string' && Array.isArray(rec.tags)
-		}).map((t: unknown) => {
-			const rec = t as NpcTask
-			return { id: rec.id, label: rec.label, tags: [...rec.tags] }
-		})
-		: []
-
-	const tagToTask = new Map<string, NpcTask>()
-	for (const r of rawRoles) {
-		if (typeof r.focusTask === 'string' && r.focusTask.trim()) {
-			const tag = r.focusTask.trim()
-			if (!tagToTask.has(tag)) tagToTask.set(tag, { id: genId('task'), label: tag, tags: [tag] })
-		}
-		if (Array.isArray(r.restrictedTasks)) {
-			for (const t of r.restrictedTasks) {
-				if (typeof t === 'string' && t.trim()) {
-					const tag = t.trim()
-					if (!tagToTask.has(tag)) tagToTask.set(tag, { id: genId('task'), label: tag, tags: [tag] })
-				}
-			}
-		}
-	}
-	for (const task of existingTasks) {
-		if (!tagToTask.has(task.label)) tagToTask.set(task.label, task)
-	}
-
-	const tasks = Array.from(tagToTask.values())
-	const taskIdForTag = (tag: string) => tasks.find(t => t.tags.includes(tag))?.id
-
-	const roles: NpcRole[] = rawRoles.map(r => {
-		const id = typeof r.id === 'string' ? r.id : genId('role')
-		const label = typeof r.label === 'string' ? r.label : id
-		const color = typeof r.color === 'string' ? r.color : '#22d3ee'
-		const focusTag = typeof r.focusTask === 'string' ? r.focusTask.trim() : ''
-		const focusTaskId = focusTag ? taskIdForTag(focusTag) : undefined
-		const restrictedTags = Array.isArray(r.restrictedTasks)
-			? r.restrictedTasks.map((t: unknown) => typeof t === 'string' ? t.trim() : '').filter(Boolean)
-			: []
-		const restrictedTaskIds = restrictedTags.map((tag: string) => taskIdForTag(tag)).filter((id: string | undefined): id is string => typeof id === 'string')
-		const focusChance = typeof r.focusChance === 'number' ? Math.max(0, Math.min(100, Math.floor(r.focusChance))) : 0
-		return { id, label, color, behavior: { focusTaskId, focusChance, restrictedTaskIds } }
-	})
-
-	if (roles.length === 0) return fallback
-
-	return { speed, defaultRoleId, roles, tasks, pool }
+function applyAssetDefFields(asset: AssetDef, a: Record<string, unknown>): void {
+	if (typeof a.walkable === 'boolean') asset.walkable = a.walkable
+	if (typeof a.entranceRequired === 'boolean') asset.entranceRequired = a.entranceRequired
+	const grid = normalizeWalkableGrid(a.walkableGrid)
+	if (grid) asset.walkableGrid = grid
+	const states = normalizeTileStates(a.tileStates)
+	if (states) asset.tileStates = states
+	const edges = normalizeTileEdges(a.tileEdges)
+	if (edges) asset.tileEdges = edges
+	const anchors = normalizeAnchorPoints(a.anchorPoints)
+	if (anchors) asset.anchorPoints = anchors
+	const interact = normalizeInteractConfig(a.interact)
+	if (interact) asset.interact = interact
 }
 
 export function migrate(data: unknown): { layout: FloorLayoutData; legacyAssets: AssetDef[] } {
@@ -192,6 +114,14 @@ export function migrate(data: unknown): { layout: FloorLayoutData; legacyAssets:
 			if (assetTags) base.tags = assetTags
 			if (typeof a.defaultPadding === 'number' && a.defaultPadding > 0) base.defaultPadding = a.defaultPadding
 			if (typeof a.defaultBgColor === 'string' && a.defaultBgColor && /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(a.defaultBgColor)) base.defaultBgColor = a.defaultBgColor
+			if (typeof a.defaultLabelColor === 'string' && a.defaultLabelColor && /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(a.defaultLabelColor)) base.defaultLabelColor = a.defaultLabelColor
+			if (typeof a.defaultLabel === 'string') base.defaultLabel = a.defaultLabel
+			if (typeof a.defaultRadius === 'number' && a.defaultRadius > 0) base.defaultRadius = a.defaultRadius
+			if (typeof a.defaultLabelPadding === 'number') base.defaultLabelPadding = a.defaultLabelPadding
+			if (a.defaultCustomProps && typeof a.defaultCustomProps === 'object') base.defaultCustomProps = a.defaultCustomProps as AssetBase['defaultCustomProps']
+			if (typeof a.defaultInstanceLabel === 'string') base.defaultInstanceLabel = a.defaultInstanceLabel
+			if (a.defaultValidationRule && typeof a.defaultValidationRule === 'object') base.defaultValidationRule = a.defaultValidationRule as AssetBase['defaultValidationRule']
+			if (typeof a.defaultLocked === 'boolean') base.defaultLocked = a.defaultLocked
 			if (a.defaultRx && typeof a.defaultRx === 'object') {
 				const rx = a.defaultRx as Record<string, unknown>
 				if (typeof rx.tl === 'number' && typeof rx.tr === 'number' && typeof rx.br === 'number' && typeof rx.bl === 'number') {
@@ -200,6 +130,7 @@ export function migrate(data: unknown): { layout: FloorLayoutData; legacyAssets:
 			}
 			const hasLinkedParts = Array.isArray(a.linkedParts) && a.linkedParts.length > 0
 			const hasSvg = typeof a.svg === 'string' && a.svg && (a.special === true || (a.svgViewBox && typeof (a.svgViewBox as Record<string, unknown>).w === 'number'))
+			let asset: AssetDef
 			if (hasLinkedParts) {
 				const linkedParts: LinkedPart[] = (a.linkedParts as Record<string, unknown>[])
 					.filter((p: unknown): p is Record<string, unknown> => {
@@ -220,9 +151,8 @@ export function migrate(data: unknown): { layout: FloorLayoutData; legacyAssets:
 						}
 						return part
 					})
-				return { origin: 'linked', ...base, linkedParts }
-			}
-			if (hasSvg) {
+				asset = { origin: 'linked', ...base, linkedParts }
+			} else if (hasSvg) {
 				const svg = a.svg as string
 				let svgViewBox = { w: 50, h: 25 }
 				if (a.svgViewBox && typeof a.svgViewBox === 'object') {
@@ -231,13 +161,16 @@ export function migrate(data: unknown): { layout: FloorLayoutData; legacyAssets:
 						svgViewBox = { w: vb.w, h: vb.h }
 					}
 				}
-				return { origin: 'svg-import', ...base, svg, svgViewBox }
+				asset = { origin: 'svg-import', ...base, svg, svgViewBox }
+			} else {
+				const simple: AssetDef = { origin: 'drawn', ...base }
+				if (typeof a.usePx === 'boolean') simple.usePx = a.usePx
+				if (typeof a.pxW === 'number' && a.pxW > 0) simple.pxW = Math.floor(a.pxW)
+				if (typeof a.pxH === 'number' && a.pxH > 0) simple.pxH = Math.floor(a.pxH)
+				asset = simple
 			}
-			const simple: AssetDef = { origin: 'drawn', ...base }
-			if (typeof a.usePx === 'boolean') simple.usePx = a.usePx
-			if (typeof a.pxW === 'number' && a.pxW > 0) simple.pxW = Math.floor(a.pxW)
-			if (typeof a.pxH === 'number' && a.pxH > 0) simple.pxH = Math.floor(a.pxH)
-			return simple
+			applyAssetDefFields(asset, a)
+			return asset
 		}).filter(isAssetDef)
 		: []
 
@@ -257,6 +190,7 @@ export function migrate(data: unknown): { layout: FloorLayoutData; legacyAssets:
 					id: typeof fRec.id === 'string' ? fRec.id : genId('floor'),
 					name: typeof fRec.name === 'string' ? fRec.name : 'Unnamed',
 					label: typeof fRec.label === 'string' ? fRec.label : 'F?',
+					labelColor: typeof fRec.labelColor === 'string' ? fRec.labelColor : undefined,
 					rooms: Array.isArray(fRec.rooms) ? fRec.rooms.filter(
 						(r: unknown): r is Record<string, unknown> => {
 							const rec = r as Record<string, unknown>
@@ -277,7 +211,8 @@ export function migrate(data: unknown): { layout: FloorLayoutData; legacyAssets:
 							return ['top', 'bottom', 'left', 'right'].includes(entry.side as string)
 								&& typeof entry.offset === 'number' && typeof entry.width === 'number' && entry.width > 0
 						}) : undefined,
-						anchorPoints: Array.isArray(r.anchorPoints) ? r.anchorPoints.filter((p): p is [number, number] => Array.isArray(p) && p.length === 2 && typeof p[0] === 'number' && typeof p[1] === 'number') : undefined,
+						anchorPoints: normalizeAnchorPoints(r.anchorPoints),
+						interact: normalizeInteractConfig(r.interact),
 						radius: typeof r.radius === 'number' && r.radius > 0 ? r.radius : undefined,
 						fillColor: typeof r.fillColor === 'string' ? r.fillColor : undefined,
 						rx: typeof r.rx === 'object' && r.rx !== null ? r.rx : undefined,
@@ -291,14 +226,14 @@ export function migrate(data: unknown): { layout: FloorLayoutData; legacyAssets:
 							return typeof rec?.id === 'string' && typeof rec?.type === 'string'
 								&& typeof rec?.x === 'number' && isFinite(rec.x as number)
 								&& typeof rec?.y === 'number' && isFinite(rec.y as number)
-								&& typeof rec?.w === 'number' && isFinite(rec.w as number) && rec.w > 0
-								&& typeof rec?.h === 'number' && isFinite(rec.h as number) && rec.h > 0
 						}
 					).map((o) => {
 						const base: ObjectData = {
 							id: o.id as string,
 							type: o.type as string,
-							x: o.x as number, y: o.y as number, w: o.w as number, h: o.h as number,
+							x: o.x as number, y: o.y as number,
+							w: typeof o.w === 'number' ? o.w : 0,
+							h: typeof o.h === 'number' ? o.h : 0,
 							rotation: typeof o.rotation === 'number' && [0, 90, 180, 270].includes(o.rotation) ? (o.rotation as Rotation) : 0,
 						}
 						if (typeof o.subId === 'string') base.subId = o.subId
@@ -311,39 +246,16 @@ export function migrate(data: unknown): { layout: FloorLayoutData; legacyAssets:
 						if (typeof o.collapsed === 'boolean') base.collapsed = o.collapsed
 						if (typeof o.linkGroupId === 'string' && o.linkGroupId) base.linkGroupId = o.linkGroupId
 						if (typeof o.isWall === 'boolean') base.isWall = o.isWall
-						if (typeof o.walkable === 'boolean') base.walkable = o.walkable
-						if (typeof o.entranceRequired === 'boolean') base.entranceRequired = o.entranceRequired
+
+
 						const objectTags = readTags(o.customProps && typeof o.customProps === 'object' ? (o.customProps as Record<string, unknown>).tags : undefined)
 						if (objectTags) base.customProps = { ...(o.customProps as ObjectData['customProps']), tags: objectTags }
 						if (typeof o.roomId === 'string') base.roomId = o.roomId
 						if (typeof o.rx === 'object' && o.rx !== null) base.rx = o.rx as ObjectData['rx']
-						if (Array.isArray(o.walkableGrid) && o.walkableGrid.length > 0 && o.walkableGrid.every((row: unknown) => Array.isArray(row) && row.every((cell: unknown) => typeof cell === 'boolean'))) {
-							base.walkableGrid = o.walkableGrid as boolean[][]
-						}
-						if (Array.isArray(o.tileStates) && o.tileStates.length > 0 && o.tileStates.every((row: unknown) => Array.isArray(row) && row.every((cell: unknown) => cell === 'walkable' || cell === 'blocked' || cell === 'entrance'))) {
-							base.tileStates = o.tileStates as TileState[][]
-						}
-						if (Array.isArray(o.anchorPoints) && o.anchorPoints.length > 0 && o.anchorPoints.every((p: unknown) => Array.isArray(p) && p.length === 2 && typeof p[0] === "number" && typeof p[1] === "number")) {
-							base.anchorPoints = o.anchorPoints as [number, number][]
-						}
 						return base
 					}) : [],
 					defaultWalkable: typeof fRec.defaultWalkable === 'boolean' ? fRec.defaultWalkable : true,
-					zones: Array.isArray(fRec.zones) ? fRec.zones.filter(
-						(z: unknown): z is Record<string, unknown> => {
-							const rec = z as Record<string, unknown>
-							return typeof rec?.x === 'number' && isFinite(rec.x as number)
-								&& typeof rec?.y === 'number' && isFinite(rec.y as number)
-								&& typeof rec?.w === 'number' && isFinite(rec.w as number) && rec.w > 0
-								&& typeof rec?.h === 'number' && isFinite(rec.h as number) && rec.h > 0
-						}
-					).map((z) => ({
-						id: typeof z.id === 'string' ? z.id : genId('zone'),
-						x: z.x as number, y: z.y as number, w: z.w as number, h: z.h as number,
-						label: typeof z.label === 'string' ? z.label : 'Zone',
-						color: typeof z.color === 'string' ? z.color : '#06b6d4',
-						tags: readTags(z.tags),
-					})) : [],
+					allowedRoleIds: normalizeAllowedRoleIds(fRec.allowedRoleIds),
 				}
 			})
 			: [],
@@ -351,7 +263,6 @@ export function migrate(data: unknown): { layout: FloorLayoutData; legacyAssets:
 			? ((d as Record<string, unknown>).roomTemplates as unknown[]).filter(isRoomTemplate)
 			: [],
 		npcConfig: migrateNpcConfig(d.npcConfig),
-		globalTags: readTags(d.globalTags),
 	}
 	const oldCustomProps = migrated.objectCustomProps ?? {}
 	const oldInstanceLabels = migrated.instanceLabels ?? {}
@@ -371,7 +282,7 @@ export function migrate(data: unknown): { layout: FloorLayoutData; legacyAssets:
 	delete migrated.instanceLabels
 	delete migrated.validationRules
 
-	const migratedAssetMap = buildAssetMap([...assetCatalog, ...legacyAssets])
+	const migratedAssetMap = buildAssetMap([...originAssets, ...legacyAssets])
 	const t = migrated.canvas.tileSize
 	for (const asset of legacyAssets) {
 		if (asset.linkedParts) {
@@ -405,9 +316,7 @@ export function migrate(data: unknown): { layout: FloorLayoutData; legacyAssets:
 		const adjacency = new Map<string, Set<string>>()
 		for (const obj of floor.objects) {
 			if (obj.roomId && !roomIds.has(obj.roomId)) delete obj.roomId
-			if (obj.walkable === undefined) {
-				obj.walkable = !obj.isWall
-			}
+
 			const lo = obj as ObjectData & { linkedIds?: string[] }
 			const linked = (lo.linkedIds ?? []).filter((id: string) => validIds.has(id) && id !== obj.id)
 			adjacency.set(obj.id, new Set(linked))
@@ -456,24 +365,19 @@ export function migrate(data: unknown): { layout: FloorLayoutData; legacyAssets:
 		editorLog.error('Migration', 'Migrated layout failed schema validation, falling back to default')
 		return { layout: JSON.parse(JSON.stringify(buildSavedLayout())), legacyAssets: [] }
 	}
+
+	const portalCheck = validatePortalConfiguration(migrated, migratedAssetMap, migrated.npcConfig)
+	for (const err of portalCheck.errors) editorLog.error('Portal', err)
+	for (const warn of portalCheck.warnings) editorLog.warn('Portal', warn)
 	return { layout: migrated, legacyAssets }
 }
 
 export function loadInitial(): { layout: FloorLayoutData; legacyAssets: AssetDef[] } {
 	const hmrData = import.meta.hot?.data?._editorLayout as string | undefined
 	if (hmrData) {
-		try { return migrate(JSON.parse(hmrData)) } catch { /* fall through */ }
+		try { return migrate(JSON.parse(hmrData)) } catch { }
 	}
 	return migrate(JSON.parse(JSON.stringify(buildSavedLayout())))
 }
 
-function cloneAsset(a: AssetDef): AssetDef {
-	return JSON.parse(JSON.stringify(a))
-}
-
-export function mergeAssetRegistry(base: AssetDef[], overrides: AssetDef[], deletedDefaultIds: Set<string> = new Set()): AssetDef[] {
-	const map = new Map(base.map(cloneAsset).filter(a => !deletedDefaultIds.has(a.id)).map(a => [a.id, a]))
-	for (const a of overrides) map.set(a.id, cloneAsset(a))
-	return [...map.values()]
-}
 

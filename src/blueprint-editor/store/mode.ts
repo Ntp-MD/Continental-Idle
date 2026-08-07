@@ -36,15 +36,6 @@ export async function resizeCanvas(width: number, height: number, tileSize: numb
 			o.w = snapped.w
 			o.h = snapped.h
 		}
-		for (const z of floor.zones ?? []) {
-			const snapped = clamp({
-				x: Math.round(z.x / t) * t,
-				y: Math.round(z.y / t) * t,
-				w: Math.round(z.w / t) * t || t,
-				h: Math.round(z.h / t) * t || t,
-			})
-			Object.assign(z, snapped)
-		}
 	}
 	await saveLayout()
 }

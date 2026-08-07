@@ -40,7 +40,7 @@ export function initiateTakeover(branchId: BranchId): boolean {
   const targetBranch = state.branches[branchId]
   if (!targetBranch) return false
 
-  // Reject if a takeover is already in progress (HQ health already damaged)
+
   if (targetBranch.hqHealth < targetBranch.hqMaxHealth && !targetBranch.aiOwnerDefeated) return false
 
   const cost = getTakeoverCost(branchId)
@@ -66,7 +66,7 @@ export function tickTakeoverProgress(): void {
 
     let totalDamage = 0
 
-    // O(B×U) where B=total branches, U=unlocked branches — both are small fixed constants (~10)
+
     unlockedSet.forEach(sourceBranchId => {
       const sourceBranch = state.branches[sourceBranchId]
       if (!sourceBranch) return

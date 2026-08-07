@@ -83,7 +83,6 @@ function thumbScaleY(y: number): number {
   height: 60px;
 }
 .hqfloorselector__label {
-  display: block;
   font-size: 9px;
   color: #888;
   text-align: center;

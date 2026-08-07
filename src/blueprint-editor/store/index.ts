@@ -1,28 +1,25 @@
 import { state, currentFloor, snap, assetMap, dragState } from './state'
 import {
 	addFloor, deleteFloor, duplicateFloor, renameFloor,
-	reorderFloors, clearFloor, clearAllFloors, selectFloor,
+	reorderFloors, selectFloor, updateFloor,
 } from './floors'
 import {
 	addRoom, canPlaceRoom, updateRoomProps, addRoomTemplate,
 	deleteRoomTemplate, addRoomFromTemplate, eraseWallTile,
 } from './rooms'
 import {
-	addObject, canPlaceObject, select, toggleMultiSelect, deleteSelected,
+	addObject, addWallObject, canPlaceObject, select, toggleMultiSelect, deleteSelected,
 	moveSelectedTo, commitMove, rotateSelected, updateObjectProps,
 	createLinkedAssetFromSelection,
 	flattenToSvgAsset,
 	linkObjects, unlinkObject, linkObjectToRoom, linkObjectsToRoom, linkAllObjectsInRoom, unlinkObjectFromRoom, toggleObjectLock,
 } from './objects'
 import {
-	addAsset, addSvgAsset, updateAsset, deleteAsset, rotateAsset,
+	addAsset, addSvgAsset, updateAsset, deleteAsset, rotateAsset, duplicateAsset,
 } from './assets'
-import { getDefaultNpcConfig, updateNpcConfig } from './npcDefault'
-import { addZone, updateZone, deleteZone } from './zones'
+import { updateNpcConfig, syncNpcConfigToState, persistNpcConfigToDisk } from './npcDefault'
 import {
 	copySelected, pasteObjects,
-	getObjectCustomProps, setObjectCustomProps,
-	getInstanceLabel, setInstanceLabel, deleteInstanceLabel,
 } from './metadata'
 import { saveLayout, saveAssets, saveNpcConfig, syncToGame } from './persistence'
 import { selectedRoom, selectedObject, selectedAsset, selectAsset, findRoomTemplate, selectedObjectIds, clearSelection } from './selection'
@@ -32,28 +29,25 @@ import { globalTags, addTag, removeTag, ensureTag, ensureTags } from './tags'
 
 export {
 	addFloor, deleteFloor, duplicateFloor, renameFloor,
-	reorderFloors, clearFloor, clearAllFloors, selectFloor,
+	reorderFloors, selectFloor, updateFloor,
 } from './floors'
 export {
 	addRoom, canPlaceRoom, updateRoomProps, addRoomTemplate,
 	deleteRoomTemplate, addRoomFromTemplate, eraseWallTile,
 } from './rooms'
 export {
-	addObject, canPlaceObject, select, toggleMultiSelect, deleteSelected,
+	addObject, addWallObject, canPlaceObject, select, toggleMultiSelect, deleteSelected,
 	moveSelectedTo, commitMove, rotateSelected, updateObjectProps,
 	createLinkedAssetFromSelection,
 	flattenToSvgAsset,
 	linkObjects, unlinkObject, linkObjectToRoom, linkObjectsToRoom, linkAllObjectsInRoom, unlinkObjectFromRoom, toggleObjectLock,
 } from './objects'
 export {
-	addAsset, addSvgAsset, updateAsset, deleteAsset, rotateAsset,
+	addAsset, addSvgAsset, updateAsset, deleteAsset, rotateAsset, duplicateAsset,
 } from './assets'
-export { getDefaultNpcConfig, updateNpcConfig } from './npcDefault'
-export { addZone, updateZone, deleteZone } from './zones'
+export { updateNpcConfig, syncNpcConfigToState, persistNpcConfigToDisk } from './npcDefault'
 export {
 	copySelected, pasteObjects,
-	getObjectCustomProps, setObjectCustomProps,
-	getInstanceLabel, setInstanceLabel, deleteInstanceLabel,
 } from './metadata'
 export { saveLayout, saveAssets, saveNpcConfig, syncToGame } from './persistence'
 export { selectedRoom, selectedObject, selectedAsset, selectAsset, findRoomTemplate, selectedObjectIds, clearSelection } from './selection'
@@ -70,19 +64,16 @@ export function useAssetsStore() {
 		assetMap,
 		dragState,
 		addFloor, deleteFloor, duplicateFloor, renameFloor,
-		reorderFloors, clearFloor, clearAllFloors, selectFloor,
+		reorderFloors, selectFloor, updateFloor,
 		addRoom, canPlaceRoom, updateRoomProps, addRoomTemplate,
 		deleteRoomTemplate, addRoomFromTemplate, eraseWallTile,
-		addObject, canPlaceObject, select, toggleMultiSelect, deleteSelected,
+		addObject, addWallObject, canPlaceObject, select, toggleMultiSelect, deleteSelected,
 		moveSelectedTo, commitMove, rotateSelected, updateObjectProps,
 		createLinkedAssetFromSelection, flattenToSvgAsset,
 		linkObjects, unlinkObject, linkObjectToRoom, linkObjectsToRoom, linkAllObjectsInRoom, unlinkObjectFromRoom, toggleObjectLock,
-		addAsset, addSvgAsset, updateAsset, deleteAsset, rotateAsset,
-		getDefaultNpcConfig, updateNpcConfig,
-		addZone, updateZone, deleteZone,
+		addAsset, addSvgAsset, updateAsset, deleteAsset, rotateAsset, duplicateAsset,
+		updateNpcConfig, syncNpcConfigToState, persistNpcConfigToDisk,
 		copySelected, pasteObjects,
-		getObjectCustomProps, setObjectCustomProps,
-		getInstanceLabel, setInstanceLabel, deleteInstanceLabel,
 		saveLayout, saveAssets, saveNpcConfig, syncToGame,
 		selectedRoom, selectedObject, selectedAsset, selectAsset, findRoomTemplate, selectedObjectIds, clearSelection,
 		getLinkedObjects,
@@ -103,7 +94,6 @@ if (import.meta.hot) {
 			selectionState: state.selectionState,
 			selectedAssetId: state.selectedAssetId,
 			assetRegistry: state.assetRegistry,
-			globalTags: state.globalTags,
 		}
 	})
 }

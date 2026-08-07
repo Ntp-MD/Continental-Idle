@@ -74,7 +74,7 @@ class AchievementManager {
 
     state.achievements.push(id)
 
-    // Grant reward
+
     if (def.reward.type === 'tableFavor') {
       state.tableFavor += def.reward.value
     } else if (def.reward.type === 'permanentIncomeBonus') {

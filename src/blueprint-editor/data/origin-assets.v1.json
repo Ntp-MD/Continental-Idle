@@ -1,0 +1,12 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "origin-assets.v1.json",
+  "type": "object",
+  "required": ["version", "originAssets"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "version": { "type": "number" },
+    "originAssets": { "type": "array", "items": { "type": "object" } }
+  },
+  "additionalProperties": false
+}

@@ -31,13 +31,13 @@ export function useCanvasViewport(
     try {
       const raw = sessionStorage.getItem(ZOOM_STORAGE_KEY)
       if (raw) return JSON.parse(raw)
-    } catch { /* ignore */ }
+    } catch {  }
     return { zoom: 1, panX: 0, panY: 0 }
   }
   function saveZoomState(zoom: number, panX: number, panY: number) {
     try {
       sessionStorage.setItem(ZOOM_STORAGE_KEY, JSON.stringify({ zoom, panX, panY }))
-    } catch { /* ignore */ }
+    } catch {  }
   }
 
   const svgRef = ref<SVGSVGElement | null>(null)

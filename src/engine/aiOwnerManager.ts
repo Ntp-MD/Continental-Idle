@@ -95,17 +95,17 @@ export function tickAIOwners(_tickCount: number): void {
   activeOwners.forEach(owner => {
     const def = getTemperamentDef(owner.temperament)
 
-    // Power growth
+
     owner.power = Math.min(owner.maxPower, owner.power + def.powerGrowthPerTick)
 
-    // Threat assessment
+
     if (owner.power > playerPower * 1.5) {
       owner.threatLevel = Math.min(10, owner.threatLevel + 0.1)
     } else if (owner.power < playerPower * 0.5) {
       owner.threatLevel = Math.max(0, owner.threatLevel - 0.1)
     }
 
-    // Relations drift toward 0
+
     if (owner.relations > 0) owner.relations = Math.max(0, owner.relations - 0.01)
     if (owner.relations < 0) owner.relations = Math.min(0, owner.relations + 0.005)
   })
@@ -123,13 +123,13 @@ export function pickAIEvent(owner: AIOwnerState, playerPower: number): AIEventTy
   if (!actions || actions.length === 0) return null
 
   const validActions = actions.filter(action => {
-    // Power-based conditions — AI must be strong enough to attempt aggressive actions
+
     if (action === 'raid' && owner.power < playerPower * 0.5) return false
     if (action === 'tribute' && owner.power < playerPower * 0.8) return false
     if (action === 'sabotage' && owner.power < playerPower * 0.4) return false
     if (action === 'provocation' && owner.power < playerPower * 0.6) return false
 
-    // Relations-based conditions — AI won't attack allies or offer truces to enemies
+
     if (action === 'raid' && owner.relations > 20) return false
     if (action === 'tribute' && owner.relations > 30) return false
     if (action === 'sabotage' && owner.relations > 10) return false
@@ -137,7 +137,6 @@ export function pickAIEvent(owner: AIOwnerState, playerPower: number): AIEventTy
     if (action === 'truce' && owner.relations < -20) return false
     if (action === 'truce' && owner.threatLevel < 2) return false
 
-    // Spy is always available — low-cost intelligence gathering
 
     return true
   })
@@ -225,7 +224,7 @@ export function generateAIEvent(
 
   const def = buildAIEventDefinition(template, owner.name, ownerBranchName, targetBranchName)
 
-  // Scale effects by owner power relative to player
+
   const playerPower = getPlayerPower()
   const powerRatio = playerPower > 0 ? owner.power / playerPower : 1
   const scale = Math.max(0.5, Math.min(3.0, powerRatio))
@@ -252,7 +251,7 @@ export function generateAIEvent(
     }),
   }))
 
-  // Set autoResolveAction based on event type
+
   def.autoResolveAction = eventType === 'truce' ? 'best' : 'safe'
 
   return def

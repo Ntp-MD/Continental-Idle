@@ -1,39 +1,46 @@
 import { state } from './state'
-import { saveLayout } from './persistence'
 import { computed } from 'vue'
 
-export const globalTags = computed(() => state.globalTags)
 
-function syncToLayout() {
-  state.layout.globalTags = [...state.globalTags]
-}
+export const globalTags = computed(() => {
+	const set = new Set<string>()
 
-export async function addTag(tag: string): Promise<void> {
-  const t = tag.trim()
-  if (!t) return
-  if (state.globalTags.includes(t)) return
-  state.globalTags.push(t)
-  state.globalTags.sort((a, b) => a.localeCompare(b))
-  syncToLayout()
-  await saveLayout()
-}
 
-export async function removeTag(tag: string): Promise<void> {
-  const idx = state.globalTags.indexOf(tag)
-  if (idx === -1) return
-  state.globalTags.splice(idx, 1)
-  syncToLayout()
-  await saveLayout()
-}
+	for (const role of state.layout.npcConfig?.roles ?? []) {
+		for (const t of role.focusTags) set.add(t)
+		for (const t of role.restrictedTags) set.add(t)
+	}
 
-export async function ensureTag(tag: string): Promise<void> {
-  const t = tag.trim()
-  if (!t) return
-  if (!state.globalTags.includes(t)) {
-    await addTag(t)
-  }
-}
 
-export async function ensureTags(tags: string[]): Promise<void> {
-  for (const t of tags) await ensureTag(t)
-}
+	for (const task of state.layout.npcConfig?.tasks ?? []) {
+		for (const t of task.tags) set.add(t)
+	}
+
+
+	for (const floor of state.layout.floors) {
+		for (const room of floor.rooms ?? []) {
+			for (const t of room.tags ?? []) set.add(t)
+		}
+	}
+
+
+	for (const floor of state.layout.floors) {
+		for (const obj of floor.objects ?? []) {
+			for (const t of obj.customProps?.tags ?? []) set.add(t)
+		}
+	}
+
+	return [...set].sort((a, b) => a.localeCompare(b))
+})
+
+
+export async function addTag(_tag: string): Promise<void> { }
+
+
+export async function removeTag(_tag: string): Promise<void> { }
+
+
+export async function ensureTag(_tag: string): Promise<void> { }
+
+
+export async function ensureTags(_tags: string[]): Promise<void> { }

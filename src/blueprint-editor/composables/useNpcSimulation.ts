@@ -1,524 +1,185 @@
-import { ref, watch, type Ref } from 'vue'
-import type { FloorData, NpcSimDot, NpcRole, NpcTask, NpcSimulationConfig, ObjectData, TileEdges } from '../types'
-import { isNpcConfig } from '../types'
-import { getDefaultNpcConfig, mergeNpcConfig } from '../store/npcDefault'
+import { onUnmounted, ref, watch, type Ref } from 'vue'
+import { NpcEngine, findNpcGridPath, selectBestTarget, WanderMemory, NPC_ENGINE_TICKS_PER_SECOND, getRoomTags as getRoomTagsShared, type NpcEngineLayout, type NpcEngineFloor, type NpcEngineInteractionTarget } from '@/engine/npc'
+import type { AssetDef, FloorData, InteractConfig, NpcSimDot, NpcRole, NpcSimulationConfig, ObjectData, TileEdges } from '../types'
+import { isNpcConfig, resolveInteractForTarget, resolveObjectDef } from '../types'
+import { mergeNpcConfig } from '../store/npcDefault'
 
-const npcs = ref<NpcSimDot[]>([])
-let animationId: number | null = null
-const isPausedRef = ref(false)
-let nextId = 1
+const SIMULATION_TICKS_PER_SECOND = NPC_ENGINE_TICKS_PER_SECOND
 
-function deepClone<T>(value: T): T {
-	return JSON.parse(JSON.stringify(value))
+interface WalkableMap { tiles: Set<string>; width: number; height: number; cellSize: number }
+interface InteractionSource {
+	floorId: string
+	itemId: string
+	anchorId: string
+	x: number
+	y: number
+	tags: string[]
+	capacity?: number
+	durationMinSeconds: number
+	durationMaxSeconds: number
+	transitionToFloorId?: string
+	destinationPortalKey?: string
+	portalEndpointKey?: string
 }
 
-function cellSizeOf(tileSize: number): number {
-	return Math.max(1, Math.round(tileSize) || 1)
-}
-
-function pixelToCell(value: number, tileSize: number): number {
-	return Math.floor(value / cellSizeOf(tileSize))
-}
-
-function cellToPixel(value: number, tileSize: number): number {
-	return (value + 0.5) * cellSizeOf(tileSize)
-}
-
-function isTileWalkable(floor: FloorData, canvasW: number, canvasH: number, tileSize: number, tx: number, ty: number): boolean {
-	const size = cellSizeOf(tileSize)
-	const maxW = Math.ceil(canvasW / size)
-	const maxH = Math.ceil(canvasH / size)
-	if (tx < 0 || ty < 0 || tx >= maxW || ty >= maxH) return false
-	const px = cellToPixel(tx, size)
-	const py = cellToPixel(ty, size)
-	const defaultWalk = floor.defaultWalkable ?? true
-
-	for (const obj of floor.objects) {
-		if (px < obj.x || px >= obj.x + obj.w || py < obj.y || py >= obj.y + obj.h) continue
-		const localX = Math.max(0, Math.min(obj.w - 0.001, px - obj.x))
-		const localY = Math.max(0, Math.min(obj.h - 0.001, py - obj.y))
-		let isEntrance = false
-		if (obj.tileStates?.length) {
-			const rows = obj.tileStates.length
-			const cols = obj.tileStates[0]?.length ?? 0
-			const row = Math.min(rows - 1, Math.floor(localY * rows / Math.max(1, obj.h)))
-			const col = Math.min(cols - 1, Math.floor(localX * cols / Math.max(1, obj.w)))
-			isEntrance = obj.tileStates[row]?.[col] === 'entrance'
-			const isBoundary = row === 0 || row === rows - 1 || col === 0 || col === cols - 1
-			if (!obj.tileEdges && obj.entranceRequired && isBoundary && !isEntrance) return false
-		}
-		if (obj.walkable === false && !isEntrance) return false
-		if (obj.walkableGrid?.length && !isEntrance) {
-			const row = Math.min(obj.walkableGrid.length - 1, Math.floor(localY * obj.walkableGrid.length / Math.max(1, obj.h)))
-			const cols = obj.walkableGrid[row]?.length ?? 0
-			if (cols > 0) {
-				const col = Math.min(cols - 1, Math.floor(localX * cols / Math.max(1, obj.w)))
-				if (obj.walkableGrid[row][col] === false) return false
-			}
-		}
-	}
-
-	for (const room of floor.rooms) {
-		if (px < room.x || px >= room.x + room.w || py < room.y || py >= room.y + room.h) continue
-		if (room.walkable === false) return false
-	}
-	return defaultWalk
-}
-
-function getTileEdge(obj: ObjectData, tx: number, ty: number, tileSize: number, side: keyof TileEdges): boolean | undefined {
-	if (!obj.tileEdges?.length) return undefined
-	const px = cellToPixel(tx, tileSize)
-	const py = cellToPixel(ty, tileSize)
-	if (px < obj.x || px >= obj.x + obj.w || py < obj.y || py >= obj.y + obj.h) return undefined
-	const localX = Math.max(0, Math.min(obj.w - 0.001, px - obj.x))
-	const localY = Math.max(0, Math.min(obj.h - 0.001, py - obj.y))
-	const rows = obj.tileEdges.length
-	const row = Math.min(rows - 1, Math.floor(localY * rows / Math.max(1, obj.h)))
-	const cols = obj.tileEdges[row]?.length ?? 0
-	if (cols === 0) return undefined
-	const col = Math.min(cols - 1, Math.floor(localX * cols / Math.max(1, obj.w)))
-	return obj.tileEdges[row][col]?.[side]
-}
-
-function sideForDirection(dx: number, dy: number): keyof TileEdges {
-	if (dx > 0) return 'right'
-	if (dx < 0) return 'left'
-	if (dy > 0) return 'bottom'
-	return 'top'
-}
-
-function oppositeSide(side: keyof TileEdges): keyof TileEdges {
-	switch (side) {
-		case 'top': return 'bottom'
-		case 'bottom': return 'top'
-		case 'left': return 'right'
-		case 'right': return 'left'
-	}
-}
-
-function canMoveBetween(floor: FloorData, canvasW: number, canvasH: number, tileSize: number, x1: number, y1: number, x2: number, y2: number): boolean {
-	if (!isTileWalkable(floor, canvasW, canvasH, tileSize, x2, y2)) return false
-	const dx = x2 - x1
-	const dy = y2 - y1
-	if ((Math.abs(dx) + Math.abs(dy)) !== 1) return true
-	const side = sideForDirection(dx, dy)
-	const opp = oppositeSide(side)
-
-	for (const obj of floor.objects) {
-		if (getTileEdge(obj, x1, y1, tileSize, side) === true) return false
-		if (getTileEdge(obj, x2, y2, tileSize, opp) === true) return false
-	}
-	return true
-}
-
-interface WalkableMap {
-	tiles: Set<string>
-	width: number
-	height: number
-	cellSize: number
-}
-
-function tileKey(x: number, y: number): string {
-	return x + ',' + y
-}
-
-function buildWalkableMap(floor: FloorData, canvasW: number, canvasH: number, tileSize: number): WalkableMap {
-	const size = cellSizeOf(tileSize)
-	const width = Math.max(0, Math.ceil(canvasW / size))
-	const height = Math.max(0, Math.ceil(canvasH / size))
-	const tiles = new Set<string>()
-	for (let y = 0; y < height; y++) {
-		for (let x = 0; x < width; x++) {
-			if (isTileWalkable(floor, canvasW, canvasH, size, x, y)) tiles.add(tileKey(x, y))
-		}
-	}
-	return { tiles, width, height, cellSize: size }
-}
-
-function pickRandomTile(map: WalkableMap): [number, number] {
-	if (map.tiles.size === 0) return [0, 0]
-	const index = Math.floor(Math.random() * map.tiles.size)
-	let current = 0
-	for (const key of map.tiles) {
-		if (current++ === index) return key.split(',').map(Number) as [number, number]
-	}
-	return [0, 0]
-}
-
-const DIRS: [number, number][] = [
-	[1, 0], [-1, 0], [0, 1], [0, -1],
-]
-
-const MAX_PATH_ITERATIONS = 5000
-
-class BinaryMinHeap {
-	private heap: { node: string; g: number; f: number }[] = []
-
-	push(node: string, g: number, f: number): void {
-		this.heap.push({ node, g, f })
-		let i = this.heap.length - 1
-		while (i > 0) {
-			const p = (i - 1) >> 1
-			if (this.heap[p].f <= this.heap[i].f) break
-			const t = this.heap[p]
-			this.heap[p] = this.heap[i]
-			this.heap[i] = t
-			i = p
-		}
-	}
-
-	pop(): { node: string; g: number; f: number } | undefined {
-		if (this.heap.length === 0) return undefined
-		const out = this.heap[0]
-		const last = this.heap.pop()!
-		if (this.heap.length > 0) {
-			this.heap[0] = last
-			let i = 0
-			while (true) {
-				const l = (i << 1) + 1
-				const r = (i << 1) + 2
-				let smallest = i
-				if (l < this.heap.length && this.heap[l].f < this.heap[smallest].f) smallest = l
-				if (r < this.heap.length && this.heap[r].f < this.heap[smallest].f) smallest = r
-				if (smallest === i) break
-				const t = this.heap[i]
-				this.heap[i] = this.heap[smallest]
-				this.heap[smallest] = t
-				i = smallest
-			}
-		}
-		return out
-	}
-}
-
-function findPath(map: WalkableMap, floor: FloorData, canvasW: number, canvasH: number, sx: number, sy: number, tx: number, ty: number): [number, number][] {
-	const start = tileKey(sx, sy)
-	const goal = tileKey(tx, ty)
-	if (!map.tiles.has(start) || !map.tiles.has(goal)) return []
-	if (start === goal) return [[sx, sy]]
-
-	const cameFrom = new Map<string, string>()
-	const gScore = new Map<string, number>()
-	const heap = new BinaryMinHeap()
-	gScore.set(start, 0)
-	heap.push(start, 0, Math.hypot(tx - sx, ty - sy))
-
-	let iterations = 0
-	while (true) {
-		if (++iterations > MAX_PATH_ITERATIONS) return []
-		const current = heap.pop()
-		if (!current) break
-		if (current.g !== gScore.get(current.node)) continue
-		if (current.node === goal) {
-			const path: [number, number][] = []
-			let c: string | undefined = current.node
-			while (c) {
-				const [cx, cy] = c.split(',').map(Number)
-				path.unshift([cx, cy])
-				c = cameFrom.get(c)
-			}
-			return path
-		}
-		const [cx, cy] = current.node.split(',').map(Number)
-		const ng = current.g + 1
-		for (const [dx, dy] of DIRS) {
-			const nx = cx + dx
-			const ny = cy + dy
-			const nk = tileKey(nx, ny)
-			if (!map.tiles.has(nk)) continue
-			if (!canMoveBetween(floor, canvasW, canvasH, map.cellSize, cx, cy, nx, ny)) continue
-			if (ng < (gScore.get(nk) ?? Infinity)) {
-				cameFrom.set(nk, current.node)
-				gScore.set(nk, ng)
-				heap.push(nk, ng, ng + Math.hypot(tx - nx, ty - ny))
-			}
-		}
-	}
-	return []
-}
-
-const ROOM_TYPE_TAGS: Record<string, string[]> = {
-	reception: ['reception', 'guestRooms', 'vip'],
-	guestRoom: ['guestRooms'],
-	lounge: ['vip', 'guestRooms'],
-	bar: ['bar'],
-	kitchen: ['kitchen'],
-	laundry: ['laundry', 'underground'],
-	staffRoom: ['staffRoom', 'security'],
-	armory: ['armory', 'security'],
-	vault: ['vault', 'security'],
-	safeHouse: ['safeHouse', 'security'],
-	blackMarket: ['blackMarket', 'underground'],
-	controlCenter: ['controlCenter', 'security'],
-	datacenter: ['datacenter', 'intelNetwork'],
-	loadingBay: ['loadingBay', 'underground'],
-}
-
+function deepClone<T>(value: T): T { return JSON.parse(JSON.stringify(value)) }
+function cellSizeOf(tileSize: number): number { return Math.max(1, Math.round(tileSize) || 1) }
+function tileKey(x: number, y: number): string { return `${x},${y}` }
+function pixelToCell(value: number, tileSize: number): number { return Math.floor(value / cellSizeOf(tileSize)) }
+function cellToPixel(value: number, tileSize: number): number { return (value + 0.5) * cellSizeOf(tileSize) }
 function hasMatchingTag(tags: string[] | undefined, targetTags: string[]): boolean {
 	if (!tags || targetTags.length === 0) return false
 	const normalized = new Set(tags.map(tag => tag.trim().toLowerCase()))
 	return targetTags.some(tag => normalized.has(tag.trim().toLowerCase()))
 }
-
 function getObjectTags(obj: ObjectData, getAssetTags?: (type: string) => string[] | undefined): string[] {
-	return [...new Set([
-		...(getAssetTags?.(obj.type) ?? []),
-		...(obj.customProps?.tags ?? []),
-		obj.type,
-		...(obj.label ? [obj.label] : []),
-	])]
+	return [...new Set([...(getAssetTags?.(obj.type) ?? []), ...(obj.customProps?.tags ?? []), obj.type, ...(obj.label ? [obj.label] : [])])]
 }
-
 function getRoomTags(room: FloorData['rooms'][number]): string[] {
-	const roomType = room.roomType ?? ''
-	return [...new Set([
-		...(room.tags ?? []),
-		roomType,
-		...(ROOM_TYPE_TAGS[roomType] ?? []),
-	])]
+	return getRoomTagsShared(room.roomType, room.tags)
 }
-
-function addTaggedEntityTiles(target: Set<string>, map: WalkableMap, x: number, y: number, w: number, h: number, tags: string[], targetTags: string[]): void {
-	if (!hasMatchingTag(tags, targetTags)) return
-	const minX = Math.max(0, pixelToCell(x, map.cellSize))
-	const minY = Math.max(0, pixelToCell(y, map.cellSize))
-	const maxX = Math.min(map.width, Math.ceil((x + w) / map.cellSize))
-	const maxY = Math.min(map.height, Math.ceil((y + h) / map.cellSize))
-	for (let ty = minY; ty < maxY; ty++) {
-		for (let tx = minX; tx < maxX; tx++) {
-			if (map.tiles.has(tileKey(tx, ty))) target.add(tileKey(tx, ty))
+function getTileEdge(obj: ObjectData, def: ReturnType<typeof resolveObjectDef>, tx: number, ty: number, tileSize: number, side: keyof TileEdges): boolean | undefined {
+	if (!def.tileEdges?.length) return undefined
+	const px = cellToPixel(tx, tileSize), py = cellToPixel(ty, tileSize)
+	if (px < obj.x || px >= obj.x + obj.w || py < obj.y || py >= obj.y + obj.h) return undefined
+	const row = Math.min(def.tileEdges.length - 1, Math.floor(Math.max(0, py - obj.y) * def.tileEdges.length / Math.max(1, obj.h)))
+	const cols = def.tileEdges[row]?.length ?? 0
+	if (!cols) return undefined
+	const col = Math.min(cols - 1, Math.floor(Math.max(0, px - obj.x) * cols / Math.max(1, obj.w)))
+	return def.tileEdges[row][col]?.[side]
+}
+function isTileWalkable(floor: FloorData, width: number, height: number, tileSize: number, tx: number, ty: number, getAssetDef?: (type: string) => AssetDef | undefined): boolean {
+	if (tx < 0 || ty < 0 || tx >= width || ty >= height) return false
+	const px = cellToPixel(tx, tileSize), py = cellToPixel(ty, tileSize)
+	for (const obj of floor.objects) {
+		if (px < obj.x || px >= obj.x + obj.w || py < obj.y || py >= obj.y + obj.h) continue
+		const def = resolveObjectDef(obj.rotation, getAssetDef?.(obj.type))
+		const localX = Math.max(0, Math.min(obj.w - 0.001, px - obj.x)), localY = Math.max(0, Math.min(obj.h - 0.001, py - obj.y))
+		let entrance = false
+		if (def.tileStates?.length) {
+			const row = Math.min(def.tileStates.length - 1, Math.floor(localY * def.tileStates.length / Math.max(1, obj.h)))
+			const cols = def.tileStates[row]?.length ?? 0
+			const col = cols ? Math.min(cols - 1, Math.floor(localX * cols / Math.max(1, obj.w))) : 0
+			entrance = def.tileStates[row]?.[col] === 'entrance'
+			if (!def.tileEdges && def.entranceRequired && (row === 0 || row === def.tileStates.length - 1 || col === 0 || col === cols - 1) && !entrance) return false
+		}
+		if (def.walkable === false && !entrance) return false
+		if (def.walkableGrid?.length && !entrance) {
+			const row = Math.min(def.walkableGrid.length - 1, Math.floor(localY * def.walkableGrid.length / Math.max(1, obj.h)))
+			const cols = def.walkableGrid[row]?.length ?? 0
+			if (cols && def.walkableGrid[row][Math.min(cols - 1, Math.floor(localX * cols / Math.max(1, obj.w)))] === false) return false
 		}
 	}
+	for (const room of floor.rooms) if (px >= room.x && px < room.x + room.w && py >= room.y && py < room.y + room.h && room.walkable === false) return false
+	return floor.defaultWalkable ?? true
+}
+function buildWalkableMap(floor: FloorData, canvasW: number, canvasH: number, tileSize: number, getAssetDef?: (type: string) => AssetDef | undefined): WalkableMap {
+	const cellSize = cellSizeOf(tileSize), width = Math.max(0, Math.ceil(canvasW / cellSize)), height = Math.max(0, Math.ceil(canvasH / cellSize)), tiles = new Set<string>()
+	for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) if (isTileWalkable(floor, width, height, cellSize, x, y, getAssetDef)) tiles.add(tileKey(x, y))
+	return { tiles, width, height, cellSize }
 }
 
-function addAnchoredEntityTiles(target: Set<string>, map: WalkableMap, x: number, y: number, w: number, h: number, tags: string[], targetTags: string[], anchorPoints?: [number, number][]): void {
-	if (!hasMatchingTag(tags, targetTags)) return
-	if (anchorPoints && anchorPoints.length > 0) {
-		for (const [ax, ay] of anchorPoints) {
-			const tx = pixelToCell(x + ax, map.cellSize)
-			const ty = pixelToCell(y + ay, map.cellSize)
-			if (map.tiles.has(tileKey(tx, ty))) {
-				target.add(tileKey(tx, ty))
-			} else {
-				const nearby = findNearestWalkable(map, tx, ty, 5)
-				if (nearby) target.add(nearby)
-			}
+function buildBlockedEdges(floor: FloorData, map: WalkableMap, getAssetDef?: (type: string) => AssetDef | undefined): { from: { x: number; y: number }; to: { x: number; y: number } }[] {
+	const edges: { from: { x: number; y: number }; to: { x: number; y: number } }[] = []
+	for (const cell of map.tiles) {
+		const [x, y] = cell.split(',').map(Number)
+		for (const [dx, dy, side] of [[1, 0, 'right'], [0, 1, 'bottom']] as const) {
+			const nx = x + dx
+			const ny = y + dy
+			if (!map.tiles.has(tileKey(nx, ny))) continue
+			if (!floor.objects.some(obj => { const def = resolveObjectDef(obj.rotation, getAssetDef?.(obj.type)); return getTileEdge(obj, def, x, y, map.cellSize, side) === true || getTileEdge(obj, def, nx, ny, map.cellSize, side === 'right' ? 'left' : 'top') === true })) continue
+			edges.push({ from: { x, y }, to: { x: nx, y: ny } })
 		}
-	} else {
-		addTaggedEntityTiles(target, map, x, y, w, h, tags, targetTags)
 	}
+	return edges
 }
-
 function findNearestWalkable(map: WalkableMap, x: number, y: number, radius: number): string | null {
-	for (let r = 1; r <= radius; r++) {
-		for (let dy = -r; dy <= r; dy++) {
-			for (let dx = -r; dx <= r; dx++) {
-				if (Math.abs(dx) !== r && Math.abs(dy) !== r) continue
-				const key = tileKey(x + dx, y + dy)
-				if (map.tiles.has(key)) return key
-			}
-		}
-	}
+	for (let r = 1; r <= radius; r++) for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) if ((Math.abs(dx) === r || Math.abs(dy) === r) && map.tiles.has(tileKey(x + dx, y + dy))) return tileKey(x + dx, y + dy)
 	return null
 }
-
-function findTaggedWalkableTiles(floor: FloorData, map: WalkableMap, targetTags: string[], getAssetTags?: (type: string) => string[] | undefined): Set<string> {
-	const target = new Set<string>()
-	for (const obj of floor.objects) {
-		const tags = getObjectTags(obj, getAssetTags)
-		addAnchoredEntityTiles(target, map, obj.x, obj.y, obj.w, obj.h, tags, targetTags, obj.anchorPoints)
-	}
-	for (const room of floor.rooms) {
-		addAnchoredEntityTiles(target, map, room.x, room.y, room.w, room.h, getRoomTags(room), targetTags, room.anchorPoints)
-	}
-	for (const zone of floor.zones ?? []) {
-		addTaggedEntityTiles(target, map, zone.x, zone.y, zone.w, zone.h, zone.tags ?? [], targetTags)
-	}
-	return target
-}
-
-function getRoleMap(map: WalkableMap, floor: FloorData, role: NpcRole, tasks: NpcTask[], getAssetTags?: (type: string) => string[] | undefined): WalkableMap {
-	const restrictedTags = role.behavior.restrictedTaskIds.flatMap(id => tasks.find(t => t.id === id)?.tags ?? [])
-	if (restrictedTags.length === 0) return map
+function getRole(config: NpcSimulationConfig, roleId: string): NpcRole | undefined { return config.roles.find(role => role.id === roleId) ?? config.roles.find(role => role.id === config.defaultRoleId) ?? config.roles[0] }
+function getRoleMap(map: WalkableMap, floor: FloorData, role: NpcRole, getAssetTags?: (type: string) => string[] | undefined): WalkableMap {
+	if (!role.restrictedTags.length) return map
 	const forbidden = new Set<string>()
+	const mark = (x: number, y: number, w: number, h: number, tags: string[]) => { if (!hasMatchingTag(tags, role.restrictedTags)) return; for (let ty = Math.max(0, Math.floor(y / map.cellSize)); ty < Math.min(map.height, Math.ceil((y + h) / map.cellSize)); ty++) for (let tx = Math.max(0, Math.floor(x / map.cellSize)); tx < Math.min(map.width, Math.ceil((x + w) / map.cellSize)); tx++) forbidden.add(tileKey(tx, ty)) }
+	for (const obj of floor.objects) mark(obj.x, obj.y, obj.w, obj.h, getObjectTags(obj, getAssetTags)); for (const room of floor.rooms) mark(room.x, room.y, room.w, room.h, getRoomTags(room))
+	return { ...map, tiles: new Set([...map.tiles].filter(key => !forbidden.has(key))) }
+}
+function focusTags(config: NpcSimulationConfig, role: NpcRole): string[] { return [...new Set([...role.focusTags, ...role.taskIds.flatMap(id => config.tasks.find(task => task.id === id)?.tags ?? [])])] }
+function makeInteractionTargets(floor: FloorData, map: WalkableMap, getAssetTags?: (type: string) => string[] | undefined, getAssetDef?: (type: string) => AssetDef | undefined): InteractionSource[] {
+	const output: InteractionSource[] = []
+	const add = (itemId: string, x: number, y: number, tags: string[], anchors: { x: number; y: number }[] | undefined, interact?: InteractConfig) => { if (!anchors?.length) return; anchors.forEach((anchor, index) => { const tx = pixelToCell(x + anchor.x, map.cellSize), ty = pixelToCell(y + anchor.y, map.cellSize); const nearest = map.tiles.has(tileKey(tx, ty)) ? tileKey(tx, ty) : findNearestWalkable(map, tx, ty, 5); if (!nearest) return; const [cellX, cellY] = nearest.split(',').map(Number); const resolved = resolveInteractForTarget(interact, anchors.length); output.push({ floorId: floor.id, itemId, anchorId: `${itemId}:${index}`, x: cellX, y: cellY, tags, capacity: resolved.capacity, durationMinSeconds: resolved.durationMinSeconds, durationMaxSeconds: resolved.durationMaxSeconds }) }) }
+
 	for (const obj of floor.objects) {
-		const tags = getObjectTags(obj, getAssetTags)
-		addTaggedEntityTiles(forbidden, map, obj.x, obj.y, obj.w, obj.h, tags, restrictedTags)
+		if (getObjectTags(obj, getAssetTags).includes('portal')) continue
+		const def = resolveObjectDef(obj.rotation, getAssetDef?.(obj.type))
+		add(`object:${obj.id}`, obj.x, obj.y, getObjectTags(obj, getAssetTags), def.anchorPoints, def.interact)
 	}
-	for (const room of floor.rooms) {
-		addTaggedEntityTiles(forbidden, map, room.x, room.y, room.w, room.h, getRoomTags(room), restrictedTags)
-	}
-	for (const zone of floor.zones ?? []) {
-		addTaggedEntityTiles(forbidden, map, zone.x, zone.y, zone.w, zone.h, zone.tags ?? [], restrictedTags)
-	}
-	const allowed = new Set<string>()
-	for (const k of map.tiles) {
-		if (!forbidden.has(k)) allowed.add(k)
-	}
-	return { ...map, tiles: allowed }
+	for (const room of floor.rooms) add(`room:${room.id}`, room.x, room.y, getRoomTags(room), room.anchorPoints, room.interact)
+	return output
 }
 
-function getRole(config: NpcSimulationConfig, roleId: string): NpcRole | undefined {
-	return config.roles.find(r => r.id === roleId) ?? config.roles.find(r => r.id === config.defaultRoleId) ?? config.roles[0]
+function portalEndpointKey(floorId: string, itemId: string, anchorIndex: number): string {
+	return `${floorId}:${itemId}:endpoint:${anchorIndex}`
 }
 
-function chooseTarget(npc: NpcSimDot, floor: FloorData, map: WalkableMap, canvasW: number, canvasH: number, config: NpcSimulationConfig, getAssetTags?: (type: string) => string[] | undefined): void {
-	const curTx = pixelToCell(npc.x, map.cellSize)
-	const curTy = pixelToCell(npc.y, map.cellSize)
 
-	const role = getRole(config, npc.type)
-	if (!role) return
-	const roleMap = getRoleMap(map, floor, role, config.tasks, getAssetTags)
-	const targetTiles = new Set<string>()
+function makePortalTargets(
+	allFloors: FloorData[],
+	floorMaps: Map<string, WalkableMap>,
+	getAssetTags?: (type: string) => string[] | undefined,
+	getAssetDef?: (type: string) => AssetDef | undefined,
+): InteractionSource[] {
+	const output: InteractionSource[] = []
+	const portals = allFloors.flatMap(floor =>
+		floor.objects
+			.filter(obj => getObjectTags(obj, getAssetTags).includes('portal'))
+			.map(obj => ({ floor, obj })),
+	)
+	const portalFloorIds = new Set(portals.map(p => p.floor.id))
 
-	const focusTask = role.behavior.focusTaskId ? config.tasks.find(t => t.id === role.behavior.focusTaskId) : undefined
-	const focusChance = role.behavior.focusChance ?? 0
-	if (focusTask && focusTask.tags.length > 0 && focusChance > 0 && Math.random() * 100 < focusChance) {
-		const tiles = findTaggedWalkableTiles(floor, roleMap, focusTask.tags, getAssetTags)
-		for (const t of tiles) targetTiles.add(t)
-	}
+	for (const { floor, obj } of portals) {
+		const map = floorMaps.get(floor.id)
+		if (!map) continue
+		const def = resolveObjectDef(obj.rotation, getAssetDef?.(obj.type))
+		const anchors = def.anchorPoints
+		if (!anchors?.length) continue
+		const otherPortalFloors = [...portalFloorIds].filter(fid => fid !== floor.id)
 
-	const useTaggedTarget = targetTiles.size > 0
-	const targetMap = useTaggedTarget ? { ...roleMap, tiles: targetTiles } : roleMap
-	const [tx, ty] = pickRandomTile(targetMap)
-	let path = findPath(roleMap, floor, canvasW, canvasH, curTx, curTy, tx, ty)
-	if (path.length === 0 && useTaggedTarget) {
-		const [rx, ry] = pickRandomTile(roleMap)
-		path = findPath(roleMap, floor, canvasW, canvasH, curTx, curTy, rx, ry)
-	}
-	if (path.length === 0) return
-	npc.path = path.map(([x, y]) => [cellToPixel(x, map.cellSize), cellToPixel(y, map.cellSize)] as [number, number])
-	npc.pathIdx = 0
-	npc.targetX = npc.path[0][0]
-	npc.targetY = npc.path[0][1]
-}
+		anchors.forEach((anchor, anchorIdx) => {
+			const rawX = pixelToCell(obj.x + anchor.x, map.cellSize)
+			const rawY = pixelToCell(obj.y + anchor.y, map.cellSize)
+			const nearest = map.tiles.has(tileKey(rawX, rawY))
+				? tileKey(rawX, rawY)
+				: findNearestWalkable(map, rawX, rawY, 5)
+			if (!nearest) return
+			const [cellX, cellY] = nearest.split(',').map(Number)
+			const endpointKey = portalEndpointKey(floor.id, `portal:${obj.id}`, anchorIdx)
 
-function tick(floor: FloorData, map: WalkableMap, canvasW: number, canvasH: number, config: NpcSimulationConfig, getAssetTags?: (type: string) => string[] | undefined): void {
-	const floorId = floor.id
-	if (map.tiles.size === 0) return
-	for (const npc of npcs.value) {
-		if (npc.floorId !== floorId) continue
-		if (npc.pauseTimer > 0) {
-			npc.pauseTimer--
-			continue
-		}
-		if (npc.path.length === 0) {
-			chooseTarget(npc, floor, map, canvasW, canvasH, config, getAssetTags)
-			continue
-		}
-		const dx = npc.targetX - npc.x
-		const dy = npc.targetY - npc.y
-		const distance = Math.hypot(dx, dy)
-		if (distance < 0.1) {
-			npc.pathIdx++
-			if (npc.pathIdx >= npc.path.length) {
-				npc.pauseTimer = 30 + Math.floor(Math.random() * 90)
-				chooseTarget(npc, floor, map, canvasW, canvasH, config, getAssetTags)
-			} else {
-				npc.targetX = npc.path[npc.pathIdx][0]
-				npc.targetY = npc.path[npc.pathIdx][1]
+			for (const destFloorId of otherPortalFloors) {
+				const destPortal = portals.find(p => p.floor.id === destFloorId)
+				if (!destPortal) continue
+				const destAnchorIdx = anchorIdx
+				const destEndpointKey = portalEndpointKey(destFloorId, `portal:${destPortal.obj.id}`, destAnchorIdx)
+
+				output.push({
+					floorId: floor.id,
+					itemId: `portal:${obj.id}`,
+					anchorId: `portal:${anchorIdx}→${destFloorId}`,
+					x: cellX,
+					y: cellY,
+					tags: ['portal', `portal:${destFloorId}`],
+					capacity: 1,
+					durationMinSeconds: 0,
+					durationMaxSeconds: 0,
+					transitionToFloorId: destFloorId,
+					destinationPortalKey: destEndpointKey,
+					portalEndpointKey: endpointKey,
+				})
 			}
-			continue
-		}
-		const step = Math.min(npc.speed, distance)
-		npc.x += dx / distance * step
-		npc.y += dy / distance * step
+		})
 	}
-}
-
-let cachedMap: WalkableMap | null = null
-let cachedFloorId: string | null = null
-let cachedCanvasKey = ''
-
-function getMap(floor: FloorData | undefined, canvasW: number, canvasH: number, tileSize: number): WalkableMap | null {
-	if (!floor) return null
-	const size = cellSizeOf(tileSize)
-	const key = floor.id + ':' + canvasW + 'x' + canvasH + ':' + size
-	if (cachedFloorId !== floor.id || cachedCanvasKey !== key) {
-		cachedFloorId = floor.id
-		cachedCanvasKey = key
-		cachedMap = buildWalkableMap(floor, canvasW, canvasH, size)
-	}
-	return cachedMap
-}
-
-function start(getFloor: () => FloorData | undefined, getCanvas: () => { w: number; h: number; tileSize: number }, getConfig: () => NpcSimulationConfig, getAssetTags?: (type: string) => string[] | undefined): void {
-	if (animationId !== null) return
-	const loop = () => {
-		if (!isPausedRef.value) {
-			const floor = getFloor()
-			const c = getCanvas()
-			if (floor && c) {
-				const map = getMap(floor, c.w, c.h, c.tileSize)
-				if (map) tick(floor, map, c.w, c.h, getConfig(), getAssetTags)
-			}
-		}
-		animationId = window.requestAnimationFrame(loop)
-	}
-	animationId = window.requestAnimationFrame(loop)
-}
-
-function stop(): void {
-	if (animationId !== null) window.cancelAnimationFrame(animationId)
-	animationId = null
-	isPausedRef.value = false
-}
-
-function pause(): void {
-	isPausedRef.value = true
-}
-
-function resume(): void {
-	isPausedRef.value = false
-}
-
-function reset(): void {
-	npcs.value = []
-	cachedFloorId = null
-	cachedMap = null
-	isPausedRef.value = false
-}
-
-function spawnAll(floor: FloorData, canvasW: number, canvasH: number, tileSize: number, config: NpcSimulationConfig, getAssetTags?: (type: string) => string[] | undefined): void {
-	npcs.value = []
-	cachedFloorId = null
-	const map = getMap(floor, canvasW, canvasH, tileSize)
-	if (!map || map.tiles.size === 0) return
-	let spawnCursor = 0
-
-	for (const entry of config.pool) {
-		const count = Math.max(0, Math.min(100, Math.floor(entry.count || 0)))
-		if (count === 0) continue
-		const role = getRole(config, entry.roleId)
-		if (!role) continue
-		const roleMap = getRoleMap(map, floor, role, config.tasks, getAssetTags)
-		const spawnKeys = Array.from(roleMap.tiles)
-		if (spawnKeys.length === 0) continue
-		for (let i = 0; i < count; i++) {
-			const index = (spawnCursor + Math.floor(i * spawnKeys.length / count)) % spawnKeys.length
-			const [tx, ty] = spawnKeys[index].split(',').map(Number) as [number, number]
-			const x = cellToPixel(tx, roleMap.cellSize)
-			const y = cellToPixel(ty, roleMap.cellSize)
-			const npc: NpcSimDot = {
-				id: `npc-sim-${nextId++}`,
-				floorId: floor.id,
-				type: role.id,
-				x,
-				y,
-				targetX: x,
-				targetY: y,
-				speed: Math.max(0.01, config.speed || 1 / 30) + (Math.random() - 0.5) * 0.02,
-				roomId: null,
-				color: role.color,
-				pauseTimer: Math.floor(Math.random() * 60),
-				pathIdx: 0,
-				path: [[x, y]],
-			}
-			npcs.value.push(npc)
-			chooseTarget(npc, floor, map, canvasW, canvasH, config, getAssetTags)
-		}
-		spawnCursor = (spawnCursor + count) % spawnKeys.length
-	}
+	return output
 }
 
 export function useNpcSimulation(
@@ -526,74 +187,234 @@ export function useNpcSimulation(
 	getFloor?: () => FloorData | undefined,
 	getCanvas?: () => { w: number; h: number; tileSize: number },
 	getFloorById?: (id: string) => FloorData | undefined,
+	getAllFloors?: () => FloorData[],
 	getAssetTags?: (type: string) => string[] | undefined,
-): {
-	npcs: Ref<NpcSimDot[]>
-	deploy: (floorId?: string) => void
-	start: () => void
-	stop: () => void
-	pause: () => void
-	resume: () => void
-	reset: () => void
-	isPaused: Ref<boolean>
-	config: Ref<NpcSimulationConfig>
-} {
-	const config = ref<NpcSimulationConfig>(getDefaultNpcConfig())
+	getAssetDef?: (type: string) => AssetDef | undefined,
+): { npcs: Ref<NpcSimDot[]>; deploy: (floorId?: string) => void; start: () => void; stop: () => void; pause: () => void; resume: () => void; reset: () => void; isPaused: Ref<boolean>; simSpeed: Ref<number>; config: Ref<NpcSimulationConfig> } {
+	const npcs = ref<NpcSimDot[]>([]), isPaused = ref(false), simSpeed = ref(1), config = ref<NpcSimulationConfig>({ speed: 1 / 30, defaultRoleId: '', roles: [], tasks: [], pool: [] })
+	let animationId: number | null = null, engine: NpcEngine | null = null, deployedFloorId: string | null = null, deploymentActive = false, nextId = 1
+	let floorMaps = new Map<string, WalkableMap>()
+	let floorDataMap = new Map<string, FloorData>()
+	const wanderMemory = new WanderMemory()
+	const targetLastSelectedTick = new Map<string, number>()
+	let currentCanvas: { w: number; h: number; tileSize: number } | null = null
+	let currentViewFloorId: string | null = null
+	let currentInteractionTargets = new Map<string, InteractionSource>()
+	const visualById = new Map<string, { type: string; color: string }>()
 
-	function syncConfig() {
-		const c = getConfig?.()
-		if (c && isNpcConfig(c)) {
-			config.value = mergeNpcConfig(deepClone(c))
-		} else {
-			config.value = getDefaultNpcConfig()
+	function isRoleAllowedOnFloor(roleId: string, floorId: string): boolean {
+		const floor = floorDataMap.get(floorId)
+		if (!floor?.allowedRoleIds?.length) return true
+		return floor.allowedRoleIds.includes(roleId)
+	}
+
+	function pickNearestFloor(
+		targets: readonly NpcEngineInteractionTarget[],
+		currentFloorId: string,
+		floors: readonly { id: string }[],
+	): NpcEngineInteractionTarget | null {
+		if (!targets.length) return null
+		const floorIds = floors.map(f => f.id)
+		const currentIdx = floorIds.indexOf(currentFloorId)
+		return targets.reduce((best, t) => {
+			const dist = Math.abs(floorIds.indexOf(t.floorId) - currentIdx)
+			const bestDist = Math.abs(floorIds.indexOf(best.floorId) - currentIdx)
+			return dist < bestDist ? t : best
+		})
+	}
+
+	function syncAgents(): void {
+		if (!engine) return
+		const agents = new Map(engine.getAgents().map(agent => [agent.id, agent]))
+
+		for (const npc of npcs.value) {
+			const agent = agents.get(npc.id)
+			if (!agent) continue
+			const map = floorMaps.get(agent.floorId)
+			if (!map) continue
+			npc.x = cellToPixel(agent.x, map.cellSize)
+			npc.y = cellToPixel(agent.y, map.cellSize)
+			npc.targetX = cellToPixel(agent.targetX, map.cellSize)
+			npc.targetY = cellToPixel(agent.targetY, map.cellSize)
+			npc.pathIdx = agent.pathIndex
+			npc.path = agent.path.map(point => [cellToPixel(point.x, map.cellSize), cellToPixel(point.y, map.cellSize)] as [number, number])
+			npc.pauseTimer = agent.status === 'interacting' || agent.status === 'waiting' ? agent.interactionRemainingTicks : 0
+			npc.interactTargetKey = agent.reservationItemId
+			npc.interactAnchorKey = agent.reservationAnchorId
+			const target = agent.reservationItemId && agent.reservationAnchorId ? currentInteractionTargets.get(`${agent.floorId}:${agent.reservationItemId}:${agent.reservationAnchorId}`) : undefined
+			npc.interactDurationMin = target ? Math.round(target.durationMinSeconds * SIMULATION_TICKS_PER_SECOND) : 0
+			npc.interactDurationMax = target ? Math.round(target.durationMaxSeconds * SIMULATION_TICKS_PER_SECOND) : 0
+		}
+
+		npcs.value = npcs.value.filter(npc => npc.floorId === currentViewFloorId || agents.get(npc.id)?.floorId === currentViewFloorId)
+
+		for (const npc of npcs.value) {
+			const agent = agents.get(npc.id)
+			if (agent && agent.floorId !== npc.floorId) npc.floorId = agent.floorId
 		}
 	}
+	function buildEngine(allFloors: FloorData[], canvas: { w: number; h: number; tileSize: number }): void {
+		currentCanvas = canvas
+		floorMaps = new Map()
+		floorDataMap = new Map()
+		const allSources: InteractionSource[] = []
+		const engineFloors: NpcEngineFloor[] = []
 
-	let deployedFloorId: string | null = null
-	let deploymentActive = false
+		for (const floor of allFloors) {
+			const map = buildWalkableMap(floor, canvas.w, canvas.h, canvas.tileSize, getAssetDef)
+			floorMaps.set(floor.id, map)
+			floorDataMap.set(floor.id, floor)
+			const sources = makeInteractionTargets(floor, map, getAssetTags, getAssetDef)
+			allSources.push(...sources)
+			engineFloors.push({
+				id: floor.id,
+				width: map.width,
+				height: map.height,
+				tileSize: map.cellSize,
+				walkable: [...map.tiles].map(key => { const [x, y] = key.split(',').map(Number); return { x, y } }),
+				blockedEdges: buildBlockedEdges(floor, map, getAssetDef),
+				allowedRoleIds: floor.allowedRoleIds,
+			})
+		}
 
+
+		const portalSources = makePortalTargets(allFloors, floorMaps, getAssetTags, getAssetDef)
+		allSources.push(...portalSources)
+
+		currentInteractionTargets = new Map(allSources.map(source => [`${source.floorId}:${source.itemId}:${source.anchorId}`, source]))
+		const layout: NpcEngineLayout = { floors: engineFloors, interactionTargets: allSources }
+
+		const triggerRates = config.value.tagTriggerRates ?? {}
+		const hasTriggerRates = Object.keys(triggerRates).length > 0
+		const tickRate = SIMULATION_TICKS_PER_SECOND * 60
+		engine = new NpcEngine(layout, {
+			ticksPerSecond: SIMULATION_TICKS_PER_SECOND, agentClearance: 0.5, targetSelector: (agent, targets) => {
+				const role = getRole(config.value, agent.roleId ?? '')
+				if (!role) return null
+				const tags = focusTags(config.value, role)
+				if (!tags.length) return null
+				const map = floorMaps.get(agent.floorId)
+				const floor = floorDataMap.get(agent.floorId)
+				if (!map || !floor) return null
+				const roleMap = getRoleMap(map, floor, role, getAssetTags)
+				if (!hasTriggerRates) {
+					if (role.focusChance <= 0 || Math.random() * 100 >= role.focusChance) return null
+					const matching = targets.filter(target => hasMatchingTag(target.tags as string[], tags) && roleMap.tiles.has(tileKey(target.x, target.y)))
+					if (!matching.length) return null
+					const selected = selectBestTarget({ agent, targets: matching, currentTick: engine!.tickNumber, targetLastSelectedTick })
+					if (selected) targetLastSelectedTick.set(`${selected.floorId}:${selected.itemId}:${selected.anchorId}`, engine!.tickNumber)
+					return selected
+				}
+				const triggered: string[] = []
+				for (const tag of tags) {
+					const ratePerMin = triggerRates[tag] ?? 0
+					if (ratePerMin <= 0) continue
+					const probPerTick = ratePerMin / tickRate
+					if (Math.random() < probPerTick) triggered.push(tag)
+				}
+				if (!triggered.length) return null
+				const matching = targets.filter(target => hasMatchingTag(target.tags as string[], triggered) && roleMap.tiles.has(tileKey(target.x, target.y)))
+				if (!matching.length) return null
+				const selected = selectBestTarget({ agent, targets: matching, currentTick: engine!.tickNumber, targetLastSelectedTick })
+				if (selected) targetLastSelectedTick.set(`${selected.floorId}:${selected.itemId}:${selected.anchorId}`, engine!.tickNumber)
+				return selected
+			}, crossFloorSelector: (agent, candidates, floors) => {
+				const role = getRole(config.value, agent.roleId ?? '')
+				if (!role) return null
+				const tags = focusTags(config.value, role)
+				if (!tags.length) return null
+				const matching = candidates.filter(t => hasMatchingTag(t.tags as string[], tags))
+				if (!matching.length) return null
+				return pickNearestFloor(matching, agent.floorId, floors)
+			}, wanderSelector: (agent) => {
+				const role = getRole(config.value, agent.roleId ?? '')
+				const map = floorMaps.get(agent.floorId)
+				const floor = floorDataMap.get(agent.floorId)
+				if (!role || !map || !floor) return null
+				const roleMap = getRoleMap(map, floor, role, getAssetTags)
+				const keys = [...roleMap.tiles]
+				if (!keys.length) return null
+				const candidates = keys.map(key => { const [x, y] = key.split(',').map(Number); return { x, y } })
+				const selected = wanderMemory.selectWanderTile(candidates, agent)
+				if (selected) wanderMemory.recordVisit(selected, engine!.tickNumber)
+				return selected
+			}, pathfinder: (engineFloor, from, to, blockedCells) => {
+				const role = getRole(config.value, from.roleId ?? '')
+				const map = floorMaps.get(engineFloor.id)
+				const floor = floorDataMap.get(engineFloor.id)
+				if (!role || !map || !floor) return findNpcGridPath(engineFloor, from, to, blockedCells)
+				const roleMap = getRoleMap(map, floor, role, getAssetTags)
+				const roleFloor = { ...engineFloor, walkable: [...roleMap.tiles].map(key => { const [x, y] = key.split(',').map(Number); return { x, y } }) }
+				return findNpcGridPath(roleFloor, from, to, blockedCells)
+			}
+		})
+		visualById.clear(); npcs.value = []; const occupiedSpawnKeys = new Set<string>(); let spawnCursor = 0
+		for (const entry of config.value.pool) {
+			const role = getRole(config.value, entry.roleId)
+			if (!role) continue
+			const count = Math.max(0, Math.min(100, Math.floor(entry.count || 0)))
+			// Spawn NPCs across all floors that allow this role.
+			for (const floor of allFloors) {
+				if (!isRoleAllowedOnFloor(role.id, floor.id)) continue
+				const map = floorMaps.get(floor.id)
+				if (!map) continue
+				const roleMap = getRoleMap(map, floor, role, getAssetTags)
+				const keys = [...roleMap.tiles]
+				if (!keys.length) continue
+				for (let i = 0; i < count; i++) {
+					const availableSpawnKeys = keys.filter(key => !occupiedSpawnKeys.has(`${floor.id}:${key}`))
+					if (!availableSpawnKeys.length) break
+					const spawnKey = availableSpawnKeys[(spawnCursor + i) % availableSpawnKeys.length]
+					occupiedSpawnKeys.add(`${floor.id}:${spawnKey}`)
+					const [x, y] = spawnKey.split(',').map(Number)
+					const id = `npc-sim-${nextId++}`, oldSpeed = Math.max(0.01, config.value.speed || 1 / 30) + (Math.random() - 0.5) * 0.02
+					engine.addAgent({ id, roleId: role.id, floorId: floor.id, x, y, targetX: x, targetY: y, speed: oldSpeed * SIMULATION_TICKS_PER_SECOND / map.cellSize })
+					if (floor.id === currentViewFloorId) {
+						npcs.value.push({ id, floorId: floor.id, type: role.id, x: cellToPixel(x, map.cellSize), y: cellToPixel(y, map.cellSize), targetX: cellToPixel(x, map.cellSize), targetY: cellToPixel(y, map.cellSize), speed: oldSpeed, roomId: null, color: role.color, pauseTimer: 0, pathIdx: 0, path: [], interactTargetKey: null, interactAnchorKey: null, interactDurationMin: 0, interactDurationMax: 0 })
+					}
+					visualById.set(id, { type: role.id, color: role.color })
+				}
+				spawnCursor = (spawnCursor + count) % keys.length
+			}
+		}
+		syncAgents()
+	}
+	function frame(): void { if (!isPaused.value && engine) { const steps = Math.max(1, Math.min(8, simSpeed.value)); for (let i = 0; i < steps; i++) { engine.tick(); } syncAgents(); engine.drainEvents() } animationId = window.requestAnimationFrame(frame) }
+	function start(): void { if (animationId === null) animationId = window.requestAnimationFrame(frame) }
+	function stopLoop(): void { if (animationId !== null) window.cancelAnimationFrame(animationId); animationId = null; isPaused.value = false }
+	function reset(): void { stopLoop(); engine = null; floorMaps = new Map(); floorDataMap = new Map(); currentCanvas = null; currentViewFloorId = null; currentInteractionTargets.clear(); deployedFloorId = null; deploymentActive = false; visualById.clear(); npcs.value = []; wanderMemory.clear(); targetLastSelectedTick.clear() }
 	function deploy(floorId?: string): void {
-		if (!getCanvas) return
-		const c = getCanvas()
-		const f = floorId && getFloorById ? getFloorById(floorId) : getFloor?.()
-		if (!f || !c) return
-		deploymentActive = true
-		deployedFloorId = f.id
-		stop()
-		spawnAll(f, c.w, c.h, c.tileSize, config.value, getAssetTags)
-		start(getFloor ?? (() => f), getCanvas, () => config.value, getAssetTags)
+		const canvas = getCanvas?.()
+		const floor = floorId && getFloorById ? getFloorById(floorId) : getFloor?.()
+		if (!canvas || !floor) return
+		const allFloors = getAllFloors?.() ?? (floor ? [floor] : [])
+		if (!allFloors.length) return
+		stopLoop(); deploymentActive = true; deployedFloorId = floor.id; currentViewFloorId = floor.id; buildEngine(allFloors, canvas); start()
 	}
+	function syncConfig(): void { const value = getConfig?.(); if (value && isNpcConfig(value)) { config.value = mergeNpcConfig(deepClone(value)); if (deploymentActive && currentCanvas) { const allFloors = getAllFloors?.() ?? []; if (allFloors.length) buildEngine(allFloors, currentCanvas) } } }
+	syncConfig(); onUnmounted(stopLoop)
+	watch(() => getConfig?.(), syncConfig, { deep: true })
 
-	syncConfig()
-	watch(() => getConfig?.(), syncConfig, { deep: false })
+	watch(() => getFloor?.()?.id, floorId => {
+		if (!floorId) return
+		currentViewFloorId = floorId
+		if (deploymentActive && deployedFloorId && floorId !== deployedFloorId) {
 
-	watch(() => config.value.speed, (v) => {
-		for (const npc of npcs.value) npc.speed = v
+			deployedFloorId = floorId
+			syncAgents()
+		}
 	})
 
-	watch(() => getFloor?.()?.id, (floorId) => {
-		cachedFloorId = null
-		cachedCanvasKey = ''
-		if (deploymentActive && deployedFloorId && floorId && floorId !== deployedFloorId) deploy(floorId)
+	watch(() => getFloor?.(), floor => {
+		if (deploymentActive && floor && floor.id === currentViewFloorId && currentCanvas) {
+			const allFloors = getAllFloors?.() ?? (floor ? [floor] : [])
+			if (allFloors.length) buildEngine(allFloors, currentCanvas)
+		}
+	}, { deep: true })
+	watch(() => getCanvas?.(), canvas => { if (deploymentActive && canvas) { const allFloors = getAllFloors?.() ?? []; if (allFloors.length) buildEngine(allFloors, canvas) } }, { deep: true })
+	watch(() => config.value.speed, speed => {
+		for (const npc of npcs.value) npc.speed = speed
+		if (deploymentActive && currentCanvas) { const allFloors = getAllFloors?.() ?? []; if (allFloors.length) buildEngine(allFloors, currentCanvas) }
 	})
-
-	function stopSimulation(): void {
-		deploymentActive = false
-		deployedFloorId = null
-		stop()
-	}
-
-	return {
-		npcs,
-		deploy,
-		start: () => {
-			if (getFloor && getCanvas) start(getFloor, getCanvas, () => config.value, getAssetTags)
-		},
-		stop: stopSimulation,
-		pause,
-		resume,
-		reset,
-		isPaused: isPausedRef,
-		config,
-	}
+	return { npcs, deploy, start, stop: () => { deploymentActive = false; deployedFloorId = null; stopLoop() }, pause: () => { isPaused.value = true }, resume: () => { isPaused.value = false }, reset, isPaused, simSpeed, config }
 }

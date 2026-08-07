@@ -26,9 +26,9 @@ function isSafeSaveRequest(req: any, res: any): boolean {
 }
 
 function saveAssetsPlugin() {
-	const filePath = path.resolve(fileURLToPath(new URL('./src/blueprint-editor/data/customAssets.json', import.meta.url)))
+	const filePath = path.resolve(fileURLToPath(new URL('./src/blueprint-editor/data/originAssets.json', import.meta.url)))
 	return {
-		name: 'save-assets',
+		name: 'save-origin-assets',
 		configureServer(server: ViteDevServer) {
 			server.middlewares.use('/__save-assets', async (req: any, res: any) => {
 				if (req.method !== 'POST') {
@@ -39,45 +39,36 @@ function saveAssetsPlugin() {
 				if (!isSafeSaveRequest(req, res)) return
 				let body = ''
 				let size = 0
-				const MAX_BODY_SIZE = 10 * 1024 * 1024
 				for await (const chunk of req) {
 					size += chunk.length
-					if (size > MAX_BODY_SIZE) {
+					if (size > 10 * 1024 * 1024) {
 						res.statusCode = 413
 						res.end('Payload too large')
 						return
 					}
 					body += chunk
 				}
-
-				let parsed: { customAssets?: unknown; deletedDefaultIds?: unknown }
+				let parsed: { originAssets?: unknown }
 				try {
 					parsed = JSON.parse(body)
 				} catch {
 					res.statusCode = 400
-					res.end('Invalid JSON body')
+					res.end('Invalid origin assets data: JSON parse failed')
 					return
 				}
-				if (!Array.isArray(parsed.customAssets)) {
+				if (!Array.isArray(parsed.originAssets)) {
 					res.statusCode = 400
-					res.end('Invalid assets data: customAssets must be an array')
+					res.end('Invalid origin assets data: originAssets must be an array')
 					return
 				}
-				if (parsed.deletedDefaultIds !== undefined && !Array.isArray(parsed.deletedDefaultIds)) {
-					res.statusCode = 400
-					res.end('Invalid assets data: deletedDefaultIds must be an array')
-					return
-				}
-
 				const fileContent = JSON.stringify({
-					$schema: 'custom-assets.v1.json',
+					$schema: 'origin-assets.v1.json',
 					version: 1,
-					customAssets: parsed.customAssets,
-					deletedDefaultIds: Array.isArray(parsed.deletedDefaultIds) ? parsed.deletedDefaultIds : [],
+					originAssets: parsed.originAssets,
 				}, null, 2) + '\n'
-
 				try {
 					fs.writeFileSync(filePath, fileContent, 'utf-8')
+					invalidateJsonModule(server, filePath)
 					res.statusCode = 200
 					res.setHeader('Content-Type', 'application/json')
 					res.end(JSON.stringify({ ok: true }))
@@ -87,6 +78,16 @@ function saveAssetsPlugin() {
 				}
 			})
 		},
+	}
+}
+
+
+function invalidateJsonModule(server: ViteDevServer, filePath: string) {
+	const normalized = path.resolve(filePath)
+	for (const mod of server.moduleGraph.idToModuleMap.values()) {
+		if (mod.file && path.resolve(mod.file) === normalized) {
+			server.moduleGraph.invalidateModule(mod)
+		}
 	}
 }
 
@@ -115,7 +116,7 @@ function saveLayoutPlugin() {
 					body += chunk
 				}
 
-				let parsed: { version?: unknown; canvas?: unknown; floors?: unknown; roomTemplates?: unknown; globalTags?: unknown }
+				let parsed: { version?: unknown; canvas?: unknown; floors?: unknown; roomTemplates?: unknown }
 				try {
 					parsed = JSON.parse(body)
 				} catch {
@@ -140,11 +141,11 @@ function saveLayoutPlugin() {
 					canvas: parsed.canvas,
 					floors: parsed.floors,
 					roomTemplates: Array.isArray(parsed.roomTemplates) ? parsed.roomTemplates : [],
-					globalTags: Array.isArray(parsed.globalTags) ? parsed.globalTags : [],
 				}, null, 2) + '\n'
 
 				try {
 					fs.writeFileSync(filePath, fileContent, 'utf-8')
+					invalidateJsonModule(server, filePath)
 					res.statusCode = 200
 					res.setHeader('Content-Type', 'application/json')
 					res.end(JSON.stringify({ ok: true }))
@@ -208,6 +209,7 @@ function saveNpcConfigPlugin() {
 
 				try {
 					fs.writeFileSync(filePath, fileContent, 'utf-8')
+					invalidateJsonModule(server, filePath)
 					res.statusCode = 200
 					res.setHeader('Content-Type', 'application/json')
 					res.end(JSON.stringify({ ok: true }))
@@ -220,12 +222,60 @@ function saveNpcConfigPlugin() {
 	}
 }
 
-// https://vite.dev/config/
+function loadLayoutPlugin() {
+	const layoutPath = path.resolve(fileURLToPath(new URL('./src/blueprint-editor/data/blueprintLayout.json', import.meta.url)))
+	const npcConfigPath = path.resolve(fileURLToPath(new URL('./src/blueprint-editor/data/npcConfig.json', import.meta.url)))
+	const originAssetsPath = path.resolve(fileURLToPath(new URL('./src/blueprint-editor/data/originAssets.json', import.meta.url)))
+	return {
+		name: 'load-layout',
+		configureServer(server: ViteDevServer) {
+			server.middlewares.use('/__load-layout', (_req: any, res: any) => {
+				try {
+					const raw = fs.readFileSync(layoutPath, 'utf-8')
+					res.setHeader('Content-Type', 'application/json')
+					res.end(raw)
+				} catch (e) {
+					res.statusCode = 500
+					res.end(String(e))
+				}
+			})
+			server.middlewares.use('/__load-npc-config', (_req: any, res: any) => {
+				try {
+					const raw = fs.readFileSync(npcConfigPath, 'utf-8')
+					res.setHeader('Content-Type', 'application/json')
+					res.end(raw)
+				} catch (e) {
+					res.statusCode = 500
+					res.end(String(e))
+				}
+			})
+			server.middlewares.use('/__load-origin-assets', (_req: any, res: any) => {
+				try {
+					const raw = fs.readFileSync(originAssetsPath, 'utf-8')
+					res.setHeader('Content-Type', 'application/json')
+					res.end(raw)
+				} catch (e) {
+					res.statusCode = 500
+					res.end(String(e))
+				}
+			})
+		},
+	}
+}
+
+
 export default defineConfig({
-	plugins: [vue(), saveAssetsPlugin(), saveLayoutPlugin(), saveNpcConfigPlugin()],
+	plugins: [vue(), saveAssetsPlugin(), saveLayoutPlugin(), saveNpcConfigPlugin(), loadLayoutPlugin()],
 	resolve: {
 		alias: {
 			'@': fileURLToPath(new URL('./src', import.meta.url)),
+		},
+	},
+	server: {
+		watch: {
+			ignored: [
+				'**/src/blueprint-editor/data/*.json',
+			],
 		},
 	},
 	build: {

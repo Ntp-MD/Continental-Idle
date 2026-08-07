@@ -1,42 +1,55 @@
 <script setup lang="ts">
-import { provide } from 'vue'
-import Toolbar from './components/toolbar.vue'
-import AssetPalette from './components/assetPalette.vue'
-import EditorCanvas from './components/editorCanvas.vue'
-import PropertiesPanel from './components/propertiesPanel.vue'
-import ToastContainer from './components/toastContainer.vue'
-import { useAssetsStore } from './blueprintStore'
-import { useNpcSimulation } from './composables/useNpcSimulation'
-import { getDefaultNpcConfig } from './store/npcDefault'
+import { provide, onMounted, ref } from "vue";
+import Toolbar from "./components/Toolbar.vue";
+import AssetPalette from "./components/AssetPalette.vue";
+import EditorCanvas from "./components/EditorCanvas.vue";
+import PropertiesPanel from "./components/PropertiesPanel.vue";
+import ToastContainer from "./components/toastContainer.vue";
+import ConfirmDialog from "@/components/overlays/confirmDialog.vue";
+import { useAssetsStore } from "./blueprintStore";
+import { useNpcSimulation } from "./composables/useNpcSimulation";
+import { reloadEditorData } from "./store/state";
 
-const emit = defineEmits<{ close: [] }>()
+const emit = defineEmits<{ close: [] }>();
 
 function onClose() {
-  emit('close')
+  emit("close");
 }
 
-const store = useAssetsStore()
+const store = useAssetsStore();
+const ready = ref(false);
+
+onMounted(async () => {
+  await reloadEditorData();
+  ready.value = true;
+});
 
 const npcSimulation = useNpcSimulation(
-  () => store.state.layout.npcConfig ?? getDefaultNpcConfig(),
+  () => store.state.layout.npcConfig,
   () => store.currentFloor.value,
   () => ({ w: store.state.layout.canvas.width, h: store.state.layout.canvas.height, tileSize: store.state.layout.canvas.tileSize }),
-  (id: string) => store.state.layout.floors.find(f => f.id === id),
+  (id: string) => store.state.layout.floors.find((f) => f.id === id),
+  () => store.state.layout.floors,
   (id: string) => store.assetMap().get(id)?.tags,
-)
+  (id: string) => store.assetMap().get(id),
+);
 
-provide('npcSimulation', npcSimulation)
+provide("npcSimulation", npcSimulation);
 </script>
 
 <template>
   <div class="editor__app">
-    <Toolbar @close="onClose" />
-    <div class="editor__app__main">
-      <AssetPalette />
-      <EditorCanvas />
-      <PropertiesPanel />
-    </div>
-    <ToastContainer />
+    <template v-if="ready">
+      <Toolbar @close="onClose" />
+      <div class="editor__app__main">
+        <AssetPalette />
+        <EditorCanvas />
+        <PropertiesPanel />
+      </div>
+      <ToastContainer />
+      <ConfirmDialog />
+    </template>
+    <div v-else class="editor__loading">Loading editor…</div>
   </div>
 </template>
 
@@ -49,6 +62,15 @@ provide('npcSimulation', npcSimulation)
   flex-direction: column;
   background: var(--bg-primary);
   overflow: hidden;
+}
+
+.editor__loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  color: var(--text-secondary);
+  font-size: var(--font-md);
 }
 
 .editor__app__main {

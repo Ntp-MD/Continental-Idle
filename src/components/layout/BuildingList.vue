@@ -37,7 +37,7 @@ function update() {
     if (buyCount === 0) buyCount = getAffordableLevels(branch, def.id)
     if (buyCount <= 0) buyCount = 1
 
-    // Cap buyCount to max level for cost display
+
     const maxPurchasable = def.maxLevel - level
     const isFreeBuilding = def.baseCost === 0
     const displayBuyCount = isFreeBuilding ? 1 : Math.min(buyCount, maxPurchasable)
@@ -69,7 +69,7 @@ function buy(buildingId: string) {
   update()
 }
 
-// Debounce utility to prevent rapid-fire clicks
+
 let lastBuyTime = 0
 const BUY_DEBOUNCE_MS = 200
 

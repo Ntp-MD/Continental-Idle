@@ -16,8 +16,7 @@ export function setSuppressUIEvents(suppress: boolean): void {
 	_suppressUIEvents = suppress
 }
 
-// Tick-scoped cache: avoids redundant getBranchIncomePerSecond() recalculations
-// when UI components read income values after the tick() already computed them.
+
 let _tickCache: Map<BranchId, number> | null = null
 
 export function beginTickCache(): void {
@@ -132,22 +131,22 @@ function _computeBranchIncomePerSecond(id: BranchId): number {
 		total += getBuildingIncome(branchState, def.id)
 	})
 
-	// Royal buildings income (only for royal branches)
+
 	total += getRoyalBuildingsIncome(id)
 
-	// Chef max ability: +10% to ALL building income
+
 	total *= getChefAllBuildingBonus(id)
 
-	// Prestige multiplier
+
 	const prestigeMult = 1 + (state.tableFavor * 0.02)
 
-	// HQ multiplier
+
 	const hqMult = id === state.hqBranch ? 1.2 : 1.0
 
-	// Guest satisfaction multiplier
+
 	const satMult = 0.5 + (branchState.guestSatisfaction / 100)
 
-	// Reputation multiplier
+
 	let repMult = 1.0
 	if (branchState.reputation >= 1000) repMult = 1.95
 	else if (branchState.reputation >= 750) repMult = 1.70
@@ -155,7 +154,7 @@ function _computeBranchIncomePerSecond(id: BranchId): number {
 	else if (branchState.reputation >= 300) repMult = 1.20
 	else if (branchState.reputation >= 100) repMult = 1.10
 
-	// Active income multiplier buffs
+
 	let buffMult = 1.0
 	state.activeBuffs.forEach(buff => {
 		if (buff.type === 'incomeMultiplier' &&
@@ -165,10 +164,10 @@ function _computeBranchIncomePerSecond(id: BranchId): number {
 		}
 	})
 
-	// Permanent income bonus from events
+
 	const permBonus = 1 + state.permanentIncomeBonus
 
-	// Check for income freeze buff (excommunicado)
+
 	const hasFreeze = state.activeBuffs.some(b =>
 		b.type === 'incomeFreeze' &&
 		(b.branchId === null || b.branchId === id) &&
@@ -184,10 +183,10 @@ function _computeBranchIncomePerSecond(id: BranchId): number {
 		return 0
 	}
 
-	// Concierge max ability: +5% passive income
+
 	const conciergeBonus = getConciergePassiveBonus(id)
 
-	// Combined income multiplier (commerce skill + royal skill + sovereign buff + decree)
+
 	const incomeMultiplier = getTotalIncomeMultiplier()
 
 	return total * prestigeMult * hqMult * satMult * repMult * buffMult * incomeMultiplier * permBonus * conciergeBonus
@@ -230,12 +229,12 @@ export function purchaseBuilding(buildingId: string, count?: number): boolean {
 	}
 	if (buyCount <= 0) return false
 
-	// Cap at max level
+
 	const maxPurchasable = def.maxLevel - bState.level
 	buyCount = Math.min(buyCount, maxPurchasable)
 	if (buyCount <= 0) return false
 
-	// Free building (reception at level 0)
+
 	if (def.baseCost === 0) {
 		bState.level += buyCount
 		if (!_suppressUIEvents) eventBus.emit('income:update')
@@ -259,16 +258,16 @@ export function tick(): void {
 
 	beginTickCache()
 
-	// Clean expired buffs
+
 	const now = Date.now()
 	state.activeBuffs = state.activeBuffs.filter(b => b.expiresAt === null || b.expiresAt > now)
 
-	// Active branch full income
+
 	const activeIncome = getBranchIncomePerSecond(activeId)
 	activeBranch.currency += activeIncome
 	activeBranch.lifetimeEarnings += activeIncome
 
-	// Inactive BRANCHES 50% income
+
 	state.worldMap.unlockedBranches.forEach(branchId => {
 		if (branchId === activeId) return
 		const branch = state.branches[branchId]

@@ -75,7 +75,7 @@ export function canHijackRoute(routeId: string): boolean {
 	const route = getRouteById(routeId)
 	if (!route) return false
 
-	// Cannot hijack player routes that involve the active branch
+
 	if (!route.aiOwned && (route.from === state.activeBranch || route.to === state.activeBranch)) return false
 
 	const def = getRouteTypeDef(route.type)
@@ -100,11 +100,11 @@ export function hijackRoute(routeId: string): { success: boolean; reason?: strin
 	const route = getRouteById(routeId)
 	if (!route) return { success: false, reason: 'Route not found' }
 
-	// Cannot hijack player routes that involve the active branch
+
 	if (!route.aiOwned && (route.from === state.activeBranch || route.to === state.activeBranch)) {
 		return { success: false, reason: 'Cannot hijack your own route' }
 	}
-	// Cannot hijack if target route's destination is the active branch (would create self-route)
+
 	if (route.to === state.activeBranch) {
 		return { success: false, reason: 'Cannot hijack route to your own branch' }
 	}
@@ -193,7 +193,7 @@ export function tickSupplyRoutes(): void {
 		const def = getRouteTypeDef(route.type)
 		if (!def) { toRemove.push(route.id); return }
 
-		// AI-owned routes decay but don't generate player income
+
 		if (route.aiOwned) {
 			route.stability -= def.stabilityDecayPerTick * 0.5
 			if (route.stability <= 0) toRemove.push(route.id)

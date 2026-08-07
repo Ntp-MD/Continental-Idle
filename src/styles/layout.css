@@ -2,7 +2,6 @@
 .game__layout {
 	display: flex;
 	flex-direction: column;
-	height: 100%;
 }
 
 .game {
@@ -95,8 +94,6 @@
 
 .map__svg {
 	display: block;
-	width: 100%;
-	height: 100%;
 }
 
 .map__controls {
@@ -109,24 +106,13 @@
 }
 
 .map__btn {
-	background: var(--bg-card);
-	border: 1px solid var(--border-dim);
-	border-radius: var(--radius-sm);
-	color: var(--text-secondary);
 	font-family: inherit;
 	font-size: var(--font-sm);
-	padding: var(--gap-xs) var(--gap-sm);
-	cursor: pointer;
-	transition: all var(--duration-fast) var(--ease-out);
 	box-shadow: var(--shadow-card);
 }
 
 .map__btn:hover {
-	border-color: var(--accent-gold);
-	background: var(--bg-card-hover);
-	color: var(--accent-gold);
 	transform: none;
-	box-shadow: var(--shadow-glow-gold);
 }
 
 .map__status {
@@ -163,7 +149,7 @@
 	color: var(--text-dim);
 }
 
-.map__legenditem {
+.map__legend {
 	display: flex;
 	align-items: center;
 	gap: var(--gap-xs);
@@ -203,7 +189,7 @@
 	}
 }
 
-.map__tooltipname {
+.map__tipname {
 	color: var(--accent-gold);
 	font-weight: 700;
 	font-size: var(--font-sm);
@@ -212,12 +198,12 @@
 	margin-bottom: var(--gap-xs);
 }
 
-.map__tooltiprow {
+.map__tiprow {
 	color: var(--text-secondary);
 	margin: var(--gap-xs) 0;
 }
 
-.map__tooltipval {
+.map__tipval {
 	color: var(--accent-green);
 	font-weight: 600;
 }
@@ -399,14 +385,8 @@
 	border-radius: 0;
 	color: var(--text-dim);
 	font-family: inherit;
-	font-size: var(--font-xs);
-	font-weight: 500;
 	padding: var(--gap-sm) var(--gap-md);
-	cursor: pointer;
-	transition: all var(--duration-fast) var(--ease-out);
-	text-transform: uppercase;
 	letter-spacing: 1px;
-	position: relative;
 	box-shadow: none;
 }
 
@@ -470,22 +450,12 @@
 .mapactions__btn {
 	background: transparent;
 	border: 1px solid transparent;
-	border-radius: var(--radius-sm);
-	color: var(--text-secondary);
 	font-family: inherit;
-	font-size: var(--font-xs);
-	font-weight: 500;
-	padding: var(--gap-xs) var(--gap-sm);
-	cursor: pointer;
-	transition: all var(--duration-fast) var(--ease-out);
-	text-transform: uppercase;
 	letter-spacing: 0.5px;
 	box-shadow: none;
 }
 
 .mapactions__btn:hover {
-	border-color: var(--accent-gold);
-	color: var(--accent-gold);
 	background: color-mix(in srgb, var(--accent-gold) 12%, transparent);
 	transform: none;
 	box-shadow: none;

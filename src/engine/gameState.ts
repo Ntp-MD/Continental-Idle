@@ -168,17 +168,17 @@ class GameStateManager {
     const saved = this.load()
     if (saved) {
       this.state = saved
-      // Calculate offline earnings
+
       this.calculateOfflineProgress()
     } else if (hq) {
       this.state = createDefaultState(hq)
     } else if (this.hasSave()) {
-      // Save exists but failed validation — start fresh
+
       console.error('Save data corrupted — starting fresh game')
       this.deleteSave()
       this.state = createDefaultState('bangkok')
     }
-    // Ensure grace period is fresh for BRANCHES with unset (0) grace period
+
     const graceUntil = Date.now() + 30 * 60 * 1000
     BRANCHES.forEach(t => {
       const branch = this.state.branches[t.id]
@@ -190,7 +190,7 @@ class GameStateManager {
 
   reset(hq: BranchId): void {
     this.state = createDefaultState(hq)
-    // Set fresh grace periods on reset
+
     const graceUntil = Date.now() + 30 * 60 * 1000
     BRANCHES.forEach(t => {
       if (this.state.branches[t.id]) {
@@ -209,9 +209,9 @@ class GameStateManager {
     this.state.checksum = this.computeChecksum()
     const json = JSON.stringify(this.state)
     try {
-      // Write main save first — if this fails, backup is preserved
+
       localStorage.setItem(SAVE_KEY, json)
-      // Then backup — use the same json to avoid cross-tab race
+
       localStorage.setItem(SAVE_KEY + '_backup', json)
       return true
     } catch {
@@ -232,7 +232,7 @@ class GameStateManager {
     const result = this.tryParseSave(raw)
     if (result) return result
 
-    // Main save failed — try backup
+
     const backup = localStorage.getItem(SAVE_KEY + '_backup')
     if (backup) {
       console.warn('Main save corrupted — attempting backup recovery')
@@ -249,7 +249,7 @@ class GameStateManager {
     try {
       const parsed = JSON.parse(raw)
 
-      // Validate minimal shape before casting
+
       if (!parsed || typeof parsed !== 'object') return null
       if (!parsed.branches || typeof parsed.branches !== 'object') return null
       if (!parsed.worldMap || typeof parsed.worldMap !== 'object') return null
@@ -257,7 +257,7 @@ class GameStateManager {
 
       const typed = parsed as GameState
 
-      // Validate critical numeric fields before accepting
+
       if (typeof typed.totalPrestige !== 'number' || !isFinite(typed.totalPrestige) || typed.totalPrestige < 0) return null
       if (typeof typed.tableFavor !== 'number' || !isFinite(typed.tableFavor) || typed.tableFavor < 0) return null
       for (const branchId of Object.keys(typed.branches) as BranchId[]) {
@@ -267,7 +267,7 @@ class GameStateManager {
         if (typeof b.heatLevel !== 'number' || !isFinite(b.heatLevel) || b.heatLevel < 0) return null
       }
 
-      // Validate checksum before accepting
+
       const savedChecksum = typed.checksum
       typed.checksum = ''
       const expected = this.computeChecksumFor(typed)
@@ -297,18 +297,18 @@ class GameStateManager {
       if (typeof parsed.tableFavor !== 'number' || !isFinite(parsed.tableFavor)) return false
       if (!Array.isArray(parsed.worldMap?.unlockedBranches)) return false
 
-      // Validate HQ is a known branch
+
       if (!BRANCHES.find(t => t.id === parsed.hqBranch)) return false
 
-      // Validate activeBranch is a known branch
+
       if (!BRANCHES.find(t => t.id === parsed.activeBranch)) return false
 
-      // Validate activeBranch is in unlockedBranches — fallback to hqBranch if not
+
       if (!parsed.worldMap.unlockedBranches.includes(parsed.activeBranch)) {
         parsed.activeBranch = parsed.hqBranch
       }
 
-      // Validate worldMap arrays contain only known branch IDs
+
       const validIds = new Set(BRANCHES.map(t => t.id))
       if (parsed.worldMap?.unlockedBranches) {
         parsed.worldMap.unlockedBranches = parsed.worldMap.unlockedBranches.filter((id: string) => validIds.has(id as BranchId))
@@ -320,14 +320,14 @@ class GameStateManager {
         parsed.worldMap.royalBranches = parsed.worldMap.royalBranches.filter((id: string) => validIds.has(id as BranchId))
       }
 
-      // Validate checksum
+
       const savedChecksum = parsed.checksum
       parsed.checksum = ''
       const expected = this.computeChecksumFor(parsed)
       if (!savedChecksum || savedChecksum !== expected) return false
       parsed.checksum = savedChecksum
 
-      // Validate currency non-negative for all BRANCHES
+
       const validStaffIds = new Set(STAFF_TYPES.map(s => s.id))
       const validAssassinIds = new Set(ASSASSIN_TYPES.map(a => a.id))
       const validBuildingIds = new Set(BUILDINGS.map(b => b.id))
@@ -343,7 +343,7 @@ class GameStateManager {
         if (typeof t.heatLevel !== 'number' || !isFinite(t.heatLevel) || t.heatLevel < 0) return false
         if (typeof t.guestSatisfaction !== 'number' || !isFinite(t.guestSatisfaction)) return false
 
-        // Validate buildings
+
         if (t.buildings && typeof t.buildings === 'object') {
           for (const bId of Object.keys(t.buildings)) {
             if (!validBuildingIds.has(bId)) continue
@@ -352,7 +352,7 @@ class GameStateManager {
           }
         }
 
-        // Validate staff entries
+
         if (t.staff && typeof t.staff === 'object') {
           for (const sId of Object.keys(t.staff)) {
             const s = t.staff[sId]
@@ -362,7 +362,7 @@ class GameStateManager {
           }
         }
 
-        // Validate assassin entries
+
         if (t.assassins && typeof t.assassins === 'object') {
           for (const aId of Object.keys(t.assassins)) {
             const a = t.assassins[aId]
@@ -373,7 +373,7 @@ class GameStateManager {
           }
         }
 
-        // Validate marker debts
+
         if (Array.isArray(t.markerDebts)) {
           for (const d of t.markerDebts) {
             if (!d || typeof d.amount !== 'number' || !isFinite(d.amount) || d.amount < 0) return false
@@ -381,7 +381,7 @@ class GameStateManager {
         }
       }
 
-      // Validate skillTree
+
       if (parsed.skillTree && typeof parsed.skillTree === 'object') {
         for (const key of ['commerce', 'personnel', 'shadow', 'diplomacy', 'ascension']) {
           const val = (parsed.skillTree as Record<string, unknown>)[key]
@@ -389,7 +389,7 @@ class GameStateManager {
         }
       }
 
-      // Validate supplyRoutes
+
       if (Array.isArray(parsed.supplyRoutes)) {
         for (const r of parsed.supplyRoutes) {
           if (!r || typeof r !== 'object') return false
@@ -401,7 +401,7 @@ class GameStateManager {
         }
       }
 
-      // Validate aiOwners
+
       if (parsed.aiOwners && typeof parsed.aiOwners === 'object') {
         const validTemperaments = new Set(['aggressive', 'diplomatic', 'shadow', 'defensive'])
         for (const key of Object.keys(parsed.aiOwners)) {
@@ -415,18 +415,18 @@ class GameStateManager {
         }
       }
 
-      // Validate buyMultiplier
+
       if (parsed.buyMultiplier !== undefined && (typeof parsed.buyMultiplier !== 'number' || !isFinite(parsed.buyMultiplier) || parsed.buyMultiplier < 0)) {
         parsed.buyMultiplier = 1
       }
 
-      // Validate royal system fields
+
       if (parsed.royalMarks !== undefined && (typeof parsed.royalMarks !== 'number' || !isFinite(parsed.royalMarks) || parsed.royalMarks < 0)) return false
       if (parsed.royalPrestige !== undefined && (typeof parsed.royalPrestige !== 'number' || !isFinite(parsed.royalPrestige) || parsed.royalPrestige < 0)) return false
       if (parsed.sovereign !== undefined && typeof parsed.sovereign !== 'boolean') return false
       if (parsed.sandboxLoops !== undefined && (typeof parsed.sandboxLoops !== 'number' || !isFinite(parsed.sandboxLoops) || parsed.sandboxLoops < 0)) return false
       if (parsed.goldenCoins !== undefined && (typeof parsed.goldenCoins !== 'number' || !isFinite(parsed.goldenCoins) || parsed.goldenCoins < 0)) return false
-      // Validate rarity if present
+
       const validRaritySet = new Set(['D', 'C', 'B', 'A', 'S'])
       for (const branchId of Object.keys(parsed.branches)) {
         const t = parsed.branches[branchId]
@@ -459,7 +459,7 @@ class GameStateManager {
         }
       }
 
-      // Validate settings
+
       if (parsed.settings && typeof parsed.settings === 'object') {
         const s = parsed.settings as Record<string, unknown>
         if (s.colorBlindMode !== undefined && !validColorBlindModes.has(s.colorBlindMode as string)) {
@@ -474,7 +474,7 @@ class GameStateManager {
       const oldState = this.state
       this.state = migrated
 
-      // Apply grace periods for BRANCHES with unset (0) grace period
+
       const graceUntil = Date.now() + 30 * 60 * 1000
       BRANCHES.forEach(t => {
         const branch = this.state.branches[t.id]
@@ -487,7 +487,7 @@ class GameStateManager {
         this.save()
         return true
       } catch {
-        // Restore old state if save fails (quota exceeded, private mode)
+
         this.state = oldState
         return false
       }
@@ -522,12 +522,11 @@ class GameStateManager {
         return
       }
 
-      // Cap at 24 hours to prevent overflow
+
       const cappedSeconds = Math.min(Math.floor(elapsedMs / 1000), 86400)
       const efficiency = 0.5 + getTotalOfflineEfficiency()
 
-      // Strip expired buffs before calculating offline income
-      // so buffs that expired during offline don't apply to the full duration
+
       this.state.activeBuffs = this.state.activeBuffs.filter(b => b.expiresAt === null || b.expiresAt > now)
 
       const breakdown: Record<string, number> = {}
@@ -537,10 +536,10 @@ class GameStateManager {
         const branch = this.state.branches[branchId]
         if (!branch) return
 
-        // Use the actual income calculation which accounts for staff, buffs, skills, etc.
+
         const baseIncome = getBranchIncomePerSecond(branchId)
 
-        // Active branch gets full rate, inactive get 50% (or 60% with continentalCharter)
+
         const isActive = branchId === this.state.activeBranch
         const inactiveRate = isActive ? 1.0 : (branch.upgrades.includes('continentalCharter') ? 0.6 : 0.5)
         const branchIncome = baseIncome * inactiveRate
@@ -566,7 +565,7 @@ class GameStateManager {
   private migrate(save: GameState): GameState {
     save.version = CURRENT_VERSION
 
-    // Add any missing branch states (e.g. saves from before 37-branch expansion)
+
     BRANCHES.forEach(t => {
       if (!save.branches[t.id]) {
         save.branches[t.id] = createDefaultBranchState()
@@ -586,13 +585,13 @@ class GameStateManager {
         if (branch.heatLevel === undefined) branch.heatLevel = 0
         if (branch.excommunicadoGraceUntil === undefined) branch.excommunicadoGraceUntil = 0
         if (branch.guestSatisfaction === undefined) branch.guestSatisfaction = 50
-        // Clamp values to valid ranges to prevent tampered saves
+
         branch.heatLevel = Math.max(0, Math.min(10, branch.heatLevel))
         branch.guestSatisfaction = Math.max(0, Math.min(100, branch.guestSatisfaction))
         if (branch.hqHealth === undefined) branch.hqHealth = 1000
         if (branch.hqMaxHealth === undefined) branch.hqMaxHealth = 1000
         if (branch.aiOwnerDefeated === undefined) branch.aiOwnerDefeated = false
-        // Ensure all buildings have the unlocked field (added in v1.0)
+
         if (branch.buildings) {
           const defaults = createDefaultBranchState()
           for (const bId of Object.keys(branch.buildings)) {
@@ -606,7 +605,7 @@ class GameStateManager {
       }
     })
 
-    // Add new fields if missing from older saves
+
     if (!save.activeBuffs) save.activeBuffs = []
     if (save.permanentIncomeBonus === undefined) save.permanentIncomeBonus = 0
     if (!save.skillTree) save.skillTree = { commerce: 0, personnel: 0, shadow: 0, diplomacy: 0, ascension: 0 }
@@ -636,14 +635,14 @@ class GameStateManager {
     if (!save.visitors) save.visitors = []
     if (save.lastSandboxLoopAt === undefined) save.lastSandboxLoopAt = 0
 
-    // Migrate supply routes missing aiOwned field
+
     if (save.supplyRoutes) {
       save.supplyRoutes.forEach(r => {
         if (r.aiOwned === undefined) r.aiOwned = false
       })
     }
 
-    // Migrate rarity and clamp levels for all staff and assassins
+
     const validRarities = new Set(['D', 'C', 'B', 'A', 'S'])
     Object.values(save.branches).forEach(branch => {
       Object.values(branch.staff).forEach(staff => {
@@ -656,14 +655,14 @@ class GameStateManager {
       })
     })
 
-    // Migrate branches missing royalBuildings
+
     Object.values(save.branches).forEach(branch => {
       if (!branch.royalBuildings) branch.royalBuildings = {}
       if (!branch.npcPositions) branch.npcPositions = {}
-      // Clamp currency and lifetimeEarnings to non-negative
+
       if (typeof branch.currency === 'number') branch.currency = Math.max(0, branch.currency)
       if (typeof branch.lifetimeEarnings === 'number') branch.lifetimeEarnings = Math.max(0, branch.lifetimeEarnings)
-      // Clamp building levels to maxLevel
+
       if (branch.buildings) {
         for (const bId of Object.keys(branch.buildings)) {
           const bDef = BUILDING_MAP[bId]
@@ -674,14 +673,14 @@ class GameStateManager {
       }
     })
 
-    // Ensure all branches have AI owners
+
     BRANCHES.forEach(t => {
       if (!save.aiOwners[t.id]) {
         save.aiOwners[t.id] = createAIOwner(t.id)
       }
     })
 
-    // Cap eventLog to prevent unbounded growth
+
     if (save.eventLog.length > 200) {
       save.eventLog = save.eventLog.slice(-200)
     }
@@ -738,7 +737,7 @@ class GameStateManager {
     if (state.visitors) dataObj.vi = state.visitors.map(v => v.typeId + ':' + v.rarity + ':' + v.isAssassin + ':' + v.level + ':' + v.stats.precision + ':' + v.stats.speed + ':' + v.stats.charisma + ':' + v.stats.luck + ':' + v.traits.join('.')).join(',')
     if (state.lastSandboxLoopAt !== undefined) dataObj.ls = state.lastSandboxLoopAt
     const data = JSON.stringify(dataObj)
-    // FNV-1a hash — stronger than DJB2, covers all economically relevant fields
+
     let hash = 0x811c9dc5
     for (let i = 0; i < data.length; i++) {
       hash ^= data.charCodeAt(i)

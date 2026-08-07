@@ -313,7 +313,7 @@ function doGoldenCoinIncomeBoost() {
   if (goldenCoinIncomeBoost()) update()
 }
 
-// Debounced versions for critical actions
+
 const debouncedDoHire = createDebouncedAction(doHire)
 const debouncedDoHireAssassin = createDebouncedAction(doHireAssassin)
 const debouncedDoLevelUp = createDebouncedAction(doLevelUp)
@@ -436,7 +436,7 @@ watch(() => props.visible, (v) => {
             <span v-if="a.synergyCount > 0" class="card__synergy">Syn:{{ a.synergyCount }}</span>
           </div>
           <div class="card__ability">{{ a.ability }}</div>
-          <div v-if="!a.awakened" class="card__awakeningprogress">Awakening: {{ a.awakeningProgress }}</div>
+          <div v-if="!a.awakened" class="card__awakening">Awakening: {{ a.awakeningProgress }}</div>
           <div class="card__xpbar">
             <div class="card__xpfill" :style="{ width: a.xpPercent + '%' }"></div>
           </div>
@@ -479,8 +479,8 @@ watch(() => props.visible, (v) => {
             >Level Up ({{ a.levelUpCost }})</button>
             <button @click="doFireAssassin(a.id)" class="staff__assign__fire">Fire</button>
           </div>
-          <div v-if="a.attackTarget" class="card__attackstatus">
-            <span class="card__attacktarget">Attacking: {{ a.attackTarget }}</span>
+          <div v-if="a.attackTarget" class="card__combat">
+            <span class="card__target">Attacking: {{ a.attackTarget }}</span>
             <button class="btn__danger btn__sm" @click="doCancelAttack(a.id)">Cancel</button>
           </div>
           <div v-else-if="attackTargets.length > 0" class="actions">
@@ -665,5 +665,129 @@ watch(() => props.visible, (v) => {
 .upgrade__card .btn {
 	padding: var(--gap-xs) var(--gap-md);
 	font-size: var(--font-sm);
+}
+
+
+.card__name__gold {
+	font-size: var(--font-sm);
+	font-weight: 600;
+	color: var(--accent-gold);
+}
+
+.card__xpbar {
+	height: 3px;
+	background: var(--bg-primary);
+	margin-top: var(--gap-xs);
+	overflow: hidden;
+	border-radius: var(--radius-xs);
+}
+
+.card__xpfill {
+	height: 100%;
+	background: linear-gradient(90deg, var(--accent-blue) 0%, var(--accent-blue) 100%);
+	transition: width var(--duration-normal) var(--ease-out);
+	border-radius: var(--radius-xs);
+}
+
+.card__best {
+	font-size: var(--font-xs);
+	color: var(--text-dim);
+	margin-top: var(--gap-xs);
+}
+
+.card__max {
+	font-size: var(--font-xs);
+	color: var(--accent-gold);
+	margin-top: var(--gap-xs);
+	border-top: 1px dashed var(--border-dim);
+	padding-top: var(--gap-xs);
+}
+
+.card__perk {
+	font-size: var(--font-xs);
+	color: var(--accent-blue);
+	margin-top: var(--gap-xs);
+}
+
+.card__name__muted {
+	font-size: var(--font-sm);
+	color: var(--text-primary);
+}
+
+.card__synergy {
+	font-size: var(--font-xs);
+	color: var(--accent-blue);
+}
+
+.card__ability {
+	font-size: var(--font-xs);
+	color: var(--text-dim);
+	margin-bottom: var(--gap-xs);
+}
+
+.card__bar {
+	height: 3px;
+	background: var(--bg-primary);
+	overflow: hidden;
+	margin-bottom: var(--gap-xs);
+}
+
+.card__fill {
+	height: 100%;
+	background: var(--accent-gold);
+	transition: width var(--duration-normal) var(--ease-out);
+}
+
+.card__info__wrap {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--gap-sm);
+	font-size: var(--font-xs);
+	color: var(--text-secondary);
+	margin-bottom: var(--gap-xs);
+}
+
+.card__lent {
+	color: var(--accent-gold);
+}
+
+.card__combat {
+	display: flex;
+	align-items: center;
+	gap: var(--gap-xs);
+	margin-top: var(--gap-xs);
+}
+
+.card__target {
+	font-size: var(--font-xs);
+	color: var(--accent-red);
+}
+
+.card__info__col {
+	display: flex;
+	flex-direction: column;
+	gap: var(--gap-xs);
+}
+
+.card__name__boldgold {
+	font-weight: bold;
+	color: var(--accent-gold);
+}
+
+.card__desc__secondary {
+	font-size: var(--font-xs);
+	color: var(--text-secondary);
+}
+
+.card__purchased {
+	color: var(--accent-green);
+	font-weight: bold;
+	font-size: var(--font-xs);
+}
+
+.card__awakening {
+	font-size: var(--font-xs);
+	color: var(--text-dim);
+	padding: var(--gap-xs) 0;
 }
 </style>

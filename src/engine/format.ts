@@ -1,4 +1,4 @@
-// Number formatting per spec: K, M, B, T, aa, ab...
+
 
 const ALPHA_BASE = 'abcdefghijklmnopqrstuvwxyz'
 const SUFFIXES = ['', 'K', 'M', 'B', 'T']
@@ -12,7 +12,7 @@ export function formatNumber(n: number): string {
   }
   if (n < 1000) return Math.floor(n).toString()
 
-  // Standard suffixes K, M, B, T (up to but not including 10^15)
+
   for (let i = 4; i >= 1; i--) {
     const threshold = Math.pow(10, i * 3)
     const nextThreshold = Math.pow(10, (i + 1) * 3)
@@ -24,7 +24,7 @@ export function formatNumber(n: number): string {
     }
   }
 
-  // Extended notation: aa, ab, ac... (10^15 and above)
+
   const exp = Math.floor(Math.log10(n))
   if (exp >= 15) {
     const tier = Math.floor((exp - 15) / 3)

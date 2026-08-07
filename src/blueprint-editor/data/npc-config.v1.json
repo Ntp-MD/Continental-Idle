@@ -1,0 +1,16 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "npc-config.v1.json",
+  "type": "object",
+  "required": ["version", "speed", "defaultRoleId", "roles", "tasks", "pool"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "version": { "type": "number" },
+    "speed": { "type": "number" },
+    "defaultRoleId": { "type": "string" },
+    "roles": { "type": "array", "items": { "type": "object" } },
+    "tasks": { "type": "array", "items": { "type": "object" } },
+    "pool": { "type": "array", "items": { "type": "object" } }
+  },
+  "additionalProperties": true
+}

@@ -1,6 +1,5 @@
 import type { AssetDef, WalkableGrid, TileState, TileEdges } from '../types'
 import { aabbOverlap } from '../collision'
-import { assetCatalog } from './dataLoader'
 import {
 	state, toast, clamp, withStateLock, initAssetFields, isValidColor,
 } from './state'
@@ -125,7 +124,7 @@ export async function addSvgAsset(name: string, w: number, h: number, svgString:
 	})
 }
 
-export async function updateAsset(id: string, patch: Partial<Pick<AssetDef, 'name' | 'w' | 'h' | 'pxW' | 'pxH' | 'usePx' | 'defaultPadding' | 'defaultRx' | 'defaultBgColor' | 'entranceRequired' | 'tags'>> & { walkable?: boolean; walkableGrid?: WalkableGrid; tileStates?: TileState[][]; tileEdges?: TileEdges[][] }): Promise<void> {
+export async function updateAsset(id: string, patch: Partial<Pick<AssetDef, 'name' | 'w' | 'h' | 'pxW' | 'pxH' | 'usePx' | 'defaultPadding' | 'defaultRx' | 'defaultBgColor' | 'defaultLabelColor' | 'defaultLabel' | 'defaultRadius' | 'defaultLabelPadding' | 'defaultCustomProps' | 'defaultInstanceLabel' | 'defaultValidationRule' | 'defaultLocked' | 'entranceRequired' | 'tags' | 'anchorPoints' | 'interact'>> & { walkable?: boolean; walkableGrid?: WalkableGrid; tileStates?: TileState[][]; tileEdges?: TileEdges[][] }): Promise<void> {
 	return withStateLock(async () => {
 		const asset = state.assetRegistry.find(a => a.id === id)
 		if (!asset) {
@@ -135,6 +134,21 @@ export async function updateAsset(id: string, patch: Partial<Pick<AssetDef, 'nam
 		if (patch.defaultBgColor !== undefined && !isValidColor(patch.defaultBgColor)) {
 			toast.warning('Background color must be a hex code')
 			return
+		}
+		if (patch.defaultLabelColor !== undefined && !isValidColor(patch.defaultLabelColor)) {
+			toast.warning('Label color must be a hex code')
+			return
+		}
+
+
+		const sizePatchKeys: (keyof typeof patch)[] = ['w', 'h', 'pxW', 'pxH', 'usePx']
+		const touchesSize = sizePatchKeys.some(k => patch[k] !== undefined)
+		if (touchesSize) {
+			const inUse = state.layout.floors.some(f => f.objects.some(o => o.type === id))
+			if (inUse) {
+				toast.warning('Cannot resize — asset is placed on floors. Remove instances first.')
+				return
+			}
 		}
 		if (patch.name !== undefined) asset.name = patch.name
 		if (patch.w !== undefined) asset.w = Math.max(1, Math.floor(patch.w))
@@ -150,12 +164,24 @@ export async function updateAsset(id: string, patch: Partial<Pick<AssetDef, 'nam
 		if (patch.defaultBgColor !== undefined) {
 			asset.defaultBgColor = patch.defaultBgColor || undefined
 		}
+		if (patch.defaultLabelColor !== undefined) {
+			asset.defaultLabelColor = patch.defaultLabelColor || undefined
+		}
+		if (patch.defaultLabel !== undefined) asset.defaultLabel = patch.defaultLabel || undefined
+		if (patch.defaultRadius !== undefined) asset.defaultRadius = patch.defaultRadius > 0 ? patch.defaultRadius : undefined
+		if (patch.defaultLabelPadding !== undefined) asset.defaultLabelPadding = patch.defaultLabelPadding || undefined
+		if (patch.defaultCustomProps !== undefined) asset.defaultCustomProps = patch.defaultCustomProps
+		if (patch.defaultInstanceLabel !== undefined) asset.defaultInstanceLabel = patch.defaultInstanceLabel || undefined
+		if (patch.defaultValidationRule !== undefined) asset.defaultValidationRule = patch.defaultValidationRule
+		if (patch.defaultLocked !== undefined) asset.defaultLocked = patch.defaultLocked
 		if (patch.walkable !== undefined) asset.walkable = patch.walkable
 		if (patch.entranceRequired !== undefined) asset.entranceRequired = patch.entranceRequired
 		if (patch.tags !== undefined) asset.tags = patch.tags.length > 0 ? [...patch.tags] : undefined
 		if (patch.walkableGrid !== undefined) asset.walkableGrid = patch.walkableGrid
 		if (patch.tileStates !== undefined) asset.tileStates = patch.tileStates
 		if (patch.tileEdges !== undefined) asset.tileEdges = patch.tileEdges
+		if (patch.anchorPoints !== undefined) asset.anchorPoints = patch.anchorPoints.length > 0 ? patch.anchorPoints.map(p => ({ ...p })) : undefined
+		if (patch.interact !== undefined) asset.interact = patch.interact ? { ...patch.interact } : undefined
 
 		const t = state.layout.canvas.tileSize
 		const newW = asset.usePx ? (asset.pxW ?? asset.w * t) : asset.w * t
@@ -181,21 +207,15 @@ export async function updateAsset(id: string, patch: Partial<Pick<AssetDef, 'nam
 				if (patch.defaultBgColor !== undefined) {
 					obj.fillColor = asset.defaultBgColor || undefined
 				}
-				if (patch.walkable !== undefined) {
-					obj.walkable = patch.walkable
-				}
-				if (patch.entranceRequired !== undefined) {
-					obj.entranceRequired = patch.entranceRequired
-				}
-				if (patch.walkableGrid !== undefined) {
-					obj.walkableGrid = patch.walkableGrid.map(row => [...row])
-				}
-				if (patch.tileStates !== undefined) {
-					obj.tileStates = patch.tileStates.map(row => [...row])
-				}
-				if (patch.tileEdges !== undefined) {
-					obj.tileEdges = patch.tileEdges.map(row => row.map(e => e ? { ...e } : e))
-				}
+				if (patch.defaultLabel !== undefined) obj.label = asset.defaultLabel
+				if (patch.defaultRadius !== undefined) obj.radius = asset.defaultRadius
+				if (patch.defaultLabelPadding !== undefined) obj.labelPadding = asset.defaultLabelPadding
+				if (patch.defaultCustomProps !== undefined) obj.customProps = asset.defaultCustomProps ? JSON.parse(JSON.stringify(asset.defaultCustomProps)) : undefined
+				if (patch.defaultInstanceLabel !== undefined) obj.instanceLabel = asset.defaultInstanceLabel
+				if (patch.defaultValidationRule !== undefined) obj.validationRule = asset.defaultValidationRule ? JSON.parse(JSON.stringify(asset.defaultValidationRule)) : undefined
+				if (patch.defaultLocked !== undefined) obj.locked = asset.defaultLocked
+
+
 				const overlaps = floor.objects.some(o => o.id !== obj.id && aabbOverlap(obj, o))
 				obj.collapsed = overlaps
 				if (overlaps) collapsedIds.push(obj.id)
@@ -216,7 +236,39 @@ export async function updateAsset(id: string, patch: Partial<Pick<AssetDef, 'nam
 	})
 }
 
-const DEFAULT_ASSET_IDS = new Set([...assetCatalog].map(a => a.id))
+
+export async function duplicateAsset(id: string): Promise<AssetDef | null> {
+	return withStateLock(async () => {
+		const source = state.assetRegistry.find(a => a.id === id)
+		if (!source) {
+			toast.warning('Asset not found')
+			return null
+		}
+		const copy: AssetDef = {
+			...source,
+			id: genId('custom'),
+			name: `${source.name} copy`,
+			origin: 'drawn',
+		}
+
+		if (source.svg) copy.svg = source.svg
+		if (source.svgViewBox) copy.svgViewBox = { ...source.svgViewBox }
+		if (source.walkableGrid) copy.walkableGrid = source.walkableGrid.map(row => [...row])
+		if (source.tileStates) copy.tileStates = source.tileStates.map(row => [...row])
+		if (source.tileEdges) copy.tileEdges = source.tileEdges.map(row => row.map(e => e ? { ...e } : e))
+		if (source.anchorPoints) copy.anchorPoints = source.anchorPoints.map(p => ({ ...p }))
+		if (source.interact) copy.interact = { ...source.interact }
+		if (source.defaultRx) copy.defaultRx = { ...source.defaultRx }
+		if (source.defaultCustomProps) copy.defaultCustomProps = JSON.parse(JSON.stringify(source.defaultCustomProps))
+		if (source.defaultValidationRule) copy.defaultValidationRule = JSON.parse(JSON.stringify(source.defaultValidationRule))
+		if (source.tags) copy.tags = [...source.tags]
+		if (source.linkedParts) copy.linkedParts = source.linkedParts.map(p => ({ ...p }))
+		state.assetRegistry.push(copy)
+		await saveAssets()
+		toast.success(`Duplicated "${source.name}" → "${copy.name}"`)
+		return copy
+	})
+}
 
 export async function deleteAsset(id: string): Promise<boolean> {
 	const inUse = state.layout.floors.some(f => f.objects.some(o => o.type === id))
@@ -242,10 +294,6 @@ export async function deleteAsset(id: string): Promise<boolean> {
 	}
 	state.assetRegistry.splice(idx, 1)
 	if (state.selectedAssetId === id) state.selectedAssetId = null
-	if (DEFAULT_ASSET_IDS.has(id)) {
-		if (!state.layout.deletedDefaultIds) state.layout.deletedDefaultIds = []
-		if (!state.layout.deletedDefaultIds.includes(id)) state.layout.deletedDefaultIds.push(id)
-	}
 	await saveAssets()
 	return true
 }
@@ -309,10 +357,7 @@ export async function rotateAsset(id: string): Promise<void> {
 				const clamped = clamp({ x: obj.x, y: obj.y, w: newW, h: newH })
 				obj.x = clamped.x
 				obj.y = clamped.y
-				if (asset.walkableGrid) obj.walkableGrid = asset.walkableGrid.map(row => [...row])
-				if (asset.tileStates) obj.tileStates = asset.tileStates.map(row => [...row])
-				if (asset.tileEdges) obj.tileEdges = asset.tileEdges.map(row => row.map(e => e ? { ...e } : e))
-				if (asset.entranceRequired !== undefined) obj.entranceRequired = asset.entranceRequired
+
 			}
 		}
 

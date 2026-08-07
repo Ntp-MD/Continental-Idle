@@ -18,27 +18,27 @@ export function hasCleanerMaxed(branchId: BranchId): boolean {
 	return hasMaxAbilityStaff(branchId, 'cleaner')
 }
 
-function hasBartenderMaxed(branchId: BranchId): boolean {
+export function hasBartenderMaxed(branchId: BranchId): boolean {
 	return hasMaxAbilityStaff(branchId, 'bartender')
 }
 
-function hasChefMaxed(branchId: BranchId): boolean {
+export function hasChefMaxed(branchId: BranchId): boolean {
 	return hasMaxAbilityStaff(branchId, 'chef')
 }
 
-function hasConciergeMaxed(branchId: BranchId): boolean {
+export function hasConciergeMaxed(branchId: BranchId): boolean {
 	return hasMaxAbilityStaff(branchId, 'concierge')
 }
 
-function hasAdjudicatorMaxed(branchId: BranchId): boolean {
+export function hasAdjudicatorMaxed(branchId: BranchId): boolean {
 	return hasMaxAbilityStaff(branchId, 'adjudicator')
 }
 
-function hasIntelOfficerMaxed(branchId: BranchId): boolean {
+export function hasIntelOfficerMaxed(branchId: BranchId): boolean {
 	return hasMaxAbilityStaff(branchId, 'intelOfficer')
 }
 
-function hasSommelierMaxed(branchId: BranchId): boolean {
+export function hasSommelierMaxed(branchId: BranchId): boolean {
 	return hasMaxAbilityStaff(branchId, 'sommelier')
 }
 

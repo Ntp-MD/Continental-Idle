@@ -1,5 +1,6 @@
 import type { RoomData, Rect, RoomTemplate, RoomTemplateObject, ObjectData } from '../types'
 import { roomOverlapsAny, aabbOverlap, objectOverlapsAny, recalcCollapsed } from '../collision'
+import { normalizeObject } from '../geometry'
 import { state, toast, snap, clamp, currentFloor, assetMap, isValidColor, withStateLock } from './state'
 import { genId } from './utils'
 import { findRoomTemplate } from './selection'
@@ -21,7 +22,7 @@ export async function addRoom(rect: Rect, label = 'New Room', template?: RoomTem
 		const room: RoomData = {
 			id: genId('room'), ...snapped,
 			label: template?.label ?? label,
-			anchorPoints: [[snapped.w / 2, snapped.h / 2]],
+			anchorPoints: [{ x: snapped.w / 2, y: snapped.h / 2 }],
 			tags: template?.tags ? [...template.tags] : undefined,
 		}
 		if (template?.radius && template.radius > 0) room.radius = template.radius
@@ -88,7 +89,8 @@ export async function updateRoomProps(patch: Partial<RoomData>): Promise<boolean
 			(patch.walkable !== undefined && r.walkable !== patch.walkable) ||
 			(patch.tags !== undefined) ||
 			(patch.entrances !== undefined) ||
-			(patch.anchorPoints !== undefined)
+			(patch.anchorPoints !== undefined) ||
+			(patch.interact !== undefined)
 		if (!changed) return true
 		const dx = (patch.x !== undefined ? rect.x : r.x) - r.x
 		const dy = (patch.y !== undefined ? rect.y : r.y) - r.y
@@ -120,6 +122,7 @@ export async function updateRoomProps(patch: Partial<RoomData>): Promise<boolean
 		if (patch.tags !== undefined) r.tags = patch.tags?.length ? [...patch.tags] : undefined
 		if (patch.entrances !== undefined) r.entrances = patch.entrances
 		if (patch.anchorPoints !== undefined) r.anchorPoints = patch.anchorPoints
+		if (patch.interact !== undefined) r.interact = patch.interact ? { ...patch.interact } : undefined
 		if (patch.radius !== undefined) r.radius = patch.radius
 		if (patch.locked !== undefined) r.locked = patch.locked
 		if (patch.fillColor !== undefined) r.fillColor = patch.fillColor || undefined
@@ -197,14 +200,15 @@ export async function addRoomFromTemplate(templateId: string, x: number, y: numb
 					type: tObj.type,
 					x: snap(room.x + tObj.dx),
 					y: snap(room.y + tObj.dy),
-					w: tObj.w,
-					h: tObj.h,
+					w: 0,
+					h: 0,
 					rotation: tObj.rotation,
 					roomId: room.id,
 					label: tObj.label,
 					instanceLabel: tObj.instanceLabel,
 					customProps: tObj.customProps,
 				}
+				normalizeObject(obj, state.layout.canvas.tileSize, assetMap())
 				if (tObj.linkGroupId) {
 					let groupId = templateGroupIds.get(tObj.linkGroupId)
 					if (!groupId) {
@@ -213,9 +217,6 @@ export async function addRoomFromTemplate(templateId: string, x: number, y: numb
 					}
 					obj.linkGroupId = groupId
 				}
-				if (tObj.padding !== undefined) obj.padding = tObj.padding
-				if (tObj.rx) obj.rx = tObj.rx
-				if (tObj.fillColor) obj.fillColor = tObj.fillColor
 				if (tObj.radius !== undefined) obj.radius = tObj.radius
 				if (objectOverlapsAny(floor.objects, assetMap(), { x: obj.x, y: obj.y, w: obj.w, h: obj.h }, [obj.id])) {
 					skipped++

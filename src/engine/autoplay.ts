@@ -180,20 +180,20 @@ class AutoplayBot {
   private makeDecisions(): void {
     const phase = this.assessGamePhase()
 
-    // 1. Free actions — always first, no cost
+
     this.autoResolveEvent()
     this.confirmStaffLevelUps()
     this.confirmAssassinLevelUps()
 
-    // 2. Defensive check — handle threats before spending
+
     this.handleDefense(phase)
 
-    // 3. Switch to best branch for current strategy
+
     this.switchToBestBranchForPhase(phase)
 
-    // 4. Phase-dependent priority spending
+
     if (phase === 'rush') {
-      // Early game: maximize prestige speed
+
       this.buyBuildings()
       this.hireAndAssignStaff()
       this.reassignStaff()
@@ -206,7 +206,7 @@ class AutoplayBot {
       this.issueDecreeIfAvailable()
       this.doPrestigeIfWorth()
     } else if (phase === 'expand') {
-      // Mid game: unlock & conquer branches
+
       this.initiateTakeovers()
       this.purchaseUpgrades()
       this.hireAndAssignAssassins()
@@ -226,7 +226,7 @@ class AutoplayBot {
       this.issueDecreeIfAvailable()
       this.doPrestigeIfWorth()
     } else {
-      // Late game: conquer everything
+
       this.initiateTakeovers()
       this.hireAndAssignAssassins()
       this.purchaseUpgrades()
@@ -267,7 +267,7 @@ class AutoplayBot {
       const branch = state.branches[branchId]
       if (!branch) continue
 
-      // 1. Heat management — high heat triggers raids & bad events
+
       if (branch.heatLevel >= 7) {
         const hasSamurai = Object.values(branch.assassins).some(a => a.typeId === 'streetSamurai' && a.assignedBranch === branchId)
         if (!hasSamurai && phase !== 'rush') {
@@ -275,7 +275,7 @@ class AutoplayBot {
         }
       }
 
-      // 2. Income freeze check — if frozen, prioritize Enforcer hiring
+
       const isFrozen = state.activeBuffs.some(b =>
         b.type === 'incomeFreeze' &&
         (b.branchId === null || b.branchId === branchId) &&
@@ -285,12 +285,12 @@ class AutoplayBot {
         this.logAction(`? ${getBranchDef(branchId).name} income frozen — need Enforcer`)
       }
 
-      // 3. Excommunicado grace — don't prestige during grace
+
       if (Date.now() < branch.excommunicadoGraceUntil && branchId === state.activeBranch) {
-        // Skip prestige for this branch — grace period active
+
       }
 
-      // 4. Debt urgency — if debt > 50% of currency, flag it
+
       const debt = getTotalDebt(branchId)
       if (debt > branch.currency * 0.5 && debt > 0) {
         if (branch.currency >= debt) {
@@ -299,7 +299,7 @@ class AutoplayBot {
         }
       }
 
-      // 5. Low loyalty assassins — recall from attack if loyalty critical
+
       Object.values(branch.assassins).forEach(a => {
         if (a.loyalty < 10 && a.attackTarget) {
           cancelAssassinAttack(a.id, branchId)
@@ -329,13 +329,13 @@ class AutoplayBot {
 
       let score: number
       if (phase === 'rush') {
-        // Maximize prestige speed: income + favor potential
+
         score = effectiveIncome * 10 + branch.currency + favor * 5000
       } else if (phase === 'expand') {
-        // Balance income + takeover funding capability
+
         score = effectiveIncome * 10 + branch.currency - debt * 0.5 + favor * 1000
       } else {
-        // Late game: maximize income for assassin funding
+
         score = effectiveIncome * 20 + branch.currency - debt * 0.3
       }
 
@@ -357,22 +357,22 @@ class AutoplayBot {
     if (!active) return
     const choices = active.definition.choices
 
-    // Smart event resolution: evaluate each choice by net benefit
+
     const evaluated = choices.map(c => {
       let score = 0
       if (c.isBest) score += 100
       if (c.isSafe) score += 50
-      // Positive reputation is good
+
       if (c.reputationChange > 0) score += c.reputationChange * 2
       if (c.reputationChange < 0) score -= Math.abs(c.reputationChange)
-      // Heat reduction is good (defensive)
+
       if (c.heatChange && c.heatChange < 0) score += Math.abs(c.heatChange) * 5
       if (c.heatChange && c.heatChange > 0) score -= c.heatChange * 3
-      // Penalties are bad
+
       score -= c.penalties.length * 10
-      // Rewards are good
+
       score += c.rewards.length * 10
-      // If choice requires assassin and we don't have one, skip
+
       if (c.requires?.assassinAssigned) {
         const branch = gameState.get().branches[active.branch]
         const hasDefender = branch && Object.values(branch.assassins).some(a =>
@@ -408,7 +408,7 @@ class AutoplayBot {
 
     const reserve = this.calculateReserve()
 
-    // Build list of purchasable buildings with ROI
+
     const candidates = BUILDINGS.filter(def => {
       const bState = branch.buildings[def.id]
       return bState && bState.unlocked && bState.level < def.maxLevel
@@ -430,8 +430,7 @@ class AutoplayBot {
       return b.roi - a.roi
     })
 
-    // Buy 1 level at a time, respecting reserve
-    // Only apply reserve if branch has enough currency to save meaningfully
+
     const effectiveReserve = branch.currency >= reserve ? reserve : 0
     for (const c of candidates) {
       if (c.cost > branch.currency - effectiveReserve) continue
@@ -449,7 +448,7 @@ class AutoplayBot {
 
     let reserve = 0
 
-    // Reserve for cheapest unpurchased upgrade
+
     const nextUpgrade = UPGRADES
       .filter(u => !branch.upgrades.includes(u.id))
       .sort((a, b) => a.cost - b.cost)[0]
@@ -457,7 +456,7 @@ class AutoplayBot {
       reserve = Math.max(reserve, nextUpgrade.cost * 0.5)
     }
 
-    // Reserve for cheapest available takeover
+
     for (const def of BRANCHES) {
       if (!canInitiateTakeover(def.id)) continue
       const cost = getTakeoverCost(def.id)
@@ -465,7 +464,7 @@ class AutoplayBot {
       break
     }
 
-    // Reserve for staff hiring
+
     for (const def of STAFF_TYPES) {
       if (!isStaffUnlocked(def.id)) continue
       if (Object.values(branch.staff).some(s => s.typeId === def.id)) continue
@@ -496,14 +495,14 @@ class AutoplayBot {
     const inactiveBranches = state.worldMap.unlockedBranches.filter(id => id !== activeId)
     if (inactiveBranches.length === 0) return
 
-    // Rotate — one inactive branch per decision cycle
+
     const branchId = inactiveBranches[this.inactiveBranchIdx % inactiveBranches.length]
     this.inactiveBranchIdx++
 
     const branch = state.branches[branchId]
     if (!branch) return
 
-    // Temporarily switch activeBranch so engine functions operate on the target branch
+
     state.activeBranch = branchId
     try {
       this.confirmStaffLevelUps(branchId)
@@ -520,14 +519,14 @@ class AutoplayBot {
   private manageDebts(): void {
     const state = gameState.get()
 
-    // Check all unlocked branches for debts
+
     for (const branchId of state.worldMap.unlockedBranches) {
       const branch = state.branches[branchId]
       if (!branch) continue
       const totalDebt = getTotalDebt(branchId)
       if (totalDebt <= 0) continue
 
-      // Repay if we have 2x the debt amount (keep some currency for operations)
+
       if (branch.currency >= totalDebt * 2) {
         const ok = repayAllDebts(branchId)
         if (ok) {
@@ -544,7 +543,7 @@ class AutoplayBot {
 
     const routes = getSupplyRoutes()
 
-    // Stabilize routes below 40%
+
     for (const route of routes) {
       if (route.stability < 40) {
         const cost = getStabilizeCost(route.id)
@@ -556,7 +555,7 @@ class AutoplayBot {
       }
     }
 
-    // Try to establish new routes from branches with surplus currency
+
     const types: SupplyRouteType[] = ['luxury', 'contraband', 'weapons']
     for (const fromId of unlocked) {
       const fromBranch = state.branches[fromId]
@@ -564,7 +563,7 @@ class AutoplayBot {
       const existingCount = routes.filter(r => r.from === fromId).length
       if (existingCount >= 3) continue
 
-      // Pick a target branch — prefer the one furthest away for thematic feel
+
       const targets = unlocked.filter(t => t !== fromId)
       if (targets.length === 0) continue
 
@@ -577,7 +576,7 @@ class AutoplayBot {
       }
     }
 
-    // Attempt hijack if we have idle assassins and hijackable routes
+
     const hijackable = getHijackableRoutes()
     for (const route of hijackable) {
       if (canHijackRoute(route.id)) {
@@ -708,7 +707,7 @@ class AutoplayBot {
         }
       }
 
-      // Recall lent assassins whose lend period expired
+
       for (const assassin of Object.values(branch.assassins)) {
         if (assassin.lentTo && Date.now() > (assassin.lentUntil || 0)) {
           recallAssassin(assassin.id, branchId)
@@ -726,7 +725,7 @@ class AutoplayBot {
     const maxStaff = baseStaffCap + getExtraStaffSlots()
 
     if (Object.keys(branch.staff).length < maxStaff) {
-      // Evaluate each staff type by strategic value
+
       const branchIdResolved = targetBranch || state.activeBranch
       const candidates = STAFF_TYPES
         .filter(def => isStaffUnlocked(def.id, branchIdResolved) && branch.currency >= def.hireCost)
@@ -736,11 +735,11 @@ class AutoplayBot {
             const bs = branch.buildings[bId]
             return bs && bs.unlocked && bs.level > 0
           }).length
-          // Defensive value: cleaner negates negative events, concierge gives passive income
+
           let defensiveValue = 0
           if (def.id === 'cleaner' && branch.heatLevel >= 5) defensiveValue = 100
           if (def.id === 'bartender' && !hasEnforcer(targetBranch || state.activeBranch)) defensiveValue = 50
-          if (def.id === 'adjudicator') defensiveValue = 80 // prestige reputation retention
+          if (def.id === 'adjudicator') defensiveValue = 80
           const score = coverage * 100 + defensiveValue - def.hireCost * 0.0001
           return { def, score }
         })
@@ -756,7 +755,7 @@ class AutoplayBot {
       }
     }
 
-    // Assign all unassigned staff using trait-aware optimal assignment
+
     const branchIdForAssign = targetBranch || state.activeBranch
     const unassigned = Object.values(branch.staff).filter(s => s.assignedTo === null)
     for (const staff of unassigned) {
@@ -786,7 +785,7 @@ class AutoplayBot {
     const def = _staffTypeMap.get(staff.typeId)
     if (!def) return
 
-    // Find matching buildings that are unlocked and have level > 0
+
     const matchingBuildings = def.bestMatch
       .map(bId => {
         const bState = branch.buildings[bId]
@@ -804,7 +803,7 @@ class AutoplayBot {
       return
     }
 
-    // Fallback: any building with income
+
     const anyBuildings = BUILDINGS
       .map(b => {
         const bState = branch.buildings[b.id]
@@ -826,18 +825,18 @@ class AutoplayBot {
     const branch = state.branches[targetBranch || state.activeBranch]
     if (!branch) return
 
-    // Check if any staff could be reassigned to a better building
+
     const staffList = Object.values(branch.staff)
     for (const staff of staffList) {
       if (!staff.assignedTo) continue
       const def = _staffTypeMap.get(staff.typeId)
       if (!def) continue
 
-      // Is current assignment a bestMatch?
+
       const isBestMatch = def.bestMatch.includes(staff.assignedTo)
       if (isBestMatch) continue
 
-      // Is there a betterMatch building available?
+
       const betterBuilding = def.bestMatch.find(bId => {
         const bState = branch.buildings[bId]
         return bState && bState.unlocked && bState.level > 0
@@ -879,24 +878,24 @@ class AutoplayBot {
     const assassinCap = branch.upgrades.includes('armoryExpansion') ? 4 : 3
 
     if (Object.keys(branch.assassins).length < assassinCap) {
-      // Strategic hiring: assess what threats exist and hire accordingly
+
       const threats = this.assessThreats(branchId)
       const affordable = ASSASSIN_TYPES
         .filter(def => isAssassinUnlocked(def.id, branchId) && branch.currency >= def.hireCost)
         .filter(def => !Object.values(branch.assassins).some(a => a.typeId === def.id))
         .map(def => {
           let score = 0
-          // Enforcer: critical if income freezes are happening
+
           if (def.id === 'enforcer') score = threats.incomeFreezeRisk ? 1000 : 100
-          // High Table Enforcer: best defensive unit, prevents excommunicado
+
           if (def.id === 'highTableEnforcer') score = threats.excommunicadoRisk ? 900 : 200
-          // Royal Guard: debt reduction
+
           if (def.id === 'royalGuard') score = threats.debtBurden ? 500 : 50
-          // Street Samurai: heat reduction
+
           if (def.id === 'streetSamurai') score = threats.heatLevel >= 5 ? 400 : 80
-          // Shadow Blade: reputation boost
+
           if (def.id === 'shadowBlade') score = 150
-          // Penalize expensive hires in rush phase
+
           score -= def.hireCost * 0.00001
           return { def, score }
         })
@@ -912,7 +911,7 @@ class AutoplayBot {
       }
     }
 
-    // Assign all unassigned assassins
+
     Object.values(branch.assassins).forEach(assassin => {
       if (!assassin.assignedBranch) {
         assignAssassin(assassin.id, branchId)
@@ -965,19 +964,18 @@ class AutoplayBot {
   private initiateTakeovers(): void {
     const state = gameState.get()
 
-    // Strategic target selection: prioritize branches that unlock more continents
-    // or have lower prestige requirements (easier to conquer)
+
     const takeoverTargets = BRANCHES
       .filter(t => canInitiateTakeover(t.id))
       .map(t => ({ def: t, cost: getTakeoverCost(t.id), unlockPrestige: t.unlockPrestige }))
       .sort((a, b) => {
-        // Cheaper first = faster expansion
+
         if (a.cost !== b.cost) return a.cost - b.cost
         return a.unlockPrestige - b.unlockPrestige
       })
 
     for (const { def, cost } of takeoverTargets) {
-      // Find the branch with the most currency that can afford it
+
       let fundedBy: BranchId | null = null
       let bestCurrency = -1
       for (const branchId of state.worldMap.unlockedBranches) {
@@ -989,7 +987,7 @@ class AutoplayBot {
       }
       if (!fundedBy) continue
 
-      // Temporarily switch to the funding branch to pay
+
       const prevActive = state.activeBranch
       state.activeBranch = fundedBy
       let ok = false
@@ -1006,7 +1004,7 @@ class AutoplayBot {
       }
     }
 
-    // Smart attack assignment: concentrate firepower on closest-to-completion targets
+
     const activeTargets = BRANCHES.map(t => {
       const targetBranch = state.branches[t.id]
       if (!targetBranch) return null
@@ -1022,7 +1020,7 @@ class AutoplayBot {
 
     if (activeTargets.length === 0) return
 
-    // Collect all available assassins across all branches
+
     const allAvailable: { assassin: AssassinEntry, sourceBranchId: BranchId, damage: number }[] = []
     state.worldMap.unlockedBranches.forEach(sourceBranchId => {
       const sourceBranch = state.branches[sourceBranchId]
@@ -1034,20 +1032,19 @@ class AutoplayBot {
         })
     })
 
-    // Sort assassins by damage (strongest first)
+
     allAvailable.sort((a, b) => b.damage - a.damage)
 
-    // Focus fire: send all assassins to the target closest to completion
-    // Only split if the first target will be finished this tick
+
     for (const { assassin, sourceBranchId } of allAvailable) {
-      // Find the target with lowest HP that this assassin can contribute to
+
       const target = activeTargets.find(t => {
         const targetBranch = state.branches[t.def.id]
         return targetBranch && targetBranch.hqHealth > 0
       })
 
       if (target) {
-        // Don't send if loyalty is too low — keep for defense
+
         if (assassin.loyalty < 30 && this.assessThreats(sourceBranchId).heatLevel >= 5) {
           continue
         }
@@ -1063,7 +1060,7 @@ class AutoplayBot {
     const branch = state.branches[branchId]
     if (!branch) return
 
-    // Priority: unlock upgrades first, then income boosters
+
     const priority = ['privateWing', 'armoryExpansion', 'continentalCharter', 'trainingGrounds', 'goldStandard', 'diplomaticChannels']
 
     const prevActive = state.activeBranch
@@ -1091,7 +1088,7 @@ class AutoplayBot {
 
   private upgradeSkills(): void {
     const state = gameState.get()
-    // Priority: commerce (income) > ascension (favor) > personnel (staff) > shadow (debt) > diplomacy (rep)
+
     const priority: (keyof SkillTreeState)[] = ['commerce', 'ascension', 'personnel', 'shadow', 'diplomacy']
 
     for (const branch of priority) {
@@ -1164,7 +1161,7 @@ class AutoplayBot {
     if (!sovereignManager.canIssueDecree()) return
     const choices = sovereignManager.getDecreeChoices()
     if (choices.length === 0) return
-    // Prioritize: permanentIncomeBonus (permanent) > incomeMultiplier (highest value) > heatReduction > debtReduction > loyaltyBoost
+
     const priority: Record<string, number> = { permanentIncomeBonus: 5, incomeMultiplier: 4, heatReduction: 3, debtReduction: 2, loyaltyBoost: 1 }
     const best = [...choices].sort((a, b) => {
       const pa = priority[a.type] ?? 0
@@ -1181,12 +1178,12 @@ class AutoplayBot {
   private doPrestigeIfWorth(): void {
     const state = gameState.get()
 
-    // Find best prestige candidate across ALL BRANCHES
+
     let bestBranch: BranchId | null = null
     let bestFavor = 0
 
     for (const branchId of state.worldMap.unlockedBranches) {
-      // Skip branches in excommunicado grace
+
       const branch = state.branches[branchId]
       if (!branch) continue
       if (Date.now() < branch.excommunicadoGraceUntil) continue
@@ -1202,7 +1199,7 @@ class AutoplayBot {
 
     const phase = this.assessGamePhase()
 
-    // Rush phase: prestige ASAP to unlock branches
+
     if (phase === 'rush') {
       let ok = false
       try {
@@ -1216,7 +1213,7 @@ class AutoplayBot {
       return
     }
 
-    // Expand/Conquer: prestige when plateaued or favor is significant
+
     const minFavor = Math.max(3, Math.floor(state.tableFavor * 0.1))
     if (bestFavor < minFavor) return
 
@@ -1232,7 +1229,7 @@ class AutoplayBot {
       return cost > income * 600
     })
 
-    // In conquer phase, prestige more aggressively to fund takeovers
+
     if (phase === 'conquer') {
       if (bestFavor >= minFavor && (plateaued || bestFavor >= minFavor * 1.5)) {
         let ok = false
@@ -1248,7 +1245,7 @@ class AutoplayBot {
       return
     }
 
-    // Expand phase: standard prestige logic
+
     if (!plateaued && bestFavor < minFavor * 2) return
 
     let ok = false

@@ -87,7 +87,7 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
-/* === Offline Progress Panel === */
+
 .offline__progress {
 	display: flex;
 	flex-direction: column;

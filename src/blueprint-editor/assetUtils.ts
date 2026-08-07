@@ -1,93 +1,200 @@
-import type { AssetDef, ObjectData, RoomData, SvgRole, SvgRoleInfo, WalkableGrid, TileState } from './types'
+import type { AssetDef, FloorLayoutData, NpcSimulationConfig, ObjectData, RoomData, RoomTemplate, RoomTemplateObject, SvgRole, SvgRoleInfo, WalkableGrid, TileState, AnchorPoint } from './types'
+import { resolveObjectDef } from './types'
 
 export function findAsset(assets: AssetDef[], type: string): AssetDef | undefined {
-  return assets.find(a => a.id === type)
+	return assets.find(a => a.id === type)
 }
 
 export function findAssetCached(assetMap: Map<string, AssetDef>, type: string): AssetDef | undefined {
-  return assetMap.get(type)
+	return assetMap.get(type)
 }
 
 export function buildAssetMap(assets: AssetDef[]): Map<string, AssetDef> {
-  return new Map<string, AssetDef>(
-    assets.map(a => [a.id, a])
-  )
+	return new Map<string, AssetDef>(
+		assets.map(a => [a.id, a])
+	)
 }
 
 const VALID_ROLES = new Set<SvgRole>(['wall', 'door', 'fixture'])
 
 export function parseSvgRoles(svg: string): SvgRoleInfo[] {
-  if (!svg) return []
-  try {
-    const parser = new DOMParser()
-    const doc = parser.parseFromString(svg, 'image/svg+xml')
-    const result: SvgRoleInfo[] = []
-    const all = doc.querySelectorAll('*')
-    for (const el of Array.from(all)) {
-      const role = el.getAttribute('data-role')
-      if (!role) continue
-      if (!VALID_ROLES.has(role as SvgRole)) continue
-      const info: SvgRoleInfo = {
-        role: role as SvgRole,
-        tag: el.tagName.toLowerCase(),
-      }
-      const attrs: Record<string, string> = {}
-      for (const attr of Array.from(el.attributes)) {
-        if (attr.name !== 'data-role') attrs[attr.name] = attr.value
-      }
-      if (Object.keys(attrs).length > 0) info.attrs = attrs
-      result.push(info)
-    }
-    return result
-  } catch {
-    return []
-  }
+	if (!svg) return []
+	try {
+		const parser = new DOMParser()
+		const doc = parser.parseFromString(svg, 'image/svg+xml')
+		const result: SvgRoleInfo[] = []
+		const all = doc.querySelectorAll('*')
+		for (const el of Array.from(all)) {
+			const role = el.getAttribute('data-role')
+			if (!role) continue
+			if (!VALID_ROLES.has(role as SvgRole)) continue
+			const info: SvgRoleInfo = {
+				role: role as SvgRole,
+				tag: el.tagName.toLowerCase(),
+			}
+			const attrs: Record<string, string> = {}
+			for (const attr of Array.from(el.attributes)) {
+				if (attr.name !== 'data-role') attrs[attr.name] = attr.value
+			}
+			if (Object.keys(attrs).length > 0) info.attrs = attrs
+			result.push(info)
+		}
+		return result
+	} catch {
+		return []
+	}
 }
 
-export function validateRoomAnchors(room: RoomData, objects: ObjectData[]): { valid: boolean; invalid: [number, number][] } {
-  const anchors = room.anchorPoints ?? [[room.w / 2, room.h / 2]]
-  const invalid = anchors.filter(([x, y]) => {
-    if (x < 0 || y < 0 || x > room.w || y > room.h) return true
-    const worldX = room.x + x
-    const worldY = room.y + y
-    return objects.some(obj => {
-      if (obj.walkable !== false && !obj.walkableGrid) return false
-      if (worldX < obj.x || worldX >= obj.x + obj.w || worldY < obj.y || worldY >= obj.y + obj.h) return false
-      if (!obj.walkableGrid || obj.walkableGrid.length === 0) return obj.walkable === false
-      const row = Math.min(obj.walkableGrid.length - 1, Math.floor((worldY - obj.y) / (obj.h / obj.walkableGrid.length)))
-      const cols = obj.walkableGrid[row]?.length ?? 0
-      if (cols === 0) return obj.walkable === false
-      const col = Math.min(cols - 1, Math.floor((worldX - obj.x) / (obj.w / cols)))
-      return obj.walkable === false || obj.walkableGrid[row][col] === false
-    })
-  })
-  return { valid: invalid.length === 0, invalid }
+export function validateRoomAnchors(room: RoomData, objects: ObjectData[], assetMap?: Map<string, AssetDef>): { valid: boolean; invalid: AnchorPoint[] } {
+	const anchors = room.anchorPoints ?? [{ x: room.w / 2, y: room.h / 2 }]
+	const invalid = anchors.filter(({ x, y }) => {
+		if (x < 0 || y < 0 || x > room.w || y > room.h) return true
+		const worldX = room.x + x
+		const worldY = room.y + y
+		return objects.some(obj => {
+			const def = resolveObjectDef(obj.rotation, assetMap?.get(obj.type))
+			if (def.walkable !== false && !def.walkableGrid) return false
+			if (worldX < obj.x || worldX >= obj.x + obj.w || worldY < obj.y || worldY >= obj.y + obj.h) return false
+			if (!def.walkableGrid || def.walkableGrid.length === 0) return def.walkable === false
+			const row = Math.min(def.walkableGrid.length - 1, Math.floor((worldY - obj.y) / (obj.h / def.walkableGrid.length)))
+			const cols = def.walkableGrid[row]?.length ?? 0
+			if (cols === 0) return def.walkable === false
+			const col = Math.min(cols - 1, Math.floor((worldX - obj.x) / (obj.w / cols)))
+			return def.walkable === false || def.walkableGrid[row][col] === false
+		})
+	})
+	return { valid: invalid.length === 0, invalid }
 }
 
 export function buildWalkableGrid(
-  w: number,
-  h: number,
-  roles?: SvgRoleInfo[],
-  tileStates?: TileState[][],
+	w: number,
+	h: number,
+	roles?: SvgRoleInfo[],
+	tileStates?: TileState[][],
 ): { walkableGrid: WalkableGrid; tileStates: TileState[][] } {
-  const rows = Math.max(1, Math.round(h))
-  const cols = Math.max(1, Math.round(w))
-  if (tileStates && tileStates.length === rows && tileStates[0]?.length === cols) {
-    const grid: WalkableGrid = tileStates.map(row => row.map(t => t === 'walkable' || t === 'entrance'))
-    return { walkableGrid: grid, tileStates }
-  }
-  const hasWall = roles?.some(r => r.role === 'wall') ?? false
-  const hasFixture = roles?.some(r => r.role === 'fixture') ?? false
-  const defaultState: TileState = (hasWall || hasFixture) ? 'blocked' : 'walkable'
-  const states: TileState[][] = []
-  const grid: WalkableGrid = []
-  for (let r = 0; r < rows; r++) {
-    states[r] = []
-    grid[r] = []
-    for (let c = 0; c < cols; c++) {
-      states[r][c] = defaultState
-      grid[r][c] = defaultState === 'walkable'
-    }
-  }
-  return { walkableGrid: grid, tileStates: states }
+	const rows = Math.max(1, Math.round(h))
+	const cols = Math.max(1, Math.round(w))
+	if (tileStates && tileStates.length === rows && tileStates[0]?.length === cols) {
+		const grid: WalkableGrid = tileStates.map(row => row.map(t => t === 'walkable' || t === 'entrance'))
+		return { walkableGrid: grid, tileStates }
+	}
+	const hasWall = roles?.some(r => r.role === 'wall') ?? false
+	const hasFixture = roles?.some(r => r.role === 'fixture') ?? false
+	const defaultState: TileState = (hasWall || hasFixture) ? 'blocked' : 'walkable'
+	const states: TileState[][] = []
+	const grid: WalkableGrid = []
+	for (let r = 0; r < rows; r++) {
+		states[r] = []
+		grid[r] = []
+		for (let c = 0; c < cols; c++) {
+			states[r][c] = defaultState
+			grid[r][c] = defaultState === 'walkable'
+		}
+	}
+	return { walkableGrid: grid, tileStates: states }
+}
+
+
+export function serializeObject(obj: ObjectData): Record<string, unknown> {
+	const out: Record<string, unknown> = {
+		id: obj.id,
+		type: obj.type,
+		x: obj.x,
+		y: obj.y,
+		rotation: obj.rotation,
+	}
+	if (obj.subId) out.subId = obj.subId
+	if (obj.roomId) out.roomId = obj.roomId
+	if (obj.linkGroupId) out.linkGroupId = obj.linkGroupId
+
+	if (obj.customProps) out.customProps = obj.customProps
+	if (obj.instanceLabel) out.instanceLabel = obj.instanceLabel
+	if (obj.locked !== undefined) out.locked = obj.locked
+	return out
+}
+
+
+export function serializeRoomTemplate(template: RoomTemplate): RoomTemplate {
+	return {
+		...template,
+		...(template.objects
+			? {
+				objects: template.objects.map((obj: RoomTemplateObject) => {
+					const out: RoomTemplateObject = {
+						type: obj.type,
+						dx: obj.dx,
+						dy: obj.dy,
+						rotation: obj.rotation,
+					}
+					if (obj.radius !== undefined) out.radius = obj.radius
+					if (obj.label) out.label = obj.label
+					if (obj.instanceLabel) out.instanceLabel = obj.instanceLabel
+					if (obj.customProps) out.customProps = obj.customProps
+					if (obj.linkGroupId) out.linkGroupId = obj.linkGroupId
+					return out
+				}),
+			}
+			: {}),
+	}
+}
+
+
+export interface PortalValidationResult {
+	errors: string[]
+	warnings: string[]
+}
+
+
+export function validatePortalConfiguration(
+	layout: FloorLayoutData,
+	assetMap: Map<string, AssetDef>,
+	npcConfig: NpcSimulationConfig | undefined,
+): PortalValidationResult {
+	const errors: string[] = []
+	const warnings: string[] = []
+
+	const roleIds = new Set(npcConfig?.roles?.map(role => role.id) ?? [])
+	const floorLabels = new Set(layout.floors.map(floor => floor.label))
+
+
+	const portalFloorLabels: string[] = []
+	for (const floor of layout.floors) {
+		let hasPortal = false
+		for (const object of floor.objects) {
+			const asset = assetMap.get(object.type)
+			const isPortal = (asset?.tags?.includes('portal') ?? false) || (object.customProps?.tags?.includes('portal') ?? false)
+			if (!isPortal) continue
+			hasPortal = true
+			if (!asset?.anchorPoints?.length) {
+				warnings.push(`Portal object "${object.id}" on floor "${floor.label}" has no anchorPoints on its asset "${object.type}"`)
+			}
+		}
+		if (hasPortal) portalFloorLabels.push(floor.label)
+	}
+
+	if (portalFloorLabels.length > 0 && portalFloorLabels.length < 2) {
+		warnings.push(`Portals exist on only 1 floor (${portalFloorLabels[0]}); cross-floor travel requires portals on at least 2 floors`)
+	}
+
+
+	for (const floor of layout.floors) {
+		if (!floor.allowedRoleIds?.length) continue
+		for (const roleId of floor.allowedRoleIds) {
+			if (!roleIds.has(roleId)) {
+				warnings.push(`Floor "${floor.label}" allowedRoleIds references unknown role "${roleId}"`)
+			}
+		}
+	}
+
+
+	for (const role of npcConfig?.roles ?? []) {
+		const labels = role.spawnRule?.floorLabels ?? []
+		for (const label of labels) {
+			if (!floorLabels.has(label)) {
+				warnings.push(`Role "${role.id}" spawnRule references unknown floor label "${label}"`)
+			}
+		}
+	}
+
+	return { errors, warnings }
 }

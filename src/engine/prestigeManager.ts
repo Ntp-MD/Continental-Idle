@@ -37,17 +37,17 @@ export function doPrestige(branchId?: BranchId): boolean {
   const favor = getPrestigeFavor(id)
   if (favor <= 0) return false
 
-  // Grant favor
+
   state.tableFavor += favor
 
-  // Increment prestige
+
   branch.prestige += 1
   state.totalPrestige += 1
 
-  // Grant Golden Coins (10 per prestige)
+
   state.goldenCoins += 10
 
-  // Reset buildings
+
   BUILDINGS.forEach(def => {
     const bState = branch.buildings[def.id]
     if (bState) {
@@ -55,7 +55,7 @@ export function doPrestige(branchId?: BranchId): boolean {
     }
   })
 
-  // Reset staff levels but mark survivors as veterans
+
   Object.values(branch.staff).forEach(staff => {
     if (staff.level > 1) {
       staff.prestigeSurvivedCount++
@@ -71,35 +71,35 @@ export function doPrestige(branchId?: BranchId): boolean {
     staff.assignedTo = null
   })
 
-  // Reset currency
+
   branch.currency = 0
   branch.lifetimeEarnings = 0
 
-  // Halve reputation (or keep 80% with maxed Adjudicator)
+
   const keepRatio = getPrestigeReputationKeepRatio(id)
   branch.reputation = Math.floor(branch.reputation * keepRatio)
 
-  // Reset heat
+
   branch.heatLevel = 0
 
-  // Reset satisfaction
+
   branch.guestSatisfaction = 50
 
-  // Grace period
+
   branch.excommunicadoGraceUntil = Date.now() + 30 * 60 * 1000
 
-  // Clear marker debts
+
   branch.markerDebts = []
 
-  // Clear active buffs for this branch (income multipliers/freezes should not persist through reset)
+
   state.activeBuffs = state.activeBuffs.filter(b => b.branchId !== id)
 
-  // Remove supply routes involving this branch (prestige resets the branch economy)
+
   const removedRoutes = state.supplyRoutes.filter(r => r.from === id || r.to === id)
   state.supplyRoutes = state.supplyRoutes.filter(r => r.from !== id && r.to !== id)
   removedRoutes.forEach(r => eventBus.emit('supplyroute:collapsed', { routeId: r.id }))
 
-  // Check branch unlocks
+
   checkBranchUnlocks()
 
   eventBus.emit('prestige:reset', { branchId: id, favor })
@@ -111,7 +111,7 @@ function checkBranchUnlocks(): void {
   const graceUntil = Date.now() + 30 * 60 * 1000
   BRANCHES.forEach(t => {
     if (t.unlockPrestige === 0) return
-    // Unlock: totalPrestige reaches threshold
+
     if (state.totalPrestige >= t.unlockPrestige && !state.worldMap.unlockedBranches.includes(t.id)) {
       if (t.id === state.hqBranch) return
       state.worldMap.unlockedBranches.push(t.id)
@@ -124,7 +124,7 @@ function checkBranchUnlocks(): void {
       }
       eventBus.emit('branch:unlock', { branchId: t.id })
     }
-    // Royal: totalPrestige is 10+ above unlock threshold (branch must already be unlocked)
+
     if (t.unlockPrestige > 0 && state.totalPrestige >= t.unlockPrestige + 10 && !state.worldMap.royalBranches.includes(t.id)) {
       state.worldMap.royalBranches.push(t.id)
       eventBus.emit('branch:royal', { branchId: t.id })

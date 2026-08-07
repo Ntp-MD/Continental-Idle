@@ -2,9 +2,9 @@ import { reactive, computed } from 'vue'
 import type { FloorLayoutData, AssetDef, FloorData, EditorMode, SelectionState, Rect } from '../types'
 import { buildAssetMap, parseSvgRoles, buildWalkableGrid } from '../assetUtils'
 import { snap as _snap, clamp as _clamp } from '../geometry'
-import { assetCatalog } from './dataLoader'
+import { originAssets, fetchLayoutFromDisk, fetchNpcConfigFromDisk, fetchOriginAssetsFromDisk } from './dataLoader'
 import { useToast } from '@/composables/useToast'
-import { loadInitial, mergeAssetRegistry } from './migrate'
+import { loadInitial, migrate } from './migrate'
 
 export interface EditorState {
 	layout: FloorLayoutData
@@ -13,7 +13,6 @@ export interface EditorState {
 	selectionState: SelectionState
 	selectedAssetId: string | null
 	assetRegistry: AssetDef[]
-	globalTags: string[]
 }
 
 const HEX_COLOR_RE = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/
@@ -34,7 +33,7 @@ export function isStateLocked(): boolean {
 }
 export async function withStateLock<T>(fn: () => Promise<T>): Promise<T> {
 	if (stateLock) {
-		toast.warning('Operation in progress, please wait')
+		toast.warning('Operation in progress')
 		return Promise.reject(new Error('Operation in progress'))
 	}
 	stateLock = true
@@ -67,7 +66,7 @@ function loadPersistedUiState(): Partial<EditorState> | null {
 	try {
 		const raw = sessionStorage.getItem(EDITOR_UI_STATE_KEY)
 		if (raw) return JSON.parse(raw) as Partial<EditorState>
-	} catch { /* ignore */ }
+	} catch {  }
 	return null
 }
 function savePersistedUiState(): void {
@@ -78,7 +77,7 @@ function savePersistedUiState(): void {
 			selectionState: state.selectionState,
 			selectedAssetId: state.selectedAssetId,
 		}))
-	} catch { /* ignore */ }
+	} catch {  }
 }
 
 const _persistedUi = loadPersistedUiState()
@@ -92,15 +91,26 @@ export const state = reactive<EditorState>({
 	mode: _restoredUi.mode ?? 'object',
 	selectionState: _restoredUi.selectionState ?? { primary: null, items: [] },
 	selectedAssetId: _restoredUi.selectedAssetId ?? null,
-	assetRegistry: _hmrData?._editorState?.assetRegistry ?? initial.legacyAssets,
-	globalTags: _hmrData?._editorState?.globalTags ?? initial.layout.globalTags ?? [],
+	assetRegistry: _hmrData?._editorState?.assetRegistry ?? originAssets.map(asset => JSON.parse(JSON.stringify(asset)) as AssetDef),
 })
 
-if (!state.layout.globalTags) state.layout.globalTags = [...state.globalTags]
+for (const asset of state.assetRegistry) initAssetFields(asset)
 
-if (!state.layout.deletedDefaultIds) state.layout.deletedDefaultIds = []
-const deletedDefaultIds = new Set(state.layout.deletedDefaultIds)
-state.assetRegistry = mergeAssetRegistry([...assetCatalog], state.assetRegistry, deletedDefaultIds)
+
+export async function reloadEditorData(): Promise<void> {
+	const [layout, npc, assets] = await Promise.all([
+		fetchLayoutFromDisk(), fetchNpcConfigFromDisk(), fetchOriginAssetsFromDisk(),
+	])
+	if (layout) {
+		const migrated = migrate(layout)
+		state.layout = migrated.layout
+	}
+	if (assets) {
+		state.assetRegistry = assets.map(asset => JSON.parse(JSON.stringify(asset)) as AssetDef)
+		for (const asset of state.assetRegistry) initAssetFields(asset)
+	}
+	if (npc) state.layout.npcConfig = npc
+}
 
 export function initAssetFields(asset: AssetDef): void {
 	if (asset.svg) {
@@ -113,15 +123,14 @@ export function initAssetFields(asset: AssetDef): void {
 			asset.tileStates = tileStates
 		}
 		if (asset.walkable === undefined) {
-			const hasWall = asset.svgRoles?.some(r => r.role === 'wall') ?? false
-			asset.walkable = !hasWall
+			asset.walkable = false
 		}
 		if (asset.entranceRequired === undefined) {
 			asset.entranceRequired = false
 		}
 	} else {
 		if (asset.walkable === undefined) {
-			asset.walkable = !asset.isWall
+			asset.walkable = false
 		}
 		if (asset.entranceRequired === undefined) {
 			asset.entranceRequired = false
@@ -161,7 +170,6 @@ if (import.meta.hot) {
 			selectionState: state.selectionState,
 			selectedAssetId: state.selectedAssetId,
 			assetRegistry: state.assetRegistry,
-			globalTags: state.globalTags,
 		}
 		savePersistedUiState()
 	})

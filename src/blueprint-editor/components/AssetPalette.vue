@@ -14,12 +14,10 @@ const searchQuery = ref('')
 
 const ORIGIN_LABELS: Record<string, string> = {
   'drawn': 'Drawn',
-  'svg-import': 'SVG Import',
-  'linked': 'Linked Sets',
+  'svg-import': 'SVG',
+  'linked': 'Linked',
   'flattened': 'Flattened',
 }
-
-const ORIGIN_ORDER = ['drawn', 'svg-import', 'linked', 'flattened']
 
 function assetIcon(asset: AssetDef): string {
   switch (asset.origin) {
@@ -38,21 +36,15 @@ function assetSizeLabel(asset: AssetDef): string {
 
 const allAssets = computed(() => [...store.assetMap().values()])
 
-const grouped = computed(() => {
+const filteredAssets = computed(() => {
   const q = searchQuery.value.trim().toLowerCase()
-  const groups: Record<string, typeof allAssets.value> = {}
-  for (const asset of allAssets.value) {
-    const origin = asset.origin ?? 'drawn'
-    if (q && !asset.name.toLowerCase().includes(q) && !asset.id.toLowerCase().includes(q)) continue
-    if (!groups[origin]) groups[origin] = []
-    groups[origin].push(asset)
-  }
-  return groups
+  if (!q) return allAssets.value
+  return allAssets.value.filter(a => a.name.toLowerCase().includes(q) || a.id.toLowerCase().includes(q))
 })
 
-const categoryOrder = computed(() => {
-  return ORIGIN_ORDER.filter(origin => (grouped.value[origin]?.length ?? 0) > 0)
-})
+function originLabel(asset: AssetDef): string {
+  return ORIGIN_LABELS[asset.origin ?? 'drawn'] ?? asset.origin ?? 'Drawn'
+}
 
 const showAddForm = ref(false)
 const newNameRaw = ref('')
@@ -139,7 +131,7 @@ async function onDeleteRoomTemplate(id: string) {
   useToast().info('Room template deleted')
 }
 
-/* ---------- Click to select asset for PropertiesPanel ---------- */
+
 function onItemClick(assetId: string) {
   store.selectAsset(assetId)
 }
@@ -154,22 +146,18 @@ function onItemClick(assetId: string) {
       <button v-if="searchQuery" class="btn__ghost btn__icon" @click="searchQuery = ''" aria-label="Clear search" title="Clear search">×</button>
     </div>
     <div class="asset__palette__scroll">
-      <div v-if="!Object.values(grouped).some(g => g.length)" class="asset__palette__empty">No assets found</div>
-      <div v-for="cat in categoryOrder" :key="cat" class="asset__palette__category">
-        <div class="asset__palette__categorylabel">{{ ORIGIN_LABELS[cat] ?? cat }}</div>
-        <div v-if="!grouped[cat]?.length" class="asset__palette__dimlabel">No items</div>
-        <template v-for="asset in grouped[cat]" :key="asset.id">
-          <div
-            class="asset__palette__item"
-            :class="{ 'asset__palette__selected': store.state.selectedAssetId === asset.id, 'asset__palette__linked': !!asset.linkedParts }"
-            @mousedown="onAssetMouseDown(asset.id, $event)"
-            @click="onItemClick(asset.id)"
-          >
-            <span class="asset__palette__itemicon">{{ assetIcon(asset) }}</span>
-            <span class="asset__palette__itemtruncate">{{ asset.name }}</span>
-            <span class="asset__palette__dimlabel">{{ assetSizeLabel(asset) }}</span>
-          </div>
-        </template>
+      <div v-if="!filteredAssets.length" class="asset__palette__empty">No assets found</div>
+      <div
+        v-for="asset in filteredAssets"
+        :key="asset.id"
+        class="asset__palette__item"
+        :class="{ 'asset__palette__selected': store.state.selectedAssetId === asset.id, 'asset__palette__linked': !!asset.linkedParts }"
+        @mousedown="onAssetMouseDown(asset.id, $event)"
+        @click="onItemClick(asset.id)"
+      >
+        <span class="asset__palette__itemicon">{{ assetIcon(asset) }}</span>
+        <span class="asset__palette__itemtruncate">{{ asset.name }}</span>
+        <span class="asset__palette__dimlabel">{{ assetSizeLabel(asset) }} · {{ originLabel(asset) }}</span>
       </div>
 
       <div v-if="roomTemplates.length > 0" class="asset__palette__category">
@@ -184,7 +172,7 @@ function onItemClick(assetId: string) {
           <span class="asset__palette__itemicon">▢</span>
           <span class="asset__palette__itemtruncate">{{ tpl.name }}</span>
           <span class="asset__palette__dimlabel">{{ tpl.w }}×{{ tpl.h }}</span>
-          <button class="btn__ghost btn__icon btn__text__danger" @click.stop="onDeleteRoomTemplate(tpl.id)" title="Delete template" aria-label="Delete room template">×</button>
+          <button class="btn__danger btn__icon" @click.stop="onDeleteRoomTemplate(tpl.id)" title="Delete template" aria-label="Delete room template">×</button>
         </div>
       </div>
       <div v-else class="asset__palette__category">

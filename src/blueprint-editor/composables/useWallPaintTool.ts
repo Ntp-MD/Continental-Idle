@@ -1,10 +1,10 @@
 import { ref, type Ref } from 'vue'
 import { useToast } from '@/composables/useToast'
-import type { Rect, RoomData, ZoneData } from '../types'
+import type { Rect } from '../types'
 import type { EditorMode } from '../types'
 
 export interface WallPaintState {
-	wallDrag: Ref<{ startX: number; startY: number; x: number; y: number; w: number; h: number; valid: boolean; isZone: boolean } | null>
+	wallDrag: Ref<{ startX: number; startY: number; x: number; y: number; w: number; h: number; valid: boolean } | null>
 	onWallMouseMove: (e: MouseEvent) => void
 	onWallMouseUp: () => Promise<void>
 }
@@ -13,12 +13,11 @@ export function useWallPaintTool(
 	opts: {
 		localPoint: (e: MouseEvent) => { x: number; y: number } | null
 		canPlaceRoom: (rect: Rect) => boolean
-		addRoom: (rect: Rect) => Promise<RoomData | null>
-		addZone: (rect: Rect) => Promise<ZoneData | null>
+		addWallObject: (rect: Rect) => Promise<unknown>
 		getMode: () => EditorMode
 	},
 ): WallPaintState {
-	const wallDrag = ref<{ startX: number; startY: number; x: number; y: number; w: number; h: number; valid: boolean; isZone: boolean } | null>(null)
+	const wallDrag = ref<{ startX: number; startY: number; x: number; y: number; w: number; h: number; valid: boolean } | null>(null)
 	const toast = useToast()
 
 	function onWallMouseMove(e: MouseEvent) {
@@ -34,7 +33,7 @@ export function useWallPaintTool(
 		wallDrag.value.y = y
 		wallDrag.value.w = w
 		wallDrag.value.h = h
-		wallDrag.value.valid = wallDrag.value.isZone ? w > 0 && h > 0 : opts.canPlaceRoom(rect)
+		wallDrag.value.valid = opts.canPlaceRoom(rect)
 	}
 
 	async function onWallMouseUp() {
@@ -43,14 +42,10 @@ export function useWallPaintTool(
 		if (wallDrag.value && wallDrag.value.valid && wallDrag.value.w > 0 && wallDrag.value.h > 0) {
 			const rect = { x: wallDrag.value.x, y: wallDrag.value.y, w: wallDrag.value.w, h: wallDrag.value.h }
 			try {
-				if (wallDrag.value.isZone) {
-					await opts.addZone(rect)
-				} else {
-					await opts.addRoom(rect)
-				}
+				await opts.addWallObject(rect)
 			} catch (e: unknown) {
 				toast.error(e instanceof Error ? e.message : 'Failed to draw shape')
-				console.error('wall/zone draw failed', e)
+				console.error('wall draw failed', e)
 			}
 		}
 		wallDrag.value = null

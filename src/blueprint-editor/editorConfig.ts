@@ -1,13 +1,18 @@
+const ENV = (import.meta as any).env ?? {}
+
 const RAW_CONFIG = {
 	layoutVersion: 2,
 	historyLimit: 50,
-	saveEndpoint: import.meta.env.VITE_BLUEPRINT_SAVE_ENDPOINT || '/__save-layout',
-	assetsSaveEndpoint: import.meta.env.VITE_BLUEPRINT_ASSETS_ENDPOINT || '/__save-assets',
-	npcConfigSaveEndpoint: import.meta.env.VITE_BLUEPRINT_NPC_CONFIG_ENDPOINT || '/__save-npc-config',
+	saveEndpoint: ENV.VITE_BLUEPRINT_SAVE_ENDPOINT || '/__save-layout',
+	assetsSaveEndpoint: ENV.VITE_BLUEPRINT_ASSETS_ENDPOINT || '/__save-assets',
+	npcConfigSaveEndpoint: ENV.VITE_BLUEPRINT_NPC_CONFIG_ENDPOINT || '/__save-npc-config',
+	loadLayoutEndpoint: ENV.VITE_BLUEPRINT_LOAD_LAYOUT_ENDPOINT || '/__load-layout',
+	loadNpcConfigEndpoint: ENV.VITE_BLUEPRINT_LOAD_NPC_CONFIG_ENDPOINT || '/__load-npc-config',
+	loadOriginAssetsEndpoint: ENV.VITE_BLUEPRINT_LOAD_ORIGIN_ASSETS_ENDPOINT || '/__load-origin-assets',
 	saveDebounceMs: 500,
 	defaultCanvas: {
-		width: 1200,
-		height: 600,
+		width: 1600,
+		height: 1200,
 		tileSize: 25,
 	},
 } as const

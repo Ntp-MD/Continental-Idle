@@ -2,211 +2,31 @@
   "$schema": "npc-config.v1.json",
   "version": 1,
   "speed": 0.2,
-  "defaultRoleId": "quest",
+  "defaultRoleId": "role-36606436bf",
   "roles": [
     {
-      "id": "quest",
-      "label": "Quest",
-      "color": "#22d3ee",
-      "behavior": {
-        "focusChance": 0,
-        "restrictedTaskIds": []
-      }
-    },
-    {
-      "id": "chef",
-      "label": "Chef",
-      "color": "#3dd68c",
-      "behavior": {
-        "focusTaskId": "task-chef",
-        "focusChance": 100,
-        "restrictedTaskIds": []
-      }
-    },
-    {
-      "id": "cleaner",
-      "label": "Cleaner",
-      "color": "#a0a0a8",
-      "behavior": {
-        "focusTaskId": "task-cleaner",
-        "focusChance": 100,
-        "restrictedTaskIds": []
-      }
-    },
-    {
-      "id": "sommelier",
-      "label": "Sommelier",
-      "color": "#f0c040",
-      "behavior": {
-        "focusTaskId": "task-sommelier",
-        "focusChance": 100,
-        "restrictedTaskIds": []
-      }
-    },
-    {
-      "id": "intelOfficer",
-      "label": "Intelligence Officer",
+      "id": "role-36606436bf",
+      "label": "Guest",
       "color": "#3b82f6",
-      "behavior": {
-        "focusTaskId": "task-intelOfficer",
-        "focusChance": 100,
-        "restrictedTaskIds": []
-      }
-    },
-    {
-      "id": "adjudicator",
-      "label": "Adjudicator",
-      "color": "#3b82f6",
-      "behavior": {
-        "focusTaskId": "task-adjudicator",
-        "focusChance": 100,
-        "restrictedTaskIds": []
-      }
-    },
-    {
-      "id": "vaultKeeper",
-      "label": "Vault Keeper",
-      "color": "#f0c040",
-      "behavior": {
-        "focusTaskId": "task-vaultKeeper",
-        "focusChance": 100,
-        "restrictedTaskIds": []
-      }
-    },
-    {
-      "id": "streetSamurai",
-      "label": "Street Samurai",
-      "color": "#ef4444",
-      "behavior": {
-        "focusTaskId": "task-streetSamurai",
-        "focusChance": 100,
-        "restrictedTaskIds": []
-      }
-    },
-    {
-      "id": "enforcer",
-      "label": "Enforcer",
-      "color": "#ef4444",
-      "behavior": {
-        "focusTaskId": "task-enforcer",
-        "focusChance": 100,
-        "restrictedTaskIds": []
+      "focusTags": [
+        "hygiene"
+      ],
+      "restrictedTags": [],
+      "taskIds": [],
+      "focusChance": 100,
+      "spawnRule": {
+        "floorLabels": [],
+        "roomTags": [],
+        "count": 0,
+        "speedMultiplier": 5
       }
     }
   ],
-  "tasks": [
-    {
-      "id": "task-concierge",
-      "label": "Concierge duty",
-      "tags": [
-        "reception",
-        "guestRooms",
-        "vip"
-      ]
-    },
-    {
-      "id": "task-bartender",
-      "label": "Bartender duty",
-      "tags": [
-        "bar"
-      ]
-    },
-    {
-      "id": "task-chef",
-      "label": "Chef duty",
-      "tags": [
-        "kitchen"
-      ]
-    },
-    {
-      "id": "task-cleaner",
-      "label": "Cleaner duty",
-      "tags": [
-        "underground",
-        "laundry"
-      ]
-    },
-    {
-      "id": "task-sommelier",
-      "label": "Sommelier duty",
-      "tags": [
-        "vip",
-        "bar",
-        "guestRooms"
-      ]
-    },
-    {
-      "id": "task-intelOfficer",
-      "label": "Intelligence Officer duty",
-      "tags": [
-        "intelNetwork",
-        "underground"
-      ]
-    },
-    {
-      "id": "task-adjudicator",
-      "label": "Adjudicator duty",
-      "tags": [
-        "vault"
-      ]
-    },
-    {
-      "id": "task-vaultKeeper",
-      "label": "Vault Keeper duty",
-      "tags": [
-        "safeHouse",
-        "blackMarket",
-        "vault"
-      ]
-    },
-    {
-      "id": "task-streetSamurai",
-      "label": "Street Samurai duty",
-      "tags": [
-        "security",
-        "entrance"
-      ]
-    },
-    {
-      "id": "task-enforcer",
-      "label": "Enforcer duty",
-      "tags": [
-        "security",
-        "armory",
-        "vault"
-      ]
-    },
-    {
-      "id": "task-shadowBlade",
-      "label": "Shadow Blade duty",
-      "tags": [
-        "intelNetwork",
-        "underground"
-      ]
-    },
-    {
-      "id": "task-royalGuard",
-      "label": "Royal Guard duty",
-      "tags": [
-        "security",
-        "vault",
-        "safeHouse"
-      ]
-    },
-    {
-      "id": "task-highTableEnforcer",
-      "label": "High Table Enforcer duty",
-      "tags": [
-        "security",
-        "controlCenter",
-        "vault"
-      ]
-    }
-  ],
+  "tasks": [],
   "pool": [
     {
-      "roleId": "quest",
-      "count": 10
+      "roleId": "role-36606436bf",
+      "count": 30
     }
   ]
 }

@@ -299,7 +299,7 @@ function drawNodes(projection: d3.GeoProjection) {
 
   const activeNodes = nodes.filter(d => d.nodeState === 'hq' || d.nodeState === 'active')
 
-  // Connection lines between active nodes
+
   interface ConnectionPair {
     x1: number; y1: number; x2: number; y2: number;
     from: string; to: string;
@@ -331,7 +331,7 @@ function drawNodes(projection: d3.GeoProjection) {
     .attr('x2', d => d.x2)
     .attr('y2', d => d.y2)
 
-  // Node groups
+
   const nodeGroups = gSel.selectAll('.nodegroup')
     .data(nodes)
     .enter()
@@ -346,24 +346,24 @@ function drawNodes(projection: d3.GeoProjection) {
     .attr('role', 'button')
     .attr('aria_label', d => `${d.name} — ${d.nodeState}`)
 
-  // Pulse rings for HQ and active
+
   nodeGroups.filter(d => d.nodeState === 'hq' || d.nodeState === 'active')
     .append('circle')
     .attr('class', 'nodepulse')
     .attr('r', 8)
     .style('stroke', d => d.nodeState === 'hq' ? 'var(--accent-gold)' : 'var(--accent-green)')
 
-  // Hover ring
+
   nodeGroups.append('circle')
     .attr('class', 'nodering')
     .attr('r', 12)
     .style('stroke', d => d.nodeState === 'hq' ? 'var(--accent-gold)' : d.nodeState === 'active' ? 'var(--accent-green)' : 'var(--text-dim)')
 
-  // Node shape - HQ is office rectangle, others are circles
+
   nodeGroups.each(function(this: SVGGElement, d: NodeData) {
     const g = d3.select(this)
     if (d.nodeState === 'hq') {
-      // Office rectangle for HQ
+
       g.append('rect')
                 .attr('x', -8)
         .attr('y', -6)
@@ -373,7 +373,7 @@ function drawNodes(projection: d3.GeoProjection) {
         .style('stroke', d.id === state.activeBranch ? 'var(--accent-gold)' : 'var(--border-dim)')
         .style('stroke_width', '1px')
     } else {
-      // Circle for other nodes
+
       g.append('circle')
         .attr('r', 6)
         .attr('class', 'nodecircle')
@@ -388,7 +388,7 @@ function drawNodes(projection: d3.GeoProjection) {
     }
   })
 
-  // Node icon
+
   nodeGroups.append('text')
         .attr('dy', 3)
     .attr('text_anchor', 'middle')
@@ -397,7 +397,7 @@ function drawNodes(projection: d3.GeoProjection) {
     .style('pointer_events', 'none')
     .text(d => d.nodeState === 'hq' ? '\u2605' : d.nodeState === 'active' ? '' : '')
 
-  // Node label
+
   nodeGroups.append('text')
     .attr('class', 'nodelabel')
     .attr('dy', 16)
@@ -407,7 +407,7 @@ function drawNodes(projection: d3.GeoProjection) {
     .style('pointer_events', 'none')
     .text(d => d.name)
 
-  // Takeover progress ring + HQ Health Bar
+
   nodeGroups.filter(d => d.takeoverProgress > 0 && d.nodeState === 'locked')
     .append('circle')
     .attr('data-map-element', 'takeover-ring')
@@ -435,7 +435,7 @@ function drawNodes(projection: d3.GeoProjection) {
     .style('pointer_events', 'none')
     .text(d => `${d.takeoverProgress.toFixed(0)}%`)
 
-  // HQ Health bar for locked nodes with active takeover
+
   nodeGroups.filter(d => d.takeoverProgress > 0 && d.nodeState === 'locked')
     .each(function(this: SVGGElement, d: NodeData) {
       const g = d3.select(this)
@@ -473,7 +473,7 @@ function drawNodes(projection: d3.GeoProjection) {
       }
     })
 
-  // Interactions
+
   nodeGroups
     .on('mouseover', function(this: SVGGElement, _, d: NodeData) {
       tooltipVisible.value = true
@@ -773,23 +773,23 @@ onUnmounted(() => {
     </div>
 
     <div class="map__legend">
-      <div class="map__legenditem">
+      <div class="map__legend">
         <span class="map__legenddot" style="background: var(--accent-gold);"></span>
         HQ
       </div>
-      <div class="map__legenditem">
+      <div class="map__legend">
         <span class="map__legenddot" style="background: var(--accent-green);"></span>
         Active
       </div>
-      <div class="map__legenditem">
+      <div class="map__legend">
         <span class="map__legenddot" style="background: var(--accent-blue);"></span>
         Conquered
       </div>
-      <div class="map__legenditem">
+      <div class="map__legend">
         <span class="map__legenddot" style="background: var(--accent-blue);"></span>
         Royal
       </div>
-      <div class="map__legenditem">
+      <div class="map__legend">
         <span class="map__legenddot" style="background: var(--text-dim);"></span>
         Locked
       </div>
@@ -801,12 +801,12 @@ onUnmounted(() => {
       role="tooltip"
       :style="{ left: tooltipX + 'px', top: tooltipY + 'px' }"
     >
-      <div class="map__tooltipname">{{ tooltipName }}</div>
-      <div class="map__tooltiprow">Owner: <span class="map__tooltipval">{{ tooltipOwner }}</span></div>
-      <div class="map__tooltiprow">State: <span class="map__tooltipval">{{ tooltipState }}</span></div>
-      <div class="map__tooltiprow">Prestige: <span class="map__tooltipval">{{ tooltipPrestige }}</span></div>
-      <div class="map__tooltiprow">Income: <span class="map__tooltipval">{{ tooltipIncome }}</span></div>
-      <div v-if="tooltipTakeover" class="map__tooltiprow" style="color: var(--accent-gold);">{{ tooltipTakeover }}</div>
+      <div class="map__tipname">{{ tooltipName }}</div>
+      <div class="map__tiprow">Owner: <span class="map__tipval">{{ tooltipOwner }}</span></div>
+      <div class="map__tiprow">State: <span class="map__tipval">{{ tooltipState }}</span></div>
+      <div class="map__tiprow">Prestige: <span class="map__tipval">{{ tooltipPrestige }}</span></div>
+      <div class="map__tiprow">Income: <span class="map__tipval">{{ tooltipIncome }}</span></div>
+      <div v-if="tooltipTakeover" class="map__tiprow" style="color: var(--accent-gold);">{{ tooltipTakeover }}</div>
     </div>
   </div>
 </template>

@@ -13,7 +13,7 @@ export interface NpcDot {
   rarity: Rarity
   isVisitor?: boolean
   floor?: string
-  /** True when a staff NPC is near its assigned building — adds a subtle glow. */
+
   focused?: boolean
 }
 

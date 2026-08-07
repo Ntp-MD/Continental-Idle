@@ -5,7 +5,6 @@ import { ROYAL_SKILL_MAX_LEVEL, getRoyalSkillNode } from '@/data/royalSkills'
 import { computeBuildingCost, computeAffordableLevels } from './helpers/buildingCost'
 import type { BranchId, BranchState } from '@/types'
 
-// === Royal Building Income ===
 
 export function getRoyalBuildingIncome(branchState: BranchState, buildingId: string): number {
 	const def = ROYAL_BUILDING_MAP[buildingId]
@@ -76,7 +75,6 @@ export function purchaseRoyalBuilding(buildingId: string, count?: number): boole
 	return true
 }
 
-// === Royal Skill Tree ===
 
 export function canUpgradeRoyalSkill(branch: string): boolean {
 	const state = gameState.get()
@@ -170,7 +168,6 @@ export function getRoyalBuffDurationMult(): number {
 	return mult
 }
 
-// === Royal Prestige ===
 
 export function canRoyalPrestige(): boolean {
 	const state = gameState.get()
@@ -201,7 +198,7 @@ export function doRoyalPrestige(): boolean {
 	state.royalMarks += marks
 	state.royalPrestige += 1
 
-	// Reset buildings and currency, keep staff/assassins/upgrades
+
 	branch.currency = 0
 	branch.lifetimeEarnings = 0
 	branch.heatLevel = 0
@@ -216,7 +213,7 @@ export function doRoyalPrestige(): boolean {
 		})
 	}
 
-	// Clear active buffs for this branch
+
 	state.activeBuffs = state.activeBuffs.filter(b => b.branchId !== branchId)
 
 	eventBus.emit('royal:prestige', { branchId, marks })
@@ -225,22 +222,20 @@ export function doRoyalPrestige(): boolean {
 
 const BUILDINGS_RESET = ['reception', 'guestRooms', 'bar', 'kitchen', 'laundry', 'underground', 'safeHouse', 'armory', 'intelNetwork', 'vip', 'blackMarket', 'vault']
 
-// === Royal Marks Generation ===
 
 export function tickRoyalMarks(): void {
 	const state = gameState.get()
 	if (state.worldMap.royalBranches.length === 0) return
-	// Royal branches passively generate Royal Marks based on royal building income
+
 	let totalMarks = 0
 	state.worldMap.royalBranches.forEach(branchId => {
 		const royalIncome = getRoyalBuildingsIncome(branchId)
-		// 1 Royal Mark per 1B royal building income per tick
+
 		totalMarks += royalIncome / 1_000_000_000
 	})
 	state.royalMarks = Math.round((state.royalMarks + totalMarks * 0.1) * 100) / 100
 }
 
-// === Sovereign Bonus ===
 
 export function getSovereignBuffMult(): number {
 	const state = gameState.get()

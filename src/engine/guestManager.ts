@@ -2,13 +2,13 @@ import type { BranchId } from '@/types'
 import { gameState } from './gameState'
 import { eventBus } from './eventBus'
 
-/** Buildings whose assigned staff provide guest service capacity. */
+
 const SERVICE_BUILDINGS = ['reception', 'guestRooms', 'bar', 'kitchen', 'vip']
 
-/** Buildings that generate guest capacity (rooms to fill). */
+
 const GUEST_BUILDINGS = ['guestRooms', 'vip']
 
-/** Derived guest count for a branch: 2 guests per room-building level. */
+
 export function getGuestCount(branchId: BranchId): number {
   const branch = gameState.get().branches[branchId]
   if (!branch) return 0
@@ -19,7 +19,7 @@ export function getGuestCount(branchId: BranchId): number {
   return count
 }
 
-/** Service capacity = sum of staff levels assigned to service buildings. */
+
 function getServiceCapacity(branchId: BranchId): number {
   const branch = gameState.get().branches[branchId]
   if (!branch) return 0
@@ -32,10 +32,7 @@ function getServiceCapacity(branchId: BranchId): number {
   return cap
 }
 
-/**
- * Adjust guest satisfaction each tick: rises when service capacity covers the
- * guest count, decays toward the baseline (50) when understaffed.
- */
+
 export function tickGuestSatisfaction(): void {
   const state = gameState.get()
   state.worldMap.unlockedBranches.forEach(branchId => {
@@ -43,7 +40,7 @@ export function tickGuestSatisfaction(): void {
     if (!branch) return
     const guests = getGuestCount(branchId)
     if (guests === 0) {
-      // No guests: drift back to baseline
+
       if (branch.guestSatisfaction > 50) branch.guestSatisfaction = Math.max(50, branch.guestSatisfaction - 0.05)
       return
     }
@@ -57,10 +54,7 @@ export function tickGuestSatisfaction(): void {
   })
 }
 
-/**
- * Passive guest income: each guest generates income proportional to satisfaction
- * and the average level of guest-room buildings. Added to branch currency.
- */
+
 export function tickGuestIncome(): void {
   const state = gameState.get()
   state.worldMap.unlockedBranches.forEach(branchId => {
@@ -76,7 +70,7 @@ export function tickGuestIncome(): void {
   })
 }
 
-/** Small chance per tick to trigger a VIP guest event on a high-satisfaction branch. */
+
 export function tickGuestEvents(): void {
   const state = gameState.get()
   if (state.worldMap.unlockedBranches.length === 0) return

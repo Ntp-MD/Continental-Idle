@@ -1,10 +1,10 @@
 import type { ObjectData, RoomData, Rect, AssetDef, LinkedPart, Rotation, EntityRef, TileState } from '../types'
 import { findAssetCached } from '../assetUtils'
-import { assetSizeFor } from '../geometry'
+import { assetSizeFor, normalizeObject } from '../geometry'
 import { aabbOverlap, objectOverlapsAny, roomOverlapsAny, recalcCollapsed } from '../collision'
 import {
 	state, toast, snap, clamp, assetMap,
-	currentFloor, isValidColor, withStateLock, initAssetFields,
+	currentFloor, withStateLock, initAssetFields,
 } from './state'
 import { genId } from './utils'
 import { selectedRoom, selectedObject, selectedObjectIds, select as selectEntity, clearSelection, toggleMultiSelect as toggleMultiSelectEntity } from './selection'
@@ -47,7 +47,7 @@ export async function addObject(type: string, x: number, y: number): Promise<Obj
 			for (let i = 0; i < parts.length; i++) {
 				const p = parts[i]
 				const pr = partRects[i]
-				const partAsset = findAssetCached(assetMap(), p.type)
+
 				const obj: ObjectData = {
 					id: genId('obj'),
 					subId: genId('sub'),
@@ -55,22 +55,8 @@ export async function addObject(type: string, x: number, y: number): Promise<Obj
 					rotation: p.rotation ?? 0,
 					...pr,
 				}
-				if (asset.defaultPadding) obj.padding = asset.defaultPadding
-				if (asset.defaultRx) obj.rx = { ...asset.defaultRx }
-				if (asset.defaultBgColor) obj.fillColor = asset.defaultBgColor
-				if (partAsset?.defaultPadding && obj.padding === undefined) obj.padding = partAsset.defaultPadding
-				if (partAsset?.defaultRx && obj.rx === undefined) obj.rx = { ...partAsset.defaultRx }
-				if (p.padding !== undefined) obj.padding = p.padding
-				if (p.rx) obj.rx = { ...p.rx }
-				if (p.fillColor) obj.fillColor = p.fillColor
-				if (p.label) obj.label = p.label
-				if (partAsset?.walkable !== undefined) obj.walkable = partAsset.walkable
-				if (partAsset?.entranceRequired !== undefined) obj.entranceRequired = partAsset.entranceRequired
-				if (partAsset?.walkableGrid) obj.walkableGrid = partAsset.walkableGrid.map(row => [...row])
-				if (partAsset?.tileStates) obj.tileStates = partAsset.tileStates.map(row => [...row])
-				if (partAsset?.tileEdges) obj.tileEdges = partAsset.tileEdges.map(row => row.map(e => e ? { ...e } : e))
-				if (partAsset?.anchorPoints) obj.anchorPoints = partAsset.anchorPoints.map(p => [...p] as [number, number])
 				floor.objects.push(obj)
+				normalizeObject(obj, t, assetMap())
 				newIds.push(obj.id)
 			}
 			const linkGroupId = genId('link')
@@ -87,18 +73,62 @@ export async function addObject(type: string, x: number, y: number): Promise<Obj
 			toast.warning('Cannot place object - overlaps existing object')
 			return null
 		}
-		const obj: ObjectData = { id: genId('obj'), subId: genId('sub'), type, rotation: 0, ...rect }
-		if (asset.defaultPadding !== undefined) obj.padding = asset.defaultPadding
-		if (asset.defaultRx) obj.rx = { ...asset.defaultRx }
-		if (asset.defaultBgColor) obj.fillColor = asset.defaultBgColor
-		if (asset.walkable !== undefined) obj.walkable = asset.walkable
-		if (asset.entranceRequired !== undefined) obj.entranceRequired = asset.entranceRequired
-		if (asset.walkableGrid) obj.walkableGrid = asset.walkableGrid.map(row => [...row])
-		if (asset.tileStates) obj.tileStates = asset.tileStates.map(row => [...row])
-		if (asset.tileEdges) obj.tileEdges = asset.tileEdges.map(row => row.map(e => e ? { ...e } : e))
-		if (asset.anchorPoints) obj.anchorPoints = asset.anchorPoints.map(p => [...p] as [number, number])
+		const obj: ObjectData = {
+			id: genId('obj'), subId: genId('sub'), type, rotation: 0,
+			x: rect.x, y: rect.y, w: rect.w, h: rect.h,
+		}
+		normalizeObject(obj, t, assetMap())
 		floor.objects.push(obj)
 		state.selectionState = { primary: { type: 'object', id: obj.id }, items: [{ type: 'object', id: obj.id }] }
+		await saveLayout()
+		return obj
+	})
+}
+
+export async function addWallObject(rect: Rect): Promise<ObjectData | null> {
+	return withStateLock(async () => {
+		const floor = currentFloor.value
+		if (!floor) return null
+		const snapped = clamp({ x: snap(rect.x), y: snap(rect.y), w: snap(rect.w), h: snap(rect.h) })
+		if (snapped.w <= 0 || snapped.h <= 0) {
+			toast.warning('Wall too small - minimum 1 tile')
+			return null
+		}
+		if (roomOverlapsAny(floor.rooms, snapped)) {
+			toast.warning('Cannot place wall - overlaps an existing room')
+			return null
+		}
+		if (objectOverlapsAny(floor.objects, assetMap(), snapped)) {
+			toast.warning('Cannot place wall - overlaps an existing object')
+			return null
+		}
+		const t = state.layout.canvas.tileSize
+		const asset: AssetDef = {
+			origin: 'drawn',
+			id: genId('wall'),
+			name: `Wall ${state.assetRegistry.filter(a => a.isWall).length + 1}`,
+			w: Math.max(1, Math.round(snapped.w / t)),
+			h: Math.max(1, Math.round(snapped.h / t)),
+			isWall: true,
+			walkable: false,
+			defaultBgColor: '#c8c4bc',
+			defaultLabelColor: '#444',
+		}
+		state.assetRegistry.push(asset)
+		const obj: ObjectData = {
+			id: genId('obj'),
+			subId: genId('sub'),
+			type: asset.id,
+			x: snapped.x,
+			y: snapped.y,
+			w: 0,
+			h: 0,
+			rotation: 0,
+		}
+		normalizeObject(obj, t, assetMap())
+		floor.objects.push(obj)
+		state.selectionState = { primary: { type: 'object', id: obj.id }, items: [{ type: 'object', id: obj.id }] }
+		await saveAssets()
 		await saveLayout()
 		return obj
 	})
@@ -440,46 +470,22 @@ export async function rotateSelected(): Promise<void> {
 			const { tl, tr, br, bl } = o.rx
 			o.rx = { tl: bl, tr: tl, br: tr, bl: br }
 		}
-		if (o.walkableGrid && o.walkableGrid.length > 0) {
-			const rows = o.walkableGrid.length
-			const cols = o.walkableGrid[0].length
-			const rotated: boolean[][] = []
-			for (let r = 0; r < cols; r++) {
-				rotated[r] = []
-				for (let c = 0; c < rows; c++) {
-					rotated[r][c] = o.walkableGrid[rows - 1 - c][r]
-				}
-			}
-			o.walkableGrid = rotated
-		}
-		if (o.tileStates && o.tileStates.length > 0) {
-			const rows = o.tileStates.length
-			const cols = o.tileStates[0].length
-			const rotated: TileState[][] = []
-			for (let r = 0; r < cols; r++) {
-				rotated[r] = []
-				for (let c = 0; c < rows; c++) {
-					rotated[r][c] = o.tileStates[rows - 1 - c][r]
-				}
-			}
-			o.tileStates = rotated
-		}
+
 		const cf = currentFloor.value
 		if (cf) recalcCollapsed(cf, assetMap())
 		await saveLayout()
 	})
 }
 
-export async function updateObjectProps(patch: Partial<ObjectData>): Promise<boolean> {
+
+export type ObjectInstancePatch = Partial<Pick<ObjectData, 'x' | 'y'>>
+
+export async function updateObjectProps(patch: ObjectInstancePatch): Promise<boolean> {
 	return withStateLock(async () => {
 		const o = selectedObject()
 		if (!o) return false
-		if (o.locked && patch.locked === undefined) {
+		if (o.locked) {
 			toast.warning('Object is locked - unlock to edit properties')
-			return false
-		}
-		if (patch.fillColor !== undefined && !isValidColor(patch.fillColor)) {
-			toast.warning('Invalid fill color')
 			return false
 		}
 		const needsSize = patch.x !== undefined || patch.y !== undefined
@@ -495,17 +501,7 @@ export async function updateObjectProps(patch: Partial<ObjectData>): Promise<boo
 		}
 		const changed = (patch.x !== undefined && o.x !== rect.x) ||
 			(patch.y !== undefined && o.y !== rect.y) ||
-			(needsSize && (o.w !== w || o.h !== h)) ||
-			(patch.radius !== undefined && o.radius !== patch.radius) ||
-			(patch.rx !== undefined && o.rx !== patch.rx) ||
-			(patch.labelPadding !== undefined && o.labelPadding !== patch.labelPadding) ||
-			(patch.padding !== undefined && o.padding !== patch.padding) ||
-			(patch.fillColor !== undefined && (o.fillColor ?? '') !== (patch.fillColor || '')) ||
-			(patch.locked !== undefined && o.locked !== patch.locked) ||
-			(patch.label !== undefined && (o.label ?? '') !== (patch.label || '')) ||
-			(patch.walkable !== undefined && (o.walkable ?? false) !== patch.walkable) ||
-			(patch.entranceRequired !== undefined && (o.entranceRequired ?? false) !== patch.entranceRequired) ||
-			(patch.anchorPoints !== undefined)
+			(needsSize && (o.w !== w || o.h !== h))
 		if (!changed) return true
 		if (patch.x !== undefined) o.x = rect.x
 		if (patch.y !== undefined) o.y = rect.y
@@ -513,16 +509,6 @@ export async function updateObjectProps(patch: Partial<ObjectData>): Promise<boo
 			o.w = w
 			o.h = h
 		}
-		if (patch.radius !== undefined) o.radius = patch.radius
-		if (patch.rx !== undefined) o.rx = patch.rx
-		if (patch.labelPadding !== undefined) o.labelPadding = patch.labelPadding
-		if (patch.padding !== undefined) o.padding = patch.padding
-		if (patch.fillColor !== undefined) o.fillColor = patch.fillColor || undefined
-		if (patch.locked !== undefined) o.locked = patch.locked
-		if (patch.label !== undefined) o.label = patch.label || undefined
-		if (patch.walkable !== undefined) o.walkable = patch.walkable
-		if (patch.entranceRequired !== undefined) o.entranceRequired = patch.entranceRequired
-		if (patch.anchorPoints !== undefined) o.anchorPoints = patch.anchorPoints
 		const cf = currentFloor.value
 		if (cf) recalcCollapsed(cf, assetMap())
 		await saveLayout()
@@ -837,7 +823,7 @@ export async function flattenToSvgAsset(name?: string): Promise<string | null> {
 			w: totalW,
 			h: totalH,
 		}
-		if (asset.walkable !== undefined) newObj.walkable = asset.walkable
+
 
 		const removeIds = new Set(objs.map(o => o.id))
 		floor.objects = floor.objects.filter(o => !removeIds.has(o.id))

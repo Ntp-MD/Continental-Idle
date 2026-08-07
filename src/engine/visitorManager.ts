@@ -130,8 +130,7 @@ export function hireVisitor(visitorId: string, branchId?: BranchId): boolean {
     const assassinCap = branch.upgrades.includes('armoryExpansion') ? 4 : 3
     if (Object.keys(branch.assassins).length >= assassinCap) return false
 
-    // Two-step deduction: pay the rarity premium first, then hireAssassin
-    // deducts the base cost. If the inner hire fails, refund the premium.
+
     const rarityPremium = cost - def.hireCost
     if (rarityPremium > 0) branch.currency -= rarityPremium
     let hired: AssassinEntry | null = null
@@ -159,8 +158,7 @@ export function hireVisitor(visitorId: string, branchId?: BranchId): boolean {
     const maxStaff = 5 + getExtraStaffSlots()
     if (Object.keys(branch.staff).length >= maxStaff) return false
 
-    // Two-step deduction: pay the rarity premium first, then hireStaff
-    // deducts the base cost. If the inner hire fails, refund the premium.
+
     const rarityPremium = cost - def.hireCost
     if (rarityPremium > 0) branch.currency -= rarityPremium
     let hired: StaffEntry | null = null

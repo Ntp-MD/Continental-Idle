@@ -1,187 +1,155 @@
 <script setup lang="ts">
-import { ref, computed, watch, inject } from 'vue'
-import { useAssetsStore } from '../blueprintStore'
-import { useToast } from '@/composables/useToast'
-import { useAsyncAction } from '../composables/useAsyncAction'
-import FloorTabs from './floorTabs.vue'
-import NpcBehaviorModal from './npcBehaviorModal.vue'
-import { useNpcSimulation } from '../composables/useNpcSimulation'
+import { ref, computed, watch, inject } from "vue";
+import { useAssetsStore } from "../blueprintStore";
+import { useToast } from "@/composables/useToast";
+import { useConfirm } from "@/composables/useConfirm";
+import { useAsyncAction } from "../composables/useAsyncAction";
+import NpcBehaviorModal from "./npcBehaviorModal.vue";
+import FloorModal from "./floorModal.vue";
+import { useNpcSimulation } from "../composables/useNpcSimulation";
 
-const store = useAssetsStore()
-const toast = useToast()
-const emit = defineEmits<{ close: [] }>()
-const { pending, run } = useAsyncAction()
-const npcSimulation = inject('npcSimulation') as ReturnType<typeof useNpcSimulation>
-const { npcs, isPaused, pause, resume, stop, reset } = npcSimulation
-const showNpcSettings = ref(false)
-const showSettings = ref(false)
+const store = useAssetsStore();
+const toast = useToast();
+const confirm = useConfirm().confirm;
+const emit = defineEmits<{ close: [] }>();
+const { pending, run } = useAsyncAction();
+const npcSimulation = inject("npcSimulation") as ReturnType<typeof useNpcSimulation>;
+const { npcs, isPaused, pause, resume, stop, reset, simSpeed } = npcSimulation;
+void stop;
+const showNpcSettings = ref(false);
+const showFloorModal = ref(false);
+const showSettings = ref(false);
 
 function onNpcSettings() {
-  showNpcSettings.value = true
+  showNpcSettings.value = true;
 }
 
 function onDeployNpc() {
-  const hasRoles = (store.state.layout.npcConfig?.roles?.length ?? 0) > 0
+  const hasRoles = (store.state.layout.npcConfig?.roles?.length ?? 0) > 0;
   if (!hasRoles) {
-    toast.info('Configure NPC roles first')
-    showNpcSettings.value = true
-    return
+    toast.info("Configure NPC roles first");
+    showNpcSettings.value = true;
+    return;
   }
-  store.setMode('npc-preview')
-  npcSimulation.deploy(store.state.currentFloorId)
+  store.setMode("npc-preview");
+  npcSimulation.deploy(store.state.currentFloorId);
 }
 
-const total = computed(() => npcs.value.length)
+const total = computed(() => npcs.value.length);
+const currentFloorLabel = computed(() => store.currentFloor.value?.label ?? "—");
 const countsByRole = computed(() => {
-  const map = new Map<string, number>()
-  for (const npc of npcs.value) map.set(npc.type, (map.get(npc.type) ?? 0) + 1)
-  return map
-})
-function onTogglePause() { isPaused.value ? resume() : pause() }
-function onStop() { stop() }
-function onReset() { reset() }
-function onClose() { stop(); store.setMode('object'); emit('close') }
+  const map = new Map<string, number>();
+  for (const npc of npcs.value) map.set(npc.type, (map.get(npc.type) ?? 0) + 1);
+  return map;
+});
+function onTogglePause() {
+  isPaused.value ? resume() : pause();
+}
+function onReset() {
+  reset();
+}
+function onBack() {
+  if (store.state.mode === "npc-preview") stop();
+  emit("close");
+}
 
-const widthInput = ref(store.state.layout.canvas.width)
-const heightInput = ref(store.state.layout.canvas.height)
-const tileInput = ref(store.state.layout.canvas.tileSize)
+const widthInput = ref(store.state.layout.canvas.width);
+const heightInput = ref(store.state.layout.canvas.height);
+const tileInput = ref(store.state.layout.canvas.tileSize);
 
-watch(() => store.state.layout.canvas, (c) => {
-  widthInput.value = c.width
-  heightInput.value = c.height
-  tileInput.value = c.tileSize
-})
+watch(
+  () => store.state.layout.canvas,
+  (c) => {
+    widthInput.value = c.width;
+    heightInput.value = c.height;
+    tileInput.value = c.tileSize;
+  },
+);
 
 async function applyCanvasSize() {
-  const canvas = store.state.layout.canvas
-  const hasPlacedContent = store.state.layout.floors.some(floor =>
-    floor.rooms.length > 0 || floor.objects.length > 0 || (floor.zones?.length ?? 0) > 0,
-  )
-  const changed = widthInput.value !== canvas.width || heightInput.value !== canvas.height || tileInput.value !== canvas.tileSize
+  const canvas = store.state.layout.canvas;
+  const hasPlacedContent = store.state.layout.floors.some((floor) => floor.rooms.length > 0 || floor.objects.length > 0);
+  const changed = widthInput.value !== canvas.width || heightInput.value !== canvas.height || tileInput.value !== canvas.tileSize;
 
-  if (changed && hasPlacedContent && !window.confirm('Changing canvas settings will snap and clamp placed rooms, objects, and zones to the new grid and bounds. Continue?')) return
+  if (changed && hasPlacedContent) {
+    const confirmed = await confirm({
+      title: "Resize canvas",
+      message: "Changing canvas settings will snap and clamp placed rooms and objects to the new grid and bounds. Continue?",
+      confirmLabel: "Continue",
+      cancelLabel: "Cancel",
+      danger: true,
+    });
+    if (!confirmed) return;
+  }
 
   try {
-    await run(() => store.resizeCanvas(widthInput.value, heightInput.value, tileInput.value))
-    toast.info('Canvas resized')
-    showSettings.value = false
+    await run(() => store.resizeCanvas(widthInput.value, heightInput.value, tileInput.value));
+    toast.info("Canvas resized");
+    showSettings.value = false;
   } catch {
-    toast.error('Failed to resize canvas')
+    toast.error("Failed to resize canvas");
   }
 }
 
 async function onSave() {
-  await run(() => store.saveLayout()).catch(() => {})
-  toast.success('Layout saved')
+  await run(() => store.saveLayout()).catch(() => {});
+  toast.success("Layout saved");
 }
 
 function onSyncToGame() {
-  if (store.syncToGame()) toast.success('Blueprint synced to game')
+  if (store.syncToGame()) toast.success("Blueprint synced to game");
 }
-
-async function onClear() {
-  if (!window.confirm('Clear all rooms and objects on this floor?')) return
-  try {
-    await store.clearFloor(store.state.currentFloorId)
-    toast.info('Floor cleared')
-  } catch {
-    toast.error('Clear floor failed')
-  }
-}
-
-async function onClearAll() {
-  if (!window.confirm('Clear ALL rooms and objects on EVERY floor?')) return
-  try {
-    await store.clearAllFloors()
-    toast.info('All floors cleared')
-  } catch {
-    toast.error('Clear all floors failed')
-  }
-}
-
-
 </script>
 
 <template>
   <div class="editor__toolbar">
     <button class="btn__ghost btn__icon" @click="showSettings = true" title="Canvas Settings & Shortcuts" aria-label="Canvas settings">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <circle cx="12" cy="12" r="3"/>
-        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+        <circle cx="12" cy="12" r="3" />
+        <path
+          d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"
+        />
       </svg>
     </button>
 
+    <button :class="{ btn__warning: store.state.mode === 'wall' }" @click="store.setMode('wall')" aria-label="Switch to wall mode">Wall</button>
+    <button :class="{ btn__warning: store.state.mode === 'object' }" @click="store.setMode('object')" aria-label="Switch to object mode">Object</button>
+    <button :class="{ btn__warning: store.state.mode === 'move' }" @click="store.setMode('move')" aria-label="Switch to move mode">Move</button>
+    <button :class="{ btn__warning: store.state.mode === 'erase' }" @click="store.setMode('erase')" title="Erase wall tiles (click room edges to trim)" aria-label="Switch to erase mode">Erase</button>
 
-      <button
-       
-        :class="{ 'btn__warning': store.state.mode === 'wall' }"
-        @click="store.setMode('wall')"
-        aria-label="Switch to wall mode"
-      >Wall</button>
-      <button
-       
-        :class="{ 'btn__warning': store.state.mode === 'zone' }"
-        @click="store.setMode('zone')"
-        aria-label="Switch to zone mode"
-      >Zone</button>
-      <button
-       
-        :class="{ 'btn__warning': store.state.mode === 'object' }"
-        @click="store.setMode('object')"
-        aria-label="Switch to object mode"
-      >Object</button>
-      <button
-       
-        :class="{ 'btn__warning': store.state.mode === 'move' }"
-        @click="store.setMode('move')"
-        aria-label="Switch to move mode"
-      >Move</button>
-      <button
-       
-        :class="{ 'btn__warning': store.state.mode === 'erase' }"
-        @click="store.setMode('erase')"
-        title="Erase wall tiles (click room edges to trim)"
-        aria-label="Switch to erase mode"
-      >Erase</button>
-
-
-      <button
-
-        @click="onNpcSettings"
-        title="Configure NPC roles, tasks, and behavior"
-        aria-label="Open NPC behavior settings"
-      >NPC Behavior</button>
-      <button
-       
-        :class="{ 'btn__warning': store.state.mode === 'npc-preview' }"
-        @click="onDeployNpc"
-        title="Deploy NPCs on current floor (configure roles first)"
-      >Deploy NPCs</button>
+    <button @click="onNpcSettings" title="Configure NPC roles, tasks, and behavior" aria-label="Open NPC behavior settings">NPC Behavior</button>
+    <button @click="showFloorModal = true" title="Manage floors: add, delete, reorder, role restrictions" aria-label="Open floor manager">Floor Manager</button>
+    <button :class="{ btn__warning: store.state.mode === 'npc-preview' }" @click="onDeployNpc" title="Deploy NPCs on current floor (configure roles first)">Deploy NPCs</button>
 
     <template v-if="store.state.mode === 'npc-preview'">
-      <div class="card card__primary card__compact">Total: {{ total }}</div>
+      <div class="card card__primary card__compact" :title="`NPCs on ${currentFloorLabel}`">{{ currentFloorLabel }}: {{ total }}</div>
       <div class="layout__wrap">
         <div v-for="[type, count] in countsByRole" :key="type" class="editor__toolbar__npchstack">
           <span class="editor__toolbar__rolebold">{{ type }}</span>
           <span class="card card__primary card__compact">{{ count }}</span>
         </div>
       </div>
-      <button @click="onTogglePause" :aria-label="isPaused ? 'Resume NPC simulation' : 'Pause NPC simulation'">{{ isPaused ? 'Resume' : 'Pause' }}</button>
-      <button @click="onStop" aria-label="Stop NPC simulation">Stop</button>
-      <button class="btn__danger" @click="onReset" aria-label="Reset NPC simulation">Reset</button>
-      <button @click="onClose" aria-label="Close NPC preview">Close</button>
+      <div class="actions">
+        <button @click="onTogglePause" :aria-label="isPaused ? 'Resume NPC simulation' : 'Pause NPC simulation'">{{ isPaused ? "▶ Resume" : "❚❚ Pause" }}</button>
+        <label class="editor__toolbar__speed">
+          <select :value="simSpeed" @change="simSpeed = +($event.target as HTMLSelectElement).value" aria-label="Simulation speed">
+            <option :value="1">1x</option>
+            <option :value="2">2x</option>
+            <option :value="4">4x</option>
+            <option :value="8">8x</option>
+          </select>
+        </label>
+        <button class="btn__danger" @click="onReset" aria-label="Clear all NPCs and exit preview">Clear</button>
+      </div>
     </template>
 
     <button class="btn__primary" :disabled="pending" @click="onSave" title="Save layout to assets-store.ts" aria-label="Save layout">Save</button>
     <button class="btn__success" @click="onSyncToGame" title="Apply blueprint layout to the main game" aria-label="Sync blueprint to game">Sync Game</button>
-    <button class="btn__danger" :disabled="pending" @click="onClear" title="Clear all rooms and objects on this floor" aria-label="Clear current floor">Clear Floor</button>
-    <button class="btn__danger" :disabled="pending" @click="onClearAll" title="Clear all rooms and objects on every floor" aria-label="Clear all floors">Clear All Floors</button>
 
-    <FloorTabs />
-
-    <button class="editor__toolbar__backbtn" @click="emit('close')" aria-label="Back to start screen">◀ Back</button>
+    <button class="editor__toolbar__backbtn" @click="onBack" aria-label="Back to start screen">◀ Back</button>
 
     <NpcBehaviorModal :open="showNpcSettings" @close="showNpcSettings = false" />
+    <FloorModal :open="showFloorModal" @close="showFloorModal = false" />
 
     <Teleport to="body">
       <div v-if="showSettings" class="modal__overlay editorsettings__overlay" @click.self="showSettings = false">
@@ -232,7 +200,6 @@ async function onClearAll() {
   </div>
 </template>
 
-
 <style scoped>
 .layout__wrap {
   display: flex;
@@ -240,7 +207,6 @@ async function onClearAll() {
   gap: var(--gap-xs);
   flex-wrap: wrap;
 }
-
 
 .editor__toolbar {
   display: flex;
@@ -274,7 +240,6 @@ async function onClearAll() {
   color: var(--accent-gold);
 }
 
-
 .editor__toolbar__npchstack {
   display: inline-flex;
   align-items: center;
@@ -288,6 +253,17 @@ async function onClearAll() {
 
 .editor__toolbar__rolebold {
   font-weight: 500;
+}
+
+.editor__toolbar__speed {
+  display: inline-flex;
+  align-items: center;
+}
+
+.editor__toolbar__speed select {
+  font-size: var(--font-xs);
+  background: var(--bg-primary);
+  cursor: pointer;
 }
 
 .editorsettings__overlay {

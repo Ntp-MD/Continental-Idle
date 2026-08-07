@@ -31,11 +31,11 @@ export function rollStats(rarity: Rarity, options: StatRollOptions = {}): Charac
 }
 
 export interface TraitRollOptions {
-  /** Maximum number of positive traits to roll (staff: 2, assassin: 1). */
+
   maxPositive?: number
-  /** Whether a negative trait can be rolled. */
+
   allowNegative?: boolean
-  /** If true, only one trait total is rolled: rare OR a single positive (legacy assassin behavior). */
+
   singleTrait?: boolean
 }
 
