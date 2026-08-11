@@ -9,7 +9,7 @@ import { useClipboardCopy } from "../composables/useClipboardCopy";
 import { renderSvgInto } from "../svgSanitizer";
 import type { AssetDef } from "../types";
 import { isHexColor } from "../store/state";
-import TagPicker from "./tagPicker.vue";
+import TagPicker from "./TagPicker.vue";
 
 const props = defineProps<{ asset: AssetDef }>();
 const store = useAssetsStore();
@@ -251,7 +251,7 @@ async function duplicateAsset() {
         <span>General</span>
         <span class="properties__caret">{{ collapsedSections.general ? "▸" : "▾" }}</span>
       </div>
-      <div v-show="!collapsedSections.general" class="properties__section__content">
+      <div v-show="!collapsedSections.general" class="properties__section-content">
         <div v-if="isSvgAsset" class="properties__row">
           <label>Preview</label>
           <div class="assetpreview">
@@ -261,15 +261,15 @@ async function duplicateAsset() {
         <div class="properties__row">
           <label>ID</label>
           <div class="properties__idrow">
-            <input type="text" :value="asset.id" disabled class="input input__readonly" title="Asset ID" />
-            <button class="btn__sm" @click="copyId(asset.id)">Copy</button>
+            <input type="text" :value="asset.id" disabled class="input input--readonly" title="Asset ID" />
+            <button class="btn--sm" @click="copyId(asset.id)">Copy</button>
           </div>
         </div>
         <div class="properties__row">
           <label>Origin</label>
           <span class="properties__value">{{ asset.origin ?? "drawn" }}</span>
         </div>
-        <div v-if="isLinkedAsset" class="alert alert__info alert__sm">
+        <div v-if="isLinkedAsset" class="alert alert--info alert--sm">
           <span class="properties__badge">⛓</span>
           <span>Linked set — {{ linkedPartCount }} objects. Drag to place all parts linked together.</span>
         </div>
@@ -287,11 +287,11 @@ async function duplicateAsset() {
         </div>
         <div v-if="isSvgAsset" class="properties__row">
           <label>Rotate Origin</label>
-          <button class="btn__sm" @click="onRotateAsset">↻ 90°</button>
+          <button class="btn--sm" @click="onRotateAsset">↻ 90°</button>
         </div>
         <div v-if="!isLinkedAsset" class="properties__row">
           <label>Walkable Grid</label>
-          <button class="btn__sm btn__warning" @click="showWalkableGridPanel ? closeWalkableGridPanel() : openWalkableGridPanel()">
+          <button class="btn--sm btn--warning" @click="showWalkableGridPanel ? closeWalkableGridPanel() : openWalkableGridPanel()">
             {{ showWalkableGridPanel ? "Close" : "Manage" }}
           </button>
         </div>
@@ -304,21 +304,21 @@ async function duplicateAsset() {
         <span>Dimensions & Style</span>
         <span class="properties__caret">{{ collapsedSections.dimensions ? "▸" : "▾" }}</span>
       </div>
-      <div v-show="!collapsedSections.dimensions" class="properties__section__content">
+      <div v-show="!collapsedSections.dimensions" class="properties__section-content">
         <template v-if="!isLinkedAsset">
-          <div v-if="sizeLocked" class="alert alert__warning alert__sm">
+          <div v-if="sizeLocked" class="alert alert--warning alert--sm">
             <span class="properties__badge">⊘</span>
             <span>Size is locked — asset is placed on floors. Remove all instances to resize.</span>
           </div>
           <div v-if="!isSvgAsset" class="properties__row">
             <label>Unit Mode</label>
             <div class="properties__unitpicker">
-              <button class="btn__sm" :class="{ btn__warning: !assetFields.usePx }" :disabled="sizeLocked" @click="assetFields.usePx ? toggleUsePx() : null">Tiles</button>
-              <button class="btn__sm" :class="{ btn__warning: assetFields.usePx }" :disabled="sizeLocked" @click="!assetFields.usePx ? toggleUsePx() : null">Pixels</button>
+              <button class="btn--sm" :class="{ 'btn--warning': !assetFields.usePx }" :disabled="sizeLocked" @click="assetFields.usePx ? toggleUsePx() : null">Tiles</button>
+              <button class="btn--sm" :class="{ 'btn--warning': assetFields.usePx }" :disabled="sizeLocked" @click="!assetFields.usePx ? toggleUsePx() : null">Pixels</button>
             </div>
           </div>
           <template v-if="!assetFields.usePx">
-            <div class="properties__row__pair">
+            <div class="properties__row-pair">
               <div class="properties__row">
                 <label>Width</label>
                 <input class="input" type="number" min="1" :disabled="sizeLocked" v-model.number="assetFields.w" @change="commitField('w')" />
@@ -330,7 +330,7 @@ async function duplicateAsset() {
             </div>
           </template>
           <template v-else>
-            <div class="properties__row__pair">
+            <div class="properties__row-pair">
               <div class="properties__row">
                 <label>Width (px)</label>
                 <input type="number" min="1" :disabled="sizeLocked" v-model.number="assetFields.pxW" @change="commitField('pxW')" />
@@ -358,25 +358,25 @@ async function duplicateAsset() {
           <label>Bg Color</label>
           <div class="properties__colorrow">
             <input class="input" v-model="assetFields.defaultBgColor" placeholder="#RRGGBB" aria-label="Asset background color hex value" @change="commitField('defaultBgColor')" />
-            <button class="btn__sm" type="button" @click="clearAssetBgColor">Reset</button>
+            <button class="btn--sm" type="button" @click="clearAssetBgColor">Reset</button>
           </div>
         </div>
         <div class="properties__row">
           <label>Label Color</label>
           <div class="properties__colorrow">
             <input class="input" v-model="assetFields.defaultLabelColor" placeholder="#RRGGBB" aria-label="Asset label color hex value" @change="commitField('defaultLabelColor')" />
-            <button class="btn__sm" type="button" @click="clearAssetLabelColor">Reset</button>
+            <button class="btn--sm" type="button" @click="clearAssetLabelColor">Reset</button>
           </div>
         </div>
-        <div class="properties__row properties__row__toggle">
+        <div class="properties__row properties__row--toggle">
           <label>Walkable</label>
-          <button class="btn__sm" :class="{ btn__success: walkable, btn__danger: !walkable }" @click="walkable = !walkable" :title="walkable ? 'NPCs can walk through this object' : 'NPCs cannot walk through this object (solid wall)'">
+          <button class="btn--sm" :class="{ 'btn--success': walkable, 'btn--danger': !walkable }" @click="walkable = !walkable" :title="walkable ? 'NPCs can walk through this object' : 'NPCs cannot walk through this object (solid wall)'">
             {{ walkable ? "ON" : "OFF" }}
           </button>
         </div>
-        <div class="properties__row properties__row__toggle">
+        <div class="properties__row properties__row--toggle">
           <label>Portal</label>
-          <button class="btn__sm" :class="{ btn__success: portal, btn__danger: !portal }" :disabled="isNpcDeployed" @click="portal = !portal" :title="isNpcDeployed ? 'Exit NPC preview to change Portal setting' : portal ? 'NPCs can travel to another floor through this object' : 'NPCs cannot use this object for cross-floor travel'">
+          <button class="btn--sm" :class="{ 'btn--success': portal, 'btn--danger': !portal }" :disabled="isNpcDeployed" @click="portal = !portal" :title="isNpcDeployed ? 'Exit NPC preview to change Portal setting' : portal ? 'NPCs can travel to another floor through this object' : 'NPCs cannot use this object for cross-floor travel'">
             {{ portal ? "ON" : "OFF" }}
           </button>
         </div>
@@ -386,21 +386,21 @@ async function duplicateAsset() {
             <div class="properties__rxgrid">
               <div class="properties__rxcorner">
                 <span class="properties__rxlabel">↖ TL</span>
-                <input type="number" min="0" v-model.number="assetFields.rxTL" @input="onRxInput('rxTL')" class="input input__num input__compact" />
+                <input type="number" min="0" v-model.number="assetFields.rxTL" @input="onRxInput('rxTL')" class="input input--num input--compact" />
               </div>
               <div class="properties__rxcorner">
                 <span class="properties__rxlabel">TR ↗</span>
-                <input type="number" min="0" v-model.number="assetFields.rxTR" @input="onRxInput('rxTR')" class="input input__num input__compact" />
+                <input type="number" min="0" v-model.number="assetFields.rxTR" @input="onRxInput('rxTR')" class="input input--num input--compact" />
               </div>
               <div class="properties__rxcorner">
                 <span class="properties__rxlabel">↙ BL</span>
-                <input type="number" min="0" v-model.number="assetFields.rxBL" @input="onRxInput('rxBL')" class="input input__num input__compact" />
+                <input type="number" min="0" v-model.number="assetFields.rxBL" @input="onRxInput('rxBL')" class="input input--num input--compact" />
               </div>
               <div class="properties__rxcorner">
                 <span class="properties__rxlabel">BR ↘</span>
-                <input type="number" min="0" v-model.number="assetFields.rxBR" @input="onRxInput('rxBR')" class="input input__num input__compact" />
+                <input type="number" min="0" v-model.number="assetFields.rxBR" @input="onRxInput('rxBR')" class="input input--num input--compact" />
               </div>
-              <button type="button" class="properties__rxsync" :class="{ properties__rxsync__active: assetRxSync }" :aria-pressed="assetRxSync" :title="assetRxSync ? 'Sync all corners — ON' : 'Sync all corners — OFF'" @click="assetRxSync = !assetRxSync">
+              <button type="button" class="properties__rxsync" :class="{ 'properties__rxsync--active': assetRxSync }" :aria-pressed="assetRxSync" :title="assetRxSync ? 'Sync all corners — ON' : 'Sync all corners — OFF'" @click="assetRxSync = !assetRxSync">
                 <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                   <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
                   <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
@@ -412,20 +412,20 @@ async function duplicateAsset() {
       </div>
     </div>
 
-    <div v-if="collapsedCount > 0" class="alert alert__danger alert__sm">
+    <div v-if="collapsedCount > 0" class="alert alert--danger alert--sm">
       <span class="properties__badge">✕</span>
       <span>{{ collapsedCount }} object(s) collapsed — overlapping! Shown in red on canvas.</span>
     </div>
     <div class="properties__actions">
-      <button class="btn__primary" :disabled="pending" @click="onSave">Save Asset</button>
-      <button class="btn__warning" :disabled="pending" @click="duplicateAsset">Duplicate</button>
-      <button class="btn__danger" :disabled="pending" @click="deleteAsset">Delete Asset</button>
+      <button class="btn--primary" :disabled="pending" @click="onSave">Save Asset</button>
+      <button class="btn--warning" :disabled="pending" @click="duplicateAsset">Duplicate</button>
+      <button class="btn--danger" :disabled="pending" @click="deleteAsset">Delete Asset</button>
     </div>
   </div>
 </template>
 
 <style scoped>
-.properties__section__content {
+.properties__section-content {
   display: flex;
   flex-direction: column;
   gap: var(--gap-sm);

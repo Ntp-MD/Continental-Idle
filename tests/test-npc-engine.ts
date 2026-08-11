@@ -8,8 +8,8 @@ import type { AssetDef } from '../src/blueprint-editor/types'
 const layout: NpcEngineLayout = {
 	floors: [{ id: 'F1', width: 10, height: 10, tileSize: 1, walkable: [] }],
 	interactionTargets: [
-		{ floorId: 'F1', itemId: 'table', anchorId: 'a1', x: 1, y: 0, tags: ['service'], capacity: 2, durationMinSeconds: 2, durationMaxSeconds: 2 },
-		{ floorId: 'F1', itemId: 'table', anchorId: 'a2', x: 2, y: 0, tags: ['service'], capacity: 2, durationMinSeconds: 2, durationMaxSeconds: 2 },
+		{ floorId: 'F1', itemId: 'table', interactSpotId: 'a1', x: 1, y: 0, tags: ['service'], capacity: 2, durationMinSeconds: 2, durationMaxSeconds: 2 },
+		{ floorId: 'F1', itemId: 'table', interactSpotId: 'a2', x: 2, y: 0, tags: ['service'], capacity: 2, durationMinSeconds: 2, durationMaxSeconds: 2 },
 	],
 }
 
@@ -27,15 +27,15 @@ engine.tick()
 
 const first = engine.getAgents().find(agent => agent.id === 'npc-1')!
 const second = engine.getAgents().find(agent => agent.id === 'npc-2')!
-assert.equal(first.reservationAnchorId, 'a1')
-assert.equal(second.reservationAnchorId, 'a2')
+assert.equal(first.reservationInteractSpotId, 'a1')
+assert.equal(second.reservationInteractSpotId, 'a2')
 assert.equal(['walking', 'interacting'].includes(first.status), true)
 assert.equal(['walking', 'interacting'].includes(second.status), true)
 
 engine.tick(2)
 assert.equal(engine.getAgents().every(agent => agent.status === 'interacting' || agent.status === 'idle'), true)
 assert.equal(engine.getAgents().every(agent => agent.status === 'idle'), true)
-assert.equal(engine.getAgents().every(agent => agent.reservationAnchorId === null), true)
+assert.equal(engine.getAgents().every(agent => agent.reservationInteractSpotId === null), true)
 
 const blockedEngine = new NpcEngine({
 	...layout,
@@ -89,12 +89,12 @@ const blockedWanderer = blockedWanderEngine.getAgents().find(agent => agent.id =
 assert.notEqual(blockedWanderer.status, 'walking')
 
 
-function makePortalPair(srcFloor: string, destFloor: string, srcObjId: string, destObjId: string, srcXY: [number, number], destXY: [number, number], anchorIdx = 0) {
-	const srcEndpoint = `${srcFloor}:portal:${srcObjId}:endpoint:${anchorIdx}`
-	const destEndpoint = `${destFloor}:portal:${destObjId}:endpoint:${anchorIdx}`
+function makePortalPair(srcFloor: string, destFloor: string, srcObjId: string, destObjId: string, srcXY: [number, number], destXY: [number, number], interactSpotIdx = 0) {
+	const srcEndpoint = `${srcFloor}:portal:${srcObjId}:endpoint:${interactSpotIdx}`
+	const destEndpoint = `${destFloor}:portal:${destObjId}:endpoint:${interactSpotIdx}`
 	return [
-		{ floorId: srcFloor, itemId: `portal:${srcObjId}`, anchorId: `portal:${anchorIdx}→${destFloor}`, x: srcXY[0], y: srcXY[1], tags: ['portal', `portal:${destFloor}`], capacity: 1, durationMinSeconds: 0, durationMaxSeconds: 0, transitionToFloorId: destFloor, destinationPortalKey: destEndpoint, portalEndpointKey: srcEndpoint },
-		{ floorId: destFloor, itemId: `portal:${destObjId}`, anchorId: `portal:${anchorIdx}→${srcFloor}`, x: destXY[0], y: destXY[1], tags: ['portal', `portal:${srcFloor}`], capacity: 1, durationMinSeconds: 0, durationMaxSeconds: 0, transitionToFloorId: srcFloor, destinationPortalKey: srcEndpoint, portalEndpointKey: destEndpoint },
+		{ floorId: srcFloor, itemId: `portal:${srcObjId}`, interactSpotId: `portal:${interactSpotIdx}→${destFloor}`, x: srcXY[0], y: srcXY[1], tags: ['portal', `portal:${destFloor}`], capacity: 1, durationMinSeconds: 0, durationMaxSeconds: 0, transitionToFloorId: destFloor, destinationPortalKey: destEndpoint, portalEndpointKey: srcEndpoint },
+		{ floorId: destFloor, itemId: `portal:${destObjId}`, interactSpotId: `portal:${interactSpotIdx}→${srcFloor}`, x: destXY[0], y: destXY[1], tags: ['portal', `portal:${srcFloor}`], capacity: 1, durationMinSeconds: 0, durationMaxSeconds: 0, transitionToFloorId: srcFloor, destinationPortalKey: srcEndpoint, portalEndpointKey: destEndpoint },
 	] as const
 }
 
@@ -109,7 +109,7 @@ const directPath = (_floor: unknown, from: { x: number; y: number }, to: { x: nu
 			{ id: 'F2', width: 10, height: 10, tileSize: 1, walkable: [] },
 		],
 		interactionTargets: [
-			{ floorId: 'F2', itemId: 'desk', anchorId: 'a1', x: 1, y: 1, tags: ['service'], capacity: 2, durationMinSeconds: 2, durationMaxSeconds: 2 },
+			{ floorId: 'F2', itemId: 'desk', interactSpotId: 'a1', x: 1, y: 1, tags: ['service'], capacity: 2, durationMinSeconds: 2, durationMaxSeconds: 2 },
 			...portals,
 		],
 	}
@@ -126,7 +126,7 @@ const directPath = (_floor: unknown, from: { x: number; y: number }, to: { x: nu
 	assert.equal(agent.x, 8, 'agent x should be destination portal x')
 	assert.equal(agent.y, 8, 'agent y should be destination portal y')
 	assert.equal(agent.reservationItemId, null, 'source reservation must be released after teleport')
-	assert.equal(agent.reservationAnchorId, null, 'source anchor reservation must be released after teleport')
+	assert.equal(agent.reservationInteractSpotId, null, 'source anchor reservation must be released after teleport')
 	assert.equal(selectorSawCrossFloor, false, 'targetSelector must only receive same-floor targets')
 	assert.ok(portalEngine.drainEvents().some(e => e.type === 'floor-transition' && e.fromFloorId === 'F1' && e.toFloorId === 'F2'), 'floor-transition event emitted')
 }
@@ -140,8 +140,8 @@ const directPath = (_floor: unknown, from: { x: number; y: number }, to: { x: nu
 			{ id: 'F2', width: 10, height: 10, tileSize: 1, walkable: [] },
 		],
 		interactionTargets: [
-			{ floorId: 'F1', itemId: 'desk1', anchorId: 'a1', x: 1, y: 1, tags: ['service'], capacity: 1, durationMinSeconds: 100, durationMaxSeconds: 100 },
-			{ floorId: 'F2', itemId: 'desk2', anchorId: 'a1', x: 1, y: 1, tags: ['service'], capacity: 1, durationMinSeconds: 100, durationMaxSeconds: 100 },
+			{ floorId: 'F1', itemId: 'desk1', interactSpotId: 'a1', x: 1, y: 1, tags: ['service'], capacity: 1, durationMinSeconds: 100, durationMaxSeconds: 100 },
+			{ floorId: 'F2', itemId: 'desk2', interactSpotId: 'a1', x: 1, y: 1, tags: ['service'], capacity: 1, durationMinSeconds: 100, durationMaxSeconds: 100 },
 			...portals,
 		],
 	}
@@ -176,7 +176,7 @@ const directPath = (_floor: unknown, from: { x: number; y: number }, to: { x: nu
 			{ id: 'F2', width: 10, height: 10, tileSize: 1, walkable: [] },
 		],
 		interactionTargets: [
-			{ floorId: 'F2', itemId: 'desk', anchorId: 'a1', x: 1, y: 1, tags: ['service'], capacity: 1, durationMinSeconds: 1, durationMaxSeconds: 1 },
+			{ floorId: 'F2', itemId: 'desk', interactSpotId: 'a1', x: 1, y: 1, tags: ['service'], capacity: 1, durationMinSeconds: 1, durationMaxSeconds: 1 },
 			...portals,
 		],
 	}
@@ -202,7 +202,7 @@ const directPath = (_floor: unknown, from: { x: number; y: number }, to: { x: nu
 			{ id: 'F2', width: 10, height: 10, tileSize: 1, walkable: [] },
 		],
 		interactionTargets: [
-			{ floorId: 'F2', itemId: 'desk', anchorId: 'a1', x: 1, y: 1, tags: ['service'], capacity: 1, durationMinSeconds: 1, durationMaxSeconds: 1 },
+			{ floorId: 'F2', itemId: 'desk', interactSpotId: 'a1', x: 1, y: 1, tags: ['service'], capacity: 1, durationMinSeconds: 1, durationMaxSeconds: 1 },
 		],
 	}
 	const noRouteEngine = new NpcEngine(noRouteLayout, {
@@ -230,8 +230,8 @@ const directPath = (_floor: unknown, from: { x: number; y: number }, to: { x: nu
 			{ id: 'F3', width: 10, height: 10, tileSize: 1, walkable: [] },
 		],
 		interactionTargets: [
-			{ floorId: 'F2', itemId: 'desk2', anchorId: 'a1', x: 1, y: 1, tags: ['service'], capacity: 1, durationMinSeconds: 1, durationMaxSeconds: 1 },
-			{ floorId: 'F3', itemId: 'desk3', anchorId: 'a1', x: 1, y: 1, tags: ['service'], capacity: 1, durationMinSeconds: 1, durationMaxSeconds: 1 },
+			{ floorId: 'F2', itemId: 'desk2', interactSpotId: 'a1', x: 1, y: 1, tags: ['service'], capacity: 1, durationMinSeconds: 1, durationMaxSeconds: 1 },
+			{ floorId: 'F3', itemId: 'desk3', interactSpotId: 'a1', x: 1, y: 1, tags: ['service'], capacity: 1, durationMinSeconds: 1, durationMaxSeconds: 1 },
 			...p12, ...p13, ...p23,
 		],
 	}
@@ -257,7 +257,7 @@ const directPath = (_floor: unknown, from: { x: number; y: number }, to: { x: nu
 			{ id: 'F2', width: 10, height: 10, tileSize: 1, walkable: [], allowedRoleIds: ['security'] },
 		],
 		interactionTargets: [
-			{ floorId: 'F2', itemId: 'desk', anchorId: 'a1', x: 1, y: 1, tags: ['service'], capacity: 1, durationMinSeconds: 1, durationMaxSeconds: 1 },
+			{ floorId: 'F2', itemId: 'desk', interactSpotId: 'a1', x: 1, y: 1, tags: ['service'], capacity: 1, durationMinSeconds: 1, durationMaxSeconds: 1 },
 			...portals,
 		],
 	}
@@ -283,7 +283,7 @@ const directPath = (_floor: unknown, from: { x: number; y: number }, to: { x: nu
 			{ id: 'F2', width: 10, height: 10, tileSize: 1, walkable: [] },
 		],
 		interactionTargets: [
-			{ floorId: 'F2', itemId: 'desk', anchorId: 'a1', x: 1, y: 1, tags: ['service'], capacity: 1, durationMinSeconds: 100, durationMaxSeconds: 100 },
+			{ floorId: 'F2', itemId: 'desk', interactSpotId: 'a1', x: 1, y: 1, tags: ['service'], capacity: 1, durationMinSeconds: 100, durationMaxSeconds: 100 },
 			...portals,
 		],
 	}
@@ -310,7 +310,7 @@ const directPath = (_floor: unknown, from: { x: number; y: number }, to: { x: nu
 			{ id: 'F2', width: 10, height: 10, tileSize: 1, walkable: [] },
 		],
 		interactionTargets: [
-			{ floorId: 'F1', itemId: 'desk1', anchorId: 'a1', x: 1, y: 1, tags: ['service'], capacity: 1, durationMinSeconds: 1, durationMaxSeconds: 1 },
+			{ floorId: 'F1', itemId: 'desk1', interactSpotId: 'a1', x: 1, y: 1, tags: ['service'], capacity: 1, durationMinSeconds: 1, durationMaxSeconds: 1 },
 			...portals,
 		],
 	}
@@ -340,11 +340,10 @@ const directPath = (_floor: unknown, from: { x: number; y: number }, to: { x: nu
 	const assetMap = buildAssetMap(raw.originAssets)
 	const elevator = assetMap.get('builtin-elevator-1')!
 	assert.ok(elevator.tags?.includes('portal'), 'elevator asset should have portal tag')
-	assert.equal(elevator.anchorPoints?.length, 9, 'elevator asset should have 9 anchorPoints')
+	assert.equal(elevator.interactSpots?.length, 9, 'elevator asset should have 9 interactSpots')
 	const singleFloorLayout = {
 		version: 1, canvas: { width: 100, height: 100, tileSize: 25 },
-		floors: [{ id: 'f1', name: 'F1', label: 'F1', rooms: [], objects: [{ id: 'o1', type: 'builtin-elevator-1', x: 0, y: 0, w: 75, h: 75, rotation: 0 }], allowedRoleIds: ['ghost'] }],
-		roomTemplates: [],
+		floors: [{ id: 'f1', name: 'F1', label: 'F1', objects: [{ id: 'o1', type: 'builtin-elevator-1', x: 0, y: 0, w: 75, h: 75, rotation: 0 }], allowedRoleIds: ['ghost'] }],
 	} as const
 	const result = validatePortalConfiguration(singleFloorLayout as never, assetMap, { roles: [{ id: 'staff', label: 'Staff', color: '#fff', focusTags: [], restrictedTags: [], taskIds: [], focusChance: 100 }], tasks: [], speed: 1, defaultRoleId: 'staff', pool: [] } as never)
 	assert.ok(result.warnings.some(w => w.includes('at least 2 floors')), 'should warn about single-floor portal')
@@ -372,7 +371,7 @@ function findNearestWalkableCell(walkable: Set<string>, x: number, y: number, ra
 
 
 function generateRuntimePortalTargets(
-	floors: { id: string; walkable: Set<string>; portalObjects: { id: string; x: number; y: number; anchorPoints: { x: number; y: number }[] }[] }[],
+	floors: { id: string; walkable: Set<string>; portalObjects: { id: string; x: number; y: number; interactSpots: { x: number; y: number }[] }[] }[],
 	tileSize: number,
 ): NpcEngineInteractionTarget[] {
 	const portalFloorIds = new Set(floors.filter(f => f.portalObjects.length > 0).map(f => f.id))
@@ -381,7 +380,7 @@ function generateRuntimePortalTargets(
 		const otherPortalFloors = [...portalFloorIds].filter(id => id !== floor.id)
 		if (otherPortalFloors.length === 0) continue
 		for (const object of floor.portalObjects) {
-			object.anchorPoints.forEach((anchor, anchorIdx) => {
+			object.interactSpots.forEach((anchor, interactSpotIdx) => {
 				const rawX = Math.floor((object.x + anchor.x) / tileSize)
 				const rawY = Math.floor((object.y + anchor.y) / tileSize)
 				const snapped = floor.walkable.has(`${rawX},${rawY}`)
@@ -389,16 +388,16 @@ function generateRuntimePortalTargets(
 					: findNearestWalkableCell(floor.walkable, rawX, rawY, 5)
 				if (!snapped) return
 				const [cellX, cellY] = snapped
-				const endpointKey = runtimePortalEndpointKey(floor.id, `portal:${object.id}`, anchorIdx)
+				const endpointKey = runtimePortalEndpointKey(floor.id, `portal:${object.id}`, interactSpotIdx)
 				for (const destFloorId of otherPortalFloors) {
 					const destFloor = floors.find(f => f.id === destFloorId)
 					const destPortal = destFloor?.portalObjects[0]
 					if (!destPortal) continue
-					const destEndpointKey = runtimePortalEndpointKey(destFloorId, `portal:${destPortal.id}`, anchorIdx)
+					const destEndpointKey = runtimePortalEndpointKey(destFloorId, `portal:${destPortal.id}`, interactSpotIdx)
 					targets.push({
 						floorId: floor.id,
 						itemId: `portal:${object.id}`,
-						anchorId: `portal:${anchorIdx}→${destFloorId}`,
+						interactSpotId: `portal:${interactSpotIdx}→${destFloorId}`,
 						x: cellX + 0.5,
 						y: cellY + 0.5,
 						tags: ['portal', `portal:${destFloorId}`],
@@ -421,7 +420,7 @@ function generateRuntimePortalTargets(
 	const raw = JSON.parse(readFileSync('src/blueprint-editor/data/originAssets.json', 'utf8').replace(/^\uFEFF/, '')) as { originAssets: AssetDef[] }
 	const assetMap = buildAssetMap(raw.originAssets)
 	const elevator = assetMap.get('builtin-elevator-1')!
-	assert.ok(elevator.anchorPoints?.length === 9, 'elevator must have 9 anchors for integration test')
+	assert.ok(elevator.interactSpots?.length === 9, 'elevator must have 9 anchors for integration test')
 	const tileSize = 25
 
 	const makeWalkable = (w: number, h: number) => {
@@ -430,14 +429,14 @@ function generateRuntimePortalTargets(
 		return set
 	}
 	const floorDefs = [
-		{ id: 'G', walkable: makeWalkable(10, 10), portalObjects: [{ id: 'elev-g', x: 100, y: 100, anchorPoints: elevator.anchorPoints! }] },
-		{ id: '1', walkable: makeWalkable(10, 10), portalObjects: [{ id: 'elev-1', x: 200, y: 200, anchorPoints: elevator.anchorPoints! }] },
+		{ id: 'G', walkable: makeWalkable(10, 10), portalObjects: [{ id: 'elev-g', x: 100, y: 100, interactSpots: elevator.interactSpots! }] },
+		{ id: '1', walkable: makeWalkable(10, 10), portalObjects: [{ id: 'elev-1', x: 200, y: 200, interactSpots: elevator.interactSpots! }] },
 	]
 	const portalTargets = generateRuntimePortalTargets(floorDefs, tileSize)
 
 	assert.equal(portalTargets.length, 18, 'should generate 18 portal targets (9 anchors × 2 floors)')
 
-	const normalTarget = { floorId: '1', itemId: 'desk', anchorId: 'a1', x: 1, y: 1, tags: ['service'], capacity: 1, durationMinSeconds: 1, durationMaxSeconds: 1 }
+	const normalTarget = { floorId: '1', itemId: 'desk', interactSpotId: 'a1', x: 1, y: 1, tags: ['service'], capacity: 1, durationMinSeconds: 1, durationMaxSeconds: 1 }
 	const engineLayout: NpcEngineLayout = {
 		floors: [
 			{ id: 'G', width: 10, height: 10, tileSize: 1, walkable: [] },
@@ -471,9 +470,9 @@ function generateRuntimePortalTargets(
 		return set
 	}
 	const floorDefs = [
-		{ id: 'G', walkable: makeWalkable(10, 10), portalObjects: [{ id: 'elev-g', x: 100, y: 100, anchorPoints: elevator.anchorPoints! }] },
-		{ id: '1', walkable: makeWalkable(10, 10), portalObjects: [{ id: 'elev-1', x: 200, y: 200, anchorPoints: elevator.anchorPoints! }] },
-		{ id: '2', walkable: makeWalkable(10, 10), portalObjects: [{ id: 'elev-2', x: 300, y: 300, anchorPoints: elevator.anchorPoints! }] },
+		{ id: 'G', walkable: makeWalkable(10, 10), portalObjects: [{ id: 'elev-g', x: 100, y: 100, interactSpots: elevator.interactSpots! }] },
+		{ id: '1', walkable: makeWalkable(10, 10), portalObjects: [{ id: 'elev-1', x: 200, y: 200, interactSpots: elevator.interactSpots! }] },
+		{ id: '2', walkable: makeWalkable(10, 10), portalObjects: [{ id: 'elev-2', x: 300, y: 300, interactSpots: elevator.interactSpots! }] },
 	]
 	const portalTargets = generateRuntimePortalTargets(floorDefs, tileSize)
 
@@ -486,8 +485,8 @@ function generateRuntimePortalTargets(
 			{ id: '2', width: 10, height: 10, tileSize: 1, walkable: [] },
 		],
 		interactionTargets: [
-			{ floorId: '1', itemId: 'desk1', anchorId: 'a1', x: 1, y: 1, tags: ['service'], capacity: 1, durationMinSeconds: 1, durationMaxSeconds: 1 },
-			{ floorId: '2', itemId: 'desk2', anchorId: 'a1', x: 1, y: 1, tags: ['service'], capacity: 1, durationMinSeconds: 1, durationMaxSeconds: 1 },
+			{ floorId: '1', itemId: 'desk1', interactSpotId: 'a1', x: 1, y: 1, tags: ['service'], capacity: 1, durationMinSeconds: 1, durationMaxSeconds: 1 },
+			{ floorId: '2', itemId: 'desk2', interactSpotId: 'a1', x: 1, y: 1, tags: ['service'], capacity: 1, durationMinSeconds: 1, durationMaxSeconds: 1 },
 			...portalTargets,
 		],
 	}
@@ -524,8 +523,8 @@ function generateRuntimePortalTargets(
 		return set
 	}
 	const floorDefs = [
-		{ id: 'G', walkable: makeWalkable(10, 10), portalObjects: [{ id: 'elev-g', x: 100, y: 100, anchorPoints: elevator.anchorPoints! }] },
-		{ id: '1', walkable: makeWalkable(10, 10), portalObjects: [{ id: 'elev-1', x: 200, y: 200, anchorPoints: elevator.anchorPoints! }] },
+		{ id: 'G', walkable: makeWalkable(10, 10), portalObjects: [{ id: 'elev-g', x: 100, y: 100, interactSpots: elevator.interactSpots! }] },
+		{ id: '1', walkable: makeWalkable(10, 10), portalObjects: [{ id: 'elev-1', x: 200, y: 200, interactSpots: elevator.interactSpots! }] },
 	]
 	const portalTargets = generateRuntimePortalTargets(floorDefs, tileSize)
 	const engineLayout: NpcEngineLayout = {
@@ -534,7 +533,7 @@ function generateRuntimePortalTargets(
 			{ id: '1', width: 10, height: 10, tileSize: 1, walkable: [], allowedRoleIds: ['security'] },
 		],
 		interactionTargets: [
-			{ floorId: '1', itemId: 'desk', anchorId: 'a1', x: 1, y: 1, tags: ['service'], capacity: 1, durationMinSeconds: 1, durationMaxSeconds: 1 },
+			{ floorId: '1', itemId: 'desk', interactSpotId: 'a1', x: 1, y: 1, tags: ['service'], capacity: 1, durationMinSeconds: 1, durationMaxSeconds: 1 },
 			...portalTargets,
 		],
 	}
@@ -563,8 +562,8 @@ function generateRuntimePortalTargets(
 		[0, 1], [1, 1], [2, 1],
 		[0, 2], [1, 2], [2, 2],
 	]
-	for (let i = 0; i < elevator.anchorPoints!.length; i++) {
-		const anchor = elevator.anchorPoints![i]
+	for (let i = 0; i < elevator.interactSpots!.length; i++) {
+		const anchor = elevator.interactSpots![i]
 		const cellX = Math.floor((0 + anchor.x) / tileSize)
 		const cellY = Math.floor((0 + anchor.y) / tileSize)
 		assert.equal(cellX, expectedCells[i][0], `anchor ${i}: cellX should be ${expectedCells[i][0]}`)
@@ -667,7 +666,7 @@ function makeGridFloor(id: string, w: number, h: number, blocked: string[] = [],
 {
 	const floor = makeGridFloor('F1', 6, 1)
 	const targets: NpcEngineInteractionTarget[] = [{
-		floorId: 'F1', itemId: 'item1', anchorId: 'a0', x: 5, y: 0, tags: [],
+		floorId: 'F1', itemId: 'item1', interactSpotId: 'a0', x: 5, y: 0, tags: [],
 		capacity: 1, durationMinSeconds: 1, durationMaxSeconds: 1,
 	}]
 	const engine = new NpcEngine({ floors: [floor], interactionTargets: targets }, {
@@ -687,7 +686,7 @@ function makeGridFloor(id: string, w: number, h: number, blocked: string[] = [],
 {
 	const floor = makeGridFloor('F1', 6, 2)
 	const targets: NpcEngineInteractionTarget[] = [{
-		floorId: 'F1', itemId: 'item1', anchorId: 'a0', x: 5, y: 0, tags: [],
+		floorId: 'F1', itemId: 'item1', interactSpotId: 'a0', x: 5, y: 0, tags: [],
 		capacity: 1, durationMinSeconds: 1, durationMaxSeconds: 1,
 	}]
 	let repathCount = 0
@@ -711,14 +710,14 @@ function makeGridFloor(id: string, w: number, h: number, blocked: string[] = [],
 {
 	const floor = makeGridFloor('F1', 5, 1)
 	const targets: NpcEngineInteractionTarget[] = [{
-		floorId: 'F1', itemId: 'item1', anchorId: 'a0', x: 4, y: 0, tags: [],
+		floorId: 'F1', itemId: 'item1', interactSpotId: 'a0', x: 4, y: 0, tags: [],
 		capacity: 1, durationMinSeconds: 100, durationMaxSeconds: 100,
 	}]
 	const engine = new NpcEngine({ floors: [floor], interactionTargets: targets }, {
 		pathfinder: (f, from, to) => findNpcGridPath(f, from, to),
 		ticksPerSecond: 10,
 	})
-	engine.addAgent({ id: 'holder', floorId: 'F1', x: 4, y: 0, targetX: 4, targetY: 0, speed: 1, status: 'interacting', interactionRemainingTicks: 1000, reservationItemId: 'item1', reservationAnchorId: 'a0' })
+	engine.addAgent({ id: 'holder', floorId: 'F1', x: 4, y: 0, targetX: 4, targetY: 0, speed: 1, status: 'interacting', interactionRemainingTicks: 1000, reservationItemId: 'item1', reservationInteractSpotId: 'a0' })
 	engine.addAgent({ id: 'A', floorId: 'F1', x: 0, y: 0, targetX: 0, targetY: 0, speed: 1 })
 	engine.tick(50)
 	const a = engine.getAgents().find(ag => ag.id === 'A')
@@ -729,7 +728,7 @@ function makeGridFloor(id: string, w: number, h: number, blocked: string[] = [],
 {
 	const floor = makeGridFloor('F1', 10, 1)
 	const targets: NpcEngineInteractionTarget[] = [{
-		floorId: 'F1', itemId: 'item1', anchorId: 'a0', x: 9, y: 0, tags: [],
+		floorId: 'F1', itemId: 'item1', interactSpotId: 'a0', x: 9, y: 0, tags: [],
 		capacity: 1, durationMinSeconds: 1, durationMaxSeconds: 1,
 	}]
 	const engine = new NpcEngine({ floors: [floor], interactionTargets: targets }, {
@@ -746,7 +745,7 @@ function makeGridFloor(id: string, w: number, h: number, blocked: string[] = [],
 {
 	const floor = makeGridFloor('F1', 4, 4)
 	const targets: NpcEngineInteractionTarget[] = [{
-		floorId: 'F1', itemId: 'item1', anchorId: 'a0', x: 3, y: 3, tags: [],
+		floorId: 'F1', itemId: 'item1', interactSpotId: 'a0', x: 3, y: 3, tags: [],
 		capacity: 1, durationMinSeconds: 1, durationMaxSeconds: 1,
 	}]
 	const engine = new NpcEngine({ floors: [floor], interactionTargets: targets }, {
@@ -771,11 +770,11 @@ console.log('Shared NPC engine checks passed')
 // ─── Target scoring tests ───
 
 function makeAgent(id: string, x: number, y: number): NpcEngineAgent {
-	return { id, floorId: 'F1', x, y, targetX: x, targetY: y, speed: 1, status: 'idle', path: [], pathIndex: 0, reservationItemId: null, reservationAnchorId: null, interactionRemainingTicks: 0, crossFloorCooldownUntil: 0 }
+	return { id, floorId: 'F1', x, y, targetX: x, targetY: y, speed: 1, status: 'idle', path: [], pathIndex: 0, reservationItemId: null, reservationInteractSpotId: null, interactionRemainingTicks: 0, crossFloorCooldownUntil: 0 }
 }
 
 function makeTarget(itemId: string, x: number, y: number): NpcEngineInteractionTarget {
-	return { floorId: 'F1', itemId, anchorId: 'a0', x, y, tags: [], capacity: 1, durationMinSeconds: 1, durationMaxSeconds: 1 }
+	return { floorId: 'F1', itemId, interactSpotId: 'a0', x, y, tags: [], capacity: 1, durationMinSeconds: 1, durationMaxSeconds: 1 }
 }
 
 {

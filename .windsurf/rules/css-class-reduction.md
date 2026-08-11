@@ -2,561 +2,338 @@
 trigger: always_on
 ---
 
-# Reusable CSS Class Reduction Workflow
+# CSS Class Audit
 
-Use this workflow for every CSS/UI audit or refactor. The goal is to reduce unnecessary classes and declarations while keeping CSS semantic, reusable, maintainable, and non-Tailwind.
+This file defines the audit workflow for CSS class naming and usage. The project's general conventions remain in `AGENTS.md`; this file checks compliance and reports findings.
 
-> **Source of truth for base rules:** naming conventions, global CSS rules, class reuse policy, base-plus-variant composition, CSS layering by responsibility, and reusable-class discovery rules live in the project's global rules file (for example, `global_rules.md`). This file adds the audit/refactor workflow. Do not duplicate project-specific rules here; defer to the project's global rules when they conflict.
+## 1. BEM Class Naming Audit
 
----
+Audit every class added, renamed, or touched in the target files.
 
-## CSS File Placement Decision Framework
-
-Before writing or moving any CSS rule, decide which layer owns it. The four layers map to four destinations. Use the first tier whose criteria match.
-
-### Tier 1 — Reset / base layer → project base stylesheet
-
-**What goes here:** element selectors (`button`, `input`, `body`, `*`, headings) that define the shared defaults every instance of that element inherits. The exact filename varies by project (`base.css`, `reset.css`, or equivalent).
-
-**Criteria (ALL must be true):**
-
-- The selector is an element, attribute, universal, or element pseudo-class selector — not a component class.
-- The declarations apply to every instance of that element across the application.
-- Removing the rule would change the default behavior or appearance of every matching element.
-
-**Generic example:**
-
-```css
-/* base.css — shared defaults for every button */
-button {
-  font-family: var(--font-family);
-  cursor: pointer;
-  border: 1px solid var(--color-border);
-  background: var(--color-surface);
-  color: var(--color-text);
-  padding: var(--space-xs) var(--space-sm);
-}
-```
-
-**Do NOT put here:** class-based rules, component variants, component states, or styles scoped to one component.
-
----
-
-### Tier 2 — Project-wide reusable layer → shared components stylesheet
-
-**What goes here:** class selectors reused across unrelated components, or classes belonging to an established reusable role family. The file is commonly named `components.css`, but use the project's actual shared components stylesheet.
-
-**Criteria (ANY one is sufficient):**
-
-- The class is referenced in two or more Vue SFC files from different subsystems.
-- The class belongs to an established reusable role family such as `btn__*`, `card__*`, `badge__*`, `tag__*`, `panel__*`, `section__*`, `actions__*`, `layout__*`, `alert__*`, `input__*`, `toast__*`, or `modal__*`.
-- The class is a base or variant used by a base-plus-variant composition.
-
-**Hard rule:** If a class is used in exactly one Vue SFC and does not belong to an established reusable role family, it does not belong in the shared components stylesheet. Move it to a subsystem stylesheet or Vue SFC scoped style.
-
-**Generic example:**
-
-```css
-/* shared components stylesheet */
-.card {
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  padding: var(--space-sm);
-}
-
-.card__outlined {
-  background: transparent;
-  border-color: var(--color-accent);
-}
-
-.btn__primary {
-  background: var(--color-brand);
-  color: var(--color-on-brand);
-}
-
-.btn__danger {
-  border-color: var(--color-danger);
-  color: var(--color-danger);
-}
-
-.badge {
-  font-size: var(--font-xs);
-  padding: var(--space-xs);
-}
-
-.actions {
-  display: flex;
-  gap: var(--space-sm);
-}
-```
-
-**Do NOT put here:** selectors named after one feature or component (for example, `.feature__*` or `.dialog__*`) unless they are genuinely reused or belong to an established reusable role family.
-
----
-
-### Tier 3 — Subsystem shared layer → subsystem stylesheet
-
-**What goes here:** classes shared by two or more Vue SFCs inside one subsystem, but not used outside that subsystem. The exact location is project-specific, for example `src/features/editor/editor.css`.
-
-**Criteria (ALL must be true):**
-
-- The class is used in two or more Vue SFC files.
-- All usages are inside the same subsystem or feature folder.
-- The class is not used outside that subsystem.
-- The class does not belong to a project-wide role family; otherwise it belongs in Tier 2.
-
-**Generic example:**
-
-```css
-/* feature/editor/editor.css — shared only by editor forms */
-.properties__row {
-  display: flex;
-  align-items: center;
-  gap: var(--space-sm);
-}
-
-.properties__content {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-sm);
-}
-
-.input__error {
-  border-color: var(--color-danger);
-}
-```
-
-Import a subsystem stylesheet once through the project's normal stylesheet entry point. Do not import it separately in every Vue SFC, which can create duplicate bundles or ordering problems.
-
-**Do NOT put here:** classes used by only one component, or classes used across multiple subsystems.
-
----
-
-### Tier 4 — Component-specific layer → Vue SFC scoped style
-
-**What goes here:** classes used by exactly one component that encode unique layout, decoration, animation, overflow, or interaction behavior. This is the default destination when a class does not qualify for Tier 1, 2, or 3.
-
-**Criteria (ANY one is sufficient):**
-
-- The class is used in only one Vue SFC.
-- The class has a feature-specific prefix and is not a reusable role.
-- The declarations encode behavior unique to that component.
-
-**Generic example:**
-
-```css
-/* inside a component's scoped style block */
-.dialog {
-  position: fixed;
-  inset: 0;
-  display: grid;
-  place-items: center;
-}
-
-.dialog__content {
-  max-width: var(--dialog-max-width);
-  overflow: auto;
-}
-```
-
-**Scoped style rules:**
-
-- Put component-specific CSS inside `<style scoped>` in the Vue SFC. Do not use a plain `<style>` block for these rules.
-- If the Vue SFC already has a scoped style block, append to it instead of creating a duplicate block.
-- Global reusable classes referenced by the Vue `<template>` continue to work; scoping only affects selectors defined inside the scoped style block.
-- Contextual overrides on global classes are allowed when they express a real component-specific delta and do not duplicate the global base or variant.
-
-**Do NOT put here:** base, variant, or state rules that belong to reusable roles, or rules shared by multiple files in one subsystem.
-
----
-
-### Decision flowchart
+### Required format
 
 ```text
-Is the selector an element/attribute/universal selector?
-├─ YES → Tier 1 (base/reset stylesheet)
-└─ NO ↓
-
-Is the class used across unrelated components or an established role family?
-├─ YES → Tier 2 (shared components stylesheet)
-└─ NO ↓
-
-Is the class used by multiple files inside one subsystem?
-├─ YES → Tier 3 (subsystem stylesheet)
-└─ NO ↓
-
-→ Tier 4 (Vue SFC scoped style)
+B__E--M
 ```
 
-### Quick placement test
+- `B` — Block: the independent component or feature, such as `card`, `modal`, `npcmanager`.
+- `E` — Element: a structural child of the block, such as `title`, `role`, `header`.
+- `M` — Modifier: a state or variant, such as `active`, `danger`, `compact`.
 
-Ask these questions in order:
+Use the shortest valid form:
 
-1. Would removing this rule change every matching element in the application? → Tier 1.
-2. Is this class used by unrelated components, or is it an established role/variant? → Tier 2.
-3. Is this class shared only inside one subsystem? → Tier 3.
-4. Is this class used by one component or does it encode unique behavior? → Tier 4.
+```text
+.block
+.block__element
+.block--modifier
+.block__element--modifier
+```
 
-If unsure, default to the narrowest scope. Promote a class to a broader stylesheet only when reuse evidence is clear.
+### Naming rules
 
----
+1. A class name may contain **no more than three BEM parts**: Block, Element, and Modifier.
+2. Count the BEM parts across the complete name. For example:
+   - `card` = Block only
+   - `card__title` = Block + Element
+   - `npcmanager__role--active` = Block + Element + Modifier
+3. Do not split a deliberate semantic token into extra words merely because it is a compound English term; the three-part limit applies to BEM ownership, not natural-language vocabulary inside one part.
+4. Use `__` only between Block and Element.
+5. Use `--` only before a state or variant Modifier.
+6. Do not use a single hyphen as a BEM separator.
+7. Do not simulate nested BEM with names such as `block__element__child`.
+8. Do not use a structural child as a block modifier. For example, use `properties__empty` when `empty` is an empty-message element, not `properties--empty`.
+9. Use an element-specific modifier when the state belongs to one element:
+   - Correct: `npcmanager__role--active`
+   - Incorrect: `npcmanager--role-active`
+10. Use a block modifier when the state affects the entire component:
+    - `modal--open`
+    - `editor--loading`
+11. In Vue `:class` object bindings, quote keys containing `--`:
 
-## Naming Convention Enforcement (Mandatory)
+```vue
+:class="{ 'card__item--active': isActive }"
+```
 
-Before any CSS change, perform these checks in addition to the project's global naming rules:
+### Invalid examples
 
-1. **BEM separator check**
-   - Scan all class names in changed files.
-   - Reject a single class name with three or more `__` separators unless the project explicitly allows another convention.
-   - Rename it or split the responsibility into multiple classes.
+```text
+block__element__child       # nested BEM / too many separators
+block--element-state        # structural element hidden inside a modifier
+block__element__sub--active # nested BEM and more than three parts
+very-large-component-name   # more than three words
+```
 
-2. **Semantic role validation**
-   - For every new or renamed class, verify that it describes a reusable role or a genuinely unique component behavior, not merely a file location.
-   - Reject names such as `.feature__button` when the element is an ordinary shared button.
-   - Prefer role names such as `.btn__danger`, `.card__outlined`, or `.actions__center`.
+### Required BEM audit output
 
-3. **Duplicate name check**
-   - Search the entire codebase for the proposed class name.
-   - Reuse an existing class when it has the same function.
-   - Choose a distinct name when an existing class has a different function.
+Report every violation in a table:
 
-4. **Pre-change verification**
-   - List all classes being added, renamed, or removed.
-   - Confirm each class complies with naming, semantic-role, and duplicate rules before editing.
+| Class      | File and lines     | Violation             | Corrected form           | Confidence |
+| ---------- | ------------------ | --------------------- | ------------------------ | ---------- |
+| `.example` | `path/file.vue:10` | More than three words | `.example__item--active` | High       |
 
-5. **Post-change verification**
-   - Search for single class names with three or more BEM separators.
-   - Search for Vue SFC scoped button/card names that should use shared roles.
-   - Correct violations before marking the task complete.
+If no violation is found, report:
 
-6. **Violation handling**
-   - Revert the violating change.
-   - Rename the class or move it to the appropriate layer.
-   - Re-run the checks.
-   - Never leave a known naming violation unresolved.
+```text
+BEM audit: PASS
+```
 
----
+## 2. Class Normalization Audit
 
-## Consolidation Targets
+Class normalization means converting repeated, equivalent styling into a **reusable semantic class**. It is not merely renaming a class or merging selectors that happen to share a few declarations.
 
-Apply the project's base reuse policy to these high-yield areas:
+### Normalization goals
 
-1. **Buttons** — consolidate repeated button styling into the existing button role and semantic variants.
-2. **Cards** — consolidate repeated card styling into the existing card role and variants; keep unique internal behavior Vue SFC scoped.
-3. **Modal/overlay surfaces** — consolidate repeated overlay behavior, but preserve real differences in size, alignment, stacking, overflow, and interaction.
-4. **Action groups** — consolidate repeated action layouts; use variants for alignment, filling, wrapping, or stacking differences.
-5. **Layout groups** — consolidate equivalent flex/grid arrangements into shared layout roles.
-6. **Tags, badges, alerts, tabs, rows, inputs, and lists** — consolidate only when the semantic role and behavior match.
+- Use one reusable base class for one semantic role.
+- Use modifier classes for intentional variants or states.
+- Keep component-specific layout and behavior in the component scope.
+- Reduce duplicated declarations without hiding meaningful differences.
+- Preserve responsive, accessibility, interaction, overflow, and focus behavior.
 
----
+### Base-plus-variant pattern
 
-## When Not to Merge
+Normalize repeated roles using this structure:
 
-Defer to the project's global definitions of role, coincidental match, and unique behavior when uncertain.
-
-- Do not merge selectors whose semantic roles differ, even if they share four declarations. Report `coincidental match, do not merge`.
-- Do not replace meaningful state classes such as selected, disabled, locked, active, loading, or dirty when the state changes behavior.
-- Do not use a generic class to hide unique responsive, accessibility, interaction, or overflow behavior.
-- Do not merge two selectors merely because they have the same color, padding, or border.
-- Do not create a class only to repeat global element behavior or an existing base class.
-
----
-
-## Required Audit Process
-
-1. Inventory role classes and their usages.
-2. Identify repeated button, card, modal, action-group, layout, input, and status patterns.
-3. Separate safe reusable matches from semantically unrelated matches.
-4. Inspect parent/template context before changing layout or spacing.
-5. Migrate templates to existing base-plus-variant roles.
-6. Move only shared structure into reusable styles.
-7. Preserve unique behavior through contextual or scoped styles.
-8. Remove obsolete selectors only after confirming no template, script, dynamic, or generated usage remains.
-9. Run duplicate-class and redundant-declaration checks for every touched class.
-10. Run the project's build, lint, and typecheck commands when available.
-11. Report unrelated pre-existing verification failures separately.
-
----
-
-## Base Layer Duplication Detection
-
-Identify and remove declarations in variant, state, subsystem, or component-specific classes that merely repeat what the base/reset layer (Tier 1) already provides to the same element. This is a declaration-level audit: the class may remain useful while several properties are redundant.
-
-### Core Principle
-
-The base/reset stylesheet (for example `base.css`) defines shared defaults for element selectors (`button`, `input`, `select`, `textarea`, `label`, headings, `*`). Every matching element inherits these defaults without needing a class. A variant, state, subsystem, or component-specific class must only declare the **delta** from the base — never re-declare properties the base already owns for that element.
-
-Before adding any declaration to a non-base class, verify the element it is applied to and check what the base layer already gives that element:
-
-- A `<button>` already receives `font-family`, `cursor`, `border`, `background`, `color`, `padding`, `text-transform`, `letter-spacing`, `font-size`, `font-weight`, `border-radius`, `transition`, `display: inline-flex`, `align-items: center`, `justify-content: center`, `gap`, `white-space`, and all `:hover` / `:active` / `:disabled` states from the base `button` rule.
-- An `<input>`, `<select>`, or `<textarea>` already receives `font-family`, `background`, `border`, `color`, `padding`, `font-size`, `border-radius`, `transition`, `box-sizing`, and all `:hover` / `:focus` / `:disabled` states from the base form-control rule.
-- A `<label>` already receives `font-size`, `color`, `text-transform`, `letter-spacing`, and `font-weight` from the base `label` rule.
-- A `<span>`, `<div>`, or other non-form element does **not** inherit button/input/label base styles. Re-declaring `display: inline-flex; align-items: center; justify-content: center` on a `<span>` class is **not** duplication — the base does not provide it. Report as `coincidental match, do not merge`.
-
-### Detection Process
-
-1. For each class being added or audited, identify the HTML element it is applied to in the Vue `<template>`.
-2. Look up that element in the base/reset stylesheet and list every property the base rule provides.
-3. Compare the class's declarations against the base list.
-4. Classify each declaration:
-   - **Redundant base duplication** — the base already sets the same property to the same value on this element. Remove it.
-   - **Intentional override** — the class changes the value the base sets (for example `background: var(--bg-primary)` overriding the base `background: var(--bg-card)`). Keep it, but confirm the override is intentional and documented by the variant's role.
-   - **Base-absent declaration** — the base does not set this property for this element. Keep it; it is a genuine delta.
-   - **Coincidental match** — the class targets a non-base element (for example a `<span>` styled like a button) and shares property names with the base by coincidence. Keep it; report as `coincidental match, do not merge`.
-5. Also audit `:hover`, `:focus`, `:active`, `:disabled`, and other state selectors on the class. If the base already defines the same state for the same element with the same values, the state selector is redundant.
-6. Remove only the redundant declarations, not the whole class.
-7. Run build and regression checks after editing.
-
-### Required Audit Output
-
-For each candidate, report:
-
-| Selector        | Declaration                      | Base source            | Element applied to | Classification                   | Confidence |
-| --------------- | -------------------------------- | ---------------------- | ------------------ | -------------------------------- | ---------- |
-| `.btn__primary` | `cursor: pointer`                | `button` (base.css:31) | `<button>`         | redundant base duplication       | high       |
-| `.btn__primary` | `background: var(--color-brand)` | `button` (base.css:33) | `<button>`         | intentional override             | high       |
-| `.icon-btn`     | `display: inline-flex`           | `button` (base.css:44) | `<span>`           | coincidental match, do not merge | high       |
-
-Use the exact phrase `redundant base duplication` for confirmed cases. Use `intentional override` when the class deliberately changes a base-provided value. Use `coincidental match, do not merge` when the class targets a non-base element that happens to share property names.
-
-### Safe Examples
+```html
+<button class="btn btn--primary">Save</button> <button class="btn btn--danger">Delete</button>
+```
 
 ```css
-/* base.css already gives every <button> these properties */
-button {
-  cursor: pointer;
-  border: 1px solid var(--color-border);
-  background: var(--color-surface);
-  color: var(--color-text);
-  padding: var(--space-xs) var(--space-sm);
-  border-radius: var(--radius-sm);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--space-xs);
+.btn {
+  /* shared button role */
 }
 
-/* redundant: re-declares base properties on a <button> class */
-.btn__primary {
-  cursor: pointer; /* redundant base duplication */
-  border: 1px solid var(--color-border); /* redundant base duplication */
-  display: inline-flex; /* redundant base duplication */
-  align-items: center; /* redundant base duplication */
-  justify-content: center; /* redundant base duplication */
-  gap: var(--space-xs); /* redundant base duplication */
-  background: var(--color-brand); /* intentional override */
-  color: var(--color-on-brand); /* intentional override */
+.btn--primary {
+  /* primary-only delta */
 }
 
-/* correct: only the delta from base */
-.btn__primary {
-  background: var(--color-brand);
-  color: var(--color-on-brand);
-}
-
-/* coincidental: <span> is not a <button>, base does not provide these */
-.span-btn {
-  display: inline-flex; /* base-absent: keep */
-  align-items: center; /* base-absent: keep */
-  justify-content: center; /* base-absent: keep */
-  cursor: pointer; /* base-absent for <span>: keep */
+.btn--danger {
+  /* danger-only delta */
 }
 ```
 
-### Do Not Misclassify
+The base class owns shared role behavior. The modifier owns only the difference. Do not repeat base declarations inside every modifier.
 
-- A class on a `<button>` that sets `display: inline-flex` is **redundant base duplication**, not a unique layout need.
-- A class on a `<span>` or `<div>` that sets `display: inline-flex` is **base-absent** or **coincidental match**, not redundant — the base does not style that element.
-- A class that overrides `background` or `color` to a different value than the base is an **intentional override**, not redundant — keep it.
-- A class `:focus` selector that re-declares `outline: none; border-color: var(--accent-gold); box-shadow: ...` on an `<input>` is **redundant base duplication** when the base `input:focus` already sets the same values.
-- A class `:focus` selector that changes the focus color to a different accent is an **intentional override** — keep it.
+### Candidate selection threshold
 
----
+Use a declaration-level screen to suggest normalization candidates:
 
-## Implicit Layout Redundancy Detection
+1. Compare declarations by exact CSS property/value pairs, not by property names alone.
+2. Search the whole repository's CSS sources: `.css` files and `<style>`/`<style scoped>` blocks inside `.vue` files. TypeScript and JavaScript are checked for class usage and generated references, but not as CSS declaration sources.
+3. When two or more selectors share **four or more exact declarations**, mark them as a normalization candidate.
+4. Four shared declarations are only a screening threshold, not permission to merge automatically.
+5. Before recommending the merge, verify semantic role, element context, interaction behavior, responsive behavior, accessibility, and usage scope.
+6. If the selectors are semantically different, report `coincidental match, do not merge` even when they share four or more declarations.
+7. Exclude declarations inherited from the base element selector when calculating the candidate threshold; do not create a class merely to repeat base behavior.
+8. Separate shared declarations from real deltas. The reusable class must contain only the shared role, while variants or scoped rules preserve the deltas.
+9. A candidate's replacement class must use a **neutral semantic name** based on the reusable role, not a feature, screen, file, location, or current component name. The name may be proposed freely, but the audit must explain why it represents the shared semantic role.
+10. The default audit action is **suggest only**. Do not rename, merge, move, or delete CSS classes during the audit unless the user explicitly requests implementation.
 
-Identify declarations that repeat sizing or layout behavior already supplied by CSS formatting rules. This is a declaration-level audit: the class may remain useful while one property is redundant.
+Examples of neutral names:
 
-### Core Principle
-
-Do not assume `width: 100%` is necessary because an element should fill its parent. Verify the formatting context first:
-
-- A normal block-level element with `width: auto` fills the available inline size by default.
-- A normal `display: flex` or `display: grid` container is block-level by default and normally fills its containing block.
-- A flex item normally stretches across the cross-axis when its parent uses the default `align-items: stretch`.
-- A grid item normally stretches across its grid area when default stretch alignment applies.
-- A positioned element with `inset: 0` already receives its containing-block edges from `top`, `right`, `bottom`, and `left`; an additional width or height may be redundant.
-- A flex shorthand can override a declared width through `flex-basis`; verify whether the width has any effect.
-- `inline-flex`, `inline-grid`, replaced elements, form controls, and elements under `align-items: center` or `align-self: center` are not automatically full-width.
-
-### Detection Process
-
-1. Search all styles for:
-   - `display: flex` or `display: grid` with `width: 100%` or `height: 100%`
-   - `display: block` with `width: 100%`
-   - `inset: 0` with explicit width or height
-   - `flex: ...` together with `width: 100%`
-   - grouped selectors where only some members need the shared declaration
-2. Read the parent context:
-   - parent display mode
-   - parent `align-items` and child `align-self`
-   - whether the element is a flex or grid item
-   - `max-width`, `min-width`, `flex-basis`, positioning, and replaced-element behavior
-3. Classify each candidate:
-   - **Redundant declaration** — removable without changing layout.
-   - **Required sizing** — needed because stretch does not apply or a sizing constraint depends on it.
-   - **Grouped-selector redundancy** — split the selector group before removing the property from only some members.
-   - **Uncertain** — preserve until browser/visual verification.
-4. Check wrapping, max-width behavior, responsive states, and sibling layout before editing.
-5. Apply the smallest change: remove only the redundant declaration, not the whole class.
-6. Run build and regression checks after editing.
-
-### Required Audit Output
-
-For each candidate, report:
-
-| Selector   | Declaration   | Parent/context evidence      | Classification        | Confidence |
-| ---------- | ------------- | ---------------------------- | --------------------- | ---------- |
-| `.example` | `width: 100%` | block child of normal parent | redundant declaration | high       |
-
-Use the exact phrase `redundant CSS declaration caused by implicit layout behavior` for confirmed cases. Use `required sizing` for declarations that must remain. Do not label a still-used selector as dead code merely because one declaration is redundant.
-
-### Safe Examples
-
-```css
-/* redundant: a block-level element already fills its parent */
-.example {
-  display: block;
-  width: 100%;
-}
-
-/* redundant when the item stretches to its grid track */
-.grid > .item {
-  display: grid;
-  width: 100%;
-}
-
-/* required: inline-flex does not automatically fill the parent */
-button {
-  display: inline-flex;
-  width: 100%;
-}
-
-/* required or potentially required: max-width depends on the width basis */
-.dialog {
-  width: 100%;
-  max-width: 80%;
-}
+```text
+.feature-save-button + .dialog-delete-button -> .btn + .btn--primary/.btn--danger
+.room-panel-box + .asset-panel-box -> .card
+.header-actions + .footer-actions -> .actions
 ```
 
-### Do Not Misclassify
+Do not propose names such as `.feature__button`, `.room__box`, or `.settings__actions` when the role is a reusable button, card, or action group.
 
-- A used selector with one unnecessary declaration is not dead code.
-- Use `redundant CSS declaration` or `implicit layout redundancy` for that case.
-- Use `unused CSS` or `dead CSS` only when the whole selector has no verified template, script, dynamic, generated, inheritance, or role-family usage.
-- Preserve width when it creates an intentional full-width line, works with `max-width`, or overrides non-stretch alignment.
+### Normalization decision process
 
----
+For every candidate class:
 
-## Unused Class Detection
+1. Inventory its declaration set and every usage across `.vue`, `.css`, `.ts`, `.tsx`, `.js`, `.jsx`, tests, and generated markup.
+2. Inspect the HTML/template context and identify the semantic role of the element.
+3. Compare the candidate with existing reusable classes and variants.
+4. Recommend normalization only when the semantic role, behavior, and interaction model match.
+5. Propose a neutral reusable role name and explain the naming rationale.
+6. Recommend the project-wide role's shared stylesheet placement.
+7. Recommend the subsystem stylesheet placement for subsystem-only roles.
+8. Identify one-component behavior that must remain in `<style scoped>`.
+9. Identify unique deltas that must remain as contextual overrides or modifiers.
+10. List every static, dynamic, generated, and runtime reference that would need updating.
+11. Verify that the proposed normalized class would contain no redundant base declarations.
 
-Identify and remove CSS classes that are declared but never used in Vue templates, `<script setup>`/TypeScript, generated class names, or supported role families.
+### Safe normalization examples
 
-### Detection Process
-
-1. Extract class selectors from all stylesheets, scoped styles, and subsystem styles.
-2. Search Vue SFC `<template>` blocks for static class attributes and dynamic `:class` bindings.
-3. Search `<script setup>`/TypeScript for class strings, `classList` calls, conditional maps, and constructed class names.
-4. Identify classes that appear only in other CSS selectors; these are candidates, not automatic removals.
-5. Check base-plus-variant families and documented extension points before removal.
-
-### Removal Criteria
-
-Remove a class only when ALL are true:
-
-- It is declared in a project stylesheet.
-- It is not referenced in Vue templates, `<script setup>`/TypeScript, generated markup, or dynamic class construction.
-- It is not a required base, variant, state, inheritance target, or subsystem role.
-- Removing it does not leave a broken selector or empty declaration.
-
-### Exceptions
-
-Do NOT remove classes that:
-
-- Belong to an established role family, even if currently unused.
-- Are required by a third-party library or Vue integration.
-- Are used through inheritance, combinator selectors, generated markup, or runtime class generation.
-- Are documented examples or intentional extension points.
-
----
-
-## Empty Declaration Detection
-
-Identify and remove style declarations with no properties.
-
-### Detection Process
-
-1. Scan all stylesheets and scoped style blocks for empty class blocks.
-2. Treat whitespace-only and comment-only blocks as empty.
-3. Check whether the selector is part of a meaningful combinator, inheritance, Vue-generated style, or runtime pattern before removal.
-
-```css
-.example {
-} /* empty — remove after usage verification */
-
-.example {
-  /* comment only — remove or document an intentional placeholder */
-}
+```text
+.card + .panel with the same card semantic role -> normalize to .card
+button variants with the same button behavior -> .btn + .btn--modifier
+repeated action rows with the same action-group role -> .actions
+repeated form controls with the same input role -> .input + .input--modifier
 ```
 
-### Removal Criteria
+### Do not normalize
 
-Remove the declaration only when ALL are true:
+- Different semantic roles that only share color, padding, border, or display values.
+- Elements with different keyboard, focus, hover, disabled, or accessibility behavior.
+- Layouts with different responsive, overflow, alignment, or stacking requirements.
+- A unique component class merely because it shares declarations with a reusable role.
+- A state class that changes behavior, such as `active`, `selected`, `locked`, `loading`, or `disabled`.
 
-- The block is empty or contains only comments/whitespace.
-- The selector is not a meaningful combinator or Vue/runtime hook.
-- It is not a target for `<script setup>` manipulation or generated styles.
-- Removing it does not break a base-plus-variant contract.
+For unsuitable matches, report exactly:
 
----
+```text
+coincidental match, do not merge
+```
 
-## Audit Output Format
+### Required normalization output
 
-When performing a CSS/UI audit, produce findings as a table with:
+| Existing selectors           | Shared semantic role | Proposed reusable class | Preserved differences         | Confidence |
+| ---------------------------- | -------------------- | ----------------------- | ----------------------------- | ---------- |
+| `.old-card`, `.feature-card` | Card surface         | `.card`                 | Feature overflow stays scoped | High       |
 
-`old selectors | shared declarations | proposed class or declaration | rationale | confidence (high/med/low)`
+Also report:
 
-For every proposed consolidation or redundant-declaration removal:
+- Classes normalized or promoted.
+- Classes intentionally kept separate.
+- Declarations removed as redundant base duplication.
+- Contextual overrides retained.
+- Uncertain matches requiring visual verification.
 
-- Quote the exact matched CSS and Vue `<template>` text.
-- Include verified file and line references when available.
-- Explain the shared semantic role or the parent-layout evidence.
-- Identify preserved state, hover, focus, responsive, disabled, accessibility, and interaction behavior.
-- Explicitly report unsuitable matches as `coincidental match, do not merge`.
+## Audit scope: all class sources
 
-After the table, report:
+The audit must scan every place where a class can be declared, referenced, generated, or styled:
 
-- Classes/declarations removed.
-- Reusable classes added or promoted.
-- Remaining component-specific or subsystem-specific styles and why they remain.
-- Uncertain cases that need visual/browser verification.
-- Build, lint, and typecheck results.
+### Vue SFC files (`.vue`)
 
----
+Check all of the following:
 
-## Audit-Specific Checklist
+- `<template>` static `class="..."` attributes.
+- Vue `:class` string, array, and object bindings.
+- `<style scoped>` selectors.
+- Plain `<style>` selectors, which must be treated as global CSS.
+- Class names assembled in `<script setup>` or component methods.
+- `classList.add`, `classList.remove`, `classList.toggle`, and `classList.contains` calls.
 
-These items supplement the project's global CSS rules:
+### Stylesheets (`.css`)
 
-- [ ] Interactive elements have visible focus styles and acceptable text contrast.
-- [ ] Base/reset styles live in the base stylesheet.
-- [ ] Reusable variants live in the shared components stylesheet.
-- [ ] Subsystem-shared styles live in a subsystem stylesheet.
-- [ ] Component-specific styles live inside Vue SFC `<style scoped>` blocks.
-- [ ] No redundant declarations remain after parent-context review.
-- [ ] No unused classes remain without a documented exception.
-- [ ] No empty declarations remain without a documented placeholder reason.
-- [ ] No variant duplicates base declarations.
-- [ ] Dynamic, script-generated, inherited, and third-party class usage was checked.
-- [ ] Build, lint, and typecheck pass, or unrelated failures are reported separately.
+Check:
+
+- Component-scoped CSS extracted from Vue SFCs.
+- Global stylesheets such as `base.css`, `components.css`, `layout.css`, and `accessibility.css`.
+- Subsystem stylesheets such as `src/blueprint-editor/editor.css`.
+- CSS selectors inside `@media`, `@supports`, pseudo-classes, pseudo-elements, and combinators.
+- CSS selectors that appear only as descendants or modifier targets.
+
+### TypeScript and JavaScript (`.ts`, `.tsx`, `.js`, `.jsx`)
+
+Check for classes hidden outside templates and styles:
+
+- String literals containing class names.
+- Arrays or maps of class names.
+- `classList` calls.
+- `:class`-style configuration objects.
+- Dynamic construction using template literals or concatenation.
+- Generated markup, render functions, and DOM creation.
+- Test fixtures, snapshots, and selector strings.
+
+A class is not unused until all `.vue`, `.css`, `.ts`, `.tsx`, `.js`, `.jsx`, test, generated, and runtime references have been checked.
+
+## Audit rules
+
+- Do not rename classes based only on similar declarations; inspect their semantic role and template context first.
+- Check static classes, Vue `:class` bindings, script-generated classes, and CSS selectors across `.vue`, `.css`, and `.ts` files.
+- Check that every renamed class is updated in templates, scripts, styles, tests, and generated-class mappings.
+- Check for unused selectors only after verifying dynamic and runtime usage.
+- Keep component-specific styles in `<style scoped>` unless the class is demonstrably reused.
+- Reuse existing shared roles such as button, card, input, tag, actions, and layout variants when the semantic role matches.
+- Do not merge selectors with different semantic roles merely because they share declarations. Report: `coincidental match, do not merge`.
+- Do not duplicate declarations already supplied by the base element selector. Classify each declaration as `redundant base duplication`, `intentional override`, `base-absent declaration`, or `coincidental match, do not merge`.
+
+## 3. CSS Variable Audit
+
+Every `var(--name)` reference must resolve to a custom property declared in:
+
+```text
+src/styles/variables.css
+```
+
+### Required checks
+
+1. Extract every `var(--name)` reference from all `.css` files and every `<style>` block in `.vue` files.
+2. Extract every `--name:` declaration from `src/styles/variables.css`.
+3. Compare references against the declarations in `variables.css`.
+4. Report every referenced variable that is not declared in `variables.css`.
+5. Treat fallback values such as `var(--name, fallback)` as references to `--name`; the fallback does not make an undeclared variable valid.
+6. Check variables used in CSS custom-property assignments, `@media`, `@supports`, pseudo-selectors, inline style bindings, and generated style strings.
+7. Check `.ts`, `.tsx`, `.js`, and `.jsx` for generated CSS strings containing `var(--name)` or `--name:`.
+8. Do not accept variables declared only inside a component `<style>`, another stylesheet, an inline `style` binding, or a script as valid replacements for `variables.css`.
+9. If a local or inline custom property is needed for a deliberate runtime calculation, report it separately as a CSS variable policy exception; do not silently treat it as a project theme variable.
+10. Do not invent or rename variables during an audit. Suggest the closest existing variable or report that `variables.css` needs a new declaration.
+
+### Required variable audit output
+
+| Variable reference | File and lines     | Declared in `variables.css` | Classification      | Suggested action                                | Confidence |
+| ------------------ | ------------------ | --------------------------- | ------------------- | ----------------------------------------------- | ---------- |
+| `var(--example)`   | `path/file.vue:10` | No                          | Undeclared variable | Use existing variable or add to `variables.css` | High       |
+
+If all references are declared in `variables.css`, report:
+
+```text
+CSS variable audit: PASS
+```
+
+## 4. HTML/CSS Class Existence Audit
+
+Every class name must have a real purpose and a verified usage path. Do not add class names as placeholders, labels, future hooks, or empty naming shells.
+
+### Required class contract
+
+For every class found in HTML/Vue markup:
+
+1. The class must have a matching CSS selector or an explicit documented runtime purpose.
+2. The class must be used on a real element in a rendered template, generated markup, or supported runtime path.
+3. The class name must describe the element's semantic role, visual role, state, or variant.
+4. The class must not exist only as an unused name in `class="..."`, `:class`, a script constant, or a CSS file.
+5. A class used only for JavaScript behavior must be clearly identified as a runtime hook and must not be styled accidentally.
+6. A CSS selector must not be added unless it has a verified HTML/Vue, generated markup, inheritance, combinator, or runtime usage.
+7. Empty class attributes, empty class tokens, whitespace-only tokens, and placeholder class names are invalid.
+8. Do not create a class solely to repeat inherited element behavior or to reserve a future style.
+9. Remove obsolete class names only after checking static, dynamic, generated, script, test, and runtime references.
+
+### Bidirectional verification
+
+Audit in both directions:
+
+```text
+HTML/Vue/script class -> matching CSS or documented runtime purpose
+CSS selector           -> matching HTML/Vue/generated/runtime usage
+```
+
+A class fails the audit when either side has no verified counterpart. A class does not become valid merely because it has a declaration or appears in a template once; the declaration and usage must serve the same semantic role.
+
+### Required class existence output
+
+| Class       | File and lines     | HTML/CSS counterpart | Used in rendered/runtime path | Classification      | Action                          |
+| ----------- | ------------------ | -------------------- | ----------------------------- | ------------------- | ------------------------------- |
+| `.example`  | `path/file.vue:10` | No                   | Yes                           | Markup-only class   | Remove or add the matching rule |
+| `.obsolete` | `path/file.css:20` | Yes                  | No                            | Unused CSS selector | Remove after reference check    |
+
+Use these exact classifications where applicable:
+
+- `markup-only class`
+- `unused CSS selector`
+- `runtime hook`
+- `placeholder class`
+- `empty class token`
+- `valid reusable class`
+- `valid component-specific class`
+
+If every class has a verified counterpart and real usage, report:
+
+```text
+HTML/CSS class existence audit: PASS
+```
+
+## Verification
+
+After an audit or CSS refactor:
+
+1. Search `.vue`, `.css`, `.ts`, `.tsx`, `.js`, `.jsx`, and test files for BEM names with more than three words.
+2. Search all `.vue`, `.css`, and script files for triple `__` separators.
+3. Search templates, scoped styles, global styles, and script-generated class names for structural classes incorrectly using `--`.
+4. Search Vue `:class` bindings in `.vue` and script configuration objects in `.ts` for unquoted `--` keys.
+5. Confirm every renamed class has no stale references across templates, styles, scripts, tests, snapshots, and generated markup.
+6. Run the project's BEM lint, typecheck, build, and relevant tests when available.
+7. Report unrelated pre-existing verification failures separately.

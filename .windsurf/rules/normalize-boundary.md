@@ -7,7 +7,7 @@ This rule activates during planning and implementation of any feature that touch
 This rule applies when any of the following are true:
 
 - The feature touches `migrate.ts`, `dataLoader.ts`, `persistence.ts`, or `validateLayoutData()`.
-- The feature adds, modifies, or removes a field on `AssetDef`, `RoomData`, `ObjectData`, `InteractConfig`, `AnchorPoint`, `TileEdges`, `WalkableGrid`, or `TileState`.
+- The feature adds, modifies, or removes a field on `AssetDef`, `RoomData`, `ObjectData`, `InteractConfig`, `InteractSpot`, `TileEdges`, `WalkableGrid`, or `TileState`.
 - The feature changes how data flows between the editor, persistence, sync DTO, or NPC engine adapters.
 - The feature adds a new UI form that saves user-entered data into a persisted structure.
 - The feature adds a new consumer of `interact`, `anchorPoints`, `tileEdges`, `walkableGrid`, or `tileStates`.
@@ -28,16 +28,16 @@ If no data boundary is touched, state "No data boundaries touched" and proceed.
 
 All helpers live in `src/blueprint-editor/types.ts`:
 
-| Helper | Purpose |
-|---|---|
-| `normalizeAnchorPoints(value)` | Legacy `[x,y]` or `{x,y}` → canonical `AnchorPoint[]`; rejects non-finite, deduplicates. |
-| `normalizeInteractConfig(value)` | Capacity (0/undefined → auto, >0 → int), duration (min default 1, max >= min, default 3). |
-| `normalizeTileEdges(value)` | Validates `TileEdges[][]` structure. |
-| `normalizeWalkableGrid(value)` | Validates `boolean[][]` structure. |
-| `normalizeTileStates(value)` | Validates `TileState[][]` structure. |
-| `resolveInteractForTarget(interact, anchorCount)` | Single canonical resolver for engine `capacity` / `durationMinSeconds` / `durationMaxSeconds`. |
-| `validateAnchorsForOwner(anchors, owner, tileStateAt?)` | Bounds + walkable checks for anchors. |
-| `checkTileGridConsistency(walkableGrid, tileStates)` | Reports mismatches between the two grids. |
+| Helper                                                  | Purpose                                                                                        |
+| ------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| `normalizeInteractSpots(value)`                         | Legacy `[x,y]` or `{x,y}` → canonical `InteractSpot[]`; rejects non-finite, deduplicates.      |
+| `normalizeInteractConfig(value)`                        | Capacity (0/undefined → auto, >0 → int), duration (min default 1, max >= min, default 3).      |
+| `normalizeTileEdges(value)`                             | Validates `TileEdges[][]` structure.                                                           |
+| `normalizeWalkableGrid(value)`                          | Validates `boolean[][]` structure.                                                             |
+| `normalizeTileStates(value)`                            | Validates `TileState[][]` structure.                                                           |
+| `resolveInteractForTarget(interact, interactSpotCount)` | Single canonical resolver for engine `capacity` / `durationMinSeconds` / `durationMaxSeconds`. |
+| `validateAnchorsForOwner(anchors, owner, tileStateAt?)` | Bounds + walkable checks for anchors.                                                          |
+| `checkTileGridConsistency(walkableGrid, tileStates)`    | Reports mismatches between the two grids.                                                      |
 
 ## Anti-patterns to reject
 

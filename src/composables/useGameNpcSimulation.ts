@@ -1,8 +1,11 @@
 import { onUnmounted, ref, watch, type Ref } from 'vue'
 import { NpcEngine, findNpcGridPath, selectBestTarget, WanderMemory, NPC_ENGINE_TICKS_PER_SECOND, type NpcEngineLayout, type NpcEngineFloor, type NpcEngineInteractionTarget } from '@/engine/npc'
-import type { AssetDef, FloorData, InteractConfig, NpcSimDot, NpcRole, NpcSimulationConfig, ObjectData, TileEdges } from '../types'
-import { isNpcConfig, resolveInteractForTarget, resolveObjectDef } from '../types'
-import { mergeNpcConfig } from '../store/npcDefault'
+import type { AssetDef, FloorData, InteractConfig, NpcSimDot, NpcRole, NpcSimulationConfig, ObjectData, TileEdges } from '@/blueprint-editor/types'
+import { isNpcConfig, resolveInteractForTarget, resolveObjectDef } from '@/blueprint-editor/types'
+import { mergeNpcConfig } from '@/blueprint-editor/store/npcDefault'
+import type { SyncedLayoutPayload, SyncedObject } from '@/blueprint-editor/types'
+import { buildAssetMap } from '@/blueprint-editor/assetUtils'
+import { originAssets } from '@/blueprint-editor/store/dataLoader'
 
 const SIMULATION_TICKS_PER_SECOND = NPC_ENGINE_TICKS_PER_SECOND
 
@@ -118,7 +121,6 @@ function portalEndpointKey(floorId: string, itemId: string, anchorIndex: number)
 	return `${floorId}:${itemId}:endpoint:${anchorIndex}`
 }
 
-
 function makePortalTargets(
 	allFloors: FloorData[],
 	floorMaps: Map<string, WalkableMap>,
@@ -177,17 +179,45 @@ function makePortalTargets(
 	return output
 }
 
-export function useNpcSimulation(
-	getConfig?: () => NpcSimulationConfig | undefined,
-	getFloor?: () => FloorData | undefined,
-	getCanvas?: () => { w: number; h: number; tileSize: number },
-	getFloorById?: (id: string) => FloorData | undefined,
-	getAllFloors?: () => FloorData[],
-	getAssetTags?: (type: string) => string[] | undefined,
-	getAssetDef?: (type: string) => AssetDef | undefined,
-): { npcs: Ref<NpcSimDot[]>; deploy: (floorId?: string) => void; start: () => void; stop: () => void; pause: () => void; resume: () => void; reset: () => void; isPaused: Ref<boolean>; simSpeed: Ref<number>; config: Ref<NpcSimulationConfig> } {
+function syncedObjectToObjectData(obj: SyncedObject): ObjectData {
+	return {
+		id: obj.id,
+		type: obj.type,
+		x: obj.x,
+		y: obj.y,
+		w: obj.w,
+		h: obj.h,
+		rotation: obj.rotation,
+		fillColor: obj.fillColor,
+		label: obj.label,
+	}
+}
+
+function syncedPayloadToFloors(payload: SyncedLayoutPayload): FloorData[] {
+	const floorIds = Object.keys(payload.floors).sort((a, b) => {
+		if (a === 'G') return -1
+		if (b === 'G') return 1
+		return Number(a) - Number(b)
+	})
+	return floorIds.map(id => {
+		const syncedFloor = payload.floors[id]
+		return {
+			id,
+			name: id,
+			label: id,
+			objects: syncedFloor.objects.map(syncedObjectToObjectData),
+			defaultWalkable: syncedFloor.defaultWalkable,
+			allowedRoleIds: syncedFloor.allowedRoleIds,
+		}
+	})
+}
+
+export function useGameNpcSimulation(
+	payloadRef: Ref<SyncedLayoutPayload | null>,
+): { npcs: Ref<NpcSimDot[]>; deploy: () => void; start: () => void; stop: () => void; pause: () => void; resume: () => void; reset: () => void; isPaused: Ref<boolean>; simSpeed: Ref<number>; config: Ref<NpcSimulationConfig>; currentFloorId: Ref<string | null>; setFloor: (floorId: string) => void } {
 	const npcs = ref<NpcSimDot[]>([]), isPaused = ref(false), simSpeed = ref(1), config = ref<NpcSimulationConfig>({ speed: 1 / 30, defaultRoleId: '', roles: [], tasks: [], pool: [] })
-	let animationId: number | null = null, engine: NpcEngine | null = null, deployedFloorId: string | null = null, deploymentActive = false, nextId = 1
+	const currentFloorId = ref<string | null>(null)
+	let animationId: number | null = null, engine: NpcEngine | null = null, deploymentActive = false, nextId = 1
 	let floorMaps = new Map<string, WalkableMap>()
 	let floorDataMap = new Map<string, FloorData>()
 	const wanderMemory = new WanderMemory()
@@ -195,7 +225,13 @@ export function useNpcSimulation(
 	let currentCanvas: { w: number; h: number; tileSize: number } | null = null
 	let currentViewFloorId: string | null = null
 	let currentInteractionTargets = new Map<string, InteractionSource>()
-	const visualById = new Map<string, { type: string; color: string }>()
+
+	const assetMap = buildAssetMap(originAssets)
+	const getAssetDef = (type: string) => assetMap.get(type)
+	const getAssetTags = (type: string) => {
+		const def = assetMap.get(type)
+		return def?.tags
+	}
 
 	function isRoleAllowedOnFloor(roleId: string, floorId: string): boolean {
 		const floor = floorDataMap.get(floorId)
@@ -272,7 +308,6 @@ export function useNpcSimulation(
 			})
 		}
 
-
 		const portalSources = makePortalTargets(allFloors, floorMaps, getAssetTags, getAssetDef)
 		allSources.push(...portalSources)
 
@@ -343,12 +378,11 @@ export function useNpcSimulation(
 				return findNpcGridPath(roleFloor, from, to, blockedCells)
 			}
 		})
-		visualById.clear(); npcs.value = []; const occupiedSpawnKeys = new Set<string>(); let spawnCursor = 0
+		npcs.value = []; const occupiedSpawnKeys = new Set<string>(); let spawnCursor = 0
 		for (const entry of config.value.pool) {
 			const role = getRole(config.value, entry.roleId)
 			if (!role) continue
 			const count = Math.max(0, Math.min(100, Math.floor(entry.count || 0)))
-			// Spawn NPCs across all floors that allow this role.
 			for (const floor of allFloors) {
 				if (!isRoleAllowedOnFloor(role.id, floor.id)) continue
 				const map = floorMaps.get(floor.id)
@@ -362,12 +396,11 @@ export function useNpcSimulation(
 					const spawnKey = availableSpawnKeys[(spawnCursor + i) % availableSpawnKeys.length]
 					occupiedSpawnKeys.add(`${floor.id}:${spawnKey}`)
 					const [x, y] = spawnKey.split(',').map(Number)
-					const id = `npc-sim-${nextId++}`, oldSpeed = Math.max(0.01, config.value.speed || 1 / 30) + (Math.random() - 0.5) * 0.02
+					const id = `npc-game-${nextId++}`, oldSpeed = Math.max(0.01, config.value.speed || 1 / 30) + (Math.random() - 0.5) * 0.02
 					engine.addAgent({ id, roleId: role.id, floorId: floor.id, x, y, targetX: x, targetY: y, speed: oldSpeed * SIMULATION_TICKS_PER_SECOND / map.cellSize })
 					if (floor.id === currentViewFloorId) {
 						npcs.value.push({ id, floorId: floor.id, type: role.id, x: cellToPixel(x, map.cellSize), y: cellToPixel(y, map.cellSize), targetX: cellToPixel(x, map.cellSize), targetY: cellToPixel(y, map.cellSize), speed: oldSpeed, color: role.color, pauseTimer: 0, pathIdx: 0, path: [], interactTargetKey: null, interactSpotKey: null, interactDurationMin: 0, interactDurationMax: 0 })
 					}
-					visualById.set(id, { type: role.id, color: role.color })
 				}
 				spawnCursor = (spawnCursor + count) % keys.length
 			}
@@ -377,39 +410,52 @@ export function useNpcSimulation(
 	function frame(): void { if (!isPaused.value && engine) { const steps = Math.max(1, Math.min(8, simSpeed.value)); for (let i = 0; i < steps; i++) { engine.tick(); } syncAgents(); engine.drainEvents() } animationId = window.requestAnimationFrame(frame) }
 	function start(): void { if (animationId === null) animationId = window.requestAnimationFrame(frame) }
 	function stopLoop(): void { if (animationId !== null) window.cancelAnimationFrame(animationId); animationId = null; isPaused.value = false }
-	function reset(): void { stopLoop(); engine = null; floorMaps = new Map(); floorDataMap = new Map(); currentCanvas = null; currentViewFloorId = null; currentInteractionTargets.clear(); deployedFloorId = null; deploymentActive = false; visualById.clear(); npcs.value = []; wanderMemory.clear(); targetLastSelectedTick.clear() }
-	function deploy(floorId?: string): void {
-		const canvas = getCanvas?.()
-		const floor = floorId && getFloorById ? getFloorById(floorId) : getFloor?.()
-		if (!canvas || !floor) return
-		const allFloors = getAllFloors?.() ?? (floor ? [floor] : [])
-		if (!allFloors.length) return
-		stopLoop(); deploymentActive = true; deployedFloorId = floor.id; currentViewFloorId = floor.id; buildEngine(allFloors, canvas); start()
+	function reset(): void { stopLoop(); engine = null; floorMaps = new Map(); floorDataMap = new Map(); currentCanvas = null; currentViewFloorId = null; currentInteractionTargets.clear(); deploymentActive = false; npcs.value = []; wanderMemory.clear(); targetLastSelectedTick.clear() }
+	function deploy(): void {
+		const payload = payloadRef.value
+		if (!payload) return
+		const floors = syncedPayloadToFloors(payload)
+		if (!floors.length) return
+		const canvas = { w: payload.canvas.width, h: payload.canvas.height, tileSize: payload.canvas.tileSize }
+		const firstFloorId = floors[0].id
+		stopLoop(); deploymentActive = true; currentViewFloorId = firstFloorId; currentFloorId.value = firstFloorId; buildEngine(floors, canvas); start()
 	}
-	function syncConfig(): void { const value = getConfig?.(); if (value && isNpcConfig(value)) { config.value = mergeNpcConfig(deepClone(value)); if (deploymentActive && currentCanvas) { const allFloors = getAllFloors?.() ?? []; if (allFloors.length) buildEngine(allFloors, currentCanvas) } } }
-	syncConfig(); onUnmounted(stopLoop)
-	watch(() => getConfig?.(), syncConfig, { deep: true })
-
-	watch(() => getFloor?.()?.id, floorId => {
-		if (!floorId) return
+	function setFloor(floorId: string): void {
+		currentFloorId.value = floorId
 		currentViewFloorId = floorId
-		if (deploymentActive && deployedFloorId && floorId !== deployedFloorId) {
-
-			deployedFloorId = floorId
+		if (deploymentActive) {
 			syncAgents()
 		}
-	})
+	}
+	function syncConfig(): void {
+		const payload = payloadRef.value
+		if (payload?.npcConfig && isNpcConfig(payload.npcConfig)) {
+			config.value = mergeNpcConfig(deepClone(payload.npcConfig))
+			if (deploymentActive && currentCanvas) {
+				const floors = syncedPayloadToFloors(payload)
+				if (floors.length) buildEngine(floors, currentCanvas)
+			}
+		}
+	}
+	syncConfig(); onUnmounted(stopLoop)
 
-	watch(() => getFloor?.(), floor => {
-		if (deploymentActive && floor && floor.id === currentViewFloorId && currentCanvas) {
-			const allFloors = getAllFloors?.() ?? (floor ? [floor] : [])
-			if (allFloors.length) buildEngine(allFloors, currentCanvas)
+	watch(() => payloadRef.value, () => {
+		syncConfig()
+		if (!deploymentActive && payloadRef.value) {
+			deploy()
 		}
 	}, { deep: true })
-	watch(() => getCanvas?.(), canvas => { if (deploymentActive && canvas) { const allFloors = getAllFloors?.() ?? []; if (allFloors.length) buildEngine(allFloors, canvas) } }, { deep: true })
+
 	watch(() => config.value.speed, speed => {
 		for (const npc of npcs.value) npc.speed = speed
-		if (deploymentActive && currentCanvas) { const allFloors = getAllFloors?.() ?? []; if (allFloors.length) buildEngine(allFloors, currentCanvas) }
+		if (deploymentActive && currentCanvas) {
+			const payload = payloadRef.value
+			if (payload) {
+				const floors = syncedPayloadToFloors(payload)
+				if (floors.length) buildEngine(floors, currentCanvas)
+			}
+		}
 	})
-	return { npcs, deploy, start, stop: () => { deploymentActive = false; deployedFloorId = null; stopLoop() }, pause: () => { isPaused.value = true }, resume: () => { isPaused.value = false }, reset, isPaused, simSpeed, config }
+
+	return { npcs, deploy, start, stop: () => { deploymentActive = false; stopLoop() }, pause: () => { isPaused.value = true }, resume: () => { isPaused.value = false }, reset, isPaused, simSpeed, config, currentFloorId, setFloor }
 }

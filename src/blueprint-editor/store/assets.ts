@@ -124,7 +124,7 @@ export async function addSvgAsset(name: string, w: number, h: number, svgString:
 	})
 }
 
-export async function updateAsset(id: string, patch: Partial<Pick<AssetDef, 'name' | 'w' | 'h' | 'pxW' | 'pxH' | 'usePx' | 'defaultPadding' | 'defaultRx' | 'defaultBgColor' | 'defaultLabelColor' | 'defaultLabel' | 'defaultRadius' | 'defaultLabelPadding' | 'defaultCustomProps' | 'defaultInstanceLabel' | 'defaultValidationRule' | 'defaultLocked' | 'entranceRequired' | 'tags' | 'anchorPoints' | 'interact'>> & { walkable?: boolean; walkableGrid?: WalkableGrid; tileStates?: TileState[][]; tileEdges?: TileEdges[][] }): Promise<void> {
+export async function updateAsset(id: string, patch: Partial<Pick<AssetDef, 'name' | 'w' | 'h' | 'pxW' | 'pxH' | 'usePx' | 'defaultPadding' | 'defaultRx' | 'defaultBgColor' | 'defaultLabelColor' | 'defaultLabel' | 'defaultRadius' | 'defaultLabelPadding' | 'defaultCustomProps' | 'defaultInstanceLabel' | 'defaultValidationRule' | 'defaultLocked' | 'entranceRequired' | 'tags' | 'interactSpots' | 'interact'>> & { walkable?: boolean; walkableGrid?: WalkableGrid; tileStates?: TileState[][]; tileEdges?: TileEdges[][] }): Promise<void> {
 	return withStateLock(async () => {
 		const asset = state.assetRegistry.find(a => a.id === id)
 		if (!asset) {
@@ -180,7 +180,7 @@ export async function updateAsset(id: string, patch: Partial<Pick<AssetDef, 'nam
 		if (patch.walkableGrid !== undefined) asset.walkableGrid = patch.walkableGrid
 		if (patch.tileStates !== undefined) asset.tileStates = patch.tileStates
 		if (patch.tileEdges !== undefined) asset.tileEdges = patch.tileEdges
-		if (patch.anchorPoints !== undefined) asset.anchorPoints = patch.anchorPoints.length > 0 ? patch.anchorPoints.map(p => ({ ...p })) : undefined
+		if (patch.interactSpots !== undefined) asset.interactSpots = patch.interactSpots.length > 0 ? patch.interactSpots.map(p => ({ ...p })) : undefined
 		if (patch.interact !== undefined) asset.interact = patch.interact ? { ...patch.interact } : undefined
 
 		const t = state.layout.canvas.tileSize
@@ -256,7 +256,7 @@ export async function duplicateAsset(id: string): Promise<AssetDef | null> {
 		if (source.walkableGrid) copy.walkableGrid = source.walkableGrid.map(row => [...row])
 		if (source.tileStates) copy.tileStates = source.tileStates.map(row => [...row])
 		if (source.tileEdges) copy.tileEdges = source.tileEdges.map(row => row.map(e => e ? { ...e } : e))
-		if (source.anchorPoints) copy.anchorPoints = source.anchorPoints.map(p => ({ ...p }))
+		if (source.interactSpots) copy.interactSpots = source.interactSpots.map(p => ({ ...p }))
 		if (source.interact) copy.interact = { ...source.interact }
 		if (source.defaultRx) copy.defaultRx = { ...source.defaultRx }
 		if (source.defaultCustomProps) copy.defaultCustomProps = JSON.parse(JSON.stringify(source.defaultCustomProps))

@@ -8,7 +8,7 @@ export async function addFloor(): Promise<FloorData> {
 	const existing = new Set(state.layout.floors.map(f => f.label))
 	let n = 1
 	while (existing.has(`F${n}`)) n++
-	const floor: FloorData = { id: genId('floor'), name: `Floor ${n}`, label: `F${n}`, rooms: [], objects: [], defaultWalkable: true }
+	const floor: FloorData = { id: genId('floor'), name: `Floor ${n}`, label: `F${n}`, objects: [], defaultWalkable: true }
 	state.layout.floors.push(floor)
 	await saveLayout()
 	return floor
@@ -32,12 +32,6 @@ export async function duplicateFloor(id: string): Promise<void> {
 	const copy: FloorData = JSON.parse(JSON.stringify(floor))
 	copy.id = genId('floor')
 	copy.name = `${floor.name} Copy`
-	const roomIdMap = new Map<string, string>()
-	copy.rooms.forEach(r => {
-		const newId = genId('room')
-		roomIdMap.set(r.id, newId)
-		r.id = newId
-	})
 	const idMap = new Map<string, string>()
 	const linkGroupMap = new Map<string, string>()
 	for (const o of copy.objects) {
@@ -52,11 +46,6 @@ export async function duplicateFloor(id: string): Promise<void> {
 				linkGroupMap.set(o.linkGroupId, mappedGroupId)
 			}
 			o.linkGroupId = mappedGroupId
-		}
-		if (o.roomId) {
-			const mappedRoomId = roomIdMap.get(o.roomId)
-			if (mappedRoomId) o.roomId = mappedRoomId
-			else delete o.roomId
 		}
 	}
 	const idx = state.layout.floors.findIndex(f => f.id === id)

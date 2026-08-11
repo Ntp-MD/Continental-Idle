@@ -19,9 +19,6 @@ export function useCanvasSelection(
 		startPan: (e: MouseEvent) => void
 		floor: ComputedRef<FloorData | undefined>
 		store: AssetsStore
-		wallDrag: Ref<{ startX: number; startY: number; x: number; y: number; w: number; h: number; valid: boolean } | null>
-		onWallMouseMove: (e: MouseEvent) => void
-		onWallMouseUp: () => void
 		getMode: () => EditorMode
 	},
 ): SelectionState {
@@ -54,25 +51,13 @@ export function useCanvasSelection(
 				store.deleteSelected().catch(() => { })
 				return
 			}
-			const room = opts.floor.value?.rooms.find(r =>
-				p.x >= r.x && p.x <= r.x + r.w && p.y >= r.y && p.y <= r.y + r.h
-			)
-			if (room) {
-				store.eraseWallTile(room.id, p.x, p.y).catch(() => { })
-			}
 			return
 		}
-		if (store.state.mode !== 'wall') {
-			store.select(null)
-			store.selectAsset(null)
-			boxSelect.value = { startX: p.x, startY: p.y, x: p.x, y: p.y, w: 0, h: 0 }
-			window.addEventListener('mousemove', onBoxSelectMouseMove)
-			window.addEventListener('mouseup', onBoxSelectMouseUp)
-			return
-		}
-		opts.wallDrag.value = { startX: p.x, startY: p.y, x: p.x, y: p.y, w: 0, h: 0, valid: false }
-		window.addEventListener('mousemove', opts.onWallMouseMove)
-		window.addEventListener('mouseup', opts.onWallMouseUp)
+		store.select(null)
+		store.selectAsset(null)
+		boxSelect.value = { startX: p.x, startY: p.y, x: p.x, y: p.y, w: 0, h: 0 }
+		window.addEventListener('mousemove', onBoxSelectMouseMove)
+		window.addEventListener('mouseup', onBoxSelectMouseUp)
 	}
 
 	function onBoxSelectMouseMove(e: MouseEvent) {
@@ -97,22 +82,11 @@ export function useCanvasSelection(
 			const floor = opts.floor.value
 			const objs: ObjectData[] = floor?.objects ?? []
 			const hitIds = objs.filter(o => aabbOverlap(o, rect)).map(o => o.id)
-			const rooms = floor?.rooms ?? []
-			const roomIds = rooms.filter(r => aabbOverlap(r, rect)).map(r => r.id)
 			const store = opts.store
-			if (hitIds.length === 0 && roomIds.length === 0) {
-
-			} else if (hitIds.length === 0 && roomIds.length === 1) {
-				store.select({ type: 'room', id: roomIds[0] })
-			} else if (hitIds.length === 0 && roomIds.length > 1) {
-				store.state.selectionState = { primary: { type: 'room', id: roomIds[0] }, items: roomIds.map(id => ({ type: 'room' as const, id })) }
-			} else if (hitIds.length === 1 && roomIds.length === 0) {
+			if (hitIds.length === 1) {
 				store.select({ type: 'object', id: hitIds[0] })
-			} else {
-				const items = [
-					...roomIds.map(id => ({ type: 'room' as const, id })),
-					...hitIds.map(id => ({ type: 'object' as const, id })),
-				]
+			} else if (hitIds.length > 1) {
+				const items = hitIds.map(id => ({ type: 'object' as const, id }))
 				store.state.selectionState = { primary: items[0], items }
 			}
 		}

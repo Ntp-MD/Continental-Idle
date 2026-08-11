@@ -4,86 +4,6 @@
 	flex-direction: column;
 }
 
-.game {
-	background: var(--gradient-gold);
-	border-bottom: 1px solid var(--border-dim);
-	padding: var(--gap-sm) var(--gap-md);
-	display: flex;
-	justify-content: space-between;
-	align-items: center;
-	gap: var(--gap-md);
-	flex-shrink: 0;
-	position: relative;
-}
-
-.game::after {
-	content: '';
-	position: absolute;
-	bottom: 0;
-	left: 0;
-	right: 0;
-	height: 1px;
-	background: linear-gradient(90deg, transparent 0%, var(--accent-gold) 50%, transparent 100%);
-	opacity: 0.3;
-}
-
-.game__title {
-	font-size: var(--font-lg);
-	font-weight: 600;
-	color: var(--accent-gold);
-	text-transform: uppercase;
-	letter-spacing: 2px;
-	flex-shrink: 0;
-	text-shadow: 0 0 20px rgba(240, 192, 64, 0.2);
-}
-
-.game__currencies {
-	display: flex;
-	gap: var(--gap-md);
-	align-items: baseline;
-}
-
-.game__currency {
-	display: flex;
-	align-items: baseline;
-	gap: var(--gap-xs);
-	padding: var(--gap-xs) var(--gap-sm);
-	border-radius: var(--radius-sm);
-	transition: background var(--duration-fast);
-}
-
-.game__currency:hover {
-	background: color-mix(in srgb, var(--accent-gold) 12%, transparent);
-}
-
-.game__currency__label {
-	font-size: var(--font-xs);
-	text-transform: uppercase;
-	color: var(--text-dim);
-	font-weight: 500;
-	letter-spacing: 0.5px;
-}
-
-.game__currency__value {
-	color: var(--accent-gold);
-	font-weight: 700;
-	font-size: var(--font-md);
-	font-variant-numeric: tabular-nums;
-}
-
-.game__currency__income {
-	color: var(--accent-green);
-}
-
-.game__currency__favor {
-	color: var(--accent-gold);
-}
-
-.game__currency__debt .game__currency__label,
-.game__currency__debt .game__currency__value {
-	color: var(--accent-gold);
-}
-
 /* World Map */
 .map {
 	position: relative;
@@ -124,16 +44,16 @@
 	font-size: var(--font-md);
 	text-transform: uppercase;
 	letter-spacing: 1px;
-	z-index: 5;
+	z-index: var(--z-canvas-base);
 }
 
-.map__status__loading {
+.map__status--loading {
 	color: var(--text-secondary);
 	background: var(--bg-card);
 	border: 1px solid var(--border-dim);
 }
 
-.map__status__error {
+.map__status--error {
 	color: var(--accent-gold);
 	background: var(--bg-card);
 	border: 1px solid var(--accent-gold);
@@ -169,7 +89,7 @@
 	padding: var(--gap-sm) var(--gap-md);
 	font-size: var(--font-xs);
 	pointer-events: none;
-	z-index: 10;
+	z-index: var(--z-canvas-ui);
 	min-width: 140px;
 	box-shadow: var(--shadow-glow-gold), var(--shadow-card-hover);
 	backdrop-filter: blur(8px);
@@ -330,106 +250,6 @@
 	}
 }
 
-/* Main Content */
-.game__main {
-	flex: 1;
-	display: flex;
-	overflow: hidden;
-}
-
-/* Sidebar */
-.game__sidebar {
-	width: 320px;
-	background: var(--bg-tertiary);
-	border-right: 1px solid var(--border-dim);
-	padding: var(--gap-md);
-	overflow-y: auto;
-	flex-shrink: 0;
-	transition: width var(--duration-normal) var(--ease-out),
-		padding var(--duration-normal) var(--ease-out),
-		opacity var(--duration-fast);
-}
-
-.game__sidebar__collapsed {
-	width: 0;
-	padding: 0;
-	overflow: hidden;
-	border-right: none;
-	opacity: 0;
-}
-
-/* Map Area — main content */
-.game__map__area {
-	flex: 1;
-	position: relative;
-	display: flex;
-	flex-direction: column;
-	overflow: hidden;
-}
-
-/* Map Tabs */
-.maptabs {
-	display: flex;
-	gap: 0;
-	flex-shrink: 0;
-	background: var(--bg-secondary);
-	border-bottom: 1px solid var(--border-dim);
-	z-index: 6;
-	padding: 0 var(--gap-sm);
-}
-
-.maptabs__btn {
-	background: transparent;
-	border: none;
-	border-bottom: 2px solid transparent;
-	border-radius: 0;
-	color: var(--text-dim);
-	font-family: inherit;
-	padding: var(--gap-sm) var(--gap-md);
-	letter-spacing: 1px;
-	box-shadow: none;
-}
-
-.maptabs__btn:hover {
-	color: var(--text-primary);
-	background: var(--bg-card);
-	border-color: transparent;
-	transform: none;
-	box-shadow: none;
-}
-
-.maptabs__btn__active {
-	color: var(--accent-gold);
-	border-bottom-color: var(--accent-gold);
-	background: var(--bg-card);
-	box-shadow: inset 0 -2px 8px rgba(240, 192, 64, 0.06);
-}
-
-/* Inline HQ Office in map area */
-.game__map__area .hqoffice__inline {
-	flex: 1;
-	display: flex;
-	flex-direction: column;
-	padding: var(--gap-sm);
-	overflow: hidden;
-	min-height: 0;
-}
-
-.game__map__area .hqoffice__inline .hqoffice__svg {
-	width: 100%;
-	height: 100%;
-}
-
-.game__map__area .map {
-	flex: 1;
-	border-bottom: none;
-}
-
-.game__map__area .map__svg {
-	height: 100%;
-	min-height: 300px;
-}
-
 /* Map Action Buttons */
 .mapactions {
 	position: absolute;
@@ -438,7 +258,7 @@
 	transform: translateX(-50%);
 	display: flex;
 	gap: 3px;
-	z-index: 5;
+	z-index: var(--z-canvas-base);
 	padding: var(--gap-xs);
 	background: rgba(8, 9, 12, 0.75);
 	backdrop-filter: blur(12px);

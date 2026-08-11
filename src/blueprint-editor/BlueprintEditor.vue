@@ -4,11 +4,12 @@ import Toolbar from "./components/Toolbar.vue";
 import AssetPalette from "./components/AssetPalette.vue";
 import EditorCanvas from "./components/EditorCanvas.vue";
 import PropertiesPanel from "./components/PropertiesPanel.vue";
-import ToastContainer from "./components/toastContainer.vue";
-import ConfirmDialog from "@/components/overlays/confirmDialog.vue";
+import ToastContainer from "./components/ToastContainer.vue";
+import ConfirmDialog from "@/components/overlays/ConfirmDialog.vue";
 import { useAssetsStore } from "./blueprintStore";
 import { useNpcSimulation } from "./composables/useNpcSimulation";
 import { reloadEditorData } from "./store/state";
+import { hydrateCustomTags } from "./store/tags";
 
 const emit = defineEmits<{ close: [] }>();
 
@@ -21,6 +22,7 @@ const ready = ref(false);
 
 onMounted(async () => {
   await reloadEditorData();
+  hydrateCustomTags();
   ready.value = true;
 });
 
@@ -41,7 +43,7 @@ provide("npcSimulation", npcSimulation);
   <div class="editor__app">
     <template v-if="ready">
       <Toolbar @close="onClose" />
-      <div class="editor__app__main">
+      <div class="editor__app-main">
         <AssetPalette />
         <EditorCanvas />
         <PropertiesPanel />
@@ -49,7 +51,7 @@ provide("npcSimulation", npcSimulation);
       <ToastContainer />
       <ConfirmDialog />
     </template>
-    <div v-else class="editor__loading">Loading editor…</div>
+    <div v-else class="editor--loading">Loading editor…</div>
   </div>
 </template>
 
@@ -64,7 +66,7 @@ provide("npcSimulation", npcSimulation);
   overflow: hidden;
 }
 
-.editor__loading {
+.editor--loading {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -73,7 +75,7 @@ provide("npcSimulation", npcSimulation);
   font-size: var(--font-md);
 }
 
-.editor__app__main {
+.editor__app-main {
   flex: 1;
   display: flex;
   min-height: 0;

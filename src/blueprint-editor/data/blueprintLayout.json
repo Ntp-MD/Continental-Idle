@@ -11,7 +11,6 @@
       "id": "floor-g-basement",
       "name": "Basement",
       "label": "G",
-      "rooms": [],
       "objects": [],
       "defaultWalkable": true
     },
@@ -19,10 +18,27 @@
       "id": "floor-1-lobby",
       "name": "Lobby",
       "label": "F1",
-      "rooms": [],
-      "objects": [],
+      "objects": [
+        { "id": "obj-1-elevator", "type": "builtin-elevator-1", "x": 1200, "y": 400, "rotation": 0 },
+        { "id": "obj-1-sofa-1", "type": "builtin-sofa-1", "x": 650, "y": 150, "rotation": 0 },
+        { "id": "obj-1-sofa-2", "type": "builtin-sofa-1", "x": 850, "y": 150, "rotation": 0 },
+        { "id": "obj-1-table-1", "type": "builtin-table-set-1", "x": 200, "y": 550, "rotation": 0 },
+        { "id": "obj-1-table-2", "type": "builtin-table-set-1", "x": 400, "y": 550, "rotation": 0 },
+        { "id": "obj-1-restroom-1", "type": "builtin-restroom-1", "x": 850, "y": 550, "rotation": 0 }
+      ],
+      "defaultWalkable": true
+    },
+    {
+      "id": "floor-2-rooms",
+      "name": "Guest Rooms",
+      "label": "F2",
+      "objects": [
+        { "id": "obj-2-elevator", "type": "builtin-elevator-1", "x": 1300, "y": 400, "rotation": 0 },
+        { "id": "obj-2-bed-101", "type": "builtin-bed-1", "x": 150, "y": 150, "rotation": 0 },
+        { "id": "obj-2-bed-102", "type": "builtin-bed-1", "x": 550, "y": 150, "rotation": 0 },
+        { "id": "obj-2-bed-103", "type": "builtin-bed-1", "x": 950, "y": 150, "rotation": 0 }
+      ],
       "defaultWalkable": true
     }
-  ],
-  "roomTemplates": []
+  ]
 }

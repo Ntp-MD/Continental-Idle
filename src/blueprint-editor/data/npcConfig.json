@@ -2,21 +2,19 @@
   "$schema": "npc-config.v1.json",
   "version": 1,
   "speed": 0.2,
-  "defaultRoleId": "role-36606436bf",
+  "defaultRoleId": "role-guest",
   "roles": [
     {
-      "id": "role-36606436bf",
+      "id": "role-guest",
       "label": "Guest",
       "color": "#3b82f6",
-      "focusTags": [
-        "hygiene"
-      ],
+      "focusTags": [],
       "restrictedTags": [],
       "taskIds": [],
-      "focusChance": 100,
+      "focusChance": 80,
       "spawnRule": {
         "floorLabels": [],
-        "roomTags": [],
+        "targetTags": [],
         "count": 0,
         "speedMultiplier": 5
       }
@@ -25,8 +23,8 @@
   "tasks": [],
   "pool": [
     {
-      "roleId": "role-36606436bf",
-      "count": 30
+      "roleId": "role-guest",
+      "count": 20
     }
   ]
 }

@@ -15,7 +15,7 @@ export interface TargetScoringContext {
 }
 
 function targetIdentity(target: NpcEngineInteractionTarget): string {
-	return `${target.floorId}:${target.itemId}:${target.anchorId}`
+	return `${target.floorId}:${target.itemId}:${target.interactSpotId}`
 }
 
 function octileDistance(a: NpcEnginePoint, b: NpcEnginePoint): number {

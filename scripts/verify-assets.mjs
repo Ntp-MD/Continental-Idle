@@ -5,7 +5,7 @@
  * AssetDef shape. Catches:
  * - Fields present in data but no longer on the type (stale data after removal)
  * - Fields required by the type but missing from data (incomplete migration)
- * - Shape mismatches (e.g. anchorPoints entries as [x,y] tuples instead of {x,y})
+ * - Shape mismatches (e.g. interactSpots entries as [x,y] tuples instead of {x,y})
  *
  * Run via: npm run verify:assets
  *
@@ -31,7 +31,7 @@ const OPTIONAL_FIELDS = [
 	'linkedParts', 'svg', 'svgViewBox', 'svgRoles',
 	'walkable', 'entranceRequired',
 	'walkableGrid', 'tileStates', 'tileEdges',
-	'anchorPoints', 'interact',
+	'interactSpots', 'interact',
 	'defaultPadding', 'defaultRx', 'defaultBgColor', 'defaultLabelColor',
 	'defaultLabel', 'defaultRadius', 'defaultLabelPadding',
 	'defaultCustomProps', 'defaultInstanceLabel',
@@ -110,7 +110,7 @@ function validateDefaultRx(value) {
 }
 
 const SHAPE_VALIDATORS = {
-	anchorPoints: validateAnchorPoints,
+	interactSpots: validateAnchorPoints,
 	interact: validateInteract,
 	walkableGrid: validateWalkableGrid,
 	tileStates: validateTileStates,

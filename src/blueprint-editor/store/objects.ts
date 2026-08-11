@@ -1,19 +1,18 @@
-import type { ObjectData, RoomData, Rect, AssetDef, LinkedPart, Rotation, EntityRef, TileState } from '../types'
+import type { ObjectData, AssetDef, LinkedPart, Rotation, EntityRef } from '../types'
 import { findAssetCached } from '../assetUtils'
 import { assetSizeFor, normalizeObject } from '../geometry'
-import { aabbOverlap, objectOverlapsAny, roomOverlapsAny, recalcCollapsed } from '../collision'
+import { aabbOverlap, objectOverlapsAny, recalcCollapsed } from '../collision'
 import {
 	state, toast, snap, clamp, assetMap,
 	currentFloor, withStateLock, initAssetFields,
 } from './state'
 import { genId } from './utils'
-import { selectedRoom, selectedObject, selectedObjectIds, select as selectEntity, clearSelection, toggleMultiSelect as toggleMultiSelectEntity } from './selection'
+import { selectedObject, selectedObjectIds, select as selectEntity, clearSelection, toggleMultiSelect as toggleMultiSelectEntity } from './selection'
 import { getLinkedObjects } from './utils'
 import { saveLayout, saveAssets } from './persistence'
 
 export async function addObject(type: string, x: number, y: number): Promise<ObjectData | null> {
 	return withStateLock(async () => {
-		if (state.mode === 'wall') return null
 		const floor = currentFloor.value
 		const asset = findAssetCached(assetMap(), type)
 		if (!floor || !asset) return null
@@ -85,57 +84,7 @@ export async function addObject(type: string, x: number, y: number): Promise<Obj
 	})
 }
 
-export async function addWallObject(rect: Rect): Promise<ObjectData | null> {
-	return withStateLock(async () => {
-		const floor = currentFloor.value
-		if (!floor) return null
-		const snapped = clamp({ x: snap(rect.x), y: snap(rect.y), w: snap(rect.w), h: snap(rect.h) })
-		if (snapped.w <= 0 || snapped.h <= 0) {
-			toast.warning('Wall too small - minimum 1 tile')
-			return null
-		}
-		if (roomOverlapsAny(floor.rooms, snapped)) {
-			toast.warning('Cannot place wall - overlaps an existing room')
-			return null
-		}
-		if (objectOverlapsAny(floor.objects, assetMap(), snapped)) {
-			toast.warning('Cannot place wall - overlaps an existing object')
-			return null
-		}
-		const t = state.layout.canvas.tileSize
-		const asset: AssetDef = {
-			origin: 'drawn',
-			id: genId('wall'),
-			name: `Wall ${state.assetRegistry.filter(a => a.isWall).length + 1}`,
-			w: Math.max(1, Math.round(snapped.w / t)),
-			h: Math.max(1, Math.round(snapped.h / t)),
-			isWall: true,
-			walkable: false,
-			defaultBgColor: '#c8c4bc',
-			defaultLabelColor: '#444',
-		}
-		state.assetRegistry.push(asset)
-		const obj: ObjectData = {
-			id: genId('obj'),
-			subId: genId('sub'),
-			type: asset.id,
-			x: snapped.x,
-			y: snapped.y,
-			w: 0,
-			h: 0,
-			rotation: 0,
-		}
-		normalizeObject(obj, t, assetMap())
-		floor.objects.push(obj)
-		state.selectionState = { primary: { type: 'object', id: obj.id }, items: [{ type: 'object', id: obj.id }] }
-		await saveAssets()
-		await saveLayout()
-		return obj
-	})
-}
-
 export function canPlaceObject(type: string, x: number, y: number): boolean {
-	if (state.mode === 'wall') return false
 	const asset = findAssetCached(assetMap(), type)
 	if (!asset) return false
 	const t = state.layout.canvas.tileSize
@@ -171,8 +120,8 @@ export function select(ref: EntityRef | null): void {
 	selectEntity(ref)
 }
 
-export function toggleMultiSelect(id: string, isRoom = false): void {
-	toggleMultiSelectEntity(id, isRoom)
+export function toggleMultiSelect(id: string): void {
+	toggleMultiSelectEntity(id)
 }
 
 export async function deleteSelected(): Promise<void> {
@@ -209,34 +158,17 @@ export async function deleteSelected(): Promise<void> {
 
 		const primary = state.selectionState.primary
 		if (!primary) return
-		if (primary.type === 'room') {
-			const r = floor.rooms.find(r => r.id === primary.id)
-			if (r?.locked) {
-				toast.warning('Cannot delete a locked hotel wall')
-				return
-			}
-		} else {
-			const o = floor.objects.find(o => o.id === primary.id)
-			if (o?.locked) {
-				toast.warning('Cannot delete a locked object - unlock first')
-				return
-			}
+		const o = floor.objects.find(o => o.id === primary.id)
+		if (o?.locked) {
+			toast.warning('Cannot delete a locked object - unlock first')
+			return
 		}
-		if (primary.type === 'room') {
-			floor.rooms = floor.rooms.filter(r => r.id !== primary.id)
-			for (const o of floor.objects) {
-				if (o.roomId === primary.id) delete o.roomId
-			}
-		} else {
-			const delId = primary.id
-			const deletedObject = floor.objects.find(o => o.id === delId)
-			const deletedGroupId = deletedObject?.linkGroupId
-			floor.objects = floor.objects.filter(o => o.id !== delId)
-			if (deletedGroupId) {
-				const remainingGroup = floor.objects.filter(o => o.linkGroupId === deletedGroupId)
-				if (remainingGroup.length <= 1) {
-					for (const member of remainingGroup) delete member.linkGroupId
-				}
+		const deletedGroupId = o?.linkGroupId
+		floor.objects = floor.objects.filter(o => o.id !== primary.id)
+		if (deletedGroupId) {
+			const remainingGroup = floor.objects.filter(o => o.linkGroupId === deletedGroupId)
+			if (remainingGroup.length <= 1) {
+				for (const member of remainingGroup) delete member.linkGroupId
 			}
 		}
 		clearSelection()
@@ -245,27 +177,28 @@ export async function deleteSelected(): Promise<void> {
 	})
 }
 
-function roomMoveMembers(roomId: string, floor: { rooms: RoomData[]; objects: ObjectData[] }): Array<RoomData | ObjectData> {
-	const room = floor.rooms.find(r => r.id === roomId)
-	if (!room) return []
-	return [room, ...floor.objects.filter(o => o.roomId === roomId)]
-}
-
-function objectMoveMembers(obj: ObjectData, floor: { rooms: RoomData[]; objects: ObjectData[] }): Array<RoomData | ObjectData> {
-	const members: Array<RoomData | ObjectData> = [obj]
+function objectMoveMembers(obj: ObjectData): ObjectData[] {
+	const members: ObjectData[] = [obj]
 	const seen = new Set([obj.id])
-	const linked = getLinkedObjects(obj)
-	for (const linkedObj of linked) {
+	for (const linkedObj of getLinkedObjects(obj)) {
 		if (!seen.has(linkedObj.id)) {
 			seen.add(linkedObj.id)
 			members.push(linkedObj)
 		}
 	}
-	if (obj.roomId) {
-		for (const member of roomMoveMembers(obj.roomId, floor)) {
-			const id = member.id
-			if (!seen.has(id)) {
-				seen.add(id)
+	return members
+}
+
+function multiSelectionMembers(floor: { objects: ObjectData[] }): ObjectData[] {
+	if (state.selectionState.items.length <= 1) return []
+	const members: ObjectData[] = []
+	const seen = new Set<string>()
+	for (const item of state.selectionState.items) {
+		const obj = floor.objects.find(o => o.id === item.id)
+		if (!obj) continue
+		for (const member of objectMoveMembers(obj)) {
+			if (!seen.has(member.id)) {
+				seen.add(member.id)
 				members.push(member)
 			}
 		}
@@ -273,29 +206,7 @@ function objectMoveMembers(obj: ObjectData, floor: { rooms: RoomData[]; objects:
 	return members
 }
 
-function multiSelectionMembers(floor: { rooms: RoomData[]; objects: ObjectData[] }): Array<RoomData | ObjectData> {
-	const sel = state.selectionState
-	if (sel.items.length <= 1) return []
-	const members: Array<RoomData | ObjectData> = []
-	const seen = new Set<string>()
-	const add = (member: RoomData | ObjectData) => {
-		if (!seen.has(member.id)) {
-			seen.add(member.id)
-			members.push(member)
-		}
-	}
-	for (const item of sel.items) {
-		if (item.type === 'room') {
-			for (const member of roomMoveMembers(item.id, floor)) add(member)
-		} else {
-			const obj = floor.objects.find(o => o.id === item.id)
-			if (obj) add(obj)
-		}
-	}
-	return members
-}
-
-function moveMembersTo(members: Array<RoomData | ObjectData>, anchor: RoomData | ObjectData, x: number, y: number): boolean {
+function moveMembersTo(members: ObjectData[], anchor: ObjectData, x: number, y: number): boolean {
 	if (members.some(member => member.locked)) return false
 	const minX = Math.min(...members.map(member => member.x))
 	const minY = Math.min(...members.map(member => member.y))
@@ -325,11 +236,7 @@ export function moveSelectedTo(x: number, y: number): void {
 	if (state.selectionState.items.length > 1) {
 		const members = multiSelectionMembers(floor)
 		const primary = state.selectionState.primary
-		const anchor = primary
-			? (primary.type === 'room'
-				? floor.rooms.find(room => room.id === primary.id)
-				: floor.objects.find(object => object.id === primary.id))
-			: null
+		const anchor = primary ? floor.objects.find(object => object.id === primary.id) : null
 		if (!anchor || members.length === 0 || members.some(member => member.locked)) return
 		moveMembersTo(members, anchor, x, y)
 		return
@@ -337,107 +244,40 @@ export function moveSelectedTo(x: number, y: number): void {
 
 	const primary = state.selectionState.primary
 	if (!primary) return
-	if (primary.type === 'room') {
-		const room = selectedRoom()
-		if (!room || room.locked) return
-		moveMembersTo(roomMoveMembers(room.id, floor), room, x, y)
-		return
-	}
-
 	const obj = selectedObject()
 	if (!obj || obj.locked) return
-	moveMembersTo(objectMoveMembers(obj, floor), obj, x, y)
+	moveMembersTo(objectMoveMembers(obj), obj, x, y)
 	obj.collapsed = floor.objects.some(other => other.id !== obj.id && aabbOverlap(obj, other))
 }
 
 export async function commitMove(): Promise<void> {
 	const floor = currentFloor.value
 	if (!floor) return
-
-	if (state.selectionState.items.length > 1) {
-		const members = multiSelectionMembers(floor)
-		const movable = members.filter(member => !member.locked)
-		let moveRect: Rect | undefined
-		if (movable.length > 0 && movable.length === members.length) {
-			const minX = Math.min(...movable.map(member => member.x))
-			const minY = Math.min(...movable.map(member => member.y))
-			const maxX = Math.max(...movable.map(member => member.x + member.w))
-			const maxY = Math.max(...movable.map(member => member.y + member.h))
-			const bounds = { minX, minY, w: maxX - minX, h: maxY - minY }
-			const clamped = clamp({ x: snap(bounds.minX), y: snap(bounds.minY), w: bounds.w, h: bounds.h })
-			moveRect = clamped
-			const dx = clamped.x - bounds.minX
-			const dy = clamped.y - bounds.minY
-			const oldPositions = movable.map(member => ({ id: member.id, x: member.x, y: member.y }))
-			for (const member of movable) {
-				member.x += dx
-				member.y += dy
-			}
-			const objects = movable.filter((member): member is ObjectData => 'type' in member)
-			const rooms = movable.filter((member): member is RoomData => 'label' in member && !('type' in member))
-			const objectIds = objects.map(object => object.id)
-			const hasObjectOverlap = objects.some(object => objectOverlapsAny(floor.objects, assetMap(), object, objectIds))
-			const hasRoomOverlap = rooms.some(room => roomOverlapsAny(floor.rooms, room, room.id))
-			if (hasObjectOverlap || hasRoomOverlap) {
-				for (const old of oldPositions) {
-					const member = movable.find(candidate => candidate.id === old.id)
-					if (member) {
-						member.x = old.x
-						member.y = old.y
-					}
-				}
-				moveRect = undefined
-			}
-		}
-		recalcCollapsed(floor, assetMap(), moveRect)
-		await saveLayout()
-		return
+	const members = state.selectionState.items.length > 1
+		? multiSelectionMembers(floor)
+		: selectedObject() ? objectMoveMembers(selectedObject()!) : []
+	if (members.length === 0 || members.some(member => member.locked)) return
+	const minX = Math.min(...members.map(member => member.x))
+	const minY = Math.min(...members.map(member => member.y))
+	const maxX = Math.max(...members.map(member => member.x + member.w))
+	const maxY = Math.max(...members.map(member => member.y + member.h))
+	const bounds = { minX, minY, w: maxX - minX, h: maxY - minY }
+	const clamped = clamp({ x: snap(bounds.minX), y: snap(bounds.minY), w: bounds.w, h: bounds.h })
+	const dx = clamped.x - bounds.minX
+	const dy = clamped.y - bounds.minY
+	const oldPositions = members.map(member => ({ id: member.id, x: member.x, y: member.y }))
+	for (const member of members) {
+		member.x += dx
+		member.y += dy
 	}
-
-	const primary = state.selectionState.primary
-	if (!primary) return
-
-	const selectedMembers = primary.type === 'room'
-		? roomMoveMembers(primary.id, floor)
-		: selectedObject() ? objectMoveMembers(selectedObject()!, floor) : []
-	const movable = selectedMembers.filter(member => !member.locked)
-	let reverted = false
-	if (movable.length > 0) {
-		const minX = Math.min(...movable.map(member => member.x))
-		const minY = Math.min(...movable.map(member => member.y))
-		const maxX = Math.max(...movable.map(member => member.x + member.w))
-		const maxY = Math.max(...movable.map(member => member.y + member.h))
-		const bounds = { minX, minY, w: maxX - minX, h: maxY - minY }
-		const clamped = clamp({ x: snap(bounds.minX), y: snap(bounds.minY), w: bounds.w, h: bounds.h })
-		const dx = clamped.x - bounds.minX
-		const dy = clamped.y - bounds.minY
-		const oldPositions = movable.map(member => ({ id: member.id, x: member.x, y: member.y }))
-
-		for (const member of movable) {
-			member.x += dx
-			member.y += dy
-		}
-
-		const room = movable.find((member): member is RoomData => 'label' in member && !('type' in member))
-		const objectMembers = movable.filter((member): member is ObjectData => 'type' in member)
-		const groupIds = objectMembers.map(member => member.id)
-		const roomOverlap = room ? roomOverlapsAny(floor.rooms, room, room.id) : false
-		const objectOverlap = objectMembers.some(member => objectOverlapsAny(floor.objects, assetMap(), member, groupIds))
-
-		if (roomOverlap || objectOverlap) {
-			for (const old of oldPositions) {
-				const member = movable.find(candidate => candidate.id === old.id)
-				if (member) {
-					member.x = old.x
-					member.y = old.y
-				}
-			}
-			reverted = true
+	const ids = members.map(member => member.id)
+	if (members.some(member => objectOverlapsAny(floor.objects, assetMap(), member, ids))) {
+		for (const old of oldPositions) {
+			const member = members.find(candidate => candidate.id === old.id)
+			if (member) { member.x = old.x; member.y = old.y }
 		}
 	}
-
-	const movedObj = selectedObject()
-	recalcCollapsed(floor, assetMap(), reverted ? undefined : movedObj ? { x: movedObj.x, y: movedObj.y, w: movedObj.w, h: movedObj.h } : undefined)
+	recalcCollapsed(floor, assetMap())
 	await saveLayout()
 }
 
@@ -637,61 +477,6 @@ export async function unlinkObject(id: string): Promise<boolean> {
 	return true
 }
 
-export async function linkObjectToRoom(objectId: string, roomId: string): Promise<boolean> {
-	const floor = currentFloor.value
-	if (!floor) return false
-	const obj = floor.objects.find(o => o.id === objectId)
-	const room = floor.rooms.find(r => r.id === roomId)
-	if (!obj || !room) {
-		toast.warning('Object or room not found')
-		return false
-	}
-	if (obj.locked) {
-		toast.warning('Cannot link a locked object')
-		return false
-	}
-	obj.roomId = room.id
-	toast.success('Object linked to room')
-	await saveLayout()
-	return true
-}
-
-export async function linkObjectsToRoom(objectIds: string[], roomId: string): Promise<boolean> {
-	const floor = currentFloor.value
-	if (!floor) return false
-	const room = floor.rooms.find(r => r.id === roomId)
-	if (!room) {
-		toast.warning('Room not found')
-		return false
-	}
-	const objects = objectIds.map(id => floor.objects.find(o => o.id === id)).filter((o): o is ObjectData => !!o && !o.locked)
-	if (objects.length === 0) {
-		toast.warning('No unlocked objects to link')
-		return false
-	}
-	for (const obj of objects) {
-		obj.roomId = room.id
-	}
-	toast.success(`Linked ${objects.length} object(s) to room`)
-	await saveLayout()
-	return true
-}
-
-export async function unlinkObjectFromRoom(objectId: string): Promise<boolean> {
-	const floor = currentFloor.value
-	if (!floor) return false
-	const obj = floor.objects.find(o => o.id === objectId)
-	if (!obj || !obj.roomId) return false
-	if (obj.locked) {
-		toast.warning('Cannot unlink a locked object')
-		return false
-	}
-	delete obj.roomId
-	toast.success('Object unlinked from room')
-	await saveLayout()
-	return true
-}
-
 export async function toggleObjectLock(id: string): Promise<void> {
 	const floor = currentFloor.value
 	if (!floor) return
@@ -700,27 +485,6 @@ export async function toggleObjectLock(id: string): Promise<void> {
 	o.locked = !o.locked
 	toast.info(o.locked ? 'Object locked' : 'Object unlocked')
 	await saveLayout()
-}
-
-export async function linkAllObjectsInRoom(roomId: string): Promise<number> {
-	const floor = currentFloor.value
-	if (!floor) return 0
-	const room = floor.rooms.find(r => r.id === roomId)
-	if (!room) {
-		toast.warning('Room not found')
-		return 0
-	}
-	const objects = floor.objects.filter(o => !o.locked && aabbOverlap(o, room))
-	if (objects.length === 0) {
-		toast.warning('No unlocked objects found inside this room')
-		return 0
-	}
-	for (const obj of objects) {
-		obj.roomId = room.id
-	}
-	toast.success(`Linked ${objects.length} object(s) to room`)
-	await saveLayout()
-	return objects.length
 }
 
 export async function flattenToSvgAsset(name?: string): Promise<string | null> {

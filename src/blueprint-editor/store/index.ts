@@ -4,15 +4,11 @@ import {
 	reorderFloors, selectFloor, updateFloor,
 } from './floors'
 import {
-	addRoom, canPlaceRoom, updateRoomProps, addRoomTemplate,
-	deleteRoomTemplate, addRoomFromTemplate, eraseWallTile,
-} from './rooms'
-import {
-	addObject, addWallObject, canPlaceObject, select, toggleMultiSelect, deleteSelected,
+	addObject, canPlaceObject, select, toggleMultiSelect, deleteSelected,
 	moveSelectedTo, commitMove, rotateSelected, updateObjectProps,
 	createLinkedAssetFromSelection,
 	flattenToSvgAsset,
-	linkObjects, unlinkObject, linkObjectToRoom, linkObjectsToRoom, linkAllObjectsInRoom, unlinkObjectFromRoom, toggleObjectLock,
+	linkObjects, unlinkObject, toggleObjectLock,
 } from './objects'
 import {
 	addAsset, addSvgAsset, updateAsset, deleteAsset, rotateAsset, duplicateAsset,
@@ -22,25 +18,21 @@ import {
 	copySelected, pasteObjects,
 } from './metadata'
 import { saveLayout, saveAssets, saveNpcConfig, syncToGame } from './persistence'
-import { selectedRoom, selectedObject, selectedAsset, selectAsset, findRoomTemplate, selectedObjectIds, clearSelection } from './selection'
+import { selectedObject, selectedAsset, selectAsset, selectedObjectIds, clearSelection } from './selection'
 import { getLinkedObjects } from './utils'
 import { setMode, resizeCanvas } from './mode'
-import { globalTags, addTag, removeTag, ensureTag, ensureTags } from './tags'
+import { globalTags, managedTagSet, addTag, removeTag, ensureTag, ensureTags, hydrateCustomTags } from './tags'
 
 export {
 	addFloor, deleteFloor, duplicateFloor, renameFloor,
 	reorderFloors, selectFloor, updateFloor,
 } from './floors'
 export {
-	addRoom, canPlaceRoom, updateRoomProps, addRoomTemplate,
-	deleteRoomTemplate, addRoomFromTemplate, eraseWallTile,
-} from './rooms'
-export {
-	addObject, addWallObject, canPlaceObject, select, toggleMultiSelect, deleteSelected,
+	addObject, canPlaceObject, select, toggleMultiSelect, deleteSelected,
 	moveSelectedTo, commitMove, rotateSelected, updateObjectProps,
 	createLinkedAssetFromSelection,
 	flattenToSvgAsset,
-	linkObjects, unlinkObject, linkObjectToRoom, linkObjectsToRoom, linkAllObjectsInRoom, unlinkObjectFromRoom, toggleObjectLock,
+	linkObjects, unlinkObject, toggleObjectLock,
 } from './objects'
 export {
 	addAsset, addSvgAsset, updateAsset, deleteAsset, rotateAsset, duplicateAsset,
@@ -50,11 +42,11 @@ export {
 	copySelected, pasteObjects,
 } from './metadata'
 export { saveLayout, saveAssets, saveNpcConfig, syncToGame } from './persistence'
-export { selectedRoom, selectedObject, selectedAsset, selectAsset, findRoomTemplate, selectedObjectIds, clearSelection } from './selection'
+export { selectedObject, selectedAsset, selectAsset, selectedObjectIds, clearSelection } from './selection'
 export { getLinkedObjects } from './utils'
 export { setMode, resizeCanvas } from './mode'
-export { globalTags, addTag, removeTag, ensureTag, ensureTags } from './tags'
-export { dragState, startAssetDrag, endAssetDrag, startRoomTemplateDrag, endRoomTemplateDrag } from './state'
+export { globalTags, managedTagSet, addTag, removeTag, ensureTag, ensureTags, hydrateCustomTags } from './tags'
+export { dragState, startAssetDrag, endAssetDrag } from './state'
 
 export function useAssetsStore() {
 	return {
@@ -65,24 +57,24 @@ export function useAssetsStore() {
 		dragState,
 		addFloor, deleteFloor, duplicateFloor, renameFloor,
 		reorderFloors, selectFloor, updateFloor,
-		addRoom, canPlaceRoom, updateRoomProps, addRoomTemplate,
-		deleteRoomTemplate, addRoomFromTemplate, eraseWallTile,
-		addObject, addWallObject, canPlaceObject, select, toggleMultiSelect, deleteSelected,
+		addObject, canPlaceObject, select, toggleMultiSelect, deleteSelected,
 		moveSelectedTo, commitMove, rotateSelected, updateObjectProps,
 		createLinkedAssetFromSelection, flattenToSvgAsset,
-		linkObjects, unlinkObject, linkObjectToRoom, linkObjectsToRoom, linkAllObjectsInRoom, unlinkObjectFromRoom, toggleObjectLock,
+		linkObjects, unlinkObject, toggleObjectLock,
 		addAsset, addSvgAsset, updateAsset, deleteAsset, rotateAsset, duplicateAsset,
 		updateNpcConfig, syncNpcConfigToState, persistNpcConfigToDisk,
 		copySelected, pasteObjects,
 		saveLayout, saveAssets, saveNpcConfig, syncToGame,
-		selectedRoom, selectedObject, selectedAsset, selectAsset, findRoomTemplate, selectedObjectIds, clearSelection,
+		selectedObject, selectedAsset, selectAsset, selectedObjectIds, clearSelection,
 		getLinkedObjects,
 		setMode, resizeCanvas,
-		globalTags, addTag, removeTag, ensureTag, ensureTags,
+		globalTags, managedTagSet, addTag, removeTag, ensureTag, ensureTags, hydrateCustomTags,
 	}
 }
 
 export type AssetsStore = ReturnType<typeof useAssetsStore>
+
+hydrateCustomTags()
 
 if (import.meta.hot) {
 	import.meta.hot.dispose(() => {

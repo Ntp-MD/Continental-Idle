@@ -1,166 +1,286 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
-import { useAssetsStore } from '../blueprintStore'
-import { sanitizeTag } from '../../utils/sanitize'
+import { ref, computed } from "vue";
+import { useAssetsStore } from "../blueprintStore";
+import { useConfirm } from "@/composables/useConfirm";
+import { sanitizeTag } from "../../utils/sanitize";
+import { state } from "../store/state";
+import type { NpcRole } from "../types";
+import ModalShell from "./ModalShell.vue";
 
-const props = defineProps<{ open: boolean }>()
-const emit = defineEmits<{ (e: 'close'): void }>()
+const props = defineProps<{ open: boolean }>();
+const emit = defineEmits<{ (e: "close"): void }>();
 
-const store = useAssetsStore()
-const newTagRaw = ref('')
+const store = useAssetsStore();
+const confirm = useConfirm().confirm;
+const newTagRaw = ref("");
 const newTag = computed({
   get: () => newTagRaw.value,
-  set: (v: string) => { newTagRaw.value = sanitizeTag(v) },
-})
-const search = ref('')
+  set: (v: string) => {
+    newTagRaw.value = sanitizeTag(v);
+  },
+});
+const search = ref("");
+const selectedTag = ref("");
 
-const tags = computed(() => store.globalTags.value)
+const tags = computed(() => store.globalTags.value);
 
 const filteredTags = computed(() => {
-  const q = search.value.trim().toLowerCase()
-  if (!q) return tags.value
-  return tags.value.filter(t => t.toLowerCase().includes(q))
-})
+  const q = search.value.trim().toLowerCase();
+  if (!q) return tags.value;
+  return tags.value.filter((t) => t.toLowerCase().includes(q));
+});
+
+const tagUsage = computed(() => {
+  const tag = selectedTag.value;
+  if (!tag) return null;
+  const npc = state.layout.npcConfig;
+  const roles: { role: NpcRole; type: "focus" | "restricted" }[] = [];
+  if (npc) {
+    for (const role of npc.roles) {
+      if (role.focusTags.includes(tag)) roles.push({ role, type: "focus" });
+      if (role.restrictedTags.includes(tag)) roles.push({ role, type: "restricted" });
+    }
+  }
+  const tasks = (npc?.tasks ?? []).filter((t) => t.tags.includes(tag));
+  return { roles, tasks };
+});
+
+function tagTriggerRate(tag: string): number {
+  return state.layout.npcConfig?.tagTriggerRates?.[tag] ?? 0;
+}
+
+function setTagTriggerRate(tag: string, rate: number) {
+  const npc = state.layout.npcConfig;
+  if (!npc) return;
+  if (!npc.tagTriggerRates) npc.tagTriggerRates = {};
+  const clamped = Math.max(0, Math.min(100, Math.floor(rate)));
+  if (clamped === 0 && tag in npc.tagTriggerRates) {
+    delete npc.tagTriggerRates[tag];
+  } else if (clamped > 0) {
+    npc.tagTriggerRates[tag] = clamped;
+  }
+  void store.persistNpcConfigToDisk();
+}
 
 async function addTag() {
-  const t = newTagRaw.value.trim()
-  if (!t) return
-  await store.addTag(t)
-  newTagRaw.value = ''
+  const t = newTagRaw.value.trim();
+  if (!t) return;
+  await store.addTag(t);
+  newTagRaw.value = "";
 }
 
 async function removeTag(tag: string) {
-  await store.removeTag(tag)
+  const ok = await confirm({
+    title: "Delete tag",
+    message: `Delete "${tag}"? This removes it from all NPC rules and origin assets.`,
+    confirmLabel: "Delete",
+    danger: true,
+  });
+  if (!ok) return;
+  await store.removeTag(tag);
+  if (selectedTag.value === tag) selectedTag.value = "";
 }
 
 async function onKeydown(e: KeyboardEvent) {
-  if (e.key === 'Enter') {
-    e.preventDefault()
-    await addTag()
+  if (e.key === "Enter") {
+    e.preventDefault();
+    await addTag();
   }
 }
 </script>
 
 <template>
-  <div v-if="open" class="modal__overlay tagmanager__modal" @click.self="emit('close')">
-    <div class="tagmanager__dialog__vstack">
-      <div class="tagmanager__space__row">
-        <span class="tagmanager__title__label">Tag Manager</span>
-        <button class="btn__ghost btn__icon" @click="emit('close')" aria-label="Close">✕</button>
+  <ModalShell :open="open" title="Tag Manager" max-width="720px" width="min(720px, calc(100vw - 32px))" height="auto" max-height="calc(100dvh - 64px)" @close="emit('close')">
+    <div class="tagmanager__body">
+      <div class="tagmanager__pane">
+        <div class="tagmanager__heading">Tags</div>
+        <div class="tagmanager__row">
+          <input v-model="newTag" class="tagmanager__input" placeholder="New tag name..." @keydown="onKeydown" />
+          <button class="btn--primary" @click="addTag">Add</button>
+        </div>
+        <div class="tagmanager__row">
+          <input v-model="search" class="tagmanager__input" placeholder="Search tags..." />
+        </div>
+        <div class="tagmanager__scroll">
+          <div v-if="filteredTags.length === 0" class="tagmanager__empty">No tags found</div>
+          <div v-for="tag in filteredTags" :key="tag" class="tagmanager__tagrow" :class="{ 'tagmanager__tagrow--active': selectedTag === tag }" role="button" tabindex="0" @click="selectedTag = tag" @keydown.enter="selectedTag = tag">
+            <span class="tagmanager__tagname">{{ tag }}</span>
+            <button type="button" class="btn--danger btn--icon" @click.stop.prevent="removeTag(tag)" aria-label="Delete tag">✕</button>
+          </div>
+        </div>
       </div>
-      <div class="tagmanager__body__vstack">
-        <div class="tagmanager__add__hstack">
-          <input
-            v-model="newTag"
-            class="tagmanager__input__panel"
-            placeholder="New tag name..."
-            @keydown="onKeydown"
-          />
-          <button class="btn__primary" @click="addTag">Add</button>
-        </div>
-        <div class="tagmanager__search__hstack">
-          <input
-            v-model="search"
-            class="tagmanager__input__panel"
-            placeholder="Search tags..."
-          />
-        </div>
-        <div class="tagmanager__scroll__stack">
-          <div v-if="filteredTags.length === 0" class="tagmanager__empty">
-            No tags found
+
+      <div class="tagmanager__pane">
+        <div class="tagmanager__heading">Tag Detail</div>
+        <div v-if="selectedTag && tagUsage" class="tagmanager__detail">
+          <div class="tagmanager__selected">
+            <span class="tag">{{ selectedTag }}</span>
           </div>
-          <div
-            v-for="tag in filteredTags"
-            :key="tag"
-            class="tag"
-          >
-            <span class="tag__name">{{ tag }}</span>
-            <button class="btn__danger btn__icon" @click="removeTag(tag)">×</button>
+
+          <div class="tagmanager__section">Trigger Rate</div>
+          <div class="tagmanager__row">
+            <input type="number" min="0" max="100" step="1" class="tagmanager__input" :value="tagTriggerRate(selectedTag)" @input="setTagTriggerRate(selectedTag, +($event.target as HTMLInputElement).value)" />
+            <span class="tagmanager__value">%/min</span>
+          </div>
+          <div class="tagmanager__hint">Chance per minute an idle NPC heads to a target with this tag. 0 = never, 100 = always.</div>
+
+          <div class="tagmanager__section">Used by roles ({{ tagUsage.roles.length }})</div>
+          <div class="tagmanager__usagelist">
+            <div v-for="usage in tagUsage.roles" :key="usage.role.id + usage.type" class="tagmanager__usagerow">
+              <span class="tagmanager__swatch" :style="{ background: usage.role.color }" />
+              <span class="tagmanager__usagename">{{ usage.role.label }}</span>
+              <span class="tag" :class="usage.type === 'focus' ? 'tag__focus' : 'tag__restricted'">{{ usage.type }}</span>
+            </div>
+            <div v-if="tagUsage.roles.length === 0" class="tagmanager__empty">Not used by any role</div>
+          </div>
+
+          <div class="tagmanager__section">Used by tasks ({{ tagUsage.tasks.length }})</div>
+          <div class="tagmanager__usagelist">
+            <div v-for="task in tagUsage.tasks" :key="task.id" class="tagmanager__usagerow">
+              <span class="tagmanager__usagename">{{ task.label }}</span>
+            </div>
+            <div v-if="tagUsage.tasks.length === 0" class="tagmanager__empty">Not used by any task</div>
           </div>
         </div>
+        <div v-else class="tagmanager__empty">Select a tag to view usage</div>
       </div>
     </div>
-  </div>
+  </ModalShell>
 </template>
 
-
 <style scoped>
-
-.tagmanager__modal {
-  z-index: 1001;
-}
-
-.tagmanager__dialog__vstack {
-  width: min(420px, calc(100vw - 32px));
-  max-height: calc(100dvh - 64px);
+.tagmanager__body {
   display: flex;
-  flex-direction: column;
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-dim);
-  border-radius: var(--radius-md);
+  flex: 1;
   overflow: hidden;
 }
 
-.tagmanager__space__row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: var(--gap-sm) var(--gap-md);
-  background: var(--bg-card);
-  border-bottom: 1px solid var(--border-dim);
-}
-
-.tagmanager__title__label {
-  font-weight: 600;
-  font-size: var(--font-md);
-  color: var(--text-primary);
-}
-
-.tagmanager__body__vstack {
-  padding: var(--gap-md);
+.tagmanager__pane {
+  flex: 1;
   display: flex;
   flex-direction: column;
   gap: var(--gap-sm);
+  padding: var(--gap-md);
   overflow-y: auto;
 }
 
-.tagmanager__add__hstack {
+.tagmanager__pane + .tagmanager__pane {
+  border-left: 1px solid var(--border-dim);
+}
+
+.tagmanager__heading {
+  font-weight: 600;
+  font-size: var(--font-sm);
+  color: var(--text-primary);
+  flex-shrink: 0;
+}
+
+.tagmanager__row {
   display: flex;
   gap: var(--gap-xs);
+  flex-shrink: 0;
 }
 
-.tagmanager__search__hstack {
-  display: flex;
-}
-
-.tagmanager__input__panel {
+.tagmanager__input {
   flex: 1;
   background: var(--bg-primary);
-  border: 1px solid var(--border-dim);
-  border-radius: var(--radius-sm);
-  color: var(--text-primary);
-  font-size: var(--font-sm);
-  padding: var(--gap-xs) var(--gap-sm);
-  outline: none;
 }
 
-.tagmanager__input__panel:focus {
-  border-color: var(--accent-gold);
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent-gold) 15%, transparent);
-}
-
-.tagmanager__scroll__stack {
+.tagmanager__scroll {
   display: flex;
   flex-direction: column;
   gap: var(--gap-xs);
-  max-height: 40vh;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.tagmanager__tagrow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--gap-xs) var(--gap-sm);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.tagmanager__tagrow:hover {
+  background: var(--bg-card);
+}
+
+.tagmanager__tagrow--active {
+  background: var(--bg-card);
+}
+
+.tagmanager__tagname {
+  font-size: var(--font-sm);
+  color: var(--text-primary);
+}
+
+.tagmanager__detail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-sm);
+}
+
+.tagmanager__selected {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-xs);
+}
+
+.tagmanager__section {
+  font-weight: 600;
+  font-size: var(--font-xs);
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.tagmanager__value {
+  font-size: var(--font-sm);
+  color: var(--text-secondary);
+}
+
+.tagmanager__hint {
+  font-size: var(--font-xs);
+  color: var(--text-secondary);
+  opacity: 0.7;
+}
+
+.tagmanager__usagelist {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-xs);
+  max-height: 200px;
   overflow-y: auto;
 }
 
-.tagmanager__scroll__stack .tag {
-  justify-content: space-between;
+.tagmanager__usagerow {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-xs);
+  padding: var(--gap-xs) var(--gap-sm);
+  background: var(--bg-primary);
+  border-radius: var(--radius-xs);
 }
 
-.tag__name {
-	flex: 1;
-}</style>
+.tagmanager__swatch {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.tagmanager__usagename {
+  font-size: var(--font-sm);
+  color: var(--text-primary);
+}
+
+.tagmanager__empty {
+  font-size: var(--font-sm);
+  color: var(--text-secondary);
+  opacity: 0.6;
+  padding: var(--gap-sm);
+  text-align: center;
+}
+</style>

@@ -6,12 +6,12 @@ const router = createRouter({
 		{
 			path: '/',
 			name: 'game',
-			component: () => import('@/components/gameLayout.vue'),
+			component: () => import('@/components/GameLayout.vue'),
 		},
 		{
 			path: '/editor',
 			name: 'editor',
-			component: () => import('@/components/gameLayout.vue'),
+			component: () => import('@/components/GameLayout.vue'),
 		},
 	],
 })

@@ -57,9 +57,9 @@ function submitPrompt() {
         </h2>
         <p :id="`confirmdialog__msg__${pending.id}`" class="confirmdialog__msg">{{ pending.message }}</p>
         <input v-if="isPrompt" ref="inputRef" v-model="inputValue" class="input confirmdialog__input" :placeholder="pending.promptPlaceholder ?? ''" @keydown.enter.stop.prevent="submitPrompt" @keydown.escape.stop.prevent="resolve(null)" />
-        <div class="actions actions__fill confirmdialog__actions">
-          <button class="btn__ghost" @click="resolve(isPrompt ? null : false)">{{ pending.cancelLabel }}</button>
-          <button :class="pending.danger ? 'btn__danger' : 'btn__primary'" data-autofocus="true" @click="isPrompt ? submitPrompt() : resolve(true)">{{ pending.confirmLabel }}</button>
+        <div class="actions actions--fill confirmdialog__actions">
+          <button class="btn--ghost" @click="resolve(isPrompt ? null : false)">{{ pending.cancelLabel }}</button>
+          <button :class="pending.danger ? 'btn--danger' : 'btn--primary'" data-autofocus="true" @click="isPrompt ? submitPrompt() : resolve(true)">{{ pending.confirmLabel }}</button>
         </div>
       </div>
     </div>

@@ -2,7 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "blueprint-layout.v1.json",
   "type": "object",
-  "required": ["version", "canvas", "floors", "roomTemplates"],
+  "required": ["version", "canvas", "floors"],
   "properties": {
     "$schema": { "type": "string" },
     "version": { "type": "number" },
@@ -20,19 +20,17 @@
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["id", "name", "label", "rooms", "objects"],
+        "required": ["id", "name", "label", "objects"],
         "properties": {
           "id": { "type": "string" },
           "name": { "type": "string" },
           "label": { "type": "string" },
-          "rooms": { "type": "array" },
           "objects": { "type": "array" },
           "defaultWalkable": { "type": "boolean" }
         },
         "additionalProperties": true
       }
-    },
-    "roomTemplates": { "type": "array" }
+    }
   },
   "additionalProperties": true
 }

@@ -1,5 +1,5 @@
-import type { FloorLayoutData, RoomData, ObjectData, AssetBase, AssetDef, LinkedPart, Rotation, RoomTemplate, RoomTemplateObject, NpcSimulationConfig, NpcRole, NpcTask, NpcDeploymentPool } from '../types'
-import { isAssetDef, validateLayoutData, validateLayoutIntegrity, isNpcConfig, normalizeAnchorPoints, normalizeInteractConfig, normalizeTileEdges, normalizeWalkableGrid, normalizeTileStates, normalizeAllowedRoleIds } from '../types'
+import type { FloorLayoutData, ObjectData, AssetBase, AssetDef, LinkedPart, Rotation } from '../types'
+import { isAssetDef, validateLayoutData, validateLayoutIntegrity, normalizeInteractSpots, normalizeInteractConfig, normalizeTileEdges, normalizeWalkableGrid, normalizeTileStates, normalizeAllowedRoleIds } from '../types'
 import { findAssetCached, buildAssetMap, validatePortalConfiguration } from '../assetUtils'
 import { normalizeObject, snap } from '../geometry'
 import { recalcCollapsed } from '../collision'
@@ -20,56 +20,6 @@ function readTags(value: unknown): string[] | undefined {
 	return tags.length > 0 ? tags : undefined
 }
 
-function isRoomType(value: unknown): value is 'room' | 'hallway' | 'wall' | 'elevator' {
-	return typeof value === 'string' && ['room', 'hallway', 'wall', 'elevator'].includes(value)
-}
-
-function isRoomTemplateObject(value: unknown): value is RoomTemplateObject {
-	if (!value || typeof value !== 'object') return false
-	const o = value as Record<string, unknown>
-	if (typeof o.type !== 'string' || !o.type.trim()) return false
-	if (typeof o.dx !== 'number' || !isFinite(o.dx)) return false
-	if (typeof o.dy !== 'number' || !isFinite(o.dy)) return false
-	if (o.w !== undefined && (typeof o.w !== 'number' || !isFinite(o.w) || o.w <= 0)) return false
-	if (o.h !== undefined && (typeof o.h !== 'number' || !isFinite(o.h) || o.h <= 0)) return false
-	if ((o.w === undefined) !== (o.h === undefined)) return false
-	if (![0, 90, 180, 270].includes(o.rotation as number)) return false
-	if (o.padding !== undefined && (typeof o.padding !== 'number' || o.padding <= 0)) return false
-	if (o.radius !== undefined && (typeof o.radius !== 'number' || !isFinite(o.radius))) return false
-	if (o.fillColor !== undefined && typeof o.fillColor !== 'string') return false
-	if (o.label !== undefined && typeof o.label !== 'string') return false
-	if (o.instanceLabel !== undefined && typeof o.instanceLabel !== 'string') return false
-	if (o.linkGroupId !== undefined && typeof o.linkGroupId !== 'string') return false
-	if (o.rx !== undefined) {
-		const r = o.rx as Record<string, unknown>
-		if (typeof r.tl !== 'number' || typeof r.tr !== 'number' || typeof r.br !== 'number' || typeof r.bl !== 'number') return false
-	}
-	if (o.customProps !== undefined && (typeof o.customProps !== 'object' || o.customProps === null)) return false
-	return true
-}
-
-function isRoomTemplate(value: unknown): value is RoomTemplate {
-	if (!value || typeof value !== 'object') return false
-	const t = value as Record<string, unknown>
-	if (typeof t.id !== 'string' || !t.id.trim()) return false
-	if (typeof t.name !== 'string' || !t.name.trim()) return false
-	if (t.category !== undefined && (typeof t.category !== 'string' || !t.category.trim())) return false
-	if (typeof t.label !== 'string') return false
-	if (typeof t.w !== 'number' || !isFinite(t.w) || t.w <= 0) return false
-	if (typeof t.h !== 'number' || !isFinite(t.h) || t.h <= 0) return false
-	if (t.roomType !== undefined && !isRoomType(t.roomType)) return false
-	if (t.radius !== undefined && (typeof t.radius !== 'number' || !isFinite(t.radius))) return false
-	if (t.fillColor !== undefined && typeof t.fillColor !== 'string') return false
-	if (t.padding !== undefined && (typeof t.padding !== 'number' || t.padding <= 0)) return false
-	if (t.tags !== undefined && (!Array.isArray(t.tags) || t.tags.some(tag => typeof tag !== 'string'))) return false
-	if (t.rx !== undefined) {
-		const r = t.rx as Record<string, unknown>
-		if (typeof r.tl !== 'number' || typeof r.tr !== 'number' || typeof r.br !== 'number' || typeof r.bl !== 'number') return false
-	}
-	if (t.objects !== undefined && (!Array.isArray(t.objects) || !t.objects.every(isRoomTemplateObject))) return false
-	return true
-}
-
 
 function applyAssetDefFields(asset: AssetDef, a: Record<string, unknown>): void {
 	if (typeof a.walkable === 'boolean') asset.walkable = a.walkable
@@ -80,8 +30,8 @@ function applyAssetDefFields(asset: AssetDef, a: Record<string, unknown>): void 
 	if (states) asset.tileStates = states
 	const edges = normalizeTileEdges(a.tileEdges)
 	if (edges) asset.tileEdges = edges
-	const anchors = normalizeAnchorPoints(a.anchorPoints)
-	if (anchors) asset.anchorPoints = anchors
+	const anchors = normalizeInteractSpots(a.interactSpots)
+	if (anchors) asset.interactSpots = anchors
 	const interact = normalizeInteractConfig(a.interact)
 	if (interact) asset.interact = interact
 }
@@ -191,35 +141,6 @@ export function migrate(data: unknown): { layout: FloorLayoutData; legacyAssets:
 					name: typeof fRec.name === 'string' ? fRec.name : 'Unnamed',
 					label: typeof fRec.label === 'string' ? fRec.label : 'F?',
 					labelColor: typeof fRec.labelColor === 'string' ? fRec.labelColor : undefined,
-					rooms: Array.isArray(fRec.rooms) ? fRec.rooms.filter(
-						(r: unknown): r is Record<string, unknown> => {
-							const rec = r as Record<string, unknown>
-							return typeof rec?.x === 'number' && isFinite(rec.x as number)
-								&& typeof rec?.y === 'number' && isFinite(rec.y as number)
-								&& typeof rec?.w === 'number' && isFinite(rec.w as number) && rec.w > 0
-								&& typeof rec?.h === 'number' && isFinite(rec.h as number) && rec.h > 0
-						}
-					).map((r) => ({
-						id: typeof r.id === 'string' ? r.id : genId('room'),
-						x: r.x as number, y: r.y as number, w: r.w as number, h: r.h as number,
-						label: typeof r.label === 'string' ? r.label : 'Room',
-						category: typeof r.category === 'string' ? r.category : undefined,
-						roomType: typeof r.roomType === 'string' ? r.roomType as RoomData['roomType'] : 'room',
-						walkable: typeof r.walkable === 'boolean' ? r.walkable : true,
-						entrances: Array.isArray(r.entrances) ? r.entrances.filter((e): e is { side: 'top' | 'bottom' | 'left' | 'right'; offset: number; width: number } => {
-							const entry = e as Record<string, unknown>
-							return ['top', 'bottom', 'left', 'right'].includes(entry.side as string)
-								&& typeof entry.offset === 'number' && typeof entry.width === 'number' && entry.width > 0
-						}) : undefined,
-						anchorPoints: normalizeAnchorPoints(r.anchorPoints),
-						interact: normalizeInteractConfig(r.interact),
-						radius: typeof r.radius === 'number' && r.radius > 0 ? r.radius : undefined,
-						fillColor: typeof r.fillColor === 'string' ? r.fillColor : undefined,
-						rx: typeof r.rx === 'object' && r.rx !== null ? r.rx : undefined,
-						padding: typeof r.padding === 'number' && r.padding > 0 ? r.padding : undefined,
-						tags: readTags(r.tags),
-						locked: typeof r.locked === 'boolean' ? r.locked : undefined,
-					} as RoomData)) : [],
 					objects: Array.isArray(fRec.objects) ? fRec.objects.filter(
 						(o: unknown): o is Record<string, unknown> => {
 							const rec = o as Record<string, unknown>
@@ -248,9 +169,6 @@ export function migrate(data: unknown): { layout: FloorLayoutData; legacyAssets:
 						if (typeof o.isWall === 'boolean') base.isWall = o.isWall
 
 
-						const objectTags = readTags(o.customProps && typeof o.customProps === 'object' ? (o.customProps as Record<string, unknown>).tags : undefined)
-						if (objectTags) base.customProps = { ...(o.customProps as ObjectData['customProps']), tags: objectTags }
-						if (typeof o.roomId === 'string') base.roomId = o.roomId
 						if (typeof o.rx === 'object' && o.rx !== null) base.rx = o.rx as ObjectData['rx']
 						return base
 					}) : [],
@@ -258,9 +176,6 @@ export function migrate(data: unknown): { layout: FloorLayoutData; legacyAssets:
 					allowedRoleIds: normalizeAllowedRoleIds(fRec.allowedRoleIds),
 				}
 			})
-			: [],
-		roomTemplates: Array.isArray((d as Record<string, unknown>).roomTemplates)
-			? ((d as Record<string, unknown>).roomTemplates as unknown[]).filter(isRoomTemplate)
 			: [],
 		npcConfig: migrateNpcConfig(d.npcConfig),
 	}
@@ -274,8 +189,6 @@ export function migrate(data: unknown): { layout: FloorLayoutData; legacyAssets:
 				if (oldInstanceLabels[obj.subId]) obj.instanceLabel = oldInstanceLabels[obj.subId]
 				if (oldValidationRules[obj.subId]) obj.validationRule = oldValidationRules[obj.subId]
 			}
-			const customTags = readTags(obj.customProps?.tags)
-			if (customTags) obj.customProps = { ...obj.customProps, tags: customTags }
 		}
 	}
 	delete migrated.objectCustomProps
@@ -302,21 +215,9 @@ export function migrate(data: unknown): { layout: FloorLayoutData; legacyAssets:
 			editorLog.warn('Migration', `removed ${removedCount} object(s) with unknown asset types from floor "${floor.label}"`)
 		}
 
-		for (const room of floor.rooms) {
-			if (!room.roomType) {
-				room.roomType = room.locked ? 'wall' : 'room'
-			}
-			if (room.walkable === undefined) {
-				room.walkable = room.roomType !== 'wall'
-			}
-		}
-
 		const validIds = new Set(floor.objects.map(o => o.id))
-		const roomIds = new Set(floor.rooms.map(room => room.id))
 		const adjacency = new Map<string, Set<string>>()
 		for (const obj of floor.objects) {
-			if (obj.roomId && !roomIds.has(obj.roomId)) delete obj.roomId
-
 			const lo = obj as ObjectData & { linkedIds?: string[] }
 			const linked = (lo.linkedIds ?? []).filter((id: string) => validIds.has(id) && id !== obj.id)
 			adjacency.set(obj.id, new Set(linked))

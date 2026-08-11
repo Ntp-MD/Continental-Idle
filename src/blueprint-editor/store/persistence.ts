@@ -1,9 +1,9 @@
-import type { RoomData, ObjectData, OriginAssetFile, SyncedFloor, SyncedRoom, SyncedObject, SyncedLayoutPayload } from '../types'
-import { normalizeAllowedRoleIds, normalizeAnchorPoints, normalizeInteractConfig, normalizeTileEdges, normalizeTileStates, normalizeWalkableGrid, normalizeOriginAssetFile, isNpcConfig } from '../types'
+import type { ObjectData, OriginAssetFile, SyncedFloor, SyncedObject, SyncedLayoutPayload } from '../types'
+import { normalizeAllowedRoleIds, normalizeInteractSpots, normalizeInteractConfig, normalizeTileEdges, normalizeTileStates, normalizeWalkableGrid, normalizeOriginAssetFile, isNpcConfig } from '../types'
 import { state, toast, isStateLocked, withStateLock, assetMap } from './state'
 import { editorLog, editorFloorLabelToFloorId } from './utils'
 import { EDITOR_CONFIG } from './migrate'
-import { serializeObject, serializeRoomTemplate } from '../assetUtils'
+import { serializeObject } from '../assetUtils'
 
 let saveDebounceTimer: number | null = null
 let isSaving = false
@@ -46,7 +46,6 @@ async function saveLayoutLocked(): Promise<boolean> {
 				...f,
 				objects: f.objects.map(o => serializeObject(o)),
 			})),
-			roomTemplates: (state.layout.roomTemplates ?? []).map(serializeRoomTemplate),
 		})
 
 		const attemptSave = async (attempt: number): Promise<boolean> => {
@@ -249,36 +248,13 @@ export function syncToGame(): boolean {
 			floors[floorId] = {
 				defaultWalkable: floor.defaultWalkable ?? true,
 				...(allowedRoleIds ? { allowedRoleIds } : {}),
-				rooms: floor.rooms.map((r: RoomData) => {
-					const roomAnchors = normalizeAnchorPoints(r.anchorPoints)
-					const roomInteract = normalizeInteractConfig(r.interact)
-					const room: SyncedRoom = {
-						id: r.id,
-						x: r.x,
-						y: r.y,
-						w: r.w,
-						h: r.h,
-						label: r.label,
-						roomType: r.roomType ?? 'room',
-						radius: r.radius ?? 0,
-						walkable: r.walkable ?? true,
-					}
-					if (r.entrances?.length) room.entrances = r.entrances
-					if (roomAnchors?.length) room.anchorPoints = roomAnchors
-					const ri = normalizeInteractConfig(r.interact)
-					if (ri) room.interact = ri
-					if (r.tags?.length) room.tags = r.tags
-					return room
-				}),
 				objects: floor.objects.map((o: ObjectData) => {
 					const asset = assetMap().get(o.type)
-					const anchors = normalizeAnchorPoints(asset?.anchorPoints)
+					const interactSpots = normalizeInteractSpots(asset?.interactSpots)
 					const interact = normalizeInteractConfig(asset?.interact)
 					const walkableGrid = normalizeWalkableGrid(asset?.walkableGrid)
 					const tileStates = normalizeTileStates(asset?.tileStates)
 					const tileEdges = normalizeTileEdges(asset?.tileEdges)
-					const assetTags = asset?.tags ?? []
-					const tags = [...assetTags, ...(o.customProps?.tags ?? [])]
 					const obj: SyncedObject = {
 						id: o.id,
 						type: o.type,
@@ -292,13 +268,11 @@ export function syncToGame(): boolean {
 					}
 					if (o.fillColor) obj.fillColor = o.fillColor
 					if (o.label) obj.label = o.label
-					if (o.roomId) obj.roomId = o.roomId
 					if (walkableGrid) obj.walkableGrid = walkableGrid
 					if (tileStates) obj.tileStates = tileStates
 					if (tileEdges) obj.tileEdges = tileEdges
-					if (anchors?.length) obj.anchorPoints = anchors
+					if (interactSpots?.length) obj.interactSpots = interactSpots
 					if (interact) obj.interact = interact
-					if (tags.length > 0) obj.tags = [...new Set(tags)]
 					return obj
 				}),
 			}
@@ -309,7 +283,6 @@ export function syncToGame(): boolean {
 			floors,
 			timestamp: Date.now(),
 		}
-		if (state.layout.npcConfig) payload.npcConfig = state.layout.npcConfig
 		window.dispatchEvent(new CustomEvent('blueprint:sync', { detail: payload }))
 		return true
 	} catch (e) {

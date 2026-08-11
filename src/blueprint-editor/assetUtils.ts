@@ -1,5 +1,4 @@
-import type { AssetDef, FloorLayoutData, NpcSimulationConfig, ObjectData, RoomData, RoomTemplate, RoomTemplateObject, SvgRole, SvgRoleInfo, WalkableGrid, TileState, AnchorPoint } from './types'
-import { resolveObjectDef } from './types'
+import type { AssetDef, FloorLayoutData, NpcSimulationConfig, ObjectData, SvgRole, SvgRoleInfo, WalkableGrid, TileState } from './types'
 
 export function findAsset(assets: AssetDef[], type: string): AssetDef | undefined {
 	return assets.find(a => a.id === type)
@@ -45,27 +44,6 @@ export function parseSvgRoles(svg: string): SvgRoleInfo[] {
 	}
 }
 
-export function validateRoomAnchors(room: RoomData, objects: ObjectData[], assetMap?: Map<string, AssetDef>): { valid: boolean; invalid: AnchorPoint[] } {
-	const anchors = room.anchorPoints ?? [{ x: room.w / 2, y: room.h / 2 }]
-	const invalid = anchors.filter(({ x, y }) => {
-		if (x < 0 || y < 0 || x > room.w || y > room.h) return true
-		const worldX = room.x + x
-		const worldY = room.y + y
-		return objects.some(obj => {
-			const def = resolveObjectDef(obj.rotation, assetMap?.get(obj.type))
-			if (def.walkable !== false && !def.walkableGrid) return false
-			if (worldX < obj.x || worldX >= obj.x + obj.w || worldY < obj.y || worldY >= obj.y + obj.h) return false
-			if (!def.walkableGrid || def.walkableGrid.length === 0) return def.walkable === false
-			const row = Math.min(def.walkableGrid.length - 1, Math.floor((worldY - obj.y) / (obj.h / def.walkableGrid.length)))
-			const cols = def.walkableGrid[row]?.length ?? 0
-			if (cols === 0) return def.walkable === false
-			const col = Math.min(cols - 1, Math.floor((worldX - obj.x) / (obj.w / cols)))
-			return def.walkable === false || def.walkableGrid[row][col] === false
-		})
-	})
-	return { valid: invalid.length === 0, invalid }
-}
-
 export function buildWalkableGrid(
 	w: number,
 	h: number,
@@ -104,38 +82,12 @@ export function serializeObject(obj: ObjectData): Record<string, unknown> {
 		rotation: obj.rotation,
 	}
 	if (obj.subId) out.subId = obj.subId
-	if (obj.roomId) out.roomId = obj.roomId
 	if (obj.linkGroupId) out.linkGroupId = obj.linkGroupId
 
 	if (obj.customProps) out.customProps = obj.customProps
 	if (obj.instanceLabel) out.instanceLabel = obj.instanceLabel
 	if (obj.locked !== undefined) out.locked = obj.locked
 	return out
-}
-
-
-export function serializeRoomTemplate(template: RoomTemplate): RoomTemplate {
-	return {
-		...template,
-		...(template.objects
-			? {
-				objects: template.objects.map((obj: RoomTemplateObject) => {
-					const out: RoomTemplateObject = {
-						type: obj.type,
-						dx: obj.dx,
-						dy: obj.dy,
-						rotation: obj.rotation,
-					}
-					if (obj.radius !== undefined) out.radius = obj.radius
-					if (obj.label) out.label = obj.label
-					if (obj.instanceLabel) out.instanceLabel = obj.instanceLabel
-					if (obj.customProps) out.customProps = obj.customProps
-					if (obj.linkGroupId) out.linkGroupId = obj.linkGroupId
-					return out
-				}),
-			}
-			: {}),
-	}
 }
 
 
@@ -162,11 +114,11 @@ export function validatePortalConfiguration(
 		let hasPortal = false
 		for (const object of floor.objects) {
 			const asset = assetMap.get(object.type)
-			const isPortal = (asset?.tags?.includes('portal') ?? false) || (object.customProps?.tags?.includes('portal') ?? false)
+			const isPortal = asset?.tags?.includes('portal') ?? false
 			if (!isPortal) continue
 			hasPortal = true
-			if (!asset?.anchorPoints?.length) {
-				warnings.push(`Portal object "${object.id}" on floor "${floor.label}" has no anchorPoints on its asset "${object.type}"`)
+			if (!asset?.interactSpots?.length) {
+				warnings.push(`Portal object "${object.id}" on floor "${floor.label}" has no interactSpots on its asset "${object.type}"`)
 			}
 		}
 		if (hasPortal) portalFloorLabels.push(floor.label)

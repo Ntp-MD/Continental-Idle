@@ -69,4 +69,16 @@
 	--gap-lg: 24px;
 	--gap-xl: 40px;
 
+	/* ── Control Height ── */
+	--control-height: 30px;
+
+	/* ── Z-Index Scale ── */
+	--z-canvas-base: 1;
+	--z-canvas-ui: 50;
+	--z-canvas-menu: 60;
+	--z-editor-panel: 200;
+	--z-toolbar: 1000;
+	--z-modal: 2000;
+	--z-toast: 3000;
+
 }

@@ -1,46 +1,61 @@
-import { state } from './state'
 import { computed } from 'vue'
+import { useToast } from '@/composables/useToast'
+import { saveAssets, saveLayout } from './persistence'
+import { persistNpcConfigToDisk } from './npcDefault'
+import { state } from './state'
 
+function normalizeTag(raw: string): string {
+	return raw.trim().toLowerCase().replace(/\s+/g, '-')
+}
 
 export const globalTags = computed(() => {
-	const set = new Set<string>()
-
-
-	for (const role of state.layout.npcConfig?.roles ?? []) {
-		for (const t of role.focusTags) set.add(t)
-		for (const t of role.restrictedTags) set.add(t)
-	}
-
-
-	for (const task of state.layout.npcConfig?.tasks ?? []) {
-		for (const t of task.tags) set.add(t)
-	}
-
-
-	for (const floor of state.layout.floors) {
-		for (const room of floor.rooms ?? []) {
-			for (const t of room.tags ?? []) set.add(t)
-		}
-	}
-
-
-	for (const floor of state.layout.floors) {
-		for (const obj of floor.objects ?? []) {
-			for (const t of obj.customProps?.tags ?? []) set.add(t)
-		}
-	}
-
-	return [...set].sort((a, b) => a.localeCompare(b))
+	const tags = new Set<string>()
+	for (const asset of state.assetRegistry) for (const tag of asset.tags ?? []) tags.add(tag)
+	return [...tags].sort((a, b) => a.localeCompare(b))
 })
 
+export const managedTagSet = computed(() => new Set(globalTags.value))
 
-export async function addTag(_tag: string): Promise<void> { }
+export async function addTag(tag: string): Promise<void> {
+	const normalized = normalizeTag(tag)
+	if (!normalized) return
+	useToast().warning(`Add tag "${normalized}" to an origin asset first.`)
+}
 
+export async function removeTag(tag: string): Promise<void> {
+	const normalized = normalizeTag(tag)
+	for (const asset of state.assetRegistry) {
+		if (asset.tags?.includes(normalized)) {
+			asset.tags = asset.tags.filter(item => item !== normalized)
+			if (asset.tags.length === 0) delete asset.tags
+		}
+	}
+	const npc = state.layout.npcConfig
+	if (npc) {
+		for (const role of npc.roles) {
+			role.focusTags = role.focusTags.filter(item => item !== normalized)
+			role.restrictedTags = role.restrictedTags.filter(item => item !== normalized)
+		}
+		for (const task of npc.tasks) task.tags = task.tags.filter(item => item !== normalized)
+		if (npc.tagTriggerRates) {
+			delete npc.tagTriggerRates[normalized]
+			if (Object.keys(npc.tagTriggerRates).length === 0) delete npc.tagTriggerRates
+		}
+	}
+	await saveAssets()
+	await saveLayout()
+	await persistNpcConfigToDisk()
+}
 
-export async function removeTag(_tag: string): Promise<void> { }
+export async function ensureTag(tag: string): Promise<void> {
+	const normalized = normalizeTag(tag)
+	if (normalized && !globalTags.value.includes(normalized)) {
+		useToast().warning(`Tag "${normalized}" is not defined on an origin asset.`)
+	}
+}
 
+export async function ensureTags(tags: string[]): Promise<void> {
+	for (const tag of tags) await ensureTag(tag)
+}
 
-export async function ensureTag(_tag: string): Promise<void> { }
-
-
-export async function ensureTags(_tags: string[]): Promise<void> { }
+export function hydrateCustomTags(): void { }

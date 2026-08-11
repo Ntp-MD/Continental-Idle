@@ -1,102 +1,24 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, defineAsyncComponent, watch } from "vue";
+import { ref, onMounted, onUnmounted, defineAsyncComponent, watch, shallowRef } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import StartScreen from "@/components/overlays/startScreen.vue";
-import GameHeader from "@/components/layout/gameHeader.vue";
-import WorldMap from "@/components/layout/worldMap.vue";
-import BuildingList from "@/components/layout/buildingList.vue";
-import EventPrompt from "@/components/overlays/eventPrompt.vue";
-import StaffPanel from "@/components/panels/staffPanel.vue";
-import PrestigePanel from "@/components/panels/prestigePanel.vue";
-import SkillTreePanel from "@/components/panels/skillTreePanel.vue";
-import SettingsPanel from "@/components/panels/settingsPanel.vue";
-import TutorialOverlay from "@/components/overlays/tutorialOverlay.vue";
-import ToastContainer from "@/components/overlays/toastContainer.vue";
-import BuffBar from "@/components/layout/buffBar.vue";
-import EventLogPanel from "@/components/panels/eventLogPanel.vue";
-import BlueprintPreview from "@/components/panels/blueprintPreview.vue";
-import AutoplayPanel from "@/components/overlays/autoplayPanel.vue";
-import SupplyRoutePanel from "@/components/panels/supplyRoutePanel.vue";
-import PowerBalancePanel from "@/components/panels/powerBalancePanel.vue";
-import AchievementsPanel from "@/components/panels/achievementsPanel.vue";
-import RoyalPanel from "@/components/panels/royalPanel.vue";
-import SovereignPanel from "@/components/panels/sovereignPanel.vue";
-import OfflineProgress from "@/components/overlays/offlineProgress.vue";
-import ErrorBoundary from "@/components/overlays/errorBoundary.vue";
-import { autoplayBot } from "@/engine/autoplay";
-import { gameState } from "@/engine/gameState";
-import { gameLoop } from "@/engine/gameLoop";
-import { tutorialManager } from "@/engine/tutorialManager";
-import { eventEngine } from "@/engine/eventEngine";
-import { eventBus } from "@/engine/eventBus";
+import WorldMap from "@/components/layout/WorldMap.vue";
+import HotelCanvas from "@/components/HotelCanvas.vue";
+import StartScreen from "@/components/overlays/StartScreen.vue";
+import ToastContainer from "@/components/overlays/ToastContainer.vue";
+import ErrorBoundary from "@/components/overlays/ErrorBoundary.vue";
 import { useToast } from "@/composables/useToast";
-import { formatNumber } from "@/engine/format";
-import { getBranchDef } from "@/data/branches";
-const HQOfficeView = defineAsyncComponent(() => import("@/components/overlays/HQOfficeView.vue"));
-const BlueprintEditor = defineAsyncComponent(() => import("@/blueprint-editor/blueprintEditor.vue"));
-import type { BranchId } from "@/types";
+import type { SyncedLayoutPayload } from "@/blueprint-editor/types";
+
+const BlueprintEditor = defineAsyncComponent(() => import("@/blueprint-editor/BlueprintEditor.vue"));
 
 const toast = useToast();
 const route = useRoute();
 const router = useRouter();
 
-const gameStarted = ref(false);
-const showStaff = ref(false);
-const showPrestige = ref(false);
-const showSkills = ref(false);
-const showSettings = ref(false);
-const showBuildings = ref(true);
-const showEventLog = ref(false);
-const showSaveMenu = ref(false);
-const showBlueprint = ref(false);
-const showAutoplay = ref(false);
-const showSupplyRoutes = ref(false);
-const showPowerBalance = ref(false);
-const showAchievements = ref(false);
-const showRoyal = ref(false);
-const showSovereign = ref(false);
 const showEditor = ref(route.name === "editor");
-const mapTab = ref<"world" | "hq">("world");
-const hasRoyalBranches = ref(false);
-
-function onStart() {
-  gameStarted.value = true;
-  if (!gameLoop.isRunning()) {
-    gameLoop.start();
-  }
-  applySettings();
-  eventEngine.initializeCooldowns();
-  tutorialManager.start();
-}
-
-function onQuickStart() {
-  gameStarted.value = true;
-  if (!gameLoop.isRunning()) {
-    gameLoop.start();
-  }
-  applySettings();
-  eventEngine.initializeCooldowns();
-  showAutoplay.value = true;
-  autoplayBot.start();
-}
-
-function openStaff() {
-  showStaff.value = true;
-  tutorialManager.checkAction("open:staff");
-}
-
-function openPrestige() {
-  showPrestige.value = true;
-  tutorialManager.checkAction("open:prestige");
-}
-
-function openSkills() {
-  showSkills.value = true;
-}
-
-function openSettings() {
-  showSettings.value = true;
-}
+const showStart = ref(true);
+const activeTab = ref<"hotel" | "worldmap">("hotel");
+const syncedPayload = shallowRef<SyncedLayoutPayload | null>(null);
 
 function openEditor() {
   showEditor.value = true;
@@ -115,431 +37,134 @@ watch(
   },
 );
 
-function applySettings() {
-  const s = gameState.get().settings;
-  const root = document.documentElement;
-  root.style.setProperty("--font-scale", String(s.fontScale));
-  root.classList.toggle("high__contrast", s.highContrast);
-  root.classList.toggle("reduced__motion", s.reducedMotion);
-  root.classList.toggle("one__hand", s.oneHandMode);
-  root.classList.remove("cb__deuteranopia", "cb__protanopia", "cb__tritanopia");
-  const validModes = ["deuteranopia", "protanopia", "tritanopia"];
-  if (s.colorBlindMode !== "none" && validModes.includes(s.colorBlindMode)) root.classList.add(`cb__${s.colorBlindMode}`);
-}
-
-function doSave() {
-  if (gameState.save()) {
-    toast.success("Game saved");
-  } else {
-    toast.error("Save failed — storage quota exceeded");
+function handleBlueprintSync(e: Event) {
+  const detail = (e as CustomEvent).detail as SyncedLayoutPayload;
+  if (detail && detail.floors) {
+    syncedPayload.value = detail;
   }
-}
-
-function doExport() {
-  const json = gameState.exportSave();
-  if (!json) {
-    toast.error("Export failed — save error");
-    showSaveMenu.value = false;
-    return;
-  }
-  navigator.clipboard
-    ?.writeText(json)
-    .then(() => {
-      toast.success("Save copied to clipboard");
-    })
-    .catch(() => {
-      toast.warning("Export failed — clipboard unavailable");
-    });
-  showSaveMenu.value = false;
-}
-
-function doImport() {
-  navigator.clipboard
-    ?.readText()
-    .then((text) => {
-      const ok = gameState.importSave(text);
-      if (ok) {
-        toast.success("Save imported successfully");
-        if (!gameLoop.isRunning()) gameLoop.start();
-        eventEngine.initializeCooldowns();
-      } else {
-        toast.error("Invalid save data");
-      }
-    })
-    .catch(() => {
-      toast.warning("Import failed — clipboard unavailable");
-    });
-  showSaveMenu.value = false;
-}
-
-function doDeleteSave() {
-  gameState.deleteSave();
-  toast.warning("Save deleted");
-  showSaveMenu.value = false;
-}
-
-function handleKeydown(e: KeyboardEvent) {
-  if (e.key === "Escape") {
-    if (showStaff.value) {
-      showStaff.value = false;
-      return;
-    }
-    if (showPrestige.value) {
-      showPrestige.value = false;
-      return;
-    }
-    if (showSkills.value) {
-      showSkills.value = false;
-      return;
-    }
-    if (showSettings.value) {
-      showSettings.value = false;
-      return;
-    }
-    if (showEventLog.value) {
-      showEventLog.value = false;
-      return;
-    }
-    if (showSaveMenu.value) {
-      showSaveMenu.value = false;
-      return;
-    }
-    if (showBlueprint.value) {
-      showBlueprint.value = false;
-      return;
-    }
-    if (showSupplyRoutes.value) {
-      showSupplyRoutes.value = false;
-      return;
-    }
-    if (showPowerBalance.value) {
-      showPowerBalance.value = false;
-      return;
-    }
-    if (showAchievements.value) {
-      showAchievements.value = false;
-      return;
-    }
-    if (showRoyal.value) {
-      showRoyal.value = false;
-      return;
-    }
-    if (showSovereign.value) {
-      showSovereign.value = false;
-      return;
-    }
-    if (showEditor.value) {
-      showEditor.value = false;
-      return;
-    }
-    if (showAutoplay.value) {
-      showAutoplay.value = false;
-      return;
-    }
-  }
-  if (showSaveMenu.value && !(e.target as HTMLElement)?.closest(".mapactions__savewrap")) {
-    showSaveMenu.value = false;
-  }
-}
-
-function handleRaidResult(e: Event) {
-  const detail = (e as CustomEvent).detail as { won: boolean; spoilsCurrency?: number; branchId: string };
-  if (detail.won) {
-    toast.success(`Raid repelled! Spoils: ${formatNumber(detail.spoilsCurrency || 0)}`);
-  } else {
-    toast.error("Raid failed! Income frozen, assassins lost loyalty");
-  }
-}
-
-function handleAssassinAwakened(e: Event) {
-  const detail = (e as CustomEvent).detail as { branchId: BranchId };
-  toast.success(`Assassin awakened in ${getBranchDef(detail.branchId)?.name || detail.branchId}!`);
-}
-
-function handleTakeoverStarted(e: Event) {
-  const detail = (e as CustomEvent).detail as { branchId: BranchId };
-  toast.warning(`Takeover initiated: ${getBranchDef(detail.branchId)?.name || detail.branchId}`);
-}
-
-function handleTakeoverComplete(e: Event) {
-  const detail = (e as CustomEvent).detail as { branchId: BranchId };
-  toast.success(`Takeover complete: ${getBranchDef(detail.branchId)?.name || detail.branchId} conquered!`);
-}
-
-function handleBranchUnlock(e: Event) {
-  const detail = (e as CustomEvent).detail as { branchId: BranchId };
-  toast.success(`New branch unlocked: ${getBranchDef(detail.branchId)?.name || detail.branchId}`);
-}
-
-function handleBranchRoyal(e: Event) {
-  const detail = (e as CustomEvent).detail as { branchId: BranchId };
-  hasRoyalBranches.value = gameState.get().worldMap.royalBranches.length > 0;
-  toast.success(`${getBranchDef(detail.branchId)?.name || detail.branchId} has achieved Royal status!`);
-}
-
-function handleSaveFailed() {
-  toast.error("Autosave failed — storage may be full");
-}
-
-function handleVisitorArrived(e: Event) {
-  const detail = (e as CustomEvent).detail as { count: number; random?: boolean; royalMark?: boolean };
-  if (detail.royalMark) {
-    toast.success(`Royal Mark scroll used — a special visitor has arrived!`);
-  } else if (detail.random) {
-    toast.info(`A visitor has arrived at your Continental`);
-  } else {
-    toast.success(`${detail.count} visitors have arrived — check HQ Office to hire them`);
-  }
-}
-
-function handleVisitorLeft() {
-  toast.warning(`A visitor has left without being hired`);
-}
-
-function handleDiplomacyGift(e: Event) {
-  const detail = (e as CustomEvent).detail as { ownerName: string; gain: number };
-  toast.success(`Gift sent to ${detail.ownerName} — relations improved by ${detail.gain}`);
-}
-
-function handleDiplomacyTruce(e: Event) {
-  const detail = (e as CustomEvent).detail as { ownerName: string };
-  toast.success(`Truce proposed with ${detail.ownerName} — relations improved by 20`);
-}
-
-function handleSupplyRouteEstablished(e: Event) {
-  const detail = (e as CustomEvent).detail as { from: BranchId; to: BranchId; type: string };
-  toast.success(`Supply route established: ${getBranchDef(detail.from)?.name} ? ${getBranchDef(detail.to)?.name}`);
-}
-
-function handleSupplyRouteHijacked() {
-  toast.success(`Supply route hijacked! Underworld connection seized.`);
-}
-
-function handleSupplyRouteCollapsed() {
-  toast.warning(`A supply route has collapsed — stability reached zero`);
-}
-
-function handleAIAction(e: Event) {
-  const detail = (e as CustomEvent).detail as { ownerName: string; eventType: string; branchId: BranchId };
-  toast.warning(`${detail.ownerName} is taking action: ${detail.eventType}`);
-}
-
-function handleAIDefeated(e: Event) {
-  const detail = (e as CustomEvent).detail as { ownerName: string; branchId: BranchId };
-  toast.success(`AI Controller ${detail.ownerName} defeated in ${getBranchDef(detail.branchId)?.name}!`);
-}
-
-function handleSovereignAchieved() {
-  toast.success("You have achieved the Sovereign of the High Table! All buffs doubled.");
-  showSovereign.value = true;
-}
-
-function handleDecreeIssued(e: Event) {
-  const detail = (e as CustomEvent).detail as { name: string; description: string };
-  toast.success(`Royal Decree: ${detail.name} — ${detail.description}`);
-}
-
-function handleSandboxLoop(e: Event) {
-  const detail = (e as CustomEvent).detail as { loop: number; marks: number };
-  toast.success(`Sandbox+ Loop ${detail.loop} completed! +${detail.marks} Royal Marks`);
-}
-
-function handleRoyalSkillUpgraded(e: Event) {
-  const detail = (e as CustomEvent).detail as { branch: string; level: number };
-  toast.success(`Royal skill upgraded to Lv.${detail.level}`);
-}
-
-function handleRoyalPrestige(e: Event) {
-  const detail = (e as CustomEvent).detail as { branchId: BranchId; marks: number };
-  toast.success(`Royal Prestige! +${detail.marks} Royal Marks`);
+  toast.success("Blueprint synced to game");
 }
 
 onMounted(() => {
-  document.addEventListener("keydown", handleKeydown);
-  document.addEventListener("click", handleOutsideClick);
-  hasRoyalBranches.value = gameState.get().worldMap.royalBranches.length > 0;
-  eventBus.on("raid:result", handleRaidResult);
-  eventBus.on("assassin:awakened", handleAssassinAwakened);
-  eventBus.on("takeover:started", handleTakeoverStarted);
-  eventBus.on("takeover:complete", handleTakeoverComplete);
-  eventBus.on("branch:unlock", handleBranchUnlock);
-  eventBus.on("branch:royal", handleBranchRoyal);
-  eventBus.on("supplyroute:established", handleSupplyRouteEstablished);
-  eventBus.on("supplyroute:hijacked", handleSupplyRouteHijacked);
-  eventBus.on("supplyroute:collapsed", handleSupplyRouteCollapsed);
-  eventBus.on("ai:action", handleAIAction);
-  eventBus.on("ai:defeated", handleAIDefeated);
-  eventBus.on("sovereign:achieved", handleSovereignAchieved);
-  eventBus.on("decree:issued", handleDecreeIssued);
-  eventBus.on("sandbox:loop", handleSandboxLoop);
-  eventBus.on("royal:skill-upgraded", handleRoyalSkillUpgraded);
-  eventBus.on("royal:prestige", handleRoyalPrestige);
-  eventBus.on("save:failed", handleSaveFailed);
-  eventBus.on("visitor:arrived", handleVisitorArrived);
-  eventBus.on("visitor:left", handleVisitorLeft);
-  eventBus.on("diplomacy:gift", handleDiplomacyGift);
-  eventBus.on("diplomacy:truce", handleDiplomacyTruce);
-  eventBus.on("hq:office-view", handleHQOfficeView);
+  window.addEventListener("blueprint:sync", handleBlueprintSync);
 });
 
-function handleHQOfficeView() {
-  mapTab.value = "hq";
-}
-
-
-function handleOutsideClick(e: MouseEvent) {
-  if (showSaveMenu.value && !(e.target as HTMLElement)?.closest(".mapactions__savewrap")) {
-    showSaveMenu.value = false;
-  }
-}
-
 onUnmounted(() => {
-  document.removeEventListener("keydown", handleKeydown);
-  document.removeEventListener("click", handleOutsideClick);
-  eventBus.off("raid:result", handleRaidResult);
-  eventBus.off("assassin:awakened", handleAssassinAwakened);
-  eventBus.off("takeover:started", handleTakeoverStarted);
-  eventBus.off("takeover:complete", handleTakeoverComplete);
-  eventBus.off("branch:unlock", handleBranchUnlock);
-  eventBus.off("branch:royal", handleBranchRoyal);
-  eventBus.off("supplyroute:established", handleSupplyRouteEstablished);
-  eventBus.off("supplyroute:hijacked", handleSupplyRouteHijacked);
-  eventBus.off("supplyroute:collapsed", handleSupplyRouteCollapsed);
-  eventBus.off("ai:action", handleAIAction);
-  eventBus.off("ai:defeated", handleAIDefeated);
-  eventBus.off("sovereign:achieved", handleSovereignAchieved);
-  eventBus.off("decree:issued", handleDecreeIssued);
-  eventBus.off("sandbox:loop", handleSandboxLoop);
-  eventBus.off("royal:skill-upgraded", handleRoyalSkillUpgraded);
-  eventBus.off("royal:prestige", handleRoyalPrestige);
-  eventBus.off("save:failed", handleSaveFailed);
-  eventBus.off("visitor:arrived", handleVisitorArrived);
-  eventBus.off("visitor:left", handleVisitorLeft);
-  eventBus.off("diplomacy:gift", handleDiplomacyGift);
-  eventBus.off("diplomacy:truce", handleDiplomacyTruce);
-  eventBus.off("hq:office-view", handleHQOfficeView);
+  window.removeEventListener("blueprint:sync", handleBlueprintSync);
 });
 </script>
 
 <template>
-  <StartScreen v-if="!gameStarted && route.name !== 'editor'" @start="onStart" @quick-start="onQuickStart" />
-  <BlueprintEditor v-else-if="route.name === 'editor'" @close="closeEditor" />
+  <BlueprintEditor v-if="route.name === 'editor'" @close="closeEditor" />
   <ErrorBoundary v-else>
-    <div class="game__layout">
-      <GameHeader />
-      <BuffBar />
-      <EventPrompt />
+    <StartScreen v-if="showStart" @start="showStart = false" />
+    <div class="game__layout" v-else>
+      <div class="game__tabs">
+        <button class="game__tab" :class="{ 'game__tab--active': activeTab === 'hotel' }" @click="activeTab = 'hotel'">Hotel</button>
+        <button class="game__tab" :class="{ 'game__tab--active': activeTab === 'worldmap' }" @click="activeTab = 'worldmap'">World Map</button>
+      </div>
       <div class="game__main">
-        <aside class="game__sidebar" :class="{ game__sidebar__collapsed: !showBuildings }">
-          <BuildingList />
-        </aside>
-        <main class="game__map__area">
-          <div class="maptabs">
-            <button class="maptabs__btn" :class="{ maptabs__btn__active: mapTab === 'world' }" @click="mapTab = 'world'">World Map</button>
-            <button class="maptabs__btn" :class="{ maptabs__btn__active: mapTab === 'hq' }" @click="mapTab = 'hq'">HQ Office</button>
-          </div>
-          <WorldMap v-show="mapTab === 'world'" />
-          <HQOfficeView v-if="mapTab === 'hq'" inline />
+        <main class="game__content">
+          <HotelCanvas v-if="activeTab === 'hotel'" :payload="syncedPayload" />
+          <WorldMap v-else-if="activeTab === 'worldmap'" />
           <div class="mapactions">
-            <button class="mapactions__btn" @click="showBuildings = !showBuildings" :aria-label="showBuildings ? 'Hide buildings panel' : 'Show buildings panel'">
-              {{ showBuildings ? "\u25C0 Hide" : "\u25B6 Buildings" }}
-            </button>
-            <button class="mapactions__btn" id="btn__staff" @click="openStaff" aria-label="Open staff panel">Staff</button>
-            <button class="mapactions__btn" id="btn__prestige" @click="openPrestige" aria-label="Open prestige panel">Prestige</button>
-            <button class="mapactions__btn" @click="openSkills" aria-label="Open skill tree panel">Skills</button>
-            <button class="mapactions__btn" @click="openSettings" aria-label="Open settings panel">Settings</button>
-            <button class="mapactions__btn" @click="showBlueprint = true" aria-label="Open architectural blueprint preview">Blueprint</button>
-            <button class="mapactions__btn" @click="showSupplyRoutes = true" aria-label="Open supply routes panel">Routes</button>
-            <button class="mapactions__btn" @click="showPowerBalance = true" aria-label="Open power balance panel">Power</button>
-            <button class="mapactions__btn" @click="showAutoplay = !showAutoplay" :aria-label="showAutoplay ? 'Close autoplay panel' : 'Open autoplay panel'">AI Play</button>
-            <button class="mapactions__btn" @click="showEventLog = true" aria-label="Open event history panel">History</button>
-            <button class="mapactions__btn" @click="showAchievements = true" aria-label="Open achievements panel">Awards</button>
-            <button class="mapactions__btn" @click="showRoyal = true" aria-label="Open royal continental panel" :disabled="!hasRoyalBranches">Royal</button>
-            <button class="mapactions__btn" @click="showSovereign = true" aria-label="Open sovereign panel">Throne</button>
             <button class="mapactions__btn" @click="openEditor" aria-label="Open blueprint editor">Editor</button>
-            <div class="mapactions__savewrap">
-              <button class="mapactions__btn" @click="showSaveMenu = !showSaveMenu">Save ?</button>
-              <div v-if="showSaveMenu" class="mapactions__savemenu">
-                <button
-                  class="mapactions__saveitem"
-                  @click="
-                    doSave();
-                    showSaveMenu = false;
-                  "
-                >
-                  Save
-                </button>
-                <button class="mapactions__saveitem" @click="doExport">Export</button>
-                <button class="mapactions__saveitem" @click="doImport">Import</button>
-                <button class="mapactions__saveitem mapactions__save__danger" @click="doDeleteSave">Delete</button>
-              </div>
-            </div>
           </div>
         </main>
       </div>
       <footer class="game__status">
-        <span>Continental Idle v1.0</span>
-        <span>Autosave: 30s</span>
+        <span>Continental — Hotel Simulation</span>
       </footer>
-      <StaffPanel :visible="showStaff" @close="showStaff = false" />
-      <PrestigePanel :visible="showPrestige" @close="showPrestige = false" />
-      <SkillTreePanel :visible="showSkills" @close="showSkills = false" />
-      <SettingsPanel :visible="showSettings" @close="showSettings = false" />
-      <EventLogPanel :visible="showEventLog" @close="showEventLog = false" />
-      <BlueprintPreview v-if="showBlueprint" @close="showBlueprint = false" />
-      <TutorialOverlay />
       <ToastContainer />
-      <AutoplayPanel v-if="showAutoplay" />
-      <SupplyRoutePanel :visible="showSupplyRoutes" @close="showSupplyRoutes = false" />
-      <PowerBalancePanel :visible="showPowerBalance" @close="showPowerBalance = false" />
-      <AchievementsPanel :visible="showAchievements" @close="showAchievements = false" />
-      <RoyalPanel :visible="showRoyal" @close="showRoyal = false" />
-      <SovereignPanel :visible="showSovereign" @close="showSovereign = false" />
       <BlueprintEditor v-if="showEditor" @close="closeEditor" />
-      <OfflineProgress />
     </div>
   </ErrorBoundary>
 </template>
 
 <style scoped>
-.mapactions__savewrap {
+.game__layout {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  width: 100vw;
+  overflow: hidden;
+}
+
+.game__tabs {
+  display: flex;
+  gap: 0;
+  padding: 0 8px;
+  background: var(--bg-card);
+  border-bottom: 1px solid var(--border-dim);
+  flex-shrink: 0;
+}
+
+.game__tab {
+  padding: 8px 20px;
+  font-size: 13px;
+  font-weight: 600;
+  border: none;
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: all 0.15s ease;
+}
+
+.game__tab:hover {
+  color: var(--text-bright);
+}
+
+.game__tab--active {
+  color: var(--accent-gold);
+  border-bottom-color: var(--accent-gold);
+}
+
+.game__main {
+  flex: 1;
+  overflow: hidden;
   position: relative;
 }
 
-.mapactions__savemenu {
+.game__content {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  overflow: hidden;
+}
+
+.mapactions {
   position: absolute;
-  bottom: 100%;
-  left: 0;
-  background: var(--bg-card);
+  top: 12px;
+  right: 12px;
+  z-index: 20;
+}
+
+.mapactions__btn {
+  padding: 6px 14px;
+  font-size: 12px;
+  font-weight: 600;
   border: 1px solid var(--border-dim);
-  min-width: 100px;
-  z-index: 10;
-}
-
-.mapactions__saveitem {
-  display: block;
-  text-align: left;
-  padding: var(--gap-xs) var(--gap-sm);
-  font-size: var(--font-xs);
-  font-family: inherit;
-  background: transparent;
-  border: none;
-  border-bottom: 1px solid var(--border-dim);
-  color: var(--text-secondary);
+  border-radius: var(--radius-sm);
+  background: var(--bg-card);
+  color: var(--text-bright);
   cursor: pointer;
+  transition: all 0.15s ease;
 }
 
-.mapactions__saveitem:hover {
-  background: var(--bg-tertiary);
-  color: var(--text-primary);
-}
-
-.mapactions__save__danger {
-  color: var(--accent-red);
-}
-
-.mapactions__save__danger:hover {
-  background: var(--accent-red);
+.mapactions__btn:hover {
+  background: var(--accent-gold);
   color: var(--bg-primary);
+  border-color: var(--accent-gold);
+}
+
+.game__status {
+  flex-shrink: 0;
+  padding: 4px 12px;
+  font-size: 11px;
+  color: var(--text-dim);
+  background: var(--bg-card);
+  border-top: 1px solid var(--border-dim);
+  text-align: center;
 }
 </style>

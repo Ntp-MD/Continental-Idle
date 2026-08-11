@@ -79,7 +79,7 @@ export class NpcEngine {
 		return this.events.splice(0)
 	}
 
-	addAgent(agent: Omit<NpcEngineAgent, 'status' | 'path' | 'pathIndex' | 'reservationItemId' | 'reservationAnchorId' | 'interactionRemainingTicks' | 'crossFloorCooldownUntil'> & Partial<Pick<NpcEngineAgent, 'status' | 'path' | 'pathIndex' | 'reservationItemId' | 'reservationAnchorId' | 'interactionRemainingTicks' | 'crossFloorCooldownUntil'>>): void {
+	addAgent(agent: Omit<NpcEngineAgent, 'status' | 'path' | 'pathIndex' | 'reservationItemId' | 'reservationInteractSpotId' | 'interactionRemainingTicks' | 'crossFloorCooldownUntil'> & Partial<Pick<NpcEngineAgent, 'status' | 'path' | 'pathIndex' | 'reservationItemId' | 'reservationInteractSpotId' | 'interactionRemainingTicks' | 'crossFloorCooldownUntil'>>): void {
 		if (this.agents.has(agent.id)) throw new Error(`NPC agent already exists: ${agent.id}`)
 		this.agents.set(agent.id, {
 			...agent,
@@ -87,7 +87,7 @@ export class NpcEngine {
 			path: agent.path ? [...agent.path] : [],
 			pathIndex: agent.pathIndex ?? 0,
 			reservationItemId: agent.reservationItemId ?? null,
-			reservationAnchorId: agent.reservationAnchorId ?? null,
+			reservationInteractSpotId: agent.reservationInteractSpotId ?? null,
 			interactionRemainingTicks: agent.interactionRemainingTicks ?? 0,
 			crossFloorCooldownUntil: agent.crossFloorCooldownUntil ?? 0,
 		})
@@ -152,10 +152,10 @@ export class NpcEngine {
 				agent.interactionRemainingTicks--
 				if (agent.interactionRemainingTicks <= 0) {
 					const itemId = agent.reservationItemId ?? undefined
-					const anchorId = agent.reservationAnchorId ?? undefined
+					const interactSpotId = agent.reservationInteractSpotId ?? undefined
 					this.releaseReservation(agent)
 					agent.status = 'idle'
-					this.emit({ type: 'interaction-end', agentId: agent.id, floorId: agent.floorId, itemId, anchorId })
+					this.emit({ type: 'interaction-end', agentId: agent.id, floorId: agent.floorId, itemId, interactSpotId })
 				}
 				continue
 			}
@@ -308,7 +308,7 @@ export class NpcEngine {
 	private attemptRepath(agent: MutableAgent): void {
 		const attempts = this.repathAttempts.get(agent.id) ?? 0
 		if (attempts >= MAX_REPATH_ATTEMPTS) {
-			this.emit({ type: 'repath-failed', agentId: agent.id, floorId: agent.floorId, itemId: agent.reservationItemId ?? undefined, anchorId: agent.reservationAnchorId ?? undefined })
+			this.emit({ type: 'repath-failed', agentId: agent.id, floorId: agent.floorId, itemId: agent.reservationItemId ?? undefined, interactSpotId: agent.reservationInteractSpotId ?? undefined })
 			this.markBlocked(agent)
 			this.releaseReservation(agent)
 			agent.path = []
@@ -330,7 +330,7 @@ export class NpcEngine {
 		const path = this.options.pathfinder(floor, agent, target, blockedCells)
 
 		if (!path || path.length === 0) {
-			this.emit({ type: 'repath-failed', agentId: agent.id, floorId: agent.floorId, itemId: agent.reservationItemId ?? undefined, anchorId: agent.reservationAnchorId ?? undefined })
+			this.emit({ type: 'repath-failed', agentId: agent.id, floorId: agent.floorId, itemId: agent.reservationItemId ?? undefined, interactSpotId: agent.reservationInteractSpotId ?? undefined })
 			this.markBlocked(agent)
 			this.releaseReservation(agent)
 			agent.path = []
@@ -450,7 +450,7 @@ export class NpcEngine {
 
 		if (!this.reserve(selected, agent.id)) {
 			this.setWaiting(agent)
-			this.emit({ type: 'waiting', agentId: agent.id, floorId: agent.floorId, itemId: selected.itemId, anchorId: selected.anchorId })
+			this.emit({ type: 'waiting', agentId: agent.id, floorId: agent.floorId, itemId: selected.itemId, interactSpotId: selected.interactSpotId })
 			return
 		}
 
@@ -461,7 +461,7 @@ export class NpcEngine {
 		if (!path || path.length === 0) {
 			this.releaseReservation(agent)
 			agent.status = 'idle'
-			this.emit({ type: 'repath-failed', agentId: agent.id, floorId: agent.floorId, itemId: selected.itemId, anchorId: selected.anchorId })
+			this.emit({ type: 'repath-failed', agentId: agent.id, floorId: agent.floorId, itemId: selected.itemId, interactSpotId: selected.interactSpotId })
 			return
 		}
 		agent.path = path.map(point => ({ x: point.x, y: point.y }))
@@ -476,7 +476,7 @@ export class NpcEngine {
 	}
 
 	private beginInteraction(agent: MutableAgent): void {
-		const target = this.layout.interactionTargets.find(item => item.itemId === agent.reservationItemId && item.anchorId === agent.reservationAnchorId && item.floorId === agent.floorId)
+		const target = this.layout.interactionTargets.find(item => item.itemId === agent.reservationItemId && item.interactSpotId === agent.reservationInteractSpotId && item.floorId === agent.floorId)
 		if (!target) {
 			this.releaseReservation(agent)
 			agent.status = 'idle'
@@ -490,7 +490,7 @@ export class NpcEngine {
 			if (!destEndpoint) {
 				this.releaseReservation(agent)
 				agent.status = 'idle'
-				this.emit({ type: 'repath-failed', agentId: agent.id, floorId: agent.floorId, itemId: target.itemId, anchorId: target.anchorId })
+				this.emit({ type: 'repath-failed', agentId: agent.id, floorId: agent.floorId, itemId: target.itemId, interactSpotId: target.interactSpotId })
 				return
 			}
 
@@ -522,11 +522,11 @@ export class NpcEngine {
 		agent.y = target.y
 		agent.status = 'interacting'
 		agent.interactionRemainingTicks = this.durationTicks(target)
-		this.emit({ type: 'interaction-start', agentId: agent.id, floorId: agent.floorId, itemId: target.itemId, anchorId: target.anchorId })
+		this.emit({ type: 'interaction-start', agentId: agent.id, floorId: agent.floorId, itemId: target.itemId, interactSpotId: target.interactSpotId })
 	}
 
 	private targetKey(target: NpcEngineInteractionTarget): string {
-		return `${target.floorId}:${target.itemId}:${target.anchorId}`
+		return `${target.floorId}:${target.itemId}:${target.interactSpotId}`
 	}
 
 	private setWaiting(agent: MutableAgent): void {
@@ -535,8 +535,8 @@ export class NpcEngine {
 	}
 
 	private markBlocked(agent: MutableAgent): void {
-		if (agent.reservationItemId === null || agent.reservationAnchorId === null) return
-		const target = this.layout.interactionTargets.find(item => item.floorId === agent.floorId && item.itemId === agent.reservationItemId && item.anchorId === agent.reservationAnchorId)
+		if (agent.reservationItemId === null || agent.reservationInteractSpotId === null) return
+		const target = this.layout.interactionTargets.find(item => item.floorId === agent.floorId && item.itemId === agent.reservationItemId && item.interactSpotId === agent.reservationInteractSpotId)
 		if (!target) return
 		const blocked = this.blockedTargets.get(agent.id) ?? new Map<string, number>()
 		blocked.set(this.targetKey(target), this.tickCount + this.ticksPerSecond * 2)
@@ -558,7 +558,7 @@ export class NpcEngine {
 
 	private canReserve(target: NpcEngineInteractionTarget, agentId: string): boolean {
 		const key = `${target.floorId}:${target.itemId}`
-		const anchorKey = `${key}:${target.anchorId}`
+		const anchorKey = `${key}:${target.interactSpotId}`
 		const holders = this.reservations.get(key)
 		if (holders?.has(agentId)) return true
 		if (this.anchorReservations.has(anchorKey) || (holders?.size ?? 0) >= Math.max(1, Math.floor(target.capacity ?? 1))) return false
@@ -567,7 +567,7 @@ export class NpcEngine {
 
 	private reserve(target: NpcEngineInteractionTarget, agentId: string): boolean {
 		const key = `${target.floorId}:${target.itemId}`
-		const anchorKey = `${key}:${target.anchorId}`
+		const anchorKey = `${key}:${target.interactSpotId}`
 		const holders = this.reservations.get(key) ?? new Set<string>()
 		const capacity = Math.max(1, Math.floor(target.capacity ?? 1))
 		if (holders.has(agentId)) return true
@@ -579,7 +579,7 @@ export class NpcEngine {
 		const agent = this.agents.get(agentId)
 		if (agent) {
 			agent.reservationItemId = target.itemId
-			agent.reservationAnchorId = target.anchorId
+			agent.reservationInteractSpotId = target.interactSpotId
 		}
 		return true
 	}
@@ -587,14 +587,14 @@ export class NpcEngine {
 	private releaseReservation(agent: MutableAgent): void {
 		if (agent.reservationItemId !== null) {
 			const key = `${agent.floorId}:${agent.reservationItemId}`
-			const anchorKey = `${key}:${agent.reservationAnchorId ?? ''}`
+			const anchorKey = `${key}:${agent.reservationInteractSpotId ?? ''}`
 			const holders = this.reservations.get(key)
 			holders?.delete(agent.id)
 			this.anchorReservations.delete(anchorKey)
 			if (holders?.size === 0) this.reservations.delete(key)
 		}
 		agent.reservationItemId = null
-		agent.reservationAnchorId = null
+		agent.reservationInteractSpotId = null
 		agent.interactionRemainingTicks = 0
 	}
 
@@ -615,7 +615,7 @@ export class NpcEngine {
 	}
 
 	private isValidCrossFloorResult(target: NpcEngineInteractionTarget, candidates: readonly NpcEngineInteractionTarget[]): boolean {
-		return candidates.some(c => c.floorId === target.floorId && c.itemId === target.itemId && c.anchorId === target.anchorId)
+		return candidates.some(c => c.floorId === target.floorId && c.itemId === target.itemId && c.interactSpotId === target.interactSpotId)
 	}
 
 	private findPortalRoute(sourceFloorId: string, destFloorId: string, agentId: string): NpcEngineInteractionTarget | null {

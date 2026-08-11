@@ -1,1 +1,1 @@
-export { useAssetsStore, dragState, startAssetDrag, endAssetDrag, startRoomTemplateDrag, endRoomTemplateDrag } from './store/index'
+export { useAssetsStore, dragState, startAssetDrag, endAssetDrag } from './store/index'

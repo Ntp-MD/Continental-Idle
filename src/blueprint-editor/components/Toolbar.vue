@@ -4,8 +4,9 @@ import { useAssetsStore } from "../blueprintStore";
 import { useToast } from "@/composables/useToast";
 import { useConfirm } from "@/composables/useConfirm";
 import { useAsyncAction } from "../composables/useAsyncAction";
-import NpcBehaviorModal from "./npcBehaviorModal.vue";
-import FloorModal from "./floorModal.vue";
+import NpcManagerModal from "./NpcManagerModal.vue";
+import FloorModal from "./FloorModal.vue";
+import DeployNpcModal from "./DeployNpcModal.vue";
 import { useNpcSimulation } from "../composables/useNpcSimulation";
 
 const store = useAssetsStore();
@@ -16,21 +17,31 @@ const { pending, run } = useAsyncAction();
 const npcSimulation = inject("npcSimulation") as ReturnType<typeof useNpcSimulation>;
 const { npcs, isPaused, pause, resume, stop, reset, simSpeed } = npcSimulation;
 void stop;
-const showNpcSettings = ref(false);
+const showNpcManager = ref(false);
 const showFloorModal = ref(false);
+const showDeployModal = ref(false);
 const showSettings = ref(false);
 
-function onNpcSettings() {
-  showNpcSettings.value = true;
+function onNpcManager() {
+  showNpcManager.value = true;
+}
+
+function onFloorManager() {
+  showFloorModal.value = true;
 }
 
 function onDeployNpc() {
   const hasRoles = (store.state.layout.npcConfig?.roles?.length ?? 0) > 0;
   if (!hasRoles) {
     toast.info("Configure NPC roles first");
-    showNpcSettings.value = true;
+    showNpcManager.value = true;
     return;
   }
+  showDeployModal.value = true;
+}
+
+function onConfirmDeploy() {
+  showDeployModal.value = false;
   store.setMode("npc-preview");
   npcSimulation.deploy(store.state.currentFloorId);
 }
@@ -47,10 +58,19 @@ function onTogglePause() {
 }
 function onReset() {
   reset();
+  store.setMode("move");
+}
+function onExitDeploy() {
+  stop();
+  store.setMode("move");
 }
 function onBack() {
   if (store.state.mode === "npc-preview") stop();
   emit("close");
+}
+function onSwitchMode(mode: "object" | "move" | "erase") {
+  if (store.state.mode === "npc-preview") stop();
+  store.setMode(mode);
 }
 
 const widthInput = ref(store.state.layout.canvas.width);
@@ -68,13 +88,13 @@ watch(
 
 async function applyCanvasSize() {
   const canvas = store.state.layout.canvas;
-  const hasPlacedContent = store.state.layout.floors.some((floor) => floor.rooms.length > 0 || floor.objects.length > 0);
+  const hasPlacedContent = store.state.layout.floors.some((floor) => floor.objects.length > 0);
   const changed = widthInput.value !== canvas.width || heightInput.value !== canvas.height || tileInput.value !== canvas.tileSize;
 
   if (changed && hasPlacedContent) {
     const confirmed = await confirm({
       title: "Resize canvas",
-      message: "Changing canvas settings will snap and clamp placed rooms and objects to the new grid and bounds. Continue?",
+      message: "Changing canvas settings will snap and clamp placed objects to the new grid and bounds. Continue?",
       confirmLabel: "Continue",
       cancelLabel: "Cancel",
       danger: true,
@@ -92,8 +112,13 @@ async function applyCanvasSize() {
 }
 
 async function onSave() {
-  await run(() => store.saveLayout()).catch(() => {});
-  toast.success("Layout saved");
+  try {
+    const saved = await run(() => store.saveLayout());
+    if (saved) toast.success("Layout saved");
+    else toast.error("Failed to save layout");
+  } catch {
+    toast.error("Failed to save layout");
+  }
 }
 
 function onSyncToGame() {
@@ -103,7 +128,7 @@ function onSyncToGame() {
 
 <template>
   <div class="editor__toolbar">
-    <button class="btn__ghost btn__icon" @click="showSettings = true" title="Canvas Settings & Shortcuts" aria-label="Canvas settings">
+    <button class="btn--ghost btn--icon" @click="showSettings = true" title="Canvas Settings & Shortcuts" aria-label="Canvas settings">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <circle cx="12" cy="12" r="3" />
         <path
@@ -112,26 +137,25 @@ function onSyncToGame() {
       </svg>
     </button>
 
-    <button :class="{ btn__warning: store.state.mode === 'wall' }" @click="store.setMode('wall')" aria-label="Switch to wall mode">Wall</button>
-    <button :class="{ btn__warning: store.state.mode === 'object' }" @click="store.setMode('object')" aria-label="Switch to object mode">Object</button>
-    <button :class="{ btn__warning: store.state.mode === 'move' }" @click="store.setMode('move')" aria-label="Switch to move mode">Move</button>
-    <button :class="{ btn__warning: store.state.mode === 'erase' }" @click="store.setMode('erase')" title="Erase wall tiles (click room edges to trim)" aria-label="Switch to erase mode">Erase</button>
+    <button :class="{ 'btn--warning': store.state.mode === 'object' }" @click="onSwitchMode('object')" aria-label="Switch to object mode">Object</button>
+    <button :class="{ 'btn--warning': store.state.mode === 'move' }" @click="onSwitchMode('move')" aria-label="Switch to move mode">Move</button>
+    <button :class="{ 'btn--warning': store.state.mode === 'erase' }" @click="onSwitchMode('erase')" title="Erase objects" aria-label="Switch to erase mode">Erase</button>
 
-    <button @click="onNpcSettings" title="Configure NPC roles, tasks, and behavior" aria-label="Open NPC behavior settings">NPC Behavior</button>
-    <button @click="showFloorModal = true" title="Manage floors: add, delete, reorder, role restrictions" aria-label="Open floor manager">Floor Manager</button>
-    <button :class="{ btn__warning: store.state.mode === 'npc-preview' }" @click="onDeployNpc" title="Deploy NPCs on current floor (configure roles first)">Deploy NPCs</button>
+    <button @click="onNpcManager" title="Configure NPC roles and tags" aria-label="Open NPC manager">NPC Manager</button>
+    <button @click="onFloorManager" title="Manage floors: add, delete, reorder, role restrictions" aria-label="Open floor manager">Floor Manager</button>
+    <button :class="{ 'btn--warning': store.state.mode === 'npc-preview' }" @click="onDeployNpc" title="Deploy NPCs on current floor (configure roles first)">Deploy NPCs</button>
 
     <template v-if="store.state.mode === 'npc-preview'">
-      <div class="card card__primary card__compact" :title="`NPCs on ${currentFloorLabel}`">{{ currentFloorLabel }}: {{ total }}</div>
+      <div class="card card--primary card--compact" :title="`NPCs on ${currentFloorLabel}`">{{ currentFloorLabel }}: {{ total }}</div>
       <div class="layout__wrap">
-        <div v-for="[type, count] in countsByRole" :key="type" class="editor__toolbar__npchstack">
-          <span class="editor__toolbar__rolebold">{{ type }}</span>
-          <span class="card card__primary card__compact">{{ count }}</span>
+        <div v-for="[type, count] in countsByRole" :key="type" class="editor__toolbar-npchstack">
+          <span class="editor__toolbar-rolebold">{{ type }}</span>
+          <span class="card card--primary card--compact">{{ count }}</span>
         </div>
       </div>
       <div class="actions">
         <button @click="onTogglePause" :aria-label="isPaused ? 'Resume NPC simulation' : 'Pause NPC simulation'">{{ isPaused ? "▶ Resume" : "❚❚ Pause" }}</button>
-        <label class="editor__toolbar__speed">
+        <label class="editor__toolbar-speed">
           <select :value="simSpeed" @change="simSpeed = +($event.target as HTMLSelectElement).value" aria-label="Simulation speed">
             <option :value="1">1x</option>
             <option :value="2">2x</option>
@@ -139,24 +163,26 @@ function onSyncToGame() {
             <option :value="8">8x</option>
           </select>
         </label>
-        <button class="btn__danger" @click="onReset" aria-label="Clear all NPCs and exit preview">Clear</button>
+        <button class="btn--danger" @click="onReset" aria-label="Clear all NPCs and exit preview">Clear</button>
+        <button class="btn--ghost" @click="onExitDeploy" aria-label="Exit NPC deploy preview">✕ Exit</button>
       </div>
     </template>
 
-    <button class="btn__primary" :disabled="pending" @click="onSave" title="Save layout to assets-store.ts" aria-label="Save layout">Save</button>
-    <button class="btn__success" @click="onSyncToGame" title="Apply blueprint layout to the main game" aria-label="Sync blueprint to game">Sync Game</button>
+    <button class="btn--primary" :disabled="pending" @click="onSave" title="Save layout to assets-store.ts" aria-label="Save layout">Save</button>
+    <button class="btn--success" style="margin-left: auto" @click="onSyncToGame" title="Apply blueprint layout to the main game" aria-label="Sync blueprint to game">Sync Game</button>
 
-    <button class="editor__toolbar__backbtn" @click="onBack" aria-label="Back to start screen">◀ Back</button>
+    <button class="editor__toolbar-backbtn" @click="onBack" aria-label="Back to start screen">◀ Back</button>
 
-    <NpcBehaviorModal :open="showNpcSettings" @close="showNpcSettings = false" />
+    <NpcManagerModal :open="showNpcManager" @close="showNpcManager = false" />
     <FloorModal :open="showFloorModal" @close="showFloorModal = false" />
+    <DeployNpcModal :open="showDeployModal" @close="showDeployModal = false" @deploy="onConfirmDeploy" />
 
     <Teleport to="body">
       <div v-if="showSettings" class="modal__overlay editorsettings__overlay" @click.self="showSettings = false">
         <div class="editorsettings__panel">
           <div class="editorsettings__header">
             <span>Canvas Settings</span>
-            <button class="btn__ghost btn__icon" @click="showSettings = false" aria-label="Close">✕</button>
+            <button class="btn--ghost btn--icon" @click="showSettings = false" aria-label="Close">✕</button>
           </div>
           <div class="editorsettings__body">
             <div class="editorsettings__section">
@@ -173,8 +199,8 @@ function onSyncToGame() {
                 <label for="canvas__tile">Tile Size</label>
                 <input id="canvas__tile" class="input" type="number" v-model.number="tileInput" min="5" step="5" />
               </div>
-              <button class="btn__primary" :disabled="pending" @click="applyCanvasSize" aria-label="Apply canvas size">Apply</button>
-              <div class="editorsettings__hint">Changing canvas size will re-snap all rooms/objects to the new grid.</div>
+              <button class="btn--primary" :disabled="pending" @click="applyCanvasSize" aria-label="Apply canvas size">Apply</button>
+              <div class="editorsettings__hint">Changing canvas size will re-snap all objects to the new grid.</div>
             </div>
             <div class="editorsettings__section">
               <div class="editorsettings__title">Keyboard Shortcuts</div>
@@ -223,24 +249,12 @@ function onSyncToGame() {
   min-height: 48px;
 }
 
-.editor__toolbar__backbtn {
-  margin-left: auto;
+.editor__toolbar-backbtn {
   padding: var(--gap-xs) var(--gap-sm);
-  background: var(--bg-card);
-  border: 1px solid var(--border-dim);
-  border-radius: var(--radius-sm);
-  color: var(--text-primary);
   font-size: var(--font-sm);
-  cursor: pointer;
-  transition: all var(--duration-fast) var(--ease-out);
 }
 
-.editor__toolbar__backbtn:hover {
-  border-color: var(--accent-gold);
-  color: var(--accent-gold);
-}
-
-.editor__toolbar__npchstack {
+.editor__toolbar-npchstack {
   display: inline-flex;
   align-items: center;
   gap: var(--gap-xs);
@@ -251,23 +265,23 @@ function onSyncToGame() {
   font-size: var(--font-xs);
 }
 
-.editor__toolbar__rolebold {
+.editor__toolbar-rolebold {
   font-weight: 500;
 }
 
-.editor__toolbar__speed {
+.editor__toolbar-speed {
   display: inline-flex;
   align-items: center;
 }
 
-.editor__toolbar__speed select {
+.editor__toolbar-speed select {
   font-size: var(--font-xs);
   background: var(--bg-primary);
   cursor: pointer;
 }
 
 .editorsettings__overlay {
-  z-index: 1001;
+  z-index: var(--z-toolbar);
 }
 
 .editorsettings__panel {

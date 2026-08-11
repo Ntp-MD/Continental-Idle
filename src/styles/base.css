@@ -32,7 +32,8 @@ button {
 	border: 1px solid var(--border-dim);
 	background: var(--bg-card);
 	color: var(--text-secondary);
-	padding: var(--gap-sm) var(--gap-md);
+	padding: 0 var(--gap-md);
+	height: var(--control-height);
 	text-transform: uppercase;
 	letter-spacing: 0.8px;
 	font-size: var(--font-xs);
@@ -125,7 +126,8 @@ textarea {
 	background: var(--bg-card);
 	border: 1px solid var(--border-dim);
 	color: var(--text-primary);
-	padding: var(--gap-xs) var(--gap-sm);
+	padding: 0 var(--gap-sm);
+	height: var(--control-height);
 	font-size: var(--font-sm);
 	border-radius: var(--radius-sm);
 	transition: border-color var(--duration-fast) var(--ease-out),
@@ -164,6 +166,16 @@ select {
 	background-position: right var(--gap-sm) center;
 }
 
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+	-webkit-appearance: none;
+	margin: 0;
+}
+
+input[type="number"] {
+	-moz-appearance: textfield;
+}
+
 option,
 optgroup {
 	font-family: var(--font-mono);
@@ -179,6 +191,7 @@ optgroup {
 textarea {
 	resize: vertical;
 	min-height: 60px;
+	height: auto;
 	line-height: 1.5;
 }
 

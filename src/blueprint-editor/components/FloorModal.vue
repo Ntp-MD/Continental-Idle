@@ -3,9 +3,9 @@ import { ref, computed, watch } from "vue";
 import { useAssetsStore } from "../blueprintStore";
 import { useToast } from "@/composables/useToast";
 import { useConfirm } from "@/composables/useConfirm";
-import { useFocusTrap } from "../../composables/useFocusTrap";
 import { sanitizeString } from "../../utils/sanitize";
 import type { FloorData } from "../types";
+import ModalShell from "./ModalShell.vue";
 
 const props = defineProps<{ open: boolean }>();
 const emit = defineEmits<{ (e: "close"): void }>();
@@ -13,10 +13,6 @@ const emit = defineEmits<{ (e: "close"): void }>();
 const store = useAssetsStore();
 const toast = useToast();
 const confirm = useConfirm().confirm;
-
-const containerRef = ref<HTMLElement>();
-const isOpen = computed(() => props.open);
-useFocusTrap(isOpen, containerRef);
 
 const selectedFloorId = ref<string | null>(null);
 const editingName = ref(false);
@@ -134,155 +130,100 @@ async function clearRoles() {
 }
 
 function floorCounts(f: FloorData) {
-  return `${f.rooms.length} rooms · ${f.objects.length} objects`;
+  return `${f.objects.length} objects`;
 }
 </script>
 
 <template>
-  <Teleport to="body">
-    <div v-if="open" class="modal__overlay floormodal" @click.self="onClose">
-      <div ref="containerRef" class="floormodal__dialog" role="dialog" aria-modal="true" aria-labelledby="floormodal__title">
-        <div class="floormodal__header">
-          <span id="floormodal__title" class="floormodal__title">Floor Manager</span>
-          <button class="floormodal__close" @click="onClose" aria-label="Close">✕</button>
+  <ModalShell :open="open" title="Floor Manager" max-width="800px" width="60vw" height="90vh" max-height="90vh" @close="onClose">
+    <div class="floormodal__body">
+      <!-- Left pane: Floor list -->
+      <div class="floormodal__pane">
+        <div class="floormodal__heading">
+          <span>Floors ({{ floors.length }})</span>
+          <button class="btn--dashed btn--sm" @click="onAdd">+ Add</button>
         </div>
-
-        <div class="floormodal__body">
-          <!-- Left pane: Floor list -->
-          <div class="floormodal__pane">
-            <div class="floormodal__heading">
-              <span>Floors ({{ floors.length }})</span>
-              <button class="btn__dashed btn__sm" @click="onAdd">+ Add</button>
-            </div>
-            <div class="floormodal__scroll">
-              <div
-                v-for="(f, index) in floors"
-                :key="f.id"
-                class="floormodal__row"
-                :class="{
-                  floormodal__rowactive: f.id === selectedFloorId,
-                  floormodal__rowcurrent: f.id === store.state.currentFloorId,
-                }"
-                draggable="true"
-                @dragstart="onDragStart(index)"
-                @dragover.prevent
-                @drop="onDrop(index)"
-                @click="selectFloor(f.id)"
-              >
-                <span class="floormodal__rowlabel" :style="{ color: f.labelColor || undefined }">{{ f.label }}</span>
-                <span class="floormodal__rowname">{{ f.name }}</span>
-                <span class="floormodal__rowcount">{{ floorCounts(f) }}</span>
-                <span v-if="f.id === store.state.currentFloorId" class="badge badge__blue">ACTIVE</span>
-              </div>
-            </div>
-          </div>
-
-          <!-- Right pane: Detail editor -->
-          <div class="floormodal__pane">
-            <div v-if="selectedFloor" class="floormodal__detail">
-              <div class="floormodal__heading">Floor Details</div>
-
-              <div class="floormodal__field">
-                <label>Label</label>
-                <input v-if="editingLabel" v-model="editingLabelRaw" class="input" aria-label="Edit floor label" @keydown.enter="commitLabel" @blur="commitLabel" />
-                <span v-else class="floormodal__value" @dblclick="startEditLabel">{{ selectedFloor.label }}</span>
-              </div>
-
-              <div class="floormodal__field">
-                <label>Name</label>
-                <input v-if="editingName" :value="editingNameRaw" @input="editingNameRaw = sanitizeString(($event.target as HTMLInputElement).value)" class="input" aria-label="Edit floor name" @keydown.enter="commitName" @blur="commitName" />
-                <span v-else class="floormodal__value" @dblclick="startEditName">{{ selectedFloor.name }}</span>
-              </div>
-
-              <div class="floormodal__field">
-                <label>Default Walkable</label>
-                <label class="floormodal__check">
-                  <input type="checkbox" :checked="selectedFloor.defaultWalkable ?? true" @change="toggleWalkable" />
-                  <span>Empty areas are walkable</span>
-                </label>
-              </div>
-
-              <div class="floormodal__field">
-                <label>Stats</label>
-                <span class="floormodal__value">{{ floorCounts(selectedFloor) }}</span>
-              </div>
-
-              <div class="floormodal__heading">Allowed Roles</div>
-              <div class="floormodal__roles">
-                <div class="floormodal__roleheader">
-                  <span v-if="!selectedFloor.allowedRoleIds?.length" class="floormodal__dim">All roles allowed</span>
-                  <button v-else class="btn__ghost btn__sm" @click="clearRoles">Clear (allow all)</button>
-                </div>
-                <div class="floormodal__taglist">
-                  <label v-for="role in availableRoles" :key="role.id" class="floormodal__rolechip" :class="{ 'floormodal__rolechip--active': isRoleAllowed(role.id) }">
-                    <input type="checkbox" :checked="isRoleAllowed(role.id)" @change="toggleRole(role.id)" />
-                    <span class="floormodal__roleswatch" :style="{ background: role.color }" />
-                    <span>{{ role.label }}</span>
-                  </label>
-                  <span v-if="!availableRoles.length" class="floormodal__dim">No roles configured — open NPC Behavior to add roles</span>
-                </div>
-              </div>
-
-              <div class="floormodal__actions">
-                <button class="btn__ghost btn__sm" @click="onDuplicate(selectedFloor.id)">⧉ Duplicate</button>
-                <button class="btn__danger btn__sm" :disabled="floors.length <= 1" @click="onDelete(selectedFloor.id)">✕ Delete</button>
-              </div>
-            </div>
-            <div v-else class="floormodal__empty">Select a floor to edit</div>
+        <div class="floormodal__scroll">
+          <div
+            v-for="(f, index) in floors"
+            :key="f.id"
+            class="floormodal__row"
+            :class="{
+              floormodal__rowactive: f.id === selectedFloorId,
+              floormodal__rowcurrent: f.id === store.state.currentFloorId,
+            }"
+            draggable="true"
+            @dragstart="onDragStart(index)"
+            @dragover.prevent
+            @drop="onDrop(index)"
+            @click="selectFloor(f.id)"
+          >
+            <span class="floormodal__rowlabel" :style="{ color: f.labelColor || undefined }">{{ f.label }}</span>
+            <span class="floormodal__rowname">{{ f.name }}</span>
+            <span class="floormodal__rowcount">{{ floorCounts(f) }}</span>
+            <span v-if="f.id === store.state.currentFloorId" class="badge badge__blue">ACTIVE</span>
           </div>
         </div>
       </div>
+
+      <!-- Right pane: Detail editor -->
+      <div class="floormodal__pane">
+        <div v-if="selectedFloor" class="floormodal__detail">
+          <div class="floormodal__heading">Floor Details</div>
+
+          <div class="floormodal__field">
+            <label>Label</label>
+            <input v-if="editingLabel" v-model="editingLabelRaw" class="input" aria-label="Edit floor label" @keydown.enter="commitLabel" @blur="commitLabel" />
+            <span v-else class="floormodal__value" @dblclick="startEditLabel">{{ selectedFloor.label }}</span>
+          </div>
+
+          <div class="floormodal__field">
+            <label>Name</label>
+            <input v-if="editingName" :value="editingNameRaw" @input="editingNameRaw = sanitizeString(($event.target as HTMLInputElement).value)" class="input" aria-label="Edit floor name" @keydown.enter="commitName" @blur="commitName" />
+            <span v-else class="floormodal__value" @dblclick="startEditName">{{ selectedFloor.name }}</span>
+          </div>
+
+          <div class="floormodal__field">
+            <label>Default Walkable</label>
+            <label class="floormodal__check">
+              <input type="checkbox" :checked="selectedFloor.defaultWalkable ?? true" @change="toggleWalkable" />
+              <span>Empty areas are walkable</span>
+            </label>
+          </div>
+
+          <div class="floormodal__field">
+            <label>Stats</label>
+            <span class="floormodal__value">{{ floorCounts(selectedFloor) }}</span>
+          </div>
+
+          <div class="floormodal__heading">Allowed Roles</div>
+          <div class="floormodal__roles">
+            <div class="floormodal__roleheader">
+              <span v-if="!selectedFloor.allowedRoleIds?.length" class="floormodal__dim">All roles allowed</span>
+              <button v-else class="btn--ghost btn--sm" @click="clearRoles">Clear (allow all)</button>
+            </div>
+            <div class="floormodal__taglist">
+              <label v-for="role in availableRoles" :key="role.id" class="floormodal__rolechip" :class="{ 'floormodal__rolechip--active': isRoleAllowed(role.id) }">
+                <input type="checkbox" :checked="isRoleAllowed(role.id)" @change="toggleRole(role.id)" />
+                <span class="floormodal__roleswatch" :style="{ background: role.color }" />
+                <span>{{ role.label }}</span>
+              </label>
+              <span v-if="!availableRoles.length" class="floormodal__dim">No roles configured — open Role Manager to add roles</span>
+            </div>
+          </div>
+
+          <div class="floormodal__actions">
+            <button class="btn--ghost btn--sm" @click="onDuplicate(selectedFloor.id)">⧉ Duplicate</button>
+            <button class="btn--danger btn--sm" :disabled="floors.length <= 1" @click="onDelete(selectedFloor.id)">✕ Delete</button>
+          </div>
+        </div>
+        <div v-else class="floormodal--empty">Select a floor to edit</div>
+      </div>
     </div>
-  </Teleport>
+  </ModalShell>
 </template>
 
 <style scoped>
-.floormodal {
-  z-index: 1002;
-  top: 60px;
-  overflow: hidden;
-  align-items: stretch;
-}
-
-.floormodal__dialog {
-  max-width: 800px;
-  height: 100vh;
-  max-height: 90vh;
-  width: 60vw;
-  display: flex;
-  flex-direction: column;
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-dim);
-  border-radius: var(--radius-md);
-  box-shadow: 0 12px 32px color-mix(in srgb, var(--bg-primary) 50%, transparent);
-  color: var(--text-primary);
-  overflow: hidden;
-}
-
-.floormodal__header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: var(--gap-sm) var(--gap-md);
-  background: var(--bg-card);
-  border-bottom: 1px solid var(--border-dim);
-  flex-shrink: 0;
-}
-
-.floormodal__title {
-  font-weight: 600;
-  font-size: var(--font-md);
-}
-
-.floormodal__close {
-  background: transparent;
-  border: none;
-  color: var(--text-primary);
-  cursor: pointer;
-  font-size: var(--font-md);
-  line-height: 1;
-}
-
 .floormodal__body {
   flex: 1;
   min-height: 0;
@@ -458,7 +399,7 @@ function floorCounts(f: FloorData) {
   color: var(--text-dim);
 }
 
-.floormodal__empty {
+.floormodal--empty {
   display: flex;
   align-items: center;
   justify-content: center;

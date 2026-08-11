@@ -6,8 +6,6 @@
 	--bg-card: #000000;
 }
 
-.high__contrast .building,
-.high__contrast .staff__card,
 .high__contrast .panel__content {
 	border-width: 2px;
 }

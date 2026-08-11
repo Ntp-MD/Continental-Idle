@@ -44,29 +44,21 @@ export async function withStateLock<T>(fn: () => Promise<T>): Promise<T> {
 	}
 }
 
-export const dragState = reactive<{ assetId: string | null; roomTemplateId: string | null }>({ assetId: null, roomTemplateId: null })
+export const dragState = reactive<{ assetId: string | null }>({ assetId: null })
 
 export function startAssetDrag(assetId: string) {
 	dragState.assetId = assetId
 }
 export function endAssetDrag() {
 	dragState.assetId = null
-	dragState.roomTemplateId = null
 }
-export function startRoomTemplateDrag(templateId: string) {
-	dragState.roomTemplateId = templateId
-}
-export function endRoomTemplateDrag() {
-	dragState.roomTemplateId = null
-}
-
 const _hmrData = import.meta.hot?.data
 const EDITOR_UI_STATE_KEY = 'blueprint-editor-ui-state'
 function loadPersistedUiState(): Partial<EditorState> | null {
 	try {
 		const raw = sessionStorage.getItem(EDITOR_UI_STATE_KEY)
 		if (raw) return JSON.parse(raw) as Partial<EditorState>
-	} catch {  }
+	} catch { }
 	return null
 }
 function savePersistedUiState(): void {
@@ -77,7 +69,7 @@ function savePersistedUiState(): void {
 			selectionState: state.selectionState,
 			selectedAssetId: state.selectedAssetId,
 		}))
-	} catch {  }
+	} catch { }
 }
 
 const _persistedUi = loadPersistedUiState()
@@ -88,7 +80,7 @@ const initial = loadInitial()
 export const state = reactive<EditorState>({
 	layout: initial.layout,
 	currentFloorId: _restoredUi.currentFloorId ?? '',
-	mode: _restoredUi.mode ?? 'object',
+	mode: _restoredUi.mode === 'npc-preview' ? 'move' : _restoredUi.mode ?? 'object',
 	selectionState: _restoredUi.selectionState ?? { primary: null, items: [] },
 	selectedAssetId: _restoredUi.selectedAssetId ?? null,
 	assetRegistry: _hmrData?._editorState?.assetRegistry ?? originAssets.map(asset => JSON.parse(JSON.stringify(asset)) as AssetDef),

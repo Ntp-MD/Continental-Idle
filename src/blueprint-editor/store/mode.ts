@@ -24,10 +24,6 @@ export async function resizeCanvas(width: number, height: number, tileSize: numb
 		}
 	}
 	for (const floor of state.layout.floors) {
-		for (const r of floor.rooms) {
-			const snapped = clamp({ x: Math.round(r.x / t) * t, y: Math.round(r.y / t) * t, w: Math.round(r.w / t) * t || t, h: Math.round(r.h / t) * t || t })
-			Object.assign(r, snapped)
-		}
 		for (const o of floor.objects) {
 			normalizeObject(o, state.layout.canvas.tileSize, assetMap())
 			const snapped = clamp({ x: Math.round(o.x / t) * t, y: Math.round(o.y / t) * t, w: o.w, h: o.h })

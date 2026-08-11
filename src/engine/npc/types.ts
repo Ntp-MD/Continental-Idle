@@ -26,7 +26,7 @@ export interface NpcEngineBlockedEdge {
 export interface NpcEngineInteractionTarget {
 	floorId: string
 	itemId: string
-	anchorId: string
+	interactSpotId: string
 	x: number
 	y: number
 	tags: readonly string[]
@@ -62,7 +62,7 @@ export interface NpcEngineAgent {
 	path: readonly NpcEnginePoint[]
 	pathIndex: number
 	reservationItemId: string | null
-	reservationAnchorId: string | null
+	reservationInteractSpotId: string | null
 	interactionRemainingTicks: number
 
 	crossFloorCooldownUntil: number
@@ -82,7 +82,7 @@ export interface NpcEngineEvent {
 	agentId: string
 	floorId: string
 	itemId?: string
-	anchorId?: string
+	interactSpotId?: string
 	tick: number
 
 	fromFloorId?: string

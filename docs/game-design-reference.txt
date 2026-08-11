@@ -1,0 +1,328 @@
+================================================================================
+CONTINENTAL IDLE — GAME DESIGN REFERENCE
+================================================================================
+This file documents all game design systems and their data values.
+These systems have been removed from the main game runtime.
+All balance values will be configurable via the Blueprint Editor in future.
+
+================================================================================
+1. BUILDINGS (src/data/buildings.ts)
+================================================================================
+Income-producing structures that can be purchased and leveled up.
+
+Building Income Growth Multiplier: 1.07
+
+ID              | Name                | BaseRate | BaseCost  | CostGrowth | MaxLevel | Unlock
+----------------+---------------------+----------+-----------+------------+----------+---------------------
+reception       | Reception Desk      | 1        | 0         | 1.15       | 50       | start
+guestRooms      | Guest Rooms         | 5        | 50        | 1.15       | 50       | start
+bar             | Bar/Lounge          | 15       | 500       | 1.15       | 50       | start
+kitchen         | Kitchen             | 40       | 2,000     | 1.15       | 50       | start
+laundry         | Laundry Service     | 100      | 8,000     | 1.15       | 50       | building:bar:5
+underground     | Underground Svc     | 300      | 25,000    | 1.15       | 50       | building:kitchen:5
+safeHouse       | Safe House          | 800      | 75,000    | 1.15       | 50       | building:underground:1
+armory          | Armory              | 2,000    | 200,000   | 1.15       | 50       | building:safeHouse:5
+intelNetwork    | Intelligence Network| 5,000    | 600,000   | 1.15       | 50       | building:armory:3
+vip             | VIP Penthouse       | 15,000   | 2,000,000 | 1.15       | 50       | building:intelNetwork:1
+blackMarket     | Black Market Vault  | 50,000   | 10,000,000| 1.25       | 50       | building:vip:5
+vault           | Continental Vault   | 200,000  | 100,000,000| 1.35      | 50       | building:blackMarket:5
+
+================================================================================
+2. STAFF (src/data/staff.ts)
+================================================================================
+Hireable staff that boost building income when assigned.
+
+ID            | Name              | HireCost | Unlock          | MaxLevel | EffectPerLevel | BestMatch                    | MaxAbility
+--------------+-------------------+----------+-----------------+----------+----------------+------------------------------+-------------------------------------------
+concierge     | Concierge         | 1,000    | start           | 10       | 0.10           | reception,guestRooms,vip     | Auto-collect guest tips (+5% passive)
+bartender     | Bartender         | 3,000    | bar             | 10       | 0.10           | bar                          | Bar income continues during excommunicado
+chef          | Chef              | 8,000    | kitchen         | 10       | 0.15           | kitchen                      | Kitchen boosts ALL building income +10%
+cleaner       | Cleaner           | 15,000   | underground     | 10       | 0.05           | underground,laundry          | All negative event penalties negated
+sommelier     | Sommelier         | 50,000   | upgrade:privateWing | 10   | 0.20           | vip,bar,guestRooms           | VIP guests arrive 50% more frequently
+intelOfficer  | Intelligence Officer| 100,000 | intelNetwork    | 10       | 0.03           | intelNetwork,underground     | All event outcomes revealed before choosing
+adjudicator   | Adjudicator       | 250,000  | prestige:3      | 10       | 0.05           | vault                        | Prestige keeps 80% reputation instead of 50%
+vaultKeeper   | Vault Keeper      | 500,000  | vault           | 10       | 0.05           | safeHouse,blackMarket,vault  | Safe House interest doubles to 4%/min
+
+--- Veteran Perks ---
+ID            | Label                             | XpMult | IncomeMult | CostMult
+--------------+-----------------------------------+--------+------------+---------
+veteranXp     | Seasoned: +20% XP gain            | 1.2    | 1          | 1
+veteranIncome | Proven Earner: +10% income        | 1      | 1.1        | 1
+veteranFrugal | Old Hand: -50% level-up cost      | 1      | 1          | 0.5
+
+================================================================================
+3. ASSASSINS (src/data/assassins.ts)
+================================================================================
+Combat units for defense, raids, and branch takeovers.
+
+ID                | Name                | Rank | HireCost     | Ability                                    | MaxLevel
+------------------+---------------------+------+--------------+--------------------------------------------+----------
+streetSamurai     | Street Samurai      | D    | 50,000       | Reduces heat by 2 when assigned            | 10
+enforcer          | Enforcer            | C    | 200,000      | Protects branch from income freeze events  | 10
+shadowBlade       | Shadow Blade        | B    | 1,000,000    | Doubles reputation gain from events        | 10
+royalGuard        | Royal Guard         | A    | 10,000,000   | Halves marker debt accrual rate            | 10
+highTableEnforcer | High Table Enforcer | S    | 100,000,000  | Prevents excommunicado events entirely     | 10
+
+================================================================================
+4. SKILL TREE (src/data/skills.ts)
+================================================================================
+5 branches, 5 levels each. Max level per branch: 5
+
+--- Commerce (incomeMult) ---
+Lv1: Trade Routes      +5%  | Cost: 10
+Lv2: Market Control    +10% | Cost: 25
+Lv3: Monopoly          +15% | Cost: 50
+Lv4: Global Empire     +20% | Cost: 100
+Lv5: Continental Trust +25% | Cost: 200
+
+--- Personnel (staffXpMult) ---
+Lv1: Training Program  +10% | Cost: 10
+Lv2: Loyalty System    +15% | Cost: 25
+Lv3: Elite Corps       +20% | Cost: 50
+Lv4: Veteran Network   +25% | Cost: 100
+Lv5: Legendary Command +30%, +1 staff slot | Cost: 200
+
+--- Shadow (debtReduction) ---
+Lv1: Whisper Network   -5%  | Cost: 10
+Lv2: Shadow Channels   -10% | Cost: 25
+Lv3: Smuggling Routes  -15%, -1 heat on resolve | Cost: 50
+Lv4: Underground Bank  -20% | Cost: 100
+Lv5: High Table Insider -25%, +50% buff duration | Cost: 200
+
+--- Diplomacy (reputationMult) ---
+Lv1: Goodwill          +10% | Cost: 10
+Lv2: Ambassador        +15% | Cost: 25
+Lv3: Treaty Bonds      +20% | Cost: 50
+Lv4: Continental Accord +25%| Cost: 100
+Lv5: Diplomatic Immunity +30%, -2 heat passive | Cost: 200
+
+--- Ascension (prestigeFavorMult) ---
+Lv1: Favor Bank        +10% | Cost: 15
+Lv2: Ascension Rite    +15% | Cost: 35
+Lv3: Eternal Cycle     +20% | Cost: 75
+Lv4: Transcendence     +25% | Cost: 150
+Lv5: Continental Ascension +30% | Cost: 300
+
+================================================================================
+5. TRAITS (src/data/traits.ts)
+================================================================================
+Positive traits:
+  workaholic    | xpMult: 1.5
+  nightOwl      | incomeMult: 1.1
+  silverTongue  | incomeMult: 1.15
+  luckyCharm    | incomeMult: 1.08, xpMult: 1.1
+  perfectionist | incomeMult: 1.12
+  naturalLeader | incomeMult: 1.05, xpMult: 1.2
+  shadowTouched | incomeMult: 1.1, negativeEventProtection: true
+  bloodhound    | xpMult: 1.3
+  oldGuard      | (no effect)
+  efficient     | costMult: 0.9
+
+Negative traits:
+  lazy          | xpMult: 0.7
+  hotHeaded     | incomeMult: 0.9
+  clumsy        | incomeMult: 0.85
+  superstitious | incomeMult: 0.95
+  greedy        | costMult: 1.2
+
+Legendary traits:
+  legendary     | incomeMult: 1.5, xpMult: 1.5
+  untouchable   | incomeMult: 1.3, negativeEventProtection: true
+  mentor        | xpMult: 2.0
+  shadowBond    | incomeMult: 1.25, negativeEventProtection: true
+  goldenTouch   | incomeMult: 1.4
+
+================================================================================
+6. RARITY SYSTEM (src/data/rarity.ts)
+================================================================================
+Rarity | Probability | StatBudget | StatMin | StatMax | TraitRare | TraitPos | TraitNeg | CostMult | Color
+-------+-------------+------------+---------+---------+-----------+----------+----------+----------+----------
+D      | 0.40        | 12         | 1       | 5       | 0.02      | 0.30     | 0.50     | 0.5      | #9e9e9e
+C      | 0.30        | 16         | 2       | 7       | 0.05      | 0.45     | 0.35     | 1.0      | #4caf50
+B      | 0.20        | 20         | 3       | 9       | 0.10      | 0.55     | 0.25     | 1.5      | #2196f3
+A      | 0.08        | 26         | 4       | 12      | 0.20      | 0.65     | 0.15     | 2.5      | #9c27b0
+S      | 0.02        | 32         | 5       | 15      | 0.35      | 0.75     | 0.05     | 4.0      | #ffd700
+
+Staff Spawn Chance: 0.70
+Call Visitor Rarity: D:0.35, C:0.35, B:0.20, A:0.08, S:0.02
+Royal Mark Rarity:  D:0,    C:0,    B:0.70, A:0.25, S:0.05
+Random Spawn Rarity: D:0.40, C:0.30, B:0.20, A:0.08, S:0.02
+
+================================================================================
+7. BRANCHES (src/data/branches.ts)
+================================================================================
+37 branches across 6 continents. Each has: id, name, city, currency, accentColor,
+unlockPrestige, continent, lat, lon.
+
+Starting branches (unlockPrestige: 0):
+  bangkok  | Bangkok, Thailand       | Baht Coins      | #f4c430
+  newYork  | New York, USA           | Gold Coins      | #cccccc
+
+Notable branches:
+  rome       | Rome, Italy            | Lira Tokens     | unlockPrestige: 1
+  london     | London, UK             | Crown Notes     | unlockPrestige: 2
+  washington | Washington D.C., USA   | Eagle Bonds     | unlockPrestige: 3
+  casablanca | Casablanca, Morocco    | Desert Marks    | unlockPrestige: 5
+  tokyo      | Tokyo, Japan           | Neon Credits    | unlockPrestige: 14
+  osaka      | Osaka, Japan           | Sakura Credits  | unlockPrestige: 12
+  paris      | Paris, France          | Euro Marks      | unlockPrestige: 22
+  dubai      | Dubai, UAE             | Dinar Coins     | unlockPrestige: 55
+  sydney     | Sydney, Australia      | Harbor Credits  | unlockPrestige: 60
+
+Full list in src/data/branches.ts (37 entries).
+
+================================================================================
+8. ROYAL BUILDINGS (src/data/royalBuildings.ts)
+================================================================================
+Royal Building Income Growth: 1.08
+
+ID               | Name                | BaseRate    | BaseCost       | CostGrowth | MaxLevel | Description
+-----------------+---------------------+-------------+----------------+------------+----------+------------------------------
+royalSuite       | Royal Suite         | 500,000     | 50,000,000     | 1.20       | 30       | Luxury suites for High Table
+royalVault       | Royal Vault         | 2,000,000   | 200,000,000    | 1.22       | 30       | Secured vault for treasures
+royalArmory      | Royal Armory        | 8,000,000   | 800,000,000    | 1.25       | 30       | Elite weapons cache
+royalCourt       | Royal Court         | 30,000,000  | 3,000,000,000  | 1.28       | 30       | Throne room
+highTableChamber | High Table Chamber  | 100,000,000 | 10,000,000,000 | 1.30       | 30       | Seat of power at High Table
+
+================================================================================
+9. ROYAL SKILLS (src/data/royalSkills.ts)
+================================================================================
+5 branches, 5 levels each. Max level: 5. Uses Royal Marks as currency.
+
+--- Royal Income (incomeMult) ---
+Lv1: Royal Trade +10% | Lv2: Royal Monopoly +15% | Lv3: Royal Treasury +20% | Lv4: Royal Wealth +25% | Lv5: Continental Fortune +30%, +50% buff
+
+--- Royal Loyalty (loyaltyDecayReduction) ---
+Lv1: Royal Bond -10% | Lv2: Royal Oath -15% | Lv3: Royal Fealty -20% | Lv4: Eternal Bond -25% | Lv5: Unbreakable Vow -30%, +50% buff
+
+--- Royal Power (assassinPowerMult) ---
+Lv1: Royal Guard +10% | Lv2: Royal Strike +15% | Lv3: Royal Assault +20% | Lv4: Royal Conquest +25% | Lv5: Sovereign Force +30%, +50% buff
+
+--- Royal Favor (favorMult) ---
+Lv1: Royal Favor +10% | Lv2: Royal Blessing +15% | Lv3: Royal Patronage +20% | Lv4: Royal Endowment +25% | Lv5: Continental Grace +30%, +50% buff
+
+--- Royal Ascension (royalPrestigeMult) ---
+Lv1: Royal Ascension +10% | Lv2: Eternal Throne +15% | Lv3: Divine Right +20% | Lv4: Sovereign Will +25% | Lv5: Eternal Sovereign +30%, +50% buff
+
+================================================================================
+10. ROYAL DECREES (src/data/royalDecrees.ts)
+================================================================================
+Pool of 11 decrees, 3 chosen per cycle.
+
+Type                  | Name              | Description                          | Value | Duration
+----------------------+-------------------+-------------------------------------+-------+----------
+incomeMultiplier      | Golden Age        | All income +50% for 24h             | 0.5   | 86400s
+incomeMultiplier      | Prosperity Edict  | All income +25% for 48h             | 0.25  | 172800s
+incomeMultiplier      | Royal Treasury    | All income +100% for 12h            | 1.0   | 43200s
+permanentIncomeBonus  | Eternal Wealth    | +1% permanent income bonus          | 0.01  | permanent
+permanentIncomeBonus  | Sovereign Dividend| +2% permanent income bonus          | 0.02  | permanent
+heatReduction         | Shadow Amnesty    | All heat reduced to 0 instantly     | 0     | instant
+heatReduction         | Cooling Edict     | No heat gain for 24h                | -1    | 86400s
+debtReduction         | Debt Forgiveness  | All marker debts cleared            | 0     | instant
+debtReduction         | Marker Pardon     | 50% of all debts forgiven           | 0.5   | instant
+loyaltyBoost          | Loyalty Oath      | All assassin loyalty +20            | 20    | instant
+loyaltyBoost          | Brotherhood Decree| No loyalty decay for 24h            | -1    | 86400s
+
+================================================================================
+11. SUPPLY ROUTES (src/data/supplyRoutes.ts)
+================================================================================
+ID         | Name                | BaseIncome | BaseStability | Decay/Tick | EstablishCost | HijackCost | Color
+-----------+---------------------+------------+---------------+------------+---------------+------------+----------
+weapons    | Weapons Trafficking | 500        | 80            | 0.5        | 50,000        | 100,000    | #ff5722
+contraband | Contraband Smuggling| 250        | 90            | 0.3        | 25,000        | 50,000     | #ff9800
+luxury     | Luxury Black Market | 100        | 100           | 0.15       | 10,000        | 25,000     | #ffd700
+
+================================================================================
+12. AI TEMPERAMENTS (src/data/aiOwners.ts)
+================================================================================
+ID         | Name          | BasePower | PowerGrowth | Aggression | Cooldown | Color
+-----------+---------------+-----------+-------------+------------+----------+----------
+aggressive | Warlord       | 500       | 2.0         | 0.8        | 30       | #ff5722
+diplomatic | Diplomat      | 400       | 1.5         | 0.4        | 45       | #4a90e2
+shadow     | Shadow Broker | 350       | 1.8         | 0.6        | 40       | #9b59b6
+defensive  | Guardian      | 600       | 1.0         | 0.2        | 60       | #2ecc71
+
+Continent temperament mapping:
+  north-america: aggressive, diplomatic
+  south-america: aggressive, shadow
+  europe: diplomatic, shadow, defensive
+  asia: aggressive, shadow, defensive
+  africa: aggressive, defensive
+  oceania: defensive, diplomatic
+
+AI Names: 37 unique names mapped to branch IDs (see src/data/aiOwners.ts).
+
+================================================================================
+13. AI EVENT TEMPLATES (src/data/aiEvents.ts)
+================================================================================
+6 event types generated by AI controllers:
+
+Type        | HeatMod | Choices
+------------+---------+-----------------------------------------------------------
+raid        | +8      | fight (assassin required, +10 rep) / pay (-5% currency) / ignore (freeze 30s)
+tribute     | +3      | pay (-3% currency, +relations) / refuse (+5 rep, +3 heat)
+sabotage    | +5      | repair (-2% currency) / retaliate (+5 rep, +10 heat) / endure (-30% income 30s)
+spy         | +2      | interrogate (+10 rep, +2 heat) / release (+relations)
+provocation | +4      | stand firm (+15 rep, +5 heat) / back down (-10 rep, -3 heat)
+truce       | -2      | accept (-5 heat, +10% income 60s) / reject (no effect)
+
+================================================================================
+14. EVENTS (src/data/events.ts)
+================================================================================
+Event Cooldown: 45 seconds
+
+10 events with weighted random selection:
+
+ID              | Name              | Weight | HeatMod | Unlock Condition              | AutoResolve
+----------------+-------------------+--------+---------+-------------------------------+-----------
+contractOpen    | Contract Open     | 25     | +5      | underground level 1           | best (60s)
+excommunicado   | Excommunicado     | 15     | +10     | none                          | ignore (60s)
+markerCalledIn  | Marker Called In   | 10     | +3      | none                          | ignore (60s)
+assassinRaid    | Assassin Raid     | 12     | +8      | prestige 3                    | safe (60s)
+vipArrival      | VIP Guest Arrival | 20     | +2      | vip level 1                   | best (60s)
+staffRecruitment| Staff Recruitment | 15     | +1      | none                          | ignore (60s)
+undergroundAuction| Underground Auction| 8    | +5      | underground level 3           | safe (60s)
+continentalSummit| Continental Summit| 10    | 0       | prestige 2                    | best (60s)
+heatWave        | Heat Wave         | 14     | +6      | none                          | best (60s)
+markerForgiveness| Marker Forgiveness| 8     | +2      | none                          | safe (60s)
+
+Each event has 2-3 choices with rewards, penalties, reputation changes.
+Full choice details in src/data/events.ts.
+
+================================================================================
+15. ACHIEVEMENTS (src/data/achievements.ts)
+================================================================================
+7 categories: income, prestige, combat, expansion, staff, events, special
+
+30 achievements total. Each has: id, name, description, category, icon, condition, reward.
+Rewards are either tableFavor or permanentIncomeBonus.
+
+Key milestones:
+  Currency: 1K, 1M, 1B, 1T
+  Prestige: 1, 5, 10, 25, 50
+  Combat: first assassin, first raid win, first awakening, first takeover, 5/10 conquests, defeat all AI
+  Expansion: 2, 5, 10, 25, 37 branches
+  Staff: first hire, 10 staff, first veteran, all upgrades
+  Events: 1, 50, 200 resolved; 1, 10 supply routes
+  Special: 1h, 10h, 100h playtime; first royal; all skills maxed
+
+Full list in src/data/achievements.ts.
+
+================================================================================
+16. LEVEL FORMULAS (src/engine/helpers/levelFormulas.ts)
+================================================================================
+XP to next level: baseXp * (level ^ 1.5)
+Level-up cost: baseCost * (costGrowth ^ level)
+
+Used by both staff and assassin managers.
+
+================================================================================
+17. STORY (src/data/story.ts + prologue.txt)
+================================================================================
+HQ Branch: Bangkok
+Player Title: "Heir of Bangkok"
+Prologue text in src/data/prologue.txt
+
+================================================================================
+END OF GAME DESIGN REFERENCE
+================================================================================

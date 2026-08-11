@@ -1,4 +1,4 @@
-import type { AssetDef, FloorLayoutData, NpcSimulationConfig, CanvasConfig, FloorData, RoomTemplate, OriginAssetFile } from '../types'
+import type { AssetDef, FloorLayoutData, NpcSimulationConfig, CanvasConfig, FloorData, OriginAssetFile } from '../types'
 import { normalizeOriginAssetFile, isNpcConfig } from '../types'
 import { EDITOR_CONFIG } from '../editorConfig'
 import { migrateNpcConfig } from './migrateNpc'
@@ -11,7 +11,6 @@ export interface BlueprintLayoutFile {
 	version: number
 	canvas: CanvasConfig
 	floors: FloorData[]
-	roomTemplates: RoomTemplate[]
 }
 
 export interface NpcConfigFile {
@@ -41,7 +40,6 @@ export function buildSavedLayout(): FloorLayoutData {
 		version: blueprintLayout.version,
 		canvas: blueprintLayout.canvas,
 		floors: blueprintLayout.floors,
-		roomTemplates: blueprintLayout.roomTemplates,
 		npcConfig,
 	}
 }
@@ -65,15 +63,11 @@ function normalizeBlueprintLayout(raw: unknown): BlueprintLayoutFile {
 	if (!Array.isArray(r.floors)) {
 		throw new Error('blueprintLayout.json: floors must be an array')
 	}
-	if (r.roomTemplates !== undefined && !Array.isArray(r.roomTemplates)) {
-		throw new Error('blueprintLayout.json: roomTemplates must be an array if present')
-	}
 	return {
 		$schema: typeof r.$schema === 'string' ? r.$schema : 'blueprint-layout.v1.json',
 		version: r.version,
 		canvas: r.canvas as CanvasConfig,
 		floors: r.floors as FloorData[],
-		roomTemplates: (r.roomTemplates ?? []) as RoomTemplate[],
 	}
 }
 

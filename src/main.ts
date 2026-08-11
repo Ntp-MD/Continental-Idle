@@ -5,7 +5,7 @@ import '@/styles/layout.css'
 import '@/styles/components.css'
 import '@/styles/accessibility.css'
 import '@/blueprint-editor/editor.css'
-import App from './app.vue'
+import App from './App.vue'
 import router from './router'
 
 createApp(App).use(router).mount('#app')

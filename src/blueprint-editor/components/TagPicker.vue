@@ -1,107 +1,98 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
-import { useAssetsStore } from '../blueprintStore'
+import { ref, computed } from "vue";
+import { useAssetsStore } from "../blueprintStore";
 
-const props = withDefaults(defineProps<{
-  modelValue: string[]
-  placeholder?: string
-  label?: string
-}>(), {
-  placeholder: 'Add tag...',
-  label: 'Tags',
-})
+const props = withDefaults(
+  defineProps<{
+    modelValue: string[];
+    placeholder?: string;
+    label?: string;
+  }>(),
+  {
+    placeholder: "Add tag...",
+    label: "Tags",
+  },
+);
 
-const emit = defineEmits<{ (e: 'update:modelValue', tags: string[]): void }>()
+const emit = defineEmits<{ (e: "update:modelValue", tags: string[]): void }>();
 
-const store = useAssetsStore()
-const inputValue = ref('')
-const showDropdown = ref(false)
+const store = useAssetsStore();
+const inputValue = ref("");
+const showDropdown = ref(false);
 
-const availableTags = computed(() => store.globalTags.value)
+const availableTags = computed(() => store.globalTags.value);
 
 const filteredTags = computed(() => {
-  const q = inputValue.value.trim().toLowerCase()
-  if (!q) return availableTags.value.filter(t => !props.modelValue.includes(t))
-  return availableTags.value.filter(t => !props.modelValue.includes(t) && t.toLowerCase().includes(q))
-})
+  const q = inputValue.value.trim().toLowerCase();
+  if (!q) return availableTags.value.filter((t) => !props.modelValue.includes(t));
+  return availableTags.value.filter((t) => !props.modelValue.includes(t) && t.toLowerCase().includes(q));
+});
 
 async function addTag(raw: string) {
-  const parts = raw.split(',').map(s => s.trim()).filter(Boolean)
-  const next = new Set([...props.modelValue])
-  const added: string[] = []
+  const parts = raw
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const next = new Set([...props.modelValue]);
+  const added: string[] = [];
   for (const t of parts) {
-    if (next.has(t)) continue
-    next.add(t)
-    added.push(t)
+    if (next.has(t)) continue;
+    next.add(t);
+    added.push(t);
   }
   if (added.length === 0) {
-    inputValue.value = ''
-    return
+    inputValue.value = "";
+    return;
   }
-  emit('update:modelValue', [...next])
-  for (const t of added) await store.ensureTag(t)
-  inputValue.value = ''
+  emit("update:modelValue", [...next]);
+  for (const t of added) await store.ensureTag(t);
+  inputValue.value = "";
 }
 
 function removeTag(tag: string) {
-  emit('update:modelValue', props.modelValue.filter(t => t !== tag))
+  emit(
+    "update:modelValue",
+    props.modelValue.filter((t) => t !== tag),
+  );
 }
 
 async function onKeydown(e: KeyboardEvent) {
-  if (e.key === 'Enter' || e.key === ',') {
-    e.preventDefault()
-    if (inputValue.value.trim()) await addTag(inputValue.value)
-  } else if (e.key === 'Backspace' && !inputValue.value && props.modelValue.length > 0) {
-    removeTag(props.modelValue[props.modelValue.length - 1])
+  if (e.key === "Enter" || e.key === ",") {
+    e.preventDefault();
+    if (inputValue.value.trim()) await addTag(inputValue.value);
+  } else if (e.key === "Backspace" && !inputValue.value && props.modelValue.length > 0) {
+    removeTag(props.modelValue[props.modelValue.length - 1]);
   }
 }
 
 async function onDropdownClick(tag: string) {
-  await addTag(tag)
-  showDropdown.value = false
+  await addTag(tag);
+  showDropdown.value = false;
 }
 </script>
 
 <template>
   <div class="tag__picker">
-    <div class="tag__picker__field" @click="showDropdown = true">
-      <span
-        v-for="tag in modelValue"
-        :key="tag"
-        class="tag__picker__chip"
-      >
+    <div class="tag__picker-field" @click="showDropdown = true">
+      <span v-for="tag in modelValue" :key="tag" class="tag__picker-chip">
         {{ tag }}
-        <button class="tag__picker__chipbtn" @click.stop="removeTag(tag)">×</button>
+        <button class="tag__picker-chipbtn" @click.stop="removeTag(tag)">×</button>
       </span>
-      <input
-        v-model="inputValue"
-        :placeholder="modelValue.length === 0 ? placeholder : ''"
-        class="tag__picker__input"
-        @keydown="onKeydown"
-        @focus="showDropdown = true"
-        @blur="showDropdown = false"
-      />
+      <input v-model="inputValue" :placeholder="modelValue.length === 0 ? placeholder : ''" class="tag__picker-input" @keydown="onKeydown" @focus="showDropdown = true" @blur="showDropdown = false" />
     </div>
-    <div v-if="showDropdown && filteredTags.length > 0" class="tag__picker__dropdown">
-      <button
-        v-for="tag in filteredTags"
-        :key="tag"
-        class="tag__picker__option"
-        @mousedown.prevent="onDropdownClick(tag)"
-      >{{ tag }}</button>
+    <div v-if="showDropdown && filteredTags.length > 0" class="tag__picker-dropdown">
+      <button v-for="tag in filteredTags" :key="tag" class="tag__picker-option" @mousedown.prevent="onDropdownClick(tag)">{{ tag }}</button>
     </div>
   </div>
 </template>
 
-
 <style scoped>
-
 .tag__picker {
   position: relative;
   width: 100%;
 }
 
-.tag__picker__field {
+.tag__picker-field {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -114,11 +105,11 @@ async function onDropdownClick(tag: string) {
   cursor: text;
 }
 
-.tag__picker__field:focus-within {
+.tag__picker-field:focus-within {
   border-color: var(--accent-gold);
 }
 
-.tag__picker__chip {
+.tag__picker-chip {
   display: inline-flex;
   align-items: center;
   gap: var(--gap-xs);
@@ -131,7 +122,7 @@ async function onDropdownClick(tag: string) {
   white-space: nowrap;
 }
 
-.tag__picker__chipbtn {
+.tag__picker-chipbtn {
   background: transparent;
   border: none;
   color: var(--accent-red);
@@ -141,7 +132,7 @@ async function onDropdownClick(tag: string) {
   padding: 0;
 }
 
-.tag__picker__input {
+.tag__picker-input {
   flex: 1;
   min-width: 60px;
   background: transparent;
@@ -152,17 +143,17 @@ async function onDropdownClick(tag: string) {
   padding: var(--gap-xs) 0;
 }
 
-.tag__picker__input::placeholder {
+.tag__picker-input::placeholder {
   color: var(--text-primary);
   opacity: 0.6;
 }
 
-.tag__picker__dropdown {
+.tag__picker-dropdown {
   position: absolute;
   top: 100%;
   left: 0;
   right: 0;
-  z-index: 50;
+  z-index: var(--z-canvas-ui);
   max-height: 160px;
   overflow-y: auto;
   background: var(--bg-secondary);
@@ -171,7 +162,7 @@ async function onDropdownClick(tag: string) {
   box-shadow: 0 4px 12px color-mix(in srgb, var(--bg-primary) 30%, transparent);
 }
 
-.tag__picker__option {
+.tag__picker-option {
   display: block;
   width: 100%;
   padding: var(--gap-xs) var(--gap-sm);
@@ -183,7 +174,7 @@ async function onDropdownClick(tag: string) {
   cursor: pointer;
 }
 
-.tag__picker__option:hover {
+.tag__picker-option:hover {
   background: var(--bg-card);
 }
 </style>

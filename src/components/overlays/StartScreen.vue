@@ -1,25 +1,19 @@
 <script setup lang="ts">
 import { ref, onUnmounted } from "vue";
 import { useRouter } from "vue-router";
-import { gameState } from "@/engine/gameState";
-import { getPrologue, getStoryContext } from "@/data/story";
 
-const emit = defineEmits<{ start: []; quickStart: [] }>();
+const emit = defineEmits<{ start: [] }>();
 const router = useRouter();
 
 const loading = ref(false);
 const loadingProgress = ref(0);
 const loadingText = ref("Initializing Continental OS...");
 
-const prologue = getPrologue();
-const storyContext = getStoryContext();
-
 let loadingInterval: number | null = null;
-let continueTimeout: number | null = null;
 
 function startGame() {
   loading.value = true;
-  const steps = ["Initializing Continental OS...", "Loading world map...", "Establishing HQ connection...", "Recruiting staff...", "Ready."];
+  const steps = ["Initializing Continental OS...", "Loading world map...", "Establishing HQ connection...", "Ready."];
   let step = 0;
   loadingInterval = window.setInterval(() => {
     step++;
@@ -30,69 +24,49 @@ function startGame() {
         clearInterval(loadingInterval);
         loadingInterval = null;
       }
-      gameState.reset("bangkok");
-      gameState.save();
       emit("start");
     }
   }, 200);
 }
 
-function quickStart() {
-  gameState.reset("bangkok");
-  gameState.save();
-  emit("quickStart");
-}
-
 onUnmounted(() => {
   if (loadingInterval) clearInterval(loadingInterval);
-  if (continueTimeout) clearTimeout(continueTimeout);
 });
 </script>
 
 <template>
   <div class="start">
     <!-- Loading overlay -->
-    <div v-if="loading" class="start__loading">
+    <div v-if="loading" class="start--loading">
       <div class="start__loadingtext">CONTINENTAL OS v2.0</div>
       <div class="start__loadingbar">
-        <div class="start__loading__fill" :style="{ width: loadingProgress + '%' }"></div>
+        <div class="start__loadingfill" :style="{ width: loadingProgress + '%' }"></div>
       </div>
       <div class="start__loadingstatus">{{ loadingText }}</div>
     </div>
 
     <div v-else class="start__content">
-      <!-- Left column: logo + actions (20%) -->
+      <!-- Left column: logo + actions -->
       <aside class="start__panel">
         <h1 class="start__title">
-          <img class="start__logo" src="/Continental-Idle-logo.png" alt="Continental Idle" />
+          <img class="start__logo" src="/Continental-Idle-logo.png" alt="Continental" />
         </h1>
-        <p class="start__subtitle">The High Table Awaits</p>
+        <p class="start__subtitle">Hotel Simulation</p>
 
         <div class="start__actions">
-          <button class="btn__warning" @click="startGame">START NEW GAME</button>
-
-          <button class="btn__success" @click="quickStart">QUICK START + AI AUTOPLAY</button>
-
+          <button class="btn--warning" @click="startGame">ENTER HOTEL</button>
           <button class="start__editorbtn" @click="router.push({ name: 'editor' })" aria-label="Open Blueprint Editor">Blueprint Editor</button>
         </div>
       </aside>
 
-      <!-- Right column: story board (80%) -->
+      <!-- Right column: info board -->
       <section class="start__board">
-        <!-- Prologue -->
         <div class="start__story">
           <div class="start__storyicon">?</div>
           <div class="start__storytext">
-            <p class="start__storyline" v-for="(line, i) in prologue.split('\n\n')" :key="i">{{ line }}</p>
+            <p class="start__storyline">Welcome to the Continental — a world where hospitality and precision meet.</p>
+            <p class="start__storyline">Design your hotel in the Blueprint Editor, then watch it come alive with NPCs moving through your layout.</p>
           </div>
-        </div>
-
-        <div class="start__info">
-          <p>
-            As the <strong>{{ storyContext.playerTitle }}</strong
-            >, your HQ generates <strong>1.2x income</strong> and is your starting Continental branch.
-          </p>
-          <p>Conquer rival AI controllers, establish supply routes, and claim your seat at the High Table.</p>
         </div>
       </section>
     </div>
@@ -200,13 +174,6 @@ onUnmounted(() => {
   line-height: 1.6;
 }
 
-.start__info {
-  color: var(--text-dim);
-  font-size: var(--font-sm);
-  line-height: 1.6;
-  flex-shrink: 0;
-}
-
 .start .btn {
   font-size: var(--font-md);
   font-weight: 600;
@@ -215,13 +182,8 @@ onUnmounted(() => {
   border-radius: var(--radius-md);
 }
 
-.start .btn__warning,
-.start .btn__success {
+.start .btn--warning {
   padding: var(--gap-sm) var(--gap-lg);
-}
-
-.start .btn__success {
-  padding: var(--gap-sm) var(--gap-md);
 }
 
 .start__editorbtn {
@@ -239,7 +201,7 @@ onUnmounted(() => {
   color: var(--accent-blue);
 }
 
-.start__loading {
+.start--loading {
   text-align: center;
   padding: var(--gap-xl);
 }
@@ -262,7 +224,7 @@ onUnmounted(() => {
   overflow: hidden;
 }
 
-.start__loading__fill {
+.start__loadingfill {
   height: 100%;
   background: var(--gradient-gold);
   transition: width var(--duration-fast);
