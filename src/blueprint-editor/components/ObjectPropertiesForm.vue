@@ -2,28 +2,27 @@
 import { ref, watch, computed } from "vue";
 import { useAssetsStore } from "../blueprintStore";
 import { useToast } from "@/composables/useToast";
+import { useConfirm } from "@/composables/useConfirm";
 import { useAsyncAction } from "../composables/useAsyncAction";
 import { useFieldError } from "../composables/useFieldError";
 import { useClipboardCopy } from "../composables/useClipboardCopy";
-import type { ObjectData, AssetDef, InteractSpot } from "../types";
-import { resolveObjectDef } from "../types";
+import type { ObjectData, AssetDef } from "../types";
 
 const props = defineProps<{ object: ObjectData }>();
 const store = useAssetsStore();
 const { pending, run } = useAsyncAction();
+const { confirm } = useConfirm();
 const { errorFields, flashError } = useFieldError();
 const { copyId } = useClipboardCopy();
 
 const fields = ref({ x: 0, y: 0 });
 
-const anchors = ref<InteractSpot[]>([]);
 const assetDef = computed<AssetDef | undefined>(() => store.assetMap().get(props.object.type));
 
 watch(
   () => props.object,
   (obj) => {
     errorFields.value = {};
-    anchors.value = resolveObjectDef(obj.rotation, assetDef.value).interactSpots?.map((p) => ({ ...p })) ?? [];
     fields.value = { x: obj.x, y: obj.y };
   },
   { immediate: true },
@@ -43,6 +42,14 @@ async function rotate() {
 }
 
 async function remove() {
+  const confirmed = await confirm({
+    title: "Delete object",
+    message: `Delete object "${props.object.id}"? This cannot be undone via UI (only Ctrl+Z).`,
+    confirmLabel: "Delete",
+    cancelLabel: "Cancel",
+    danger: true,
+  });
+  if (!confirmed) return;
   await store.deleteSelected();
 }
 
@@ -65,7 +72,7 @@ async function onSave() {
         <label>ID</label>
         <div class="properties__idrow">
           <input type="text" :value="object.id" disabled class="input input--readonly" title="Object ID" />
-          <button class="btn--sm" @click="copyId(object.id)">Copy</button>
+          <button @click="copyId(object.id)">Copy</button>
         </div>
       </div>
       <div class="properties__row">
@@ -80,7 +87,7 @@ async function onSave() {
         <label>Rotation</label>
         <div class="properties__row-inline">
           <span class="properties__value">{{ object.rotation }}°</span>
-          <button class="btn--sm" @click="rotate" title="Rotate 90° (R)">↻ Rotate</button>
+          <button @click="rotate" title="Rotate 90° (R)">↻ Rotate</button>
         </div>
       </div>
     </div>
@@ -108,7 +115,7 @@ async function onSave() {
         <span class="properties__value">{{ assetDef?.defaultLabelColor ?? "—" }}</span>
       </div>
       <div class="properties__row">
-        <label>Walkable</label>
+        <label>Walkthrough</label>
         <span class="properties__value">{{ assetDef?.walkable ?? true }}</span>
       </div>
       <div class="properties__row">
@@ -116,16 +123,6 @@ async function onSave() {
         <span class="properties__value">{{ assetDef?.entranceRequired ?? false }}</span>
       </div>
       <div class="properties__hint">Edit these in the Asset Properties panel.</div>
-    </div>
-
-    <div class="properties__section">
-      <div class="properties__title">NPC Interact Spots</div>
-      <div v-if="anchors.length === 0" class="properties__hint">No interact spots defined on origin asset.</div>
-      <div v-for="(anchor, i) in anchors" :key="'interact-spot_' + i" class="properties__row">
-        <label>A{{ i + 1 }}</label>
-        <span class="properties__value">{{ anchor.x }}, {{ anchor.y }}</span>
-      </div>
-      <div class="properties__hint">Edit interact spots visually in the Walkable Grid panel (Asset Properties → Manage Walkable Grid, Interact Spot brush).</div>
     </div>
 
     <div class="properties__btngroup">

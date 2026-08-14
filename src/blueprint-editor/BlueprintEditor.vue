@@ -9,7 +9,6 @@ import ConfirmDialog from "@/components/overlays/ConfirmDialog.vue";
 import { useAssetsStore } from "./blueprintStore";
 import { useNpcSimulation } from "./composables/useNpcSimulation";
 import { reloadEditorData } from "./store/state";
-import { hydrateCustomTags } from "./store/tags";
 
 const emit = defineEmits<{ close: [] }>();
 
@@ -22,7 +21,6 @@ const ready = ref(false);
 
 onMounted(async () => {
   await reloadEditorData();
-  hydrateCustomTags();
   ready.value = true;
 });
 
@@ -34,6 +32,7 @@ const npcSimulation = useNpcSimulation(
   () => store.state.layout.floors,
   (id: string) => store.assetMap().get(id)?.tags,
   (id: string) => store.assetMap().get(id),
+  () => store.globalTags.value,
 );
 
 provide("npcSimulation", npcSimulation);
@@ -78,6 +77,5 @@ provide("npcSimulation", npcSimulation);
 .editor__app-main {
   flex: 1;
   display: flex;
-  min-height: 0;
 }
 </style>

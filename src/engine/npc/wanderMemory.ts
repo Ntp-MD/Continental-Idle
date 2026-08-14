@@ -6,12 +6,14 @@ const DEFAULT_SMALL_MAP_THRESHOLD = 8
 export class WanderMemory {
 	private readonly maxMemory: number
 	private readonly smallMapThreshold: number
+	private readonly random: () => number
 	private readonly recentTiles = new Map<string, number>()
 	private readonly order: string[] = []
 
-	constructor(maxMemory = DEFAULT_MAX_MEMORY, smallMapThreshold = DEFAULT_SMALL_MAP_THRESHOLD) {
+	constructor(maxMemory = DEFAULT_MAX_MEMORY, smallMapThreshold = DEFAULT_SMALL_MAP_THRESHOLD, random: () => number = () => 0) {
 		this.maxMemory = maxMemory
 		this.smallMapThreshold = smallMapThreshold
+		this.random = random
 	}
 
 	recordVisit(point: NpcEnginePoint, tick: number): void {
@@ -29,16 +31,15 @@ export class WanderMemory {
 	selectWanderTile(
 		candidates: readonly NpcEnginePoint[],
 		agent: NpcEngineAgent,
+		avoid: readonly NpcEnginePoint[] = [],
 	): NpcEnginePoint | null {
 		if (candidates.length === 0) return null
-		if (candidates.length <= this.smallMapThreshold) {
-			return this.pickLeastRecent(candidates)
-		}
-		const unvisited = candidates.filter(c => !this.recentTiles.has(`${Math.floor(c.x)},${Math.floor(c.y)}`))
-		if (unvisited.length > 0) {
-			return this.pickClosest(unvisited, agent)
-		}
-		return this.pickLeastRecent(candidates)
+		const separated = candidates.filter(candidate => avoid.every(point => Math.hypot(candidate.x - point.x, candidate.y - point.y) > 1.25))
+		const pool = separated.length > 0 ? separated : candidates
+		if (pool.length <= this.smallMapThreshold) return this.pickLeastRecent(pool)
+		const unvisited = pool.filter(c => !this.recentTiles.has(`${Math.floor(c.x)},${Math.floor(c.y)}`))
+		if (unvisited.length > 0) return this.pickControlled(unvisited, agent)
+		return this.pickLeastRecent(pool)
 	}
 
 	private pickLeastRecent(candidates: readonly NpcEnginePoint[]): NpcEnginePoint | null {
@@ -57,20 +58,14 @@ export class WanderMemory {
 		return best
 	}
 
-	private pickClosest(candidates: readonly NpcEnginePoint[], agent: NpcEngineAgent): NpcEnginePoint | null {
-		let best: NpcEnginePoint | null = null
-		let bestDist = Infinity
-		let bestKey = ''
-		for (const c of candidates) {
-			const dist = Math.hypot(c.x - agent.x, c.y - agent.y)
-			const key = `${Math.floor(c.x)},${Math.floor(c.y)}`
-			if (dist < bestDist || (dist === bestDist && key < bestKey)) {
-				best = c
-				bestDist = dist
-				bestKey = key
-			}
-		}
-		return best
+	private pickControlled(candidates: readonly NpcEnginePoint[], agent: NpcEngineAgent): NpcEnginePoint | null {
+		const ranked = candidates.slice().sort((a, b) => {
+			const distance = Math.hypot(a.x - agent.x, a.y - agent.y) - Math.hypot(b.x - agent.x, b.y - agent.y)
+			if (distance !== 0) return distance
+			return `${Math.floor(a.x)},${Math.floor(a.y)}`.localeCompare(`${Math.floor(b.x)},${Math.floor(b.y)}`)
+		})
+		const shortlist = ranked.slice(0, Math.min(8, ranked.length))
+		return shortlist[Math.min(shortlist.length - 1, Math.floor(Math.max(0, Math.min(0.999999, this.random())) * shortlist.length))] ?? null
 	}
 
 	clear(): void {

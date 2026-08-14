@@ -12,6 +12,7 @@ export interface TargetScoringContext {
 	targetLastSelectedTick?: ReadonlyMap<string, number>
 	currentTick: number
 	options?: TargetScoringOptions
+	random?: () => number
 }
 
 function targetIdentity(target: NpcEngineInteractionTarget): string {
@@ -51,16 +52,28 @@ export function selectBestTarget(ctx: TargetScoringContext): NpcEngineInteractio
 	let best: NpcEngineInteractionTarget | null = null
 	let bestScore = -Infinity
 	let bestId = ''
+	let ties: NpcEngineInteractionTarget[] = []
 
 	for (const target of ctx.targets) {
 		const score = scoreTarget(target, ctx)
 		const id = targetIdentity(target)
-		if (score > bestScore || (score === bestScore && id < bestId)) {
+		if (score > bestScore) {
 			best = target
 			bestScore = score
 			bestId = id
+			ties = [target]
+		} else if (score === bestScore) {
+			ties.push(target)
+			if (id < bestId) {
+				best = target
+				bestId = id
+			}
 		}
 	}
 
+	if (ties.length > 1) {
+		const random = Math.max(0, Math.min(0.999999, ctx.random?.() ?? 0))
+		return ties[Math.floor(random * ties.length)] ?? best
+	}
 	return best
 }

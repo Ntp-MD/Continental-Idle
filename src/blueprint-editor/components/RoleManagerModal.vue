@@ -5,11 +5,13 @@ import { useNpcSimulation } from "../composables/useNpcSimulation";
 import { useToast } from "@/composables/useToast";
 import { useConfirm } from "@/composables/useConfirm";
 import { sanitizeString } from "../../utils/sanitize";
-import { isHexColor } from "../store/state";
+import { isHexColor } from "../types";
 import { managedTagSet } from "../store/tags";
 import { genId } from "../store/utils";
 import type { NpcSimulationConfig, NpcRole } from "../types";
 import ModalShell from "./ModalShell.vue";
+import ColorInput from "./ColorInput.vue";
+import TagChip from "./TagChip.vue";
 
 const props = defineProps<{ open: boolean }>();
 const emit = defineEmits<{ (e: "close"): void }>();
@@ -46,10 +48,8 @@ function normalizeDraft(): NpcSimulationConfig {
     focusChance: Math.max(0, Math.min(100, Math.floor(role.focusChance ?? 100))),
     spawnRule: role.spawnRule
       ? {
-          floorLabels: Array.from(new Set((role.spawnRule.floorLabels ?? []).map((s) => s.trim()).filter(Boolean))),
           targetTags: Array.from(new Set((role.spawnRule.targetTags ?? []).map((s) => s.trim()).filter(Boolean))),
           count: Math.max(0, Math.floor(role.spawnRule.count ?? 0)),
-          speedMultiplier: role.spawnRule.speedMultiplier ?? 1,
         }
       : undefined,
   }));
@@ -109,10 +109,8 @@ function resetDraft() {
     role.taskIds = role.taskIds ?? [];
     role.focusChance = role.focusChance ?? 100;
     if (role.spawnRule) {
-      role.spawnRule.floorLabels = role.spawnRule.floorLabels ?? [];
       role.spawnRule.targetTags = role.spawnRule.targetTags ?? [];
       role.spawnRule.count = role.spawnRule.count ?? 0;
-      role.spawnRule.speedMultiplier = role.spawnRule.speedMultiplier ?? 1;
     }
   }
   selectedRoleId.value = draft.value.roles[0]?.id ?? "";
@@ -131,6 +129,12 @@ watch(draft, scheduleDraftPersist, { deep: true });
 
 const selectedRole = computed<NpcRole | undefined>(() => draft.value.roles.find((r) => r.id === selectedRoleId.value));
 
+async function commitRoleColor(value: string | undefined) {
+  if (!selectedRole.value) return;
+  selectedRole.value.color = value ?? "#cccccc";
+  await persistDraftToDisk();
+}
+
 function randomColor(): string {
   const letters = "89ABCDEF";
   let color = "#";
@@ -148,7 +152,7 @@ function onAddRole() {
     restrictedTags: [],
     taskIds: [],
     focusChance: 100,
-    spawnRule: { floorLabels: [], targetTags: [], count: 0, speedMultiplier: 1 },
+    spawnRule: { targetTags: [], count: 0 },
   });
   if (!draft.value.defaultRoleId) draft.value.defaultRoleId = id;
   selectedRoleId.value = id;
@@ -295,15 +299,12 @@ onUnmounted(() => {
               </div>
               <div class="layout__row">
                 <label class="rolemodal__label" :for="'role__color__' + selectedRole.id">Color</label>
-                <input :id="'role__color__' + selectedRole.id" v-model="selectedRole.color" type="text" class="input" placeholder="#RRGGBB" aria-label="Role color hex value" />
+                <ColorInput :model-value="selectedRole.color" @commit="commitRoleColor" placeholder="#RRGGBB" aria-label="Role color" />
               </div>
 
               <div class="rolemodal__targets">Focus Tags</div>
               <div class="rolemodal__taglist">
-                <div v-for="tag in selectedRole.focusTags" :key="'ft_' + tag" class="tag tag__focus" :class="{ 'tag--orphaned': !managedTagSet.has(tag) }">
-                  <span>{{ tag }}</span>
-                  <button class="tag__remove" @click="onRemoveFocusTag(tag)" aria-label="Remove focus tag">×</button>
-                </div>
+                <TagChip v-for="tag in selectedRole.focusTags" :key="'ft_' + tag" :label="tag" variant="focus" removable :class="{ 'tag--orphaned': !managedTagSet.has(tag) }" @remove="onRemoveFocusTag(tag)" />
                 <div v-if="!selectedRole.focusTags.length" class="rolemodal__empty">No focus tags — NPC wanders</div>
               </div>
               <div class="layout__row">
@@ -317,10 +318,7 @@ onUnmounted(() => {
 
               <div class="rolemodal__targets">Restricted Tags</div>
               <div class="rolemodal__taglist">
-                <div v-for="tag in selectedRole.restrictedTags" :key="'rt_' + tag" class="tag tag__restricted" :class="{ 'tag--orphaned': !managedTagSet.has(tag) }">
-                  <span>{{ tag }}</span>
-                  <button class="tag__remove" @click="onRemoveRestrictedTag(tag)" aria-label="Remove restriction">×</button>
-                </div>
+                <TagChip v-for="tag in selectedRole.restrictedTags" :key="'rt_' + tag" :label="tag" variant="restricted" removable :class="{ 'tag--orphaned': !managedTagSet.has(tag) }" @remove="onRemoveRestrictedTag(tag)" />
                 <div v-if="!selectedRole.restrictedTags.length" class="rolemodal__empty">No restrictions</div>
               </div>
               <div class="layout__row">
@@ -411,7 +409,6 @@ onUnmounted(() => {
 
 .rolemodal__body {
   flex: 1;
-  min-height: 0;
   padding: var(--gap-md);
   overflow: hidden;
 }
@@ -421,14 +418,12 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   gap: var(--gap-md);
-  min-height: 0;
 }
 
 .rolemodal__split {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: var(--gap-md);
-  min-height: 0;
 }
 
 .rolemodal__pane {
@@ -436,7 +431,6 @@ onUnmounted(() => {
   flex-direction: column;
   gap: var(--gap-sm);
   min-width: 0;
-  min-height: 0;
   overflow: hidden;
 }
 
@@ -454,7 +448,6 @@ onUnmounted(() => {
   flex-direction: column;
   gap: var(--gap-xs);
   flex: 1;
-  min-height: 0;
   overflow-y: auto;
 }
 
@@ -514,7 +507,6 @@ onUnmounted(() => {
   flex-direction: column;
   gap: var(--gap-sm);
   flex: 1;
-  min-height: 0;
   overflow-y: auto;
 }
 
@@ -584,41 +576,5 @@ onUnmounted(() => {
 .layout__row .input {
   flex: 1;
   min-width: 0;
-}
-
-.tag__remove {
-  background: transparent;
-  border: none;
-  color: var(--text-secondary);
-  cursor: pointer;
-  padding: 0 var(--gap-xs);
-  font-size: var(--font-sm);
-  line-height: 1;
-}
-
-.tag__remove:hover {
-  color: var(--accent-red);
-  background: transparent;
-  border: none;
-  box-shadow: none;
-  transform: none;
-}
-
-.tag__restricted {
-  background: color-mix(in srgb, var(--accent-red) 15%, transparent);
-  border-color: var(--accent-red);
-  color: var(--accent-red);
-}
-
-.tag__focus {
-  background: color-mix(in srgb, var(--accent-blue) 15%, transparent);
-  border-color: var(--accent-blue);
-  color: var(--accent-blue);
-}
-
-.tag--orphaned {
-  border-color: var(--accent-gold) !important;
-  color: var(--accent-gold) !important;
-  background: color-mix(in srgb, var(--accent-gold) 10%, transparent) !important;
 }
 </style>

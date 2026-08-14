@@ -93,7 +93,6 @@ onUnmounted(() => {
   display: grid;
   grid-template-columns: 20fr 80fr;
   gap: var(--gap-md);
-  min-height: 0;
   overflow: hidden;
 }
 
@@ -101,7 +100,6 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   gap: var(--gap-md);
-  min-height: 0;
   overflow: hidden;
 }
 
@@ -109,7 +107,6 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   gap: var(--gap-md);
-  min-height: 0;
   overflow: hidden;
 }
 
@@ -150,7 +147,6 @@ onUnmounted(() => {
   border-radius: var(--radius-md);
   padding: var(--gap-md);
   flex: 1;
-  min-height: 0;
   overflow-y: auto;
 }
 

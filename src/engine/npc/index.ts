@@ -14,6 +14,7 @@ export type {
 	NpcEngineInteractionTarget,
 	NpcEngineLayout,
 	NpcEngineOptions,
+	NpcEngineQueue,
 	NpcEnginePathfinder,
 	NpcEnginePoint,
 } from './types'

@@ -1,5 +1,6 @@
-import type { AssetDef, ObjectData, Rotation, Rect } from './types'
+import type { AssetDef, ObjectData, ObjectPlacement, ResolvedObject, Rotation, Rect } from './types'
 import { findAsset, findAssetCached } from './assetUtils'
+import { resolveObjectDef } from './types'
 
 export function assetSizeFor(
 	type: string,
@@ -22,31 +23,64 @@ export function normalizeObject(
 	tileSize: number,
 	assetLookup: AssetDef[] | Map<string, AssetDef>,
 ): void {
-	const sz = assetSizeFor(o.type, o.rotation, tileSize, assetLookup)
-	if (sz) {
-		o.w = sz.w
-		o.h = sz.h
-	}
 	o.x = Math.round(o.x / tileSize) * tileSize
 	o.y = Math.round(o.y / tileSize) * tileSize
-
 	const asset = Array.isArray(assetLookup)
 		? findAsset(assetLookup, o.type)
 		: findAssetCached(assetLookup, o.type)
-	if (asset) {
-		o.label = asset.defaultLabel
-		o.radius = asset.defaultRadius
-		o.labelPadding = asset.defaultLabelPadding
+	const resolved = resolvePlacedObject({
+		id: o.id,
+		type: o.type,
+		x: o.x,
+		y: o.y,
+		rotation: o.rotation,
+		subId: o.subId,
+		linkGroupId: o.linkGroupId,
+		locked: o.locked,
+		instanceLabel: o.instanceLabel,
+	}, asset, tileSize)
+	if (!resolved) return
+	o.w = resolved.w
+	o.h = resolved.h
+	o.radius = resolved.radius
+	o.labelPadding = resolved.labelPadding
+	o.instanceLabel = resolved.instanceLabel
+	o.locked = resolved.locked
+	o.padding = resolved.padding
+	o.rx = resolved.rx
+	o.fillColor = resolved.fillColor
+	o.isWall = resolved.isWall
+}
 
-
-		if (o.customProps === undefined) o.customProps = asset.defaultCustomProps ? JSON.parse(JSON.stringify(asset.defaultCustomProps)) : undefined
-		if (o.instanceLabel === undefined) o.instanceLabel = asset.defaultInstanceLabel
-		if (o.locked === undefined) o.locked = asset.defaultLocked
-		o.validationRule = asset.defaultValidationRule ? JSON.parse(JSON.stringify(asset.defaultValidationRule)) : undefined
-		o.padding = asset.defaultPadding
-		o.rx = asset.defaultRx ? { ...asset.defaultRx } : undefined
-		o.fillColor = asset.defaultBgColor
-		o.isWall = asset.isWall
+export function resolvePlacedObject(
+	placement: ObjectPlacement,
+	asset: AssetDef | undefined,
+	tileSize: number,
+): ResolvedObject | undefined {
+	if (!asset) return undefined
+	const size = assetSizeFor(placement.type, placement.rotation, tileSize, [asset])
+	if (!size) return undefined
+	const definition = resolveObjectDef(placement.rotation, asset, size)
+	return {
+		...placement,
+		w: size.w,
+		h: size.h,
+		label: asset.defaultLabel,
+		radius: asset.defaultRadius,
+		labelPadding: asset.defaultLabelPadding,
+		padding: asset.defaultPadding,
+		rx: asset.defaultRx ? { ...asset.defaultRx } : undefined,
+		fillColor: asset.defaultBgColor,
+		isWall: asset.isWall,
+		locked: placement.locked ?? asset.defaultLocked,
+		instanceLabel: placement.instanceLabel ?? asset.defaultInstanceLabel,
+		walkable: definition.walkable,
+		entranceRequired: definition.entranceRequired,
+		walkableGrid: definition.walkableGrid,
+		tileStates: definition.tileStates,
+		tileEdges: definition.tileEdges,
+		interactSpots: definition.interactSpots,
+		interact: definition.interact,
 	}
 }
 

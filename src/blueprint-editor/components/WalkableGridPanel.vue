@@ -26,15 +26,17 @@ const entranceBrush = ref<"door" | "border">("door");
 const isDraggingGrid = ref(false);
 const gridDirty = ref(false);
 const savedGridKey = ref("");
-const savedAnchorKey = ref("");
+const savedInteractSpotsKey = ref("");
 const savedInteractKey = ref("");
 const previousGridAssetId = ref<string | null>(null);
 const isRestoring = ref(false);
 
-const gridAnchors = ref<InteractSpot[]>([]);
+const gridInteractSpots = ref<InteractSpot[]>([]);
 const interactCapacity = ref(0);
 const interactDurationMin = ref(1);
 const interactDurationMax = ref(3);
+const walkthrough = ref(false);
+let syncingWalkthrough = false;
 
 const gridCols = computed(() => gridTiles.value[0]?.length ?? 0);
 
@@ -44,8 +46,8 @@ function gridKey(): string {
   return gridTiles.value.map((row) => row.join(",")).join("|") + "#" + JSON.stringify(gridEdges.value);
 }
 
-function anchorKey(): string {
-  return JSON.stringify(gridAnchors.value);
+function interactSpotsKey(): string {
+  return JSON.stringify(gridInteractSpots.value);
 }
 
 function interactKey(): string {
@@ -53,7 +55,7 @@ function interactKey(): string {
 }
 
 function checkGridDirty() {
-  gridDirty.value = gridKey() !== savedGridKey.value || anchorKey() !== savedAnchorKey.value || interactKey() !== savedInteractKey.value;
+  gridDirty.value = gridKey() !== savedGridKey.value || interactSpotsKey() !== savedInteractSpotsKey.value || interactKey() !== savedInteractKey.value;
   if (gridDirty.value) scheduleAutoSave();
 }
 
@@ -76,7 +78,7 @@ function flushAutoSave() {
 }
 
 const GRID_GAP = 1;
-const DISPLAY_TILE_SIZE = 40;
+const DISPLAY_TILE_SIZE = 30;
 const tilePx = computed(() => DISPLAY_TILE_SIZE);
 const tilePreviewW = computed(() => gridCols.value * tilePx.value + (gridCols.value - 1) * GRID_GAP);
 const tilePreviewH = computed(() => gridTiles.value.length * tilePx.value + (gridTiles.value.length - 1) * GRID_GAP);
@@ -116,6 +118,16 @@ watch([showWalkableGridPanel, () => gridAsset.value?.id], ([visible]) => {
 watch(showWalkableGridPanel, (visible) => {
   if (!visible) flushAutoSave();
 });
+
+watch(walkthrough, async (v) => {
+  if (syncingWalkthrough || !gridAsset.value) return;
+  try {
+    await store.updateAsset(gridAsset.value.id, { walkable: v });
+  } catch {
+    walkthrough.value = !v;
+  }
+});
+
 onMounted(renderPreview);
 
 const assetSignature = computed(() => ({
@@ -155,22 +167,27 @@ watch(
 
     if (gridAsset.value) {
       initGridTiles(gridAsset.value);
-      gridAnchors.value = gridAsset.value.interactSpots ? gridAsset.value.interactSpots.map((p) => ({ ...p })) : [];
-      const resolved = resolveInteractForTarget(gridAsset.value.interact, gridAnchors.value.length);
+      gridInteractSpots.value = gridAsset.value.interactSpots ? gridAsset.value.interactSpots.map((p) => ({ ...p })) : [];
+      const resolved = resolveInteractForTarget(gridAsset.value.interact, gridInteractSpots.value.length);
       interactCapacity.value = resolved.capacity;
       interactDurationMin.value = resolved.durationMinSeconds;
       interactDurationMax.value = resolved.durationMaxSeconds;
+      syncingWalkthrough = true;
+      walkthrough.value = gridAsset.value.walkable ?? false;
+      nextTick(() => {
+        syncingWalkthrough = false;
+      });
       savedGridKey.value = gridKey();
-      savedAnchorKey.value = anchorKey();
+      savedInteractSpotsKey.value = interactSpotsKey();
       savedInteractKey.value = interactKey();
       gridDirty.value = false;
       previousGridAssetId.value = gridAsset.value.id;
     } else {
       gridTiles.value = [];
       gridEdges.value = [];
-      gridAnchors.value = [];
+      gridInteractSpots.value = [];
       savedGridKey.value = "";
-      savedAnchorKey.value = "";
+      savedInteractSpotsKey.value = "";
       savedInteractKey.value = "";
       gridDirty.value = false;
       previousGridAssetId.value = null;
@@ -213,42 +230,42 @@ function initGridTiles(a: AssetDef) {
   }
 }
 
-function removeAnchorsOnTile(r: number, c: number) {
+function removeInteractSpotsOnTile(r: number, c: number) {
   const t = canvasTileSize.value;
-  gridAnchors.value = gridAnchors.value.filter((anchor) => Math.floor(anchor.x / t) !== c || Math.floor(anchor.y / t) !== r);
+  gridInteractSpots.value = gridInteractSpots.value.filter((interactSpot) => Math.floor(interactSpot.x / t) !== c || Math.floor(interactSpot.y / t) !== r);
 }
 
-function removeAnchorsOnBlockedTiles() {
+function removeInteractSpotsOnBlockedTiles() {
   const t = canvasTileSize.value;
-  gridAnchors.value = gridAnchors.value.filter((anchor) => gridTiles.value[Math.floor(anchor.y / t)]?.[Math.floor(anchor.x / t)] !== "blocked");
+  gridInteractSpots.value = gridInteractSpots.value.filter((interactSpot) => gridTiles.value[Math.floor(interactSpot.y / t)]?.[Math.floor(interactSpot.x / t)] !== "blocked");
 }
 
 function paintTile(r: number, c: number, brush: TileState) {
   if (!gridTiles.value[r]) return;
   gridTiles.value[r][c] = brush;
-  if (brush === "blocked") removeAnchorsOnTile(r, c);
+  if (brush === "blocked") removeInteractSpotsOnTile(r, c);
   checkGridDirty();
 }
 
-function computeAnchorPx(r: number, c: number): [number, number] {
+function computeInteractSpotPx(r: number, c: number): [number, number] {
   const t = canvasTileSize.value;
   const x = (c + 0.5) * t;
   const y = (r + 0.5) * t;
   return [Math.round(x), Math.round(y)];
 }
 
-function anchorIndexAtPx(x: number, y: number): number {
-  return gridAnchors.value.findIndex((anchor) => anchor.x === x && anchor.y === y);
+function interactSpotIndexAtPx(x: number, y: number): number {
+  return gridInteractSpots.value.findIndex((interactSpot) => interactSpot.x === x && interactSpot.y === y);
 }
 
-function anchorsInTile(r: number, c: number): { x: number; y: number; i: number }[] {
+function interactSpotsInTile(r: number, c: number): { x: number; y: number; i: number }[] {
   const t = canvasTileSize.value;
   const scale = tilePx.value / t;
   const rows = gridTiles.value.length;
   const cols = gridCols.value;
   const found: { x: number; y: number; i: number }[] = [];
-  for (let i = 0; i < gridAnchors.value.length; i++) {
-    const { x: ax, y: ay } = gridAnchors.value[i];
+  for (let i = 0; i < gridInteractSpots.value.length; i++) {
+    const { x: ax, y: ay } = gridInteractSpots.value[i];
     let ac = Math.floor(ax / t);
     let ar = Math.floor(ay / t);
     if (ac >= cols) ac = cols - 1;
@@ -260,20 +277,34 @@ function anchorsInTile(r: number, c: number): { x: number; y: number; i: number 
   return found;
 }
 
-function toggleAnchorAt(r: number, c: number) {
+function toggleInteractSpotAt(r: number, c: number) {
   if (gridTiles.value[r]?.[c] !== "walkable") {
-    useToast().warning("Anchors can only be placed on walkable tiles");
+    useToast().warning("Interactspots can only be placed on walkable tiles");
     return;
   }
-  const [x, y] = computeAnchorPx(r, c);
-  const idx = anchorIndexAtPx(x, y);
-  if (idx >= 0) gridAnchors.value.splice(idx, 1);
-  else gridAnchors.value.push({ x, y });
+  const [x, y] = computeInteractSpotPx(r, c);
+  const idx = interactSpotIndexAtPx(x, y);
+  if (idx >= 0) gridInteractSpots.value.splice(idx, 1);
+  else gridInteractSpots.value.push({ x, y });
   checkGridDirty();
 }
 
-function clearAllAnchors() {
-  gridAnchors.value = [];
+function clearAllInteractSpots() {
+  gridInteractSpots.value = [];
+  checkGridDirty();
+}
+
+function fillAllInteractSpots() {
+  const spots: InteractSpot[] = [];
+  for (let r = 0; r < gridTiles.value.length; r++) {
+    for (let c = 0; c < gridTiles.value[r].length; c++) {
+      if (gridTiles.value[r][c] === "walkable") {
+        const [x, y] = computeInteractSpotPx(r, c);
+        if (interactSpotIndexAtPx(x, y) < 0) spots.push({ x, y });
+      }
+    }
+  }
+  gridInteractSpots.value = spots;
   checkGridDirty();
 }
 
@@ -324,8 +355,8 @@ function onEntranceTileDown(r: number, c: number, e: MouseEvent) {
   checkGridDirty();
 }
 
-function onAnchorTileDown(r: number, c: number) {
-  toggleAnchorAt(r, c);
+function onInteractSpotTileDown(r: number, c: number) {
+  toggleInteractSpotAt(r, c);
 }
 
 function onDragEnd() {
@@ -336,7 +367,7 @@ function fillAllTiles(state: TileState) {
   for (const row of gridTiles.value) {
     for (let i = 0; i < row.length; i++) row[i] = state;
   }
-  if (state === "blocked") removeAnchorsOnBlockedTiles();
+  if (state === "blocked") removeInteractSpotsOnBlockedTiles();
   checkGridDirty();
 }
 
@@ -430,19 +461,19 @@ function entranceTileIcon(state: TileState): string {
   return state === "entrance" ? "→" : "";
 }
 
-function anchorTileBg(state: TileState): string {
+function interactSpotTileBg(state: TileState): string {
   if (state === "blocked") return "color-mix(in srgb, var(--accent-red) 10%, transparent)";
   return "color-mix(in srgb, var(--accent-green) 8%, transparent)";
 }
-function anchorTileBorder(state: TileState): string {
+function interactSpotTileBorder(state: TileState): string {
   if (state === "blocked") return "1px solid var(--accent-red)";
   return "1px solid var(--border-dim)";
 }
-function anchorTileIcon(_state: TileState): string {
+function interactSpotTileIcon(_state: TileState): string {
   return "";
 }
 
-type GridOverlay = "none" | "edges" | "anchors";
+type GridOverlay = "none" | "edges" | "interactspots";
 
 interface GridConfig {
   key: string;
@@ -458,10 +489,12 @@ interface GridConfig {
   showColFill: boolean;
 }
 
+type GridTab = "walk" | "entrance" | "interactspots";
+
 const gridConfigs = computed<GridConfig[]>(() => [
   {
     key: "walk",
-    label: "Walk / Block",
+    label: "Wall / Block",
     tools: [
       { label: "✓ Walk", active: walkBrush.value === "walkable", onClick: () => (walkBrush.value = "walkable") },
       { label: "✕ Block", active: walkBrush.value === "blocked", onClick: () => (walkBrush.value = "blocked") },
@@ -498,18 +531,24 @@ const gridConfigs = computed<GridConfig[]>(() => [
     showColFill: false,
   },
   {
-    key: "anchor",
-    label: `Anchor · ${gridAnchors.value.length} anchor(s)`,
+    key: "interactspots",
+    label: `Interactspots · ${gridInteractSpots.value.length}`,
     tools: [],
-    tileBg: anchorTileBg,
-    tileBorder: anchorTileBorder,
-    tileIcon: anchorTileIcon,
-    onTileDown: (r, c) => onAnchorTileDown(r, c),
-    actions: [{ label: "Clear", onClick: clearAllAnchors, disabled: gridAnchors.value.length === 0 }],
-    overlay: "anchors",
+    tileBg: interactSpotTileBg,
+    tileBorder: interactSpotTileBorder,
+    tileIcon: interactSpotTileIcon,
+    onTileDown: (r, c) => onInteractSpotTileDown(r, c),
+    actions: [
+      { label: "Interact All", onClick: fillAllInteractSpots },
+      { label: "Clear", onClick: clearAllInteractSpots, disabled: gridInteractSpots.value.length === 0 },
+    ],
+    overlay: "interactspots",
     showColFill: false,
   },
 ]);
+
+const activeGridTab = ref<GridTab>("walk");
+const activeGridConfig = computed(() => gridConfigs.value.find((config) => config.key === activeGridTab.value) ?? gridConfigs.value[0]);
 
 async function saveGrid() {
   const a = gridAsset.value;
@@ -517,7 +556,7 @@ async function saveGrid() {
   const states = gridTiles.value.map((row) => [...row]);
   const grid = states.map((row) => row.map((t) => t === "walkable" || t === "entrance"));
   const edges = gridEdges.value.map((row) => row.map((e) => (e ? { ...e } : e)));
-  const interactSpots = gridAnchors.value.map((p) => ({ ...p }));
+  const interactSpots = gridInteractSpots.value.map((p) => ({ ...p }));
   const interact = normalizeInteractConfig({
     capacity: interactCapacity.value,
     durationMin: interactDurationMin.value,
@@ -525,7 +564,7 @@ async function saveGrid() {
   });
   await store.updateAsset(a.id, { walkableGrid: grid, tileStates: states, tileEdges: edges, interactSpots, interact });
   savedGridKey.value = gridKey();
-  savedAnchorKey.value = anchorKey();
+  savedInteractSpotsKey.value = interactSpotsKey();
   savedInteractKey.value = interactKey();
   gridDirty.value = false;
   useToast().success("Walkable grid saved");
@@ -567,71 +606,97 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div v-if="gridAsset && showWalkableGridPanel" class="walkablegrid__panel" :style="{ left: `${pos.x}px`, top: `${pos.y}px` }" @mousedown.stop @wheel.stop>
-    <div class="walkablegrid__header-button" @mousedown="onHeaderMouseDown">
-      <span>Walkable Grid — {{ gridAsset.name }}</span>
-      <span class="walkablegrid__dim-label">{{ gridCols }}×{{ gridTiles.length }}</span>
-      <div class="walkablegrid__interact" @mousedown.stop>
-        <label>Cap <input v-model.number="interactCapacity" type="number" min="0" :placeholder="String(gridAnchors.length)" @input="checkGridDirty" /></label>
-        <label>Min <input v-model.number="interactDurationMin" type="number" min="0" step="0.1" @input="checkGridDirty" /></label>
-        <label>Max <input v-model.number="interactDurationMax" type="number" min="0" step="0.1" @input="checkGridDirty" /></label>
-      </div>
-      <button class="walkablegrid__button" @click.stop="closeWalkableGridPanel" title="Close" aria-label="Close walkable grid editor">×</button>
-    </div>
-
-    <div class="walkablegrid__body-vstack" :style="{ '--tile-size': tilePx + 'px' }" @mouseup="onDragEnd" @mouseleave="onDragEnd">
-      <div class="walkablegrid__grid2x2">
-        <!-- Top-Left: Real Visual -->
-        <div class="walkablegrid__layer">
-          <div class="walkablegrid__layer-label">Real Visual</div>
-          <div class="walkablegrid__layer-grid walkablegrid__layer-visual">
-            <div class="walkablegrid__preview-centered card card--primary" :style="{ width: `${tilePreviewW}px`, height: `${tilePreviewH}px` }">
-              <svg v-if="hasSvgPreview" ref="previewSvgEl" :viewBox="svgPreviewViewBox" :width="svgPreviewW" :height="svgPreviewH" preserveAspectRatio="xMidYMid meet" class="walkablegrid__float"></svg>
-              <div v-else class="walkablegrid__float walkablegrid__preview-shape"></div>
-            </div>
+  <Teleport to="body">
+    <div v-if="gridAsset && showWalkableGridPanel" class="walkablegrid__overlay" @mousedown.self="closeWalkableGridPanel" @wheel.stop>
+      <div class="walkablegrid__panel" :style="{ left: `${pos.x}px`, top: `${pos.y}px` }" @mousedown.stop @wheel.stop>
+        <div class="walkablegrid__header-button" @mousedown="onHeaderMouseDown">
+          <span>Walkable Grid — {{ gridAsset.name }}</span>
+          <span class="walkablegrid__dim-label">{{ gridCols }}×{{ gridTiles.length }}</span>
+          <div class="walkablegrid__interact" @mousedown.stop>
+            <label>Cap <input v-model.number="interactCapacity" type="number" min="0" :placeholder="String(gridInteractSpots.length)" @input="checkGridDirty" /></label>
+            <label>Min <input v-model.number="interactDurationMin" type="number" min="0" step="0.1" @input="checkGridDirty" /></label>
+            <label>Max <input v-model.number="interactDurationMax" type="number" min="0" step="0.1" @input="checkGridDirty" /></label>
           </div>
+          <button class="walkablegrid__button" @click.stop="closeWalkableGridPanel" title="Close" aria-label="Close walkable grid editor">×</button>
         </div>
 
-        <!-- 3 Grid Layers: Walk, Entrance, Anchor -->
-        <div v-for="g in gridConfigs" :key="g.key" class="walkablegrid__layer">
-          <div class="walkablegrid__layer-label">
-            <span>{{ g.label }}</span>
-            <div v-if="g.tools.length" class="walkablegrid__layer-tools">
-              <button v-for="t in g.tools" :key="t.label" type="button" :class="{ 'btn--active': t.active }" @click="t.onClick">{{ t.label }}</button>
+        <div class="walkablegrid__body-vstack" :style="{ '--tile-size': tilePx + 'px' }" @mouseup="onDragEnd" @mouseleave="onDragEnd">
+          <div class="walkablegrid__grid-layout">
+            <!-- Top-Left: Real Visual -->
+            <div class="walkablegrid__layer">
+              <div class="walkablegrid__layer-label">Real Visual</div>
+              <div class="walkablegrid__layer-grid walkablegrid__layer-visual">
+                <div class="walkablegrid__preview-centered card card--primary" :style="{ width: `${tilePreviewW}px`, height: `${tilePreviewH}px` }">
+                  <svg v-if="hasSvgPreview" ref="previewSvgEl" :viewBox="svgPreviewViewBox" :width="svgPreviewW" :height="svgPreviewH" preserveAspectRatio="xMidYMid meet" class="walkablegrid__float"></svg>
+                  <div v-else class="walkablegrid__float walkablegrid__preview-shape"></div>
+                </div>
+              </div>
+            </div>
+
+            <div class="walkablegrid__editor">
+              <div class="walkablegrid__tabs" role="tablist" aria-label="Walkable grid layers">
+                <button v-for="g in gridConfigs" :key="g.key" type="button" class="walkablegrid__tab" :class="{ 'walkablegrid__tab--active': activeGridTab === g.key }" role="tab" :aria-selected="activeGridTab === g.key" @click="activeGridTab = g.key as GridTab">{{ g.label }}</button>
+              </div>
+              <div v-if="activeGridConfig" class="walkablegrid__layer">
+                <div class="walkablegrid__layer-label">
+                  <span>{{ activeGridConfig.label }}</span>
+                </div>
+                <div class="walkablegrid__layer-grid" :style="{ '--cols': gridCols }">
+                  <span v-for="c in gridCols" :key="'col' + c" class="walkablegrid__col-centered" :title="activeGridConfig.showColFill ? 'Fill column ' + c : undefined" @click="activeGridConfig.showColFill && fillGridCol(c - 1)">{{ c }}</span>
+                  <template v-for="(row, r) in gridTiles" :key="'row' + r">
+                    <span class="walkablegrid__row-centered" :title="activeGridConfig.showColFill ? 'Fill row ' + (r + 1) : undefined" @click="activeGridConfig.showColFill && fillGridRow(r)">{{ r + 1 }}</span>
+                    <button
+                      v-for="(state, c) in row"
+                      :key="'tile' + r + '-' + c"
+                      type="button"
+                      class="walkablegrid__tile"
+                      :style="{ background: activeGridConfig.tileBg(state), border: activeGridConfig.tileBorder(state) }"
+                      :aria-label="activeGridConfig.key + ' grid ' + state + ' tile, row ' + (r + 1) + ' column ' + (c + 1)"
+                      @mousedown.prevent="activeGridConfig.onTileDown(r, c, $event)"
+                      @mouseenter="activeGridConfig.onTileEnter?.(r, c)"
+                    >
+                      {{ activeGridConfig.tileIcon(state) }}<span v-if="activeGridConfig.overlay === 'edges' && gridEdges[r]?.[c]?.top" class="walkablegrid__tile-overlay walkablegrid__edge--top"></span><span v-if="activeGridConfig.overlay === 'edges' && gridEdges[r]?.[c]?.right" class="walkablegrid__tile-overlay walkablegrid__edge--right"></span
+                      ><span v-if="activeGridConfig.overlay === 'edges' && gridEdges[r]?.[c]?.bottom" class="walkablegrid__tile-overlay walkablegrid__edge--bottom"></span><span v-if="activeGridConfig.overlay === 'edges' && gridEdges[r]?.[c]?.left" class="walkablegrid__tile-overlay walkablegrid__edge--left"></span
+                      ><span v-for="a in activeGridConfig.overlay === 'interactspots' ? interactSpotsInTile(r, c) : []" :key="'interactspot_' + a.i" class="walkablegrid__tile-overlay walkablegrid__spot" :title="'NPC interactspot IS' + (a.i + 1) + ' (' + gridInteractSpots[a.i].x + ', ' + gridInteractSpots[a.i].y + ')'">◉</span>
+                    </button>
+                  </template>
+                </div>
+                <div class="walkablegrid__layer-actions">
+                  <button v-for="t in activeGridConfig.tools" :key="t.label" type="button" :class="{ 'btn--active': t.active }" @click="t.onClick">{{ t.label }}</button>
+                  <button v-for="a in activeGridConfig.actions" :key="a.label" :disabled="a.disabled" @click="a.onClick">{{ a.label }}</button>
+                </div>
+              </div>
             </div>
           </div>
-          <div class="walkablegrid__layer-grid" :style="{ '--cols': gridCols }">
-            <span v-for="c in gridCols" :key="'col' + c" class="walkablegrid__col-centered" :title="g.showColFill ? 'Fill column ' + c : undefined" @click="g.showColFill && fillGridCol(c - 1)">{{ c }}</span>
-            <template v-for="(row, r) in gridTiles" :key="'row' + r">
-              <span class="walkablegrid__row-centered" :title="g.showColFill ? 'Fill row ' + (r + 1) : undefined" @click="g.showColFill && fillGridRow(r)">{{ r + 1 }}</span>
-              <button v-for="(state, c) in row" :key="'tile' + r + '-' + c" type="button" class="walkablegrid__tile" :style="{ background: g.tileBg(state), border: g.tileBorder(state) }" :aria-label="g.key + ' grid ' + state + ' tile, row ' + (r + 1) + ' column ' + (c + 1)" @mousedown.prevent="g.onTileDown(r, c, $event)" @mouseenter="g.onTileEnter?.(r, c)">
-                {{ g.tileIcon(state) }}<span v-if="g.overlay === 'edges' && gridEdges[r]?.[c]?.top" class="walkablegrid__tile-overlay walkablegrid__edge--top"></span><span v-if="g.overlay === 'edges' && gridEdges[r]?.[c]?.right" class="walkablegrid__tile-overlay walkablegrid__edge--right"></span
-                ><span v-if="g.overlay === 'edges' && gridEdges[r]?.[c]?.bottom" class="walkablegrid__tile-overlay walkablegrid__edge--bottom"></span><span v-if="g.overlay === 'edges' && gridEdges[r]?.[c]?.left" class="walkablegrid__tile-overlay walkablegrid__edge--left"></span
-                ><span v-for="a in g.overlay === 'anchors' ? anchorsInTile(r, c) : []" :key="'anchor_' + a.i" class="walkablegrid__tile-overlay walkablegrid__anchor" :title="'NPC anchor A' + (a.i + 1) + ' (' + gridAnchors[a.i].x + ', ' + gridAnchors[a.i].y + ')'">◉</span>
+
+          <div class="walkablegrid__actions">
+            <div class="walkablegrid__walkthrough">
+              <label>Walkthrough</label>
+              <button :class="{ 'btn--success': walkthrough, 'btn--danger': !walkthrough }" @click="walkthrough = !walkthrough" :title="walkthrough ? 'NPCs can walk through this object' : 'NPCs cannot walk through this object (solid wall)'">
+                {{ walkthrough ? "ON" : "OFF" }}
               </button>
-            </template>
-          </div>
-          <div class="walkablegrid__layer-actions">
-            <button v-for="a in g.actions" :key="a.label" :disabled="a.disabled" @click="a.onClick">{{ a.label }}</button>
+            </div>
+            <span class="walkablegrid__dim-label">0 capacity = number of interactspots · duration is random in seconds</span>
+            <button class="btn--success" :class="{ 'btn--dirty': gridDirty }" @click="saveGrid" aria-label="Save grid">Save Grid{{ gridDirty ? " *" : "" }}</button>
           </div>
         </div>
       </div>
-
-      <div class="walkablegrid__actions">
-        <span class="walkablegrid__dim-label">0 capacity = number of anchors · duration is random in seconds</span>
-        <button class="btn--success" :class="{ 'btn--dirty': gridDirty }" @click="saveGrid" aria-label="Save grid">Save Grid{{ gridDirty ? " *" : "" }}</button>
-      </div>
     </div>
-  </div>
+  </Teleport>
 </template>
 
 <style scoped>
+.walkablegrid__overlay {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-layer-4);
+  background: color-mix(in srgb, var(--bg-primary) 60%, transparent);
+}
+
 .walkablegrid__panel {
   position: absolute;
-  z-index: var(--z-editor-panel);
-  width: max-content;
-  min-width: 360px;
-  max-width: calc(100vw - 32px);
+  z-index: var(--z-layer-4);
+  width: 60%;
   background: var(--bg-secondary);
   border: 1px solid var(--border-dim);
   border-radius: var(--radius-md);
@@ -684,7 +749,6 @@ onBeforeUnmount(() => {
   font-size: var(--font-xs);
   opacity: 0.7;
   text-align: center;
-  min-height: calc(var(--font-xs) * 2.4);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -716,25 +780,61 @@ onBeforeUnmount(() => {
   gap: var(--gap-sm);
 }
 
-.walkablegrid__grid2x2 {
+.walkablegrid__grid-layout {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0;
+  grid-template-columns: minmax(220px, 0.9fr) minmax(320px, 1.1fr);
+  gap: var(--gap-sm);
+  align-items: stretch;
 }
 
-.walkablegrid__grid2x2 .walkablegrid__layer {
+.walkablegrid__grid-layout > .walkablegrid__layer,
+.walkablegrid__editor {
   border: 1px solid var(--border-dim);
   padding: var(--gap-sm);
-  margin: -1px 0 0 -1px;
+}
+
+.walkablegrid__editor {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-sm);
+  min-width: 0;
+}
+
+.walkablegrid__tabs {
+  display: flex;
+  gap: var(--gap-xs);
+  border-bottom: 1px solid var(--border-dim);
+  padding-bottom: var(--gap-sm);
+}
+
+.walkablegrid__tab {
+  flex: 1;
+  min-width: 0;
+  padding: var(--gap-md) var(--gap-sm);
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-dim);
+  font-size: var(--font-xs);
+  white-space: nowrap;
+}
+
+.walkablegrid__tab:hover {
+  color: var(--text-primary);
+  background: var(--bg-card);
+}
+
+.walkablegrid__tab--active {
+  border-color: var(--accent-green);
+  color: var(--accent-green);
+  background: color-mix(in srgb, var(--accent-green) 10%, transparent);
 }
 
 .walkablegrid__layer {
   display: flex;
   flex-direction: column;
-  gap: var(--gap-xs);
+  gap: var(--gap-md);
   user-select: none;
   align-items: stretch;
-  min-height: 250px;
 }
 
 .walkablegrid__layer-label {
@@ -747,12 +847,6 @@ onBeforeUnmount(() => {
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: var(--text-dim);
-  min-height: 28px;
-}
-
-.walkablegrid__layer-tools {
-  display: flex;
-  gap: var(--gap-xs);
 }
 
 .walkablegrid__layer-grid {
@@ -816,6 +910,13 @@ onBeforeUnmount(() => {
   border-top: 1px solid var(--border-dim);
 }
 
+.walkablegrid__walkthrough {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-xs);
+  font-size: var(--font-sm);
+}
+
 .walkablegrid__col-centered,
 .walkablegrid__row-centered,
 .walkablegrid__tile {
@@ -860,6 +961,13 @@ onBeforeUnmount(() => {
   pointer-events: none;
 }
 
+.walkablegrid__edge--top,
+.walkablegrid__edge--right,
+.walkablegrid__edge--bottom,
+.walkablegrid__edge--left {
+  background: var(--accent-gold);
+}
+
 .walkablegrid__edge--top {
   top: 0;
   left: 0;
@@ -888,7 +996,7 @@ onBeforeUnmount(() => {
   width: 2px;
 }
 
-.walkablegrid__anchor {
+.walkablegrid__spot {
   position: absolute;
   display: grid;
   place-content: center;
@@ -898,7 +1006,12 @@ onBeforeUnmount(() => {
   font-size: calc(var(--tile-size, 32px) * 0.5);
   line-height: 1;
   text-shadow: 0 0 4px color-mix(in srgb, var(--accent-blue) 60%, transparent);
-  z-index: var(--z-canvas-base);
+  z-index: var(--z-layer-1);
   pointer-events: none;
+}
+@media (max-width: 720px) {
+  .walkablegrid__grid-layout {
+    grid-template-columns: 1fr;
+  }
 }
 </style>

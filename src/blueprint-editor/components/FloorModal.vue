@@ -55,7 +55,8 @@ function startEditName() {
 async function commitName() {
   if (!selectedFloor.value) return;
   const name = editingNameRaw.value.trim() || "Unnamed";
-  await store.renameFloor(selectedFloor.value.id, name);
+  const saved = await store.renameFloor(selectedFloor.value.id, name);
+  if (!saved) return toast.error("Failed to rename floor");
   toast.info("Floor renamed");
   editingName.value = false;
 }
@@ -68,18 +69,21 @@ function startEditLabel() {
 async function commitLabel() {
   if (!selectedFloor.value) return;
   const label = editingLabelRaw.value.trim() || selectedFloor.value.label;
-  await store.updateFloor(selectedFloor.value.id, { label });
+  const saved = await store.updateFloor(selectedFloor.value.id, { label });
+  if (!saved) return toast.error("Failed to save floor label");
   editingLabel.value = false;
 }
 
 async function onAdd() {
-  await store.addFloor();
-  toast.success("Floor added");
+  const floor = await store.addFloor();
+  if (floor) toast.success("Floor added");
+  else toast.error("Failed to add floor");
 }
 
 async function onDuplicate(id: string) {
-  await store.duplicateFloor(id);
-  toast.success("Floor duplicated");
+  const duplicated = await store.duplicateFloor(id);
+  if (duplicated) toast.success("Floor duplicated");
+  else toast.error("Failed to duplicate floor");
 }
 
 async function onDelete(id: string) {
@@ -92,9 +96,13 @@ async function onDelete(id: string) {
     danger: true,
   });
   if (!ok) return;
-  await store.deleteFloor(id);
+  const deleted = await store.deleteFloor(id);
+  if (!deleted) {
+    toast.error("Failed to delete floor");
+    return;
+  }
   if (selectedFloorId.value === id) selectedFloorId.value = floors.value[0]?.id ?? null;
-  toast.info("Floor deleted");
+  toast.success("Floor deleted");
 }
 
 function onDragStart(index: number) {
@@ -102,9 +110,10 @@ function onDragStart(index: number) {
 }
 async function onDrop(index: number) {
   if (floorDragIndex.value === null) return;
-  await store.reorderFloors(floorDragIndex.value, index);
+  const saved = await store.reorderFloors(floorDragIndex.value, index);
   floorDragIndex.value = null;
-  toast.info("Floors reordered");
+  if (saved) toast.info("Floors reordered");
+  else toast.error("Failed to reorder floors");
 }
 
 async function toggleWalkable(e: Event) {
@@ -141,7 +150,7 @@ function floorCounts(f: FloorData) {
       <div class="floormodal__pane">
         <div class="floormodal__heading">
           <span>Floors ({{ floors.length }})</span>
-          <button class="btn--dashed btn--sm" @click="onAdd">+ Add</button>
+          <button class="btn--dashed" @click="onAdd">+ Add</button>
         </div>
         <div class="floormodal__scroll">
           <div
@@ -200,7 +209,7 @@ function floorCounts(f: FloorData) {
           <div class="floormodal__roles">
             <div class="floormodal__roleheader">
               <span v-if="!selectedFloor.allowedRoleIds?.length" class="floormodal__dim">All roles allowed</span>
-              <button v-else class="btn--ghost btn--sm" @click="clearRoles">Clear (allow all)</button>
+              <button v-else class="btn--ghost" @click="clearRoles">Clear (allow all)</button>
             </div>
             <div class="floormodal__taglist">
               <label v-for="role in availableRoles" :key="role.id" class="floormodal__rolechip" :class="{ 'floormodal__rolechip--active': isRoleAllowed(role.id) }">
@@ -213,8 +222,8 @@ function floorCounts(f: FloorData) {
           </div>
 
           <div class="floormodal__actions">
-            <button class="btn--ghost btn--sm" @click="onDuplicate(selectedFloor.id)">⧉ Duplicate</button>
-            <button class="btn--danger btn--sm" :disabled="floors.length <= 1" @click="onDelete(selectedFloor.id)">✕ Delete</button>
+            <button class="btn--ghost" @click="onDuplicate(selectedFloor.id)">⧉ Duplicate</button>
+            <button class="btn--danger" :disabled="floors.length <= 1" @click="onDelete(selectedFloor.id)">✕ Delete</button>
           </div>
         </div>
         <div v-else class="floormodal--empty">Select a floor to edit</div>
@@ -226,7 +235,6 @@ function floorCounts(f: FloorData) {
 <style scoped>
 .floormodal__body {
   flex: 1;
-  min-height: 0;
   padding: var(--gap-md);
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -239,7 +247,6 @@ function floorCounts(f: FloorData) {
   flex-direction: column;
   gap: var(--gap-sm);
   min-width: 0;
-  min-height: 0;
   overflow: hidden;
 }
 
@@ -260,7 +267,6 @@ function floorCounts(f: FloorData) {
   flex-direction: column;
   gap: var(--gap-xs);
   flex: 1;
-  min-height: 0;
   overflow-y: auto;
 }
 
@@ -314,7 +320,6 @@ function floorCounts(f: FloorData) {
   display: flex;
   flex-direction: column;
   gap: var(--gap-sm);
-  min-height: 0;
   overflow-y: auto;
 }
 

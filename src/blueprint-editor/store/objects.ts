@@ -11,6 +11,27 @@ import { selectedObject, selectedObjectIds, select as selectEntity, clearSelecti
 import { getLinkedObjects } from './utils'
 import { saveLayout, saveAssets } from './persistence'
 
+export async function beginDrawnObject(name: string, w: number, h: number, x: number, y: number): Promise<{ asset: AssetDef; object: ObjectData } | null> {
+	return withStateLock(async () => {
+		const floor = currentFloor.value
+		if (!floor) return null
+		const t = state.layout.canvas.tileSize
+		const asset: AssetDef = { origin: 'drawn', id: genId('custom'), name, w: Math.max(1, Math.floor(w)), h: Math.max(1, Math.floor(h)) }
+		initAssetFields(asset)
+		const rect = clamp({ x: snap(x), y: snap(y), w: asset.w * t, h: asset.h * t })
+		if (objectOverlapsAny(floor.objects, assetMap(), rect)) {
+			toast.warning('Cannot place object - overlaps existing object')
+			return null
+		}
+		const object: ObjectData = { id: genId('obj'), subId: genId('sub'), type: asset.id, rotation: 0, ...rect }
+		normalizeObject(object, t, new Map([...assetMap(), [asset.id, asset]]))
+		state.assetRegistry.push(asset)
+		floor.objects.push(object)
+		state.selectionState = { primary: { type: 'object', id: object.id }, items: [{ type: 'object', id: object.id }] }
+		return { asset, object }
+	})
+}
+
 export async function addObject(type: string, x: number, y: number): Promise<ObjectData | null> {
 	return withStateLock(async () => {
 		const floor = currentFloor.value
@@ -152,7 +173,8 @@ export async function deleteSelected(): Promise<void> {
 			}
 			clearSelection()
 			recalcCollapsed(floor, assetMap())
-			await saveLayout()
+			const saved = await saveLayout()
+			if (saved) toast.success(`${ids.length} object${ids.length === 1 ? '' : 's'} deleted`)
 			return
 		}
 
@@ -173,7 +195,8 @@ export async function deleteSelected(): Promise<void> {
 		}
 		clearSelection()
 		recalcCollapsed(floor, assetMap())
-		await saveLayout()
+		const saved = await saveLayout()
+		if (saved) toast.success('Object deleted')
 	})
 }
 
@@ -423,8 +446,8 @@ export async function createLinkedAssetFromSelection(name?: string): Promise<str
 
 	state.assetRegistry.push(assetDef)
 
-	toast.success(`Created "${safeName}" linked asset`)
 	await saveAssets()
+	toast.success(`Created "${safeName}" linked asset`)
 	return assetId
 }
 
@@ -453,8 +476,9 @@ export async function linkObjects(ids: string[]): Promise<boolean> {
 			obj.linkGroupId = linkGroupId
 		}
 	}
+	const saved = await saveLayout()
+	if (!saved) return false
 	toast.success(`Linked ${allGroupIds.length} objects`)
-	await saveLayout()
 	return true
 }
 
@@ -472,8 +496,9 @@ export async function unlinkObject(id: string): Promise<boolean> {
 	for (const member of floor.objects) {
 		if (member.linkGroupId === groupId) delete member.linkGroupId
 	}
+	const saved = await saveLayout()
+	if (!saved) return false
 	toast.success('Unlinked object')
-	await saveLayout()
 	return true
 }
 
@@ -483,8 +508,8 @@ export async function toggleObjectLock(id: string): Promise<void> {
 	const o = floor.objects.find(o => o.id === id)
 	if (!o) return
 	o.locked = !o.locked
-	toast.info(o.locked ? 'Object locked' : 'Object unlocked')
-	await saveLayout()
+	const saved = await saveLayout()
+	if (saved) toast.info(o.locked ? 'Object locked' : 'Object unlocked')
 }
 
 export async function flattenToSvgAsset(name?: string): Promise<string | null> {

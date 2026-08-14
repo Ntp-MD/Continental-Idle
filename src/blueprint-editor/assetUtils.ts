@@ -1,4 +1,4 @@
-import type { AssetDef, FloorLayoutData, NpcSimulationConfig, ObjectData, SvgRole, SvgRoleInfo, WalkableGrid, TileState } from './types'
+import type { AssetDef, FloorLayoutData, NpcSimulationConfig, ObjectData, ObjectPlacement, SvgRole, SvgRoleInfo, WalkableGrid, TileState } from './types'
 
 export function findAsset(assets: AssetDef[], type: string): AssetDef | undefined {
 	return assets.find(a => a.id === type)
@@ -73,8 +73,8 @@ export function buildWalkableGrid(
 }
 
 
-export function serializeObject(obj: ObjectData): Record<string, unknown> {
-	const out: Record<string, unknown> = {
+export function serializeObject(obj: ObjectPlacement): ObjectPlacement {
+	const out: ObjectPlacement = {
 		id: obj.id,
 		type: obj.type,
 		x: obj.x,
@@ -84,9 +84,46 @@ export function serializeObject(obj: ObjectData): Record<string, unknown> {
 	if (obj.subId) out.subId = obj.subId
 	if (obj.linkGroupId) out.linkGroupId = obj.linkGroupId
 
-	if (obj.customProps) out.customProps = obj.customProps
 	if (obj.instanceLabel) out.instanceLabel = obj.instanceLabel
 	if (obj.locked !== undefined) out.locked = obj.locked
+	return out
+}
+
+export function serializeAsset(asset: AssetDef): AssetDef {
+	const out: AssetDef = {
+		id: asset.id,
+		name: asset.name,
+		w: asset.w,
+		h: asset.h,
+	}
+	if (asset.origin) out.origin = asset.origin
+	if (asset.category) out.category = asset.category
+	if (asset.custom) out.custom = asset.custom
+	if (asset.isWall !== undefined) out.isWall = asset.isWall
+	if (asset.walkable !== undefined) out.walkable = asset.walkable
+	if (asset.entranceRequired) out.entranceRequired = asset.entranceRequired
+	if (asset.defaultPadding && asset.defaultPadding > 0) out.defaultPadding = asset.defaultPadding
+	if (asset.defaultRx && (asset.defaultRx.tl > 0 || asset.defaultRx.tr > 0 || asset.defaultRx.br > 0 || asset.defaultRx.bl > 0)) out.defaultRx = asset.defaultRx
+	if (asset.defaultBgColor) out.defaultBgColor = asset.defaultBgColor
+	if (asset.defaultLabelColor) out.defaultLabelColor = asset.defaultLabelColor
+	if (asset.defaultLabel) out.defaultLabel = asset.defaultLabel
+	if (asset.defaultRadius && asset.defaultRadius > 0) out.defaultRadius = asset.defaultRadius
+	if (asset.defaultLabelPadding) out.defaultLabelPadding = asset.defaultLabelPadding
+	if (asset.defaultInstanceLabel) out.defaultInstanceLabel = asset.defaultInstanceLabel
+	if (asset.defaultLocked) out.defaultLocked = asset.defaultLocked
+	if (asset.tags?.length) out.tags = asset.tags
+	if (asset.pxW !== undefined) out.pxW = asset.pxW
+	if (asset.pxH !== undefined) out.pxH = asset.pxH
+	if (asset.usePx) out.usePx = asset.usePx
+	if (asset.linkedParts?.length) out.linkedParts = asset.linkedParts
+	if (asset.svg) out.svg = asset.svg
+	if (asset.svgViewBox) out.svgViewBox = asset.svgViewBox
+	if (asset.svgRoles?.length) out.svgRoles = asset.svgRoles
+	if (asset.walkableGrid) out.walkableGrid = asset.walkableGrid
+	if (asset.tileStates) out.tileStates = asset.tileStates
+	if (asset.tileEdges) out.tileEdges = asset.tileEdges
+	if (asset.interactSpots?.length) out.interactSpots = asset.interactSpots
+	if (asset.interact) out.interact = asset.interact
 	return out
 }
 
@@ -106,7 +143,6 @@ export function validatePortalConfiguration(
 	const warnings: string[] = []
 
 	const roleIds = new Set(npcConfig?.roles?.map(role => role.id) ?? [])
-	const floorLabels = new Set(layout.floors.map(floor => floor.label))
 
 
 	const portalFloorLabels: string[] = []
@@ -134,16 +170,6 @@ export function validatePortalConfiguration(
 		for (const roleId of floor.allowedRoleIds) {
 			if (!roleIds.has(roleId)) {
 				warnings.push(`Floor "${floor.label}" allowedRoleIds references unknown role "${roleId}"`)
-			}
-		}
-	}
-
-
-	for (const role of npcConfig?.roles ?? []) {
-		const labels = role.spawnRule?.floorLabels ?? []
-		for (const label of labels) {
-			if (!floorLabels.has(label)) {
-				warnings.push(`Role "${role.id}" spawnRule references unknown floor label "${label}"`)
 			}
 		}
 	}

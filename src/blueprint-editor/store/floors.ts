@@ -4,31 +4,31 @@ import { state } from './state'
 import { genId } from './utils'
 import { saveLayout } from './persistence'
 
-export async function addFloor(): Promise<FloorData> {
+export async function addFloor(): Promise<FloorData | null> {
 	const existing = new Set(state.layout.floors.map(f => f.label))
 	let n = 1
 	while (existing.has(`F${n}`)) n++
 	const floor: FloorData = { id: genId('floor'), name: `Floor ${n}`, label: `F${n}`, objects: [], defaultWalkable: true }
 	state.layout.floors.push(floor)
-	await saveLayout()
-	return floor
+	const saved = await saveLayout()
+	return saved ? floor : null
 }
 
-export async function deleteFloor(id: string): Promise<void> {
-	if (state.layout.floors.length <= 1) return
+export async function deleteFloor(id: string): Promise<boolean> {
+	if (state.layout.floors.length <= 1) return false
 	const floor = state.layout.floors.find(f => f.id === id)
-	if (!floor) return
+	if (!floor) return false
 	state.layout.floors = state.layout.floors.filter(f => f.id !== id)
 	if (state.currentFloorId === id) {
 		state.currentFloorId = state.layout.floors[0].id
 	}
 	state.selectionState = { primary: null, items: [] }
-	await saveLayout()
+	return saveLayout()
 }
 
-export async function duplicateFloor(id: string): Promise<void> {
+export async function duplicateFloor(id: string): Promise<boolean> {
 	const floor = state.layout.floors.find(f => f.id === id)
-	if (!floor) return
+	if (!floor) return false
 	const copy: FloorData = JSON.parse(JSON.stringify(floor))
 	copy.id = genId('floor')
 	copy.name = `${floor.name} Copy`
@@ -50,24 +50,24 @@ export async function duplicateFloor(id: string): Promise<void> {
 	}
 	const idx = state.layout.floors.findIndex(f => f.id === id)
 	state.layout.floors.splice(idx + 1, 0, copy)
-	await saveLayout()
+	return saveLayout()
 }
 
-export async function renameFloor(id: string, name: string): Promise<void> {
+export async function renameFloor(id: string, name: string): Promise<boolean> {
 	const floor = state.layout.floors.find(f => f.id === id)
-	if (!floor) return
+	if (!floor) return false
 	floor.name = name
-	await saveLayout()
+	return saveLayout()
 }
 
-export async function reorderFloors(fromIndex: number, toIndex: number): Promise<void> {
-	if (fromIndex === toIndex) return
-	if (fromIndex < 0 || toIndex < 0) return
-	if (fromIndex >= state.layout.floors.length || toIndex >= state.layout.floors.length) return
+export async function reorderFloors(fromIndex: number, toIndex: number): Promise<boolean> {
+	if (fromIndex === toIndex) return false
+	if (fromIndex < 0 || toIndex < 0) return false
+	if (fromIndex >= state.layout.floors.length || toIndex >= state.layout.floors.length) return false
 	const floors = state.layout.floors
 	const [moved] = floors.splice(fromIndex, 1)
 	floors.splice(toIndex, 0, moved)
-	await saveLayout()
+	return saveLayout()
 }
 
 export function selectFloor(id: string) {
@@ -79,9 +79,9 @@ export function selectFloor(id: string) {
 export async function updateFloor(
 	id: string,
 	patch: Partial<Pick<FloorData, 'allowedRoleIds' | 'defaultWalkable' | 'name' | 'label'>>,
-): Promise<void> {
+): Promise<boolean> {
 	const floor = state.layout.floors.find(f => f.id === id)
-	if (!floor) return
+	if (!floor) return false
 	if (patch.allowedRoleIds !== undefined) {
 		const normalized = normalizeAllowedRoleIds(patch.allowedRoleIds)
 		if (normalized) floor.allowedRoleIds = normalized
@@ -90,5 +90,5 @@ export async function updateFloor(
 	if (patch.defaultWalkable !== undefined) floor.defaultWalkable = patch.defaultWalkable
 	if (patch.name !== undefined) floor.name = patch.name
 	if (patch.label !== undefined) floor.label = patch.label
-	await saveLayout()
+	return saveLayout()
 }

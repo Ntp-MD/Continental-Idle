@@ -20,6 +20,7 @@ export function useCanvasSelection(
 		floor: ComputedRef<FloorData | undefined>
 		store: AssetsStore
 		getMode: () => EditorMode
+		onDrawComplete?: (rect: Rect) => void
 	},
 ): SelectionState {
 	const BOX_SELECT_THRESHOLD = 4
@@ -38,19 +39,6 @@ export function useCanvasSelection(
 		const store = opts.store
 		if (store.state.mode === 'move') {
 			opts.startPan(e)
-			return
-		}
-		if (store.state.mode === 'erase') {
-			const obj = opts.floor.value?.objects.find(o =>
-				!o.locked &&
-				p.x >= o.x && p.x <= o.x + o.w &&
-				p.y >= o.y && p.y <= o.y + o.h
-			)
-			if (obj) {
-				store.select({ type: 'object', id: obj.id })
-				store.deleteSelected().catch(() => { })
-				return
-			}
 			return
 		}
 		store.select(null)
@@ -79,6 +67,11 @@ export function useCanvasSelection(
 		window.removeEventListener('mouseup', onBoxSelectMouseUp)
 		if (boxSelect.value && boxSelect.value.w > BOX_SELECT_THRESHOLD && boxSelect.value.h > BOX_SELECT_THRESHOLD) {
 			const rect: Rect = { x: boxSelect.value.x, y: boxSelect.value.y, w: boxSelect.value.w, h: boxSelect.value.h }
+			if (opts.store.state.mode === 'draw') {
+				opts.onDrawComplete?.(rect)
+				boxSelect.value = null
+				return
+			}
 			const floor = opts.floor.value
 			const objs: ObjectData[] = floor?.objects ?? []
 			const hitIds = objs.filter(o => aabbOverlap(o, rect)).map(o => o.id)

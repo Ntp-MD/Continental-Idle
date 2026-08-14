@@ -8,16 +8,14 @@ function isLocalhostOrigin(value: string | undefined): boolean {
 	if (!value) return true
 	try {
 		const url = new URL(value)
-		return url.hostname === 'localhost' || url.hostname === '127.0.0.1' || url.hostname === '::1' || url.hostname === '::ffff:127.0.0.1' || url.hostname === '0.0.0.0'
+		return ['localhost', '127.0.0.1', '::1', '::ffff:127.0.0.1', '0.0.0.0'].includes(url.hostname)
 	} catch {
 		return false
 	}
 }
 
 function isSafeSaveRequest(req: any, res: any): boolean {
-	const origin = req.headers?.origin
-	const referer = req.headers?.referer
-	if (req.headers?.['x-blueprint-save'] !== '1' || !isLocalhostOrigin(origin) || !isLocalhostOrigin(referer)) {
+	if (req.headers?.['x-blueprint-save'] !== '1' || !isLocalhostOrigin(req.headers?.origin) || !isLocalhostOrigin(req.headers?.referer)) {
 		res.statusCode = 403
 		res.end('Forbidden')
 		return false
@@ -25,78 +23,71 @@ function isSafeSaveRequest(req: any, res: any): boolean {
 	return true
 }
 
-function saveAssetsPlugin() {
-	const filePath = path.resolve(fileURLToPath(new URL('./src/blueprint-editor/data/originAssets.json', import.meta.url)))
-	return {
-		name: 'save-origin-assets',
-		configureServer(server: ViteDevServer) {
-			server.middlewares.use('/__save-assets', async (req: any, res: any) => {
-				if (req.method !== 'POST') {
-					res.statusCode = 405
-					res.end('Method Not Allowed')
-					return
-				}
-				if (!isSafeSaveRequest(req, res)) return
-				let body = ''
-				let size = 0
-				for await (const chunk of req) {
-					size += chunk.length
-					if (size > 10 * 1024 * 1024) {
-						res.statusCode = 413
-						res.end('Payload too large')
-						return
-					}
-					body += chunk
-				}
-				let parsed: { originAssets?: unknown }
-				try {
-					parsed = JSON.parse(body)
-				} catch {
-					res.statusCode = 400
-					res.end('Invalid origin assets data: JSON parse failed')
-					return
-				}
-				if (!Array.isArray(parsed.originAssets)) {
-					res.statusCode = 400
-					res.end('Invalid origin assets data: originAssets must be an array')
-					return
-				}
-				const fileContent = JSON.stringify({
-					$schema: 'origin-assets.v1.json',
-					version: 1,
-					originAssets: parsed.originAssets,
-				}, null, 2) + '\n'
-				try {
-					fs.writeFileSync(filePath, fileContent, 'utf-8')
-					invalidateJsonModule(server, filePath)
-					res.statusCode = 200
-					res.setHeader('Content-Type', 'application/json')
-					res.end(JSON.stringify({ ok: true }))
-				} catch (e) {
-					res.statusCode = 500
-					res.end(String(e))
-				}
-			})
-		},
-	}
-}
-
-
-function invalidateJsonModule(server: ViteDevServer, filePath: string) {
+function invalidateJsonModule(server: ViteDevServer, filePath: string): void {
 	const normalized = path.resolve(filePath)
 	for (const mod of server.moduleGraph.idToModuleMap.values()) {
-		if (mod.file && path.resolve(mod.file) === normalized) {
-			server.moduleGraph.invalidateModule(mod)
+		if (mod.file && path.resolve(mod.file) === normalized) server.moduleGraph.invalidateModule(mod)
+	}
+}
+
+function blueprintDataPlugin() {
+	const dataDir = path.resolve(fileURLToPath(new URL('./src/blueprint-editor/data', import.meta.url)))
+	const moduleFiles = {
+		tags: { path: path.join(dataDir, 'tagManager.data.ts'), exportName: 'tagManagerData' },
+		originAssets: { path: path.join(dataDir, 'originAssets.data.ts'), exportName: 'originAssetsData' },
+		layout: { path: path.join(dataDir, 'floorPlan.data.ts'), exportName: 'floorPlanData' },
+		npcConfig: { path: path.join(dataDir, 'npcSettings.data.ts'), exportName: 'npcSettingsData' },
+	} as const
+
+	const readDataModule = (filePath: string, exportName: string): unknown => {
+		const source = fs.readFileSync(filePath, 'utf-8')
+		const prefix = `export const ${exportName} =`
+		if (!source.trimStart().startsWith(prefix)) throw new Error(`${path.basename(filePath)} has an invalid export`)
+		const value = source.trimStart().slice(prefix.length).trim().replace(/;\s*$/, '')
+		return JSON.parse(value)
+	}
+
+	const readData = () => {
+		const parsed = {
+			tags: readDataModule(moduleFiles.tags.path, moduleFiles.tags.exportName),
+			originAssets: readDataModule(moduleFiles.originAssets.path, moduleFiles.originAssets.exportName),
+			layout: readDataModule(moduleFiles.layout.path, moduleFiles.layout.exportName),
+			npcConfig: readDataModule(moduleFiles.npcConfig.path, moduleFiles.npcConfig.exportName),
+		}
+		if (Array.isArray(parsed.tags) && Array.isArray(parsed.originAssets) && parsed.layout && parsed.npcConfig) return parsed
+		throw new Error('Blueprint data modules are missing or invalid')
+	}
+
+	const writeDataModule = (filePath: string, exportName: string, value: unknown): string => {
+		const tempPath = `${filePath}.tmp`
+		fs.writeFileSync(tempPath, `export const ${exportName} = ${JSON.stringify(value, null, 2)}\n`, 'utf-8')
+		return tempPath
+	}
+
+	const writeData = (data: ReturnType<typeof readData>): void => {
+		const entries = [
+			[moduleFiles.tags, data.tags],
+			[moduleFiles.originAssets, data.originAssets],
+			[moduleFiles.layout, data.layout],
+			[moduleFiles.npcConfig, data.npcConfig],
+		] as const
+		const tempPaths = entries.map(([entry, value]) => [entry.path, writeDataModule(entry.path, entry.exportName, value)] as const)
+		try {
+			for (const [filePath, tempPath] of tempPaths) fs.renameSync(tempPath, filePath)
+		} catch (error) {
+			for (const [, tempPath] of tempPaths) if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath)
+			throw error
 		}
 	}
-}
-
-function saveLayoutPlugin() {
-	const filePath = path.resolve(fileURLToPath(new URL('./src/blueprint-editor/data/blueprintLayout.json', import.meta.url)))
 	return {
-		name: 'save-layout',
+		name: 'blueprint-data',
 		configureServer(server: ViteDevServer) {
-			server.middlewares.use('/__save-layout', async (req: any, res: any) => {
+			server.middlewares.use('/__blueprint-data', async (req: any, res: any) => {
+				if (req.method === 'GET') {
+					res.setHeader('Content-Type', 'application/json')
+					res.end(JSON.stringify(readData()))
+					return
+				}
 				if (req.method !== 'POST') {
 					res.statusCode = 405
 					res.end('Method Not Allowed')
@@ -105,184 +96,40 @@ function saveLayoutPlugin() {
 				if (!isSafeSaveRequest(req, res)) return
 				let body = ''
 				let size = 0
-				const MAX_BODY_SIZE = 10 * 1024 * 1024
 				for await (const chunk of req) {
 					size += chunk.length
-					if (size > MAX_BODY_SIZE) {
+					if (size > 20 * 1024 * 1024) {
 						res.statusCode = 413
 						res.end('Payload too large')
 						return
 					}
 					body += chunk
 				}
-
-				let parsed: { version?: unknown; canvas?: unknown; floors?: unknown; roomTemplates?: unknown }
 				try {
-					parsed = JSON.parse(body)
-				} catch {
-					res.statusCode = 400
-					res.end('Invalid layout data: JSON parse failed')
-					return
-				}
-				if (!parsed.canvas || typeof parsed.canvas !== 'object') {
-					res.statusCode = 400
-					res.end('Invalid layout data: canvas must be an object')
-					return
-				}
-				if (!Array.isArray(parsed.floors)) {
-					res.statusCode = 400
-					res.end('Invalid layout data: floors must be an array')
-					return
-				}
-
-				const fileContent = JSON.stringify({
-					$schema: 'blueprint-layout.v1.json',
-					version: typeof parsed.version === 'number' ? parsed.version : 2,
-					canvas: parsed.canvas,
-					floors: parsed.floors,
-					roomTemplates: Array.isArray(parsed.roomTemplates) ? parsed.roomTemplates : [],
-				}, null, 2) + '\n'
-
-				try {
-					fs.writeFileSync(filePath, fileContent, 'utf-8')
-					invalidateJsonModule(server, filePath)
+					const parsed = JSON.parse(body)
+					if (!Array.isArray(parsed.tags) || !Array.isArray(parsed.originAssets) || !parsed.layout || !parsed.npcConfig) throw new Error('Invalid blueprint data shape')
+					writeData(parsed)
+					for (const entry of Object.values(moduleFiles)) invalidateJsonModule(server, entry.path)
+					const verified = readData()
 					res.statusCode = 200
 					res.setHeader('Content-Type', 'application/json')
-					res.end(JSON.stringify({ ok: true }))
-				} catch (e) {
-					res.statusCode = 500
-					res.end(String(e))
-				}
-			})
-		},
-	}
-}
-
-function saveNpcConfigPlugin() {
-	const filePath = path.resolve(fileURLToPath(new URL('./src/blueprint-editor/data/npcConfig.json', import.meta.url)))
-	return {
-		name: 'save-npc-config',
-		configureServer(server: ViteDevServer) {
-			server.middlewares.use('/__save-npc-config', async (req: any, res: any) => {
-				if (req.method !== 'POST') {
-					res.statusCode = 405
-					res.end('Method Not Allowed')
-					return
-				}
-				if (!isSafeSaveRequest(req, res)) return
-				let body = ''
-				let size = 0
-				const MAX_BODY_SIZE = 10 * 1024 * 1024
-				for await (const chunk of req) {
-					size += chunk.length
-					if (size > MAX_BODY_SIZE) {
-						res.statusCode = 413
-						res.end('Payload too large')
-						return
-					}
-					body += chunk
-				}
-
-				let parsed: { speed?: unknown; defaultRoleId?: unknown; roles?: unknown; tasks?: unknown; pool?: unknown }
-				try {
-					parsed = JSON.parse(body)
-				} catch {
+					res.end(JSON.stringify({ ok: true, data: verified }))
+				} catch (error) {
 					res.statusCode = 400
-					res.end('Invalid NPC config: JSON parse failed')
-					return
-				}
-				if (!Array.isArray(parsed.roles) || !Array.isArray(parsed.tasks) || !Array.isArray(parsed.pool)) {
-					res.statusCode = 400
-					res.end('Invalid NPC config: roles, tasks, and pool must be arrays')
-					return
-				}
-
-				const fileContent = JSON.stringify({
-					$schema: 'npc-config.v1.json',
-					version: 1,
-					speed: typeof parsed.speed === 'number' ? parsed.speed : 0.2,
-					defaultRoleId: typeof parsed.defaultRoleId === 'string' ? parsed.defaultRoleId : '',
-					roles: parsed.roles,
-					tasks: parsed.tasks,
-					pool: parsed.pool,
-				}, null, 2) + '\n'
-
-				try {
-					fs.writeFileSync(filePath, fileContent, 'utf-8')
-					invalidateJsonModule(server, filePath)
-					res.statusCode = 200
-					res.setHeader('Content-Type', 'application/json')
-					res.end(JSON.stringify({ ok: true }))
-				} catch (e) {
-					res.statusCode = 500
-					res.end(String(e))
+					res.end(String(error))
 				}
 			})
 		},
 	}
 }
-
-function loadLayoutPlugin() {
-	const layoutPath = path.resolve(fileURLToPath(new URL('./src/blueprint-editor/data/blueprintLayout.json', import.meta.url)))
-	const npcConfigPath = path.resolve(fileURLToPath(new URL('./src/blueprint-editor/data/npcConfig.json', import.meta.url)))
-	const originAssetsPath = path.resolve(fileURLToPath(new URL('./src/blueprint-editor/data/originAssets.json', import.meta.url)))
-	return {
-		name: 'load-layout',
-		configureServer(server: ViteDevServer) {
-			server.middlewares.use('/__load-layout', (_req: any, res: any) => {
-				try {
-					const raw = fs.readFileSync(layoutPath, 'utf-8')
-					res.setHeader('Content-Type', 'application/json')
-					res.end(raw)
-				} catch (e) {
-					res.statusCode = 500
-					res.end(String(e))
-				}
-			})
-			server.middlewares.use('/__load-npc-config', (_req: any, res: any) => {
-				try {
-					const raw = fs.readFileSync(npcConfigPath, 'utf-8')
-					res.setHeader('Content-Type', 'application/json')
-					res.end(raw)
-				} catch (e) {
-					res.statusCode = 500
-					res.end(String(e))
-				}
-			})
-			server.middlewares.use('/__load-origin-assets', (_req: any, res: any) => {
-				try {
-					const raw = fs.readFileSync(originAssetsPath, 'utf-8')
-					res.setHeader('Content-Type', 'application/json')
-					res.end(raw)
-				} catch (e) {
-					res.statusCode = 500
-					res.end(String(e))
-				}
-			})
-		},
-	}
-}
-
 
 export default defineConfig({
-	plugins: [vue(), saveAssetsPlugin(), saveLayoutPlugin(), saveNpcConfigPlugin(), loadLayoutPlugin()],
+	plugins: [vue(), blueprintDataPlugin()],
 	resolve: {
-		alias: {
-			'@': fileURLToPath(new URL('./src', import.meta.url)),
-		},
+		alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) },
 	},
 	server: {
-		watch: {
-			ignored: [
-				'**/src/blueprint-editor/data/*.json',
-			],
-		},
+		watch: { ignored: ['**/src/blueprint-editor/data/*.json', '**/src/blueprint-editor/data/*.data.ts'] },
 	},
-	build: {
-		rollupOptions: {
-			input: {
-				main: 'index.html',
-			},
-		},
-	},
+	build: { rollupOptions: { input: { main: 'index.html' } } },
 })

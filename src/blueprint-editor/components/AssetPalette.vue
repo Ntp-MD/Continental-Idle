@@ -3,8 +3,6 @@ import { ref, computed, watch } from "vue";
 import { useAssetsStore, startAssetDrag } from "../blueprintStore";
 import { useToast } from "@/composables/useToast";
 import { useAsyncAction } from "../composables/useAsyncAction";
-import { sanitizeString } from "../../utils/sanitize";
-import { isHexColor } from "../store/state";
 import type { AssetDef } from "../types";
 
 const store = useAssetsStore();
@@ -40,6 +38,20 @@ function assetSizeLabel(asset: AssetDef): string {
 
 const allAssets = computed(() => [...store.assetMap().values()]);
 
+const placedObjectCounts = computed(() => {
+  const counts = new Map<string, number>();
+  for (const floor of store.state.layout.floors) {
+    for (const object of floor.objects) {
+      counts.set(object.type, (counts.get(object.type) ?? 0) + 1);
+    }
+  }
+  return counts;
+});
+
+function placedObjectCount(assetId: string): number {
+  return placedObjectCounts.value.get(assetId) ?? 0;
+}
+
 const filteredAssets = computed(() => {
   const q = searchQuery.value.trim().toLowerCase();
   if (!q) return allAssets.value;
@@ -49,19 +61,6 @@ const filteredAssets = computed(() => {
 function originLabel(asset: AssetDef): string {
   return ORIGIN_LABELS[asset.origin ?? "drawn"] ?? asset.origin ?? "Drawn";
 }
-
-const showAddForm = ref(false);
-const newNameRaw = ref("");
-const newName = computed({
-  get: () => newNameRaw.value,
-  set: (v: string) => {
-    newNameRaw.value = sanitizeString(v);
-  },
-});
-const newW = ref(1);
-const newH = ref(1);
-const newRx = ref(0);
-const newBgColor = ref("");
 
 const showSvgForm = ref(false);
 const svgName = ref("");
@@ -83,26 +82,6 @@ watch(svgContent, (val) => {
   svgW.value = Math.max(1, Math.round(vbW / TILE_UNIT));
   svgH.value = Math.max(1, Math.round(vbH / TILE_UNIT));
 });
-
-async function submitNewAsset() {
-  if (!newName.value.trim()) {
-    useToast().warning("Asset name cannot be empty");
-    return;
-  }
-  if (newBgColor.value && !isHexColor(newBgColor.value)) {
-    useToast().warning("Background color must be a hex code");
-    return;
-  }
-  const rx = newRx.value > 0 ? { tl: newRx.value, tr: newRx.value, br: newRx.value, bl: newRx.value } : undefined;
-  await run(() => store.addAsset(newName.value.trim(), newW.value, newH.value, undefined, undefined, rx, newBgColor.value || undefined));
-  useToast().success("Asset added");
-  newNameRaw.value = "";
-  newW.value = 1;
-  newH.value = 1;
-  newRx.value = 0;
-  newBgColor.value = "";
-  showAddForm.value = false;
-}
 
 async function submitSvgAsset() {
   if (!svgName.value.trim()) {
@@ -135,44 +114,31 @@ function onItemClick(assetId: string) {
 </script>
 
 <template>
-  <div class="asset__palette">
-    <div class="asset__palette-header">Asset Palette</div>
-    <div class="asset__palette-search">
+  <div class="assetpalette">
+    <div class="assetpalette__header">Asset Palette</div>
+    <div class="assetpalette__search">
       <input class="input" v-model="searchQuery" placeholder="Search assets..." type="text" aria-label="Search assets" />
       <button v-if="searchQuery" class="btn--ghost btn--icon" @click="searchQuery = ''" aria-label="Clear search" title="Clear search">×</button>
     </div>
-    <div class="asset__palette-scroll">
-      <div v-if="!filteredAssets.length" class="asset__palette-empty">No assets found</div>
-      <div v-for="asset in filteredAssets" :key="asset.id" class="asset__palette-item" :class="{ 'asset__palette--selected': store.state.selectedAssetId === asset.id, 'asset__palette--linked': !!asset.linkedParts }" @mousedown="onAssetMouseDown(asset.id, $event)" @click="onItemClick(asset.id)">
-        <span class="asset__palette-itemicon">{{ assetIcon(asset) }}</span>
-        <span class="asset__palette-itemtruncate">{{ asset.name }}</span>
-        <span class="asset__palette-dimlabel">{{ assetSizeLabel(asset) }} · {{ originLabel(asset) }}</span>
+    <div class="assetpalette__scroll">
+      <div v-if="!filteredAssets.length" class="assetpalette__empty">No assets found</div>
+      <div v-for="asset in filteredAssets" :key="asset.id" class="assetpalette__item" :class="{ 'assetpalette--selected': store.state.selectedAssetId === asset.id, 'assetpalette--linked': !!asset.linkedParts }" @mousedown="onAssetMouseDown(asset.id, $event)" @click="onItemClick(asset.id)">
+        <span class="assetpalette__itemicon">{{ assetIcon(asset) }}</span>
+        <span class="assetpalette__itemtruncate">{{ asset.name }}</span>
+        <span class="assetpalette__dimlabel">{{ assetSizeLabel(asset) }} · {{ originLabel(asset) }}</span>
+        <span class="assetpalette__count" :class="{ 'assetpalette__count--placed': placedObjectCount(asset.id) > 0 }" :title="`${placedObjectCount(asset.id)} placed object${placedObjectCount(asset.id) === 1 ? '' : 's'}`">{{ placedObjectCount(asset.id) }}</span>
       </div>
     </div>
 
-    <div class="asset__palette-footer">
-      <button class="btn--dashed" @click="showAddForm = !showAddForm">
-        {{ showAddForm ? "Cancel" : "+ Add New Asset" }}
-      </button>
+    <div class="assetpalette__footer">
+      <button class="btn--dashed" @click="store.setMode('draw')">+ Draw Object</button>
       <button class="btn--dashed" @click="showSvgForm = !showSvgForm">
         {{ showSvgForm ? "Cancel" : "+ Import SVG Asset" }}
       </button>
 
-      <div v-if="showAddForm" class="asset__palette-form">
-        <input id="asset-new-name" class="input" v-model="newName" placeholder="Asset name" aria-label="Asset name" />
-        <div class="asset__palette-formhstack">
-          <input id="asset-new-w" class="input input--num" type="number" min="1" v-model.number="newW" placeholder="W" aria-label="Asset width in tiles" />
-          <span aria-hidden="true">×</span>
-          <input id="asset-new-h" class="input input--num" type="number" min="1" v-model.number="newH" placeholder="H" aria-label="Asset height in tiles" />
-        </div>
-        <input id="asset-new-rx" class="input" type="number" min="0" v-model.number="newRx" placeholder="Corner radius (0 = none)" aria-label="Corner radius (0 = none)" />
-        <input id="asset-new-bgcolor" class="input" v-model="newBgColor" placeholder="#RRGGBB" aria-label="Background color hex value" />
-        <button class="btn--primary" :disabled="pending" @click="submitNewAsset">Add Asset</button>
-      </div>
-
-      <div v-if="showSvgForm" class="asset__palette-form">
+      <div v-if="showSvgForm" class="assetpalette__form">
         <input class="input" v-model="svgName" placeholder="Asset name" aria-label="SVG asset name" />
-        <div class="asset__palette-formhstack">
+        <div class="assetpalette__formhstack">
           <input class="input input--num" type="number" min="1" :value="svgW" disabled placeholder="W (auto)" aria-label="SVG width (auto)" />
           <span aria-hidden="true">×</span>
           <input class="input input--num" type="number" min="1" :value="svgH" disabled placeholder="H (auto)" aria-label="SVG height (auto)" />
@@ -185,7 +151,7 @@ function onItemClick(assetId: string) {
 </template>
 
 <style scoped>
-.asset__palette {
+.assetpalette {
   display: flex;
   flex-direction: column;
   width: 100%;
@@ -198,7 +164,7 @@ function onItemClick(assetId: string) {
   overflow: hidden;
 }
 
-.asset__palette-header {
+.assetpalette__header {
   display: flex;
   align-items: center;
   padding: var(--gap-md);
@@ -209,7 +175,7 @@ function onItemClick(assetId: string) {
   flex-shrink: 0;
 }
 
-.asset__palette-footer {
+.assetpalette__footer {
   display: flex;
   flex-direction: column;
   gap: var(--gap-xs);
@@ -219,7 +185,7 @@ function onItemClick(assetId: string) {
   flex-shrink: 0;
 }
 
-.asset__palette-search {
+.assetpalette__search {
   display: flex;
   align-items: center;
   gap: var(--gap-xs);
@@ -227,20 +193,32 @@ function onItemClick(assetId: string) {
   border-bottom: 1px solid var(--border-dim);
 }
 
-.asset__palette-form,
-.asset__palette-category {
+.assetpalette__search .input {
+  padding: 0;
+  border: none;
+  background: transparent;
+  height: auto;
+}
+
+.assetpalette__search .input:focus {
+  box-shadow: none;
+  border: none;
+}
+
+.assetpalette__form,
+.assetpalette__category {
   display: flex;
   flex-direction: column;
   gap: var(--gap-xs);
 }
 
-.asset__palette-formhstack {
+.assetpalette__formhstack {
   display: flex;
   align-items: center;
   gap: var(--gap-xs);
 }
 
-.asset__palette-scroll {
+.assetpalette__scroll {
   flex: 1;
   overflow: auto;
   display: flex;
@@ -249,14 +227,14 @@ function onItemClick(assetId: string) {
   padding: var(--gap-xs);
 }
 
-.asset__palette-empty {
+.assetpalette__empty {
   padding: var(--gap-md);
   text-align: center;
   font-size: var(--font-sm);
   opacity: 0.7;
 }
 
-.asset__palette-categorylabel {
+.assetpalette__categorylabel {
   padding: var(--gap-xs) var(--gap-sm);
   font-size: var(--font-xs);
   font-weight: 700;
@@ -266,14 +244,32 @@ function onItemClick(assetId: string) {
   opacity: 0.7;
 }
 
-.asset__palette-dimlabel {
+.assetpalette__dimlabel {
   padding: var(--gap-xs) var(--gap-sm);
   font-size: var(--font-xs);
   opacity: 0.7;
   white-space: nowrap;
 }
 
-.asset__palette-hint {
+.assetpalette__count {
+  flex-shrink: 0;
+  min-width: 18px;
+  padding: 2px 5px;
+  border: 1px solid var(--border-dim);
+  border-radius: var(--radius-sm);
+  color: var(--text-dim);
+  font-size: var(--font-xs);
+  line-height: 1;
+  text-align: center;
+}
+
+.assetpalette__count--placed {
+  border-color: var(--accent-blue);
+  color: var(--accent-blue);
+  background: color-mix(in srgb, var(--accent-blue) 12%, transparent);
+}
+
+.assetpalette__hint {
   padding: var(--gap-xs) var(--gap-sm);
   font-size: var(--font-xs);
   color: var(--text-dim);
@@ -282,7 +278,7 @@ function onItemClick(assetId: string) {
   margin: var(--gap-xs) var(--gap-sm);
 }
 
-.asset__palette-item {
+.assetpalette__item {
   display: flex;
   align-items: center;
   gap: var(--gap-sm);
@@ -296,12 +292,12 @@ function onItemClick(assetId: string) {
     border-color var(--duration-fast) ease-out;
 }
 
-.asset__palette-item:hover {
+.assetpalette__item:hover {
   background: var(--bg-card);
   border-color: var(--accent-gold);
 }
 
-.asset__palette-itemicon {
+.assetpalette__itemicon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -311,7 +307,7 @@ function onItemClick(assetId: string) {
   font-size: var(--font-lg);
 }
 
-.asset__palette-itemtruncate {
+.assetpalette__itemtruncate {
   flex: 1;
   min-width: 0;
   overflow: hidden;
@@ -320,17 +316,17 @@ function onItemClick(assetId: string) {
   font-size: var(--font-sm);
 }
 
-.asset__palette-roomaccent {
+.assetpalette__roomaccent {
   border-style: dashed;
   border-color: color-mix(in srgb, var(--accent-gold) 50%, transparent);
 }
 
-.asset__palette--selected {
+.assetpalette--selected {
   border-color: var(--accent-gold);
   background: color-mix(in srgb, var(--accent-gold) 12%, transparent);
 }
 
-.asset__palette--linked {
+.assetpalette--linked {
   border-color: var(--accent-blue);
 }
 </style>

@@ -1,13 +1,5 @@
-import { isKnownTag } from './tagRegistry'
-
-export type EditorMode = 'object' | 'move' | 'erase' | 'npc-preview'
+export type EditorMode = 'object' | 'draw' | 'move' | 'npc-preview'
 export type Rotation = 0 | 90 | 180 | 270
-
-export interface EntrancePoint {
-	side: 'top' | 'bottom' | 'left' | 'right'
-	offset: number
-	width: number
-}
 
 export type SvgRole = 'wall' | 'door' | 'fixture'
 
@@ -210,10 +202,37 @@ export interface ResolvedObjectDef {
 	interact?: InteractConfig
 }
 
+export interface ObjectDefinitionSize {
+	w: number
+	h: number
+}
+
+export function rotateInteractSpots90(
+	spots: InteractSpot[] | undefined,
+	width: number,
+	height: number,
+	times: number,
+): InteractSpot[] | undefined {
+	if (!spots || spots.length === 0) return spots
+	const n = ((times % 4) + 4) % 4
+	if (n === 0) return spots
+	let result = spots.map(({ x, y }) => ({ x, y }))
+	let currentWidth = width
+	let currentHeight = height
+	for (let i = 0; i < n; i++) {
+		result = result.map(({ x, y }) => ({ x: currentHeight - y, y: x }))
+		const nextWidth = currentHeight
+		currentHeight = currentWidth
+		currentWidth = nextWidth
+	}
+	return result
+}
+
 
 export function resolveObjectDef(
 	rotation: Rotation,
 	asset: AssetDef | undefined,
+	size?: ObjectDefinitionSize,
 ): ResolvedObjectDef {
 	const walkable = asset?.walkable ?? false
 	const entranceRequired = asset?.entranceRequired ?? false
@@ -222,10 +241,39 @@ export function resolveObjectDef(
 	const tileStates = rotateGrid90(normalizeTileStates(asset?.tileStates), rotSteps)
 	const tileEdges = rotateTileEdges90(normalizeTileEdges(asset?.tileEdges), rotSteps)
 	const interactSpots = normalizeInteractSpots(asset?.interactSpots)
+	const sourceSize = size
+		? (rotSteps % 2 === 0 ? size : { w: size.h, h: size.w })
+		: asset?.svgViewBox
+	const rotatedInteractSpots = sourceSize
+		? rotateInteractSpots90(interactSpots, sourceSize.w, sourceSize.h, rotSteps)
+		: interactSpots
 	const interact = normalizeInteractConfig(asset?.interact)
-	return { walkable, entranceRequired, walkableGrid, tileStates, tileEdges, interactSpots, interact }
+	return { walkable, entranceRequired, walkableGrid, tileStates, tileEdges, interactSpots: rotatedInteractSpots, interact }
 }
 
+
+export function normalizeObjectPlacement(value: unknown): ObjectPlacement | undefined {
+	if (!value || typeof value !== 'object') return undefined
+	const record = value as Record<string, unknown>
+	if (typeof record.id !== 'string' || !record.id.trim()) return undefined
+	if (typeof record.type !== 'string' || !record.type.trim()) return undefined
+	if (typeof record.x !== 'number' || !Number.isFinite(record.x)) return undefined
+	if (typeof record.y !== 'number' || !Number.isFinite(record.y)) return undefined
+	const rawRotation = typeof record.rotation === 'number' ? record.rotation : 0
+	const rotation = [0, 90, 180, 270].includes(rawRotation) ? rawRotation as Rotation : 0
+	const placement: ObjectPlacement = {
+		id: record.id,
+		type: record.type,
+		x: record.x,
+		y: record.y,
+		rotation,
+	}
+	if (typeof record.subId === 'string' && record.subId) placement.subId = record.subId
+	if (typeof record.linkGroupId === 'string' && record.linkGroupId) placement.linkGroupId = record.linkGroupId
+	if (typeof record.locked === 'boolean') placement.locked = record.locked
+	if (typeof record.instanceLabel === 'string' && record.instanceLabel) placement.instanceLabel = record.instanceLabel
+	return placement
+}
 
 export function normalizeAllowedRoleIds(value: unknown): string[] | undefined {
 	if (!Array.isArray(value)) return undefined
@@ -272,9 +320,7 @@ export interface AssetBase {
 	defaultLabel?: string
 	defaultRadius?: number
 	defaultLabelPadding?: number
-	defaultCustomProps?: ObjectCustomProps
 	defaultInstanceLabel?: string
-	defaultValidationRule?: ValidationRule
 	defaultLocked?: boolean
 	tags?: string[]
 }
@@ -303,6 +349,28 @@ export interface OriginAssetFile {
 	originAssets: AssetDef[]
 }
 
+export interface BlueprintTagDefinition {
+	id: string
+	label: string
+}
+
+export interface PersistedFloorData extends Omit<FloorData, 'objects'> {
+	objects: ObjectPlacement[]
+}
+
+export interface PersistedFloorLayoutData extends Omit<FloorLayoutData, 'floors'> {
+	floors: PersistedFloorData[]
+}
+
+export interface BlueprintDataFile {
+	$schema: string
+	version: number
+	tags: BlueprintTagDefinition[]
+	originAssets: AssetDef[]
+	layout: PersistedFloorLayoutData
+	npcConfig: NpcSimulationConfig
+}
+
 export function normalizeOriginAsset(value: unknown): AssetDef | undefined {
 	if (!value || typeof value !== 'object') return undefined
 	const record = value as Record<string, unknown>
@@ -312,6 +380,9 @@ export function normalizeOriginAsset(value: unknown): AssetDef | undefined {
 	if (record.walkableGrid !== undefined) asset.walkableGrid = normalizeWalkableGrid(record.walkableGrid)
 	if (record.tileStates !== undefined) asset.tileStates = normalizeTileStates(record.tileStates)
 	if (record.tileEdges !== undefined) asset.tileEdges = normalizeTileEdges(record.tileEdges)
+	const tags = normalizeTags(record.tags)
+	if (tags !== undefined) asset.tags = tags
+	else delete asset.tags
 	if (record.interactSpots !== undefined) asset.interactSpots = normalizeInteractSpots(record.interactSpots)
 	if (record.interact !== undefined) asset.interact = normalizeInteractConfig(record.interact)
 	return asset
@@ -338,13 +409,9 @@ export interface NpcTask {
 
 export interface NpcSpawnRule {
 
-	floorLabels?: string[]
-
 	targetTags?: string[]
 
 	count: number
-
-	speedMultiplier?: number
 }
 
 export interface NpcRole {
@@ -396,28 +463,48 @@ export interface NpcSimDot {
 	interactDurationMax: number
 }
 
-export interface ObjectData {
+export interface ObjectPlacement {
 	id: string
-	subId?: string
 	type: string
 	x: number
 	y: number
+	rotation: Rotation
+	subId?: string
+	linkGroupId?: string
+	locked?: boolean
+	instanceLabel?: string
+}
+
+export interface ObjectData extends ObjectPlacement {
 	w: number
 	h: number
-	rotation: Rotation
 	radius?: number
 	rx?: { tl: number; tr: number; br: number; bl: number }
 	labelPadding?: number
 	padding?: number
 	collapsed?: boolean
-	linkGroupId?: string
 	fillColor?: string
-	locked?: boolean
 	label?: string
 	isWall?: boolean
-	customProps?: ObjectCustomProps
-	instanceLabel?: string
-	validationRule?: ValidationRule
+}
+
+export interface ResolvedObject extends ObjectPlacement {
+	w: number
+	h: number
+	radius?: number
+	rx?: { tl: number; tr: number; br: number; bl: number }
+	labelPadding?: number
+	padding?: number
+	fillColor?: string
+	label?: string
+	isWall?: boolean
+	walkable: boolean
+	entranceRequired: boolean
+	walkableGrid?: WalkableGrid
+	tileStates?: TileState[][]
+	tileEdges?: TileEdges[][]
+	interactSpots?: InteractSpot[]
+	interact?: InteractConfig
 }
 
 export interface FloorData {
@@ -435,26 +522,14 @@ export interface CanvasConfig {
 	width: number
 	height: number
 	tileSize: number
-}
-
-export interface ObjectCustomProps {
-	notes?: string
-	metadata?: Record<string, string | number>
-}
-
-export interface ValidationRule {
-	required?: string[]
-	minValues?: Record<string, number>
-	maxValues?: Record<string, number>
+	bgColor?: string
 }
 
 export interface FloorLayoutData {
 	version: number
 	canvas: CanvasConfig
 	floors: FloorData[]
-	objectCustomProps?: Record<string, ObjectCustomProps>
 	instanceLabels?: Record<string, string>
-	validationRules?: Record<string, ValidationRule>
 	npcConfig?: NpcSimulationConfig
 }
 
@@ -463,6 +538,7 @@ export interface SyncedCanvas {
 	width: number
 	height: number
 	tileSize: number
+	bgColor?: string
 }
 
 
@@ -508,17 +584,8 @@ export interface Rect {
 	h: number
 }
 
-export type Selection = { type: 'object'; id: string } | null
-
-export interface MultiSelection {
-	type: 'object'
-	ids: string[]
-}
-
-export type EntityType = 'object'
-
 export interface EntityRef {
-	type: EntityType
+	type: 'object'
 	id: string
 }
 
@@ -536,6 +603,7 @@ export function validateLayoutData(data: unknown): FloorLayoutData | null {
 	if (typeof layout.canvas.width !== 'number' || layout.canvas.width <= 0) return null
 	if (typeof layout.canvas.height !== 'number' || layout.canvas.height <= 0) return null
 	if (typeof layout.canvas.tileSize !== 'number' || layout.canvas.tileSize <= 0) return null
+	if (layout.canvas.bgColor !== undefined && !isValidColor(layout.canvas.bgColor)) return null
 
 	if (!Array.isArray(layout.floors) || layout.floors.length === 0) return null
 
@@ -554,6 +622,18 @@ export function validateLayoutData(data: unknown): FloorLayoutData | null {
 	if (layout.npcConfig !== undefined && !isNpcConfig(layout.npcConfig)) return null
 
 	return layout
+}
+
+const HEX_COLOR_RE = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/
+
+export function isHexColor(c: string | undefined): c is string {
+	return typeof c === 'string' && HEX_COLOR_RE.test(c)
+}
+
+export function isValidColor(c: string | undefined): boolean {
+	if (!c) return true
+	if (c === 'transparent') return true
+	return isHexColor(c)
 }
 
 export function isNpcConfig(value: unknown): value is NpcSimulationConfig {
@@ -591,6 +671,26 @@ export function isNpcConfig(value: unknown): value is NpcSimulationConfig {
 		}
 	}
 	return true
+}
+
+export function normalizeNpcConfig(value: unknown): NpcSimulationConfig | undefined {
+	if (!isNpcConfig(value)) return undefined
+	const config = JSON.parse(JSON.stringify(value)) as NpcSimulationConfig
+	for (const role of config.roles) {
+		role.focusTags = normalizeTags(role.focusTags) ?? []
+		role.restrictedTags = normalizeTags(role.restrictedTags) ?? []
+		if (role.spawnRule) role.spawnRule.targetTags = normalizeTags(role.spawnRule.targetTags)
+	}
+	for (const task of config.tasks) task.tags = normalizeTags(task.tags) ?? []
+	const rates: Record<string, number> = {}
+	for (const [tag, rate] of Object.entries(config.tagTriggerRates ?? {})) {
+		const normalized = normalizeTags([tag])?.[0]
+		if (normalized && Number.isFinite(rate) && rate > 0) rates[normalized] = Math.max(0, Math.min(100, Math.floor(rate)))
+	}
+	config.tagTriggerRates = Object.keys(rates).length ? rates : undefined
+	config.pool = config.pool.filter(entry => config.roles.some(role => role.id === entry.roleId))
+	if (!config.roles.some(role => role.id === config.defaultRoleId)) config.defaultRoleId = config.roles[0]?.id ?? ''
+	return config
 }
 
 export function normalizeTags(value: unknown): string[] | undefined {
@@ -635,14 +735,6 @@ export function validateLayoutIntegrity(layout: FloorLayoutData): string[] {
 		}
 	}
 	if (layout.npcConfig) {
-		for (const role of layout.npcConfig.roles) {
-			for (const tag of role.focusTags) {
-				if (!isKnownTag(tag)) issues.push(`Role ${role.id} has unknown focusTag: ${tag}`)
-			}
-			for (const tag of role.restrictedTags) {
-				if (!isKnownTag(tag)) issues.push(`Role ${role.id} has unknown restrictedTag: ${tag}`)
-			}
-		}
 		for (const pool of layout.npcConfig.pool) {
 			if (!knownRoleIds.has(pool.roleId)) {
 				issues.push(`NPC pool references unknown role: ${pool.roleId}`)
@@ -650,11 +742,6 @@ export function validateLayoutIntegrity(layout: FloorLayoutData): string[] {
 		}
 		if (!knownRoleIds.has(layout.npcConfig.defaultRoleId)) {
 			issues.push(`NPC defaultRoleId references unknown role: ${layout.npcConfig.defaultRoleId}`)
-		}
-		if (layout.npcConfig.tagTriggerRates) {
-			for (const tag of Object.keys(layout.npcConfig.tagTriggerRates)) {
-				if (!isKnownTag(tag)) issues.push(`tagTriggerRates has unknown tag: ${tag}`)
-			}
 		}
 	}
 	return issues

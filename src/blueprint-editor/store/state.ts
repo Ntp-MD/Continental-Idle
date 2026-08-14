@@ -1,8 +1,8 @@
 import { reactive, computed } from 'vue'
-import type { FloorLayoutData, AssetDef, FloorData, EditorMode, SelectionState, Rect } from '../types'
+import type { BlueprintTagDefinition, FloorLayoutData, AssetDef, FloorData, EditorMode, SelectionState, Rect, NpcSimulationConfig } from '../types'
 import { buildAssetMap, parseSvgRoles, buildWalkableGrid } from '../assetUtils'
 import { snap as _snap, clamp as _clamp } from '../geometry'
-import { originAssets, fetchLayoutFromDisk, fetchNpcConfigFromDisk, fetchOriginAssetsFromDisk } from './dataLoader'
+import { originAssets, blueprintTagDefinitions, fetchBlueprintDataFromDisk, buildBlueprintData } from './dataLoader'
 import { useToast } from '@/composables/useToast'
 import { loadInitial, migrate } from './migrate'
 
@@ -13,16 +13,7 @@ export interface EditorState {
 	selectionState: SelectionState
 	selectedAssetId: string | null
 	assetRegistry: AssetDef[]
-}
-
-const HEX_COLOR_RE = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/
-
-export function isHexColor(c: string | undefined): c is string {
-	return typeof c === 'string' && HEX_COLOR_RE.test(c)
-}
-
-export function isValidColor(c: string | undefined): boolean {
-	return !c || isHexColor(c)
+	tagDefinitions: BlueprintTagDefinition[]
 }
 
 export const toast = useToast()
@@ -76,32 +67,30 @@ const _persistedUi = loadPersistedUiState()
 const _restoredUi = _hmrData?._editorState ?? _persistedUi ?? {}
 
 const initial = loadInitial()
+const initialBlueprintData = buildBlueprintData(initial.layout, originAssets, initial.layout.npcConfig, blueprintTagDefinitions)
 
 export const state = reactive<EditorState>({
 	layout: initial.layout,
 	currentFloorId: _restoredUi.currentFloorId ?? '',
-	mode: _restoredUi.mode === 'npc-preview' ? 'move' : _restoredUi.mode ?? 'object',
+	mode: _restoredUi.mode === 'npc-preview' || (_restoredUi.mode as string) === 'erase' ? 'move' : _restoredUi.mode ?? 'object',
 	selectionState: _restoredUi.selectionState ?? { primary: null, items: [] },
 	selectedAssetId: _restoredUi.selectedAssetId ?? null,
-	assetRegistry: _hmrData?._editorState?.assetRegistry ?? originAssets.map(asset => JSON.parse(JSON.stringify(asset)) as AssetDef),
+	assetRegistry: originAssets.map(asset => JSON.parse(JSON.stringify(asset)) as AssetDef),
+	tagDefinitions: initialBlueprintData.tags.map(tag => ({ ...tag })),
 })
 
 for (const asset of state.assetRegistry) initAssetFields(asset)
 
 
 export async function reloadEditorData(): Promise<void> {
-	const [layout, npc, assets] = await Promise.all([
-		fetchLayoutFromDisk(), fetchNpcConfigFromDisk(), fetchOriginAssetsFromDisk(),
-	])
-	if (layout) {
-		const migrated = migrate(layout)
-		state.layout = migrated.layout
-	}
-	if (assets) {
-		state.assetRegistry = assets.map(asset => JSON.parse(JSON.stringify(asset)) as AssetDef)
-		for (const asset of state.assetRegistry) initAssetFields(asset)
-	}
-	if (npc) state.layout.npcConfig = npc
+	const combined = await fetchBlueprintDataFromDisk()
+	if (!combined) return
+	const migrated = migrate(combined.layout)
+	state.layout = migrated.layout
+	state.layout.npcConfig = JSON.parse(JSON.stringify(combined.npcConfig)) as NpcSimulationConfig
+	state.assetRegistry = combined.originAssets.map(asset => JSON.parse(JSON.stringify(asset)) as AssetDef)
+	state.tagDefinitions = combined.tags.map(tag => ({ ...tag }))
+	for (const asset of state.assetRegistry) initAssetFields(asset)
 }
 
 export function initAssetFields(asset: AssetDef): void {

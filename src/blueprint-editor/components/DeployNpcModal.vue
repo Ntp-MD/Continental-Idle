@@ -16,11 +16,9 @@ if (!state.layout.npcConfig) {
   state.layout.npcConfig = { speed: 0.2, defaultRoleId: "", roles: [], tasks: [], pool: [] };
 }
 const draft = ref<NpcSimulationConfig>(state.layout.npcConfig);
-const newSpawnFloor = ref<Record<string, string>>({});
 const newSpawnTag = ref<Record<string, string>>({});
 
 const roles = computed(() => draft.value.roles);
-const floorLabels = computed(() => state.layout.floors.map((f) => f.label));
 
 let persistTimer: number | null = null;
 function schedulePersist(): void {
@@ -41,7 +39,7 @@ watch(
 
 function ensureSpawnRuleFor(role: NpcRole): NpcSpawnRule {
   if (!role.spawnRule) {
-    role.spawnRule = { floorLabels: [], targetTags: [], count: 0, speedMultiplier: 1 };
+    role.spawnRule = { targetTags: [], count: 0 };
   }
   return role.spawnRule;
 }
@@ -59,21 +57,6 @@ function setPoolCount(roleId: string, count: number) {
     if (entry) entry.count = safe;
     else draft.value.pool.push({ roleId, count: safe });
   }
-  schedulePersist();
-}
-
-function onAddSpawnFloorFor(role: NpcRole) {
-  const label = (newSpawnFloor.value[role.id] ?? "").trim();
-  if (!label) return;
-  const rule = ensureSpawnRuleFor(role);
-  if (!rule.floorLabels!.includes(label)) rule.floorLabels!.push(label);
-  newSpawnFloor.value[role.id] = "";
-  schedulePersist();
-}
-
-function onRemoveSpawnFloorFrom(role: NpcRole, label: string) {
-  if (!role.spawnRule?.floorLabels) return;
-  role.spawnRule.floorLabels = role.spawnRule.floorLabels.filter((f) => f !== label);
   schedulePersist();
 }
 
@@ -139,32 +122,15 @@ function onDeploy() {
               <div class="deploymodal__field">
                 <label class="deploymodal__label">Count</label>
                 <div class="layout__wrap">
-                  <button class="btn--icon btn--sm" @click="setPoolCount(role.id, getPoolCount(role.id) - 1)">−</button>
+                  <button class="btn--icon" @click="setPoolCount(role.id, getPoolCount(role.id) - 1)">−</button>
                   <input :value="getPoolCount(role.id)" type="number" min="0" max="100" class="input input--compact" @input="setPoolCount(role.id, Number(($event.target as HTMLInputElement).value))" />
-                  <button class="btn--icon btn--sm" @click="setPoolCount(role.id, getPoolCount(role.id) + 1)">+</button>
+                  <button class="btn--icon" @click="setPoolCount(role.id, getPoolCount(role.id) + 1)">+</button>
                 </div>
-              </div>
-              <div class="deploymodal__field">
-                <label class="deploymodal__label">Speed ×</label>
-                <input v-model.number="ensureSpawnRuleFor(role).speedMultiplier" type="number" min="0.1" step="0.1" class="input input--compact" />
               </div>
             </div>
           </div>
 
           <div class="deploymodal__tagsrow">
-            <div class="deploymodal__taggroup">
-              <span class="deploymodal__section">Floors</span>
-              <div class="deploymodal__taglist">
-                <div v-for="label in role.spawnRule?.floorLabels ?? []" :key="'sf_' + role.id + label" class="tag">
-                  <span>{{ label }}</span>
-                  <button class="tag__remove" @click="onRemoveSpawnFloorFrom(role, label)" aria-label="Remove floor">×</button>
-                </div>
-                <select v-model="newSpawnFloor[role.id]" class="input deploymodal__addselect" @change="onAddSpawnFloorFor(role)">
-                  <option value="">+ floor</option>
-                  <option v-for="label in floorLabels" :key="label" :value="label">{{ label }}</option>
-                </select>
-              </div>
-            </div>
             <div class="deploymodal__taggroup">
               <span class="deploymodal__section">Target tags</span>
               <div class="deploymodal__taglist">
@@ -182,8 +148,8 @@ function onDeploy() {
       <div class="deploymodal__footer">
         <span class="deploymodal__total">Total: {{ totalNpcCount() }} NPCs</span>
         <div class="actions">
-          <button class="btn--ghost btn--sm" @click="onClose">Cancel</button>
-          <button class="btn--primary btn--sm" @click="onDeploy" :disabled="totalNpcCount() === 0">Deploy</button>
+          <button class="btn--ghost" @click="onClose">Cancel</button>
+          <button class="btn--primary" @click="onDeploy" :disabled="totalNpcCount() === 0">Deploy</button>
         </div>
       </div>
     </div>
@@ -193,7 +159,6 @@ function onDeploy() {
 <style scoped>
 .deploymodal__body {
   flex: 1;
-  min-height: 0;
   display: flex;
   flex-direction: column;
   padding: var(--gap-sm);

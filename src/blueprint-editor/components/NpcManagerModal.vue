@@ -3,12 +3,14 @@ import { computed, onUnmounted, ref, watch } from "vue";
 import { useAssetsStore } from "../blueprintStore";
 import { useConfirm } from "@/composables/useConfirm";
 import { useToast } from "@/composables/useToast";
-import { isHexColor } from "../store/state";
+import { isHexColor } from "../types";
 import { managedTagSet } from "../store/tags";
 import { genId } from "../store/utils";
 import { sanitizeString } from "../../utils/sanitize";
 import type { NpcRole, NpcSimulationConfig } from "../types";
 import ModalShell from "./ModalShell.vue";
+import ColorInput from "./ColorInput.vue";
+import TagChip from "./TagChip.vue";
 
 const props = defineProps<{ open: boolean }>();
 const emit = defineEmits<{ (e: "close"): void }>();
@@ -64,10 +66,8 @@ function normalizeConfig(value: NpcSimulationConfig): NpcSimulationConfig {
     focusChance: Math.max(0, Math.min(100, Math.floor(role.focusChance ?? 100))),
     spawnRule: role.spawnRule
       ? {
-          floorLabels: Array.from(new Set((role.spawnRule.floorLabels ?? []).map((label) => label.trim()).filter(Boolean))),
           targetTags: Array.from(new Set((role.spawnRule.targetTags ?? []).map((tag) => tag.trim()).filter(Boolean))),
           count: Math.max(0, Math.floor(role.spawnRule.count ?? 0)),
-          speedMultiplier: role.spawnRule.speedMultiplier ?? 1,
         }
       : undefined,
   }));
@@ -135,7 +135,7 @@ async function addRole() {
     restrictedTags: [],
     taskIds: [],
     focusChance: 100,
-    spawnRule: { floorLabels: [], targetTags: [], count: 0, speedMultiplier: 1 },
+    spawnRule: { targetTags: [], count: 0 },
   });
   if (!config.value.defaultRoleId) config.value.defaultRoleId = id;
   selectedRoleId.value = id;
@@ -174,6 +174,12 @@ async function updateRole() {
   await persistConfig();
 }
 
+async function commitRoleColor(value: string | undefined) {
+  if (!selectedRole.value) return;
+  selectedRole.value.color = value ?? "#cccccc";
+  await updateRole();
+}
+
 async function addTag() {
   const tag = newTag.value.trim();
   if (!tag) return;
@@ -185,7 +191,7 @@ async function removeTag(tag: string) {
   if (
     !(await confirm({
       title: "Delete tag",
-      message: `Delete "${tag}"? This removes it from all NPC rules and origin assets.`,
+      message: `Delete "${tag}"? Existing role and asset assignments will remain as orphan references and show warnings.`,
       confirmLabel: "Delete",
       cancelLabel: "Cancel",
       danger: true,
@@ -193,8 +199,9 @@ async function removeTag(tag: string) {
   )
     return;
   try {
-    await store.removeTag(tag);
-    toast.success(`Tag "${tag}" deleted`);
+    const deleted = await store.removeTag(tag);
+    if (deleted) toast.success(`Tag "${tag}" deleted`);
+    else toast.error("Failed to delete tag — changes not saved");
   } catch {
     toast.error("Failed to delete tag — changes not saved");
   }
@@ -285,25 +292,12 @@ onUnmounted(() => {
           </div>
           <div class="layout__row">
             <label class="npcmanager__label" :for="`npc-role-color-${selectedRole.id}`">Color</label>
-            <input
-              :value="isHexColor(selectedRole.color) && selectedRole.color.length === 7 ? selectedRole.color : '#cccccc'"
-              class="npcmanager__color"
-              type="color"
-              aria-label="Pick role color"
-              @input="
-                selectedRole.color = ($event.target as HTMLInputElement).value;
-                void updateRole();
-              "
-            />
-            <input :id="`npc-role-color-${selectedRole.id}`" v-model="selectedRole.color" class="input" type="text" placeholder="#RRGGBB" @change="updateRole" />
+            <ColorInput :model-value="selectedRole.color" @commit="commitRoleColor" placeholder="#RRGGBB" aria-label="Role color" />
           </div>
 
           <div class="npcmanager__section">Focus Tags</div>
           <div class="npcmanager__taglist">
-            <div v-for="tag in selectedRole.focusTags" :key="`focus-${tag}`" class="tag tag__focus" :class="{ 'tag--orphaned': !managedTagSet.has(tag) }">
-              <span>{{ tag }}</span
-              ><button class="tag__remove" @click="removeRoleTag('focus', tag)" aria-label="Remove focus tag">×</button>
-            </div>
+            <TagChip v-for="tag in selectedRole.focusTags" :key="`focus-${tag}`" :label="tag" variant="focus" removable :class="{ 'tag--orphaned': !managedTagSet.has(tag) }" @remove="removeRoleTag('focus', tag)" />
             <span v-if="!selectedRole.focusTags.length" class="npcmanager__empty">No focus tags — NPC wanders</span>
           </div>
           <div class="layout__row">
@@ -317,10 +311,7 @@ onUnmounted(() => {
 
           <div class="npcmanager__section">Restricted Tags</div>
           <div class="npcmanager__taglist">
-            <div v-for="tag in selectedRole.restrictedTags" :key="`restricted-${tag}`" class="tag tag__restricted" :class="{ 'tag--orphaned': !managedTagSet.has(tag) }">
-              <span>{{ tag }}</span
-              ><button class="tag__remove" @click="removeRoleTag('restricted', tag)" aria-label="Remove restriction">×</button>
-            </div>
+            <TagChip v-for="tag in selectedRole.restrictedTags" :key="`restricted-${tag}`" :label="tag" variant="restricted" removable :class="{ 'tag--orphaned': !managedTagSet.has(tag) }" @remove="removeRoleTag('restricted', tag)" />
             <span v-if="!selectedRole.restrictedTags.length" class="npcmanager__empty">No restrictions</span>
           </div>
           <div class="layout__row">
@@ -357,7 +348,6 @@ onUnmounted(() => {
   display: grid;
   grid-template-columns: minmax(180px, 0.8fr) minmax(180px, 0.8fr) minmax(360px, 1.6fr);
   flex: 1;
-  min-height: 0;
   overflow: hidden;
 }
 
@@ -366,7 +356,6 @@ onUnmounted(() => {
   flex-direction: column;
   gap: var(--gap-sm);
   min-width: 0;
-  min-height: 0;
   padding: var(--gap-md);
   border-right: 1px solid var(--border-dim);
 }
@@ -394,7 +383,6 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: var(--gap-xs);
-  min-height: 34px;
   padding: var(--gap-xs) var(--gap-sm);
   background: var(--bg-primary);
   border: 1px solid var(--border-dim);

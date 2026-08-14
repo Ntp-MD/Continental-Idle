@@ -38,7 +38,6 @@
 	--shadow-panel: 0 12px 48px rgba(0, 0, 0, 0.6), 0 4px 16px rgba(0, 0, 0, 0.3);
 	--shadow-card: 0 2px 8px rgba(0, 0, 0, 0.3);
 	--shadow-card-hover: 0 4px 16px rgba(0, 0, 0, 0.4);
-	--shadow-glow-gold: 0 0 12px rgba(240, 192, 64, 0.20);
 
 	/* ── Border Radius ── */
 	--radius-xs: 2px;
@@ -73,12 +72,10 @@
 	--control-height: 30px;
 
 	/* ── Z-Index Scale ── */
-	--z-canvas-base: 1;
-	--z-canvas-ui: 50;
-	--z-canvas-menu: 60;
-	--z-editor-panel: 200;
-	--z-toolbar: 1000;
-	--z-modal: 2000;
-	--z-toast: 3000;
+	--z-layer-1: 1;
+	--z-layer-2: 50;
+	--z-layer-3: 200;
+	--z-layer-4: 2000;
+	--z-layer-5: 3000;
 
 }

@@ -10,6 +10,7 @@ import { useCanvasViewport } from "../composables/useCanvasViewport";
 import { useCanvasSelection } from "../composables/useCanvasSelection";
 import { useCanvasDragDrop } from "../composables/useCanvasDragDrop";
 import WalkableGridPanel from "./WalkableGridPanel.vue";
+import ColorInput from "./ColorInput.vue";
 import { useNpcSimulation } from "../composables/useNpcSimulation";
 import { renderSvgInto as renderSvgContent } from "../svgSanitizer";
 
@@ -63,7 +64,6 @@ watch(
   },
 );
 
-const ROOM_DEFAULT_FILL = "#e8e4dc";
 const VIEW_TOGGLE_KEY = "blueprint-view-toggles";
 const savedToggles = (() => {
   try {
@@ -73,12 +73,13 @@ const savedToggles = (() => {
   }
 })();
 const showWalkableOverlay = ref(savedToggles.showWalkableOverlay ?? false);
+const showObjectHighlights = ref(savedToggles.showObjectHighlights ?? false);
 
 const modeLabel = computed(() => {
   const labels: Record<string, string> = {
     object: "Object",
+    draw: "Draw Object",
     move: "Move",
-    erase: "Erase",
     "npc-preview": "NPC Preview",
   };
   return (labels[store.state.mode] ?? store.state.mode) + " Mode";
@@ -87,8 +88,8 @@ const modeLabel = computed(() => {
 const modeHint = computed(() => {
   const hints: Record<string, string> = {
     object: "Drag an asset from the palette onto the canvas",
+    draw: "Drag a rectangle, then save it as an origin asset",
     move: "Click and drag an object to reposition it",
-    erase: "Click an object to delete it",
     "npc-preview": "NPCs are simulating on this floor",
   };
   return hints[store.state.mode] ?? "";
@@ -111,6 +112,30 @@ const vp = useCanvasViewport(
 );
 const { viewBox, zoomPercent, spaceDown, panning, svgRef, RULER_SIZE, fitToScreen, centerView, zoomBy, onWheel, startPan, onPanMouseDown, onPanMouseMove, onPanMouseUp, localPoint } = vp;
 
+const draftAssetId = ref<string | null>(null);
+const draftObjectId = ref<string | null>(null);
+const showSaveOrigin = ref(false);
+const originName = ref("");
+const originBgColor = ref<string | undefined>(undefined);
+const draftObject = computed(() => floor.value?.objects.find((object) => object.id === draftObjectId.value) ?? null);
+
+async function onDrawComplete(rect: { x: number; y: number; w: number; h: number }) {
+  const t = canvas.value.tileSize;
+  const w = Math.max(1, Math.round(rect.w / t));
+  const h = Math.max(1, Math.round(rect.h / t));
+  const snappedX = Math.round(rect.x / t) * t;
+  const snappedY = Math.round(rect.y / t) * t;
+  try {
+    const draft = await store.beginDrawnObject("Draft Object", w, h, snappedX, snappedY);
+    if (!draft) return;
+    draftAssetId.value = draft.asset.id;
+    draftObjectId.value = draft.object.id;
+    originName.value = "";
+    originBgColor.value = undefined;
+    showSaveOrigin.value = true;
+  } catch {}
+}
+
 const sel = useCanvasSelection({
   spaceDown,
   localPoint,
@@ -120,6 +145,7 @@ const sel = useCanvasSelection({
   floor,
   store: store,
   getMode: () => store.state.mode,
+  onDrawComplete,
 });
 const { boxSelect, onCanvasMouseDown, onBoxSelectMouseMove, onBoxSelectMouseUp } = sel;
 
@@ -173,7 +199,7 @@ let _cycleIndex = 0;
 const CYCLE_THRESHOLD = 6;
 
 function hasOuterWall(obj: ObjectData): boolean {
-  const def = resolveObjectDef(obj.rotation, findAssetCached(store.assetMap(), obj.type));
+  const def = resolveObjectDef(obj.rotation, findAssetCached(store.assetMap(), obj.type), { w: obj.w, h: obj.h });
   const edges = def.tileEdges;
   if (!edges || edges.length === 0) return false;
   const rows = edges.length;
@@ -286,6 +312,7 @@ function saveViewToggles() {
         showLabels: showLabels.value,
         showStreet: showStreet.value,
         showWalkableOverlay: showWalkableOverlay.value,
+        showObjectHighlights: showObjectHighlights.value,
       }),
     );
   } catch {}
@@ -311,6 +338,11 @@ function toggleWalkableOverlay() {
   saveViewToggles();
 }
 
+function toggleObjectHighlights() {
+  showObjectHighlights.value = !showObjectHighlights.value;
+  saveViewToggles();
+}
+
 async function onKeyDown(e: KeyboardEvent) {
   const tag = (e.target as HTMLElement)?.tagName;
   if (tag === "INPUT" || tag === "SELECT" || tag === "TEXTAREA") return;
@@ -326,7 +358,7 @@ async function onKeyDown(e: KeyboardEvent) {
       const count = store.state.selectionState.items.length || 1;
       const confirmed = await confirm({
         title: "Delete selection",
-        message: `Delete ${count} selected ${count === 1 ? sel.type : "item(s)"}? This cannot be undone via UI (only Ctrl+Z).`,
+        message: `Delete ${count} selected ${count === 1 ? sel.type : "object(s)"}? This cannot be undone via UI (only Ctrl+Z).`,
         confirmLabel: "Delete",
         cancelLabel: "Cancel",
         danger: true,
@@ -428,7 +460,7 @@ function assetLabel(type: string): string {
 }
 
 function objDef(obj: ObjectData) {
-  return resolveObjectDef(obj.rotation, findAssetCached(store.assetMap(), obj.type));
+  return resolveObjectDef(obj.rotation, findAssetCached(store.assetMap(), obj.type), { w: obj.w, h: obj.h });
 }
 
 function objFillColor(obj: ObjectData): string {
@@ -461,13 +493,38 @@ function svgTransform(obj: ObjectData): string {
 function isObjectSelected(id: string): boolean {
   return store.state.selectionState.items.some((item) => item.type === "object" && item.id === id);
 }
+
+async function saveDrawnOrigin() {
+  const assetId = draftAssetId.value;
+  const name = originName.value.trim();
+  if (!assetId || !name) return;
+  try {
+    await store.updateAsset(assetId, { name, defaultBgColor: originBgColor.value });
+    showSaveOrigin.value = false;
+    draftAssetId.value = null;
+    draftObjectId.value = null;
+    store.setMode("object");
+  } catch {}
+}
+
+async function cancelDrawnOrigin() {
+  if (draftObjectId.value) {
+    store.select({ type: "object", id: draftObjectId.value });
+    await store.deleteSelected();
+  }
+  if (draftAssetId.value) await store.deleteAsset(draftAssetId.value);
+  showSaveOrigin.value = false;
+  draftAssetId.value = null;
+  draftObjectId.value = null;
+  store.setMode("object");
+}
 </script>
 
 <template>
   <div
     :ref="vp.containerRef"
     class="editor__canvas"
-    :class="{ 'editor__canvas--panning': spaceDown, 'editor__canvas--dragging': !!panning, 'editor__canvas-mode--move': store.state.mode === 'move', 'editor__canvas-mode--erase': store.state.mode === 'erase' }"
+    :class="{ 'editor__canvas--panning': spaceDown, 'editor__canvas--dragging': !!panning, 'editor__canvas-mode--draw': store.state.mode === 'draw', 'editor__canvas-mode--move': store.state.mode === 'move' }"
     @wheel="onWheel"
     @mousedown="onPanMouseDown"
     @mousemove="onContainerMouseMove"
@@ -483,7 +540,7 @@ function isObjectSelected(id: string): boolean {
         </pattern>
       </defs>
 
-      <rect :width="canvas.width" :height="canvas.height" :style="{ fill: 'var(--bg-secondary)' }" />
+      <rect :width="canvas.width" :height="canvas.height" :style="{ fill: canvas.bgColor || 'var(--bg-secondary)' }" />
 
       <!-- Street border: sidewalk + road + lane markings (8 tiles on all sides) -->
       <g v-if="showStreet" class="editor__street" style="pointer-events: none">
@@ -579,6 +636,7 @@ function isObjectSelected(id: string): boolean {
             :class="{ 'editor__canvas--collapsed': obj.collapsed, 'editor__canvas--dragitem': moving?.id === obj.id, 'editor__canvas--linked': !!obj.linkGroupId, 'editor__canvas--locked': obj.locked }"
             :style="{ stroke: 'var(--text-primary)', cursor: moving?.id === obj.id ? 'grabbing' : 'move' }"
           />
+          <rect v-if="showObjectHighlights" :x="obj.x + 1" :y="obj.y + 1" :width="Math.max(0, obj.w - 2)" :height="Math.max(0, obj.h - 2)" fill="none" :rx="obj.radius ?? 0" class="editor__canvas--highlight" style="pointer-events: none" />
           <template v-if="showWalkableOverlay && objDef(obj).walkableGrid">
             <template v-for="(row, gr) in objDef(obj).walkableGrid" :key="'wg_' + obj.id + '-' + gr">
               <rect
@@ -604,9 +662,9 @@ function isObjectSelected(id: string): boolean {
             <text :x="obj.x + obj.w - 4" :y="obj.y + 5.5" text-anchor="middle" font-size="4" fill="var(--bg-primary)">L</text>
           </g>
           <template v-if="(isObjectSelected(obj.id) || store.state.mode === 'npc-preview' || showWalkableOverlay) && objDef(obj).interactSpots && objDef(obj).interactSpots!.length > 0">
-            <g v-for="(anchor, aIdx) in objDef(obj).interactSpots" :key="`o-anchor-${obj.id}-${aIdx}`" style="pointer-events: none">
-              <circle :cx="obj.x + anchor.x" :cy="obj.y + anchor.y" r="4" fill="var(--accent-green)" stroke="var(--text-bright)" stroke-width="0.8" />
-              <text :x="obj.x + anchor.x" :y="obj.y + anchor.y - 6" text-anchor="middle" font-size="5" fill="color-mix(in srgb, var(--accent-green) 70%, var(--bg-primary))">A{{ aIdx + 1 }}</text>
+            <g v-for="(interactSpot, interactSpotIdx) in objDef(obj).interactSpots" :key="`o-interactspot-${obj.id}-${interactSpotIdx}`" style="pointer-events: none">
+              <circle :cx="obj.x + interactSpot.x" :cy="obj.y + interactSpot.y" r="4" fill="var(--accent-green)" stroke="var(--text-bright)" stroke-width="0.8" />
+              <text :x="obj.x + interactSpot.x" :y="obj.y + interactSpot.y - 6" text-anchor="middle" font-size="5" fill="color-mix(in srgb, var(--accent-green) 70%, var(--bg-primary))">IS{{ interactSpotIdx + 1 }}</text>
             </g>
           </template>
         </g>
@@ -672,20 +730,93 @@ function isObjectSelected(id: string): boolean {
       <button class="editor__zoombtn--icon editor__zoom-control" @click="toggleGrid" title="Toggle Grid" aria-label="Toggle grid">Grid</button>
       <button class="editor__zoombtn--icon editor__zoom-control" @click="toggleLabels" title="Toggle Labels" aria-label="Toggle labels">Labels</button>
       <button class="editor__zoombtn--icon editor__zoom-control" :class="{ 'editor__zoombtn--active': showStreet }" @click="toggleStreet" title="Toggle Street" aria-label="Toggle street">Street</button>
-      <button class="editor__zoombtn--icon editor__zoom-control" :class="{ 'editor__zoombtn--active': showWalkableOverlay }" @click="toggleWalkableOverlay" title="Toggle Navigation View (walkable + anchors + entrances)" aria-label="Toggle navigation view">Nav</button>
+      <button class="editor__zoombtn--icon editor__zoom-control" :class="{ 'editor__zoombtn--active': showWalkableOverlay }" @click="toggleWalkableOverlay" title="Toggle Navigation View (walkable + interactspots + entrances)" aria-label="Toggle navigation view">Nav</button>
+      <button class="editor__zoombtn--icon editor__zoom-control" :class="{ 'editor__zoombtn--active': showObjectHighlights }" @click="toggleObjectHighlights" title="Toggle object highlights" aria-label="Toggle object highlights">Highlight</button>
     </div>
     <WalkableGridPanel />
+
+    <div v-if="showSaveOrigin && draftObject" class="modal__overlay editor__draw-modal" @click.self="cancelDrawnOrigin">
+      <div class="card editor__draw-panel">
+        <div class="editor__draw-header">
+          <strong>Save Placed Object as Origin</strong>
+          <button class="btn--ghost btn--icon" type="button" aria-label="Cancel" @click="cancelDrawnOrigin">×</button>
+        </div>
+        <div class="editor__draw-preview" :style="{ width: `${Math.min(draftObject.w, 220)}px`, height: `${Math.min(draftObject.h, 140)}px`, background: originBgColor || 'var(--bg-card)' }" />
+        <div class="editor__draw-size">{{ draftObject.w / canvas.tileSize }} × {{ draftObject.h / canvas.tileSize }} tiles</div>
+        <label class="editor__draw-field">
+          <span>Name</span>
+          <input v-model="originName" class="input" type="text" placeholder="Object name" autofocus />
+        </label>
+        <label class="editor__draw-field">
+          <span>Background</span>
+          <ColorInput v-model="originBgColor" :allow-transparent="true" placeholder="#RRGGBB or transparent" aria-label="Origin background color" />
+        </label>
+        <div class="actions">
+          <button class="btn--ghost" type="button" @click="cancelDrawnOrigin">Cancel</button>
+          <button class="btn--primary" type="button" :disabled="!originName.trim()" @click="saveDrawnOrigin">Save as Origin</button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <style scoped>
+.editor__draw-modal {
+  z-index: var(--z-layer-3);
+}
+
+.editor__draw-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-md);
+  width: min(360px, calc(100vw - var(--gap-lg)));
+  padding: var(--gap-md);
+}
+
+.editor__draw-header,
+.editor__draw-field {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--gap-sm);
+}
+
+.editor__draw-field > span {
+  flex-shrink: 0;
+  color: var(--text-secondary);
+  font-size: var(--font-sm);
+}
+
+.editor__draw-field > .input,
+.editor__draw-field > :deep(.colorinput) {
+  flex: 1;
+}
+
+.editor__draw-preview {
+  align-self: center;
+  max-width: 100%;
+  border: 1px solid var(--accent-gold);
+  background-image: linear-gradient(45deg, var(--bg-tertiary) 25%, transparent 25%), linear-gradient(-45deg, var(--bg-tertiary) 25%, transparent 25%), linear-gradient(45deg, transparent 75%, var(--bg-tertiary) 75%), linear-gradient(-45deg, transparent 75%, var(--bg-tertiary) 75%);
+  background-size: 8px 8px;
+  background-position:
+    0 0,
+    0 4px,
+    4px -4px,
+    -4px 0;
+}
+
+.editor__draw-size {
+  color: var(--text-secondary);
+  font-size: var(--font-xs);
+  text-align: center;
+}
+
 .editor__canvas {
   flex: 1;
   position: relative;
   overflow: hidden;
   background: var(--bg-primary);
   min-width: 0;
-  min-height: 0;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -701,8 +832,7 @@ function isObjectSelected(id: string): boolean {
   cursor: grabbing !important;
 }
 
-.editor__canvas-mode--wall .editor__canvas-svg,
-.editor__canvas-mode--erase .editor__canvas-svg {
+.editor__canvas-mode--draw .editor__canvas-svg {
   cursor: crosshair;
 }
 
@@ -727,6 +857,15 @@ function isObjectSelected(id: string): boolean {
 .editor__canvas--selected {
   stroke: var(--accent-gold);
   stroke-width: 2px;
+  fill: none;
+  pointer-events: none;
+}
+
+.editor__canvas--highlight {
+  stroke: var(--accent-gold);
+  stroke-width: 1.5px;
+  stroke-dasharray: 5 3;
+  opacity: 0.9;
   fill: none;
   pointer-events: none;
 }
@@ -772,10 +911,10 @@ function isObjectSelected(id: string): boolean {
   border-radius: var(--radius-sm);
   font-size: var(--font-xs);
   text-transform: capitalize;
-  z-index: 50;
+  z-index: var(--z-layer-2);
 }
 
-.editor__modebadge--wall {
+.editor__modebadge--draw {
   border-color: var(--accent-gold);
   color: var(--accent-gold);
 }
@@ -788,11 +927,6 @@ function isObjectSelected(id: string): boolean {
 .editor__modebadge--move {
   border-color: var(--accent-green);
   color: var(--accent-green);
-}
-
-.editor__modebadge--erase {
-  border-color: var(--accent-red);
-  color: var(--accent-red);
 }
 
 .editor__modebadge--npcpreview {
@@ -813,7 +947,7 @@ function isObjectSelected(id: string): boolean {
   border: 1px solid var(--border-dim);
   white-space: nowrap;
   pointer-events: none;
-  z-index: 50;
+  z-index: var(--z-layer-2);
 }
 
 .editor__floor-title {
@@ -825,7 +959,7 @@ function isObjectSelected(id: string): boolean {
   border: 1px solid var(--border-dim);
   border-radius: var(--radius-sm);
   font-size: var(--font-xs);
-  z-index: 50;
+  z-index: var(--z-layer-2);
   height: fit-content;
 }
 
@@ -850,7 +984,7 @@ function isObjectSelected(id: string): boolean {
   background: var(--bg-card);
   border: 1px solid var(--border-dim);
   border-radius: var(--radius-sm);
-  z-index: 50;
+  z-index: var(--z-layer-2);
 }
 
 .editor__coords {
@@ -862,7 +996,7 @@ function isObjectSelected(id: string): boolean {
   border: 1px solid var(--border-dim);
   border-radius: var(--radius-sm);
   font-size: var(--font-xs);
-  z-index: 49;
+  z-index: var(--z-layer-1);
   height: fit-content;
   color: var(--text-dim);
   font-variant-numeric: tabular-nums;
@@ -879,7 +1013,7 @@ function isObjectSelected(id: string): boolean {
   background: var(--bg-card);
   border: 1px solid var(--border-dim);
   border-radius: var(--radius-sm);
-  z-index: 50;
+  z-index: var(--z-layer-2);
 }
 
 .editor__zoombtn--icon {
@@ -966,7 +1100,7 @@ function isObjectSelected(id: string): boolean {
   border: 1px solid var(--border-dim);
   border-radius: var(--radius-sm);
   box-shadow: 0 8px 24px color-mix(in srgb, var(--bg-primary) 50%, transparent);
-  z-index: var(--z-canvas-menu);
+  z-index: var(--z-layer-2);
   padding: var(--gap-xs);
 }
 

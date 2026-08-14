@@ -1,7 +1,7 @@
 /**
  * verify-assets.mjs
  *
- * Loads originAssets.json and validates every asset against the current
+ * Loads blueprintData.json and validates every asset against the current
  * AssetDef shape. Catches:
  * - Fields present in data but no longer on the type (stale data after removal)
  * - Fields required by the type but missing from data (incomplete migration)
@@ -18,7 +18,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
-const dataPath = path.join(root, 'src', 'blueprint-editor', 'data', 'originAssets.json')
+const dataPath = path.join(root, 'src', 'blueprint-editor', 'data', 'blueprintData.json')
 
 // ─── Known AssetDef field set (must match types.ts AssetBase + AssetDef) ───
 // Update this set when a field is added/removed from AssetDef.
@@ -131,19 +131,19 @@ function warn(assetId, msg) {
 	warnings++
 }
 
-console.log('Verifying originAssets.json against AssetDef shape...\n')
+console.log('Verifying blueprintData.json against AssetDef shape...\n')
 
 let raw
 try {
 	raw = JSON.parse(fs.readFileSync(dataPath, 'utf8').replace(/^\uFEFF/, ''))
 } catch (e) {
-	console.error(`Failed to read/parse originAssets.json: ${e.message}`)
+	console.error(`Failed to read/parse blueprintData.json: ${e.message}`)
 	process.exit(1)
 }
 
 // File-level checks
-if (raw.$schema !== 'origin-assets.v1.json') {
-	console.error(`File-level: $schema must be "origin-assets.v1.json", got "${raw.$schema}"`)
+if (raw.$schema !== 'blueprint-data.v1.json') {
+	console.error(`File-level: $schema must be "blueprint-data.v1.json", got "${raw.$schema}"`)
 	errors++
 }
 if (typeof raw.version !== 'number') {

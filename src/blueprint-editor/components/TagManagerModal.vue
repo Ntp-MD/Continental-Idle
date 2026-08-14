@@ -2,10 +2,12 @@
 import { ref, computed } from "vue";
 import { useAssetsStore } from "../blueprintStore";
 import { useConfirm } from "@/composables/useConfirm";
+import { useToast } from "@/composables/useToast";
 import { sanitizeTag } from "../../utils/sanitize";
 import { state } from "../store/state";
 import type { NpcRole } from "../types";
 import ModalShell from "./ModalShell.vue";
+import TagChip from "./TagChip.vue";
 
 const props = defineProps<{ open: boolean }>();
 const emit = defineEmits<{ (e: "close"): void }>();
@@ -72,13 +74,18 @@ async function addTag() {
 async function removeTag(tag: string) {
   const ok = await confirm({
     title: "Delete tag",
-    message: `Delete "${tag}"? This removes it from all NPC rules and origin assets.`,
+    message: `Delete "${tag}"? Existing role and asset assignments will remain as orphan references and show warnings.`,
     confirmLabel: "Delete",
     danger: true,
   });
   if (!ok) return;
-  await store.removeTag(tag);
+  const deleted = await store.removeTag(tag);
+  if (!deleted) {
+    useToast().error("Failed to delete tag");
+    return;
+  }
   if (selectedTag.value === tag) selectedTag.value = "";
+  useToast().success(`Tag "${tag}" deleted`);
 }
 
 async function onKeydown(e: KeyboardEvent) {
@@ -129,7 +136,7 @@ async function onKeydown(e: KeyboardEvent) {
             <div v-for="usage in tagUsage.roles" :key="usage.role.id + usage.type" class="tagmanager__usagerow">
               <span class="tagmanager__swatch" :style="{ background: usage.role.color }" />
               <span class="tagmanager__usagename">{{ usage.role.label }}</span>
-              <span class="tag" :class="usage.type === 'focus' ? 'tag__focus' : 'tag__restricted'">{{ usage.type }}</span>
+              <TagChip :label="usage.type" :variant="usage.type === 'focus' ? 'focus' : 'restricted'" />
             </div>
             <div v-if="tagUsage.roles.length === 0" class="tagmanager__empty">Not used by any role</div>
           </div>

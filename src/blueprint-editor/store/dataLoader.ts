@@ -1,98 +1,88 @@
-import type { AssetDef, FloorLayoutData, NpcSimulationConfig, CanvasConfig, FloorData, OriginAssetFile } from '../types'
-import { normalizeOriginAssetFile, isNpcConfig } from '../types'
+import type { AssetDef, BlueprintDataFile, BlueprintTagDefinition, FloorLayoutData, NpcSimulationConfig, CanvasConfig, ObjectData, OriginAssetFile, PersistedFloorLayoutData } from '../types'
+import { normalizeOriginAssetFile, normalizeNpcConfig } from '../types'
+import { serializeAsset, serializeObject } from '../assetUtils'
 import { EDITOR_CONFIG } from '../editorConfig'
 import { migrateNpcConfig } from './migrateNpc'
-import originAssetsJson from '../data/originAssets.json'
-import blueprintLayoutJson from '../data/blueprintLayout.json'
-import npcConfigJson from '../data/npcConfig.json'
+import { originAssetsData } from '../data/originAssets.data'
+import { floorPlanData } from '../data/floorPlan.data'
+import { npcSettingsData } from '../data/npcSettings.data'
+import { tagManagerData } from '../data/tagManager.data'
 
-export interface BlueprintLayoutFile {
+export interface BlueprintLayoutFile extends PersistedFloorLayoutData {
 	$schema: string
-	version: number
 	canvas: CanvasConfig
-	floors: FloorData[]
 }
 
-export interface NpcConfigFile {
-	$schema: string
-	version: number
-	speed: number
-	defaultRoleId: string
-	roles: NpcSimulationConfig['roles']
-	tasks: NpcSimulationConfig['tasks']
-	pool: NpcSimulationConfig['pool']
-}
-
-export const originAssetFile: OriginAssetFile = normalizeOriginAssetFile(originAssetsJson) ?? {
+export const blueprintTagDefinitions: BlueprintTagDefinition[] = Array.isArray(tagManagerData)
+	? tagManagerData.map(tag => ({ id: tag.id, label: tag.label }))
+	: []
+export const originAssetFile: OriginAssetFile = normalizeOriginAssetFile({
 	$schema: 'origin-assets.v1.json',
 	version: 1,
-	originAssets: [],
-}
+	originAssets: originAssetsData,
+}) ?? { $schema: 'origin-assets.v1.json', version: 1, originAssets: [] }
 export const originAssets: AssetDef[] = originAssetFile.originAssets
-export const blueprintLayout: BlueprintLayoutFile = normalizeBlueprintLayout(blueprintLayoutJson)
+export const blueprintLayout: BlueprintLayoutFile = normalizeBlueprintLayout(floorPlanData)
+export const npcConfig: NpcSimulationConfig = normalizeNpcConfig(npcSettingsData) ?? migrateNpcConfig(npcSettingsData)
 
-export const npcConfig: NpcSimulationConfig = isNpcConfig(npcConfigJson)
-	? (npcConfigJson as unknown as NpcSimulationConfig)
-	: migrateNpcConfig(npcConfigJson)
+export function buildBlueprintData(
+	layout: FloorLayoutData = buildSavedLayout(),
+	assets: AssetDef[] = originAssets,
+	config: NpcSimulationConfig = npcConfig,
+	tags: BlueprintTagDefinition[] = blueprintTagDefinitions,
+): BlueprintDataFile {
+	return {
+		$schema: 'blueprint-data.v1.json',
+		version: 1,
+		tags: tags.map(tag => ({ ...tag })),
+		originAssets: assets.map(serializeAsset) as unknown as AssetDef[],
+		layout: {
+			...layout,
+			npcConfig: undefined,
+			floors: layout.floors.map(floor => ({
+				...floor,
+				objects: floor.objects.map(serializeObject),
+			})),
+		},
+		npcConfig: config,
+	}
+}
+
+export async function fetchBlueprintDataFromDisk(): Promise<BlueprintDataFile | null> {
+	try {
+		const res = await fetch(EDITOR_CONFIG.blueprintDataEndpoint)
+		if (!res.ok) return null
+		const raw = await res.json() as Partial<BlueprintDataFile>
+		const config = normalizeNpcConfig(raw.npcConfig)
+		if (!raw.layout || !Array.isArray(raw.originAssets) || !config || !Array.isArray(raw.tags)) return null
+		return { ...buildBlueprintData(), ...raw, npcConfig: config }
+	} catch {
+		return null
+	}
+}
 
 export function buildSavedLayout(): FloorLayoutData {
 	return {
 		version: blueprintLayout.version,
 		canvas: blueprintLayout.canvas,
-		floors: blueprintLayout.floors,
+		floors: blueprintLayout.floors.map(floor => ({
+			...floor,
+			objects: floor.objects.map(object => ({ ...object, w: 0, h: 0 } as ObjectData)),
+		})),
 		npcConfig,
 	}
 }
 
-export function buildRuntimeLayout(): FloorLayoutData {
-	return buildSavedLayout()
-}
-
-
 function normalizeBlueprintLayout(raw: unknown): BlueprintLayoutFile {
 	const r = raw as Record<string, unknown>
-	if (!r || typeof r !== 'object') {
-		throw new Error('blueprintLayout.json: invalid structure — expected an object')
-	}
-	if (typeof r.version !== 'number' || !isFinite(r.version)) {
-		throw new Error('blueprintLayout.json: version must be a finite number')
-	}
-	if (!r.canvas || typeof r.canvas !== 'object') {
-		throw new Error('blueprintLayout.json: canvas must be an object')
-	}
-	if (!Array.isArray(r.floors)) {
-		throw new Error('blueprintLayout.json: floors must be an array')
-	}
+	if (!r || typeof r !== 'object') throw new Error('blueprintData.json: invalid structure — expected an object')
+	if (typeof r.version !== 'number' || !isFinite(r.version)) throw new Error('blueprintData.json: version must be a finite number')
+	if (!r.canvas || typeof r.canvas !== 'object') throw new Error('blueprintData.json: canvas must be an object')
+	if (!Array.isArray(r.floors)) throw new Error('blueprintData.json: floors must be an array')
 	return {
 		$schema: typeof r.$schema === 'string' ? r.$schema : 'blueprint-layout.v1.json',
 		version: r.version,
 		canvas: r.canvas as CanvasConfig,
-		floors: r.floors as FloorData[],
+		floors: r.floors as PersistedFloorLayoutData['floors'],
 	}
-}
-
-export async function fetchLayoutFromDisk(): Promise<BlueprintLayoutFile | null> {
-	try {
-		const res = await fetch(EDITOR_CONFIG.loadLayoutEndpoint)
-		if (!res.ok) return null
-		return normalizeBlueprintLayout(await res.json())
-	} catch { return null }
-}
-
-export async function fetchNpcConfigFromDisk(): Promise<NpcSimulationConfig | null> {
-	try {
-		const res = await fetch(EDITOR_CONFIG.loadNpcConfigEndpoint)
-		if (!res.ok) return null
-		const raw = await res.json()
-		return isNpcConfig(raw) ? (raw as NpcSimulationConfig) : migrateNpcConfig(raw)
-	} catch { return null }
-}
-
-export async function fetchOriginAssetsFromDisk(): Promise<AssetDef[] | null> {
-	try {
-		const res = await fetch(EDITOR_CONFIG.loadOriginAssetsEndpoint)
-		if (!res.ok) return null
-		const file = normalizeOriginAssetFile(await res.json())
-		return file?.originAssets ?? null
-	} catch { return null }
 }

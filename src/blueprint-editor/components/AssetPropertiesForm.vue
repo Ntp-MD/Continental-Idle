@@ -8,8 +8,10 @@ import { useWalkableGridPanel } from "../composables/useWalkableGridPanel";
 import { useClipboardCopy } from "../composables/useClipboardCopy";
 import { renderSvgInto } from "../svgSanitizer";
 import type { AssetDef } from "../types";
-import { isHexColor } from "../store/state";
+import { isHexColor, isValidColor } from "../types";
 import TagPicker from "./TagPicker.vue";
+import ColorInput from "./ColorInput.vue";
+import { managedTagSet } from "../store/tags";
 
 const props = defineProps<{ asset: AssetDef }>();
 const store = useAssetsStore();
@@ -18,11 +20,27 @@ const { pending, run } = useAsyncAction();
 const { showWalkableGridPanel, openWalkableGridPanel, closeWalkableGridPanel } = useWalkableGridPanel();
 const { copyId } = useClipboardCopy();
 
-const assetFields = ref({ name: "", defaultLabel: "", w: 1, h: 1, pxW: 0, pxH: 0, usePx: false, defaultPadding: 0, defaultRadius: 0, defaultLabelPadding: 0, rxTL: 0, rxTR: 0, rxBR: 0, rxBL: 0, defaultBgColor: "", defaultLabelColor: "" });
+const assetFields = ref<{ name: string; defaultLabel: string; w: number; h: number; pxW: number; pxH: number; usePx: boolean; defaultPadding: number; defaultRadius: number; defaultLabelPadding: number; rxTL: number; rxTR: number; rxBR: number; rxBL: number; defaultBgColor: string | undefined; defaultLabelColor: string | undefined }>({
+  name: "",
+  defaultLabel: "",
+  w: 1,
+  h: 1,
+  pxW: 0,
+  pxH: 0,
+  usePx: false,
+  defaultPadding: 0,
+  defaultRadius: 0,
+  defaultLabelPadding: 0,
+  rxTL: 0,
+  rxTR: 0,
+  rxBR: 0,
+  rxBL: 0,
+  defaultBgColor: "",
+  defaultLabelColor: "",
+});
 const assetRxSync = ref(true);
 const assetTags = ref<string[]>([]);
 const collapsedSections = ref<Record<string, boolean>>({ general: false, dimensions: false });
-const walkable = ref(props.asset.walkable ?? false);
 const portal = ref(props.asset.tags?.includes("portal") ?? false);
 let syncingAsset = false;
 function toggleSection(key: string) {
@@ -48,11 +66,10 @@ watch(
       rxTR: a.defaultRx?.tr ?? 0,
       rxBR: a.defaultRx?.br ?? 0,
       rxBL: a.defaultRx?.bl ?? 0,
-      defaultBgColor: a.defaultBgColor ?? "",
-      defaultLabelColor: a.defaultLabelColor ?? "",
+      defaultBgColor: a.defaultBgColor,
+      defaultLabelColor: a.defaultLabelColor,
     };
     assetTags.value = a.tags ? [...a.tags] : [];
-    walkable.value = a.walkable ?? false;
     portal.value = a.tags?.includes("portal") ?? false;
     closeWalkableGridPanel();
     nextTick(() => {
@@ -66,6 +83,7 @@ const isLinkedAsset = computed(() => !!props.asset.linkedParts);
 const linkedPartCount = computed(() => props.asset.linkedParts?.length ?? 0);
 const isSvgAsset = computed(() => !!props.asset.svg);
 const isNpcDeployed = computed(() => store.state.mode === "npc-preview");
+const orphanAssetTags = computed(() => assetTags.value.filter((tag) => !managedTagSet.value.has(tag)));
 
 const previewSvgEl = ref<SVGSVGElement | null>(null);
 const previewSvgViewBox = computed(() => {
@@ -87,15 +105,6 @@ watch(
   () => nextTick(renderPreview),
 );
 onMounted(renderPreview);
-
-watch(walkable, async (v) => {
-  if (syncingAsset) return;
-  try {
-    await store.updateAsset(props.asset.id, { walkable: v });
-  } catch {
-    walkable.value = !v;
-  }
-});
 
 watch(portal, async (v) => {
   if (syncingAsset) return;
@@ -144,8 +153,8 @@ async function commitField(field: "name" | "defaultLabel" | "w" | "h" | "pxW" | 
     return;
   }
   const val = assetFields.value[field];
-  if (field === "defaultBgColor" && typeof val === "string" && val && !isHexColor(val)) {
-    useToast().warning("Background color must be a hex code");
+  if (field === "defaultBgColor" && typeof val === "string" && val && !isValidColor(val)) {
+    useToast().warning("Background color must be a hex code or 'transparent'");
     return;
   }
   if (field === "defaultLabelColor" && typeof val === "string" && val && !isHexColor(val)) {
@@ -185,12 +194,12 @@ async function onRxInput(corner: "rxTL" | "rxTR" | "rxBR" | "rxBL") {
 }
 
 async function clearAssetBgColor() {
-  assetFields.value.defaultBgColor = "";
+  assetFields.value.defaultBgColor = undefined;
   await store.updateAsset(props.asset.id, { defaultBgColor: undefined });
 }
 
 async function clearAssetLabelColor() {
-  assetFields.value.defaultLabelColor = "";
+  assetFields.value.defaultLabelColor = undefined;
   await store.updateAsset(props.asset.id, { defaultLabelColor: undefined });
 }
 
@@ -262,7 +271,7 @@ async function duplicateAsset() {
           <label>ID</label>
           <div class="properties__idrow">
             <input type="text" :value="asset.id" disabled class="input input--readonly" title="Asset ID" />
-            <button class="btn--sm" @click="copyId(asset.id)">Copy</button>
+            <button @click="copyId(asset.id)">Copy</button>
           </div>
         </div>
         <div class="properties__row">
@@ -285,13 +294,14 @@ async function duplicateAsset() {
           <label>NPC Tags</label>
           <TagPicker :model-value="assetTags" @update:model-value="saveAssetTags" placeholder="rest, service, target" />
         </div>
+        <div v-if="orphanAssetTags.length" class="alert alert--warning alert--sm">Undefined tags: {{ orphanAssetTags.join(", ") }}. Recreate the tag definition or remove these assignments.</div>
         <div v-if="isSvgAsset" class="properties__row">
           <label>Rotate Origin</label>
-          <button class="btn--sm" @click="onRotateAsset">↻ 90°</button>
+          <button @click="onRotateAsset">↻ 90°</button>
         </div>
         <div v-if="!isLinkedAsset" class="properties__row">
           <label>Walkable Grid</label>
-          <button class="btn--sm btn--warning" @click="showWalkableGridPanel ? closeWalkableGridPanel() : openWalkableGridPanel()">
+          <button class="btn--warning" @click="showWalkableGridPanel ? closeWalkableGridPanel() : openWalkableGridPanel()">
             {{ showWalkableGridPanel ? "Close" : "Manage" }}
           </button>
         </div>
@@ -313,8 +323,8 @@ async function duplicateAsset() {
           <div v-if="!isSvgAsset" class="properties__row">
             <label>Unit Mode</label>
             <div class="properties__unitpicker">
-              <button class="btn--sm" :class="{ 'btn--warning': !assetFields.usePx }" :disabled="sizeLocked" @click="assetFields.usePx ? toggleUsePx() : null">Tiles</button>
-              <button class="btn--sm" :class="{ 'btn--warning': assetFields.usePx }" :disabled="sizeLocked" @click="!assetFields.usePx ? toggleUsePx() : null">Pixels</button>
+              <button :class="{ 'btn--warning': !assetFields.usePx }" :disabled="sizeLocked" @click="assetFields.usePx ? toggleUsePx() : null">Tiles</button>
+              <button :class="{ 'btn--warning': assetFields.usePx }" :disabled="sizeLocked" @click="!assetFields.usePx ? toggleUsePx() : null">Pixels</button>
             </div>
           </div>
           <template v-if="!assetFields.usePx">
@@ -357,26 +367,20 @@ async function duplicateAsset() {
         <div class="properties__row">
           <label>Bg Color</label>
           <div class="properties__colorrow">
-            <input class="input" v-model="assetFields.defaultBgColor" placeholder="#RRGGBB" aria-label="Asset background color hex value" @change="commitField('defaultBgColor')" />
-            <button class="btn--sm" type="button" @click="clearAssetBgColor">Reset</button>
+            <ColorInput v-model="assetFields.defaultBgColor" :allow-transparent="true" placeholder="#RRGGBB or transparent" aria-label="Asset background color" @commit="commitField('defaultBgColor')" />
+            <button type="button" @click="clearAssetBgColor">Reset</button>
           </div>
         </div>
         <div class="properties__row">
           <label>Label Color</label>
           <div class="properties__colorrow">
-            <input class="input" v-model="assetFields.defaultLabelColor" placeholder="#RRGGBB" aria-label="Asset label color hex value" @change="commitField('defaultLabelColor')" />
-            <button class="btn--sm" type="button" @click="clearAssetLabelColor">Reset</button>
+            <ColorInput v-model="assetFields.defaultLabelColor" placeholder="#RRGGBB" aria-label="Asset label color" @commit="commitField('defaultLabelColor')" />
+            <button type="button" @click="clearAssetLabelColor">Reset</button>
           </div>
         </div>
         <div class="properties__row properties__row--toggle">
-          <label>Walkable</label>
-          <button class="btn--sm" :class="{ 'btn--success': walkable, 'btn--danger': !walkable }" @click="walkable = !walkable" :title="walkable ? 'NPCs can walk through this object' : 'NPCs cannot walk through this object (solid wall)'">
-            {{ walkable ? "ON" : "OFF" }}
-          </button>
-        </div>
-        <div class="properties__row properties__row--toggle">
           <label>Portal</label>
-          <button class="btn--sm" :class="{ 'btn--success': portal, 'btn--danger': !portal }" :disabled="isNpcDeployed" @click="portal = !portal" :title="isNpcDeployed ? 'Exit NPC preview to change Portal setting' : portal ? 'NPCs can travel to another floor through this object' : 'NPCs cannot use this object for cross-floor travel'">
+          <button :class="{ 'btn--success': portal, 'btn--danger': !portal }" :disabled="isNpcDeployed" @click="portal = !portal" :title="isNpcDeployed ? 'Exit NPC preview to change Portal setting' : portal ? 'NPCs can travel to another floor through this object' : 'NPCs cannot use this object for cross-floor travel'">
             {{ portal ? "ON" : "OFF" }}
           </button>
         </div>

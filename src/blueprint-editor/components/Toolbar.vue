@@ -7,6 +7,7 @@ import { useAsyncAction } from "../composables/useAsyncAction";
 import NpcManagerModal from "./NpcManagerModal.vue";
 import FloorModal from "./FloorModal.vue";
 import DeployNpcModal from "./DeployNpcModal.vue";
+import ColorInput from "./ColorInput.vue";
 import { useNpcSimulation } from "../composables/useNpcSimulation";
 
 const store = useAssetsStore();
@@ -15,8 +16,7 @@ const confirm = useConfirm().confirm;
 const emit = defineEmits<{ close: [] }>();
 const { pending, run } = useAsyncAction();
 const npcSimulation = inject("npcSimulation") as ReturnType<typeof useNpcSimulation>;
-const { npcs, isPaused, pause, resume, stop, reset, simSpeed } = npcSimulation;
-void stop;
+const { npcs, isPaused, pause, resume, reset, simSpeed } = npcSimulation;
 const showNpcManager = ref(false);
 const showFloorModal = ref(false);
 const showDeployModal = ref(false);
@@ -68,7 +68,7 @@ function onBack() {
   if (store.state.mode === "npc-preview") stop();
   emit("close");
 }
-function onSwitchMode(mode: "object" | "move" | "erase") {
+function onSwitchMode(mode: "object" | "draw" | "move") {
   if (store.state.mode === "npc-preview") stop();
   store.setMode(mode);
 }
@@ -76,6 +76,7 @@ function onSwitchMode(mode: "object" | "move" | "erase") {
 const widthInput = ref(store.state.layout.canvas.width);
 const heightInput = ref(store.state.layout.canvas.height);
 const tileInput = ref(store.state.layout.canvas.tileSize);
+const bgColorInput = ref(store.state.layout.canvas.bgColor);
 
 watch(
   () => store.state.layout.canvas,
@@ -83,6 +84,7 @@ watch(
     widthInput.value = c.width;
     heightInput.value = c.height;
     tileInput.value = c.tileSize;
+    bgColorInput.value = c.bgColor;
   },
 );
 
@@ -103,11 +105,23 @@ async function applyCanvasSize() {
   }
 
   try {
-    await run(() => store.resizeCanvas(widthInput.value, heightInput.value, tileInput.value));
+    const saved = await run(() => store.resizeCanvas(widthInput.value, heightInput.value, tileInput.value));
+    if (!saved) {
+      toast.error("Failed to resize canvas");
+      return;
+    }
     toast.info("Canvas resized");
     showSettings.value = false;
   } catch {
     toast.error("Failed to resize canvas");
+  }
+}
+
+async function applyCanvasBgColor(value: string | undefined) {
+  try {
+    await run(() => store.setCanvasBgColor(value));
+  } catch {
+    toast.error("Failed to set canvas background color");
   }
 }
 
@@ -138,8 +152,8 @@ function onSyncToGame() {
     </button>
 
     <button :class="{ 'btn--warning': store.state.mode === 'object' }" @click="onSwitchMode('object')" aria-label="Switch to object mode">Object</button>
+    <button :class="{ 'btn--warning': store.state.mode === 'draw' }" @click="onSwitchMode('draw')" aria-label="Switch to draw mode">Draw Object</button>
     <button :class="{ 'btn--warning': store.state.mode === 'move' }" @click="onSwitchMode('move')" aria-label="Switch to move mode">Move</button>
-    <button :class="{ 'btn--warning': store.state.mode === 'erase' }" @click="onSwitchMode('erase')" title="Erase objects" aria-label="Switch to erase mode">Erase</button>
 
     <button @click="onNpcManager" title="Configure NPC roles and tags" aria-label="Open NPC manager">NPC Manager</button>
     <button @click="onFloorManager" title="Manage floors: add, delete, reorder, role restrictions" aria-label="Open floor manager">Floor Manager</button>
@@ -203,6 +217,14 @@ function onSyncToGame() {
               <div class="editorsettings__hint">Changing canvas size will re-snap all objects to the new grid.</div>
             </div>
             <div class="editorsettings__section">
+              <div class="editorsettings__title">Background</div>
+              <div class="editorsettings__row">
+                <label for="canvas__bgcolor">Color</label>
+                <ColorInput v-model="bgColorInput" :allow-transparent="true" placeholder="#RRGGBB or transparent" aria-label="Canvas background color" @commit="applyCanvasBgColor" />
+              </div>
+              <div class="editorsettings__hint">Hex color or 'transparent'. Leave empty for default.</div>
+            </div>
+            <div class="editorsettings__section">
               <div class="editorsettings__title">Keyboard Shortcuts</div>
               <div class="editorsettings__shortcuts">
                 <div class="editorsettings__shortcutrow"><kbd>Delete</kbd><span>Delete selected</span></div>
@@ -246,7 +268,6 @@ function onSyncToGame() {
   overflow: visible;
   flex-shrink: 0;
   position: relative;
-  min-height: 48px;
 }
 
 .editor__toolbar-backbtn {
@@ -281,7 +302,7 @@ function onSyncToGame() {
 }
 
 .editorsettings__overlay {
-  z-index: var(--z-toolbar);
+  z-index: var(--z-layer-3);
 }
 
 .editorsettings__panel {

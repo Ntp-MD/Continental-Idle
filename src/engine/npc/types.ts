@@ -41,12 +41,21 @@ export interface NpcEngineInteractionTarget {
 	portalEndpointKey?: string
 }
 
+export interface NpcEngineQueue {
+	key: string
+	targetKeys: readonly string[]
+	slots: readonly NpcEnginePoint[]
+	admissionPoints: readonly NpcEnginePoint[]
+	maxMembers: number
+}
+
 export interface NpcEngineLayout {
 	floors: readonly NpcEngineFloor[]
 	interactionTargets: readonly NpcEngineInteractionTarget[]
+	queues?: readonly NpcEngineQueue[]
 }
 
-export type NpcEngineAgentStatus = 'walking' | 'waiting' | 'interacting' | 'idle'
+export type NpcEngineAgentStatus = 'walking' | 'queued' | 'waiting' | 'interacting' | 'idle'
 
 export interface NpcEngineAgent {
 	id: string
@@ -64,6 +73,10 @@ export interface NpcEngineAgent {
 	reservationItemId: string | null
 	reservationInteractSpotId: string | null
 	interactionRemainingTicks: number
+	queueKey?: string | null
+	queuePendingKey?: string | null
+	queueSlotIndex?: number | null
+	queueArrivalSequence?: number | null
 
 	crossFloorCooldownUntil: number
 }
@@ -108,6 +121,12 @@ export interface NpcEngineOptions {
 	) => NpcEngineInteractionTarget | null
 
 	wanderSelector?: (agent: NpcEngineAgent) => NpcEnginePoint | null
+	queueSelector?: (
+		agent: NpcEngineAgent,
+		targets: readonly NpcEngineInteractionTarget[],
+		availableTargets: readonly NpcEngineInteractionTarget[],
+		queues: readonly NpcEngineQueue[],
+	) => NpcEngineQueue | null
 	targetTags?: readonly string[]
 
 

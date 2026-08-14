@@ -103,7 +103,7 @@ watch(
 <template>
   <div class="hotel-canvas">
     <svg class="hotel-canvas__svg" :viewBox="`0 0 ${canvas.width} ${canvas.height}`" preserveAspectRatio="xMidYMid meet" role="application" aria-label="Hotel simulation view">
-      <rect :width="canvas.width" :height="canvas.height" fill="var(--bg-secondary)" />
+      <rect :width="canvas.width" :height="canvas.height" :fill="canvas.bgColor || 'var(--bg-secondary)'" />
 
       <template v-if="currentFloor">
         <g v-for="obj in currentFloor.objects" :key="obj.id">

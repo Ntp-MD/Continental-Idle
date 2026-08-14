@@ -87,6 +87,12 @@
 	box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent-red) 15%, transparent) !important;
 }
 
+.tag--orphaned {
+	border-color: var(--accent-gold) !important;
+	color: var(--accent-gold) !important;
+	background: color-mix(in srgb, var(--accent-gold) 10%, transparent) !important;
+}
+
 .properties__value {
 	font-size: var(--font-sm);
 	color: var(--text-secondary);
@@ -101,12 +107,6 @@
 .properties__colorrow {
 	display: flex;
 	gap: var(--gap-sm);
-	align-items: center;
-}
-
-.properties__anchorrow {
-	display: flex;
-	gap: var(--gap-xs);
 	align-items: center;
 }
 

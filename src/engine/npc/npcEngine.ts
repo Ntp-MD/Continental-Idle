@@ -5,6 +5,7 @@ import type {
 	NpcEngineInteractionTarget,
 	NpcEngineLayout,
 	NpcEngineOptions,
+	NpcEngineQueue,
 	NpcEnginePoint,
 } from './types'
 
@@ -47,7 +48,10 @@ export class NpcEngine {
 	private readonly random: () => number
 	private readonly agents = new Map<string, MutableAgent>()
 	private readonly reservations = new Map<string, Set<string>>()
-	private readonly anchorReservations = new Map<string, string>()
+	private readonly interactSpotReservations = new Map<string, string>()
+	private readonly queueMembers = new Map<string, string[]>()
+	private readonly queueSlotReservations = new Map<string, string>()
+	private readonly queueArrivalSequence = new Map<string, number>()
 	private readonly waitingUntil = new Map<string, number>()
 	private readonly blockedTargets = new Map<string, Map<string, number>>()
 	private readonly events: NpcEngineEvent[] = []
@@ -89,6 +93,10 @@ export class NpcEngine {
 			reservationItemId: agent.reservationItemId ?? null,
 			reservationInteractSpotId: agent.reservationInteractSpotId ?? null,
 			interactionRemainingTicks: agent.interactionRemainingTicks ?? 0,
+			queueKey: agent.queueKey ?? null,
+			queuePendingKey: agent.queuePendingKey ?? null,
+			queueSlotIndex: agent.queueSlotIndex ?? null,
+			queueArrivalSequence: agent.queueArrivalSequence ?? null,
 			crossFloorCooldownUntil: agent.crossFloorCooldownUntil ?? 0,
 		})
 	}
@@ -96,6 +104,7 @@ export class NpcEngine {
 	removeAgent(agentId: string): boolean {
 		const agent = this.agents.get(agentId)
 		if (!agent) return false
+		this.leaveQueue(agent)
 		this.releaseReservation(agent)
 		this.waitingUntil.delete(agentId)
 		this.blockedTargets.delete(agentId)
@@ -110,7 +119,10 @@ export class NpcEngine {
 	reset(): void {
 		this.agents.clear()
 		this.reservations.clear()
-		this.anchorReservations.clear()
+		this.interactSpotReservations.clear()
+		this.queueMembers.clear()
+		this.queueSlotReservations.clear()
+		this.queueArrivalSequence.clear()
 		this.waitingUntil.clear()
 		this.blockedTargets.clear()
 		this.events.length = 0
@@ -125,6 +137,8 @@ export class NpcEngine {
 	setAgentFloor(agentId: string, floorId: string): boolean {
 		const agent = this.agents.get(agentId)
 		if (!agent || !this.getFloor(floorId)) return false
+		this.leaveQueue(agent)
+		agent.queuePendingKey = null
 		this.releaseReservation(agent)
 		this.waitingUntil.delete(agent.id)
 		this.blockedTargets.delete(agent.id)
@@ -148,6 +162,10 @@ export class NpcEngine {
 		this.priorityOffset = this.tickCount % Math.max(1, this.agents.size)
 
 		for (const agent of this.agents.values()) {
+			if (agent.status === 'queued') {
+				if (this.isQueueFront(agent)) this.chooseTarget(agent)
+				continue
+			}
 			if (agent.status === 'interacting') {
 				agent.interactionRemainingTicks--
 				if (agent.interactionRemainingTicks <= 0) {
@@ -259,7 +277,9 @@ export class NpcEngine {
 	private executeMove(agent: MutableAgent): void {
 		const next = agent.path[agent.pathIndex]
 		if (!next) {
-			this.beginInteraction(agent)
+			if (agent.queuePendingKey) this.admitQueue(agent)
+			else if (agent.queueKey) this.beginQueueWait(agent)
+			else this.beginInteraction(agent)
 			return
 		}
 
@@ -270,7 +290,11 @@ export class NpcEngine {
 			agent.y = next.y
 			agent.pathIndex++
 			this.resetProgress(agent)
-			if (agent.pathIndex >= agent.path.length) this.beginInteraction(agent)
+			if (agent.pathIndex >= agent.path.length) {
+				if (agent.queuePendingKey) this.admitQueue(agent)
+				else if (agent.queueKey) this.beginQueueWait(agent)
+				else this.beginInteraction(agent)
+			}
 			return
 		}
 		const ratio = stepDistance / distance
@@ -376,6 +400,129 @@ export class NpcEngine {
 		}
 	}
 
+	private queueSlotKey(queueKey: string, slotIndex: number): string {
+		return `${queueKey}:${slotIndex}`
+	}
+
+	private getQueue(queueKey: string): NpcEngineQueue | undefined {
+		return this.layout.queues?.find(queue => queue.key === queueKey)
+	}
+
+	private isQueueFront(agent: MutableAgent): boolean {
+		if (!agent.queueKey) return false
+		return this.queueMembers.get(agent.queueKey)?.[0] === agent.id
+	}
+
+	private queueHasCapacity(queue: NpcEngineQueue): boolean {
+		const members = this.queueMembers.get(queue.key)?.length ?? 0
+		return members < Math.min(Math.max(0, Math.floor(queue.maxMembers)), queue.slots.length)
+	}
+
+	private beginQueueApproach(queue: NpcEngineQueue, agent: MutableAgent): boolean {
+		const point = queue.admissionPoints.slice().sort((a, b) => {
+			const occupancy = (candidate: NpcEnginePoint) => Array.from(this.agents.values()).filter(other => other.id !== agent.id && other.queuePendingKey === queue.key && other.targetX === candidate.x && other.targetY === candidate.y).length
+			return occupancy(a) - occupancy(b) || Math.hypot(a.x - agent.x, a.y - agent.y) - Math.hypot(b.x - agent.x, b.y - agent.y)
+		})[0]
+		if (!point) return false
+		const floor = this.getFloor(agent.floorId)
+		const path = floor ? this.options.pathfinder(floor, agent, point, this.collectBlockedCells(agent)) : null
+		if (!path || path.length === 0) return false
+		agent.queuePendingKey = queue.key
+		agent.targetX = point.x
+		agent.targetY = point.y
+		agent.path = path.map(value => ({ x: value.x, y: value.y }))
+		agent.pathIndex = samePoint(agent.path[0], agent) ? 1 : 0
+		agent.status = 'walking'
+		return true
+	}
+
+	private admitQueue(agent: MutableAgent): void {
+		const queueKey = agent.queuePendingKey
+		agent.queuePendingKey = null
+		const queue = queueKey ? this.getQueue(queueKey) : undefined
+		if (!queue || !this.queueHasCapacity(queue) || !this.joinQueue(queue, agent)) {
+			agent.status = 'idle'
+			this.chooseTarget(agent)
+		}
+	}
+
+	private beginQueueWait(agent: MutableAgent): void {
+		agent.path = []
+		agent.pathIndex = 0
+		agent.status = 'queued'
+		this.emit({ type: 'waiting', agentId: agent.id, floorId: agent.floorId })
+	}
+
+	private assignQueueSlot(agent: MutableAgent, queue: NpcEngineQueue, slotIndex: number): boolean {
+		const point = queue.slots[slotIndex]
+		if (!point) return false
+		const floor = this.getFloor(agent.floorId)
+		const path = floor ? this.options.pathfinder(floor, agent, point, this.collectBlockedCells(agent)) : null
+		if (!path || path.length === 0) return false
+		agent.queueSlotIndex = slotIndex
+		agent.targetX = point.x
+		agent.targetY = point.y
+		agent.path = path.map(value => ({ x: value.x, y: value.y }))
+		agent.pathIndex = samePoint(agent.path[0], agent) ? 1 : 0
+		agent.status = 'walking'
+		return true
+	}
+
+	private joinQueue(queue: NpcEngineQueue, agent: MutableAgent): boolean {
+		if (agent.queueKey === queue.key) return true
+		const members = this.queueMembers.get(queue.key) ?? []
+		const maxMembers = Math.min(Math.max(0, Math.floor(queue.maxMembers)), queue.slots.length)
+		if (members.length >= maxMembers) return false
+		const slotIndex = members.length
+		const slotKey = this.queueSlotKey(queue.key, slotIndex)
+		if (this.queueSlotReservations.has(slotKey)) return false
+		const sequence = (this.queueArrivalSequence.get(queue.key) ?? 0) + 1
+		this.queueArrivalSequence.set(queue.key, sequence)
+		members.push(agent.id)
+		this.queueMembers.set(queue.key, members)
+		this.queueSlotReservations.set(slotKey, agent.id)
+		agent.queueKey = queue.key
+		agent.queueArrivalSequence = sequence
+		if (!this.assignQueueSlot(agent, queue, slotIndex)) {
+			this.queueSlotReservations.delete(slotKey)
+			this.queueMembers.set(queue.key, members.filter(id => id !== agent.id))
+			agent.queueKey = null
+			agent.queueSlotIndex = null
+			agent.queueArrivalSequence = null
+			return false
+		}
+		return true
+	}
+
+	private leaveQueue(agent: MutableAgent): void {
+		const queueKey = agent.queueKey
+		if (!queueKey) return
+		const queue = this.getQueue(queueKey)
+		const members = this.queueMembers.get(queueKey) ?? []
+		const index = members.indexOf(agent.id)
+		if (index >= 0) members.splice(index, 1)
+		if (agent.queueSlotIndex !== null && agent.queueSlotIndex !== undefined) this.queueSlotReservations.delete(this.queueSlotKey(queueKey, agent.queueSlotIndex))
+		if (members.length === 0) {
+			this.queueMembers.delete(queueKey)
+		} else {
+			this.queueMembers.set(queueKey, members)
+			if (queue) {
+				for (let i = 0; i < members.length; i++) {
+					const member = this.agents.get(members[i])
+					if (!member) continue
+					if (member.queueSlotIndex !== null && member.queueSlotIndex !== undefined) this.queueSlotReservations.delete(this.queueSlotKey(queueKey, member.queueSlotIndex))
+					member.queueSlotIndex = i
+					this.queueSlotReservations.set(this.queueSlotKey(queueKey, i), member.id)
+					if (member.status === 'queued' || member.status === 'walking') this.assignQueueSlot(member, queue, i)
+				}
+			}
+		}
+		agent.queueKey = null
+		agent.queuePendingKey = null
+		agent.queueSlotIndex = null
+		agent.queueArrivalSequence = null
+	}
+
 	private chooseTarget(agent: MutableAgent): void {
 
 		const sameFloorTargets = this.layout.interactionTargets.filter(target =>
@@ -405,12 +552,10 @@ export class NpcEngine {
 			}
 		}
 
+		if (selected && agent.queueKey) this.leaveQueue(agent)
 		if (!selected) {
-			if (sameFloorTargets.length > available.length) {
-				this.setWaiting(agent)
-				this.emit({ type: 'waiting', agentId: agent.id, floorId: agent.floorId, itemId: sameFloorTargets[0]?.itemId })
-				return
-			}
+			const queue = this.options.queueSelector?.(agent, sameFloorTargets, available, this.layout.queues ?? [])
+			if (queue && this.queueHasCapacity(queue) && this.beginQueueApproach(queue, agent)) return
 			if (this.options.targetSelector && this.options.wanderSelector) {
 				const wander = this.options.wanderSelector(agent)
 				if (wander && !this.isOccupied(agent, wander)) {
@@ -530,6 +675,8 @@ export class NpcEngine {
 	}
 
 	private setWaiting(agent: MutableAgent): void {
+		if (agent.queueKey) this.leaveQueue(agent)
+		agent.queuePendingKey = null
 		agent.status = 'waiting'
 		this.waitingUntil.set(agent.id, this.tickCount + this.ticksPerSecond)
 	}
@@ -558,24 +705,24 @@ export class NpcEngine {
 
 	private canReserve(target: NpcEngineInteractionTarget, agentId: string): boolean {
 		const key = `${target.floorId}:${target.itemId}`
-		const anchorKey = `${key}:${target.interactSpotId}`
+		const interactSpotKey = `${key}:${target.interactSpotId}`
 		const holders = this.reservations.get(key)
 		if (holders?.has(agentId)) return true
-		if (this.anchorReservations.has(anchorKey) || (holders?.size ?? 0) >= Math.max(1, Math.floor(target.capacity ?? 1))) return false
+		if (this.interactSpotReservations.has(interactSpotKey) || (holders?.size ?? 0) >= Math.max(1, Math.floor(target.capacity ?? 1))) return false
 		return !Array.from(this.reservations.values()).some(set => set.has(agentId))
 	}
 
 	private reserve(target: NpcEngineInteractionTarget, agentId: string): boolean {
 		const key = `${target.floorId}:${target.itemId}`
-		const anchorKey = `${key}:${target.interactSpotId}`
+		const interactSpotKey = `${key}:${target.interactSpotId}`
 		const holders = this.reservations.get(key) ?? new Set<string>()
 		const capacity = Math.max(1, Math.floor(target.capacity ?? 1))
 		if (holders.has(agentId)) return true
-		if (this.anchorReservations.has(anchorKey) || holders.size >= capacity) return false
+		if (this.interactSpotReservations.has(interactSpotKey) || holders.size >= capacity) return false
 		if (Array.from(this.reservations.values()).some(set => set.has(agentId))) return false
 		holders.add(agentId)
 		this.reservations.set(key, holders)
-		this.anchorReservations.set(anchorKey, agentId)
+		this.interactSpotReservations.set(interactSpotKey, agentId)
 		const agent = this.agents.get(agentId)
 		if (agent) {
 			agent.reservationItemId = target.itemId
@@ -587,10 +734,10 @@ export class NpcEngine {
 	private releaseReservation(agent: MutableAgent): void {
 		if (agent.reservationItemId !== null) {
 			const key = `${agent.floorId}:${agent.reservationItemId}`
-			const anchorKey = `${key}:${agent.reservationInteractSpotId ?? ''}`
+			const interactSpotKey = `${key}:${agent.reservationInteractSpotId ?? ''}`
 			const holders = this.reservations.get(key)
 			holders?.delete(agent.id)
-			this.anchorReservations.delete(anchorKey)
+			this.interactSpotReservations.delete(interactSpotKey)
 			if (holders?.size === 0) this.reservations.delete(key)
 		}
 		agent.reservationItemId = null

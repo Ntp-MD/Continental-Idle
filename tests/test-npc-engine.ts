@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
+import { originAssetsData } from '../src/blueprint-editor/data/originAssets.data'
 import { NpcEngine, findNpcGridPath, selectBestTarget, WanderMemory, type NpcEngineLayout, type NpcEngineInteractionTarget, type NpcEngineFloor, type NpcEngineAgent } from '../src/engine/npc'
 import { normalizeAllowedRoleIds } from '../src/blueprint-editor/types'
 import { validatePortalConfiguration, buildAssetMap } from '../src/blueprint-editor/assetUtils'
@@ -51,7 +51,7 @@ blockedEngine.tick()
 assert.equal(blockedEngine.getAgents().filter(agent => agent.status === 'waiting').length, 1)
 assert.equal(blockedEngine.drainEvents().some(event => event.type === 'waiting'), true)
 
-const waitingEngine = new NpcEngine({
+const crowdedTargetEngine = new NpcEngine({
 	...layout,
 	interactionTargets: [layout.interactionTargets[0]],
 }, {
@@ -61,15 +61,13 @@ const waitingEngine = new NpcEngine({
 	wanderSelector: () => ({ x: 9, y: 9 }),
 	pathfinder: (_floor, from, to) => [{ x: from.x, y: from.y }, { x: to.x, y: to.y }],
 })
-waitingEngine.addAgent({ id: 'npc-holder', floorId: 'F1', x: 0, y: 0, targetX: 0, targetY: 0, speed: 10 })
-waitingEngine.addAgent({ id: 'npc-waiter', floorId: 'F1', x: 0, y: 1, targetX: 0, targetY: 1, speed: 10 })
-waitingEngine.tick()
-waitingEngine.drainEvents()
-waitingEngine.tick()
-const waiter = waitingEngine.getAgents().find(agent => agent.id === 'npc-waiter')!
-assert.equal(waiter.status, 'waiting')
-assert.equal(waiter.targetX, 0)
-assert.equal(waiter.targetY, 1)
+crowdedTargetEngine.addAgent({ id: 'npc-holder', floorId: 'F1', x: 0, y: 0, targetX: 0, targetY: 0, speed: 10 })
+crowdedTargetEngine.addAgent({ id: 'npc-waiter', floorId: 'F1', x: 0, y: 1, targetX: 0, targetY: 1, speed: 10 })
+crowdedTargetEngine.tick()
+const waiter = crowdedTargetEngine.getAgents().find(agent => agent.id === 'npc-waiter')!
+assert.equal(waiter.status, 'walking')
+assert.equal(waiter.targetX, 9)
+assert.equal(waiter.targetY, 9)
 
 const blockedWanderEngine = new NpcEngine({
 	floors: layout.floors,
@@ -126,7 +124,7 @@ const directPath = (_floor: unknown, from: { x: number; y: number }, to: { x: nu
 	assert.equal(agent.x, 8, 'agent x should be destination portal x')
 	assert.equal(agent.y, 8, 'agent y should be destination portal y')
 	assert.equal(agent.reservationItemId, null, 'source reservation must be released after teleport')
-	assert.equal(agent.reservationInteractSpotId, null, 'source anchor reservation must be released after teleport')
+	assert.equal(agent.reservationInteractSpotId, null, 'source interactspot reservation must be released after teleport')
 	assert.equal(selectorSawCrossFloor, false, 'targetSelector must only receive same-floor targets')
 	assert.ok(portalEngine.drainEvents().some(e => e.type === 'floor-transition' && e.fromFloorId === 'F1' && e.toFloorId === 'F2'), 'floor-transition event emitted')
 }
@@ -336,7 +334,7 @@ const directPath = (_floor: unknown, from: { x: number; y: number }, to: { x: nu
 
 {
 
-	const raw = JSON.parse(readFileSync('src/blueprint-editor/data/originAssets.json', 'utf8').replace(/^\uFEFF/, '')) as { originAssets: AssetDef[] }
+	const raw = { originAssets: originAssetsData } as { originAssets: AssetDef[] }
 	const assetMap = buildAssetMap(raw.originAssets)
 	const elevator = assetMap.get('builtin-elevator-1')!
 	assert.ok(elevator.tags?.includes('portal'), 'elevator asset should have portal tag')
@@ -351,8 +349,8 @@ const directPath = (_floor: unknown, from: { x: number; y: number }, to: { x: nu
 }
 
 
-function runtimePortalEndpointKey(floorId: string, itemId: string, anchorIndex: number): string {
-	return `${floorId}:${itemId}:endpoint:${anchorIndex}`
+function runtimePortalEndpointKey(floorId: string, itemId: string, interactSpotIndex: number): string {
+	return `${floorId}:${itemId}:endpoint:${interactSpotIndex}`
 }
 
 
@@ -380,9 +378,9 @@ function generateRuntimePortalTargets(
 		const otherPortalFloors = [...portalFloorIds].filter(id => id !== floor.id)
 		if (otherPortalFloors.length === 0) continue
 		for (const object of floor.portalObjects) {
-			object.interactSpots.forEach((anchor, interactSpotIdx) => {
-				const rawX = Math.floor((object.x + anchor.x) / tileSize)
-				const rawY = Math.floor((object.y + anchor.y) / tileSize)
+			object.interactSpots.forEach((interactSpot, interactSpotIdx) => {
+				const rawX = Math.floor((object.x + interactSpot.x) / tileSize)
+				const rawY = Math.floor((object.y + interactSpot.y) / tileSize)
 				const snapped = floor.walkable.has(`${rawX},${rawY}`)
 					? [rawX, rawY] as [number, number]
 					: findNearestWalkableCell(floor.walkable, rawX, rawY, 5)
@@ -417,10 +415,10 @@ function generateRuntimePortalTargets(
 
 
 {
-	const raw = JSON.parse(readFileSync('src/blueprint-editor/data/originAssets.json', 'utf8').replace(/^\uFEFF/, '')) as { originAssets: AssetDef[] }
+	const raw = { originAssets: originAssetsData } as { originAssets: AssetDef[] }
 	const assetMap = buildAssetMap(raw.originAssets)
 	const elevator = assetMap.get('builtin-elevator-1')!
-	assert.ok(elevator.interactSpots?.length === 9, 'elevator must have 9 anchors for integration test')
+	assert.ok(elevator.interactSpots?.length === 9, 'elevator must have 9 interactspots for integration test')
 	const tileSize = 25
 
 	const makeWalkable = (w: number, h: number) => {
@@ -434,7 +432,7 @@ function generateRuntimePortalTargets(
 	]
 	const portalTargets = generateRuntimePortalTargets(floorDefs, tileSize)
 
-	assert.equal(portalTargets.length, 18, 'should generate 18 portal targets (9 anchors × 2 floors)')
+	assert.equal(portalTargets.length, 18, 'should generate 18 portal targets (9 interactspots × 2 floors)')
 
 	const normalTarget = { floorId: '1', itemId: 'desk', interactSpotId: 'a1', x: 1, y: 1, tags: ['service'], capacity: 1, durationMinSeconds: 1, durationMaxSeconds: 1 }
 	const engineLayout: NpcEngineLayout = {
@@ -460,7 +458,7 @@ function generateRuntimePortalTargets(
 
 
 {
-	const raw = JSON.parse(readFileSync('src/blueprint-editor/data/originAssets.json', 'utf8').replace(/^\uFEFF/, '')) as { originAssets: AssetDef[] }
+	const raw = { originAssets: originAssetsData } as { originAssets: AssetDef[] }
 	const assetMap = buildAssetMap(raw.originAssets)
 	const elevator = assetMap.get('builtin-elevator-1')!
 	const tileSize = 25
@@ -476,7 +474,7 @@ function generateRuntimePortalTargets(
 	]
 	const portalTargets = generateRuntimePortalTargets(floorDefs, tileSize)
 
-	assert.equal(portalTargets.length, 54, 'should generate 54 portal targets (9 anchors × 3 floors × 2 dest)')
+	assert.equal(portalTargets.length, 54, 'should generate 54 portal targets (9 interactspots × 3 floors × 2 dest)')
 
 	const engineLayout: NpcEngineLayout = {
 		floors: [
@@ -513,7 +511,7 @@ function generateRuntimePortalTargets(
 
 
 {
-	const raw = JSON.parse(readFileSync('src/blueprint-editor/data/originAssets.json', 'utf8').replace(/^\uFEFF/, '')) as { originAssets: AssetDef[] }
+	const raw = { originAssets: originAssetsData } as { originAssets: AssetDef[] }
 	const assetMap = buildAssetMap(raw.originAssets)
 	const elevator = assetMap.get('builtin-elevator-1')!
 	const tileSize = 25
@@ -552,7 +550,7 @@ function generateRuntimePortalTargets(
 
 
 {
-	const raw = JSON.parse(readFileSync('src/blueprint-editor/data/originAssets.json', 'utf8').replace(/^\uFEFF/, '')) as { originAssets: AssetDef[] }
+	const raw = { originAssets: originAssetsData } as { originAssets: AssetDef[] }
 	const assetMap = buildAssetMap(raw.originAssets)
 	const elevator = assetMap.get('builtin-elevator-1')!
 	const tileSize = 25
@@ -563,11 +561,11 @@ function generateRuntimePortalTargets(
 		[0, 2], [1, 2], [2, 2],
 	]
 	for (let i = 0; i < elevator.interactSpots!.length; i++) {
-		const anchor = elevator.interactSpots![i]
-		const cellX = Math.floor((0 + anchor.x) / tileSize)
-		const cellY = Math.floor((0 + anchor.y) / tileSize)
-		assert.equal(cellX, expectedCells[i][0], `anchor ${i}: cellX should be ${expectedCells[i][0]}`)
-		assert.equal(cellY, expectedCells[i][1], `anchor ${i}: cellY should be ${expectedCells[i][1]}`)
+		const interactSpot = elevator.interactSpots![i]
+		const cellX = Math.floor((0 + interactSpot.x) / tileSize)
+		const cellY = Math.floor((0 + interactSpot.y) / tileSize)
+		assert.equal(cellX, expectedCells[i][0], `interactspot ${i}: cellX should be ${expectedCells[i][0]}`)
+		assert.equal(cellY, expectedCells[i][1], `interactspot ${i}: cellY should be ${expectedCells[i][1]}`)
 	}
 }
 

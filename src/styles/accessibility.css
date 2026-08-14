@@ -6,10 +6,6 @@
 	--bg-card: #000000;
 }
 
-.high__contrast .panel__content {
-	border-width: 2px;
-}
-
 .reduced__motion * {
 	animation: none !important;
 	transition: none !important;

@@ -1,7 +1,8 @@
 import type { AssetDef, WalkableGrid, TileState, TileEdges } from '../types'
+import { isValidColor } from '../types'
 import { aabbOverlap } from '../collision'
 import {
-	state, toast, clamp, withStateLock, initAssetFields, isValidColor,
+	state, toast, clamp, withStateLock, initAssetFields,
 } from './state'
 import { genId } from './utils'
 import { saveAssets, saveLayout } from './persistence'
@@ -124,7 +125,7 @@ export async function addSvgAsset(name: string, w: number, h: number, svgString:
 	})
 }
 
-export async function updateAsset(id: string, patch: Partial<Pick<AssetDef, 'name' | 'w' | 'h' | 'pxW' | 'pxH' | 'usePx' | 'defaultPadding' | 'defaultRx' | 'defaultBgColor' | 'defaultLabelColor' | 'defaultLabel' | 'defaultRadius' | 'defaultLabelPadding' | 'defaultCustomProps' | 'defaultInstanceLabel' | 'defaultValidationRule' | 'defaultLocked' | 'entranceRequired' | 'tags' | 'interactSpots' | 'interact'>> & { walkable?: boolean; walkableGrid?: WalkableGrid; tileStates?: TileState[][]; tileEdges?: TileEdges[][] }): Promise<void> {
+export async function updateAsset(id: string, patch: Partial<Pick<AssetDef, 'name' | 'w' | 'h' | 'pxW' | 'pxH' | 'usePx' | 'defaultPadding' | 'defaultRx' | 'defaultBgColor' | 'defaultLabelColor' | 'defaultLabel' | 'defaultRadius' | 'defaultLabelPadding' | 'defaultInstanceLabel' | 'defaultLocked' | 'entranceRequired' | 'tags' | 'interactSpots' | 'interact'>> & { walkable?: boolean; walkableGrid?: WalkableGrid; tileStates?: TileState[][]; tileEdges?: TileEdges[][] }): Promise<void> {
 	return withStateLock(async () => {
 		const asset = state.assetRegistry.find(a => a.id === id)
 		if (!asset) {
@@ -170,9 +171,7 @@ export async function updateAsset(id: string, patch: Partial<Pick<AssetDef, 'nam
 		if (patch.defaultLabel !== undefined) asset.defaultLabel = patch.defaultLabel || undefined
 		if (patch.defaultRadius !== undefined) asset.defaultRadius = patch.defaultRadius > 0 ? patch.defaultRadius : undefined
 		if (patch.defaultLabelPadding !== undefined) asset.defaultLabelPadding = patch.defaultLabelPadding || undefined
-		if (patch.defaultCustomProps !== undefined) asset.defaultCustomProps = patch.defaultCustomProps
 		if (patch.defaultInstanceLabel !== undefined) asset.defaultInstanceLabel = patch.defaultInstanceLabel || undefined
-		if (patch.defaultValidationRule !== undefined) asset.defaultValidationRule = patch.defaultValidationRule
 		if (patch.defaultLocked !== undefined) asset.defaultLocked = patch.defaultLocked
 		if (patch.walkable !== undefined) asset.walkable = patch.walkable
 		if (patch.entranceRequired !== undefined) asset.entranceRequired = patch.entranceRequired
@@ -210,9 +209,7 @@ export async function updateAsset(id: string, patch: Partial<Pick<AssetDef, 'nam
 				if (patch.defaultLabel !== undefined) obj.label = asset.defaultLabel
 				if (patch.defaultRadius !== undefined) obj.radius = asset.defaultRadius
 				if (patch.defaultLabelPadding !== undefined) obj.labelPadding = asset.defaultLabelPadding
-				if (patch.defaultCustomProps !== undefined) obj.customProps = asset.defaultCustomProps ? JSON.parse(JSON.stringify(asset.defaultCustomProps)) : undefined
 				if (patch.defaultInstanceLabel !== undefined) obj.instanceLabel = asset.defaultInstanceLabel
-				if (patch.defaultValidationRule !== undefined) obj.validationRule = asset.defaultValidationRule ? JSON.parse(JSON.stringify(asset.defaultValidationRule)) : undefined
 				if (patch.defaultLocked !== undefined) obj.locked = asset.defaultLocked
 
 
@@ -259,8 +256,6 @@ export async function duplicateAsset(id: string): Promise<AssetDef | null> {
 		if (source.interactSpots) copy.interactSpots = source.interactSpots.map(p => ({ ...p }))
 		if (source.interact) copy.interact = { ...source.interact }
 		if (source.defaultRx) copy.defaultRx = { ...source.defaultRx }
-		if (source.defaultCustomProps) copy.defaultCustomProps = JSON.parse(JSON.stringify(source.defaultCustomProps))
-		if (source.defaultValidationRule) copy.defaultValidationRule = JSON.parse(JSON.stringify(source.defaultValidationRule))
 		if (source.tags) copy.tags = [...source.tags]
 		if (source.linkedParts) copy.linkedParts = source.linkedParts.map(p => ({ ...p }))
 		state.assetRegistry.push(copy)

@@ -6,6 +6,8 @@ import { mergeNpcConfig } from '@/blueprint-editor/store/npcDefault'
 import type { SyncedLayoutPayload, SyncedObject } from '@/blueprint-editor/types'
 import { buildAssetMap } from '@/blueprint-editor/assetUtils'
 import { originAssets } from '@/blueprint-editor/store/dataLoader'
+import { floorMatchesTargetTags, getObjectTags, getRoleFocusTags, hasMatchingTag } from '@/engine/npc/layoutAdapter'
+import { buildNpcQueues } from '@/blueprint-editor/npcQueue'
 
 const SIMULATION_TICKS_PER_SECOND = NPC_ENGINE_TICKS_PER_SECOND
 
@@ -30,14 +32,6 @@ function cellSizeOf(tileSize: number): number { return Math.max(1, Math.round(ti
 function tileKey(x: number, y: number): string { return `${x},${y}` }
 function pixelToCell(value: number, tileSize: number): number { return Math.floor(value / cellSizeOf(tileSize)) }
 function cellToPixel(value: number, tileSize: number): number { return (value + 0.5) * cellSizeOf(tileSize) }
-function hasMatchingTag(tags: string[] | undefined, targetTags: string[]): boolean {
-	if (!tags || targetTags.length === 0) return false
-	const normalized = new Set(tags.map(tag => tag.trim().toLowerCase()))
-	return targetTags.some(tag => normalized.has(tag.trim().toLowerCase()))
-}
-function getObjectTags(obj: ObjectData, getAssetTags?: (type: string) => string[] | undefined): string[] {
-	return getAssetTags?.(obj.type) ?? []
-}
 function getTileEdge(obj: ObjectData, def: ReturnType<typeof resolveObjectDef>, tx: number, ty: number, tileSize: number, side: keyof TileEdges): boolean | undefined {
 	if (!def.tileEdges?.length) return undefined
 	const px = cellToPixel(tx, tileSize), py = cellToPixel(ty, tileSize)
@@ -53,7 +47,7 @@ function isTileWalkable(floor: FloorData, width: number, height: number, tileSiz
 	const px = cellToPixel(tx, tileSize), py = cellToPixel(ty, tileSize)
 	for (const obj of floor.objects) {
 		if (px < obj.x || px >= obj.x + obj.w || py < obj.y || py >= obj.y + obj.h) continue
-		const def = resolveObjectDef(obj.rotation, getAssetDef?.(obj.type))
+		const def = resolveObjectDef(obj.rotation, getAssetDef?.(obj.type), { w: obj.w, h: obj.h })
 		const localX = Math.max(0, Math.min(obj.w - 0.001, px - obj.x)), localY = Math.max(0, Math.min(obj.h - 0.001, py - obj.y))
 		let entrance = false
 		if (def.tileStates?.length) {
@@ -86,7 +80,7 @@ function buildBlockedEdges(floor: FloorData, map: WalkableMap, getAssetDef?: (ty
 			const nx = x + dx
 			const ny = y + dy
 			if (!map.tiles.has(tileKey(nx, ny))) continue
-			if (!floor.objects.some(obj => { const def = resolveObjectDef(obj.rotation, getAssetDef?.(obj.type)); return getTileEdge(obj, def, x, y, map.cellSize, side) === true || getTileEdge(obj, def, nx, ny, map.cellSize, side === 'right' ? 'left' : 'top') === true })) continue
+			if (!floor.objects.some(obj => { const def = resolveObjectDef(obj.rotation, getAssetDef?.(obj.type), { w: obj.w, h: obj.h }); return getTileEdge(obj, def, x, y, map.cellSize, side) === true || getTileEdge(obj, def, nx, ny, map.cellSize, side === 'right' ? 'left' : 'top') === true })) continue
 			edges.push({ from: { x, y }, to: { x: nx, y: ny } })
 		}
 	}
@@ -104,21 +98,20 @@ function getRoleMap(map: WalkableMap, floor: FloorData, role: NpcRole, getAssetT
 	for (const obj of floor.objects) mark(obj.x, obj.y, obj.w, obj.h, getObjectTags(obj, getAssetTags))
 	return { ...map, tiles: new Set([...map.tiles].filter(key => !forbidden.has(key))) }
 }
-function focusTags(config: NpcSimulationConfig, role: NpcRole): string[] { return [...new Set([...role.focusTags, ...role.taskIds.flatMap(id => config.tasks.find(task => task.id === id)?.tags ?? [])])] }
 function makeInteractionTargets(floor: FloorData, map: WalkableMap, getAssetTags?: (type: string) => string[] | undefined, getAssetDef?: (type: string) => AssetDef | undefined): InteractionSource[] {
 	const output: InteractionSource[] = []
-	const add = (itemId: string, x: number, y: number, tags: string[], anchors: { x: number; y: number }[] | undefined, interact?: InteractConfig) => { if (!anchors?.length) return; anchors.forEach((anchor, index) => { const tx = pixelToCell(x + anchor.x, map.cellSize), ty = pixelToCell(y + anchor.y, map.cellSize); const nearest = map.tiles.has(tileKey(tx, ty)) ? tileKey(tx, ty) : findNearestWalkable(map, tx, ty, 5); if (!nearest) return; const [cellX, cellY] = nearest.split(',').map(Number); const resolved = resolveInteractForTarget(interact, anchors.length); output.push({ floorId: floor.id, itemId, interactSpotId: `${itemId}:${index}`, x: cellX, y: cellY, tags, capacity: resolved.capacity, durationMinSeconds: resolved.durationMinSeconds, durationMaxSeconds: resolved.durationMaxSeconds }) }) }
+	const add = (itemId: string, x: number, y: number, tags: string[], interactSpots: { x: number; y: number }[] | undefined, interact?: InteractConfig) => { if (!interactSpots?.length) return; interactSpots.forEach((interactSpot, index) => { const tx = pixelToCell(x + interactSpot.x, map.cellSize), ty = pixelToCell(y + interactSpot.y, map.cellSize); const nearest = map.tiles.has(tileKey(tx, ty)) ? tileKey(tx, ty) : findNearestWalkable(map, tx, ty, 5); if (!nearest) return; const [cellX, cellY] = nearest.split(',').map(Number); const resolved = resolveInteractForTarget(interact, interactSpots.length); output.push({ floorId: floor.id, itemId, interactSpotId: `${itemId}:${index}`, x: cellX, y: cellY, tags, capacity: resolved.capacity, durationMinSeconds: resolved.durationMinSeconds, durationMaxSeconds: resolved.durationMaxSeconds }) }) }
 
 	for (const obj of floor.objects) {
 		if (getObjectTags(obj, getAssetTags).includes('portal')) continue
-		const def = resolveObjectDef(obj.rotation, getAssetDef?.(obj.type))
+		const def = resolveObjectDef(obj.rotation, getAssetDef?.(obj.type), { w: obj.w, h: obj.h })
 		add(`object:${obj.id}`, obj.x, obj.y, getObjectTags(obj, getAssetTags), def.interactSpots, def.interact)
 	}
 	return output
 }
 
-function portalEndpointKey(floorId: string, itemId: string, anchorIndex: number): string {
-	return `${floorId}:${itemId}:endpoint:${anchorIndex}`
+function portalEndpointKey(floorId: string, itemId: string, interactSpotIndex: number): string {
+	return `${floorId}:${itemId}:endpoint:${interactSpotIndex}`
 }
 
 function makePortalTargets(
@@ -138,14 +131,14 @@ function makePortalTargets(
 	for (const { floor, obj } of portals) {
 		const map = floorMaps.get(floor.id)
 		if (!map) continue
-		const def = resolveObjectDef(obj.rotation, getAssetDef?.(obj.type))
-		const anchors = def.interactSpots
-		if (!anchors?.length) continue
+		const def = resolveObjectDef(obj.rotation, getAssetDef?.(obj.type), { w: obj.w, h: obj.h })
+		const interactSpots = def.interactSpots
+		if (!interactSpots?.length) continue
 		const otherPortalFloors = [...portalFloorIds].filter(fid => fid !== floor.id)
 
-		anchors.forEach((anchor, interactSpotIdx) => {
-			const rawX = pixelToCell(obj.x + anchor.x, map.cellSize)
-			const rawY = pixelToCell(obj.y + anchor.y, map.cellSize)
+		interactSpots.forEach((interactSpot, interactSpotIdx) => {
+			const rawX = pixelToCell(obj.x + interactSpot.x, map.cellSize)
+			const rawY = pixelToCell(obj.y + interactSpot.y, map.cellSize)
 			const nearest = map.tiles.has(tileKey(rawX, rawY))
 				? tileKey(rawX, rawY)
 				: findNearestWalkable(map, rawX, rawY, 5)
@@ -156,8 +149,8 @@ function makePortalTargets(
 			for (const destFloorId of otherPortalFloors) {
 				const destPortal = portals.find(p => p.floor.id === destFloorId)
 				if (!destPortal) continue
-				const destAnchorIdx = interactSpotIdx
-				const destEndpointKey = portalEndpointKey(destFloorId, `portal:${destPortal.obj.id}`, destAnchorIdx)
+				const destInteractSpotIdx = interactSpotIdx
+				const destEndpointKey = portalEndpointKey(destFloorId, `portal:${destPortal.obj.id}`, destInteractSpotIdx)
 
 				output.push({
 					floorId: floor.id,
@@ -220,8 +213,16 @@ export function useGameNpcSimulation(
 	let animationId: number | null = null, engine: NpcEngine | null = null, deploymentActive = false, nextId = 1
 	let floorMaps = new Map<string, WalkableMap>()
 	let floorDataMap = new Map<string, FloorData>()
-	const wanderMemory = new WanderMemory()
+	const wanderMemoryByAgent = new Map<string, WanderMemory>()
 	const targetLastSelectedTick = new Map<string, number>()
+	const getWanderMemory = (agentId: string): WanderMemory => {
+		let memory = wanderMemoryByAgent.get(agentId)
+		if (!memory) {
+			memory = new WanderMemory(32, 8, Math.random)
+			wanderMemoryByAgent.set(agentId, memory)
+		}
+		return memory
+	}
 	let currentCanvas: { w: number; h: number; tileSize: number } | null = null
 	let currentViewFloorId: string | null = null
 	let currentInteractionTargets = new Map<string, InteractionSource>()
@@ -238,6 +239,7 @@ export function useGameNpcSimulation(
 		if (!floor?.allowedRoleIds?.length) return true
 		return floor.allowedRoleIds.includes(roleId)
 	}
+
 
 	function pickNearestFloor(
 		targets: readonly NpcEngineInteractionTarget[],
@@ -269,7 +271,7 @@ export function useGameNpcSimulation(
 			npc.targetY = cellToPixel(agent.targetY, map.cellSize)
 			npc.pathIdx = agent.pathIndex
 			npc.path = agent.path.map(point => [cellToPixel(point.x, map.cellSize), cellToPixel(point.y, map.cellSize)] as [number, number])
-			npc.pauseTimer = agent.status === 'interacting' || agent.status === 'waiting' ? agent.interactionRemainingTicks : 0
+			npc.pauseTimer = agent.status === 'interacting' || agent.status === 'waiting' || agent.status === 'queued' ? agent.interactionRemainingTicks : 0
 			npc.interactTargetKey = agent.reservationItemId
 			npc.interactSpotKey = agent.reservationInteractSpotId
 			const target = agent.reservationItemId && agent.reservationInteractSpotId ? currentInteractionTargets.get(`${agent.floorId}:${agent.reservationItemId}:${agent.reservationInteractSpotId}`) : undefined
@@ -310,18 +312,40 @@ export function useGameNpcSimulation(
 
 		const portalSources = makePortalTargets(allFloors, floorMaps, getAssetTags, getAssetDef)
 		allSources.push(...portalSources)
+		const queues = allFloors.flatMap(floor => {
+			const engineFloor = engineFloors.find(value => value.id === floor.id)
+			return engineFloor ? buildNpcQueues(engineFloor, floor, canvas.tileSize, assetMap, allSources) : []
+		})
 
 		currentInteractionTargets = new Map(allSources.map(source => [`${source.floorId}:${source.itemId}:${source.interactSpotId}`, source]))
-		const layout: NpcEngineLayout = { floors: engineFloors, interactionTargets: allSources }
+		const layout: NpcEngineLayout = { floors: engineFloors, interactionTargets: allSources, queues }
 
 		const triggerRates = config.value.tagTriggerRates ?? {}
 		const hasTriggerRates = Object.keys(triggerRates).length > 0
 		const tickRate = SIMULATION_TICKS_PER_SECOND * 60
 		engine = new NpcEngine(layout, {
-			ticksPerSecond: SIMULATION_TICKS_PER_SECOND, agentClearance: 0.5, targetSelector: (agent, targets) => {
+			ticksPerSecond: SIMULATION_TICKS_PER_SECOND, agentClearance: 0.5, queueSelector: (agent, targets, availableTargets, queueDefinitions) => {
+				const role = getRole(config.value, agent.roleId ?? '')
+				const map = floorMaps.get(agent.floorId)
+				const floor = floorDataMap.get(agent.floorId)
+				if (!role || !map || !floor) return null
+				const tags = getRoleFocusTags(config.value, role)
+				if (!tags.length) return null
+				const availableKeys = new Set(availableTargets.map(target => `${target.floorId}:${target.itemId}:${target.interactSpotId}`))
+				const roleMap = getRoleMap(map, floor, role, getAssetTags)
+				const matchingTargets = targets.filter(target => !availableKeys.has(`${target.floorId}:${target.itemId}:${target.interactSpotId}`) && hasMatchingTag(target.tags, tags) && roleMap.tiles.has(tileKey(target.x, target.y)))
+				if (!matchingTargets.length) return null
+				const roleFloor = { id: agent.floorId, width: map.width, height: map.height, tileSize: map.cellSize, walkable: [...roleMap.tiles].map(value => { const [x, y] = value.split(',').map(Number); return { x, y } }) }
+				return queueDefinitions
+					.filter(queue => queue.targetKeys.some(targetKey => matchingTargets.some(target => targetKey === `${target.floorId}:${target.itemId}:${target.interactSpotId}`)))
+					.sort((a, b) => {
+						const distance = (queue: typeof a) => Math.min(...matchingTargets.filter(target => queue.targetKeys.includes(`${target.floorId}:${target.itemId}:${target.interactSpotId}`)).map(target => findNpcGridPath(roleFloor, agent, target)?.length ?? Number.POSITIVE_INFINITY))
+						return distance(a) - distance(b)
+					})[0] ?? null
+			}, targetSelector: (agent, targets) => {
 				const role = getRole(config.value, agent.roleId ?? '')
 				if (!role) return null
-				const tags = focusTags(config.value, role)
+				const tags = getRoleFocusTags(config.value, role)
 				if (!tags.length) return null
 				const map = floorMaps.get(agent.floorId)
 				const floor = floorDataMap.get(agent.floorId)
@@ -331,7 +355,7 @@ export function useGameNpcSimulation(
 					if (role.focusChance <= 0 || Math.random() * 100 >= role.focusChance) return null
 					const matching = targets.filter(target => hasMatchingTag(target.tags as string[], tags) && roleMap.tiles.has(tileKey(target.x, target.y)))
 					if (!matching.length) return null
-					const selected = selectBestTarget({ agent, targets: matching, currentTick: engine!.tickNumber, targetLastSelectedTick })
+					const selected = selectBestTarget({ agent, targets: matching, currentTick: engine!.tickNumber, targetLastSelectedTick, random: Math.random })
 					if (selected) targetLastSelectedTick.set(`${selected.floorId}:${selected.itemId}:${selected.interactSpotId}`, engine!.tickNumber)
 					return selected
 				}
@@ -345,13 +369,13 @@ export function useGameNpcSimulation(
 				if (!triggered.length) return null
 				const matching = targets.filter(target => hasMatchingTag(target.tags as string[], triggered) && roleMap.tiles.has(tileKey(target.x, target.y)))
 				if (!matching.length) return null
-				const selected = selectBestTarget({ agent, targets: matching, currentTick: engine!.tickNumber, targetLastSelectedTick })
+				const selected = selectBestTarget({ agent, targets: matching, currentTick: engine!.tickNumber, targetLastSelectedTick, random: Math.random })
 				if (selected) targetLastSelectedTick.set(`${selected.floorId}:${selected.itemId}:${selected.interactSpotId}`, engine!.tickNumber)
 				return selected
 			}, crossFloorSelector: (agent, candidates, floors) => {
 				const role = getRole(config.value, agent.roleId ?? '')
 				if (!role) return null
-				const tags = focusTags(config.value, role)
+				const tags = getRoleFocusTags(config.value, role)
 				if (!tags.length) return null
 				const matching = candidates.filter(t => hasMatchingTag(t.tags as string[], tags))
 				if (!matching.length) return null
@@ -365,8 +389,10 @@ export function useGameNpcSimulation(
 				const keys = [...roleMap.tiles]
 				if (!keys.length) return null
 				const candidates = keys.map(key => { const [x, y] = key.split(',').map(Number); return { x, y } })
-				const selected = wanderMemory.selectWanderTile(candidates, agent)
-				if (selected) wanderMemory.recordVisit(selected, engine!.tickNumber)
+				const activeDestinations = engine?.getAgents().filter(other => other.id !== agent.id && other.floorId === agent.floorId && (other.status === 'walking' || other.status === 'queued')).map(other => ({ x: other.targetX, y: other.targetY })) ?? []
+				const memory = getWanderMemory(agent.id)
+				const selected = memory.selectWanderTile(candidates, agent, activeDestinations)
+				if (selected) memory.recordVisit(selected, engine!.tickNumber)
 				return selected
 			}, pathfinder: (engineFloor, from, to, blockedCells) => {
 				const role = getRole(config.value, from.roleId ?? '')
@@ -385,15 +411,24 @@ export function useGameNpcSimulation(
 			const count = Math.max(0, Math.min(100, Math.floor(entry.count || 0)))
 			for (const floor of allFloors) {
 				if (!isRoleAllowedOnFloor(role.id, floor.id)) continue
+				if (!floorMatchesTargetTags(floor, role.spawnRule?.targetTags ?? [], getAssetTags)) continue
 				const map = floorMaps.get(floor.id)
 				if (!map) continue
 				const roleMap = getRoleMap(map, floor, role, getAssetTags)
 				const keys = [...roleMap.tiles]
 				if (!keys.length) continue
+				const cx = canvas.w / 2 / map.cellSize
+				const cy = canvas.h / 2 / map.cellSize
+				keys.sort((a, b) => {
+					const [ax, ay] = a.split(',').map(Number)
+					const [bx, by] = b.split(',').map(Number)
+					return Math.hypot(ax - cx, ay - cy) - Math.hypot(bx - cx, by - cy)
+				})
+				const spawnOffset = Math.floor(Math.random() * Math.max(1, keys.length))
 				for (let i = 0; i < count; i++) {
 					const availableSpawnKeys = keys.filter(key => !occupiedSpawnKeys.has(`${floor.id}:${key}`))
 					if (!availableSpawnKeys.length) break
-					const spawnKey = availableSpawnKeys[(spawnCursor + i) % availableSpawnKeys.length]
+					const spawnKey = availableSpawnKeys[(spawnCursor + spawnOffset + i) % availableSpawnKeys.length]
 					occupiedSpawnKeys.add(`${floor.id}:${spawnKey}`)
 					const [x, y] = spawnKey.split(',').map(Number)
 					const id = `npc-game-${nextId++}`, oldSpeed = Math.max(0.01, config.value.speed || 1 / 30) + (Math.random() - 0.5) * 0.02
@@ -410,7 +445,7 @@ export function useGameNpcSimulation(
 	function frame(): void { if (!isPaused.value && engine) { const steps = Math.max(1, Math.min(8, simSpeed.value)); for (let i = 0; i < steps; i++) { engine.tick(); } syncAgents(); engine.drainEvents() } animationId = window.requestAnimationFrame(frame) }
 	function start(): void { if (animationId === null) animationId = window.requestAnimationFrame(frame) }
 	function stopLoop(): void { if (animationId !== null) window.cancelAnimationFrame(animationId); animationId = null; isPaused.value = false }
-	function reset(): void { stopLoop(); engine = null; floorMaps = new Map(); floorDataMap = new Map(); currentCanvas = null; currentViewFloorId = null; currentInteractionTargets.clear(); deploymentActive = false; npcs.value = []; wanderMemory.clear(); targetLastSelectedTick.clear() }
+	function reset(): void { stopLoop(); engine = null; floorMaps = new Map(); floorDataMap = new Map(); currentCanvas = null; currentViewFloorId = null; currentInteractionTargets.clear(); deploymentActive = false; npcs.value = []; wanderMemoryByAgent.clear(); targetLastSelectedTick.clear() }
 	function deploy(): void {
 		const payload = payloadRef.value
 		if (!payload) return

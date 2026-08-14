@@ -4,7 +4,7 @@ import {
 	reorderFloors, selectFloor, updateFloor,
 } from './floors'
 import {
-	addObject, canPlaceObject, select, toggleMultiSelect, deleteSelected,
+	beginDrawnObject, addObject, canPlaceObject, select, toggleMultiSelect, deleteSelected,
 	moveSelectedTo, commitMove, rotateSelected, updateObjectProps,
 	createLinkedAssetFromSelection,
 	flattenToSvgAsset,
@@ -17,18 +17,26 @@ import { updateNpcConfig, syncNpcConfigToState, persistNpcConfigToDisk } from '.
 import {
 	copySelected, pasteObjects,
 } from './metadata'
-import { saveLayout, saveAssets, saveNpcConfig, syncToGame } from './persistence'
+import { saveLayout, saveAssets, saveNpcConfig, saveBlueprintData, syncToGame } from './persistence'
 import { selectedObject, selectedAsset, selectAsset, selectedObjectIds, clearSelection } from './selection'
 import { getLinkedObjects } from './utils'
-import { setMode, resizeCanvas } from './mode'
-import { globalTags, managedTagSet, addTag, removeTag, ensureTag, ensureTags, hydrateCustomTags } from './tags'
+import { setMode, resizeCanvas, setCanvasBgColor } from './mode'
+import { tagCatalog, globalTags, managedTagSet, addTag, removeTag, ensureTag, ensureTags } from './tags'
+export * from '../crud/originAssets'
+export * from '../crud/floorPlan'
+export * from '../crud/npcSettings'
+export * from '../crud/tagManager'
+import { listOriginAssets, getOriginAsset, createOriginAsset, createSvgOriginAsset } from '../crud/originAssets'
+import { listFloors, getFloor, getPlacedObject, createFloor, createPlacedObject } from '../crud/floorPlan'
+import { listNpcRoles, getNpcRole, listNpcTasks, getNpcTask, createNpcRole, updateNpcRole, deleteNpcRole, updateNpcSettings } from '../crud/npcSettings'
+import { listTags, getTag, createTag, updateTag, deleteTag, findTagReferences } from '../crud/tagManager'
 
 export {
 	addFloor, deleteFloor, duplicateFloor, renameFloor,
 	reorderFloors, selectFloor, updateFloor,
 } from './floors'
 export {
-	addObject, canPlaceObject, select, toggleMultiSelect, deleteSelected,
+	beginDrawnObject, addObject, canPlaceObject, select, toggleMultiSelect, deleteSelected,
 	moveSelectedTo, commitMove, rotateSelected, updateObjectProps,
 	createLinkedAssetFromSelection,
 	flattenToSvgAsset,
@@ -41,11 +49,11 @@ export { updateNpcConfig, syncNpcConfigToState, persistNpcConfigToDisk } from '.
 export {
 	copySelected, pasteObjects,
 } from './metadata'
-export { saveLayout, saveAssets, saveNpcConfig, syncToGame } from './persistence'
+export { saveLayout, saveAssets, saveNpcConfig, saveBlueprintData, syncToGame } from './persistence'
 export { selectedObject, selectedAsset, selectAsset, selectedObjectIds, clearSelection } from './selection'
 export { getLinkedObjects } from './utils'
-export { setMode, resizeCanvas } from './mode'
-export { globalTags, managedTagSet, addTag, removeTag, ensureTag, ensureTags, hydrateCustomTags } from './tags'
+export { setMode, resizeCanvas, setCanvasBgColor } from './mode'
+export { tagCatalog, globalTags, managedTagSet, addTag, removeTag, ensureTag, ensureTags } from './tags'
 export { dragState, startAssetDrag, endAssetDrag } from './state'
 
 export function useAssetsStore() {
@@ -57,35 +65,35 @@ export function useAssetsStore() {
 		dragState,
 		addFloor, deleteFloor, duplicateFloor, renameFloor,
 		reorderFloors, selectFloor, updateFloor,
-		addObject, canPlaceObject, select, toggleMultiSelect, deleteSelected,
+		beginDrawnObject, addObject, canPlaceObject, select, toggleMultiSelect, deleteSelected,
 		moveSelectedTo, commitMove, rotateSelected, updateObjectProps,
 		createLinkedAssetFromSelection, flattenToSvgAsset,
 		linkObjects, unlinkObject, toggleObjectLock,
 		addAsset, addSvgAsset, updateAsset, deleteAsset, rotateAsset, duplicateAsset,
+		listOriginAssets, getOriginAsset, createOriginAsset, createSvgOriginAsset,
+		listFloors, getFloor, getPlacedObject, createFloor, createPlacedObject,
+		listNpcRoles, getNpcRole, listNpcTasks, getNpcTask, createNpcRole, updateNpcRole, deleteNpcRole, updateNpcSettings,
+		listTags, getTag, createTag, updateTag, deleteTag, findTagReferences,
 		updateNpcConfig, syncNpcConfigToState, persistNpcConfigToDisk,
 		copySelected, pasteObjects,
-		saveLayout, saveAssets, saveNpcConfig, syncToGame,
+		saveLayout, saveAssets, saveNpcConfig, saveBlueprintData, syncToGame,
 		selectedObject, selectedAsset, selectAsset, selectedObjectIds, clearSelection,
 		getLinkedObjects,
-		setMode, resizeCanvas,
-		globalTags, managedTagSet, addTag, removeTag, ensureTag, ensureTags, hydrateCustomTags,
+		setMode, resizeCanvas, setCanvasBgColor,
+		tagCatalog, globalTags, managedTagSet, addTag, removeTag, ensureTag, ensureTags,
 	}
 }
 
 export type AssetsStore = ReturnType<typeof useAssetsStore>
 
-hydrateCustomTags()
-
 if (import.meta.hot) {
 	import.meta.hot.dispose(() => {
 		const hot = import.meta.hot!
-		hot.data._editorLayout = JSON.stringify(state.layout)
 		hot.data._editorState = {
 			currentFloorId: state.currentFloorId,
 			mode: state.mode,
 			selectionState: state.selectionState,
 			selectedAssetId: state.selectedAssetId,
-			assetRegistry: state.assetRegistry,
 		}
 	})
 }

@@ -41,80 +41,11 @@
 
 /* Section Header */
 
-/* Panel (modal overlay) */
-.panel {
-	position: fixed;
-	top: 0;
-	left: 0;
-	width: 100vw;
-	height: 100vh;
-	background: var(--bg-overlay);
-	backdrop-filter: blur(8px);
-	-webkit-backdrop-filter: blur(8px);
-	display: flex;
-	justify-content: center;
-	align-items: center;
-	z-index: var(--z-modal);
-	animation: panel-fade-in var(--duration-fast) var(--ease-out);
-}
-
-@keyframes panel-fade-in {
-	from {
-		opacity: 0;
-	}
-
-	to {
-		opacity: 1;
-	}
-}
-
-.panel__content {
-	background: var(--bg-secondary);
-	border: 1px solid var(--border-dim);
-	border-radius: var(--radius-lg);
-	padding: var(--gap-lg);
-	width: 90vw;
-	max-width: 90vw;
-	max-height: 85vh;
-	overflow-y: auto;
-	box-shadow: var(--shadow-panel);
-	animation: panel-slide-up var(--duration-normal) var(--ease-out);
-}
-
-@keyframes panel-slide-up {
-	from {
-		opacity: 0;
-		transform: translateY(12px) scale(0.98);
-	}
-
-	to {
-		opacity: 1;
-		transform: translateY(0) scale(1);
-	}
-}
-
-.panel__title {
-	color: var(--accent-gold);
-	font-size: var(--font-md);
-	font-weight: 600;
-	text-transform: uppercase;
-	letter-spacing: 1.5px;
-	margin-bottom: var(--gap-md);
-	padding-bottom: var(--gap-sm);
-	border-bottom: 1px solid var(--border-dim);
-}
-
-.panel__close {
-	width: 100%;
-	margin-top: var(--gap-md);
-	border-radius: var(--radius-md);
-}
-
 /* Modal Overlay */
 .modal__overlay {
 	position: fixed;
 	inset: 0;
-	z-index: var(--z-modal);
+	z-index: var(--z-layer-4);
 	display: flex;
 	align-items: center;
 	justify-content: center;
@@ -167,7 +98,7 @@
 	display: flex;
 	flex-direction: column;
 	gap: var(--gap-sm);
-	z-index: var(--z-toast);
+	z-index: var(--z-layer-5);
 	pointer-events: none;
 }
 
@@ -208,7 +139,9 @@
 }
 
 .toast--success {
+	border-color: var(--accent-green);
 	border-left-color: var(--accent-green);
+	color: var(--accent-green);
 }
 
 .toast--success .toast__icon {
@@ -260,15 +193,6 @@
 
 
 
-.panel__content > .actions {
-	padding: var(--gap-sm) 0;
-}
-
-.panel__content > .actions .btn {
-	padding: var(--gap-xs) var(--gap-sm);
-	font-size: var(--font-sm);
-}
-
 /* Reusable layout roles */
 .layout__row,
 .layout__wrap,
@@ -291,7 +215,6 @@
 	flex-direction: column;
 	gap: var(--gap-xs);
 	flex: 1;
-	min-height: 0;
 	overflow-y: auto;
 }
 
@@ -417,14 +340,7 @@
 	width: var(--control-height);
 	height: var(--control-height);
 	min-width: 24px;
-	min-height: 24px;
 	font-size: var(--font-md);
-}
-
-.btn--sm {
-	padding: 0 var(--gap-xs);
-	height: calc(var(--control-height) - 6px);
-	min-height: 20px;
 }
 
 .btn--dirty {

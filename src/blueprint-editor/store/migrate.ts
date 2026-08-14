@@ -1,5 +1,5 @@
 import type { FloorLayoutData, ObjectData, AssetBase, AssetDef, LinkedPart, Rotation } from '../types'
-import { isAssetDef, validateLayoutData, validateLayoutIntegrity, normalizeInteractSpots, normalizeInteractConfig, normalizeTileEdges, normalizeWalkableGrid, normalizeTileStates, normalizeAllowedRoleIds } from '../types'
+import { isAssetDef, validateLayoutData, validateLayoutIntegrity, normalizeInteractSpots, normalizeInteractConfig, normalizeTileEdges, normalizeWalkableGrid, normalizeTileStates, normalizeAllowedRoleIds, normalizeObjectPlacement, isValidColor } from '../types'
 import { findAssetCached, buildAssetMap, validatePortalConfiguration } from '../assetUtils'
 import { normalizeObject, snap } from '../geometry'
 import { recalcCollapsed } from '../collision'
@@ -30,8 +30,8 @@ function applyAssetDefFields(asset: AssetDef, a: Record<string, unknown>): void 
 	if (states) asset.tileStates = states
 	const edges = normalizeTileEdges(a.tileEdges)
 	if (edges) asset.tileEdges = edges
-	const anchors = normalizeInteractSpots(a.interactSpots)
-	if (anchors) asset.interactSpots = anchors
+	const interactSpots = normalizeInteractSpots(a.interactSpots)
+	if (interactSpots) asset.interactSpots = interactSpots
 	const interact = normalizeInteractConfig(a.interact)
 	if (interact) asset.interact = interact
 }
@@ -63,14 +63,12 @@ export function migrate(data: unknown): { layout: FloorLayoutData; legacyAssets:
 			const assetTags = readTags(a.tags)
 			if (assetTags) base.tags = assetTags
 			if (typeof a.defaultPadding === 'number' && a.defaultPadding > 0) base.defaultPadding = a.defaultPadding
-			if (typeof a.defaultBgColor === 'string' && a.defaultBgColor && /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(a.defaultBgColor)) base.defaultBgColor = a.defaultBgColor
-			if (typeof a.defaultLabelColor === 'string' && a.defaultLabelColor && /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(a.defaultLabelColor)) base.defaultLabelColor = a.defaultLabelColor
+			if (typeof a.defaultBgColor === 'string' && a.defaultBgColor && isValidColor(a.defaultBgColor)) base.defaultBgColor = a.defaultBgColor
+			if (typeof a.defaultLabelColor === 'string' && a.defaultLabelColor && isValidColor(a.defaultLabelColor)) base.defaultLabelColor = a.defaultLabelColor
 			if (typeof a.defaultLabel === 'string') base.defaultLabel = a.defaultLabel
 			if (typeof a.defaultRadius === 'number' && a.defaultRadius > 0) base.defaultRadius = a.defaultRadius
 			if (typeof a.defaultLabelPadding === 'number') base.defaultLabelPadding = a.defaultLabelPadding
-			if (a.defaultCustomProps && typeof a.defaultCustomProps === 'object') base.defaultCustomProps = a.defaultCustomProps as AssetBase['defaultCustomProps']
 			if (typeof a.defaultInstanceLabel === 'string') base.defaultInstanceLabel = a.defaultInstanceLabel
-			if (a.defaultValidationRule && typeof a.defaultValidationRule === 'object') base.defaultValidationRule = a.defaultValidationRule as AssetBase['defaultValidationRule']
 			if (typeof a.defaultLocked === 'boolean') base.defaultLocked = a.defaultLocked
 			if (a.defaultRx && typeof a.defaultRx === 'object') {
 				const rx = a.defaultRx as Record<string, unknown>
@@ -127,11 +125,16 @@ export function migrate(data: unknown): { layout: FloorLayoutData; legacyAssets:
 	const migrated: FloorLayoutData = {
 		version: LAYOUT_VERSION,
 		canvas: validCanvas
-			? {
-				width: typeof (canvas as Record<string, unknown>).width === 'number' && isFinite((canvas as Record<string, unknown>).width as number) ? (canvas as Record<string, unknown>).width as number : EDITOR_CONFIG.defaultCanvas.width,
-				height: typeof (canvas as Record<string, unknown>).height === 'number' && isFinite((canvas as Record<string, unknown>).height as number) ? (canvas as Record<string, unknown>).height as number : EDITOR_CONFIG.defaultCanvas.height,
-				tileSize: (canvas as Record<string, unknown>).tileSize as number,
-			}
+			? (() => {
+				const c = canvas as Record<string, unknown>
+				const bgColor = typeof c.bgColor === 'string' && isValidColor(c.bgColor) ? c.bgColor : undefined
+				return {
+					width: typeof c.width === 'number' && isFinite(c.width as number) ? c.width as number : EDITOR_CONFIG.defaultCanvas.width,
+					height: typeof c.height === 'number' && isFinite(c.height as number) ? c.height as number : EDITOR_CONFIG.defaultCanvas.height,
+					tileSize: c.tileSize as number,
+					...(bgColor ? { bgColor } : {}),
+				}
+			})()
 			: { ...EDITOR_CONFIG.defaultCanvas },
 		floors: Array.isArray(d.floors) && d.floors.length > 0
 			? d.floors.map((f: unknown) => {
@@ -149,23 +152,18 @@ export function migrate(data: unknown): { layout: FloorLayoutData; legacyAssets:
 								&& typeof rec?.y === 'number' && isFinite(rec.y as number)
 						}
 					).map((o) => {
+						const placement = normalizeObjectPlacement(o)!
 						const base: ObjectData = {
-							id: o.id as string,
-							type: o.type as string,
-							x: o.x as number, y: o.y as number,
+							...placement,
 							w: typeof o.w === 'number' ? o.w : 0,
 							h: typeof o.h === 'number' ? o.h : 0,
-							rotation: typeof o.rotation === 'number' && [0, 90, 180, 270].includes(o.rotation) ? (o.rotation as Rotation) : 0,
 						}
-						if (typeof o.subId === 'string') base.subId = o.subId
 						if (typeof o.radius === 'number' && o.radius > 0) base.radius = o.radius
 						if (typeof o.label === 'string') base.label = o.label
 						if (typeof o.padding === 'number' && o.padding > 0) base.padding = o.padding
 						if (typeof o.labelPadding === 'number' && o.labelPadding > 0) base.labelPadding = o.labelPadding
 						if (typeof o.fillColor === 'string') base.fillColor = o.fillColor
-						if (typeof o.locked === 'boolean') base.locked = o.locked
 						if (typeof o.collapsed === 'boolean') base.collapsed = o.collapsed
-						if (typeof o.linkGroupId === 'string' && o.linkGroupId) base.linkGroupId = o.linkGroupId
 						if (typeof o.isWall === 'boolean') base.isWall = o.isWall
 
 
@@ -179,21 +177,15 @@ export function migrate(data: unknown): { layout: FloorLayoutData; legacyAssets:
 			: [],
 		npcConfig: migrateNpcConfig(d.npcConfig),
 	}
-	const oldCustomProps = migrated.objectCustomProps ?? {}
 	const oldInstanceLabels = migrated.instanceLabels ?? {}
-	const oldValidationRules = migrated.validationRules ?? {}
 	for (const floor of migrated.floors) {
 		for (const obj of floor.objects) {
 			if (obj.subId) {
-				if (oldCustomProps[obj.subId]) obj.customProps = oldCustomProps[obj.subId]
 				if (oldInstanceLabels[obj.subId]) obj.instanceLabel = oldInstanceLabels[obj.subId]
-				if (oldValidationRules[obj.subId]) obj.validationRule = oldValidationRules[obj.subId]
 			}
 		}
 	}
-	delete migrated.objectCustomProps
 	delete migrated.instanceLabels
-	delete migrated.validationRules
 
 	const migratedAssetMap = buildAssetMap([...originAssets, ...legacyAssets])
 	const t = migrated.canvas.tileSize

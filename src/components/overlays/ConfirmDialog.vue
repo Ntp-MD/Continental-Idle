@@ -50,7 +50,7 @@ function submitPrompt() {
 
 <template>
   <Teleport to="body">
-    <div v-if="pending" class="modal__overlay" @click.self="resolve(isPrompt ? null : false)" @keydown="onKeydown">
+    <div v-if="pending" class="modal__overlay confirmdialog__overlay" @click.self="resolve(isPrompt ? null : false)" @keydown="onKeydown">
       <div ref="dialogRef" class="confirmdialog__dialog" role="alertdialog" aria-modal="true" :aria-labelledby="`confirmdialog__title__${pending.id}`" :aria-describedby="`confirmdialog__msg__${pending.id}`">
         <h2 :id="`confirmdialog__title__${pending.id}`" class="confirmdialog__title">
           {{ pending.title }}
@@ -67,6 +67,10 @@ function submitPrompt() {
 </template>
 
 <style scoped>
+.confirmdialog__overlay {
+  z-index: var(--z-layer-4);
+}
+
 .confirmdialog__dialog {
   max-width: 450px;
   width: 100%;
