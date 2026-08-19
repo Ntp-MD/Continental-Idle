@@ -72,27 +72,27 @@ async function onDropdownClick(tag: string) {
 </script>
 
 <template>
-  <div class="tagpicker">
-    <div class="tagpicker__field" @click="showDropdown = true">
-      <span v-for="tag in modelValue" :key="tag" class="tagpicker__chip">
+  <div class="picker">
+    <div class="picker__field" @click="showDropdown = true">
+      <span v-for="tag in modelValue" :key="tag" class="picker__chip">
         {{ tag }}
-        <button class="chip__remove tagpicker__chipbtn" @click.stop="removeTag(tag)">×</button>
+        <button class="chip__remove picker__chipbtn" @click.stop="removeTag(tag)">×</button>
       </span>
-      <input v-model="inputValue" :placeholder="modelValue.length === 0 ? placeholder : ''" class="tagpicker__input" @keydown="onKeydown" @focus="showDropdown = true" @blur="showDropdown = false" />
+      <input v-model="inputValue" :placeholder="modelValue.length === 0 ? placeholder : ''" class="picker__input" @keydown="onKeydown" @focus="showDropdown = true" @blur="showDropdown = false" />
     </div>
-    <div v-if="showDropdown && filteredTags.length > 0" class="tagpicker__dropdown">
-      <button v-for="tag in filteredTags" :key="tag" class="tagpicker__option" @mousedown.prevent="onDropdownClick(tag)">{{ tag }}</button>
+    <div v-if="showDropdown && filteredTags.length > 0" class="picker__dropdown">
+      <button v-for="tag in filteredTags" :key="tag" class="picker__option" @mousedown.prevent="onDropdownClick(tag)">{{ tag }}</button>
     </div>
   </div>
 </template>
 
 <style scoped>
-.tagpicker {
+.picker {
   position: relative;
   width: 100%;
 }
 
-.tagpicker__field {
+.picker__field {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -104,11 +104,11 @@ async function onDropdownClick(tag: string) {
   cursor: text;
 }
 
-.tagpicker__field:focus-within {
+.picker__field:focus-within {
   border-color: var(--accent-primary);
 }
 
-.tagpicker__chip {
+.picker__chip {
   display: inline-flex;
   align-items: center;
   gap: var(--gap-xs);
@@ -121,11 +121,11 @@ async function onDropdownClick(tag: string) {
   line-height: 1.4;
 }
 
-.tagpicker__chipbtn {
+.picker__chipbtn {
   color: var(--accent-red);
 }
 
-.tagpicker__input {
+.picker__input {
   flex: 1;
   font-size: var(--font-sm);
   background: transparent;
@@ -134,17 +134,17 @@ async function onDropdownClick(tag: string) {
   outline: none;
 }
 
-.tagpicker__input:focus {
+.picker__input:focus {
   box-shadow: none;
   border: none;
 }
 
-.tagpicker__input::placeholder {
+.picker__input::placeholder {
   color: var(--text-primary);
   opacity: 0.6;
 }
 
-.tagpicker__dropdown {
+.picker__dropdown {
   position: absolute;
   top: 100%;
   left: 0;
@@ -158,7 +158,7 @@ async function onDropdownClick(tag: string) {
   box-shadow: 0 4px 12px color-mix(in srgb, var(--bg-primary) 30%, transparent);
 }
 
-.tagpicker__option {
+.picker__option {
   display: block;
   width: 100%;
   padding: var(--gap-xs) var(--gap-sm);
@@ -170,7 +170,7 @@ async function onDropdownClick(tag: string) {
   cursor: pointer;
 }
 
-.tagpicker__option:hover {
+.picker__option:hover {
   background: var(--bg-card);
 }
 </style>

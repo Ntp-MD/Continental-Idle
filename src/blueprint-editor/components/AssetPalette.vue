@@ -114,31 +114,31 @@ function onItemClick(assetId: string) {
 </script>
 
 <template>
-  <div class="assetpalette">
-    <div class="assetpalette__header">Asset Palette</div>
-    <div class="assetpalette__search">
+  <div class="palette">
+    <div class="palette__header">Asset Palette</div>
+    <div class="palette__search">
       <input class="input input--bare" v-model="searchQuery" placeholder="Search assets..." type="text" aria-label="Search assets" />
       <button v-if="searchQuery" class="btn--ghost btn--icon" @click="searchQuery = ''" aria-label="Clear search" title="Clear search">×</button>
     </div>
-    <div class="assetpalette__scroll">
-      <div v-if="!filteredAssets.length" class="assetpalette__empty">No assets found</div>
-      <div v-for="asset in filteredAssets" :key="asset.id" class="card--item assetpalette__item" :class="{ 'assetpalette--selected': store.state.selectedAssetId === asset.id, 'assetpalette--linked': !!asset.linkedParts }" @mousedown="onAssetMouseDown(asset.id, $event)" @click="onItemClick(asset.id)">
-        <span class="assetpalette__itemicon">{{ assetIcon(asset) }}</span>
-        <span class="assetpalette__itemtruncate">{{ asset.name }}</span>
-        <span class="assetpalette__dimlabel">{{ assetSizeLabel(asset) }} · {{ originLabel(asset) }}</span>
-        <span class="assetpalette__count" :class="{ 'assetpalette__count--placed': placedObjectCount(asset.id) > 0 }" :title="`${placedObjectCount(asset.id)} placed object${placedObjectCount(asset.id) === 1 ? '' : 's'}`">{{ placedObjectCount(asset.id) }}</span>
+    <div class="palette__scroll">
+      <div v-if="!filteredAssets.length" class="palette__empty">No assets found</div>
+      <div v-for="asset in filteredAssets" :key="asset.id" class="card--item palette__item" :class="{ 'palette--selected': store.state.selectedAssetId === asset.id, 'palette--linked': !!asset.linkedParts }" @mousedown="onAssetMouseDown(asset.id, $event)" @click="onItemClick(asset.id)">
+        <span class="palette__icon">{{ assetIcon(asset) }}</span>
+        <span class="palette__name">{{ asset.name }}</span>
+        <span class="palette__meta">{{ assetSizeLabel(asset) }} · {{ originLabel(asset) }}</span>
+        <span class="palette__count" :class="{ 'palette__count--placed': placedObjectCount(asset.id) > 0 }" :title="`${placedObjectCount(asset.id)} placed object${placedObjectCount(asset.id) === 1 ? '' : 's'}`">{{ placedObjectCount(asset.id) }}</span>
       </div>
     </div>
 
-    <div class="assetpalette__footer">
+    <div class="palette__footer">
       <button class="btn--dashed" @click="store.setMode('draw')">+ Draw Object</button>
       <button class="btn--dashed" @click="showSvgForm = !showSvgForm">
         {{ showSvgForm ? "Cancel" : "+ Import SVG Asset" }}
       </button>
 
-      <div v-if="showSvgForm" class="assetpalette__form">
+      <div v-if="showSvgForm" class="palette__form">
         <input class="input" v-model="svgName" placeholder="Asset name" aria-label="SVG asset name" />
-        <div class="assetpalette__formhstack">
+        <div class="palette__dims">
           <input class="input input--num" type="number" min="1" :value="svgW" disabled placeholder="W (auto)" aria-label="SVG width (auto)" />
           <span aria-hidden="true">×</span>
           <input class="input input--num" type="number" min="1" :value="svgH" disabled placeholder="H (auto)" aria-label="SVG height (auto)" />
@@ -151,7 +151,7 @@ function onItemClick(assetId: string) {
 </template>
 
 <style scoped>
-.assetpalette {
+.palette {
   display: flex;
   flex-direction: column;
   width: 100%;
@@ -165,7 +165,7 @@ function onItemClick(assetId: string) {
   overflow: hidden;
 }
 
-.assetpalette__header {
+.palette__header {
   display: flex;
   align-items: center;
   padding: var(--gap-md);
@@ -176,7 +176,7 @@ function onItemClick(assetId: string) {
   flex-shrink: 0;
 }
 
-.assetpalette__footer {
+.palette__footer {
   display: flex;
   flex-direction: column;
   gap: var(--gap-xs);
@@ -186,7 +186,7 @@ function onItemClick(assetId: string) {
   flex-shrink: 0;
 }
 
-.assetpalette__search {
+.palette__search {
   display: flex;
   align-items: center;
   gap: var(--gap-xs);
@@ -194,7 +194,7 @@ function onItemClick(assetId: string) {
   border-bottom: 1px solid var(--border-dim);
 }
 
-.assetpalette__search .input--bare {
+.palette__search .input--bare {
   padding: 0;
   height: auto;
   background: transparent;
@@ -203,46 +203,46 @@ function onItemClick(assetId: string) {
   outline: none;
 }
 
-.assetpalette__search .input--bare:focus {
+.palette__search .input--bare:focus {
   box-shadow: none;
   border: none;
 }
 
-.assetpalette__formhstack .input--num {
+.palette__dims .input--num {
   width: 3.5em;
   text-align: center;
 }
 
-.assetpalette__form,
-.assetpalette__category {
+.palette__form,
+.palette__category {
   display: flex;
   flex-direction: column;
   gap: var(--gap-xs);
 }
 
-.assetpalette__formhstack {
+.palette__dims {
   display: flex;
   align-items: center;
   gap: var(--gap-xs);
 }
 
-.assetpalette__scroll {
+.palette__scroll {
   flex: 1;
   overflow: auto;
   display: flex;
   flex-direction: column;
   gap: var(--gap-xs);
-  padding: var(--gap-xs);
+  padding: var(--gap-sm);
 }
 
-.assetpalette__empty {
+.palette__empty {
   padding: var(--gap-md);
   text-align: center;
   font-size: var(--font-sm);
   opacity: 0.7;
 }
 
-.assetpalette__categorylabel {
+.palette__categorylabel {
   padding: var(--gap-xs) var(--gap-sm);
   font-size: var(--font-xs);
   font-weight: 700;
@@ -252,14 +252,14 @@ function onItemClick(assetId: string) {
   opacity: 0.7;
 }
 
-.assetpalette__dimlabel {
+.palette__meta {
   padding: var(--gap-xs) var(--gap-sm);
   font-size: var(--font-xs);
   opacity: 0.7;
   white-space: nowrap;
 }
 
-.assetpalette__count {
+.palette__count {
   flex-shrink: 0;
   min-width: 1.125em;
   padding: 2px 5px;
@@ -271,13 +271,13 @@ function onItemClick(assetId: string) {
   text-align: center;
 }
 
-.assetpalette__count--placed {
+.palette__count--placed {
   border-color: var(--accent-blue);
   color: var(--accent-blue);
   background: color-mix(in srgb, var(--accent-blue) 12%, transparent);
 }
 
-.assetpalette__hint {
+.palette__hint {
   padding: var(--gap-xs) var(--gap-sm);
   font-size: var(--font-xs);
   color: var(--text-dim);
@@ -286,18 +286,18 @@ function onItemClick(assetId: string) {
   margin: var(--gap-xs) var(--gap-sm);
 }
 
-.assetpalette__item {
+.palette__item {
   gap: var(--gap-sm);
   transition:
     background var(--duration-fast) ease-out,
     border-color var(--duration-fast) ease-out;
 }
 
-.assetpalette__item:hover {
+.palette__item:hover {
   border-color: var(--accent-primary);
 }
 
-.assetpalette__itemicon {
+.palette__icon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -307,7 +307,7 @@ function onItemClick(assetId: string) {
   font-size: var(--font-lg);
 }
 
-.assetpalette__itemtruncate {
+.palette__name {
   flex: 1;
   min-width: 0;
   overflow: hidden;
@@ -316,17 +316,17 @@ function onItemClick(assetId: string) {
   font-size: var(--font-sm);
 }
 
-.assetpalette__roomaccent {
+.palette__roomaccent {
   border-style: dashed;
   border-color: color-mix(in srgb, var(--accent-primary) 50%, transparent);
 }
 
-.assetpalette--selected {
+.palette--selected {
   border-color: var(--accent-primary);
   background: color-mix(in srgb, var(--accent-primary) 12%, transparent);
 }
 
-.assetpalette--linked {
+.palette--linked {
   border-color: var(--accent-blue);
 }
 </style>

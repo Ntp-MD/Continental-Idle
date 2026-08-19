@@ -96,25 +96,25 @@ function toggleTransparent() {
 </script>
 
 <template>
-  <div class="colorinput">
-    <label class="colorinput__swatch" :style="swatchStyle" :title="isTransparent ? 'Transparent' : 'Pick color'">
-      <input class="colorinput__native" type="color" :value="nativeValue" :aria-label="ariaLabel" @input="onNativeInput" @change="onNativeChange" />
-      <span v-if="isTransparent" class="colorinput__slash" aria-hidden="true" />
+  <div class="color">
+    <label class="color__swatch" :style="swatchStyle" :title="isTransparent ? 'Transparent' : 'Pick color'">
+      <input class="color__native" type="color" :value="nativeValue" :aria-label="ariaLabel" @input="onNativeInput" @change="onNativeChange" />
+      <span v-if="isTransparent" class="color__slash" aria-hidden="true" />
     </label>
-    <input class="input colorinput__text" type="text" v-model="textValue" :placeholder="placeholder" :aria-label="ariaLabel" @change="onTextChange" />
-    <button v-if="allowTransparent" type="button" class="colorinput__transparent" :class="{ 'colorinput__transparent--active': isTransparent }" @click="toggleTransparent" title="Toggle transparent" aria-label="Toggle transparent">T</button>
+    <input class="input color__text" type="text" v-model="textValue" :placeholder="placeholder" :aria-label="ariaLabel" @change="onTextChange" />
+    <button v-if="allowTransparent" type="button" class="color__transparent" :class="{ 'color__transparent--active': isTransparent }" @click="toggleTransparent" title="Toggle transparent" aria-label="Toggle transparent">T</button>
   </div>
 </template>
 
 <style scoped>
-.colorinput {
+.color {
   display: flex;
   align-items: center;
   gap: var(--gap-xs);
   width: 100%;
 }
 
-.colorinput__swatch {
+.color__swatch {
   position: relative;
   flex-shrink: 0;
   width: var(--control-height);
@@ -132,11 +132,11 @@ function toggleTransparent() {
     -4px 0;
 }
 
-.colorinput__swatch:hover {
+.color__swatch:hover {
   border-color: var(--accent-primary);
 }
 
-.colorinput__native {
+.color__native {
   position: absolute;
   inset: 0;
   width: 100%;
@@ -147,20 +147,20 @@ function toggleTransparent() {
   padding: 0;
 }
 
-.colorinput__native::-webkit-color-swatch-wrapper {
+.color__native::-webkit-color-swatch-wrapper {
   padding: 0;
 }
 
-.colorinput__native::-webkit-color-swatch {
+.color__native::-webkit-color-swatch {
   border: none;
 }
 
-.colorinput__text {
+.color__text {
   flex: 1;
   min-width: 0;
 }
 
-.colorinput__slash {
+.color__slash {
   position: absolute;
   top: 50%;
   left: 0;
@@ -171,7 +171,7 @@ function toggleTransparent() {
   transform-origin: center;
 }
 
-.colorinput__transparent {
+.color__transparent {
   flex-shrink: 0;
   width: var(--control-height);
   height: var(--control-height);
@@ -187,12 +187,12 @@ function toggleTransparent() {
     color var(--duration-fast) var(--ease-out);
 }
 
-.colorinput__transparent:hover {
+.color__transparent:hover {
   border-color: var(--accent-primary);
   color: var(--text-primary);
 }
 
-.colorinput__transparent--active {
+.color__transparent--active {
   border-color: var(--accent-primary);
   color: var(--accent-primary);
   background: color-mix(in srgb, var(--accent-primary) 12%, transparent);

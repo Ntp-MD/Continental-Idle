@@ -4,8 +4,10 @@ import { useAssetsStore } from "../blueprintStore";
 import { useToast } from "@/composables/useToast";
 import { useConfirm } from "@/composables/useConfirm";
 import { sanitizeString } from "../../utils/sanitize";
-import type { FloorData } from "../types";
+import { genId } from "../store/utils";
+import type { FloorData, NpcSpawnZone } from "../types";
 import ModalShell from "./ModalShell.vue";
+import FloorWalkablePanel from "./FloorWalkablePanel.vue";
 
 const props = defineProps<{ open: boolean }>();
 const emit = defineEmits<{ (e: "close"): void }>();
@@ -20,6 +22,8 @@ const editingNameRaw = ref("");
 const editingLabel = ref(false);
 const editingLabelRaw = ref("");
 const floorDragIndex = ref<number | null>(null);
+const showWalkable = ref(false);
+const spawnZoneDraft = ref({ label: "Road", x: 0, y: 0, w: 400, h: 200, roleIds: [] as string[] });
 
 const floors = computed(() => store.state.layout.floors);
 const availableRoles = computed(() => store.state.layout.npcConfig?.roles ?? []);
@@ -138,28 +142,60 @@ async function clearRoles() {
   await store.updateFloor(selectedFloor.value.id, { allowedRoleIds: [] });
 }
 
-function floorCounts(f: FloorData) {
-  return `${f.objects.length} objects`;
+function toggleSpawnZoneRole(roleId: string): void {
+  const roleIds = new Set(spawnZoneDraft.value.roleIds);
+  if (roleIds.has(roleId)) roleIds.delete(roleId);
+  else roleIds.add(roleId);
+  spawnZoneDraft.value.roleIds = [...roleIds];
+}
+
+async function addSpawnZone(): Promise<void> {
+  if (!selectedFloor.value) return;
+  const draft = spawnZoneDraft.value;
+  const zone: NpcSpawnZone = {
+    id: genId("spawn-zone"),
+    label: sanitizeString(draft.label) || "Spawn Zone",
+    x: Math.max(0, Number(draft.x) || 0),
+    y: Math.max(0, Number(draft.y) || 0),
+    w: Math.max(1, Number(draft.w) || 1),
+    h: Math.max(1, Number(draft.h) || 1),
+    ...(draft.roleIds.length ? { roleIds: [...draft.roleIds] } : {}),
+  };
+  const saved = await store.updateFloor(selectedFloor.value.id, { spawnZones: [...(selectedFloor.value.spawnZones ?? []), zone] });
+  if (saved) {
+    spawnZoneDraft.value = { label: "Road", x: 0, y: 0, w: 400, h: 200, roleIds: [] };
+    toast.success("Spawn zone added");
+  }
+}
+
+async function deleteSpawnZone(zoneId: string): Promise<void> {
+  if (!selectedFloor.value) return;
+  const zones = (selectedFloor.value.spawnZones ?? []).filter((zone) => zone.id !== zoneId);
+  await store.updateFloor(selectedFloor.value.id, { spawnZones: zones });
+}
+
+function floorCounts(f: FloorData): string {
+  return `${f.objects.length} objects · ${f.spawnZones?.length ?? 0} spawn zones`;
 }
 </script>
 
 <template>
-  <ModalShell :open="open" title="Floor Manager" max-width="800px" width="60vw" height="90vh" max-height="90vh" @close="onClose">
-    <div class="floormodal__body">
+  <ModalShell :open="open" title="Floor Manager" max-width="800px" width="60vw" height="auto" max-height="calc(100vh - 32px)" @close="onClose">
+    <div class="floor__body">
       <!-- Left pane: Floor list -->
-      <div class="floormodal__pane">
-        <div class="floormodal__heading">
+      <div class="floor__pane">
+        <div class="floor__heading">
           <span>Floors ({{ floors.length }})</span>
           <button class="btn--dashed" @click="onAdd">+ Add</button>
         </div>
-        <div class="floormodal__scroll">
+        <div class="floor__scroll">
           <div
             v-for="(f, index) in floors"
             :key="f.id"
-            class="floormodal__row"
+            class="card--item floor__row"
             :class="{
-              floormodal__rowactive: f.id === selectedFloorId,
-              floormodal__rowcurrent: f.id === store.state.currentFloorId,
+              'floor__row--active': f.id === selectedFloorId,
+              'floor__row--current': f.id === store.state.currentFloorId,
             }"
             draggable="true"
             @dragstart="onDragStart(index)"
@@ -167,90 +203,120 @@ function floorCounts(f: FloorData) {
             @drop="onDrop(index)"
             @click="selectFloor(f.id)"
           >
-            <span class="floormodal__rowlabel" :style="{ color: f.labelColor || undefined }">{{ f.label }}</span>
-            <span class="floormodal__rowname">{{ f.name }}</span>
-            <span class="floormodal__rowcount">{{ floorCounts(f) }}</span>
+            <span class="floor__label" :style="{ color: f.labelColor || undefined }">{{ f.label }}</span>
+            <span class="floor__name">{{ f.name }}</span>
+            <span class="floor__count">{{ floorCounts(f) }}</span>
             <span v-if="f.id === store.state.currentFloorId" class="badge badge__blue">ACTIVE</span>
           </div>
         </div>
       </div>
 
       <!-- Right pane: Detail editor -->
-      <div class="floormodal__pane">
-        <div v-if="selectedFloor" class="floormodal__detail">
-          <div class="floormodal__heading">Floor Details</div>
+      <div class="floor__pane">
+        <div v-if="selectedFloor" class="floor__detail">
+          <div class="floor__heading">
+            <span>Floor Details</span>
+            <button type="button" class="btn--warning" @click="showWalkable = true">Edit Walkable</button>
+          </div>
 
-          <div class="floormodal__field">
+          <div class="floor__field">
             <label>Label</label>
             <input v-if="editingLabel" v-model="editingLabelRaw" class="input" aria-label="Edit floor label" @keydown.enter="commitLabel" @blur="commitLabel" />
-            <span v-else class="floormodal__value" @dblclick="startEditLabel">{{ selectedFloor.label }}</span>
+            <span v-else class="floor__value" @dblclick="startEditLabel">{{ selectedFloor.label }}</span>
           </div>
 
-          <div class="floormodal__field">
+          <div class="floor__field">
             <label>Name</label>
             <input v-if="editingName" :value="editingNameRaw" @input="editingNameRaw = sanitizeString(($event.target as HTMLInputElement).value)" class="input" aria-label="Edit floor name" @keydown.enter="commitName" @blur="commitName" />
-            <span v-else class="floormodal__value" @dblclick="startEditName">{{ selectedFloor.name }}</span>
+            <span v-else class="floor__value" @dblclick="startEditName">{{ selectedFloor.name }}</span>
           </div>
 
-          <div class="floormodal__field">
+          <div class="floor__field">
             <label>Default Walkable</label>
-            <label class="floormodal__check">
+            <label class="floor__check">
               <input type="checkbox" :checked="selectedFloor.defaultWalkable ?? true" @change="toggleWalkable" />
               <span>Empty areas are walkable</span>
             </label>
           </div>
 
-          <div class="floormodal__field">
-            <label>Stats</label>
-            <span class="floormodal__value">{{ floorCounts(selectedFloor) }}</span>
+          <div class="floor__field">
+            <label>Spawn Zones</label>
+            <div class="floor__zones">
+              <div v-for="zone in selectedFloor.spawnZones ?? []" :key="zone.id" class="floor__zone">
+                <span class="floor__value">{{ zone.label }} ({{ zone.x }}, {{ zone.y }}, {{ zone.w }}×{{ zone.h }})</span>
+                <button class="btn--danger btn--icon" type="button" @click="deleteSpawnZone(zone.id)" aria-label="Delete spawn zone">×</button>
+              </div>
+              <span v-if="!selectedFloor.spawnZones?.length" class="floor__dim">No zones — all walkable cells can spawn NPCs</span>
+              <div class="floor__form">
+                <input v-model="spawnZoneDraft.label" class="input" type="text" placeholder="Zone label" aria-label="Spawn zone label" />
+                <input v-model.number="spawnZoneDraft.x" class="input" type="number" min="0" placeholder="X" aria-label="Spawn zone X" />
+                <input v-model.number="spawnZoneDraft.y" class="input" type="number" min="0" placeholder="Y" aria-label="Spawn zone Y" />
+                <input v-model.number="spawnZoneDraft.w" class="input" type="number" min="1" placeholder="Width" aria-label="Spawn zone width" />
+                <input v-model.number="spawnZoneDraft.h" class="input" type="number" min="1" placeholder="Height" aria-label="Spawn zone height" />
+                <button type="button" class="btn--primary" @click="addSpawnZone">Add</button>
+              </div>
+              <div v-if="availableRoles.length" class="floor__spawnroles">
+                <label v-for="role in availableRoles" :key="`spawn-role-${role.id}`" class="chip" :class="{ 'chip--active': spawnZoneDraft.roleIds.includes(role.id) }">
+                  <input type="checkbox" :checked="spawnZoneDraft.roleIds.includes(role.id)" @change="toggleSpawnZoneRole(role.id)" />
+                  <span class="swatch" :style="{ background: role.color }" />
+                  <span>{{ role.label }}</span>
+                </label>
+                <span class="floor__dim">No selected roles = all roles</span>
+              </div>
+            </div>
           </div>
 
-          <div class="floormodal__heading">Allowed Roles</div>
-          <div class="floormodal__roles">
-            <div class="floormodal__roleheader">
-              <span v-if="!selectedFloor.allowedRoleIds?.length" class="floormodal__dim">All roles allowed</span>
+          <div class="floor__field">
+            <label>Stats</label>
+            <span class="floor__value">{{ floorCounts(selectedFloor) }}</span>
+          </div>
+
+          <div class="floor__heading">Allowed Roles</div>
+          <div class="floor__roles">
+            <div class="floor__head">
+              <span v-if="!selectedFloor.allowedRoleIds?.length" class="floor__dim">All roles allowed</span>
               <button v-else class="btn--ghost" @click="clearRoles">Clear (allow all)</button>
             </div>
-            <div class="floormodal__taglist">
-              <label v-for="role in availableRoles" :key="role.id" class="floormodal__rolechip" :class="{ 'floormodal__rolechip--active': isRoleAllowed(role.id) }">
+            <div class="floor__tags">
+              <label v-for="role in availableRoles" :key="role.id" class="chip" :class="{ 'chip--active': isRoleAllowed(role.id) }">
                 <input type="checkbox" :checked="isRoleAllowed(role.id)" @change="toggleRole(role.id)" />
-                <span class="floormodal__roleswatch" :style="{ background: role.color }" />
+                <span class="swatch" :style="{ background: role.color }" />
                 <span>{{ role.label }}</span>
               </label>
-              <span v-if="!availableRoles.length" class="floormodal__dim">No roles configured — open Role Manager to add roles</span>
+              <span v-if="!availableRoles.length" class="floor__dim">No roles configured — open Role Manager to add roles</span>
             </div>
           </div>
 
-          <div class="floormodal__actions">
+          <div class="floor__actions">
             <button class="btn--ghost" @click="onDuplicate(selectedFloor.id)">⧉ Duplicate</button>
             <button class="btn--danger" :disabled="floors.length <= 1" @click="onDelete(selectedFloor.id)">✕ Delete</button>
           </div>
         </div>
-        <div v-else class="floormodal--empty">Select a floor to edit</div>
+        <div v-else class="floor--empty">Select a floor to edit</div>
       </div>
     </div>
   </ModalShell>
+  <FloorWalkablePanel :open="showWalkable" :floor="selectedFloor" @close="showWalkable = false" />
 </template>
 
 <style scoped>
-.floormodal__body {
-  flex: 1;
+.floor__body {
   padding: var(--gap-md);
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: minmax(170px, 0.75fr) minmax(0, 1.25fr);
   gap: var(--gap-md);
-  overflow: hidden;
+  overflow: visible;
 }
 
-.floormodal__pane {
+.floor__pane {
   display: flex;
   flex-direction: column;
   gap: var(--gap-sm);
   min-width: 0;
-  overflow: hidden;
+  overflow: visible;
 }
 
-.floormodal__heading {
+.floor__heading {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -262,7 +328,7 @@ function floorCounts(f: FloorData) {
   flex-shrink: 0;
 }
 
-.floormodal__scroll {
+.floor__scroll {
   display: flex;
   flex-direction: column;
   gap: var(--gap-xs);
@@ -270,39 +336,28 @@ function floorCounts(f: FloorData) {
   overflow-y: auto;
 }
 
-.floormodal__row {
-  display: flex;
-  align-items: center;
-  gap: var(--gap-xs);
-  padding: var(--gap-xs) var(--gap-sm);
-  background: var(--bg-primary);
-  border: 1px solid var(--border-dim);
-  border-radius: var(--radius-sm);
+.floor__row {
   cursor: pointer;
-  text-align: left;
-  flex-shrink: 0;
 }
-
-.floormodal__row:hover {
+.floor__row:hover {
   background: var(--bg-card);
 }
-
-.floormodal__rowactive {
+.floor__row--active {
   border-color: var(--accent-blue);
   background: var(--bg-card);
 }
 
-.floormodal__rowcurrent {
+.floor__row--current {
   border-left: 3px solid var(--accent-blue);
 }
 
-.floormodal__rowlabel {
+.floor__label {
   font-weight: 700;
   font-size: var(--font-xs);
-  min-width: 32px;
+  min-width: fit-content;
 }
 
-.floormodal__rowname {
+.floor__name {
   flex: 1;
   font-size: var(--font-sm);
   overflow: hidden;
@@ -310,105 +365,142 @@ function floorCounts(f: FloorData) {
   white-space: nowrap;
 }
 
-.floormodal__rowcount {
+.floor__count {
   font-size: var(--font-xs);
   color: var(--text-dim);
   white-space: nowrap;
 }
 
-.floormodal__detail {
+.floor__detail {
   display: flex;
   flex-direction: column;
   gap: var(--gap-sm);
-  overflow-y: auto;
+  overflow: visible;
 }
 
-.floormodal__field {
+.floor__field {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: var(--gap-sm);
+  min-width: 0;
 }
 
-.floormodal__field > label {
+.floor__field > label {
   font-size: var(--font-xs);
   text-transform: uppercase;
   letter-spacing: 0.5px;
   color: var(--text-secondary);
-  min-width: 120px;
+  min-width: fit-content;
   flex-shrink: 0;
 }
 
-.floormodal__value {
+.floor__value {
   font-size: var(--font-sm);
   cursor: pointer;
 }
 
-.floormodal__check {
+.floor__check {
   display: inline-flex;
   align-items: center;
   gap: var(--gap-xs);
   cursor: pointer;
 }
 
-.floormodal__roles {
+.floor__zones {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--gap-xs);
+}
+
+.floor__zone {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-xs);
+  padding: var(--gap-xs);
+  background: var(--bg-primary);
+  border: 1px solid var(--border-dim);
+  border-radius: var(--radius-sm);
+}
+
+.floor__zone .floor__value {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.floor__form {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) repeat(4, minmax(0, 0.7fr)) auto;
+  gap: var(--gap-xs);
+  min-width: 0;
+}
+
+.floor__form .input {
+  min-width: 0;
+  width: 100%;
+}
+
+.floor__spawnroles {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--gap-xs);
+}
+
+.floor__roles {
   display: flex;
   flex-direction: column;
   gap: var(--gap-xs);
 }
 
-.floormodal__roleheader {
+.floor__head {
   display: flex;
   align-items: center;
   gap: var(--gap-xs);
 }
 
-.floormodal__taglist {
+.floor__tags {
   display: flex;
   flex-wrap: wrap;
   gap: var(--gap-xs);
 }
 
-.floormodal__rolechip {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--gap-xs);
-  padding: var(--gap-xs) var(--gap-sm);
-  background: var(--bg-primary);
-  border: 1px solid var(--border-dim);
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  font-size: var(--font-xs);
-}
-
-.floormodal__rolechip--active {
-  border-color: var(--accent-blue);
-  background: color-mix(in srgb, var(--accent-blue) 10%, var(--bg-primary));
-}
-
-.floormodal__roleswatch {
-  width: 12px;
-  height: 12px;
-  border-radius: var(--radius-xs);
-  flex-shrink: 0;
-}
-
-.floormodal__actions {
+.floor__actions {
   display: flex;
   gap: var(--gap-sm);
   padding-top: var(--gap-md);
   border-top: 1px solid var(--border-dim);
 }
 
-.floormodal__dim {
+.floor__dim {
   font-size: var(--font-xs);
   color: var(--text-dim);
 }
 
-.floormodal--empty {
+.floor--empty {
   display: flex;
   align-items: center;
   justify-content: center;
   color: var(--text-dim);
   font-size: var(--font-sm);
+}
+
+@media (max-width: 720px) {
+  .floor__body {
+    grid-template-columns: 1fr;
+  }
+
+  .floor__form {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .floor__form .input:first-child,
+  .floor__form button {
+    grid-column: 1 / -1;
+  }
 }
 </style>

@@ -263,8 +263,8 @@ async function duplicateAsset() {
       <div v-show="!collapsedSections.general" class="properties__section-content">
         <div v-if="isSvgAsset" class="properties__row">
           <label>Preview</label>
-          <div class="assetpreview">
-            <svg ref="previewSvgEl" :viewBox="previewSvgViewBox" width="80" height="80" preserveAspectRatio="xMidYMid meet" class="assetpreview__svg"></svg>
+          <div class="preview">
+            <svg ref="previewSvgEl" :viewBox="previewSvgViewBox" width="80" height="80" preserveAspectRatio="xMidYMid meet" class="preview__svg"></svg>
           </div>
         </div>
         <div class="properties__row">
@@ -421,7 +421,7 @@ async function duplicateAsset() {
       <span>{{ collapsedCount }} object(s) collapsed — overlapping! Shown in red on canvas.</span>
     </div>
     <div class="properties__actions">
-      <button class="btn--primary" :disabled="pending" @click="onSave">Save Asset</button>
+      <button class="btn--success" :disabled="pending" @click="onSave">Save Asset</button>
       <button class="btn--warning" :disabled="pending" @click="duplicateAsset">Duplicate</button>
       <button class="btn--danger" :disabled="pending" @click="deleteAsset">Delete Asset</button>
     </div>
@@ -446,7 +446,7 @@ async function duplicateAsset() {
   padding: 0 2px;
 }
 
-.assetpreview {
+.preview {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -459,7 +459,7 @@ async function duplicateAsset() {
   overflow: hidden;
 }
 
-.assetpreview__svg {
+.preview__svg {
   display: block;
 }
 
