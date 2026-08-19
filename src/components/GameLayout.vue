@@ -116,8 +116,8 @@ onUnmounted(() => {
 }
 
 .game__tab--active {
-  color: var(--accent-gold);
-  border-bottom-color: var(--accent-gold);
+  color: var(--accent-primary);
+  border-bottom-color: var(--accent-primary);
 }
 
 .game__main {
@@ -153,9 +153,9 @@ onUnmounted(() => {
 }
 
 .mapactions__btn:hover {
-  background: var(--accent-gold);
+  background: var(--accent-primary);
   color: var(--bg-primary);
-  border-color: var(--accent-gold);
+  border-color: var(--accent-primary);
 }
 
 .game__status {

@@ -404,7 +404,7 @@ async function duplicateAsset() {
                 <span class="properties__rxlabel">BR ↘</span>
                 <input type="number" min="0" v-model.number="assetFields.rxBR" @input="onRxInput('rxBR')" class="input input--num input--compact" />
               </div>
-              <button type="button" class="properties__rxsync" :class="{ 'properties__rxsync--active': assetRxSync }" :aria-pressed="assetRxSync" :title="assetRxSync ? 'Sync all corners — ON' : 'Sync all corners — OFF'" @click="assetRxSync = !assetRxSync">
+              <button type="button" class="btn--icon properties__rxsync" :class="{ 'properties__rxsync--active': assetRxSync }" :aria-pressed="assetRxSync" :title="assetRxSync ? 'Sync all corners — ON' : 'Sync all corners — OFF'" @click="assetRxSync = !assetRxSync">
                 <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                   <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
                   <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
@@ -435,12 +435,24 @@ async function duplicateAsset() {
   gap: var(--gap-sm);
 }
 
+.input--num {
+  width: 3.5em;
+  text-align: center;
+}
+
+.input--compact {
+  width: 2.5em;
+  text-align: center;
+  padding: 0 2px;
+}
+
 .assetpreview {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 84px;
-  height: 84px;
+  width: 5.25em;
+  aspect-ratio: 1;
+  height: auto;
   border: 1px solid var(--border-dim);
   border-radius: var(--radius-sm);
   background: var(--bg-primary);
@@ -462,7 +474,7 @@ async function duplicateAsset() {
 
 .properties__collapse:hover,
 .properties__collapse:hover .properties__caret {
-  color: var(--accent-gold);
+  color: var(--accent-primary);
 }
 
 .properties__unitpicker {
@@ -476,8 +488,8 @@ async function duplicateAsset() {
 }
 
 .properties__badge {
-  width: 18px;
-  height: 18px;
+  width: 1.125em;
+  height: 1.125em;
   border-radius: var(--radius-pill);
   background: var(--bg-tertiary);
   font-weight: 700;

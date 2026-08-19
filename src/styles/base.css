@@ -62,8 +62,8 @@ button::after {
 }
 
 button:hover {
-	border-color: var(--accent-gold);
-	color: var(--accent-gold);
+	border-color: var(--accent-primary);
+	color: var(--accent-primary);
 	background: var(--bg-card-hover);
 	transform: translateY(-1px);
 }
@@ -73,7 +73,7 @@ button:hover::after {
 }
 
 button:active {
-	background: var(--accent-gold);
+	background: var(--accent-primary);
 	color: var(--bg-primary);
 	transform: translateY(0);
 	box-shadow: none;
@@ -115,7 +115,7 @@ button:focus-visible,
 select:focus-visible,
 input:focus-visible,
 textarea:focus-visible {
-	outline: 2px solid var(--accent-gold);
+	outline: 2px solid var(--accent-primary);
 	outline-offset: 2px;
 	border-radius: var(--radius-sm);
 }
@@ -128,12 +128,12 @@ textarea {
 	border: 1px solid var(--border-dim);
 	color: var(--text-primary);
 	padding: 0 var(--gap-sm);
-	height: var(--control-height);
 	font-size: var(--font-sm);
 	border-radius: var(--radius-sm);
 	transition: border-color var(--duration-fast) var(--ease-out),
 		box-shadow var(--duration-fast) var(--ease-out);
 	box-sizing: border-box;
+	width: 100%;
 }
 
 input:hover,
@@ -146,8 +146,8 @@ input:focus,
 select:focus,
 textarea:focus {
 	outline: none;
-	border-color: var(--accent-gold);
-	box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent-gold) 15%, transparent);
+	border-color: var(--accent-primary);
+	box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent-primary) 15%, transparent);
 }
 
 input:disabled,
@@ -162,7 +162,7 @@ select {
 	-webkit-appearance: none;
 	cursor: pointer;
 	padding-right: var(--gap-md);
-	background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath fill='%236a6a74' d='M0 0l5 6 5-6z'/%3E%3C/svg%3E");
+	background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath fill='%236e6e6e' d='M0 0l5 6 5-6z'/%3E%3C/svg%3E");
 	background-repeat: no-repeat;
 	background-position: right var(--gap-sm) center;
 }
@@ -204,6 +204,6 @@ label {
 }
 
 ::selection {
-	background: rgba(240, 192, 64, 0.25);
+	background: color-mix(in srgb, var(--accent-primary) 40%, transparent);
 	color: var(--text-bright);
 }

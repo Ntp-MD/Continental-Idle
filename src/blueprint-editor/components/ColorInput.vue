@@ -133,7 +133,7 @@ function toggleTransparent() {
 }
 
 .colorinput__swatch:hover {
-  border-color: var(--accent-gold);
+  border-color: var(--accent-primary);
 }
 
 .colorinput__native {
@@ -188,13 +188,13 @@ function toggleTransparent() {
 }
 
 .colorinput__transparent:hover {
-  border-color: var(--accent-gold);
+  border-color: var(--accent-primary);
   color: var(--text-primary);
 }
 
 .colorinput__transparent--active {
-  border-color: var(--accent-gold);
-  color: var(--accent-gold);
-  background: color-mix(in srgb, var(--accent-gold) 12%, transparent);
+  border-color: var(--accent-primary);
+  color: var(--accent-primary);
+  background: color-mix(in srgb, var(--accent-primary) 12%, transparent);
 }
 </style>

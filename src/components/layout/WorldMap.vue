@@ -162,9 +162,9 @@ function drawNodes(projection: d3.GeoProjection) {
     .attr("role", "button")
     .attr("aria-label", (d) => `${d.name} — ${d.city}`);
 
-  nodeGroups.append("circle").attr("class", "nodepulse").attr("r", 8).style("stroke", "var(--accent-gold)");
+  nodeGroups.append("circle").attr("class", "nodepulse").attr("r", 8).style("stroke", "var(--accent-primary)");
 
-  nodeGroups.append("circle").attr("class", "nodering").attr("r", 12).style("stroke", "var(--accent-gold)");
+  nodeGroups.append("circle").attr("class", "nodering").attr("r", 12).style("stroke", "var(--accent-primary)");
 
   nodeGroups.each(function (this: SVGGElement, d: NodeData) {
     const g = d3.select(this);
@@ -256,7 +256,7 @@ onUnmounted(() => {
 
     <div class="map__legend">
       <div class="map__legend">
-        <span class="map__legenddot" style="background: var(--accent-gold)"></span>
+        <span class="map__legenddot" style="background: var(--accent-primary)"></span>
         Continental Branch
       </div>
     </div>

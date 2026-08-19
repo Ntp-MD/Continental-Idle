@@ -187,9 +187,9 @@ watch(
 }
 
 .hotel-canvas__floorbtn--active {
-  background: var(--accent-gold);
+  background: var(--accent-primary);
   color: var(--bg-primary);
-  border-color: var(--accent-gold);
+  border-color: var(--accent-primary);
 }
 
 .hotel-canvas__empty {

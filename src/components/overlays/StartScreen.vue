@@ -55,7 +55,7 @@ onUnmounted(() => {
 
         <div class="start__actions">
           <button class="btn--warning" @click="startGame">ENTER HOTEL</button>
-          <button class="start__editorbtn" @click="router.push({ name: 'editor' })" aria-label="Open Blueprint Editor">Blueprint Editor</button>
+          <button class="btn--ghost start__editorbtn" @click="router.push({ name: 'editor' })" aria-label="Open Blueprint Editor">Blueprint Editor</button>
         </div>
       </aside>
 
@@ -124,7 +124,7 @@ onUnmounted(() => {
 .start__logo {
   display: block;
   width: 100%;
-  max-width: 320px;
+  max-width: 80vw;
   height: auto;
   margin: 0 auto;
 }
@@ -183,13 +183,9 @@ onUnmounted(() => {
 }
 
 .start__editorbtn {
-  border: 1px solid var(--border-dim);
-  background: transparent;
-  color: var(--text-secondary);
   padding: var(--gap-sm) var(--gap-md);
   font-size: var(--font-md);
   border-radius: var(--radius-md);
-  cursor: pointer;
 }
 
 .start__editorbtn:hover {
@@ -204,7 +200,7 @@ onUnmounted(() => {
 
 .start__loadingtext {
   font-size: var(--font-xl);
-  color: var(--accent-gold);
+  color: var(--accent-primary);
   text-transform: uppercase;
   letter-spacing: 4px;
   margin-bottom: var(--gap-md);
@@ -212,7 +208,7 @@ onUnmounted(() => {
 
 .start__loadingbar {
   width: 100%;
-  max-width: 300px;
+  max-width: 80vw;
   height: 3px;
   background: var(--bg-tertiary);
   border-radius: var(--radius-xs);
@@ -222,7 +218,7 @@ onUnmounted(() => {
 
 .start__loadingfill {
   height: 100%;
-  background: var(--gradient-gold);
+  background: var(--gradient-primary);
   transition: width var(--duration-fast);
   border-radius: var(--radius-xs);
   box-shadow: 0 0 8px rgba(240, 192, 64, 0.4);

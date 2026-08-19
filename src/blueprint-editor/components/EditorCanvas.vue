@@ -5,7 +5,7 @@ import { findAssetCached } from "../assetUtils";
 import { svgTransform as svgTransformGeo, roundedRectPath } from "../geometry";
 import { useConfirm } from "@/composables/useConfirm";
 import type { ObjectData, EntityRef } from "../types";
-import { resolveObjectDef } from "../types";
+import { resolveObjectDef, STREET_TILES } from "../types";
 import { useCanvasViewport } from "../composables/useCanvasViewport";
 import { useCanvasSelection } from "../composables/useCanvasSelection";
 import { useCanvasDragDrop } from "../composables/useCanvasDragDrop";
@@ -44,7 +44,7 @@ function selectFloorNav(id: string) {
 }
 function onFloorNavOutside(e: MouseEvent) {
   const el = e.target as HTMLElement;
-  if (floorNavOpen.value && !el.closest(".floor__trigger") && !el.closest(".floor__navmenu")) closeFloorNav();
+  if (floorNavOpen.value && !el.closest(".floor__trigger") && !el.closest(".floor__menu")) closeFloorNav();
 }
 function onFloorNavKeydown(e: KeyboardEvent) {
   if (e.key === "Escape" && floorNavOpen.value) closeFloorNav();
@@ -73,6 +73,8 @@ const savedToggles = (() => {
   }
 })();
 const showWalkableOverlay = ref(savedToggles.showWalkableOverlay ?? false);
+const showInteractSpots = ref(savedToggles.showInteractSpots ?? false);
+const showWalls = ref(savedToggles.showWalls ?? false);
 const showObjectHighlights = ref(savedToggles.showObjectHighlights ?? false);
 
 const modeLabel = computed(() => {
@@ -95,7 +97,6 @@ const modeHint = computed(() => {
   return hints[store.state.mode] ?? "";
 });
 
-const STREET_TILES = 8;
 const streetBorderPx = computed(() => STREET_TILES * canvas.value.tileSize);
 const buildingArea = computed(() => ({
   x: streetBorderPx.value,
@@ -312,6 +313,8 @@ function saveViewToggles() {
         showLabels: showLabels.value,
         showStreet: showStreet.value,
         showWalkableOverlay: showWalkableOverlay.value,
+        showInteractSpots: showInteractSpots.value,
+        showWalls: showWalls.value,
         showObjectHighlights: showObjectHighlights.value,
       }),
     );
@@ -335,6 +338,18 @@ function toggleStreet() {
 
 function toggleWalkableOverlay() {
   showWalkableOverlay.value = !showWalkableOverlay.value;
+  if (showWalkableOverlay.value) showInteractSpots.value = false;
+  saveViewToggles();
+}
+
+function toggleInteractSpots() {
+  showInteractSpots.value = !showInteractSpots.value;
+  if (showInteractSpots.value) showWalkableOverlay.value = false;
+  saveViewToggles();
+}
+
+function toggleWalls() {
+  showWalls.value = !showWalls.value;
   saveViewToggles();
 }
 
@@ -545,26 +560,26 @@ async function cancelDrawnOrigin() {
       <!-- Street border: sidewalk + road + lane markings (8 tiles on all sides) -->
       <g v-if="showStreet" class="editor__street" style="pointer-events: none">
         <!-- Outer sidewalk (2 tiles, all sides) -->
-        <rect :x="0" :y="0" :width="canvas.width" :height="streetSidewalkWidth" fill="#3a3a3a" />
-        <rect :x="0" :y="canvas.height - streetSidewalkWidth" :width="canvas.width" :height="streetSidewalkWidth" fill="#3a3a3a" />
-        <rect :x="0" :y="0" :width="streetSidewalkWidth" :height="canvas.height" fill="#3a3a3a" />
-        <rect :x="canvas.width - streetSidewalkWidth" :y="0" :width="streetSidewalkWidth" :height="canvas.height" fill="#3a3a3a" />
+        <rect :x="0" :y="0" :width="canvas.width" :height="streetSidewalkWidth" fill="#3c3c3c" />
+        <rect :x="0" :y="canvas.height - streetSidewalkWidth" :width="canvas.width" :height="streetSidewalkWidth" fill="#3c3c3c" />
+        <rect :x="0" :y="0" :width="streetSidewalkWidth" :height="canvas.height" fill="#3c3c3c" />
+        <rect :x="canvas.width - streetSidewalkWidth" :y="0" :width="streetSidewalkWidth" :height="canvas.height" fill="#3c3c3c" />
 
         <!-- Road (4 tiles, all sides) -->
-        <rect :x="streetSidewalkWidth" :y="streetSidewalkWidth" :width="canvas.width - streetSidewalkWidth * 2" :height="streetRoadWidth" fill="#2a2a2a" />
-        <rect :x="streetSidewalkWidth" :y="canvas.height - streetSidewalkWidth - streetRoadWidth" :width="canvas.width - streetSidewalkWidth * 2" :height="streetRoadWidth" fill="#2a2a2a" />
-        <rect :x="streetSidewalkWidth" :y="streetSidewalkWidth" :width="streetRoadWidth" :height="canvas.height - streetSidewalkWidth * 2" fill="#2a2a2a" />
-        <rect :x="canvas.width - streetSidewalkWidth - streetRoadWidth" :y="streetSidewalkWidth" :width="streetRoadWidth" :height="canvas.height - streetSidewalkWidth * 2" fill="#2a2a2a" />
+        <rect :x="streetSidewalkWidth" :y="streetSidewalkWidth" :width="canvas.width - streetSidewalkWidth * 2" :height="streetRoadWidth" fill="#252526" />
+        <rect :x="streetSidewalkWidth" :y="canvas.height - streetSidewalkWidth - streetRoadWidth" :width="canvas.width - streetSidewalkWidth * 2" :height="streetRoadWidth" fill="#252526" />
+        <rect :x="streetSidewalkWidth" :y="streetSidewalkWidth" :width="streetRoadWidth" :height="canvas.height - streetSidewalkWidth * 2" fill="#252526" />
+        <rect :x="canvas.width - streetSidewalkWidth - streetRoadWidth" :y="streetSidewalkWidth" :width="streetRoadWidth" :height="canvas.height - streetSidewalkWidth * 2" fill="#252526" />
 
         <!-- Road lane markings (dashed center lines) -->
         <!-- Top road center line -->
-        <line :x1="streetSidewalkWidth" :y1="streetSidewalkWidth + streetRoadWidth / 2" :x2="canvas.width - streetSidewalkWidth" :y2="streetSidewalkWidth + streetRoadWidth / 2" stroke="#8a8a8a" stroke-width="1" stroke-dasharray="12 8" opacity="0.5" />
+        <line :x1="streetSidewalkWidth" :y1="streetSidewalkWidth + streetRoadWidth / 2" :x2="canvas.width - streetSidewalkWidth" :y2="streetSidewalkWidth + streetRoadWidth / 2" stroke="#797979" stroke-width="1" stroke-dasharray="12 8" opacity="0.5" />
         <!-- Bottom road center line -->
-        <line :x1="streetSidewalkWidth" :y1="canvas.height - streetSidewalkWidth - streetRoadWidth / 2" :x2="canvas.width - streetSidewalkWidth" :y2="canvas.height - streetSidewalkWidth - streetRoadWidth / 2" stroke="#8a8a8a" stroke-width="1" stroke-dasharray="12 8" opacity="0.5" />
+        <line :x1="streetSidewalkWidth" :y1="canvas.height - streetSidewalkWidth - streetRoadWidth / 2" :x2="canvas.width - streetSidewalkWidth" :y2="canvas.height - streetSidewalkWidth - streetRoadWidth / 2" stroke="#797979" stroke-width="1" stroke-dasharray="12 8" opacity="0.5" />
         <!-- Left road center line -->
-        <line :x1="streetSidewalkWidth + streetRoadWidth / 2" :y1="streetSidewalkWidth" :x2="streetSidewalkWidth + streetRoadWidth / 2" :y2="canvas.height - streetSidewalkWidth" stroke="#8a8a8a" stroke-width="1" stroke-dasharray="12 8" opacity="0.5" />
+        <line :x1="streetSidewalkWidth + streetRoadWidth / 2" :y1="streetSidewalkWidth" :x2="streetSidewalkWidth + streetRoadWidth / 2" :y2="canvas.height - streetSidewalkWidth" stroke="#797979" stroke-width="1" stroke-dasharray="12 8" opacity="0.5" />
         <!-- Right road center line -->
-        <line :x1="canvas.width - streetSidewalkWidth - streetRoadWidth / 2" :y1="streetSidewalkWidth" :x2="canvas.width - streetSidewalkWidth - streetRoadWidth / 2" :y2="canvas.height - streetSidewalkWidth" stroke="#8a8a8a" stroke-width="1" stroke-dasharray="12 8" opacity="0.5" />
+        <line :x1="canvas.width - streetSidewalkWidth - streetRoadWidth / 2" :y1="streetSidewalkWidth" :x2="canvas.width - streetSidewalkWidth - streetRoadWidth / 2" :y2="canvas.height - streetSidewalkWidth" stroke="#797979" stroke-width="1" stroke-dasharray="12 8" opacity="0.5" />
 
         <!-- Building area outline (subtle border separating street from building) -->
         <rect :x="buildingArea.x" :y="buildingArea.y" :width="buildingArea.w" :height="buildingArea.h" fill="none" stroke="var(--border-dim)" stroke-width="1" stroke-dasharray="4 4" opacity="0.6" />
@@ -582,14 +597,14 @@ async function cancelDrawnOrigin() {
         <!-- Top ruler ticks -->
         <g v-for="tick in rulerXTicks" :key="'rx' + tick.pos">
           <line v-if="tick.major" :x1="tick.pos" :y1="-RULER_SIZE" :x2="tick.pos" :y2="-2" :style="{ stroke: 'var(--text-primary)' }" stroke-width="1" />
-          <text v-if="tick.major" :x="tick.pos + 3" :y="-5" font-size="12" font-weight="100" letter-spacing="1" fill="var(--accent-gold)">{{ tick.label }}</text>
+          <text v-if="tick.major" :x="tick.pos + 3" :y="-5" font-size="12" font-weight="100" letter-spacing="1" fill="var(--text-dim)">{{ tick.label }}</text>
           <line v-else :x1="tick.pos" :y1="-RULER_SIZE" :x2="tick.pos" :y2="-RULER_SIZE + 5" :style="{ stroke: 'var(--text-primary)' }" stroke-width="0.5" />
         </g>
 
         <!-- Left ruler ticks -->
         <g v-for="tick in rulerYTicks" :key="'ry' + tick.pos">
           <line v-if="tick.major" :x1="-RULER_SIZE" :y1="tick.pos" :x2="-2" :y2="tick.pos" :style="{ stroke: 'var(--text-primary)' }" stroke-width="1" />
-          <text v-if="tick.major" :x="-5" :y="tick.pos + 3" font-size="12" font-weight="100" letter-spacing="1" fill="var(--accent-gold)" transform="rotate(-90)" :transform-origin="`-5 ${tick.pos}`">{{ tick.label }}</text>
+          <text v-if="tick.major" :x="-5" :y="tick.pos + 3" font-size="12" font-weight="100" letter-spacing="1" fill="var(--text-dim)" transform="rotate(-90)" :transform-origin="`-5 ${tick.pos}`">{{ tick.label }}</text>
           <line v-else :x1="-RULER_SIZE" :y1="tick.pos" :x2="-RULER_SIZE + 5" :y2="tick.pos" :style="{ stroke: 'var(--text-primary)' }" stroke-width="0.5" />
         </g>
 
@@ -600,12 +615,39 @@ async function cancelDrawnOrigin() {
         <line :x1="-RULER_SIZE" :y1="canvas.height" :x2="0" :y2="canvas.height" :style="{ stroke: 'var(--accent-green)' }" stroke-width="1.5" />
 
         <!-- Mouse position indicators -->
-        <line v-if="rulerMouseX >= 0" :x1="rulerMouseX" :y1="-RULER_SIZE" :x2="rulerMouseX" :y2="0" :style="{ stroke: 'var(--accent-gold)' }" stroke-width="1" />
-        <line v-if="rulerMouseY >= 0" :x1="-RULER_SIZE" :y1="rulerMouseY" :x2="0" :y2="rulerMouseY" :style="{ stroke: 'var(--accent-gold)' }" stroke-width="1" />
+        <line v-if="rulerMouseX >= 0" :x1="rulerMouseX" :y1="-RULER_SIZE" :x2="rulerMouseX" :y2="0" :style="{ stroke: 'var(--accent-primary)' }" stroke-width="1" />
+        <line v-if="rulerMouseY >= 0" :x1="-RULER_SIZE" :y1="rulerMouseY" :x2="0" :y2="rulerMouseY" :style="{ stroke: 'var(--accent-primary)' }" stroke-width="1" />
       </g>
 
       <g v-if="floor && floor.objects.length === 0">
         <text :x="canvas.width / 2" :y="canvas.height / 2 - 10" text-anchor="middle" font-size="16" :style="{ fill: 'var(--text-primary)', pointerEvents: 'none' }">Empty floor — drag objects from the palette</text>
+      </g>
+
+      <g v-if="showWalkableOverlay && floor?.walkable?.tileStates" class="editor__walkable" style="pointer-events: none">
+        <template v-for="(row, rowIndex) in floor.walkable.tileStates" :key="`floor-walk-row-${rowIndex}`">
+          <template v-for="(state, colIndex) in row" :key="`floor-walk-cell-${rowIndex}-${colIndex}`">
+            <rect
+              :x="colIndex * canvas.tileSize"
+              :y="rowIndex * canvas.tileSize"
+              :width="canvas.tileSize"
+              :height="canvas.tileSize"
+              :fill="state === 'entrance' ? 'color-mix(in srgb, var(--accent-blue) 30%, transparent)' : state === 'walkable' ? 'color-mix(in srgb, var(--accent-green) 12%, transparent)' : 'color-mix(in srgb, var(--accent-red) 12%, transparent)'"
+              stroke="color-mix(in srgb, var(--accent-green) 20%, transparent)"
+              stroke-width="0.5"
+            />
+          </template>
+        </template>
+      </g>
+
+      <g v-if="showWalls && floor?.walkable?.tileEdges" class="editor__walls" style="pointer-events: none">
+        <template v-for="(row, rowIndex) in floor.walkable.tileEdges" :key="`floor-wall-row-${rowIndex}`">
+          <template v-for="(edges, colIndex) in row" :key="`floor-wall-cell-${rowIndex}-${colIndex}`">
+            <line v-if="edges?.top" :x1="colIndex * canvas.tileSize" :y1="rowIndex * canvas.tileSize" :x2="(colIndex + 1) * canvas.tileSize" :y2="rowIndex * canvas.tileSize" stroke="var(--accent-gold)" stroke-width="2" />
+            <line v-if="edges?.right" :x1="(colIndex + 1) * canvas.tileSize" :y1="rowIndex * canvas.tileSize" :x2="(colIndex + 1) * canvas.tileSize" :y2="(rowIndex + 1) * canvas.tileSize" stroke="var(--accent-gold)" stroke-width="2" />
+            <line v-if="edges?.bottom" :x1="colIndex * canvas.tileSize" :y1="(rowIndex + 1) * canvas.tileSize" :x2="(colIndex + 1) * canvas.tileSize" :y2="(rowIndex + 1) * canvas.tileSize" stroke="var(--accent-gold)" stroke-width="2" />
+            <line v-if="edges?.left" :x1="colIndex * canvas.tileSize" :y1="rowIndex * canvas.tileSize" :x2="colIndex * canvas.tileSize" :y2="(rowIndex + 1) * canvas.tileSize" stroke="var(--accent-gold)" stroke-width="2" />
+          </template>
+        </template>
       </g>
 
       <g v-if="floor">
@@ -661,7 +703,7 @@ async function cancelDrawnOrigin() {
             <circle :cx="obj.x + obj.w - 4" :cy="obj.y + 4" r="3" fill="var(--accent-blue)" stroke="var(--bg-primary)" stroke-width="0.5" />
             <text :x="obj.x + obj.w - 4" :y="obj.y + 5.5" text-anchor="middle" font-size="4" fill="var(--bg-primary)">L</text>
           </g>
-          <template v-if="(isObjectSelected(obj.id) || store.state.mode === 'npc-preview' || showWalkableOverlay) && objDef(obj).interactSpots && objDef(obj).interactSpots!.length > 0">
+          <template v-if="(isObjectSelected(obj.id) || store.state.mode === 'npc-preview' || showInteractSpots) && objDef(obj).interactSpots && objDef(obj).interactSpots!.length > 0">
             <g v-for="(interactSpot, interactSpotIdx) in objDef(obj).interactSpots" :key="`o-interactspot-${obj.id}-${interactSpotIdx}`" style="pointer-events: none">
               <circle :cx="obj.x + interactSpot.x" :cy="obj.y + interactSpot.y" r="4" fill="var(--accent-green)" stroke="var(--text-bright)" stroke-width="0.8" />
               <text :x="obj.x + interactSpot.x" :y="obj.y + interactSpot.y - 6" text-anchor="middle" font-size="5" fill="color-mix(in srgb, var(--accent-green) 70%, var(--bg-primary))">IS{{ interactSpotIdx + 1 }}</text>
@@ -669,10 +711,21 @@ async function cancelDrawnOrigin() {
           </template>
         </g>
 
-        <g v-if="store.state.mode === 'npc-preview'" class="editor__npc-overlay" style="pointer-events: none">
+        <g v-if="showWalkableOverlay || store.state.mode === 'npc-preview'" class="editor__spawn" style="pointer-events: none">
+          <g v-for="zone in floor?.spawnZones ?? []" :key="`spawn-zone-${zone.id}`">
+            <rect :x="zone.x" :y="zone.y" :width="zone.w" :height="zone.h" fill="color-mix(in srgb, var(--accent-green) 12%, transparent)" stroke="var(--accent-green)" stroke-width="1" stroke-dasharray="5 3" />
+            <text :x="zone.x + 4" :y="zone.y + 10" font-size="6" fill="var(--accent-green)">{{ zone.label }}</text>
+          </g>
+        </g>
+
+        <g v-if="store.state.mode === 'npc-preview'" class="editor__npc" style="pointer-events: none">
           <g v-for="npc in currentFloorNpcs" :key="npc.id">
+            <polyline v-if="npc.path.length > 1" :points="npc.path.map((point) => point.join(',')).join(' ')" fill="none" stroke="var(--accent-blue)" stroke-width="1" stroke-dasharray="3 2" opacity="0.7" />
+            <line :x1="npc.targetX - 3" :y1="npc.targetY" :x2="npc.targetX + 3" :y2="npc.targetY" stroke="var(--accent-primary)" stroke-width="1" />
+            <line :x1="npc.targetX" :y1="npc.targetY - 3" :x2="npc.targetX" :y2="npc.targetY + 3" stroke="var(--accent-primary)" stroke-width="1" />
             <circle :cx="npc.x" :cy="npc.y" r="6" :fill="npc.color" opacity="0.25" />
             <circle :cx="npc.x" :cy="npc.y" r="4" :fill="npc.color" stroke="var(--text-bright)" stroke-width="1" />
+            <text :x="npc.x + 7" :y="npc.y - 7" font-size="4" fill="var(--text-bright)">{{ npc.status }}</text>
           </g>
         </g>
       </g>
@@ -681,7 +734,7 @@ async function cancelDrawnOrigin() {
 
       <rect :width="canvas.width" :height="canvas.height" fill="none" :style="{ stroke: 'var(--border-dim)' }" stroke-width="2" />
 
-      <rect v-if="boxSelect && boxSelect.w > 4" :x="boxSelect.x" :y="boxSelect.y" :width="boxSelect.w" :height="boxSelect.h" :style="{ fill: 'color-mix(in srgb, var(--accent-gold) 15%, transparent)', stroke: 'var(--accent-gold)', pointerEvents: 'none' }" stroke-width="1.5" stroke-dasharray="4 3" />
+      <rect v-if="boxSelect && boxSelect.w > 4" :x="boxSelect.x" :y="boxSelect.y" :width="boxSelect.w" :height="boxSelect.h" :style="{ fill: 'color-mix(in srgb, var(--accent-primary) 15%, transparent)', stroke: 'var(--accent-primary)', pointerEvents: 'none' }" stroke-width="1.5" stroke-dasharray="4 3" />
 
       <g v-if="dragState.assetId && paletteGhost && paletteGhostParts">
         <rect v-for="(p, i) in paletteGhostParts" :key="'ghost_part_' + i" :x="p.x" :y="p.y" :width="p.w" :height="p.h" :style="{ fill: 'color-mix(in srgb, var(--accent-blue) 15%, transparent)', stroke: 'var(--accent-blue)' }" stroke-width="1.5" stroke-dasharray="4 3" />
@@ -692,46 +745,48 @@ async function cancelDrawnOrigin() {
     </svg>
 
     <div class="editor__floor-title" v-if="floor">
-      <span class="editor__floor-labelhstack" :style="{ color: floor.labelColor || undefined }">{{ floor.label }}</span>
-      <span class="editor__floor-namebold">{{ floor.name }}</span>
+      <span class="editor__labels" :style="{ color: floor.labelColor || undefined }">{{ floor.label }}</span>
+      <span class="editor__name">{{ floor.name }}</span>
     </div>
 
-    <div class="editor__floor-navhstack" v-if="floor">
-      <div class="floor__triggerwrap">
+    <div class="editor__nav" v-if="floor">
+      <div class="floor__wrap">
         <button class="floor__trigger" @click.stop="toggleFloorNav" :aria-expanded="floorNavOpen" aria-haspopup="listbox" title="Switch floor" aria-label="Switch floor">
           <span class="floor__trigger-label" :style="{ color: floor.labelColor || undefined }">{{ floor.label }}</span>
           <span class="floor__trigger-name">{{ floor.name }}</span>
-          <span class="floor__trigger-caret" :class="{ 'floor__trigger-caretrotated': floorNavOpen }">▾</span>
+          <span class="floor__caret" :class="{ 'floor__caret--rotated': floorNavOpen }">▾</span>
         </button>
-        <div v-if="floorNavOpen" class="floor__navmenu" role="listbox" aria-label="Floors">
-          <button v-for="f in floors" :key="f.id" class="floor__navmenu-item" :class="{ 'floor__navmenu-itemactive': f.id === store.state.currentFloorId }" role="option" :aria-selected="f.id === store.state.currentFloorId" @click="selectFloorNav(f.id)">
-            <span class="floor__navmenu-label" :style="{ color: f.labelColor || undefined }">{{ f.label }}</span>
-            <span class="floor__navmenu-name">{{ f.name }}</span>
+        <div v-if="floorNavOpen" class="floor__menu" role="listbox" aria-label="Floors">
+          <button v-for="f in floors" :key="f.id" class="floor__item" :class="{ 'floor__item--active': f.id === store.state.currentFloorId }" role="option" :aria-selected="f.id === store.state.currentFloorId" @click="selectFloorNav(f.id)">
+            <span class="floor__label" :style="{ color: f.labelColor || undefined }">{{ f.label }}</span>
+            <span class="floor__name">{{ f.name }}</span>
           </button>
         </div>
       </div>
     </div>
 
-    <div class="editor__modebadge--float" :class="`editor__modebadge--${store.state.mode.replace('-', '')}`">
+    <div class="editor__badge--float" :class="`editor__badge--${store.state.mode.replace('-', '')}`">
       {{ modeLabel }}
     </div>
-    <div class="editor__mode-hint" v-if="modeHint">
+    <div class="editor__hint" v-if="modeHint">
       {{ modeHint }}
     </div>
 
     <div class="editor__coords">{{ mouseCoords.x }}, {{ mouseCoords.y }}</div>
 
-    <div class="editor__zoom-controlshstack">
-      <button class="editor__zoombtn--icon" @click="zoomBy(1 / 1.25)" title="Zoom Out (-)" aria-label="Zoom out">−</button>
-      <span class="editor__zoom-label" aria-label="Zoom level">{{ zoomPercent }}%</span>
-      <button class="editor__zoombtn--icon" @click="zoomBy(1.25)" title="Zoom In (+)" aria-label="Zoom in">+</button>
-      <button class="editor__zoombtn--icon editor__zoom-control" @click="fitToScreen" title="Fit to Screen (Ctrl+0)" aria-label="Fit to screen">Fit</button>
-      <button class="editor__zoombtn--icon editor__zoom-control" @click="centerView" title="Center View" aria-label="Center view">Center</button>
-      <button class="editor__zoombtn--icon editor__zoom-control" @click="toggleGrid" title="Toggle Grid" aria-label="Toggle grid">Grid</button>
-      <button class="editor__zoombtn--icon editor__zoom-control" @click="toggleLabels" title="Toggle Labels" aria-label="Toggle labels">Labels</button>
-      <button class="editor__zoombtn--icon editor__zoom-control" :class="{ 'editor__zoombtn--active': showStreet }" @click="toggleStreet" title="Toggle Street" aria-label="Toggle street">Street</button>
-      <button class="editor__zoombtn--icon editor__zoom-control" :class="{ 'editor__zoombtn--active': showWalkableOverlay }" @click="toggleWalkableOverlay" title="Toggle Navigation View (walkable + interactspots + entrances)" aria-label="Toggle navigation view">Nav</button>
-      <button class="editor__zoombtn--icon editor__zoom-control" :class="{ 'editor__zoombtn--active': showObjectHighlights }" @click="toggleObjectHighlights" title="Toggle object highlights" aria-label="Toggle object highlights">Highlight</button>
+    <div class="editor__controls">
+      <button class="editor__ctrl--icon" @click="zoomBy(1 / 1.25)" title="Zoom Out (-)" aria-label="Zoom out">−</button>
+      <span class="editor__zoom" aria-label="Zoom level">{{ zoomPercent }}%</span>
+      <button class="editor__ctrl--icon" @click="zoomBy(1.25)" title="Zoom In (+)" aria-label="Zoom in">+</button>
+      <button class="editor__ctrl--icon editor__ctrl--wide" @click="fitToScreen" title="Fit to Screen (Ctrl+0)" aria-label="Fit to screen">Fit</button>
+      <button class="editor__ctrl--icon editor__ctrl--wide" @click="centerView" title="Center View" aria-label="Center view">Center</button>
+      <button class="editor__ctrl--icon editor__ctrl--wide" @click="toggleGrid" title="Toggle Grid" aria-label="Toggle grid">Grid</button>
+      <button class="editor__ctrl--icon editor__ctrl--wide" @click="toggleLabels" title="Toggle Labels" aria-label="Toggle labels">Labels</button>
+      <button class="editor__ctrl--icon editor__ctrl--wide" :class="{ 'editor__ctrl--active': showStreet }" @click="toggleStreet" title="Toggle Street" aria-label="Toggle street">Street</button>
+      <button class="editor__ctrl--icon editor__ctrl--wide" :class="{ 'editor__ctrl--active': showWalkableOverlay }" @click="toggleWalkableOverlay" title="Toggle Walkable + Entrance" aria-label="Toggle walkable view">Walk</button>
+      <button class="editor__ctrl--icon editor__ctrl--wide" :class="{ 'editor__ctrl--active': showWalls }" @click="toggleWalls" title="Toggle Outer Walls" aria-label="Toggle walls">Wall</button>
+      <button class="editor__ctrl--icon editor__ctrl--wide" :class="{ 'editor__ctrl--active': showInteractSpots }" @click="toggleInteractSpots" title="Toggle Interact Spots" aria-label="Toggle interact spots">Interact</button>
+      <button class="editor__ctrl--icon editor__ctrl--wide" :class="{ 'editor__ctrl--active': showObjectHighlights }" @click="toggleObjectHighlights" title="Toggle object highlights" aria-label="Toggle object highlights">Highlight</button>
     </div>
     <WalkableGridPanel />
 
@@ -770,6 +825,8 @@ async function cancelDrawnOrigin() {
   flex-direction: column;
   gap: var(--gap-md);
   width: min(360px, calc(100vw - var(--gap-lg)));
+  max-height: calc(100vh - 32px);
+  overflow-y: auto;
   padding: var(--gap-md);
 }
 
@@ -795,7 +852,7 @@ async function cancelDrawnOrigin() {
 .editor__draw-preview {
   align-self: center;
   max-width: 100%;
-  border: 1px solid var(--accent-gold);
+  border: 1px solid var(--accent-primary);
   background-image: linear-gradient(45deg, var(--bg-tertiary) 25%, transparent 25%), linear-gradient(-45deg, var(--bg-tertiary) 25%, transparent 25%), linear-gradient(45deg, transparent 75%, var(--bg-tertiary) 75%), linear-gradient(-45deg, transparent 75%, var(--bg-tertiary) 75%);
   background-size: 8px 8px;
   background-position:
@@ -851,18 +908,18 @@ async function cancelDrawnOrigin() {
 }
 
 .editor__canvas-svg:focus {
-  outline: 2px solid var(--accent-gold);
+  outline: 2px solid var(--accent-primary);
 }
 
 .editor__canvas--selected {
-  stroke: var(--accent-gold);
+  stroke: var(--accent-primary);
   stroke-width: 2px;
   fill: none;
   pointer-events: none;
 }
 
 .editor__canvas--highlight {
-  stroke: var(--accent-gold);
+  stroke: var(--accent-primary);
   stroke-width: 1.5px;
   stroke-dasharray: 5 3;
   opacity: 0.9;
@@ -891,8 +948,8 @@ async function cancelDrawnOrigin() {
   opacity: 0.7;
 }
 
-.editor__zoom-control {
-  min-width: 48px;
+.editor__ctrl--wide {
+  min-width: 3em;
   text-align: center;
 }
 
@@ -900,7 +957,7 @@ async function cancelDrawnOrigin() {
   pointer-events: none;
 }
 
-.editor__modebadge--float {
+.editor__badge--float {
   position: absolute;
   top: 16px;
   left: 50%;
@@ -914,27 +971,27 @@ async function cancelDrawnOrigin() {
   z-index: var(--z-layer-2);
 }
 
-.editor__modebadge--draw {
-  border-color: var(--accent-gold);
-  color: var(--accent-gold);
+.editor__badge--draw {
+  border-color: var(--accent-primary);
+  color: var(--accent-primary);
 }
 
-.editor__modebadge--object {
+.editor__badge--object {
   border-color: var(--accent-blue);
   color: var(--accent-blue);
 }
 
-.editor__modebadge--move {
+.editor__badge--move {
   border-color: var(--accent-green);
   color: var(--accent-green);
 }
 
-.editor__modebadge--npcpreview {
+.editor__badge--npcpreview {
   border-color: var(--accent-blue);
   color: var(--accent-blue);
 }
 
-.editor__mode-hint {
+.editor__hint {
   position: absolute;
   top: 44px;
   left: 50%;
@@ -963,17 +1020,17 @@ async function cancelDrawnOrigin() {
   height: fit-content;
 }
 
-.editor__floor-labelhstack {
+.editor__labels {
   display: inline-flex;
   align-items: center;
   gap: var(--gap-xs);
 }
 
-.editor__floor-namebold {
+.editor__name {
   font-weight: 600;
 }
 
-.editor__floor-navhstack {
+.editor__nav {
   position: absolute;
   top: 16px;
   right: 16px;
@@ -1002,7 +1059,7 @@ async function cancelDrawnOrigin() {
   font-variant-numeric: tabular-nums;
 }
 
-.editor__zoom-controlshstack {
+.editor__controls {
   position: absolute;
   bottom: 16px;
   right: 16px;
@@ -1016,33 +1073,31 @@ async function cancelDrawnOrigin() {
   z-index: var(--z-layer-2);
 }
 
-.editor__zoombtn--icon {
-  width: 28px;
-  height: 28px;
+.editor__ctrl--icon {
+  min-width: 1.75em;
+  min-height: 1.75em;
+  padding: var(--gap-xs) var(--gap-sm);
+  width: fit-content;
+  height: fit-content;
   display: inline-flex;
   align-items: center;
   justify-content: center;
 }
 
-.editor__zoombtn--active {
-  background: color-mix(in srgb, var(--accent-gold) 12%, transparent);
-  border-color: var(--accent-gold);
-  color: var(--accent-gold);
+.editor__ctrl--active {
+  background: color-mix(in srgb, var(--accent-primary) 12%, transparent);
+  border-color: var(--accent-primary);
+  color: var(--accent-primary);
 }
 
-.editor__zoom-label {
-  min-width: 48px;
+.editor__zoom {
+  min-width: 3em;
   text-align: center;
   font-size: var(--font-xs);
+  font-variant-numeric: tabular-nums;
 }
 
-.editor__npc-overlay {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-}
-
-.floor__triggerwrap {
+.floor__wrap {
   position: relative;
   display: inline-flex;
   align-items: center;
@@ -1061,14 +1116,14 @@ async function cancelDrawnOrigin() {
 }
 
 .floor__trigger:hover {
-  color: var(--accent-gold);
+  color: var(--accent-primary);
 }
 
 .floor__trigger-label {
   font-size: var(--font-xs);
   opacity: 0.7;
   font-weight: 700;
-  color: var(--accent-gold);
+  color: var(--accent-primary);
 }
 
 .floor__trigger-name {
@@ -1076,23 +1131,23 @@ async function cancelDrawnOrigin() {
   font-size: var(--font-sm);
 }
 
-.floor__trigger-caret {
+.floor__caret {
   font-size: var(--font-xs);
   opacity: 0.7;
   color: var(--text-primary);
   transition: transform var(--duration-fast) ease-out;
 }
 
-.floor__trigger-caretrotated {
+.floor__caret--rotated {
   transform: rotate(180deg);
 }
 
-.floor__navmenu {
+.floor__menu {
   position: absolute;
   top: calc(100% + var(--gap-xs));
   right: 0;
-  min-width: 200px;
-  max-height: 320px;
+  min-width: 12em;
+  max-height: 40vh;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
@@ -1104,7 +1159,7 @@ async function cancelDrawnOrigin() {
   padding: var(--gap-xs);
 }
 
-.floor__navmenu-item {
+.floor__item {
   display: flex;
   align-items: center;
   gap: var(--gap-sm);
@@ -1117,22 +1172,22 @@ async function cancelDrawnOrigin() {
   width: 100%;
 }
 
-.floor__navmenu-item:hover {
+.floor__item:hover {
   background: var(--bg-secondary);
 }
 
-.floor__navmenu-itemactive {
-  background: color-mix(in srgb, var(--accent-gold) 12%, transparent);
+.floor__item--active {
+  background: color-mix(in srgb, var(--accent-primary) 12%, transparent);
 }
 
-.floor__navmenu-label {
+.floor__label {
   font-size: var(--font-xs);
   font-weight: 700;
   opacity: 0.8;
   flex-shrink: 0;
 }
 
-.floor__navmenu-name {
+.floor__name {
   font-weight: 600;
   font-size: var(--font-sm);
 }

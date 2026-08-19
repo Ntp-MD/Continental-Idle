@@ -26,18 +26,21 @@
 
 .cb__deuteranopia {
 	--accent-gold: #00bfff;
+	--accent-primary: #00bfff;
 	--accent-green: #00bfff;
 	--accent-red: #ff00ff;
 }
 
 .cb__protanopia {
 	--accent-gold: #00bfff;
+	--accent-primary: #00bfff;
 	--accent-green: #00bfff;
 	--accent-red: #ff00ff;
 }
 
 .cb__tritanopia {
 	--accent-gold: #ff4444;
+	--accent-primary: #ff4444;
 	--accent-green: #ff4444;
 	--accent-red: #4444ff;
 }

@@ -5,34 +5,35 @@
 
 :root {
 	/* ── Background ── */
-	--bg-primary: #08090c;
-	--bg-secondary: #0c0d10;
-	--bg-tertiary: #101216;
-	--bg-card: #161820;
-	--bg-card-hover: #1c1e28;
+	--bg-primary: #1e1e1e;
+	--bg-secondary: #252526;
+	--bg-tertiary: #2d2d30;
+	--bg-card: #333333;
+	--bg-card-hover: #3c3c3c;
 	--bg-overlay: rgba(0, 0, 0, 0.88);
 
 	/* ── Text ── */
-	--text-primary: #e8e8ec;
-	--text-secondary: #a0a0a8;
-	--text-dim: #6a6a74;
+	--text-primary: #cccccc;
+	--text-secondary: #9d9d9d;
+	--text-dim: #6e6e6e;
 	--text-bright: #ffffff;
 
 	/* ── Borders ── */
-	--border-dim: #252530;
+	--border-dim: #3c3c3c;
 
 	/* ── Accent Colors ── */
-	--accent-gold: #f0c040;
-	--accent-green: #3dd68c;
-	--accent-red: #ef4444;
-	--accent-blue: #3b82f6;
+	--accent-primary: #007fd4;
+	--accent-gold: #cca700;
+	--accent-green: #89d185;
+	--accent-red: #f14c4c;
+	--accent-blue: #3794ff;
 
 	/* ── Background variants ── */
 	--bg-dark: var(--bg-primary);
 	--bg-hover: var(--bg-card-hover);
 
 	/* ── Gradients ── */
-	--gradient-gold: linear-gradient(135deg, var(--accent-gold) 0%, color-mix(in srgb, var(--accent-gold) 75%, var(--bg-primary)) 100%);
+	--gradient-primary: linear-gradient(135deg, var(--accent-primary) 0%, color-mix(in srgb, var(--accent-primary) 75%, var(--bg-primary)) 100%);
 
 	/* ── Shadows ── */
 	--shadow-panel: 0 12px 48px rgba(0, 0, 0, 0.6), 0 4px 16px rgba(0, 0, 0, 0.3);

@@ -76,7 +76,7 @@ async function onDropdownClick(tag: string) {
     <div class="tagpicker__field" @click="showDropdown = true">
       <span v-for="tag in modelValue" :key="tag" class="tagpicker__chip">
         {{ tag }}
-        <button class="tagpicker__chipbtn" @click.stop="removeTag(tag)">×</button>
+        <button class="chip__remove tagpicker__chipbtn" @click.stop="removeTag(tag)">×</button>
       </span>
       <input v-model="inputValue" :placeholder="modelValue.length === 0 ? placeholder : ''" class="tagpicker__input" @keydown="onKeydown" @focus="showDropdown = true" @blur="showDropdown = false" />
     </div>
@@ -105,7 +105,7 @@ async function onDropdownClick(tag: string) {
 }
 
 .tagpicker__field:focus-within {
-  border-color: var(--accent-gold);
+  border-color: var(--accent-primary);
 }
 
 .tagpicker__chip {
@@ -113,7 +113,7 @@ async function onDropdownClick(tag: string) {
   align-items: center;
   gap: var(--gap-xs);
   padding: 1px var(--gap-xs);
-  background: color-mix(in srgb, var(--accent-gold) 14%, transparent);
+  background: color-mix(in srgb, var(--accent-primary) 14%, transparent);
   border: none;
   font-size: var(--font-xs);
   color: var(--text-primary);
@@ -122,22 +122,21 @@ async function onDropdownClick(tag: string) {
 }
 
 .tagpicker__chipbtn {
-  background: transparent;
-  border: none;
   color: var(--accent-red);
-  cursor: pointer;
-  font-size: var(--font-sm);
-  line-height: 1;
-  padding: 0;
 }
 
 .tagpicker__input {
   flex: 1;
+  font-size: var(--font-sm);
   background: transparent;
   border: none;
+  box-shadow: none;
   outline: none;
-  color: var(--text-primary);
-  font-size: var(--font-sm);
+}
+
+.tagpicker__input:focus {
+  box-shadow: none;
+  border: none;
 }
 
 .tagpicker__input::placeholder {
@@ -151,7 +150,7 @@ async function onDropdownClick(tag: string) {
   left: 0;
   right: 0;
   z-index: var(--z-layer-2);
-  max-height: 160px;
+  max-height: 40vh;
   overflow-y: auto;
   background: var(--bg-secondary);
   border: 1px solid var(--border-dim);

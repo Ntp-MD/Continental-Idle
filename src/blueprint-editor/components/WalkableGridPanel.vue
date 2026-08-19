@@ -6,7 +6,7 @@ import { useConfirm } from "@/composables/useConfirm";
 import { useWalkableGridPanel } from "../composables/useWalkableGridPanel";
 import { renderSvgInto } from "../svgSanitizer";
 import type { AssetDef, TileState, TileEdges, InteractSpot } from "../types";
-import { normalizeInteractConfig, resolveInteractForTarget } from "../types";
+import { normalizeInteractConfig, normalizeNpcQueueConfig, resolveInteractForTarget } from "../types";
 
 type BorderSide = "top" | "right" | "bottom" | "left";
 
@@ -28,6 +28,7 @@ const gridDirty = ref(false);
 const savedGridKey = ref("");
 const savedInteractSpotsKey = ref("");
 const savedInteractKey = ref("");
+const savedQueueKey = ref("");
 const previousGridAssetId = ref<string | null>(null);
 const isRestoring = ref(false);
 
@@ -35,6 +36,8 @@ const gridInteractSpots = ref<InteractSpot[]>([]);
 const interactCapacity = ref(0);
 const interactDurationMin = ref(1);
 const interactDurationMax = ref(3);
+const queueMaxMembers = ref(3);
+const queueAdmissionDepth = ref(4);
 const walkthrough = ref(false);
 let syncingWalkthrough = false;
 
@@ -54,8 +57,12 @@ function interactKey(): string {
   return JSON.stringify({ capacity: interactCapacity.value, durationMin: interactDurationMin.value, durationMax: interactDurationMax.value });
 }
 
+function queueKey(): string {
+  return JSON.stringify({ maxMembers: queueMaxMembers.value, admissionDepth: queueAdmissionDepth.value });
+}
+
 function checkGridDirty() {
-  gridDirty.value = gridKey() !== savedGridKey.value || interactSpotsKey() !== savedInteractSpotsKey.value || interactKey() !== savedInteractKey.value;
+  gridDirty.value = gridKey() !== savedGridKey.value || interactSpotsKey() !== savedInteractSpotsKey.value || interactKey() !== savedInteractKey.value || queueKey() !== savedQueueKey.value;
   if (gridDirty.value) scheduleAutoSave();
 }
 
@@ -172,6 +179,8 @@ watch(
       interactCapacity.value = resolved.capacity;
       interactDurationMin.value = resolved.durationMinSeconds;
       interactDurationMax.value = resolved.durationMaxSeconds;
+      queueMaxMembers.value = gridAsset.value.queue?.maxMembers ?? 3;
+      queueAdmissionDepth.value = gridAsset.value.queue?.admissionDepth ?? 4;
       syncingWalkthrough = true;
       walkthrough.value = gridAsset.value.walkable ?? false;
       nextTick(() => {
@@ -180,6 +189,7 @@ watch(
       savedGridKey.value = gridKey();
       savedInteractSpotsKey.value = interactSpotsKey();
       savedInteractKey.value = interactKey();
+      savedQueueKey.value = queueKey();
       gridDirty.value = false;
       previousGridAssetId.value = gridAsset.value.id;
     } else {
@@ -189,6 +199,7 @@ watch(
       savedGridKey.value = "";
       savedInteractSpotsKey.value = "";
       savedInteractKey.value = "";
+      savedQueueKey.value = "";
       gridDirty.value = false;
       previousGridAssetId.value = null;
     }
@@ -449,12 +460,12 @@ function walkTileIcon(state: TileState): string {
 }
 
 function entranceTileBg(state: TileState): string {
-  if (state === "entrance") return "color-mix(in srgb, var(--accent-gold) 22%, transparent)";
+  if (state === "entrance") return "color-mix(in srgb, var(--accent-blue) 22%, transparent)";
   if (state === "blocked") return "color-mix(in srgb, var(--bg-card) 60%, transparent)";
   return "color-mix(in srgb, var(--bg-card) 80%, transparent)";
 }
 function entranceTileBorder(state: TileState): string {
-  if (state === "entrance") return "1px solid var(--accent-gold)";
+  if (state === "entrance") return "1px solid var(--accent-blue)";
   return "1px solid var(--border-dim)";
 }
 function entranceTileIcon(state: TileState): string {
@@ -562,10 +573,15 @@ async function saveGrid() {
     durationMin: interactDurationMin.value,
     durationMax: interactDurationMax.value,
   });
-  await store.updateAsset(a.id, { walkableGrid: grid, tileStates: states, tileEdges: edges, interactSpots, interact });
+  const queue = normalizeNpcQueueConfig({
+    maxMembers: queueMaxMembers.value,
+    admissionDepth: queueAdmissionDepth.value,
+  });
+  await store.updateAsset(a.id, { walkable: walkthrough.value, walkableGrid: grid, tileStates: states, tileEdges: edges, interactSpots, interact, queue });
   savedGridKey.value = gridKey();
   savedInteractSpotsKey.value = interactSpotsKey();
   savedInteractKey.value = interactKey();
+  savedQueueKey.value = queueKey();
   gridDirty.value = false;
   useToast().success("Walkable grid saved");
 }
@@ -616,6 +632,8 @@ onBeforeUnmount(() => {
             <label>Cap <input v-model.number="interactCapacity" type="number" min="0" :placeholder="String(gridInteractSpots.length)" @input="checkGridDirty" /></label>
             <label>Min <input v-model.number="interactDurationMin" type="number" min="0" step="0.1" @input="checkGridDirty" /></label>
             <label>Max <input v-model.number="interactDurationMax" type="number" min="0" step="0.1" @input="checkGridDirty" /></label>
+            <label>Queue <input v-model.number="queueMaxMembers" type="number" min="1" max="100" @input="checkGridDirty" /></label>
+            <label>Admit <input v-model.number="queueAdmissionDepth" type="number" min="1" max="20" @input="checkGridDirty" /></label>
           </div>
           <button class="walkablegrid__button" @click.stop="closeWalkableGridPanel" title="Close" aria-label="Close walkable grid editor">×</button>
         </div>
@@ -697,6 +715,7 @@ onBeforeUnmount(() => {
   position: absolute;
   z-index: var(--z-layer-4);
   width: 60%;
+  max-height: 90vh;
   background: var(--bg-secondary);
   border: 1px solid var(--border-dim);
   border-radius: var(--radius-md);
@@ -718,7 +737,7 @@ onBeforeUnmount(() => {
   cursor: grab;
   font-size: var(--font-sm);
   font-weight: 700;
-  color: var(--accent-gold);
+  color: var(--text-primary);
   user-select: none;
   flex-wrap: wrap;
 }
@@ -768,7 +787,7 @@ onBeforeUnmount(() => {
 }
 
 .walkablegrid__interact input {
-  width: 72px;
+  width: 4.5em;
 }
 
 .walkablegrid__body-vstack {
