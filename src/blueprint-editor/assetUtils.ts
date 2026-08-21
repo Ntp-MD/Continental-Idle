@@ -1,4 +1,4 @@
-import type { AssetDef, FloorLayoutData, NpcSimulationConfig, ObjectData, ObjectPlacement, SvgRole, SvgRoleInfo, WalkableGrid, TileState } from './types'
+import type { AssetDef, FloorLayoutData, NpcSimulationConfig, ObjectPlacement, SvgRole, SvgRoleInfo, WalkableGrid, TileState } from './types'
 
 export function findAsset(assets: AssetDef[], type: string): AssetDef | undefined {
 	return assets.find(a => a.id === type)
@@ -124,6 +124,7 @@ export function serializeAsset(asset: AssetDef): AssetDef {
 	if (asset.tileEdges) out.tileEdges = asset.tileEdges
 	if (asset.interactSpots?.length) out.interactSpots = asset.interactSpots
 	if (asset.interact) out.interact = asset.interact
+	if (asset.queue) out.queue = asset.queue
 	return out
 }
 
@@ -131,6 +132,128 @@ export function serializeAsset(asset: AssetDef): AssetDef {
 export interface PortalValidationResult {
 	errors: string[]
 	warnings: string[]
+}
+
+export interface SettingsCompletenessResult {
+	issues: string[]
+}
+
+function collectFloorAssetTags(layout: FloorLayoutData, assetMap: Map<string, AssetDef>): Set<string> {
+	const tags = new Set<string>()
+	for (const floor of layout.floors) {
+		for (const object of floor.objects) {
+			const asset = assetMap.get(object.type)
+			if (!asset?.tags) continue
+			for (const tag of asset.tags) tags.add(tag.trim().toLowerCase())
+		}
+	}
+	return tags
+}
+
+function floorHasSpawnZoneForRole(floor: FloorLayoutData, roleId: string): boolean {
+	const zones = floor.spawnZones
+	if (!zones?.length) return false
+	return zones.some(zone => !zone.roleIds?.length || zone.roleIds.includes(roleId))
+}
+
+export function validateSettingsCompleteness(
+	layout: FloorLayoutData,
+	assetMap: Map<string, AssetDef>,
+	npcConfig: NpcSimulationConfig | undefined,
+): SettingsCompletenessResult {
+	const issues: string[] = []
+
+	if (!npcConfig) {
+		issues.push('No NPC configuration defined')
+		return { issues }
+	}
+
+	if (!npcConfig.roles.length) {
+		issues.push('No NPC roles defined')
+		return { issues }
+	}
+
+	if (!npcConfig.pool.length) {
+		issues.push('NPC pool is empty — no NPCs will spawn')
+	}
+
+	const floorAssetTags = collectFloorAssetTags(layout, assetMap)
+	const roleIds = new Set(npcConfig.roles.map(role => role.id))
+	const taskIdsReferenced = new Set<string>()
+
+	for (const role of npcConfig.roles) {
+		const focusTags = role.focusTags
+		const hasTasks = role.taskIds.length > 0
+		for (const taskId of role.taskIds) taskIdsReferenced.add(taskId)
+
+		if (role.focusChance > 0 && focusTags.length === 0 && !hasTasks) {
+			issues.push(`Role "${role.label}" has focusChance=${role.focusChance}% but no focus tags or tasks assigned`)
+		}
+
+		if (role.restrictedTags.length > 0) {
+			const matching = role.restrictedTags.some(tag => floorAssetTags.has(tag.trim().toLowerCase()))
+			if (!matching) {
+				issues.push(`Role "${role.label}" restricts to tags [${role.restrictedTags.join(', ')}] but no asset on any floor matches`)
+			}
+		}
+
+		if (role.spawnRule?.targetTags?.length) {
+			const matching = role.spawnRule.targetTags.some(tag => floorAssetTags.has(tag.trim().toLowerCase()))
+			if (!matching) {
+				issues.push(`Role "${role.label}" spawn rule targets tags [${role.spawnRule.targetTags.join(', ')}] but no asset on any floor matches`)
+			}
+		}
+
+		for (const floor of layout.floors) {
+			const allowed = !floor.allowedRoleIds?.length || floor.allowedRoleIds.includes(role.id)
+			if (!allowed) continue
+			if (!floorHasSpawnZoneForRole(floor, role.id)) {
+				issues.push(`Floor "${floor.label}" allows role "${role.label}" but has no spawn zone for it`)
+			}
+		}
+	}
+
+	for (const task of npcConfig.tasks) {
+		if (!taskIdsReferenced.has(task.id)) {
+			issues.push(`Task "${task.label}" is not assigned to any role`)
+		}
+	}
+
+	for (const entry of npcConfig.pool) {
+		if (!roleIds.has(entry.roleId)) {
+			issues.push(`Pool entry references unknown role "${entry.roleId}"`)
+			continue
+		}
+		if (entry.count <= 0) {
+			const role = npcConfig.roles.find(r => r.id === entry.roleId)
+			issues.push(`Pool entry for role "${role?.label ?? entry.roleId}" has count ${entry.count} — no NPCs will spawn`)
+		}
+	}
+
+	for (const floor of layout.floors) {
+		const interactableObjects = floor.objects.filter(object => {
+			const asset = assetMap.get(object.type)
+			if (!asset) return false
+			if (asset.walkable || asset.isWall) return false
+			return true
+		})
+		const withInteractSpots = interactableObjects.filter(object => {
+			const asset = assetMap.get(object.type)
+			return asset?.interactSpots?.length
+		})
+		if (interactableObjects.length > 0 && withInteractSpots.length === 0) {
+			issues.push(`Floor "${floor.label}" has ${interactableObjects.length} object(s) but none have interact spots — NPCs cannot interact here`)
+		}
+
+		for (const object of floor.objects) {
+			const asset = assetMap.get(object.type)
+			if (!asset) {
+				issues.push(`Object "${object.id}" on floor "${floor.label}" references unknown asset type "${object.type}"`)
+			}
+		}
+	}
+
+	return { issues }
 }
 
 

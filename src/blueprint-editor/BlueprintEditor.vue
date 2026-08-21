@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { provide, onMounted, ref } from "vue";
 import Toolbar from "./components/Toolbar.vue";
-import AssetPalette from "./components/AssetPalette.vue";
+import AssetToolbar from "./components/AssetToolbar.vue";
 import EditorCanvas from "./components/EditorCanvas.vue";
 import PropertiesPanel from "./components/PropertiesPanel.vue";
 import ToastContainer from "./components/ToastContainer.vue";
@@ -42,8 +42,8 @@ provide("npcSimulation", npcSimulation);
   <div class="editor__app">
     <template v-if="ready">
       <Toolbar @close="onClose" />
-      <div class="editor__app-main">
-        <AssetPalette />
+      <div class="editor__main">
+        <AssetToolbar />
         <EditorCanvas />
         <PropertiesPanel />
       </div>
@@ -74,8 +74,9 @@ provide("npcSimulation", npcSimulation);
   font-size: var(--font-md);
 }
 
-.editor__app-main {
+.editor__main {
   flex: 1;
   display: flex;
+  min-height: 0;
 }
 </style>

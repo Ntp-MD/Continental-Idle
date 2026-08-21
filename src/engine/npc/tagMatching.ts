@@ -1,4 +1,4 @@
-import type { AssetDef, FloorData, NpcRole, NpcSimulationConfig, ObjectData } from '../../blueprint-editor/types'
+import type { FloorData, NpcRole, NpcSimulationConfig, ObjectData } from '../../blueprint-editor/types'
 
 export function hasMatchingTag(tags: readonly string[] | undefined, targetTags: readonly string[]): boolean {
 	if (!tags || targetTags.length === 0) return false
@@ -27,11 +27,4 @@ export function getRoleFocusTags(config: NpcSimulationConfig, role: NpcRole, man
 	if (!managedTags) return tags
 	const managed = new Set(managedTags)
 	return tags.filter(tag => managed.has(tag))
-}
-
-export function getAssetDefinition(
-	object: ObjectData,
-	getAssetDef?: (type: string) => AssetDef | undefined,
-): AssetDef | undefined {
-	return getAssetDef?.(object.type)
 }

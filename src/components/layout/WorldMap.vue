@@ -256,7 +256,7 @@ onUnmounted(() => {
 
     <div class="map__legend">
       <div class="map__legend">
-        <span class="map__legenddot" style="background: var(--accent-primary)"></span>
+        <span class="map__legenddot map__legenddot--primary"></span>
         Continental Branch
       </div>
     </div>

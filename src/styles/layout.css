@@ -1,10 +1,18 @@
-/* Layout */
+/* ═══════════════════════════════════════════════
+   Layout — Game shell + World Map
+   Order: Game Shell → Map Container → Map UI →
+         Map SVG → Map Actions → Status Bar
+   ═══════════════════════════════════════════════ */
+
+
+/* ── Game Shell ── */
 .game__layout {
 	display: flex;
 	flex-direction: column;
 }
 
-/* World Map */
+
+/* ── Map Container ── */
 .map {
 	position: relative;
 	background: var(--bg-primary);
@@ -16,10 +24,12 @@
 	display: block;
 }
 
+
+/* ── Map UI Overlays ── */
 .map__controls {
 	position: absolute;
-	top: 8px;
-	right: 8px;
+	top: var(--gap-sm);
+	right: var(--gap-sm);
 	display: flex;
 	flex-direction: column;
 	gap: var(--gap-xs);
@@ -49,30 +59,25 @@
 
 .map__status--loading {
 	color: var(--text-secondary);
-	background: var(--bg-card);
+	background: var(--bg-primary);
 	border: 1px solid var(--border-dim);
 }
 
 .map__status--error {
 	color: var(--accent-gold);
-	background: var(--bg-card);
+	background: var(--bg-primary);
 	border: 1px solid var(--accent-gold);
 }
 
 .map__legend {
 	position: absolute;
-	bottom: 8px;
-	left: 8px;
-	display: flex;
-	gap: var(--gap-sm);
-	font-size: var(--font-xs);
-	color: var(--text-dim);
-}
-
-.map__legend {
+	bottom: var(--gap-sm);
+	left: var(--gap-sm);
 	display: flex;
 	align-items: center;
 	gap: var(--gap-xs);
+	font-size: var(--font-xs);
+	color: var(--text-dim);
 }
 
 .map__legenddot {
@@ -81,32 +86,24 @@
 	border-radius: 50%;
 }
 
+.map__legenddot--primary {
+	background: var(--accent-primary);
+}
+
 .map__tooltip {
 	position: absolute;
-	background: var(--bg-card);
+	background: var(--bg-primary);
 	border: 1px solid var(--accent-primary);
 	border-radius: var(--radius-md);
 	padding: var(--gap-sm) var(--gap-md);
 	font-size: var(--font-xs);
 	pointer-events: none;
 	z-index: var(--z-layer-2);
-	min-width: 9em;
+	min-width: 90px;
 	box-shadow: var(--shadow-card-hover);
 	backdrop-filter: blur(8px);
 	-webkit-backdrop-filter: blur(8px);
 	animation: tooltip-pop var(--duration-fast) var(--ease-out);
-}
-
-@keyframes tooltip-pop {
-	from {
-		opacity: 0;
-		transform: scale(0.95);
-	}
-
-	to {
-		opacity: 1;
-		transform: scale(1);
-	}
 }
 
 .map__tipname {
@@ -128,7 +125,8 @@
 	font-weight: 600;
 }
 
-/* D3 Map SVG styles */
+
+/* ── Map SVG (D3) ── */
 .ocean {
 	fill: var(--bg-primary);
 }
@@ -140,7 +138,7 @@
 }
 
 .land:hover {
-	fill: var(--bg-card-hover);
+	fill: var(--bg-primary-hover);
 }
 
 .nodegroup {
@@ -173,18 +171,6 @@
 	animation: pulse 2s ease-out infinite;
 }
 
-@keyframes pulse {
-	0% {
-		opacity: 0.6;
-		r: 6;
-	}
-
-	100% {
-		opacity: 0;
-		r: 16;
-	}
-}
-
 .nodelabel {
 	font-family: inherit;
 }
@@ -197,67 +183,15 @@
 	fill: none;
 }
 
-.connectionline.active__route {
-	stroke: var(--accent-primary);
-	opacity: 0.4;
-	stroke-dasharray: none;
-}
 
-/* Attack lines — animated dashes flowing from attacker to target */
-.attackline {
-	stroke: var(--accent-red);
-	stroke-width: 1.5px;
-	stroke-dasharray: 6 4;
-	opacity: 0.7;
-	fill: none;
-	animation: attack-dash-flow 1s linear infinite;
-}
-
-@keyframes attack-dash-flow {
-	to {
-		stroke-dashoffset: -10;
-	}
-}
-
-/* Target node under attack — defensive pulse */
-.nodegroup.nodelocked .nodecircle[style*="fill: var(--text-dim)"] {
-	animation: node-defend-pulse 1.5s ease-in-out infinite;
-}
-
-@keyframes node-defend-pulse {
-
-	0%,
-	100% {
-		opacity: 1;
-		r: 6;
-	}
-
-	50% {
-		opacity: 0.6;
-		r: 8;
-	}
-}
-
-/* Supply route lines — animated dashes flowing between branches */
-.supplyline {
-	stroke-dasharray: 8 6;
-	animation: supply-dash-flow 1.5s linear infinite;
-}
-
-@keyframes supply-dash-flow {
-	to {
-		stroke-dashoffset: -14;
-	}
-}
-
-/* Map Action Buttons */
+/* ── Map Action Buttons ── */
 .mapactions {
 	position: absolute;
-	bottom: 12px;
+	bottom: var(--gap-md);
 	left: 50%;
 	transform: translateX(-50%);
 	display: flex;
-	gap: 3px;
+	gap: var(--gap-xs);
 	z-index: var(--z-layer-1);
 	padding: var(--gap-xs);
 	background: color-mix(in srgb, var(--bg-primary) 75%, transparent);
@@ -281,7 +215,8 @@
 	box-shadow: none;
 }
 
-/* Status Bar */
+
+/* ── Status Bar ── */
 .game__status {
 	background: var(--bg-secondary);
 	border-top: 1px solid var(--border-dim);
@@ -292,4 +227,30 @@
 	color: var(--text-dim);
 	flex-shrink: 0;
 	letter-spacing: 0.3px;
+}
+
+
+/* ── Keyframes ── */
+@keyframes tooltip-pop {
+	from {
+		opacity: 0;
+		transform: scale(0.95);
+	}
+
+	to {
+		opacity: 1;
+		transform: scale(1);
+	}
+}
+
+@keyframes pulse {
+	0% {
+		opacity: 0.6;
+		r: 6;
+	}
+
+	100% {
+		opacity: 0;
+		r: 16;
+	}
 }

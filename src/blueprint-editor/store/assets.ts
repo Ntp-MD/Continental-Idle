@@ -1,11 +1,12 @@
 import type { AssetDef, WalkableGrid, TileState, TileEdges } from '../types'
-import { isValidColor } from '../types'
+import { isValidColor, normalizeNpcQueueConfig } from '../types'
 import { aabbOverlap } from '../collision'
+import { assetSizeFor, normalizeObject } from '../geometry'
 import {
-	state, toast, clamp, withStateLock, initAssetFields,
+	state, toast, clamp, withStateLock, initAssetFields, assetMap,
 } from './state'
 import { genId } from './utils'
-import { saveAssets, saveLayout } from './persistence'
+import { saveAssets, saveBlueprintData, saveLayout } from './persistence'
 
 export async function addAsset(name: string, w: number, h: number, pxW?: number, pxH?: number, defaultRx?: { tl: number; tr: number; br: number; bl: number }, defaultBgColor?: string): Promise<AssetDef> {
 	return withStateLock(async () => {
@@ -125,7 +126,7 @@ export async function addSvgAsset(name: string, w: number, h: number, svgString:
 	})
 }
 
-export async function updateAsset(id: string, patch: Partial<Pick<AssetDef, 'name' | 'w' | 'h' | 'pxW' | 'pxH' | 'usePx' | 'defaultPadding' | 'defaultRx' | 'defaultBgColor' | 'defaultLabelColor' | 'defaultLabel' | 'defaultRadius' | 'defaultLabelPadding' | 'defaultInstanceLabel' | 'defaultLocked' | 'entranceRequired' | 'tags' | 'interactSpots' | 'interact'>> & { walkable?: boolean; walkableGrid?: WalkableGrid; tileStates?: TileState[][]; tileEdges?: TileEdges[][] }): Promise<void> {
+export async function updateAsset(id: string, patch: Partial<Pick<AssetDef, 'name' | 'w' | 'h' | 'pxW' | 'pxH' | 'usePx' | 'defaultPadding' | 'defaultRx' | 'defaultBgColor' | 'defaultLabelColor' | 'defaultLabel' | 'defaultRadius' | 'defaultLabelPadding' | 'defaultInstanceLabel' | 'defaultLocked' | 'entranceRequired' | 'tags' | 'interactSpots' | 'interact' | 'queue'>> & { walkable?: boolean; walkableGrid?: WalkableGrid; tileStates?: TileState[][]; tileEdges?: TileEdges[][] }): Promise<void> {
 	return withStateLock(async () => {
 		const asset = state.assetRegistry.find(a => a.id === id)
 		if (!asset) {
@@ -181,18 +182,20 @@ export async function updateAsset(id: string, patch: Partial<Pick<AssetDef, 'nam
 		if (patch.tileEdges !== undefined) asset.tileEdges = patch.tileEdges
 		if (patch.interactSpots !== undefined) asset.interactSpots = patch.interactSpots.length > 0 ? patch.interactSpots.map(p => ({ ...p })) : undefined
 		if (patch.interact !== undefined) asset.interact = patch.interact ? { ...patch.interact } : undefined
+		if (patch.queue !== undefined) asset.queue = normalizeNpcQueueConfig(patch.queue)
 
 		const t = state.layout.canvas.tileSize
-		const newW = asset.usePx ? (asset.pxW ?? asset.w * t) : asset.w * t
-		const newH = asset.usePx ? (asset.pxH ?? asset.h * t) : asset.h * t
+		const assets = assetMap()
 		const collapsedIds: string[] = []
 
 		for (const floor of state.layout.floors) {
 			for (const obj of floor.objects) {
 				if (obj.type !== id) continue
-				obj.w = newW
-				obj.h = newH
-				const clamped = clamp({ x: obj.x, y: obj.y, w: newW, h: newH })
+				const size = assetSizeFor(obj.type, obj.rotation, t, assets)
+				if (!size) continue
+				obj.w = size.w
+				obj.h = size.h
+				const clamped = clamp({ x: obj.x, y: obj.y, w: size.w, h: size.h })
 				obj.x = clamped.x
 				obj.y = clamped.y
 				if (asset.defaultPadding && asset.defaultPadding > 0) {
@@ -233,6 +236,27 @@ export async function updateAsset(id: string, patch: Partial<Pick<AssetDef, 'nam
 	})
 }
 
+
+export async function refreshOriginInstances(): Promise<number> {
+	return withStateLock(async () => {
+		const tileSize = state.layout.canvas.tileSize
+		const assets = assetMap()
+		let refreshedCount = 0
+		for (const floor of state.layout.floors) {
+			for (const object of floor.objects) {
+				if (!assets.has(object.type)) continue
+				normalizeObject(object, tileSize, assets)
+				refreshedCount++
+			}
+			for (const object of floor.objects) {
+				const overlaps = floor.objects.some(other => other.id !== object.id && aabbOverlap(object, other))
+				object.collapsed = overlaps
+			}
+		}
+		await saveBlueprintData()
+		return refreshedCount
+	})
+}
 
 export async function duplicateAsset(id: string): Promise<AssetDef | null> {
 	return withStateLock(async () => {

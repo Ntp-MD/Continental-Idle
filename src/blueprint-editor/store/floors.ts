@@ -1,5 +1,5 @@
 import type { FloorData } from '../types'
-import { normalizeAllowedRoleIds } from '../types'
+import { normalizeAllowedRoleIds, normalizeFloorWalkable, normalizeNpcSpawnZones } from '../types'
 import { state } from './state'
 import { genId } from './utils'
 import { saveLayout } from './persistence'
@@ -78,7 +78,7 @@ export function selectFloor(id: string) {
 
 export async function updateFloor(
 	id: string,
-	patch: Partial<Pick<FloorData, 'allowedRoleIds' | 'defaultWalkable' | 'name' | 'label'>>,
+	patch: Partial<Pick<FloorData, 'allowedRoleIds' | 'defaultWalkable' | 'name' | 'label' | 'walkable' | 'spawnZones'>>,
 ): Promise<boolean> {
 	const floor = state.layout.floors.find(f => f.id === id)
 	if (!floor) return false
@@ -88,6 +88,16 @@ export async function updateFloor(
 		else delete floor.allowedRoleIds
 	}
 	if (patch.defaultWalkable !== undefined) floor.defaultWalkable = patch.defaultWalkable
+	if (patch.walkable !== undefined) {
+		const normalized = normalizeFloorWalkable(patch.walkable)
+		if (normalized) floor.walkable = normalized
+		else delete floor.walkable
+	}
+	if (patch.spawnZones !== undefined) {
+		const normalized = normalizeNpcSpawnZones(patch.spawnZones)
+		if (normalized) floor.spawnZones = normalized
+		else delete floor.spawnZones
+	}
 	if (patch.name !== undefined) floor.name = patch.name
 	if (patch.label !== undefined) floor.label = patch.label
 	return saveLayout()

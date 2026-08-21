@@ -65,19 +65,37 @@ function octileDistance(a: NpcEnginePoint, b: NpcEnginePoint): number {
 	return (dx + dy) + (SQRT2 - 2) * Math.min(dx, dy)
 }
 
+interface FloorIndex {
+	walkable: Set<string>
+	blockedEdges: Set<string>
+}
+
+const floorIndexCache = new WeakMap<NpcEngineFloor, FloorIndex>()
+
+function resolveFloorIndex(floor: NpcEngineFloor): FloorIndex {
+	let index = floorIndexCache.get(floor)
+	if (!index) {
+		index = {
+			walkable: new Set(floor.walkable.map(key)),
+			blockedEdges: new Set((floor.blockedEdges ?? []).flatMap(edge => [edgeKey(edge.from, edge.to), edgeKey(edge.to, edge.from)])),
+		}
+		floorIndexCache.set(floor, index)
+	}
+	return index
+}
+
 export function findNpcGridPath(
 	floor: NpcEngineFloor,
 	from: NpcEnginePoint,
 	to: NpcEnginePoint,
 	blockedCells?: ReadonlySet<string>,
 ): NpcEnginePoint[] {
-	const walkable = new Set(floor.walkable.map(key))
+	const { walkable, blockedEdges } = resolveFloorIndex(floor)
 	const start = { x: Math.floor(from.x), y: Math.floor(from.y) }
 	const goal = { x: Math.floor(to.x), y: Math.floor(to.y) }
 	if (!walkable.has(key(start)) || !walkable.has(key(goal))) return []
 	if (key(start) === key(goal)) return [start]
 
-	const blockedEdges = new Set((floor.blockedEdges ?? []).flatMap(edge => [edgeKey(edge.from, edge.to), edgeKey(edge.to, edge.from)]))
 	const transientBlocked = blockedCells ?? new Set<string>()
 	const cameFrom = new Map<string, string>()
 	const scores = new Map<string, number>([[key(start), 0]])

@@ -570,7 +570,7 @@ export async function flattenToSvgAsset(name?: string): Promise<string | null> {
 				}
 				svgParts.push(`<g transform="${transform}">${asset.svg}</g>`)
 			} else {
-				const fill = obj.fillColor || asset?.defaultBgColor || 'var(--white)'
+				const fill = obj.fillColor || asset?.defaultBgColor || 'var(--text-bright)'
 				const rx = obj.rx
 				if (rx) {
 					const maxR = Math.min(dw, dh) / 2

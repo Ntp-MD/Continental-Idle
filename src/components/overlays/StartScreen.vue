@@ -54,8 +54,8 @@ onUnmounted(() => {
         <p class="start__subtitle">Hotel Simulation</p>
 
         <div class="start__actions">
-          <button class="btn--warning" @click="startGame">ENTER HOTEL</button>
-          <button class="btn--ghost start__editorbtn" @click="router.push({ name: 'editor' })" aria-label="Open Blueprint Editor">Blueprint Editor</button>
+          <button class="flag--warning" @click="startGame">ENTER HOTEL</button>
+          <button class="flag--ghost" @click="router.push({ name: 'editor' })" aria-label="Open Blueprint Editor">Blueprint Editor</button>
         </div>
       </aside>
 
@@ -142,7 +142,7 @@ onUnmounted(() => {
 .start__story {
   display: flex;
   gap: var(--gap-sm);
-  background: var(--bg-card);
+  background: var(--bg-primary);
   border: 1px solid var(--border-dim);
   border-radius: var(--radius-md);
   padding: var(--gap-md);
@@ -170,7 +170,7 @@ onUnmounted(() => {
   line-height: 1.6;
 }
 
-.start .btn {
+.start button {
   font-size: var(--font-md);
   font-weight: 600;
   text-transform: uppercase;
@@ -178,19 +178,8 @@ onUnmounted(() => {
   border-radius: var(--radius-md);
 }
 
-.start .btn--warning {
+.start .flag--warning {
   padding: var(--gap-sm) var(--gap-lg);
-}
-
-.start__editorbtn {
-  padding: var(--gap-sm) var(--gap-md);
-  font-size: var(--font-md);
-  border-radius: var(--radius-md);
-}
-
-.start__editorbtn:hover {
-  border-color: var(--accent-blue);
-  color: var(--accent-blue);
 }
 
 .start--loading {

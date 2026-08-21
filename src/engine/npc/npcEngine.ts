@@ -48,6 +48,7 @@ export class NpcEngine {
 	private readonly random: () => number
 	private readonly agents = new Map<string, MutableAgent>()
 	private readonly reservations = new Map<string, Set<string>>()
+	private readonly reservationKeyByAgent = new Map<string, string>()
 	private readonly interactSpotReservations = new Map<string, string>()
 	private readonly queueMembers = new Map<string, string[]>()
 	private readonly queueSlotReservations = new Map<string, string>()
@@ -71,12 +72,23 @@ export class NpcEngine {
 		this.random = options.random ?? Math.random
 	}
 
+	private lastChooseTargetTick = new Map<string, number>()
+	private static readonly CHOOSE_TARGET_INTERVAL = 4
+
 	get tickNumber(): number {
 		return this.tickCount
 	}
 
 	getAgents(): readonly NpcEngineAgent[] {
 		return Array.from(this.agents.values()).map(agent => ({ ...agent, path: agent.path.slice() }))
+	}
+
+	listAgents(): readonly NpcEngineAgent[] {
+		return Array.from(this.agents.values())
+	}
+
+	getAgent(agentId: string): NpcEngineAgent | undefined {
+		return this.agents.get(agentId)
 	}
 
 	drainEvents(): NpcEngineEvent[] {
@@ -119,6 +131,7 @@ export class NpcEngine {
 	reset(): void {
 		this.agents.clear()
 		this.reservations.clear()
+		this.reservationKeyByAgent.clear()
 		this.interactSpotReservations.clear()
 		this.queueMembers.clear()
 		this.queueSlotReservations.clear()
@@ -159,7 +172,11 @@ export class NpcEngine {
 	private step(): void {
 		this.tickCount++
 		this.cellReservations.clear()
+		for (const agent of this.agents.values()) {
+			this.cellReservations.set(cellKey(agent.floorId, agent.x, agent.y), agent.id)
+		}
 		this.priorityOffset = this.tickCount % Math.max(1, this.agents.size)
+		const releasedInteractions = new Set<string>()
 
 		for (const agent of this.agents.values()) {
 			if (agent.status === 'queued') {
@@ -172,18 +189,28 @@ export class NpcEngine {
 					const itemId = agent.reservationItemId ?? undefined
 					const interactSpotId = agent.reservationInteractSpotId ?? undefined
 					this.releaseReservation(agent)
+					this.clearCellReservation(agent.id)
+					releasedInteractions.add(agent.id)
 					agent.status = 'idle'
 					this.emit({ type: 'interaction-end', agentId: agent.id, floorId: agent.floorId, itemId, interactSpotId })
 				}
 				continue
 			}
 
+			const justReleased = releasedInteractions.has(agent.id)
 			if (agent.status === 'waiting') {
 				if (this.tickCount < (this.waitingUntil.get(agent.id) ?? 0)) continue
 				this.waitingUntil.delete(agent.id)
 				agent.status = 'idle'
 			}
-			if (agent.status === 'idle') this.chooseTarget(agent)
+			if (agent.status === 'idle') {
+				const lastTick = this.lastChooseTargetTick.get(agent.id) ?? -Infinity
+				const due = this.tickCount - lastTick >= NpcEngine.CHOOSE_TARGET_INTERVAL
+				if (justReleased || due) {
+					this.lastChooseTargetTick.set(agent.id, this.tickCount)
+					this.chooseTarget(agent)
+				}
+			}
 		}
 
 		this.resolveWalkingAgents()
@@ -196,12 +223,8 @@ export class NpcEngine {
 		}
 		if (walkers.length === 0) return
 
-		const walkerIds = walkers.map(a => a.id)
-		const priorityOf = (id: string): number => {
-			const idx = walkerIds.indexOf(id)
-			if (idx < 0) return Infinity
-			return (idx + this.priorityOffset) % walkerIds.length
-		}
+		const priorityByAgentId = new Map(walkers.map((agent, index) => [agent.id, (index + this.priorityOffset) % walkers.length]))
+		const priorityOf = (id: string): number => priorityByAgentId.get(id) ?? Infinity
 
 		const proposals = new Map<string, MoveProposal>()
 		for (const agent of walkers) {
@@ -223,6 +246,8 @@ export class NpcEngine {
 			})
 		}
 
+		const agentByFromCell = new Map<string, string>()
+		for (const proposal of proposals.values()) agentByFromCell.set(proposal.fromKey, proposal.agentId)
 		const sortedWalkers = walkers.slice().sort((a, b) => priorityOf(a.id) - priorityOf(b.id))
 		const yielded = new Set<string>()
 
@@ -241,7 +266,7 @@ export class NpcEngine {
 				continue
 			}
 
-			const swapConflict = this.detectSwapConflict(agent, proposal, proposals)
+			const swapConflict = this.detectSwapConflict(agent, proposal, proposals, agentByFromCell)
 			if (swapConflict) {
 				if (priorityOf(agent.id) < priorityOf(swapConflict)) {
 					yielded.add(swapConflict)
@@ -252,6 +277,7 @@ export class NpcEngine {
 				}
 			}
 
+			this.cellReservations.delete(proposal.fromKey)
 			this.cellReservations.set(proposal.toKey, agent.id)
 		}
 
@@ -264,14 +290,11 @@ export class NpcEngine {
 		}
 	}
 
-	private detectSwapConflict(agent: MutableAgent, proposal: MoveProposal, proposals: Map<string, MoveProposal>): string | null {
-		for (const [otherId, otherProposal] of proposals) {
-			if (otherId === agent.id) continue
-			if (otherProposal.fromKey === proposal.toKey && otherProposal.toKey === proposal.fromKey) {
-				return otherId
-			}
-		}
-		return null
+	private detectSwapConflict(agent: MutableAgent, proposal: MoveProposal, proposals: Map<string, MoveProposal>, agentByFromCell: Map<string, string>): string | null {
+		const otherId = agentByFromCell.get(proposal.toKey)
+		if (!otherId || otherId === agent.id) return null
+		const otherProposal = proposals.get(otherId)
+		return otherProposal?.toKey === proposal.fromKey ? otherId : null
 	}
 
 	private executeMove(agent: MutableAgent): void {
@@ -523,11 +546,19 @@ export class NpcEngine {
 		agent.queueArrivalSequence = null
 	}
 
-	private chooseTarget(agent: MutableAgent): void {
+	private sameFloorTargetsCache = new Map<string, NpcEngineInteractionTarget[]>()
 
-		const sameFloorTargets = this.layout.interactionTargets.filter(target =>
-			target.floorId === agent.floorId && !target.transitionToFloorId,
-		)
+	private getSameFloorTargets(floorId: string): NpcEngineInteractionTarget[] {
+		let targets = this.sameFloorTargetsCache.get(floorId)
+		if (!targets) {
+			targets = this.layout.interactionTargets.filter(target => target.floorId === floorId && !target.transitionToFloorId)
+			this.sameFloorTargetsCache.set(floorId, targets)
+		}
+		return targets
+	}
+
+	private chooseTarget(agent: MutableAgent): void {
+		const sameFloorTargets = this.getSameFloorTargets(agent.floorId)
 		const blocked = this.blockedTargets.get(agent.id)
 		const available = sameFloorTargets.filter(target => this.canReserve(target, agent.id) && (blocked?.get(this.targetKey(target)) ?? 0) <= this.tickCount)
 		let selected = this.options.targetSelector
@@ -549,6 +580,19 @@ export class NpcEngine {
 					const portal = this.findPortalRoute(agent.floorId, dest.floorId, agent.id)
 					if (portal && this.canReserve(portal, agent.id)) selected = portal
 				}
+			}
+		}
+
+		if (!selected && agent.queueKey) {
+			const queue = this.getQueue(agent.queueKey)
+			if (queue) {
+				const queueTargetKeys = new Set(queue.targetKeys)
+				selected = available.find(target => queueTargetKeys.has(this.targetKey(target))) ?? null
+			}
+			if (!selected) {
+				this.leaveQueue(agent)
+				this.setWaiting(agent)
+				return
 			}
 		}
 
@@ -602,9 +646,11 @@ export class NpcEngine {
 		agent.targetX = selected.x
 		agent.targetY = selected.y
 		const floor = this.getFloor(agent.floorId)
-		const path = floor ? this.options.pathfinder(floor, agent, selected) : null
+		const blockedCells = this.collectBlockedCells(agent)
+		const path = floor ? this.options.pathfinder(floor, agent, selected, blockedCells) : null
 		if (!path || path.length === 0) {
 			this.releaseReservation(agent)
+			this.markBlocked(agent)
 			agent.status = 'idle'
 			this.emit({ type: 'repath-failed', agentId: agent.id, floorId: agent.floorId, itemId: selected.itemId, interactSpotId: selected.interactSpotId })
 			return
@@ -677,8 +723,10 @@ export class NpcEngine {
 	private setWaiting(agent: MutableAgent): void {
 		if (agent.queueKey) this.leaveQueue(agent)
 		agent.queuePendingKey = null
+		if (agent.reservationItemId !== null) this.releaseReservation(agent)
 		agent.status = 'waiting'
-		this.waitingUntil.set(agent.id, this.tickCount + this.ticksPerSecond)
+		const jitter = Math.floor(this.random() * this.ticksPerSecond)
+		this.waitingUntil.set(agent.id, this.tickCount + this.ticksPerSecond + jitter)
 	}
 
 	private markBlocked(agent: MutableAgent): void {
@@ -686,6 +734,7 @@ export class NpcEngine {
 		const target = this.layout.interactionTargets.find(item => item.floorId === agent.floorId && item.itemId === agent.reservationItemId && item.interactSpotId === agent.reservationInteractSpotId)
 		if (!target) return
 		const blocked = this.blockedTargets.get(agent.id) ?? new Map<string, number>()
+		for (const [key, until] of blocked) if (until <= this.tickCount) blocked.delete(key)
 		blocked.set(this.targetKey(target), this.tickCount + this.ticksPerSecond * 2)
 		this.blockedTargets.set(agent.id, blocked)
 	}
@@ -709,7 +758,7 @@ export class NpcEngine {
 		const holders = this.reservations.get(key)
 		if (holders?.has(agentId)) return true
 		if (this.interactSpotReservations.has(interactSpotKey) || (holders?.size ?? 0) >= Math.max(1, Math.floor(target.capacity ?? 1))) return false
-		return !Array.from(this.reservations.values()).some(set => set.has(agentId))
+		return !this.reservationKeyByAgent.has(agentId)
 	}
 
 	private reserve(target: NpcEngineInteractionTarget, agentId: string): boolean {
@@ -719,9 +768,10 @@ export class NpcEngine {
 		const capacity = Math.max(1, Math.floor(target.capacity ?? 1))
 		if (holders.has(agentId)) return true
 		if (this.interactSpotReservations.has(interactSpotKey) || holders.size >= capacity) return false
-		if (Array.from(this.reservations.values()).some(set => set.has(agentId))) return false
+		if (this.reservationKeyByAgent.has(agentId)) return false
 		holders.add(agentId)
 		this.reservations.set(key, holders)
+		this.reservationKeyByAgent.set(agentId, key)
 		this.interactSpotReservations.set(interactSpotKey, agentId)
 		const agent = this.agents.get(agentId)
 		if (agent) {
@@ -738,6 +788,7 @@ export class NpcEngine {
 			const holders = this.reservations.get(key)
 			holders?.delete(agent.id)
 			this.interactSpotReservations.delete(interactSpotKey)
+			this.reservationKeyByAgent.delete(agent.id)
 			if (holders?.size === 0) this.reservations.delete(key)
 		}
 		agent.reservationItemId = null

@@ -59,7 +59,7 @@ function assetSvg(type: string): string | undefined {
 }
 
 function objFillColor(obj: SyncedObject): string {
-  return obj.fillColor ?? assetMap.get(obj.type)?.defaultBgColor ?? "var(--bg-card)";
+  return obj.fillColor ?? assetMap.get(obj.type)?.defaultBgColor ?? "var(--bg-primary)";
 }
 
 function objPadding(obj: SyncedObject): number {
@@ -101,25 +101,25 @@ watch(
 </script>
 
 <template>
-  <div class="hotel-canvas">
-    <svg class="hotel-canvas__svg" :viewBox="`0 0 ${canvas.width} ${canvas.height}`" preserveAspectRatio="xMidYMid meet" role="application" aria-label="Hotel simulation view">
+  <div class="hotel">
+    <svg class="hotel__svg" :viewBox="`0 0 ${canvas.width} ${canvas.height}`" preserveAspectRatio="xMidYMid meet" role="application" aria-label="Hotel simulation view">
       <rect :width="canvas.width" :height="canvas.height" :fill="canvas.bgColor || 'var(--bg-secondary)'" />
 
       <template v-if="currentFloor">
         <g v-for="obj in currentFloor.objects" :key="obj.id">
-          <rect :x="obj.x" :y="obj.y" :width="obj.w" :height="obj.h" fill="transparent" style="pointer-events: all" />
+          <rect :x="obj.x" :y="obj.y" :width="obj.w" :height="obj.h" fill="transparent" class="hotel__hit" />
           <template v-if="assetSvg(obj.type)">
             <rect :x="obj.x + objPadding(obj)" :y="obj.y + objPadding(obj)" :width="obj.w - objPadding(obj) * 2" :height="obj.h - objPadding(obj) * 2" :fill="objFillColor(obj)" />
             <g v-svg-content="assetSvg(obj.type)" :transform="svgTransform(obj)" />
           </template>
           <path v-else-if="roundedRectPath(obj.x, obj.y, obj.w, obj.h, objRx(obj))" :d="roundedRectPath(obj.x, obj.y, obj.w, obj.h, objRx(obj))!" :fill="objFillColor(obj)" stroke="var(--text-primary)" stroke-width="1" />
           <rect v-else :x="obj.x" :y="obj.y" :width="obj.w" :height="obj.h" :fill="objFillColor(obj)" stroke="var(--text-primary)" stroke-width="1" :rx="objRadius(obj)" />
-          <text v-if="obj.label" :x="obj.x + obj.w / 2" :y="obj.y + obj.h / 2" text-anchor="middle" dominant-baseline="middle" font-size="8" fill="var(--text-dim)" style="pointer-events: none">
+          <text v-if="obj.label" :x="obj.x + obj.w / 2" :y="obj.y + obj.h / 2" text-anchor="middle" dominant-baseline="middle" font-size="8" fill="var(--text-dim)" class="hotel__nolabel">
             {{ obj.label }}
           </text>
         </g>
 
-        <g class="hotel-canvas__npcs" style="pointer-events: none">
+        <g class="hotel__npcs hotel__nolabel">
           <g v-for="npc in currentFloorNpcs" :key="npc.id">
             <circle :cx="npc.x" :cy="npc.y" r="6" :fill="npc.color" opacity="0.25" />
             <circle :cx="npc.x" :cy="npc.y" r="4" :fill="npc.color" stroke="var(--text-bright)" stroke-width="1" />
@@ -128,20 +128,20 @@ watch(
       </template>
     </svg>
 
-    <div class="hotel-canvas__floorbar" v-if="floorIds.length > 0">
-      <button v-for="id in floorIds" :key="id" class="hotel-canvas__floorbtn" :class="{ 'hotel-canvas__floorbtn--active': id === currentFloorId }" @click="selectFloor(id)">
+    <div class="hotel__floorbar" v-if="floorIds.length > 0">
+      <button v-for="id in floorIds" :key="id" class="hotel__floorbtn" :class="{ 'hotel__floorbtn--active': id === currentFloorId }" @click="selectFloor(id)">
         {{ id === "G" ? "B" : id }}
       </button>
     </div>
 
-    <div class="hotel-canvas__empty" v-if="!props.payload">
+    <div class="empty hotel__empty" v-if="!props.payload">
       <p>No hotel data loaded. Open the Blueprint Editor and sync to see the hotel.</p>
     </div>
   </div>
 </template>
 
 <style scoped>
-.hotel-canvas {
+.hotel {
   width: 100%;
   height: 100%;
   position: relative;
@@ -149,27 +149,35 @@ watch(
   overflow: hidden;
 }
 
-.hotel-canvas__svg {
+.hotel__svg {
   width: 100%;
   height: 100%;
   display: block;
 }
 
-.hotel-canvas__floorbar {
+.hotel__hit {
+  pointer-events: all;
+}
+
+.hotel__nolabel {
+  pointer-events: none;
+}
+
+.hotel__floorbar {
   position: absolute;
-  bottom: 12px;
+  bottom: var(--gap-md);
   left: 50%;
   transform: translateX(-50%);
   display: flex;
-  gap: 4px;
-  padding: 6px 10px;
-  background: var(--bg-card);
+  gap: var(--gap-xs);
+  padding: var(--gap-xs) var(--gap-sm);
+  background: var(--bg-primary);
   border: 1px solid var(--border-dim);
   border-radius: var(--radius-md);
-  z-index: 10;
+  z-index: var(--z-layer-2);
 }
 
-.hotel-canvas__floorbtn {
+.hotel__floorbtn {
   padding: 4px 12px;
   font-size: 12px;
   font-weight: 600;
@@ -181,24 +189,23 @@ watch(
   transition: all 0.15s ease;
 }
 
-.hotel-canvas__floorbtn:hover {
-  background: var(--bg-card);
+.hotel__floorbtn:hover {
+  background: var(--bg-primary);
   color: var(--text-bright);
 }
 
-.hotel-canvas__floorbtn--active {
+.hotel__floorbtn--active {
   background: var(--accent-primary);
   color: var(--bg-primary);
   border-color: var(--accent-primary);
 }
 
-.hotel-canvas__empty {
+.hotel__empty {
   position: absolute;
   inset: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--text-dim);
-  font-size: 14px;
+  font-size: var(--font-sm);
 }
 </style>

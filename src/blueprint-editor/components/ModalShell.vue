@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch, onUnmounted } from "vue";
 import { useFocusTrap } from "../../composables/useFocusTrap";
+import { useDraggable } from "../composables/useDraggable";
 
 const props = withDefaults(
   defineProps<{
@@ -11,6 +12,7 @@ const props = withDefaults(
     width?: string;
     height?: string;
     maxHeight?: string;
+    floating?: boolean;
   }>(),
   {
     dialogClass: "",
@@ -18,6 +20,7 @@ const props = withDefaults(
     width: "60vw",
     height: "auto",
     maxHeight: "85vh",
+    floating: false,
   },
 );
 
@@ -26,6 +29,8 @@ const emit = defineEmits<{ (e: "close"): void }>();
 const containerRef = ref<HTMLElement>();
 const isOpen = computed(() => props.open);
 useFocusTrap(isOpen, containerRef);
+
+const { pos, isDragging, onDown, reset } = useDraggable(containerRef, containerRef);
 
 const titleId = computed(() => `modal-shell-title-${Math.random().toString(36).slice(2, 9)}`);
 
@@ -41,8 +46,12 @@ function onEscape(e: KeyboardEvent) {
 }
 
 watch(isOpen, (open) => {
-  if (open) window.addEventListener("keydown", onEscape, true);
-  else window.removeEventListener("keydown", onEscape, true);
+  if (open) {
+    reset();
+    window.addEventListener("keydown", onEscape, true);
+  } else {
+    window.removeEventListener("keydown", onEscape, true);
+  }
 });
 
 onUnmounted(() => {
@@ -52,20 +61,14 @@ onUnmounted(() => {
 
 <template>
   <Teleport to="body">
-    <div v-if="open" class="modal__overlay" @click.self="onClose">
-      <div ref="containerRef" class="modal__dialog" :class="dialogClass" :style="{ maxWidth, width, height, maxHeight }" role="dialog" aria-modal="true" :aria-labelledby="titleId">
+    <div v-if="open" :class="floating ? 'modal__overlay--floating' : 'modal__overlay'" @click.self="!floating && onClose()">
+      <div ref="containerRef" class="modal__dialog" :class="{ 'modal__dialog--dragging': isDragging, [dialogClass]: !!dialogClass }" :style="{ maxWidth, width, height, maxHeight, transform: `translate(${pos.x}px, ${pos.y}px)` }" role="dialog" :aria-modal="!floating" :aria-labelledby="titleId" @mousedown="onDown">
         <div class="modal__header">
           <span :id="titleId" class="modal__title">{{ title }}</span>
-          <button class="modal__close" @click="onClose" aria-label="Close">✕</button>
+          <button class="flag--ghost flag--icon" @click="onClose" aria-label="Close">✕</button>
         </div>
         <slot />
       </div>
     </div>
   </Teleport>
 </template>
-
-<style scoped>
-.modal__overlay {
-  overflow: hidden;
-}
-</style>

@@ -11,7 +11,7 @@ import {
 	linkObjects, unlinkObject, toggleObjectLock,
 } from './objects'
 import {
-	addAsset, addSvgAsset, updateAsset, deleteAsset, rotateAsset, duplicateAsset,
+	addAsset, addSvgAsset, updateAsset, deleteAsset, rotateAsset, duplicateAsset, refreshOriginInstances,
 } from './assets'
 import { updateNpcConfig, syncNpcConfigToState, persistNpcConfigToDisk } from './npcDefault'
 import {
@@ -28,7 +28,7 @@ export * from '../crud/npcSettings'
 export * from '../crud/tagManager'
 import { listOriginAssets, getOriginAsset, createOriginAsset, createSvgOriginAsset } from '../crud/originAssets'
 import { listFloors, getFloor, getPlacedObject, createFloor, createPlacedObject } from '../crud/floorPlan'
-import { listNpcRoles, getNpcRole, listNpcTasks, getNpcTask, createNpcRole, updateNpcRole, deleteNpcRole, updateNpcSettings } from '../crud/npcSettings'
+import { listNpcRoles, getNpcRole, listNpcTasks, getNpcTask, createNpcRole, updateNpcRole, deleteNpcRole, createNpcTask, updateNpcTask, deleteNpcTask, updateNpcSettings } from '../crud/npcSettings'
 import { listTags, getTag, createTag, updateTag, deleteTag, findTagReferences } from '../crud/tagManager'
 
 export {
@@ -43,7 +43,7 @@ export {
 	linkObjects, unlinkObject, toggleObjectLock,
 } from './objects'
 export {
-	addAsset, addSvgAsset, updateAsset, deleteAsset, rotateAsset, duplicateAsset,
+	addAsset, addSvgAsset, updateAsset, deleteAsset, rotateAsset, duplicateAsset, refreshOriginInstances,
 } from './assets'
 export { updateNpcConfig, syncNpcConfigToState, persistNpcConfigToDisk } from './npcDefault'
 export {
@@ -69,10 +69,10 @@ export function useAssetsStore() {
 		moveSelectedTo, commitMove, rotateSelected, updateObjectProps,
 		createLinkedAssetFromSelection, flattenToSvgAsset,
 		linkObjects, unlinkObject, toggleObjectLock,
-		addAsset, addSvgAsset, updateAsset, deleteAsset, rotateAsset, duplicateAsset,
+		addAsset, addSvgAsset, updateAsset, deleteAsset, rotateAsset, duplicateAsset, refreshOriginInstances,
 		listOriginAssets, getOriginAsset, createOriginAsset, createSvgOriginAsset,
 		listFloors, getFloor, getPlacedObject, createFloor, createPlacedObject,
-		listNpcRoles, getNpcRole, listNpcTasks, getNpcTask, createNpcRole, updateNpcRole, deleteNpcRole, updateNpcSettings,
+		listNpcRoles, getNpcRole, listNpcTasks, getNpcTask, createNpcRole, updateNpcRole, deleteNpcRole, createNpcTask, updateNpcTask, deleteNpcTask, updateNpcSettings,
 		listTags, getTag, createTag, updateTag, deleteTag, findTagReferences,
 		updateNpcConfig, syncNpcConfigToState, persistNpcConfigToDisk,
 		copySelected, pasteObjects,

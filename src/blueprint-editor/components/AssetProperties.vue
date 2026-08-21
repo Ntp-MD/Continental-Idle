@@ -156,7 +156,7 @@ async function duplicateAsset() {
       </div>
     </div>
 
-    <div v-if="isLinkedAsset" class="alert flag--active">
+    <div v-if="isLinkedAsset" class="card">
       <span>Linked set — {{ linkedPartCount }} objects. Drag to place all parts linked together.</span>
     </div>
     <div class="form__row">
@@ -171,7 +171,7 @@ async function duplicateAsset() {
       <label>Tags</label>
       <TagPicker :model-value="assetTags" @update:model-value="saveAssetTags" placeholder="rest, service, target" />
     </div>
-    <div v-if="orphanAssetTags.length" class="alert flag--warning">Undefined tags: {{ orphanAssetTags.join(", ") }}. Recreate the tag definition or remove these assignments.</div>
+    <div v-if="orphanAssetTags.length" class="card">Undefined tags: {{ orphanAssetTags.join(", ") }}. Recreate the tag definition or remove these assignments.</div>
     <div v-if="isSvgAsset" class="form__row">
       <label>Rotate</label>
       <button @click="onRotateAsset">↻ 90°</button>
@@ -187,7 +187,7 @@ async function duplicateAsset() {
       </button>
     </div>
 
-    <div v-if="collapsedCount > 0" class="alert flag--danger">
+    <div v-if="collapsedCount > 0" class="card">
       <span>{{ collapsedCount }} object(s) collapsed — overlapping! Shown in red on canvas.</span>
     </div>
     <div class="form__row">

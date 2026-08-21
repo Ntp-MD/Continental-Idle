@@ -7,6 +7,7 @@ import { useWalkableGridPanel } from "../composables/useWalkableGridPanel";
 import { renderSvgInto } from "../svgSanitizer";
 import type { AssetDef, TileState, TileEdges, InteractSpot } from "../types";
 import { normalizeInteractConfig, normalizeNpcQueueConfig, resolveInteractForTarget } from "../types";
+import ModalShell from "./ModalShell.vue";
 
 type BorderSide = "top" | "right" | "bottom" | "left";
 
@@ -461,8 +462,8 @@ function walkTileIcon(state: TileState): string {
 
 function entranceTileBg(state: TileState): string {
   if (state === "entrance") return "color-mix(in srgb, var(--accent-blue) 22%, transparent)";
-  if (state === "blocked") return "color-mix(in srgb, var(--bg-card) 60%, transparent)";
-  return "color-mix(in srgb, var(--bg-card) 80%, transparent)";
+  if (state === "blocked") return "color-mix(in srgb, var(--bg-primary) 60%, transparent)";
+  return "color-mix(in srgb, var(--bg-primary) 80%, transparent)";
 }
 function entranceTileBorder(state: TileState): string {
   if (state === "entrance") return "1px solid var(--accent-blue)";
@@ -586,227 +587,93 @@ async function saveGrid() {
   useToast().success("Walkable grid saved");
 }
 
-const pos = ref({ x: 120, y: 120 });
-const isDragging = ref(false);
-const dragStart = ref({ x: 0, y: 0, panelX: 0, panelY: 0 });
-
-function onHeaderMouseDown(e: MouseEvent) {
-  if ((e.target as HTMLElement).closest(".walkablegrid__button")) return;
-  isDragging.value = true;
-  dragStart.value = { x: e.clientX, y: e.clientY, panelX: pos.value.x, panelY: pos.value.y };
-  window.addEventListener("mousemove", onWindowMouseMove);
-  window.addEventListener("mouseup", onWindowMouseUp);
-}
-
-function onWindowMouseMove(e: MouseEvent) {
-  if (!isDragging.value) return;
-  const maxX = window.innerWidth - 100;
-  const maxY = window.innerHeight - 40;
-  pos.value = {
-    x: Math.max(0, Math.min(dragStart.value.panelX + e.clientX - dragStart.value.x, maxX)),
-    y: Math.max(0, Math.min(dragStart.value.panelY + e.clientY - dragStart.value.y, maxY)),
-  };
-}
-
-function onWindowMouseUp() {
-  isDragging.value = false;
-  window.removeEventListener("mousemove", onWindowMouseMove);
-  window.removeEventListener("mouseup", onWindowMouseUp);
-}
-
 onBeforeUnmount(() => {
   flushAutoSave();
-  window.removeEventListener("mousemove", onWindowMouseMove);
-  window.removeEventListener("mouseup", onWindowMouseUp);
 });
 </script>
 
 <template>
-  <Teleport to="body">
-    <div v-if="gridAsset && showWalkableGridPanel" class="walkablegrid__overlay" @mousedown.self="closeWalkableGridPanel" @wheel.stop>
-      <div class="walkablegrid__panel" :style="{ left: `${pos.x}px`, top: `${pos.y}px` }" @mousedown.stop @wheel.stop>
-        <div class="walkablegrid__header-button" @mousedown="onHeaderMouseDown">
-          <span>Walkable Grid — {{ gridAsset.name }}</span>
-          <span class="walkablegrid__dim-label">{{ gridCols }}×{{ gridTiles.length }}</span>
-          <div class="walkablegrid__interact" @mousedown.stop>
-            <label>Cap <input v-model.number="interactCapacity" type="number" min="0" :placeholder="String(gridInteractSpots.length)" @input="checkGridDirty" /></label>
-            <label>Min <input v-model.number="interactDurationMin" type="number" min="0" step="0.1" @input="checkGridDirty" /></label>
-            <label>Max <input v-model.number="interactDurationMax" type="number" min="0" step="0.1" @input="checkGridDirty" /></label>
-            <label>Queue <input v-model.number="queueMaxMembers" type="number" min="1" max="100" @input="checkGridDirty" /></label>
-            <label>Admit <input v-model.number="queueAdmissionDepth" type="number" min="1" max="20" @input="checkGridDirty" /></label>
+  <ModalShell :open="!!gridAsset && showWalkableGridPanel" :title="`Walkable Grid — ${gridAsset?.name ?? ''}`" max-width="1000px" width="min(94vw, 1000px)" max-height="calc(100vh - 32px)" @close="closeWalkableGridPanel">
+    <div class="modal__body" :style="{ '--tile-size': tilePx + 'px' }" @mouseup="onDragEnd" @mouseleave="onDragEnd" @wheel.stop>
+      <div class="form__row form__row--wrap">
+        <label class="form__row form__row--tight">Cap <input v-model.number="interactCapacity" class="input--num" type="number" min="0" :placeholder="String(gridInteractSpots.length)" @input="checkGridDirty" /></label>
+        <label class="form__row form__row--tight">Min <input v-model.number="interactDurationMin" class="input--num" type="number" min="0" step="0.1" @input="checkGridDirty" /></label>
+        <label class="form__row form__row--tight">Max <input v-model.number="interactDurationMax" class="input--num" type="number" min="0" step="0.1" @input="checkGridDirty" /></label>
+        <label class="form__row form__row--tight">Queue <input v-model.number="queueMaxMembers" class="input--num" type="number" min="1" max="100" @input="checkGridDirty" /></label>
+        <label class="form__row form__row--tight">Admit <input v-model.number="queueAdmissionDepth" class="input--num" type="number" min="1" max="20" @input="checkGridDirty" /></label>
+        <input class="input--disabled input--num" :value="`${gridCols}×${gridTiles.length}`" readonly aria-label="Grid dimensions" />
+      </div>
+      <div class="walkablegrid__layout">
+        <!-- Top-Left: Real Visual -->
+        <div class="walkablegrid__layer">
+          <div class="walkablegrid__label">Real Visual</div>
+          <div class="walkablegrid__grid walkablegrid__visual">
+            <div class="walkablegrid__preview card card--active" :style="{ width: `${tilePreviewW}px`, height: `${tilePreviewH}px` }">
+              <svg v-if="hasSvgPreview" ref="previewSvgEl" :viewBox="svgPreviewViewBox" :width="svgPreviewW" :height="svgPreviewH" preserveAspectRatio="xMidYMid meet" class="walkablegrid__fill"></svg>
+              <div v-else class="walkablegrid__fill walkablegrid__shape"></div>
+            </div>
           </div>
-          <button class="walkablegrid__button" @click.stop="closeWalkableGridPanel" title="Close" aria-label="Close walkable grid editor">×</button>
         </div>
 
-        <div class="walkablegrid__body-vstack" :style="{ '--tile-size': tilePx + 'px' }" @mouseup="onDragEnd" @mouseleave="onDragEnd">
-          <div class="walkablegrid__grid-layout">
-            <!-- Top-Left: Real Visual -->
-            <div class="walkablegrid__layer">
-              <div class="walkablegrid__layer-label">Real Visual</div>
-              <div class="walkablegrid__layer-grid walkablegrid__layer-visual">
-                <div class="walkablegrid__preview-centered card card--primary" :style="{ width: `${tilePreviewW}px`, height: `${tilePreviewH}px` }">
-                  <svg v-if="hasSvgPreview" ref="previewSvgEl" :viewBox="svgPreviewViewBox" :width="svgPreviewW" :height="svgPreviewH" preserveAspectRatio="xMidYMid meet" class="walkablegrid__float"></svg>
-                  <div v-else class="walkablegrid__float walkablegrid__preview-shape"></div>
-                </div>
-              </div>
-            </div>
-
-            <div class="walkablegrid__editor">
-              <div class="walkablegrid__tabs" role="tablist" aria-label="Walkable grid layers">
-                <button v-for="g in gridConfigs" :key="g.key" type="button" class="walkablegrid__tab" :class="{ 'walkablegrid__tab--active': activeGridTab === g.key }" role="tab" :aria-selected="activeGridTab === g.key" @click="activeGridTab = g.key as GridTab">{{ g.label }}</button>
-              </div>
-              <div v-if="activeGridConfig" class="walkablegrid__layer">
-                <div class="walkablegrid__layer-label">
-                  <span>{{ activeGridConfig.label }}</span>
-                </div>
-                <div class="walkablegrid__layer-grid" :style="{ '--cols': gridCols }">
-                  <span v-for="c in gridCols" :key="'col' + c" class="walkablegrid__col-centered" :title="activeGridConfig.showColFill ? 'Fill column ' + c : undefined" @click="activeGridConfig.showColFill && fillGridCol(c - 1)">{{ c }}</span>
-                  <template v-for="(row, r) in gridTiles" :key="'row' + r">
-                    <span class="walkablegrid__row-centered" :title="activeGridConfig.showColFill ? 'Fill row ' + (r + 1) : undefined" @click="activeGridConfig.showColFill && fillGridRow(r)">{{ r + 1 }}</span>
-                    <button
-                      v-for="(state, c) in row"
-                      :key="'tile' + r + '-' + c"
-                      type="button"
-                      class="walkablegrid__tile"
-                      :style="{ background: activeGridConfig.tileBg(state), border: activeGridConfig.tileBorder(state) }"
-                      :aria-label="activeGridConfig.key + ' grid ' + state + ' tile, row ' + (r + 1) + ' column ' + (c + 1)"
-                      @mousedown.prevent="activeGridConfig.onTileDown(r, c, $event)"
-                      @mouseenter="activeGridConfig.onTileEnter?.(r, c)"
-                    >
-                      {{ activeGridConfig.tileIcon(state) }}<span v-if="activeGridConfig.overlay === 'edges' && gridEdges[r]?.[c]?.top" class="walkablegrid__tile-overlay walkablegrid__edge--top"></span><span v-if="activeGridConfig.overlay === 'edges' && gridEdges[r]?.[c]?.right" class="walkablegrid__tile-overlay walkablegrid__edge--right"></span
-                      ><span v-if="activeGridConfig.overlay === 'edges' && gridEdges[r]?.[c]?.bottom" class="walkablegrid__tile-overlay walkablegrid__edge--bottom"></span><span v-if="activeGridConfig.overlay === 'edges' && gridEdges[r]?.[c]?.left" class="walkablegrid__tile-overlay walkablegrid__edge--left"></span
-                      ><span v-for="a in activeGridConfig.overlay === 'interactspots' ? interactSpotsInTile(r, c) : []" :key="'interactspot_' + a.i" class="walkablegrid__tile-overlay walkablegrid__spot" :title="'NPC interactspot IS' + (a.i + 1) + ' (' + gridInteractSpots[a.i].x + ', ' + gridInteractSpots[a.i].y + ')'">◉</span>
-                    </button>
-                  </template>
-                </div>
-                <div class="walkablegrid__layer-actions">
-                  <button v-for="t in activeGridConfig.tools" :key="t.label" type="button" :class="{ 'btn--active': t.active }" @click="t.onClick">{{ t.label }}</button>
-                  <button v-for="a in activeGridConfig.actions" :key="a.label" :disabled="a.disabled" @click="a.onClick">{{ a.label }}</button>
-                </div>
-              </div>
-            </div>
+        <div class="walkablegrid__editor">
+          <div class="walkablegrid__tabs" role="tablist" aria-label="Walkable grid layers">
+            <button v-for="g in gridConfigs" :key="g.key" type="button" class="walkablegrid__tab" :class="{ 'walkablegrid__tab--active': activeGridTab === g.key }" role="tab" :aria-selected="activeGridTab === g.key" @click="activeGridTab = g.key as GridTab">{{ g.label }}</button>
           </div>
-
-          <div class="walkablegrid__actions">
-            <div class="walkablegrid__walkthrough">
-              <label>Walkthrough</label>
-              <button :class="{ 'btn--success': walkthrough, 'btn--danger': !walkthrough }" @click="walkthrough = !walkthrough" :title="walkthrough ? 'NPCs can walk through this object' : 'NPCs cannot walk through this object (solid wall)'">
-                {{ walkthrough ? "ON" : "OFF" }}
-              </button>
+          <div v-if="activeGridConfig" class="walkablegrid__layer">
+            <div class="walkablegrid__label">
+              <span>{{ activeGridConfig.label }}</span>
             </div>
-            <span class="walkablegrid__dim-label">0 capacity = number of interactspots · duration is random in seconds</span>
-            <button class="btn--success" :class="{ 'btn--dirty': gridDirty }" @click="saveGrid" aria-label="Save grid">Save Grid{{ gridDirty ? " *" : "" }}</button>
+            <div class="walkablegrid__grid" :style="{ '--cols': gridCols }">
+              <span v-for="c in gridCols" :key="'col' + c" class="walkablegrid__col" :title="activeGridConfig.showColFill ? 'Fill column ' + c : undefined" @click="activeGridConfig.showColFill && fillGridCol(c - 1)">{{ c }}</span>
+              <template v-for="(row, r) in gridTiles" :key="'row' + r">
+                <span class="walkablegrid__row" :title="activeGridConfig.showColFill ? 'Fill row ' + (r + 1) : undefined" @click="activeGridConfig.showColFill && fillGridRow(r)">{{ r + 1 }}</span>
+                <button
+                  v-for="(state, c) in row"
+                  :key="'tile' + r + '-' + c"
+                  type="button"
+                  class="walkablegrid__tile"
+                  :style="{ background: activeGridConfig.tileBg(state), border: activeGridConfig.tileBorder(state) }"
+                  :aria-label="activeGridConfig.key + ' grid ' + state + ' tile, row ' + (r + 1) + ' column ' + (c + 1)"
+                  @mousedown.prevent="activeGridConfig.onTileDown(r, c, $event)"
+                  @mouseenter="activeGridConfig.onTileEnter?.(r, c)"
+                >
+                  {{ activeGridConfig.tileIcon(state) }}<span v-if="activeGridConfig.overlay === 'edges' && gridEdges[r]?.[c]?.top" class="walkablegrid__mark walkablegrid__edge--top"></span><span v-if="activeGridConfig.overlay === 'edges' && gridEdges[r]?.[c]?.right" class="walkablegrid__mark walkablegrid__edge--right"></span
+                  ><span v-if="activeGridConfig.overlay === 'edges' && gridEdges[r]?.[c]?.bottom" class="walkablegrid__mark walkablegrid__edge--bottom"></span><span v-if="activeGridConfig.overlay === 'edges' && gridEdges[r]?.[c]?.left" class="walkablegrid__mark walkablegrid__edge--left"></span
+                  ><span v-for="a in activeGridConfig.overlay === 'interactspots' ? interactSpotsInTile(r, c) : []" :key="'interactspot_' + a.i" class="walkablegrid__mark walkablegrid__spot" :title="'NPC interactspot IS' + (a.i + 1) + ' (' + gridInteractSpots[a.i].x + ', ' + gridInteractSpots[a.i].y + ')'">◉</span>
+                </button>
+              </template>
+            </div>
+            <div class="walkablegrid__tools">
+              <button v-for="t in activeGridConfig.tools" :key="t.label" type="button" :class="{ 'flag--active': t.active }" @click="t.onClick">{{ t.label }}</button>
+              <button v-for="a in activeGridConfig.actions" :key="a.label" :disabled="a.disabled" @click="a.onClick">{{ a.label }}</button>
+            </div>
           </div>
         </div>
       </div>
+
+      <div class="form__row form__row--between form__row--border form__row--top">
+        <div class="walkablegrid__walkthrough">
+          <label>Walkthrough</label>
+          <button :class="{ 'flag--success': walkthrough, 'flag--danger': !walkthrough }" @click="walkthrough = !walkthrough" :title="walkthrough ? 'NPCs can walk through this object' : 'NPCs cannot walk through this object (solid wall)'">
+            {{ walkthrough ? "ON" : "OFF" }}
+          </button>
+        </div>
+        <span class="form__hint">0 capacity = number of interactspots · duration is random in seconds</span>
+        <button class="flag--success" :class="{ 'flag--disabled': gridDirty }" @click="saveGrid" aria-label="Save grid">Save Grid{{ gridDirty ? " *" : "" }}</button>
+      </div>
     </div>
-  </Teleport>
+  </ModalShell>
 </template>
 
 <style scoped>
-.walkablegrid__overlay {
-  position: fixed;
-  inset: 0;
-  z-index: var(--z-layer-4);
-  background: color-mix(in srgb, var(--bg-primary) 60%, transparent);
-}
-
-.walkablegrid__panel {
-  position: absolute;
-  z-index: var(--z-layer-4);
-  width: 60%;
-  max-height: 90vh;
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-dim);
-  border-radius: var(--radius-md);
-  box-shadow: 0 12px 32px color-mix(in srgb, var(--bg-primary) 50%, transparent);
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  user-select: none;
-}
-
-.walkablegrid__header-button {
-  display: flex;
-  align-items: center;
-  justify-content: flex-start;
-  gap: var(--gap-sm);
-  padding: var(--gap-sm) var(--gap-md);
-  background: var(--bg-card);
-  border-bottom: 1px solid var(--border-dim);
-  cursor: grab;
-  font-size: var(--font-sm);
-  font-weight: 700;
-  color: var(--text-primary);
-  user-select: none;
-  flex-wrap: wrap;
-}
-
-.walkablegrid__header-button .walkablegrid__interact {
-  font-weight: 400;
-  color: var(--text-primary);
-  cursor: default;
-}
-
-.walkablegrid__button {
-  background: none;
-  border: none;
-  color: var(--text-primary);
-  font-size: var(--font-md);
-  line-height: 1;
-  padding: 0 var(--gap-xs);
-  cursor: pointer;
-  transition: color var(--duration-fast) ease-out;
-  margin-left: auto;
-}
-
-.walkablegrid__button:hover {
-  color: var(--accent-red);
-}
-
-.walkablegrid__dim-label {
-  font-size: var(--font-xs);
-  opacity: 0.7;
-  text-align: center;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.walkablegrid__interact {
-  display: flex;
-  align-items: center;
-  gap: var(--gap-sm);
-  flex-wrap: wrap;
-}
-
-.walkablegrid__interact label {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--gap-xs);
-}
-
-.walkablegrid__interact input {
-  width: 4.5em;
-}
-
-.walkablegrid__body-vstack {
-  flex: 1;
-  overflow: auto;
-  padding: var(--gap-md);
-  display: flex;
-  flex-direction: column;
-  gap: var(--gap-sm);
-}
-
-.walkablegrid__grid-layout {
+.walkablegrid__layout {
   display: grid;
-  grid-template-columns: minmax(220px, 0.9fr) minmax(320px, 1.1fr);
+  grid-template-columns: 1fr;
   gap: var(--gap-sm);
   align-items: stretch;
 }
 
-.walkablegrid__grid-layout > .walkablegrid__layer,
+.walkablegrid__layout > .walkablegrid__layer,
 .walkablegrid__editor {
   border: 1px solid var(--border-dim);
   padding: var(--gap-sm);
@@ -839,7 +706,7 @@ onBeforeUnmount(() => {
 
 .walkablegrid__tab:hover {
   color: var(--text-primary);
-  background: var(--bg-card);
+  background: var(--bg-primary);
 }
 
 .walkablegrid__tab--active {
@@ -856,7 +723,7 @@ onBeforeUnmount(() => {
   align-items: stretch;
 }
 
-.walkablegrid__layer-label {
+.walkablegrid__label {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -864,41 +731,43 @@ onBeforeUnmount(() => {
   font-size: var(--font-xs);
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.4px;
   color: var(--text-dim);
 }
 
-.walkablegrid__layer-grid {
+.walkablegrid__grid {
   display: grid;
-  grid-template-columns: var(--tile-size, 40px) repeat(var(--cols, 1), var(--tile-size, 40px));
+  grid-template-columns: 1fr repeat(var(--cols, 1), 1fr);
   place-content: center;
   gap: 0;
   flex: 1;
   flex-shrink: 0;
+  width: fit-content;
+  margin: auto;
 }
 
-.walkablegrid__layer-grid::before {
+.walkablegrid__grid::before {
   content: "";
   width: var(--tile-size, 40px);
   height: var(--tile-size, 40px);
 }
 
-.walkablegrid__layer-visual {
+.walkablegrid__visual {
   display: flex;
   align-items: center;
   justify-content: center;
 }
-.walkablegrid__layer-visual::before {
+.walkablegrid__visual::before {
   content: none;
 }
 
-.walkablegrid__layer-actions {
+.walkablegrid__tools {
   display: flex;
   gap: var(--gap-xs);
   flex-wrap: wrap;
 }
 
-.walkablegrid__preview-centered {
+.walkablegrid__preview {
   position: relative;
   display: flex;
   align-items: center;
@@ -908,25 +777,16 @@ onBeforeUnmount(() => {
   box-sizing: border-box;
 }
 
-.walkablegrid__float {
+.walkablegrid__fill {
   position: absolute;
   left: 0;
   top: 0;
 }
 
-.walkablegrid__preview-shape {
+.walkablegrid__shape {
   border: 1px solid var(--text-dim);
   border-radius: var(--radius-sm);
-  background: color-mix(in srgb, var(--bg-card) 50%, transparent);
-}
-
-.walkablegrid__actions {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--gap-sm);
-  padding-top: var(--gap-sm);
-  border-top: 1px solid var(--border-dim);
+  background: color-mix(in srgb, var(--bg-primary) 50%, transparent);
 }
 
 .walkablegrid__walkthrough {
@@ -936,15 +796,15 @@ onBeforeUnmount(() => {
   font-size: var(--font-sm);
 }
 
-.walkablegrid__col-centered,
-.walkablegrid__row-centered,
+.walkablegrid__col,
+.walkablegrid__row,
 .walkablegrid__tile {
   width: var(--tile-size, 40px);
   height: var(--tile-size, 40px);
 }
 
-.walkablegrid__col-centered,
-.walkablegrid__row-centered {
+.walkablegrid__col,
+.walkablegrid__row {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -964,18 +824,14 @@ onBeforeUnmount(() => {
   font-size: var(--font-xs);
 }
 
-.walkablegrid__tile::after,
 .walkablegrid__tile:hover,
 .walkablegrid__tile:active {
-  content: none;
   border-color: inherit;
   color: inherit;
   background: inherit;
-  box-shadow: none;
-  transform: none;
 }
 
-.walkablegrid__tile-overlay {
+.walkablegrid__mark {
   position: absolute;
   pointer-events: none;
 }
@@ -1029,7 +885,7 @@ onBeforeUnmount(() => {
   pointer-events: none;
 }
 @media (max-width: 720px) {
-  .walkablegrid__grid-layout {
+  .walkablegrid__layout {
     grid-template-columns: 1fr;
   }
 }

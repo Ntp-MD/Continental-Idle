@@ -40,7 +40,7 @@ const swatchStyle = computed(() => {
   if (isTransparent.value) return { background: "transparent" };
   const c = draftValue.value;
   if (c && isHexColor(c)) return { background: c };
-  return { background: "var(--bg-card)" };
+  return { background: "var(--bg-primary)" };
 });
 
 function commitValue(value: string | undefined) {
@@ -101,7 +101,7 @@ function toggleTransparent() {
       <input class="color__native" type="color" :value="nativeValue" :aria-label="ariaLabel" @input="onNativeInput" @change="onNativeChange" />
       <span v-if="isTransparent" class="color__slash" aria-hidden="true" />
     </label>
-    <input class="input color__text" type="text" v-model="textValue" :placeholder="placeholder" :aria-label="ariaLabel" @change="onTextChange" />
+    <input class="color__text" type="text" v-model="textValue" :placeholder="placeholder" :aria-label="ariaLabel" @change="onTextChange" />
     <button v-if="allowTransparent" type="button" class="color__transparent" :class="{ 'color__transparent--active': isTransparent }" @click="toggleTransparent" title="Toggle transparent" aria-label="Toggle transparent">T</button>
   </div>
 </template>
@@ -117,8 +117,8 @@ function toggleTransparent() {
 .color__swatch {
   position: relative;
   flex-shrink: 0;
-  width: var(--control-height);
-  height: var(--control-height);
+  width: 30px;
+  height: 30px;
   border: 1px solid var(--border-dim);
   border-radius: var(--radius-sm);
   cursor: pointer;
@@ -173,9 +173,9 @@ function toggleTransparent() {
 
 .color__transparent {
   flex-shrink: 0;
-  width: var(--control-height);
-  height: var(--control-height);
-  background: var(--bg-card);
+  width: 28px;
+  height: 28px;
+  background: var(--bg-primary);
   border: 1px solid var(--border-dim);
   border-radius: var(--radius-sm);
   color: var(--text-secondary);

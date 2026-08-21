@@ -83,8 +83,6 @@ onUnmounted(() => {
 
 <style scoped>
 .game__layout {
-  display: flex;
-  flex-direction: column;
   height: 100vh;
   width: 100vw;
   overflow: hidden;
@@ -94,7 +92,7 @@ onUnmounted(() => {
   display: flex;
   gap: 0;
   padding: 0 8px;
-  background: var(--bg-card);
+  background: var(--bg-primary);
   border-bottom: 1px solid var(--border-dim);
   flex-shrink: 0;
 }
@@ -146,7 +144,7 @@ onUnmounted(() => {
   font-weight: 600;
   border: 1px solid var(--border-dim);
   border-radius: var(--radius-sm);
-  background: var(--bg-card);
+  background: var(--bg-primary);
   color: var(--text-bright);
   cursor: pointer;
   transition: all 0.15s ease;
@@ -159,12 +157,9 @@ onUnmounted(() => {
 }
 
 .game__status {
-  flex-shrink: 0;
   padding: 4px 12px;
   font-size: 11px;
-  color: var(--text-dim);
-  background: var(--bg-card);
-  border-top: 1px solid var(--border-dim);
+  background: var(--bg-primary);
   text-align: center;
 }
 </style>

@@ -1,8 +1,6 @@
 export interface NpcEnginePoint {
 	x: number
 	y: number
-
-	roleId?: string
 }
 
 export interface NpcEngineFloor {
@@ -104,7 +102,7 @@ export interface NpcEngineEvent {
 
 export type NpcEnginePathfinder = (
 	floor: NpcEngineFloor,
-	from: NpcEnginePoint,
+	agent: NpcEngineAgent,
 	to: NpcEnginePoint,
 	blockedCells?: ReadonlySet<string>,
 ) => readonly NpcEnginePoint[] | null

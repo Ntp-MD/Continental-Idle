@@ -1,4 +1,4 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 import { ref, onErrorCaptured } from "vue";
 
 const hasError = ref(false);
@@ -21,8 +21,8 @@ function doReload() {
       <h2 class="errorboundary__title">Something went wrong</h2>
       <p class="errorboundary__message">{{ errorMessage }}</p>
       <p class="errorboundary__hint">Try reloading the page.</p>
-      <div class="actions actions__center">
-        <button class="btn--ghost" @click="doReload">Reload Page</button>
+      <div class="form__row form__row--center">
+        <button class="flag--ghost" @click="doReload">Reload Page</button>
       </div>
     </div>
   </div>
@@ -41,12 +41,12 @@ function doReload() {
 }
 
 .errorboundary__card {
-  background: var(--bg-card);
+  background: var(--bg-primary);
   border: 1px solid var(--accent-red);
   border-radius: var(--radius-lg);
   padding: var(--gap-xl);
-  width: 100%;
-  max-width: 600px;
+  width: fit-content;
+  max-width: 90vw;
   text-align: center;
 }
 
@@ -69,7 +69,7 @@ function doReload() {
   margin-bottom: var(--gap-md);
 }
 
-.errorboundary .actions .btn {
+.errorboundary .form__row button {
   padding: var(--gap-sm) var(--gap-md);
   font-size: var(--font-md);
 }

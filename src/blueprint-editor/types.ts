@@ -1,6 +1,8 @@
 export type EditorMode = 'object' | 'draw' | 'move' | 'npc-preview'
 export type Rotation = 0 | 90 | 180 | 270
 
+export const STREET_TILES = 8
+
 export type SvgRole = 'wall' | 'door' | 'fixture'
 
 export interface SvgRoleInfo {
@@ -20,6 +22,26 @@ export interface TileEdges {
 	left?: boolean
 }
 
+export interface FloorWalkable {
+	walkableGrid?: WalkableGrid
+	tileStates?: TileState[][]
+	tileEdges?: TileEdges[][]
+}
+
+export function normalizeFloorWalkable(value: unknown): FloorWalkable | undefined {
+	if (!value || typeof value !== 'object') return undefined
+	const record = value as Record<string, unknown>
+	const walkableGrid = normalizeWalkableGrid(record.walkableGrid)
+	const tileStates = normalizeTileStates(record.tileStates)
+	const tileEdges = normalizeTileEdges(record.tileEdges)
+	if (!walkableGrid && !tileStates && !tileEdges) return undefined
+	return {
+		...(walkableGrid ? { walkableGrid } : {}),
+		...(tileStates ? { tileStates } : {}),
+		...(tileEdges ? { tileEdges } : {}),
+	}
+}
+
 export interface InteractSpot {
 	x: number
 	y: number
@@ -31,6 +53,24 @@ export interface InteractConfig {
 	durationMin?: number
 
 	durationMax?: number
+}
+
+export interface NpcQueueConfig {
+	maxMembers?: number
+	admissionDepth?: number
+}
+
+export function normalizeNpcQueueConfig(value: unknown): NpcQueueConfig | undefined {
+	if (!value || typeof value !== 'object') return undefined
+	const record = value as Record<string, unknown>
+	const maxMembers = typeof record.maxMembers === 'number' && Number.isFinite(record.maxMembers)
+		? Math.max(1, Math.min(100, Math.floor(record.maxMembers)))
+		: undefined
+	const admissionDepth = typeof record.admissionDepth === 'number' && Number.isFinite(record.admissionDepth)
+		? Math.max(1, Math.min(20, Math.floor(record.admissionDepth)))
+		: undefined
+	if (maxMembers === undefined && admissionDepth === undefined) return undefined
+	return { ...(maxMembers === undefined ? {} : { maxMembers }), ...(admissionDepth === undefined ? {} : { admissionDepth }) }
 }
 
 export function normalizeInteractSpots(value: unknown): InteractSpot[] | undefined {
@@ -200,6 +240,7 @@ export interface ResolvedObjectDef {
 	tileEdges?: TileEdges[][]
 	interactSpots?: InteractSpot[]
 	interact?: InteractConfig
+	queue?: NpcQueueConfig
 }
 
 export interface ObjectDefinitionSize {
@@ -248,7 +289,8 @@ export function resolveObjectDef(
 		? rotateInteractSpots90(interactSpots, sourceSize.w, sourceSize.h, rotSteps)
 		: interactSpots
 	const interact = normalizeInteractConfig(asset?.interact)
-	return { walkable, entranceRequired, walkableGrid, tileStates, tileEdges, interactSpots: rotatedInteractSpots, interact }
+	const queue = normalizeNpcQueueConfig(asset?.queue)
+	return { walkable, entranceRequired, walkableGrid, tileStates, tileEdges, interactSpots: rotatedInteractSpots, interact, queue }
 }
 
 
@@ -341,6 +383,7 @@ export interface AssetDef extends AssetBase {
 	tileEdges?: TileEdges[][]
 	interactSpots?: InteractSpot[]
 	interact?: InteractConfig
+	queue?: NpcQueueConfig
 }
 
 export interface OriginAssetFile {
@@ -385,6 +428,7 @@ export function normalizeOriginAsset(value: unknown): AssetDef | undefined {
 	else delete asset.tags
 	if (record.interactSpots !== undefined) asset.interactSpots = normalizeInteractSpots(record.interactSpots)
 	if (record.interact !== undefined) asset.interact = normalizeInteractConfig(record.interact)
+	if (record.queue !== undefined) asset.queue = normalizeNpcQueueConfig(record.queue)
 	return asset
 }
 
@@ -432,6 +476,7 @@ export interface NpcRole {
 export interface NpcDeploymentPool {
 	roleId: string
 	count: number
+	floorIds?: string[]
 }
 
 export interface NpcSimulationConfig {
@@ -454,6 +499,7 @@ export interface NpcSimDot {
 	targetY: number
 	speed: number
 	color: string
+	status: 'walking' | 'queued' | 'waiting' | 'interacting' | 'idle'
 	pauseTimer: number
 	pathIdx: number
 	path: [number, number][]
@@ -505,6 +551,43 @@ export interface ResolvedObject extends ObjectPlacement {
 	tileEdges?: TileEdges[][]
 	interactSpots?: InteractSpot[]
 	interact?: InteractConfig
+	queue?: NpcQueueConfig
+}
+
+export interface NpcSpawnZone {
+	id: string
+	label: string
+	x: number
+	y: number
+	w: number
+	h: number
+	roleIds?: string[]
+}
+
+export function normalizeNpcSpawnZones(value: unknown): NpcSpawnZone[] | undefined {
+	if (value === undefined || value === null) return undefined
+	if (!Array.isArray(value)) return undefined
+	const zones: NpcSpawnZone[] = []
+	const seen = new Set<string>()
+	for (const item of value) {
+		if (!item || typeof item !== 'object') continue
+		const record = item as Record<string, unknown>
+		if (typeof record.id !== 'string' || !record.id.trim() || seen.has(record.id)) continue
+		if (typeof record.x !== 'number' || !Number.isFinite(record.x) || typeof record.y !== 'number' || !Number.isFinite(record.y)) continue
+		if (typeof record.w !== 'number' || !Number.isFinite(record.w) || record.w <= 0 || typeof record.h !== 'number' || !Number.isFinite(record.h) || record.h <= 0) continue
+		const roleIds = normalizeAllowedRoleIds(record.roleIds)
+		seen.add(record.id)
+		zones.push({
+			id: record.id.trim(),
+			label: typeof record.label === 'string' && record.label.trim() ? record.label.trim() : record.id.trim(),
+			x: Math.max(0, record.x),
+			y: Math.max(0, record.y),
+			w: Math.max(1, record.w),
+			h: Math.max(1, record.h),
+			...(roleIds?.length ? { roleIds } : {}),
+		})
+	}
+	return zones
 }
 
 export interface FloorData {
@@ -514,6 +597,8 @@ export interface FloorData {
 	labelColor?: string
 	objects: ObjectData[]
 	defaultWalkable?: boolean
+	walkable?: FloorWalkable
+	spawnZones?: NpcSpawnZone[]
 
 	allowedRoleIds?: string[]
 }
@@ -559,11 +644,14 @@ export interface SyncedObject {
 	tileEdges?: TileEdges[][]
 	interactSpots?: InteractSpot[]
 	interact?: InteractConfig
+	queue?: NpcQueueConfig
 }
 
 
 export interface SyncedFloor {
 	defaultWalkable?: boolean
+	walkable?: FloorWalkable
+	spawnZones?: NpcSpawnZone[]
 	allowedRoleIds?: string[]
 	objects: SyncedObject[]
 }
@@ -612,6 +700,8 @@ export function validateLayoutData(data: unknown): FloorLayoutData | null {
 		if (!floor.name || typeof floor.name !== 'string') return null
 		if (!floor.label || typeof floor.label !== 'string') return null
 		if (!Array.isArray(floor.objects)) return null
+		if (floor.walkable !== undefined && !normalizeFloorWalkable(floor.walkable)) return null
+		if (floor.spawnZones !== undefined && !normalizeNpcSpawnZones(floor.spawnZones)) return null
 		if (floor.allowedRoleIds !== undefined && (!Array.isArray(floor.allowedRoleIds) || floor.allowedRoleIds.some(id => typeof id !== 'string' || !id.trim()))) return null
 		for (const object of floor.objects) {
 			if (!object || typeof object !== 'object') return null
@@ -662,7 +752,8 @@ export function isNpcConfig(value: unknown): value is NpcSimulationConfig {
 	if (c.pool.some((p: unknown) => {
 		if (!p || typeof p !== 'object') return true
 		const pool = p as Record<string, unknown>
-		return typeof pool.roleId !== 'string' || typeof pool.count !== 'number'
+		if (typeof pool.roleId !== 'string' || typeof pool.count !== 'number') return true
+		return pool.floorIds !== undefined && (!Array.isArray(pool.floorIds) || pool.floorIds.some((id: unknown) => typeof id !== 'string'))
 	})) return false
 	if (c.tagTriggerRates !== undefined) {
 		if (typeof c.tagTriggerRates !== 'object' || c.tagTriggerRates === null) return false
@@ -676,19 +767,35 @@ export function isNpcConfig(value: unknown): value is NpcSimulationConfig {
 export function normalizeNpcConfig(value: unknown): NpcSimulationConfig | undefined {
 	if (!isNpcConfig(value)) return undefined
 	const config = JSON.parse(JSON.stringify(value)) as NpcSimulationConfig
+	config.speed = Math.max(0.001, Math.min(1, config.speed))
 	for (const role of config.roles) {
+		role.label = role.label.trim()
 		role.focusTags = normalizeTags(role.focusTags) ?? []
 		role.restrictedTags = normalizeTags(role.restrictedTags) ?? []
-		if (role.spawnRule) role.spawnRule.targetTags = normalizeTags(role.spawnRule.targetTags)
+		role.taskIds = [...new Set(role.taskIds.filter(taskId => config.tasks.some(task => task.id === taskId)))]
+		role.focusChance = Math.max(0, Math.min(100, Math.floor(role.focusChance)))
+		if (role.spawnRule) {
+			role.spawnRule.targetTags = normalizeTags(role.spawnRule.targetTags)
+			role.spawnRule.count = Math.max(0, Math.min(1000, Math.floor(role.spawnRule.count)))
+		}
 	}
-	for (const task of config.tasks) task.tags = normalizeTags(task.tags) ?? []
+	for (const task of config.tasks) {
+		task.label = task.label.trim()
+		task.tags = normalizeTags(task.tags) ?? []
+	}
 	const rates: Record<string, number> = {}
 	for (const [tag, rate] of Object.entries(config.tagTriggerRates ?? {})) {
 		const normalized = normalizeTags([tag])?.[0]
 		if (normalized && Number.isFinite(rate) && rate > 0) rates[normalized] = Math.max(0, Math.min(100, Math.floor(rate)))
 	}
 	config.tagTriggerRates = Object.keys(rates).length ? rates : undefined
-	config.pool = config.pool.filter(entry => config.roles.some(role => role.id === entry.roleId))
+	config.pool = config.pool
+		.filter(entry => config.roles.some(role => role.id === entry.roleId))
+		.map(entry => ({
+			roleId: entry.roleId,
+			count: Math.max(0, Math.min(1000, Math.floor(entry.count))),
+			...(entry.floorIds?.length ? { floorIds: [...new Set(entry.floorIds.map(id => id.trim()).filter(Boolean))] } : {}),
+		}))
 	if (!config.roles.some(role => role.id === config.defaultRoleId)) config.defaultRoleId = config.roles[0]?.id ?? ''
 	return config
 }

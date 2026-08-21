@@ -1,9 +1,10 @@
 import type { ObjectData, SyncedFloor, SyncedObject, SyncedLayoutPayload } from '../types'
-import { normalizeAllowedRoleIds, normalizeInteractSpots, normalizeInteractConfig, normalizeTileEdges, normalizeTileStates, normalizeWalkableGrid } from '../types'
+import { normalizeAllowedRoleIds, normalizeInteractSpots, normalizeInteractConfig, normalizeNpcQueueConfig, normalizeNpcSpawnZones, normalizeFloorWalkable, normalizeTileEdges, normalizeTileStates, normalizeWalkableGrid } from '../types'
 import { state, toast, isStateLocked, withStateLock, assetMap, reloadEditorData } from './state'
 import { editorLog, editorFloorLabelToFloorId } from './utils'
 import { EDITOR_CONFIG } from './migrate'
 import { buildBlueprintData } from './dataLoader'
+import { validateSettingsCompleteness } from '../assetUtils'
 
 const MAX_SAVE_RETRIES = 3
 let isSavingBlueprintData = false
@@ -68,13 +69,18 @@ export function syncToGame(): boolean {
 			const floorId = editorFloorLabelToFloorId(floor.label)
 			if (!floorId) continue
 			const allowedRoleIds = normalizeAllowedRoleIds(floor.allowedRoleIds)
+			const walkable = normalizeFloorWalkable(floor.walkable)
+			const spawnZones = normalizeNpcSpawnZones(floor.spawnZones)
 			floors[floorId] = {
 				defaultWalkable: floor.defaultWalkable ?? true,
+				...(walkable ? { walkable } : {}),
+				...(spawnZones?.length ? { spawnZones } : {}),
 				...(allowedRoleIds ? { allowedRoleIds } : {}),
 				objects: floor.objects.map((o: ObjectData) => {
 					const asset = assetMap().get(o.type)
 					const interactSpots = normalizeInteractSpots(asset?.interactSpots)
 					const interact = normalizeInteractConfig(asset?.interact)
+					const queue = normalizeNpcQueueConfig(asset?.queue)
 					const walkableGrid = normalizeWalkableGrid(asset?.walkableGrid)
 					const tileStates = normalizeTileStates(asset?.tileStates)
 					const tileEdges = normalizeTileEdges(asset?.tileEdges)
@@ -96,12 +102,19 @@ export function syncToGame(): boolean {
 					if (tileEdges) obj.tileEdges = tileEdges
 					if (interactSpots?.length) obj.interactSpots = interactSpots
 					if (interact) obj.interact = interact
+					if (queue) obj.queue = queue
 					return obj
 				}),
 			}
 		}
 		const payload: SyncedLayoutPayload = { version: 3, canvas: state.layout.canvas, floors, timestamp: Date.now() }
 		window.dispatchEvent(new CustomEvent('blueprint:sync', { detail: payload }))
+
+		const completeness = validateSettingsCompleteness(state.layout, assetMap(), state.layout.npcConfig)
+		if (completeness.issues.length > 0) {
+			for (const issue of completeness.issues) editorLog.warn('Settings', issue)
+			toast.warning(`Synced with ${completeness.issues.length} setting issue(s) — see console for details`)
+		}
 		return true
 	} catch (error) {
 		editorLog.error('syncToGame', error)

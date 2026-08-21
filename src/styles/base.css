@@ -1,5 +1,21 @@
+/* ═══════════════════════════════════════════════
+   Base — Element selectors & global resets
+   Order: Reset → Root → Body → Form Elements →
+         Interactive States → Scrollbar → Selection
+   ═══════════════════════════════════════════════ */
+
 @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&display=swap');
 
+
+/* ── Reset ── */
+* {
+	margin: 0;
+	padding: 0;
+	box-sizing: border-box;
+}
+
+
+/* ── Root ── */
 #app {
 	width: 100vw;
 	height: 100vh;
@@ -9,12 +25,7 @@
 }
 
 
-* {
-	margin: 0;
-	padding: 0;
-	box-sizing: border-box;
-}
-
+/* ── Body ── */
 body {
 	font-family: var(--font-mono);
 	background: var(--bg-primary);
@@ -28,11 +39,12 @@ body {
 }
 
 
+/* ── Button ── */
 button {
 	font-family: var(--font-mono);
 	cursor: pointer;
 	border: 1px solid var(--border-dim);
-	background: var(--bg-card);
+	background: var(--bg-primary);
 	color: var(--text-secondary);
 	padding: var(--gap-sm) var(--gap-md);
 	text-transform: uppercase;
@@ -41,93 +53,45 @@ button {
 	font-weight: 500;
 	border-radius: var(--radius-sm);
 	transition: all var(--duration-fast) var(--ease-out);
-	position: relative;
-	overflow: hidden;
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
 	gap: var(--gap-xs);
-	white-space: nowrap;
 	line-height: 1;
-}
-
-button::after {
-	content: '';
-	position: absolute;
-	inset: 0;
-	background: currentColor;
-	opacity: 0;
-	transition: opacity var(--duration-fast);
-	pointer-events: none;
 }
 
 button:hover {
 	border-color: var(--accent-primary);
 	color: var(--accent-primary);
-	background: var(--bg-card-hover);
-	transform: translateY(-1px);
-}
-
-button:hover::after {
-	opacity: 0.04;
+	background: var(--bg-primary-hover);
 }
 
 button:active {
 	background: var(--accent-primary);
 	color: var(--bg-primary);
-	transform: translateY(0);
-	box-shadow: none;
 }
 
 button:disabled {
 	opacity: 0.35;
 	cursor: not-allowed;
-	transform: none;
-	box-shadow: none;
 }
 
 button:disabled:hover {
 	border-color: var(--border-dim);
 	color: var(--text-secondary);
-	background: var(--bg-card);
-	box-shadow: none;
-	transform: none;
+	background: var(--bg-primary);
 }
 
-::-webkit-scrollbar {
-	width: 5px;
-}
 
-::-webkit-scrollbar-track {
-	background: transparent;
-}
-
-::-webkit-scrollbar-thumb {
-	background: var(--border-dim);
-	border-radius: var(--radius-sm);
-}
-
-::-webkit-scrollbar-thumb:hover {
-	background: var(--text-dim);
-}
-
-button:focus-visible,
-select:focus-visible,
-input:focus-visible,
-textarea:focus-visible {
-	outline: 2px solid var(--accent-primary);
-	outline-offset: 2px;
-	border-radius: var(--radius-sm);
-}
-
+/* ── Input / Select / Textarea ── */
 input,
 select,
 textarea {
 	font-family: var(--font-mono);
-	background: var(--bg-card);
+	background: var(--bg-primary);
 	border: 1px solid var(--border-dim);
 	color: var(--text-primary);
-	padding: 0 var(--gap-sm);
+	padding: var(--gap-sm) var(--gap-sm);
 	font-size: var(--font-sm);
 	border-radius: var(--radius-sm);
 	transition: border-color var(--duration-fast) var(--ease-out),
@@ -195,6 +159,8 @@ textarea {
 	line-height: 1.5;
 }
 
+
+/* ── Label ── */
 label {
 	font-size: var(--font-xs);
 	color: var(--text-secondary);
@@ -203,6 +169,38 @@ label {
 	font-weight: 500;
 }
 
+
+/* ── Focus Ring ── */
+button:focus-visible,
+select:focus-visible,
+input:focus-visible,
+textarea:focus-visible {
+	outline: 2px solid var(--accent-primary);
+	outline-offset: 2px;
+	border-radius: var(--radius-sm);
+}
+
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar {
+	width: 5px;
+}
+
+::-webkit-scrollbar-track {
+	background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+	background: var(--border-dim);
+	border-radius: var(--radius-sm);
+}
+
+::-webkit-scrollbar-thumb:hover {
+	background: var(--text-dim);
+}
+
+
+/* ── Selection ── */
 ::selection {
 	background: color-mix(in srgb, var(--accent-primary) 40%, transparent);
 	color: var(--text-bright);

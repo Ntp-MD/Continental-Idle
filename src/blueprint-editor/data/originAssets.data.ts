@@ -139,26 +139,26 @@ export const originAssetsData = [
     ],
     "tileStates": [
       [
+        "walkable",
+        "walkable",
+        "walkable"
+      ],
+      [
+        "walkable",
+        "walkable",
+        "walkable"
+      ],
+      [
         "entrance",
-        "walkable",
-        "walkable"
-      ],
-      [
-        "walkable",
-        "walkable",
-        "walkable"
-      ],
-      [
-        "walkable",
-        "walkable",
+        "entrance",
         "walkable"
       ]
     ],
     "tileEdges": [
       [
         {
-          "top": false,
-          "left": false
+          "top": true,
+          "left": true
         },
         {
           "top": true
@@ -179,11 +179,11 @@ export const originAssetsData = [
       ],
       [
         {
-          "bottom": true,
-          "left": true
+          "bottom": false,
+          "left": false
         },
         {
-          "bottom": true
+          "bottom": false
         },
         {
           "right": true,
@@ -233,6 +233,10 @@ export const originAssetsData = [
       "capacity": 9,
       "durationMin": 1,
       "durationMax": 3
+    },
+    "queue": {
+      "maxMembers": 3,
+      "admissionDepth": 4
     }
   },
   {

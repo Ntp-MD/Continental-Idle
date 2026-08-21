@@ -11,6 +11,7 @@ import { useCanvasSelection } from "../composables/useCanvasSelection";
 import { useCanvasDragDrop } from "../composables/useCanvasDragDrop";
 import WalkableGridPanel from "./WalkableGridPanel.vue";
 import ColorInput from "./ColorInput.vue";
+import ModalShell from "./ModalShell.vue";
 import { useNpcSimulation } from "../composables/useNpcSimulation";
 import { renderSvgInto as renderSvgContent } from "../svgSanitizer";
 
@@ -52,7 +53,10 @@ function onFloorNavKeydown(e: KeyboardEvent) {
 
 const npcSimulation = inject("npcSimulation") as ReturnType<typeof useNpcSimulation>;
 const { npcs, start: startNpcSimulation, stop: stopNpcSimulation } = npcSimulation;
-const currentFloorNpcs = computed(() => npcs.value.filter((n) => n.floorId === store.state.currentFloorId));
+const currentFloorNpcs = computed(() => {
+  const fid = store.state.currentFloorId;
+  return npcs.value.every((n) => n.floorId === fid) ? npcs.value : npcs.value.filter((n) => n.floorId === fid);
+});
 
 watch(
   () => store.state.mode,
@@ -76,6 +80,81 @@ const showWalkableOverlay = ref(savedToggles.showWalkableOverlay ?? false);
 const showInteractSpots = ref(savedToggles.showInteractSpots ?? false);
 const showWalls = ref(savedToggles.showWalls ?? false);
 const showObjectHighlights = ref(savedToggles.showObjectHighlights ?? false);
+
+const isInteracting = computed(() => !!panning.value || !!moving.value || zooming.value);
+const renderWalkableOverlay = computed(() => showWalkableOverlay.value && !isInteracting.value);
+const renderWalls = computed(() => showWalls.value && !isInteracting.value);
+const renderInteractSpots = computed(() => showInteractSpots.value && !isInteracting.value);
+const renderObjectHighlights = computed(() => showObjectHighlights.value && !isInteracting.value);
+
+const selectedObjectIds = computed(() => {
+  const ids = new Set<string>();
+  for (const item of store.state.selectionState.items) {
+    if (item.type === "object") ids.add(item.id);
+  }
+  return ids;
+});
+
+const objDefMap = computed(() => {
+  const map = new Map<string, ReturnType<typeof resolveObjectDef>>();
+  const assetMap = store.assetMap();
+  for (const obj of floor.value?.objects ?? []) {
+    map.set(obj.id, resolveObjectDef(obj.rotation, findAssetCached(assetMap, obj.type), { w: obj.w, h: obj.h }));
+  }
+  return map;
+});
+
+interface TileRun {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  state: string;
+}
+const walkableRuns = computed<TileRun[]>(() => {
+  const tileStates = floor.value?.walkable?.tileStates;
+  if (!tileStates) return [];
+  const t = canvas.value.tileSize;
+  const runs: TileRun[] = [];
+  for (let r = 0; r < tileStates.length; r++) {
+    const row = tileStates[r];
+    let c = 0;
+    while (c < row.length) {
+      const state = row[c];
+      let endC = c + 1;
+      while (endC < row.length && row[endC] === state) endC++;
+      runs.push({ x: c * t, y: r * t, w: (endC - c) * t, h: t, state });
+      c = endC;
+    }
+  }
+  return runs;
+});
+
+interface WallRun {
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+}
+const wallRuns = computed<WallRun[]>(() => {
+  const tileEdges = floor.value?.walkable?.tileEdges;
+  if (!tileEdges) return [];
+  const t = canvas.value.tileSize;
+  const runs: WallRun[] = [];
+  for (let r = 0; r < tileEdges.length; r++) {
+    const row = tileEdges[r];
+    if (!row) continue;
+    for (let c = 0; c < row.length; c++) {
+      const edges = row[c];
+      if (!edges) continue;
+      if (edges.top) runs.push({ x1: c * t, y1: r * t, x2: (c + 1) * t, y2: r * t });
+      if (edges.bottom) runs.push({ x1: c * t, y1: (r + 1) * t, x2: (c + 1) * t, y2: (r + 1) * t });
+      if (edges.left) runs.push({ x1: c * t, y1: r * t, x2: c * t, y2: (r + 1) * t });
+      if (edges.right) runs.push({ x1: (c + 1) * t, y1: r * t, x2: (c + 1) * t, y2: (r + 1) * t });
+    }
+  }
+  return runs;
+});
 
 const modeLabel = computed(() => {
   const labels: Record<string, string> = {
@@ -111,7 +190,7 @@ const vp = useCanvasViewport(
   () => canvas.value.width,
   () => canvas.value.height,
 );
-const { viewBox, zoomPercent, spaceDown, panning, svgRef, RULER_SIZE, fitToScreen, centerView, zoomBy, onWheel, startPan, onPanMouseDown, onPanMouseMove, onPanMouseUp, localPoint } = vp;
+const { viewBox, zoomPercent, spaceDown, panning, zooming, svgRef, RULER_SIZE, fitToScreen, centerView, zoomBy, onWheel, startPan, onPanMouseDown, onPanMouseMove, onPanMouseUp, localPoint } = vp;
 
 const draftAssetId = ref<string | null>(null);
 const draftObjectId = ref<string | null>(null);
@@ -270,6 +349,8 @@ function onObjectMouseDown(e: MouseEvent, id: string) {
 }
 
 let _dragHasMoved = false;
+let _moveRafId: number | null = null;
+let _movePending: { x: number; y: number } | null = null;
 
 function onMoveMouseMove(e: MouseEvent) {
   if (!moving.value) return;
@@ -280,14 +361,29 @@ function onMoveMouseMove(e: MouseEvent) {
     if (Math.abs(p.x - moving.value.startX) < threshold && Math.abs(p.y - moving.value.startY) < threshold) return;
     _dragHasMoved = true;
   }
-  const newX = p.x - moving.value.offsetX;
-  const newY = p.y - moving.value.offsetY;
-  store.moveSelectedTo(newX, newY);
+  _movePending = { x: p.x - moving.value.offsetX, y: p.y - moving.value.offsetY };
+  if (_moveRafId === null) {
+    _moveRafId = requestAnimationFrame(() => {
+      _moveRafId = null;
+      if (_movePending && moving.value) {
+        store.moveSelectedTo(_movePending.x, _movePending.y);
+        _movePending = null;
+      }
+    });
+  }
 }
 
 async function onMoveMouseUp() {
   window.removeEventListener("mousemove", onMoveMouseMove);
   window.removeEventListener("mouseup", onMoveMouseUp);
+  if (_moveRafId !== null) {
+    cancelAnimationFrame(_moveRafId);
+    _moveRafId = null;
+  }
+  if (_movePending && moving.value) {
+    store.moveSelectedTo(_movePending.x, _movePending.y);
+    _movePending = null;
+  }
   if (moving.value) {
     if (_dragHasMoved) await store.commitMove();
   }
@@ -295,13 +391,25 @@ async function onMoveMouseUp() {
   moving.value = null;
 }
 
+let _hoverRafId: number | null = null;
+let _hoverPending: { x: number; y: number } | null = null;
+
 function onContainerMouseMove(e: MouseEvent) {
   if (dragState.assetId) return;
   const p = localPoint(e);
   if (!p) return;
-  mouseCoords.value = { x: Math.round(p.x), y: Math.round(p.y) };
-  rulerMouseX.value = p.x;
-  rulerMouseY.value = p.y;
+  _hoverPending = { x: p.x, y: p.y };
+  if (_hoverRafId === null) {
+    _hoverRafId = requestAnimationFrame(() => {
+      _hoverRafId = null;
+      if (_hoverPending) {
+        mouseCoords.value = { x: Math.round(_hoverPending.x), y: Math.round(_hoverPending.y) };
+        rulerMouseX.value = _hoverPending.x;
+        rulerMouseY.value = _hoverPending.y;
+        _hoverPending = null;
+      }
+    });
+  }
 }
 
 function saveViewToggles() {
@@ -338,13 +446,11 @@ function toggleStreet() {
 
 function toggleWalkableOverlay() {
   showWalkableOverlay.value = !showWalkableOverlay.value;
-  if (showWalkableOverlay.value) showInteractSpots.value = false;
   saveViewToggles();
 }
 
 function toggleInteractSpots() {
   showInteractSpots.value = !showInteractSpots.value;
-  if (showInteractSpots.value) showWalkableOverlay.value = false;
   saveViewToggles();
 }
 
@@ -475,7 +581,7 @@ function assetLabel(type: string): string {
 }
 
 function objDef(obj: ObjectData) {
-  return resolveObjectDef(obj.rotation, findAssetCached(store.assetMap(), obj.type), { w: obj.w, h: obj.h });
+  return objDefMap.value.get(obj.id) ?? resolveObjectDef(obj.rotation, findAssetCached(store.assetMap(), obj.type), { w: obj.w, h: obj.h });
 }
 
 function objFillColor(obj: ObjectData): string {
@@ -506,7 +612,7 @@ function svgTransform(obj: ObjectData): string {
 }
 
 function isObjectSelected(id: string): boolean {
-  return store.state.selectionState.items.some((item) => item.type === "object" && item.id === id);
+  return selectedObjectIds.value.has(id);
 }
 
 async function saveDrawnOrigin() {
@@ -539,7 +645,7 @@ async function cancelDrawnOrigin() {
   <div
     :ref="vp.containerRef"
     class="editor__canvas"
-    :class="{ 'editor__canvas--panning': spaceDown, 'editor__canvas--dragging': !!panning, 'editor__canvas-mode--draw': store.state.mode === 'draw', 'editor__canvas-mode--move': store.state.mode === 'move' }"
+    :class="{ 'editor__canvas--panning': spaceDown, 'editor__canvas--dragging': !!panning, 'editor__mode--draw': store.state.mode === 'draw', 'editor__mode--move': store.state.mode === 'move' }"
     @wheel="onWheel"
     @mousedown="onPanMouseDown"
     @mousemove="onContainerMouseMove"
@@ -548,7 +654,7 @@ async function cancelDrawnOrigin() {
       rulerMouseY = -1;
     "
   >
-    <svg ref="svgRef" class="editor__canvas-svg" :viewBox="viewBox" preserveAspectRatio="xMidYMid meet" role="application" aria-label="Blueprint editor canvas — use arrow keys to move selected objects, Delete to remove, R to rotate" tabindex="0" @mousedown="onCanvasMouseDown">
+    <svg ref="svgRef" class="editor__svg" :viewBox="viewBox" preserveAspectRatio="xMidYMid meet" role="application" aria-label="Blueprint editor canvas — use arrow keys to move selected objects, Delete to remove, R to rotate" tabindex="0" @mousedown="onCanvasMouseDown">
       <defs>
         <pattern id="grid" :width="canvas.tileSize" :height="canvas.tileSize" patternUnits="userSpaceOnUse">
           <path :d="`M ${canvas.tileSize} 0 L 0 0 0 ${canvas.tileSize}`" fill="none" :style="{ stroke: 'var(--border-dim)' }" stroke-width="0.5" />
@@ -558,41 +664,41 @@ async function cancelDrawnOrigin() {
       <rect :width="canvas.width" :height="canvas.height" :style="{ fill: canvas.bgColor || 'var(--bg-secondary)' }" />
 
       <!-- Street border: sidewalk + road + lane markings (8 tiles on all sides) -->
-      <g v-if="showStreet" class="editor__street" style="pointer-events: none">
+      <g v-if="showStreet" class="editor__svg--noevents">
         <!-- Outer sidewalk (2 tiles, all sides) -->
-        <rect :x="0" :y="0" :width="canvas.width" :height="streetSidewalkWidth" fill="#3c3c3c" />
-        <rect :x="0" :y="canvas.height - streetSidewalkWidth" :width="canvas.width" :height="streetSidewalkWidth" fill="#3c3c3c" />
-        <rect :x="0" :y="0" :width="streetSidewalkWidth" :height="canvas.height" fill="#3c3c3c" />
-        <rect :x="canvas.width - streetSidewalkWidth" :y="0" :width="streetSidewalkWidth" :height="canvas.height" fill="#3c3c3c" />
+        <rect :x="0" :y="0" :width="canvas.width" :height="streetSidewalkWidth" fill="var(--street-sidewalk)" />
+        <rect :x="0" :y="canvas.height - streetSidewalkWidth" :width="canvas.width" :height="streetSidewalkWidth" fill="var(--street-sidewalk)" />
+        <rect :x="0" :y="0" :width="streetSidewalkWidth" :height="canvas.height" fill="var(--street-sidewalk)" />
+        <rect :x="canvas.width - streetSidewalkWidth" :y="0" :width="streetSidewalkWidth" :height="canvas.height" fill="var(--street-sidewalk)" />
 
         <!-- Road (4 tiles, all sides) -->
-        <rect :x="streetSidewalkWidth" :y="streetSidewalkWidth" :width="canvas.width - streetSidewalkWidth * 2" :height="streetRoadWidth" fill="#252526" />
-        <rect :x="streetSidewalkWidth" :y="canvas.height - streetSidewalkWidth - streetRoadWidth" :width="canvas.width - streetSidewalkWidth * 2" :height="streetRoadWidth" fill="#252526" />
-        <rect :x="streetSidewalkWidth" :y="streetSidewalkWidth" :width="streetRoadWidth" :height="canvas.height - streetSidewalkWidth * 2" fill="#252526" />
-        <rect :x="canvas.width - streetSidewalkWidth - streetRoadWidth" :y="streetSidewalkWidth" :width="streetRoadWidth" :height="canvas.height - streetSidewalkWidth * 2" fill="#252526" />
+        <rect :x="streetSidewalkWidth" :y="streetSidewalkWidth" :width="canvas.width - streetSidewalkWidth * 2" :height="streetRoadWidth" fill="var(--street-road)" />
+        <rect :x="streetSidewalkWidth" :y="canvas.height - streetSidewalkWidth - streetRoadWidth" :width="canvas.width - streetSidewalkWidth * 2" :height="streetRoadWidth" fill="var(--street-road)" />
+        <rect :x="streetSidewalkWidth" :y="streetSidewalkWidth" :width="streetRoadWidth" :height="canvas.height - streetSidewalkWidth * 2" fill="var(--street-road)" />
+        <rect :x="canvas.width - streetSidewalkWidth - streetRoadWidth" :y="streetSidewalkWidth" :width="streetRoadWidth" :height="canvas.height - streetSidewalkWidth * 2" fill="var(--street-road)" />
 
         <!-- Road lane markings (dashed center lines) -->
         <!-- Top road center line -->
-        <line :x1="streetSidewalkWidth" :y1="streetSidewalkWidth + streetRoadWidth / 2" :x2="canvas.width - streetSidewalkWidth" :y2="streetSidewalkWidth + streetRoadWidth / 2" stroke="#797979" stroke-width="1" stroke-dasharray="12 8" opacity="0.5" />
+        <line :x1="streetSidewalkWidth" :y1="streetSidewalkWidth + streetRoadWidth / 2" :x2="canvas.width - streetSidewalkWidth" :y2="streetSidewalkWidth + streetRoadWidth / 2" stroke="var(--street-marking)" stroke-width="1" stroke-dasharray="12 8" opacity="0.5" />
         <!-- Bottom road center line -->
-        <line :x1="streetSidewalkWidth" :y1="canvas.height - streetSidewalkWidth - streetRoadWidth / 2" :x2="canvas.width - streetSidewalkWidth" :y2="canvas.height - streetSidewalkWidth - streetRoadWidth / 2" stroke="#797979" stroke-width="1" stroke-dasharray="12 8" opacity="0.5" />
+        <line :x1="streetSidewalkWidth" :y1="canvas.height - streetSidewalkWidth - streetRoadWidth / 2" :x2="canvas.width - streetSidewalkWidth" :y2="canvas.height - streetSidewalkWidth - streetRoadWidth / 2" stroke="var(--street-marking)" stroke-width="1" stroke-dasharray="12 8" opacity="0.5" />
         <!-- Left road center line -->
-        <line :x1="streetSidewalkWidth + streetRoadWidth / 2" :y1="streetSidewalkWidth" :x2="streetSidewalkWidth + streetRoadWidth / 2" :y2="canvas.height - streetSidewalkWidth" stroke="#797979" stroke-width="1" stroke-dasharray="12 8" opacity="0.5" />
+        <line :x1="streetSidewalkWidth + streetRoadWidth / 2" :y1="streetSidewalkWidth" :x2="streetSidewalkWidth + streetRoadWidth / 2" :y2="canvas.height - streetSidewalkWidth" stroke="var(--street-marking)" stroke-width="1" stroke-dasharray="12 8" opacity="0.5" />
         <!-- Right road center line -->
-        <line :x1="canvas.width - streetSidewalkWidth - streetRoadWidth / 2" :y1="streetSidewalkWidth" :x2="canvas.width - streetSidewalkWidth - streetRoadWidth / 2" :y2="canvas.height - streetSidewalkWidth" stroke="#797979" stroke-width="1" stroke-dasharray="12 8" opacity="0.5" />
+        <line :x1="canvas.width - streetSidewalkWidth - streetRoadWidth / 2" :y1="streetSidewalkWidth" :x2="canvas.width - streetSidewalkWidth - streetRoadWidth / 2" :y2="canvas.height - streetSidewalkWidth" stroke="var(--street-marking)" stroke-width="1" stroke-dasharray="12 8" opacity="0.5" />
 
         <!-- Building area outline (subtle border separating street from building) -->
         <rect :x="buildingArea.x" :y="buildingArea.y" :width="buildingArea.w" :height="buildingArea.h" fill="none" stroke="var(--border-dim)" stroke-width="1" stroke-dasharray="4 4" opacity="0.6" />
       </g>
 
       <!-- Rulers (outside canvas, Photoshop-style) -->
-      <g class="editor__ruler--passive" style="pointer-events: none">
+      <g class="editor__ruler--passive editor__svg--noevents">
         <!-- Top ruler background -->
         <rect :x="-RULER_SIZE" :y="-RULER_SIZE" :width="canvas.width + RULER_SIZE" :height="RULER_SIZE" :style="{ fill: 'var(--bg-secondary)', stroke: 'var(--border-dim)' }" stroke-width="0.5" />
         <!-- Left ruler background -->
         <rect :x="-RULER_SIZE" :y="0" :width="RULER_SIZE" :height="canvas.height" :style="{ fill: 'var(--bg-secondary)', stroke: 'var(--border-dim)' }" stroke-width="0.5" />
         <!-- Corner square -->
-        <rect :x="-RULER_SIZE" :y="-RULER_SIZE" :width="RULER_SIZE" :height="RULER_SIZE" :style="{ fill: 'var(--bg-card)', stroke: 'var(--border-dim)' }" stroke-width="0.5" />
+        <rect :x="-RULER_SIZE" :y="-RULER_SIZE" :width="RULER_SIZE" :height="RULER_SIZE" :style="{ fill: 'var(--bg-primary)', stroke: 'var(--border-dim)' }" stroke-width="0.5" />
 
         <!-- Top ruler ticks -->
         <g v-for="tick in rulerXTicks" :key="'rx' + tick.pos">
@@ -620,39 +726,20 @@ async function cancelDrawnOrigin() {
       </g>
 
       <g v-if="floor && floor.objects.length === 0">
-        <text :x="canvas.width / 2" :y="canvas.height / 2 - 10" text-anchor="middle" font-size="16" :style="{ fill: 'var(--text-primary)', pointerEvents: 'none' }">Empty floor — drag objects from the palette</text>
+        <text :x="canvas.width / 2" :y="canvas.height / 2 - 10" text-anchor="middle" font-size="16" class="editor__svg--noevents" :style="{ fill: 'var(--text-primary)' }">Empty floor — drag objects from the palette</text>
       </g>
 
-      <g v-if="showWalkableOverlay && floor?.walkable?.tileStates" class="editor__walkable" style="pointer-events: none">
-        <template v-for="(row, rowIndex) in floor.walkable.tileStates" :key="`floor-walk-row-${rowIndex}`">
-          <template v-for="(state, colIndex) in row" :key="`floor-walk-cell-${rowIndex}-${colIndex}`">
-            <rect
-              :x="colIndex * canvas.tileSize"
-              :y="rowIndex * canvas.tileSize"
-              :width="canvas.tileSize"
-              :height="canvas.tileSize"
-              :fill="state === 'entrance' ? 'color-mix(in srgb, var(--accent-blue) 30%, transparent)' : state === 'walkable' ? 'color-mix(in srgb, var(--accent-green) 12%, transparent)' : 'color-mix(in srgb, var(--accent-red) 12%, transparent)'"
-              stroke="color-mix(in srgb, var(--accent-green) 20%, transparent)"
-              stroke-width="0.5"
-            />
-          </template>
-        </template>
+      <g v-if="renderWalkableOverlay && floor?.walkable?.tileStates" v-memo="[walkableRuns, renderWalkableOverlay]" class="editor__svg--noevents">
+        <rect v-for="(run, i) in walkableRuns" :key="`floor-walk-run-${i}`" :x="run.x" :y="run.y" :width="run.w" :height="run.h" :class="`editor__tile editor__tile--${run.state}`" />
       </g>
 
-      <g v-if="showWalls && floor?.walkable?.tileEdges" class="editor__walls" style="pointer-events: none">
-        <template v-for="(row, rowIndex) in floor.walkable.tileEdges" :key="`floor-wall-row-${rowIndex}`">
-          <template v-for="(edges, colIndex) in row" :key="`floor-wall-cell-${rowIndex}-${colIndex}`">
-            <line v-if="edges?.top" :x1="colIndex * canvas.tileSize" :y1="rowIndex * canvas.tileSize" :x2="(colIndex + 1) * canvas.tileSize" :y2="rowIndex * canvas.tileSize" stroke="var(--accent-gold)" stroke-width="2" />
-            <line v-if="edges?.right" :x1="(colIndex + 1) * canvas.tileSize" :y1="rowIndex * canvas.tileSize" :x2="(colIndex + 1) * canvas.tileSize" :y2="(rowIndex + 1) * canvas.tileSize" stroke="var(--accent-gold)" stroke-width="2" />
-            <line v-if="edges?.bottom" :x1="colIndex * canvas.tileSize" :y1="(rowIndex + 1) * canvas.tileSize" :x2="(colIndex + 1) * canvas.tileSize" :y2="(rowIndex + 1) * canvas.tileSize" stroke="var(--accent-gold)" stroke-width="2" />
-            <line v-if="edges?.left" :x1="colIndex * canvas.tileSize" :y1="rowIndex * canvas.tileSize" :x2="colIndex * canvas.tileSize" :y2="(rowIndex + 1) * canvas.tileSize" stroke="var(--accent-gold)" stroke-width="2" />
-          </template>
-        </template>
+      <g v-if="renderWalls && floor?.walkable?.tileEdges" v-memo="[wallRuns, renderWalls]" class="editor__walls editor__svg--noevents">
+        <line v-for="(run, i) in wallRuns" :key="`floor-wall-run-${i}`" :x1="run.x1" :y1="run.y1" :x2="run.x2" :y2="run.y2" stroke="var(--accent-gold)" stroke-width="2" />
       </g>
 
       <g v-if="floor">
         <g v-for="obj in floor.objects" :key="obj.id" @mousedown="onObjectMouseDown($event, obj.id)">
-          <rect :x="obj.x" :y="obj.y" :width="obj.w" :height="obj.h" fill="transparent" style="pointer-events: all" />
+          <rect :x="obj.x" :y="obj.y" :width="obj.w" :height="obj.h" fill="transparent" class="editor__svg--passall" />
           <template v-if="assetSvg(obj.type)">
             <rect :x="obj.x + (obj.padding ?? 0)" :y="obj.y + (obj.padding ?? 0)" :width="obj.w - (obj.padding ?? 0) * 2" :height="obj.h - (obj.padding ?? 0) * 2" :fill="objFillColor(obj)" :class="{ 'editor__canvas--collapsed': obj.collapsed }" :style="{ cursor: moving?.id === obj.id ? 'grabbing' : 'move' }" />
             <g v-svg-content="assetSvg(obj.type)" :transform="svgTransform(obj)" :data-obj-id="obj.id" :class="{ 'editor__canvas--collapsed': obj.collapsed, 'editor__canvas--dragitem': moving?.id === obj.id, 'editor__canvas--locked': obj.locked, 'editor__canvas--nowall': !hasOuterWall(obj) }" :style="{ cursor: moving?.id === obj.id ? 'grabbing' : 'move' }" />
@@ -678,47 +765,36 @@ async function cancelDrawnOrigin() {
             :class="{ 'editor__canvas--collapsed': obj.collapsed, 'editor__canvas--dragitem': moving?.id === obj.id, 'editor__canvas--linked': !!obj.linkGroupId, 'editor__canvas--locked': obj.locked }"
             :style="{ stroke: 'var(--text-primary)', cursor: moving?.id === obj.id ? 'grabbing' : 'move' }"
           />
-          <rect v-if="showObjectHighlights" :x="obj.x + 1" :y="obj.y + 1" :width="Math.max(0, obj.w - 2)" :height="Math.max(0, obj.h - 2)" fill="none" :rx="obj.radius ?? 0" class="editor__canvas--highlight" style="pointer-events: none" />
-          <template v-if="showWalkableOverlay && objDef(obj).walkableGrid">
+          <rect v-if="renderObjectHighlights" :x="obj.x + 1" :y="obj.y + 1" :width="Math.max(0, obj.w - 2)" :height="Math.max(0, obj.h - 2)" fill="none" :rx="obj.radius ?? 0" class="editor__canvas--highlight editor__svg--noevents" />
+          <template v-if="renderWalkableOverlay && objDef(obj).walkableGrid" v-memo="[obj.id, obj.x, obj.y, obj.w, obj.h, renderWalkableOverlay, objDef(obj).walkableGrid]">
             <template v-for="(row, gr) in objDef(obj).walkableGrid" :key="'wg_' + obj.id + '-' + gr">
-              <rect
-                v-for="(cell, gc) in row"
-                :key="'wg_' + obj.id + '-' + gr + '-' + gc"
-                :x="obj.x + gc * (obj.w / row.length)"
-                :y="obj.y + gr * (obj.h / objDef(obj).walkableGrid!.length)"
-                :width="obj.w / row.length"
-                :height="obj.h / objDef(obj).walkableGrid!.length"
-                :fill="cell ? 'color-mix(in srgb, var(--accent-green) 20%, transparent)' : 'color-mix(in srgb, var(--accent-red) 20%, transparent)'"
-                stroke="color-mix(in srgb, var(--accent-gold) 15%, transparent)"
-                :stroke-width="0.5"
-                style="pointer-events: none"
-              />
+              <rect v-for="(cell, gc) in row" :key="'wg_' + obj.id + '-' + gr + '-' + gc" :x="obj.x + gc * (obj.w / row.length)" :y="obj.y + gr * (obj.h / objDef(obj).walkableGrid!.length)" :width="obj.w / row.length" :height="obj.h / objDef(obj).walkableGrid!.length" :class="`editor__tile editor__tile--obj-${cell ? 'walkable' : 'blocked'}`" />
             </template>
           </template>
-          <rect v-if="isObjectSelected(obj.id)" :x="obj.x + (obj.padding ?? 0)" :y="obj.y + (obj.padding ?? 0)" :width="obj.w - (obj.padding ?? 0) * 2" :height="obj.h - (obj.padding ?? 0) * 2" fill="none" :rx="obj.radius ?? 0" class="editor__canvas--selected" style="pointer-events: none" />
-          <text v-if="showLabels" :x="obj.x + obj.w / 2" :y="obj.y + obj.h / 2 + (obj.labelPadding ?? 0)" text-anchor="middle" dominant-baseline="middle" font-size="8" :style="{ fill: objLabelColor(obj), pointerEvents: 'none' }">
+          <rect v-if="isObjectSelected(obj.id)" :x="obj.x + (obj.padding ?? 0)" :y="obj.y + (obj.padding ?? 0)" :width="obj.w - (obj.padding ?? 0) * 2" :height="obj.h - (obj.padding ?? 0) * 2" fill="none" :rx="obj.radius ?? 0" class="editor__canvas--selected editor__svg--noevents" />
+          <text v-if="showLabels" :x="obj.x + obj.w / 2" :y="obj.y + obj.h / 2 + (obj.labelPadding ?? 0)" text-anchor="middle" dominant-baseline="middle" font-size="8" class="editor__svg--noevents" :style="{ fill: objLabelColor(obj) }">
             {{ assetLabel(obj.type) }}
           </text>
-          <g v-if="obj.linkGroupId" style="pointer-events: none">
+          <g v-if="obj.linkGroupId" class="editor__svg--noevents">
             <circle :cx="obj.x + obj.w - 4" :cy="obj.y + 4" r="3" fill="var(--accent-blue)" stroke="var(--bg-primary)" stroke-width="0.5" />
             <text :x="obj.x + obj.w - 4" :y="obj.y + 5.5" text-anchor="middle" font-size="4" fill="var(--bg-primary)">L</text>
           </g>
-          <template v-if="(isObjectSelected(obj.id) || store.state.mode === 'npc-preview' || showInteractSpots) && objDef(obj).interactSpots && objDef(obj).interactSpots!.length > 0">
-            <g v-for="(interactSpot, interactSpotIdx) in objDef(obj).interactSpots" :key="`o-interactspot-${obj.id}-${interactSpotIdx}`" style="pointer-events: none">
+          <template v-if="(isObjectSelected(obj.id) || store.state.mode === 'npc-preview' || renderInteractSpots) && objDef(obj).interactSpots && objDef(obj).interactSpots!.length > 0" v-memo="[obj.id, obj.x, obj.y, isObjectSelected(obj.id), renderInteractSpots, store.state.mode, objDef(obj).interactSpots]">
+            <g v-for="(interactSpot, interactSpotIdx) in objDef(obj).interactSpots" :key="`o-interactspot-${obj.id}-${interactSpotIdx}`" class="editor__svg--noevents">
               <circle :cx="obj.x + interactSpot.x" :cy="obj.y + interactSpot.y" r="4" fill="var(--accent-green)" stroke="var(--text-bright)" stroke-width="0.8" />
               <text :x="obj.x + interactSpot.x" :y="obj.y + interactSpot.y - 6" text-anchor="middle" font-size="5" fill="color-mix(in srgb, var(--accent-green) 70%, var(--bg-primary))">IS{{ interactSpotIdx + 1 }}</text>
             </g>
           </template>
         </g>
 
-        <g v-if="showWalkableOverlay || store.state.mode === 'npc-preview'" class="editor__spawn" style="pointer-events: none">
+        <g v-if="renderWalkableOverlay || store.state.mode === 'npc-preview'" v-memo="[floor?.spawnZones, renderWalkableOverlay, store.state.mode]" class="editor__spawn editor__svg--noevents">
           <g v-for="zone in floor?.spawnZones ?? []" :key="`spawn-zone-${zone.id}`">
             <rect :x="zone.x" :y="zone.y" :width="zone.w" :height="zone.h" fill="color-mix(in srgb, var(--accent-green) 12%, transparent)" stroke="var(--accent-green)" stroke-width="1" stroke-dasharray="5 3" />
             <text :x="zone.x + 4" :y="zone.y + 10" font-size="6" fill="var(--accent-green)">{{ zone.label }}</text>
           </g>
         </g>
 
-        <g v-if="store.state.mode === 'npc-preview'" class="editor__npc" style="pointer-events: none">
+        <g v-if="store.state.mode === 'npc-preview'" class="editor__npc editor__svg--noevents">
           <g v-for="npc in currentFloorNpcs" :key="npc.id">
             <polyline v-if="npc.path.length > 1" :points="npc.path.map((point) => point.join(',')).join(' ')" fill="none" stroke="var(--accent-blue)" stroke-width="1" stroke-dasharray="3 2" opacity="0.7" />
             <line :x1="npc.targetX - 3" :y1="npc.targetY" :x2="npc.targetX + 3" :y2="npc.targetY" stroke="var(--accent-primary)" stroke-width="1" />
@@ -730,11 +806,11 @@ async function cancelDrawnOrigin() {
         </g>
       </g>
 
-      <rect v-if="showGrid" :width="canvas.width" :height="canvas.height" fill="url(#grid)" style="pointer-events: none" />
+      <rect v-if="showGrid" :width="canvas.width" :height="canvas.height" fill="url(#grid)" class="editor__svg--noevents" />
 
       <rect :width="canvas.width" :height="canvas.height" fill="none" :style="{ stroke: 'var(--border-dim)' }" stroke-width="2" />
 
-      <rect v-if="boxSelect && boxSelect.w > 4" :x="boxSelect.x" :y="boxSelect.y" :width="boxSelect.w" :height="boxSelect.h" :style="{ fill: 'color-mix(in srgb, var(--accent-primary) 15%, transparent)', stroke: 'var(--accent-primary)', pointerEvents: 'none' }" stroke-width="1.5" stroke-dasharray="4 3" />
+      <rect v-if="boxSelect && boxSelect.w > 4" :x="boxSelect.x" :y="boxSelect.y" :width="boxSelect.w" :height="boxSelect.h" class="editor__svg--noevents" :style="{ fill: 'color-mix(in srgb, var(--accent-primary) 15%, transparent)', stroke: 'var(--accent-primary)' }" stroke-width="1.5" stroke-dasharray="4 3" />
 
       <g v-if="dragState.assetId && paletteGhost && paletteGhostParts">
         <rect v-for="(p, i) in paletteGhostParts" :key="'ghost_part_' + i" :x="p.x" :y="p.y" :width="p.w" :height="p.h" :style="{ fill: 'color-mix(in srgb, var(--accent-blue) 15%, transparent)', stroke: 'var(--accent-blue)' }" stroke-width="1.5" stroke-dasharray="4 3" />
@@ -744,7 +820,7 @@ async function cancelDrawnOrigin() {
       </g>
     </svg>
 
-    <div class="editor__floor-title" v-if="floor">
+    <div class="editor__title" v-if="floor">
       <span class="editor__labels" :style="{ color: floor.labelColor || undefined }">{{ floor.label }}</span>
       <span class="editor__name">{{ floor.name }}</span>
     </div>
@@ -752,8 +828,8 @@ async function cancelDrawnOrigin() {
     <div class="editor__nav" v-if="floor">
       <div class="floor__wrap">
         <button class="floor__trigger" @click.stop="toggleFloorNav" :aria-expanded="floorNavOpen" aria-haspopup="listbox" title="Switch floor" aria-label="Switch floor">
-          <span class="floor__trigger-label" :style="{ color: floor.labelColor || undefined }">{{ floor.label }}</span>
-          <span class="floor__trigger-name">{{ floor.name }}</span>
+          <span class="floor__tag" :style="{ color: floor.labelColor || undefined }">{{ floor.label }}</span>
+          <span class="floor__text">{{ floor.name }}</span>
           <span class="floor__caret" :class="{ 'floor__caret--rotated': floorNavOpen }">▾</span>
         </button>
         <div v-if="floorNavOpen" class="floor__menu" role="listbox" aria-label="Floors">
@@ -775,81 +851,44 @@ async function cancelDrawnOrigin() {
     <div class="editor__coords">{{ mouseCoords.x }}, {{ mouseCoords.y }}</div>
 
     <div class="editor__controls">
-      <button class="editor__ctrl--icon" @click="zoomBy(1 / 1.25)" title="Zoom Out (-)" aria-label="Zoom out">−</button>
+      <button class="flag--ghost flag--icon" @click="zoomBy(1 / 1.25)" title="Zoom Out (-)" aria-label="Zoom out">−</button>
       <span class="editor__zoom" aria-label="Zoom level">{{ zoomPercent }}%</span>
-      <button class="editor__ctrl--icon" @click="zoomBy(1.25)" title="Zoom In (+)" aria-label="Zoom in">+</button>
-      <button class="editor__ctrl--icon editor__ctrl--wide" @click="fitToScreen" title="Fit to Screen (Ctrl+0)" aria-label="Fit to screen">Fit</button>
-      <button class="editor__ctrl--icon editor__ctrl--wide" @click="centerView" title="Center View" aria-label="Center view">Center</button>
-      <button class="editor__ctrl--icon editor__ctrl--wide" @click="toggleGrid" title="Toggle Grid" aria-label="Toggle grid">Grid</button>
-      <button class="editor__ctrl--icon editor__ctrl--wide" @click="toggleLabels" title="Toggle Labels" aria-label="Toggle labels">Labels</button>
-      <button class="editor__ctrl--icon editor__ctrl--wide" :class="{ 'editor__ctrl--active': showStreet }" @click="toggleStreet" title="Toggle Street" aria-label="Toggle street">Street</button>
-      <button class="editor__ctrl--icon editor__ctrl--wide" :class="{ 'editor__ctrl--active': showWalkableOverlay }" @click="toggleWalkableOverlay" title="Toggle Walkable + Entrance" aria-label="Toggle walkable view">Walk</button>
-      <button class="editor__ctrl--icon editor__ctrl--wide" :class="{ 'editor__ctrl--active': showWalls }" @click="toggleWalls" title="Toggle Outer Walls" aria-label="Toggle walls">Wall</button>
-      <button class="editor__ctrl--icon editor__ctrl--wide" :class="{ 'editor__ctrl--active': showInteractSpots }" @click="toggleInteractSpots" title="Toggle Interact Spots" aria-label="Toggle interact spots">Interact</button>
-      <button class="editor__ctrl--icon editor__ctrl--wide" :class="{ 'editor__ctrl--active': showObjectHighlights }" @click="toggleObjectHighlights" title="Toggle object highlights" aria-label="Toggle object highlights">Highlight</button>
+      <button class="flag--ghost flag--icon" @click="zoomBy(1.25)" title="Zoom In (+)" aria-label="Zoom in">+</button>
+      <button class="flag--ghost" @click="fitToScreen" title="Fit to Screen (Ctrl+0)" aria-label="Fit to screen">Fit</button>
+      <button class="flag--ghost" @click="centerView" title="Center View" aria-label="Center view">Center</button>
+      <button class="flag--ghost" @click="toggleGrid" title="Toggle Grid" aria-label="Toggle grid">Grid</button>
+      <button class="flag--ghost" @click="toggleLabels" title="Toggle Labels" aria-label="Toggle labels">Labels</button>
+      <button class="flag--ghost" :class="{ 'flag--active': showStreet }" @click="toggleStreet" title="Toggle Street" aria-label="Toggle street">Street</button>
+      <button class="flag--ghost" :class="{ 'flag--active': showWalkableOverlay }" @click="toggleWalkableOverlay" title="Toggle Walkable + Entrance" aria-label="Toggle walkable view">Walk</button>
+      <button class="flag--ghost" :class="{ 'flag--active': showWalls }" @click="toggleWalls" title="Toggle Outer Walls" aria-label="Toggle walls">Wall</button>
+      <button class="flag--ghost" :class="{ 'flag--active': showInteractSpots }" @click="toggleInteractSpots" title="Toggle Interact Spots" aria-label="Toggle interact spots">Interact</button>
+      <button class="flag--ghost" :class="{ 'flag--active': showObjectHighlights }" @click="toggleObjectHighlights" title="Toggle object highlights" aria-label="Toggle object highlights">Highlight</button>
     </div>
     <WalkableGridPanel />
 
-    <div v-if="showSaveOrigin && draftObject" class="modal__overlay editor__draw-modal" @click.self="cancelDrawnOrigin">
-      <div class="card editor__draw-panel">
-        <div class="editor__draw-header">
-          <strong>Save Placed Object as Origin</strong>
-          <button class="btn--ghost btn--icon" type="button" aria-label="Cancel" @click="cancelDrawnOrigin">×</button>
-        </div>
-        <div class="editor__draw-preview" :style="{ width: `${Math.min(draftObject.w, 220)}px`, height: `${Math.min(draftObject.h, 140)}px`, background: originBgColor || 'var(--bg-card)' }" />
-        <div class="editor__draw-size">{{ draftObject.w / canvas.tileSize }} × {{ draftObject.h / canvas.tileSize }} tiles</div>
-        <label class="editor__draw-field">
-          <span>Name</span>
-          <input v-model="originName" class="input" type="text" placeholder="Object name" autofocus />
+    <ModalShell :open="showSaveOrigin && !!draftObject" title="Save Placed Object as Origin" max-width="360px" width="min(360px, calc(100vw - 32px))" max-height="calc(100vh - 32px)" @close="cancelDrawnOrigin">
+      <div class="modal__body">
+        <div class="editor__preview" :style="{ width: `${Math.min(draftObject?.w ?? 0, 220)}px`, height: `${Math.min(draftObject?.h ?? 0, 140)}px`, background: originBgColor || 'var(--bg-primary)' }" />
+        <input class="input--disabled" :value="`${(draftObject?.w ?? 0) / canvas.tileSize} × ${(draftObject?.h ?? 0) / canvas.tileSize} tiles`" readonly aria-label="Object size" />
+        <label class="form__row">
+          <span class="label--fixed">Name</span>
+          <input v-model="originName" class="input--grow" type="text" placeholder="Object name" autofocus />
         </label>
-        <label class="editor__draw-field">
-          <span>Background</span>
+        <label class="form__row">
+          <span class="label--fixed">Background</span>
           <ColorInput v-model="originBgColor" :allow-transparent="true" placeholder="#RRGGBB or transparent" aria-label="Origin background color" />
         </label>
-        <div class="actions">
-          <button class="btn--ghost" type="button" @click="cancelDrawnOrigin">Cancel</button>
-          <button class="btn--primary" type="button" :disabled="!originName.trim()" @click="saveDrawnOrigin">Save as Origin</button>
+        <div class="form__row">
+          <button class="flag--ghost" type="button" @click="cancelDrawnOrigin">Cancel</button>
+          <button class="flag--success" type="button" :disabled="!originName.trim()" @click="saveDrawnOrigin">Save as Origin</button>
         </div>
       </div>
-    </div>
+    </ModalShell>
   </div>
 </template>
 
 <style scoped>
-.editor__draw-modal {
-  z-index: var(--z-layer-3);
-}
-
-.editor__draw-panel {
-  display: flex;
-  flex-direction: column;
-  gap: var(--gap-md);
-  width: min(360px, calc(100vw - var(--gap-lg)));
-  max-height: calc(100vh - 32px);
-  overflow-y: auto;
-  padding: var(--gap-md);
-}
-
-.editor__draw-header,
-.editor__draw-field {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--gap-sm);
-}
-
-.editor__draw-field > span {
-  flex-shrink: 0;
-  color: var(--text-secondary);
-  font-size: var(--font-sm);
-}
-
-.editor__draw-field > .input,
-.editor__draw-field > :deep(.colorinput) {
-  flex: 1;
-}
-
-.editor__draw-preview {
+.editor__preview {
   align-self: center;
   max-width: 100%;
   border: 1px solid var(--accent-primary);
@@ -860,12 +899,6 @@ async function cancelDrawnOrigin() {
     0 4px,
     4px -4px,
     -4px 0;
-}
-
-.editor__draw-size {
-  color: var(--text-secondary);
-  font-size: var(--font-xs);
-  text-align: center;
 }
 
 .editor__canvas {
@@ -881,33 +914,44 @@ async function cancelDrawnOrigin() {
   user-select: none;
 }
 
-.editor__canvas--panning {
-  cursor: grab !important;
-}
-
-.editor__canvas--dragging {
-  cursor: grabbing !important;
-}
-
-.editor__canvas-mode--draw .editor__canvas-svg {
-  cursor: crosshair;
-}
-
-.editor__canvas-mode--move .editor__canvas-svg {
+.editor__canvas--panning,
+.editor__canvas--panning .editor__svg {
   cursor: grab;
 }
 
-.editor__canvas-mode--move.editor__canvas--dragging .editor__canvas-svg {
+.editor__canvas--dragging,
+.editor__canvas--dragging .editor__svg {
   cursor: grabbing;
 }
 
-.editor__canvas-svg {
+.editor__mode--draw .editor__svg {
+  cursor: crosshair;
+}
+
+.editor__mode--move .editor__svg {
+  cursor: grab;
+}
+
+.editor__mode--move.editor__canvas--dragging .editor__svg {
+  cursor: grabbing;
+}
+
+.editor__svg {
   display: block;
   background: var(--bg-primary);
   box-shadow: 0 8px 32px color-mix(in srgb, var(--bg-primary) 50%, transparent);
 }
 
-.editor__canvas-svg:focus {
+.editor__svg--noevents,
+.editor__svg--noevents * {
+  pointer-events: none;
+}
+
+.editor__svg--passall {
+  pointer-events: all;
+}
+
+.editor__svg:focus {
   outline: 2px solid var(--accent-primary);
 }
 
@@ -948,9 +992,35 @@ async function cancelDrawnOrigin() {
   opacity: 0.7;
 }
 
-.editor__ctrl--wide {
-  min-width: 3em;
-  text-align: center;
+.editor__tile {
+  stroke-width: 0.5;
+}
+
+.editor__tile--walkable {
+  fill: color-mix(in srgb, var(--accent-green) 12%, transparent);
+  stroke: color-mix(in srgb, var(--accent-green) 20%, transparent);
+}
+
+.editor__tile--entrance {
+  fill: color-mix(in srgb, var(--accent-blue) 30%, transparent);
+  stroke: color-mix(in srgb, var(--accent-green) 20%, transparent);
+}
+
+.editor__tile--blocked {
+  fill: color-mix(in srgb, var(--accent-red) 12%, transparent);
+  stroke: color-mix(in srgb, var(--accent-green) 20%, transparent);
+}
+
+.editor__tile--obj-walkable {
+  fill: color-mix(in srgb, var(--accent-green) 20%, transparent);
+  stroke: color-mix(in srgb, var(--accent-gold) 15%, transparent);
+  stroke-width: 0.5;
+}
+
+.editor__tile--obj-blocked {
+  fill: color-mix(in srgb, var(--accent-red) 20%, transparent);
+  stroke: color-mix(in srgb, var(--accent-gold) 15%, transparent);
+  stroke-width: 0.5;
 }
 
 .editor__ruler--passive {
@@ -959,11 +1029,11 @@ async function cancelDrawnOrigin() {
 
 .editor__badge--float {
   position: absolute;
-  top: 16px;
+  top: var(--gap-md);
   left: 50%;
   transform: translateX(-50%);
   padding: var(--gap-xs) var(--gap-sm);
-  background: var(--bg-card);
+  background: var(--bg-primary);
   border: 1px solid var(--border-dim);
   border-radius: var(--radius-sm);
   font-size: var(--font-xs);
@@ -998,7 +1068,7 @@ async function cancelDrawnOrigin() {
   transform: translateX(-50%);
   font-size: var(--font-xs);
   color: var(--text-dim);
-  background: var(--bg-card);
+  background: var(--bg-primary);
   padding: var(--gap-xs) var(--gap-sm);
   border-radius: var(--radius-xs);
   border: 1px solid var(--border-dim);
@@ -1007,12 +1077,12 @@ async function cancelDrawnOrigin() {
   z-index: var(--z-layer-2);
 }
 
-.editor__floor-title {
+.editor__title {
   position: absolute;
-  bottom: 16px;
-  left: 16px;
+  bottom: var(--gap-md);
+  left: var(--gap-md);
   padding: var(--gap-xs) var(--gap-sm);
-  background: var(--bg-card);
+  background: var(--bg-primary);
   border: 1px solid var(--border-dim);
   border-radius: var(--radius-sm);
   font-size: var(--font-xs);
@@ -1032,13 +1102,13 @@ async function cancelDrawnOrigin() {
 
 .editor__nav {
   position: absolute;
-  top: 16px;
-  right: 16px;
+  top: var(--gap-md);
+  right: var(--gap-md);
   display: flex;
   align-items: center;
   gap: var(--gap-xs);
   padding: var(--gap-xs) var(--gap-sm);
-  background: var(--bg-card);
+  background: var(--bg-primary);
   border: 1px solid var(--border-dim);
   border-radius: var(--radius-sm);
   z-index: var(--z-layer-2);
@@ -1047,9 +1117,9 @@ async function cancelDrawnOrigin() {
 .editor__coords {
   position: absolute;
   bottom: 44px;
-  left: 16px;
+  left: var(--gap-md);
   padding: var(--gap-xs) var(--gap-sm);
-  background: var(--bg-card);
+  background: var(--bg-primary);
   border: 1px solid var(--border-dim);
   border-radius: var(--radius-sm);
   font-size: var(--font-xs);
@@ -1061,37 +1131,20 @@ async function cancelDrawnOrigin() {
 
 .editor__controls {
   position: absolute;
-  bottom: 16px;
-  right: 16px;
+  bottom: var(--gap-md);
+  right: var(--gap-md);
   display: flex;
   align-items: center;
   gap: var(--gap-xs);
   padding: var(--gap-xs);
-  background: var(--bg-card);
+  background: var(--bg-primary);
   border: 1px solid var(--border-dim);
   border-radius: var(--radius-sm);
   z-index: var(--z-layer-2);
 }
 
-.editor__ctrl--icon {
-  min-width: 1.75em;
-  min-height: 1.75em;
-  padding: var(--gap-xs) var(--gap-sm);
-  width: fit-content;
-  height: fit-content;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.editor__ctrl--active {
-  background: color-mix(in srgb, var(--accent-primary) 12%, transparent);
-  border-color: var(--accent-primary);
-  color: var(--accent-primary);
-}
-
 .editor__zoom {
-  min-width: 3em;
+  min-width: 30px;
   text-align: center;
   font-size: var(--font-xs);
   font-variant-numeric: tabular-nums;
@@ -1119,14 +1172,14 @@ async function cancelDrawnOrigin() {
   color: var(--accent-primary);
 }
 
-.floor__trigger-label {
+.floor__tag {
   font-size: var(--font-xs);
   opacity: 0.7;
   font-weight: 700;
   color: var(--accent-primary);
 }
 
-.floor__trigger-name {
+.floor__text {
   font-weight: 600;
   font-size: var(--font-sm);
 }
@@ -1146,12 +1199,12 @@ async function cancelDrawnOrigin() {
   position: absolute;
   top: calc(100% + var(--gap-xs));
   right: 0;
-  min-width: 12em;
+  min-width: 144px;
   max-height: 40vh;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  background: var(--bg-card);
+  background: var(--bg-primary);
   border: 1px solid var(--border-dim);
   border-radius: var(--radius-sm);
   box-shadow: 0 8px 24px color-mix(in srgb, var(--bg-primary) 50%, transparent);

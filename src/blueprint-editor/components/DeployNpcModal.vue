@@ -129,61 +129,61 @@ async function onDeploy() {
 
 <template>
   <ModalShell :open="open" title="Deploy NPCs" max-width="520px" width="50vw" height="auto" max-height="80vh" @close="onClose">
-    <div class="deploy__body">
-      <div class="deploy__speed">
-        <label class="deploy__label" for="deploy-npc-speed">NPC Speed</label>
-        <input id="deploy-npc-speed" v-model.number="draft.speed" type="range" min="0.01" max="0.2" step="0.01" @change="schedulePersist" />
+    <div class="modal__body deploy__body">
+      <div class="form__row deploy__speed">
+        <label class="label--fixed" for="deploy-npc-speed">NPC Speed</label>
+        <input id="deploy-npc-speed" v-model.number="draft.speed" class="input--grow" type="range" min="0.01" max="0.2" step="0.01" @change="schedulePersist" />
         <span>{{ draft.speed.toFixed(2) }}</span>
       </div>
 
-      <div v-if="roles.length === 0" class="deploy__empty">No roles configured. Open NPC Manager to create roles first.</div>
+      <div v-if="roles.length === 0" class="empty empty--center deploy__empty">No roles configured. Open NPC Manager to create roles first.</div>
 
-      <div v-else class="scroll">
+      <div v-else class="form__col form__col--tight form__col--scroll">
         <div v-for="role in roles" :key="role.id" class="deploy__row">
-          <div class="deploy__rowhead">
+          <div class="form__row form__row--tight form__row--wrap">
             <span class="swatch" :style="{ background: role.color }" />
-            <span class="deploy__rolename">{{ role.label }}</span>
-            <div class="deploy__fields">
-              <div class="deploy__field">
-                <label class="deploy__label">Count</label>
-                <div class="layout__wrap">
-                  <button class="btn--icon" @click="setPoolCount(role.id, getPoolCount(role.id) - 1)">−</button>
-                  <input :value="getPoolCount(role.id)" type="number" min="0" max="100" class="input input--compact" @input="setPoolCount(role.id, Number(($event.target as HTMLInputElement).value))" />
-                  <button class="btn--icon" @click="setPoolCount(role.id, getPoolCount(role.id) + 1)">+</button>
+            <input class="input--disabled input--grow" :value="role.label" readonly aria-label="Role name" />
+            <div class="form__row">
+              <div class="form__row form__row--tight">
+                <label class="label--fixed">Count</label>
+                <div class="form__row form__row--wrap">
+                  <button class="flag--icon" @click="setPoolCount(role.id, getPoolCount(role.id) - 1)">−</button>
+                  <input :value="getPoolCount(role.id)" type="number" min="0" max="100" class="input--compact" @input="setPoolCount(role.id, Number(($event.target as HTMLInputElement).value))" />
+                  <button class="flag--icon" @click="setPoolCount(role.id, getPoolCount(role.id) + 1)">+</button>
                 </div>
               </div>
             </div>
           </div>
 
-          <div class="deploy__floorsrow">
-            <span class="deploy__section">Spawn floors</span>
+          <div class="form__row form__row--tight form__row--wrap">
+            <span class="form__title">Spawn floors</span>
             <label v-for="floor in floors" :key="`spawn-floor-${role.id}-${floor.id}`" class="deploy__floorcheck">
               <input type="checkbox" :checked="getPoolFloorIds(role.id).includes(floor.id)" @change="togglePoolFloor(role.id, floor.id)" />
               <span>{{ floor.label }}</span>
             </label>
-            <span v-if="!getPoolFloorIds(role.id).length" class="deploy__dim">All floors</span>
+            <span v-if="!getPoolFloorIds(role.id).length" class="form__hint">All floors</span>
           </div>
 
-          <div class="deploy__tagsrow">
+          <div class="form__row form__row--wrap">
             <div class="deploy__taggroup">
-              <span class="deploy__section">Target tags</span>
-              <div class="deploy__taglist">
+              <span class="form__title">Target tags</span>
+              <div class="form__row form__row--tight form__row--wrap">
                 <div v-for="tag in role.spawnRule?.targetTags ?? []" :key="'st_' + role.id + tag" class="chip">
                   <span>{{ tag }}</span>
                   <button class="chip__remove" @click="onRemoveSpawnTagFrom(role, tag)" aria-label="Remove tag">×</button>
                 </div>
-                <input v-model="newSpawnTag[role.id]" type="text" placeholder="+ tag" class="input deploy__addinput" @keydown.enter="onAddSpawnTagFor(role)" />
+                <input v-model="newSpawnTag[role.id]" type="text" placeholder="+ tag" class="deploy__addinput" @keydown.enter="onAddSpawnTagFor(role)" />
               </div>
             </div>
           </div>
         </div>
       </div>
 
-      <div class="deploy__footer">
-        <span class="deploy__total">Total: {{ totalNpcCount() }} NPCs</span>
-        <div class="actions">
-          <button class="btn--ghost" @click="onClose">Cancel</button>
-          <button class="btn--primary" @click="onDeploy" :disabled="totalNpcCount() === 0">Deploy</button>
+      <div class="form__row form__row--between form__row--border">
+        <input class="input--disabled" :value="`Total: ${totalNpcCount()} NPCs`" readonly aria-label="Total NPC count" />
+        <div class="form__row">
+          <button class="flag--ghost" @click="onClose">Cancel</button>
+          <button class="flag--active" @click="onDeploy" :disabled="totalNpcCount() === 0">Deploy</button>
         </div>
       </div>
     </div>
@@ -191,33 +191,16 @@ async function onDeploy() {
 </template>
 
 <style scoped>
-.input--compact {
-  width: 2.5em;
-  text-align: center;
-  padding: 0 2px;
-}
-
 .deploy__body {
   flex: 1;
-  display: flex;
-  flex-direction: column;
   padding: var(--gap-sm);
-  gap: var(--gap-sm);
   overflow: hidden;
 }
 
 .deploy__speed {
-  display: flex;
-  align-items: center;
-  gap: var(--gap-sm);
   padding: var(--gap-xs) 0;
   border-bottom: 1px solid var(--border-dim);
   flex-shrink: 0;
-}
-
-.deploy__speed input {
-  flex: 1;
-  min-width: 0;
 }
 
 .deploy__row {
@@ -225,45 +208,9 @@ async function onDeploy() {
   flex-direction: column;
   gap: var(--gap-xs);
   padding: var(--gap-xs) var(--gap-sm);
-  background: var(--bg-card);
+  background: var(--bg-primary);
   border: 1px solid var(--border-dim);
   border-radius: var(--radius-sm);
-}
-
-.deploy__rowhead {
-  display: flex;
-  align-items: center;
-  gap: var(--gap-xs);
-  flex-wrap: wrap;
-}
-
-.deploy__rolename {
-  font-weight: 600;
-  font-size: var(--font-sm);
-  margin-right: auto;
-}
-
-.deploy__fields {
-  display: flex;
-  gap: var(--gap-sm);
-  align-items: center;
-}
-
-.deploy__field {
-  display: flex;
-  align-items: center;
-  gap: var(--gap-xs);
-}
-
-.deploy__label {
-  flex-shrink: 0;
-}
-
-.deploy__floorsrow {
-  display: flex;
-  align-items: center;
-  gap: var(--gap-xs);
-  flex-wrap: wrap;
 }
 
 .deploy__floorcheck {
@@ -273,67 +220,25 @@ async function onDeploy() {
   font-size: var(--font-xs);
 }
 
-.deploy__dim {
-  color: var(--text-secondary);
-  font-size: var(--font-xs);
-}
-
-.deploy__tagsrow {
-  display: flex;
-  gap: var(--gap-sm);
-  flex-wrap: wrap;
-}
-
 .deploy__taggroup {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--gap-xxs);
   flex: 1;
-  min-width: 8em;
+  min-width: 96px;
 }
 
-.deploy__section {
-  font-size: var(--font-xs);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  color: var(--text-secondary);
-}
-
-.deploy__taglist {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--gap-xs);
-  align-items: center;
-}
-
-.deploy__addselect,
 .deploy__addinput {
-  width: 5.5em;
+  width: 61px;
   flex-shrink: 0;
 }
 
 .deploy__empty {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex: 1;
   color: var(--text-secondary);
-  font-size: var(--font-sm);
   padding: var(--gap-lg);
 }
 
-.deploy__footer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+.deploy__body > .form__row--border {
   padding-top: var(--gap-xs);
-  border-top: 1px solid var(--border-dim);
-  flex-shrink: 0;
-}
-
-.deploy__total {
-  font-weight: 600;
-  font-size: var(--font-sm);
-  color: var(--text-primary);
 }
 </style>

@@ -62,6 +62,39 @@ export async function deleteNpcRole(id: string): Promise<boolean> {
 	return true
 }
 
+export async function createNpcTask(input: Omit<NpcTask, 'id'>): Promise<NpcTask> {
+	const config = cloneConfig()
+	const task: NpcTask = { ...input, id: genId('task') }
+	config.tasks.push(task)
+	const normalized = normalizeNpcConfig(mergeNpcConfig(config))
+	if (!normalized) throw new Error('Invalid NPC task configuration')
+	await updateNpcConfig(normalized)
+	return normalized.tasks.find(item => item.id === task.id) ?? task
+}
+
+export async function updateNpcTask(id: string, patch: Partial<NpcTask>): Promise<NpcTask | null> {
+	const config = cloneConfig()
+	const task = config.tasks.find(item => item.id === id)
+	if (!task) return null
+	Object.assign(task, patch, { id })
+	const normalized = normalizeNpcConfig(mergeNpcConfig(config))
+	if (!normalized) return null
+	await updateNpcConfig(normalized)
+	return normalized.tasks.find(item => item.id === id) ?? null
+}
+
+export async function deleteNpcTask(id: string): Promise<boolean> {
+	const config = cloneConfig()
+	const before = config.tasks.length
+	config.tasks = config.tasks.filter(task => task.id !== id)
+	if (config.tasks.length === before) return false
+	for (const role of config.roles) role.taskIds = role.taskIds.filter(taskId => taskId !== id)
+	const normalized = normalizeNpcConfig(mergeNpcConfig(config))
+	if (!normalized) return false
+	await updateNpcConfig(normalized)
+	return true
+}
+
 export async function updateNpcSettings(config: NpcSimulationConfig): Promise<void> {
 	const normalized = normalizeNpcConfig(mergeNpcConfig(config))
 	if (!normalized) throw new Error('Invalid NPC settings')

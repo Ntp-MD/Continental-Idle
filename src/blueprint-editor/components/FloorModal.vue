@@ -181,14 +181,14 @@ function floorCounts(f: FloorData): string {
 
 <template>
   <ModalShell :open="open" title="Floor Manager" max-width="800px" width="60vw" height="auto" max-height="calc(100vh - 32px)" @close="onClose">
-    <div class="floor__body">
+    <div class="modal__body floor__body">
       <!-- Left pane: Floor list -->
-      <div class="floor__pane">
+      <div class="form__group floor__pane">
         <div class="floor__heading">
           <span>Floors ({{ floors.length }})</span>
-          <button class="btn--dashed" @click="onAdd">+ Add</button>
+          <button class="flag--dashed" @click="onAdd">+ Add</button>
         </div>
-        <div class="floor__scroll">
+        <div class="form__col form__col--tight form__col--scroll">
           <div
             v-for="(f, index) in floors"
             :key="f.id"
@@ -206,93 +206,93 @@ function floorCounts(f: FloorData): string {
             <span class="floor__label" :style="{ color: f.labelColor || undefined }">{{ f.label }}</span>
             <span class="floor__name">{{ f.name }}</span>
             <span class="floor__count">{{ floorCounts(f) }}</span>
-            <span v-if="f.id === store.state.currentFloorId" class="badge badge__blue">ACTIVE</span>
+            <span v-if="f.id === store.state.currentFloorId" class="badge__blue">ACTIVE</span>
           </div>
         </div>
       </div>
 
       <!-- Right pane: Detail editor -->
-      <div class="floor__pane">
-        <div v-if="selectedFloor" class="floor__detail">
+      <div class="form__group floor__pane">
+        <div v-if="selectedFloor" class="form__group">
           <div class="floor__heading">
             <span>Floor Details</span>
-            <button type="button" class="btn--warning" @click="showWalkable = true">Edit Walkable</button>
+            <button type="button" class="flag--warning" @click="showWalkable = true">Edit Walkable</button>
           </div>
 
-          <div class="floor__field">
-            <label>Label</label>
-            <input v-if="editingLabel" v-model="editingLabelRaw" class="input" aria-label="Edit floor label" @keydown.enter="commitLabel" @blur="commitLabel" />
-            <span v-else class="floor__value" @dblclick="startEditLabel">{{ selectedFloor.label }}</span>
+          <div class="form__row">
+            <label class="label--fixed">Label</label>
+            <input v-if="editingLabel" v-model="editingLabelRaw" aria-label="Edit floor label" @keydown.enter="commitLabel" @blur="commitLabel" />
+            <input v-else class="input--disabled input--grow" :value="selectedFloor.label" readonly @dblclick="startEditLabel" aria-label="Floor label" />
           </div>
 
-          <div class="floor__field">
-            <label>Name</label>
-            <input v-if="editingName" :value="editingNameRaw" @input="editingNameRaw = sanitizeString(($event.target as HTMLInputElement).value)" class="input" aria-label="Edit floor name" @keydown.enter="commitName" @blur="commitName" />
-            <span v-else class="floor__value" @dblclick="startEditName">{{ selectedFloor.name }}</span>
+          <div class="form__row">
+            <label class="label--fixed">Name</label>
+            <input v-if="editingName" :value="editingNameRaw" @input="editingNameRaw = sanitizeString(($event.target as HTMLInputElement).value)" aria-label="Edit floor name" @keydown.enter="commitName" @blur="commitName" />
+            <input v-else class="input--disabled input--grow" :value="selectedFloor.name" readonly @dblclick="startEditName" aria-label="Floor name" />
           </div>
 
-          <div class="floor__field">
-            <label>Default Walkable</label>
-            <label class="floor__check">
+          <div class="form__row">
+            <label class="label--fixed">Default Walkable</label>
+            <label class="form__row form__row--tight floor__check">
               <input type="checkbox" :checked="selectedFloor.defaultWalkable ?? true" @change="toggleWalkable" />
               <span>Empty areas are walkable</span>
             </label>
           </div>
 
-          <div class="floor__field">
-            <label>Spawn Zones</label>
-            <div class="floor__zones">
+          <div class="form__row">
+            <label class="label--fixed">Spawn Zones</label>
+            <div class="form__col form__col--tight">
               <div v-for="zone in selectedFloor.spawnZones ?? []" :key="zone.id" class="floor__zone">
-                <span class="floor__value">{{ zone.label }} ({{ zone.x }}, {{ zone.y }}, {{ zone.w }}×{{ zone.h }})</span>
-                <button class="btn--danger btn--icon" type="button" @click="deleteSpawnZone(zone.id)" aria-label="Delete spawn zone">×</button>
+                <input class="input--disabled input--grow" :value="`${zone.label} (${zone.x}, ${zone.y}, ${zone.w}×${zone.h})`" readonly aria-label="Spawn zone info" />
+                <button class="flag--danger flag--icon" type="button" @click="deleteSpawnZone(zone.id)" aria-label="Delete spawn zone">×</button>
               </div>
-              <span v-if="!selectedFloor.spawnZones?.length" class="floor__dim">No zones — all walkable cells can spawn NPCs</span>
+              <span v-if="!selectedFloor.spawnZones?.length" class="form__hint">No zones — all walkable cells can spawn NPCs</span>
               <div class="floor__form">
-                <input v-model="spawnZoneDraft.label" class="input" type="text" placeholder="Zone label" aria-label="Spawn zone label" />
-                <input v-model.number="spawnZoneDraft.x" class="input" type="number" min="0" placeholder="X" aria-label="Spawn zone X" />
-                <input v-model.number="spawnZoneDraft.y" class="input" type="number" min="0" placeholder="Y" aria-label="Spawn zone Y" />
-                <input v-model.number="spawnZoneDraft.w" class="input" type="number" min="1" placeholder="Width" aria-label="Spawn zone width" />
-                <input v-model.number="spawnZoneDraft.h" class="input" type="number" min="1" placeholder="Height" aria-label="Spawn zone height" />
-                <button type="button" class="btn--primary" @click="addSpawnZone">Add</button>
+                <input v-model="spawnZoneDraft.label" type="text" placeholder="Zone label" aria-label="Spawn zone label" />
+                <input v-model.number="spawnZoneDraft.x" type="number" min="0" placeholder="X" aria-label="Spawn zone X" />
+                <input v-model.number="spawnZoneDraft.y" type="number" min="0" placeholder="Y" aria-label="Spawn zone Y" />
+                <input v-model.number="spawnZoneDraft.w" type="number" min="1" placeholder="Width" aria-label="Spawn zone width" />
+                <input v-model.number="spawnZoneDraft.h" type="number" min="1" placeholder="Height" aria-label="Spawn zone height" />
+                <button type="button" class="flag--active" @click="addSpawnZone">Add</button>
               </div>
-              <div v-if="availableRoles.length" class="floor__spawnroles">
-                <label v-for="role in availableRoles" :key="`spawn-role-${role.id}`" class="chip" :class="{ 'chip--active': spawnZoneDraft.roleIds.includes(role.id) }">
+              <div v-if="availableRoles.length" class="form__row form__row--tight form__row--wrap">
+                <label v-for="role in availableRoles" :key="`spawn-role-${role.id}`" class="chip" :class="{ 'flag--active': spawnZoneDraft.roleIds.includes(role.id) }">
                   <input type="checkbox" :checked="spawnZoneDraft.roleIds.includes(role.id)" @change="toggleSpawnZoneRole(role.id)" />
                   <span class="swatch" :style="{ background: role.color }" />
                   <span>{{ role.label }}</span>
                 </label>
-                <span class="floor__dim">No selected roles = all roles</span>
+                <span class="form__hint">No selected roles = all roles</span>
               </div>
             </div>
           </div>
 
-          <div class="floor__field">
-            <label>Stats</label>
-            <span class="floor__value">{{ floorCounts(selectedFloor) }}</span>
+          <div class="form__row">
+            <label class="label--fixed">Stats</label>
+            <input class="input--disabled" :value="floorCounts(selectedFloor)" readonly aria-label="Floor stats" />
           </div>
 
           <div class="floor__heading">Allowed Roles</div>
-          <div class="floor__roles">
-            <div class="floor__head">
-              <span v-if="!selectedFloor.allowedRoleIds?.length" class="floor__dim">All roles allowed</span>
-              <button v-else class="btn--ghost" @click="clearRoles">Clear (allow all)</button>
+          <div class="form__col form__col--tight">
+            <div class="form__row form__row--tight">
+              <span v-if="!selectedFloor.allowedRoleIds?.length" class="form__hint">All roles allowed</span>
+              <button v-else class="flag--ghost" @click="clearRoles">Clear (allow all)</button>
             </div>
-            <div class="floor__tags">
-              <label v-for="role in availableRoles" :key="role.id" class="chip" :class="{ 'chip--active': isRoleAllowed(role.id) }">
+            <div class="form__row form__row--wrap">
+              <label v-for="role in availableRoles" :key="role.id" class="chip" :class="{ 'flag--active': isRoleAllowed(role.id) }">
                 <input type="checkbox" :checked="isRoleAllowed(role.id)" @change="toggleRole(role.id)" />
                 <span class="swatch" :style="{ background: role.color }" />
                 <span>{{ role.label }}</span>
               </label>
-              <span v-if="!availableRoles.length" class="floor__dim">No roles configured — open Role Manager to add roles</span>
+              <span v-if="!availableRoles.length" class="form__hint">No roles configured — open Role Manager to add roles</span>
             </div>
           </div>
 
-          <div class="floor__actions">
-            <button class="btn--ghost" @click="onDuplicate(selectedFloor.id)">⧉ Duplicate</button>
-            <button class="btn--danger" :disabled="floors.length <= 1" @click="onDelete(selectedFloor.id)">✕ Delete</button>
+          <div class="form__row form__row--border">
+            <button class="flag--ghost" @click="onDuplicate(selectedFloor.id)">⧉ Duplicate</button>
+            <button class="flag--danger" :disabled="floors.length <= 1" @click="onDelete(selectedFloor.id)">✕ Delete</button>
           </div>
         </div>
-        <div v-else class="floor--empty">Select a floor to edit</div>
+        <div v-else class="empty empty--center">Select a floor to edit</div>
       </div>
     </div>
   </ModalShell>
@@ -301,7 +301,6 @@ function floorCounts(f: FloorData): string {
 
 <style scoped>
 .floor__body {
-  padding: var(--gap-md);
   display: grid;
   grid-template-columns: minmax(170px, 0.75fr) minmax(0, 1.25fr);
   gap: var(--gap-md);
@@ -309,9 +308,6 @@ function floorCounts(f: FloorData): string {
 }
 
 .floor__pane {
-  display: flex;
-  flex-direction: column;
-  gap: var(--gap-sm);
   min-width: 0;
   overflow: visible;
 }
@@ -328,23 +324,9 @@ function floorCounts(f: FloorData): string {
   flex-shrink: 0;
 }
 
-.floor__scroll {
-  display: flex;
-  flex-direction: column;
-  gap: var(--gap-xs);
-  flex: 1;
-  overflow-y: auto;
-}
-
-.floor__row {
-  cursor: pointer;
-}
-.floor__row:hover {
-  background: var(--bg-card);
-}
 .floor__row--active {
   border-color: var(--accent-blue);
-  background: var(--bg-card);
+  background: var(--bg-primary);
 }
 
 .floor__row--current {
@@ -371,47 +353,9 @@ function floorCounts(f: FloorData): string {
   white-space: nowrap;
 }
 
-.floor__detail {
-  display: flex;
-  flex-direction: column;
-  gap: var(--gap-sm);
-  overflow: visible;
-}
-
-.floor__field {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--gap-sm);
-  min-width: 0;
-}
-
-.floor__field > label {
-  font-size: var(--font-xs);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  color: var(--text-secondary);
-  min-width: fit-content;
-  flex-shrink: 0;
-}
-
-.floor__value {
-  font-size: var(--font-sm);
-  cursor: pointer;
-}
-
 .floor__check {
   display: inline-flex;
-  align-items: center;
-  gap: var(--gap-xs);
   cursor: pointer;
-}
-
-.floor__zones {
-  display: flex;
-  flex: 1;
-  min-width: 0;
-  flex-direction: column;
-  gap: var(--gap-xs);
 }
 
 .floor__zone {
@@ -424,14 +368,6 @@ function floorCounts(f: FloorData): string {
   border-radius: var(--radius-sm);
 }
 
-.floor__zone .floor__value {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 .floor__form {
   display: grid;
   grid-template-columns: minmax(0, 1.5fr) repeat(4, minmax(0, 0.7fr)) auto;
@@ -439,54 +375,13 @@ function floorCounts(f: FloorData): string {
   min-width: 0;
 }
 
-.floor__form .input {
+.floor__form input {
   min-width: 0;
   width: 100%;
 }
 
-.floor__spawnroles {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--gap-xs);
-}
-
-.floor__roles {
-  display: flex;
-  flex-direction: column;
-  gap: var(--gap-xs);
-}
-
-.floor__head {
-  display: flex;
-  align-items: center;
-  gap: var(--gap-xs);
-}
-
-.floor__tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--gap-xs);
-}
-
-.floor__actions {
-  display: flex;
-  gap: var(--gap-sm);
+.form__group > .form__row--border {
   padding-top: var(--gap-md);
-  border-top: 1px solid var(--border-dim);
-}
-
-.floor__dim {
-  font-size: var(--font-xs);
-  color: var(--text-dim);
-}
-
-.floor--empty {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--text-dim);
-  font-size: var(--font-sm);
 }
 
 @media (max-width: 720px) {
@@ -498,7 +393,7 @@ function floorCounts(f: FloorData): string {
     grid-template-columns: 1fr 1fr;
   }
 
-  .floor__form .input:first-child,
+  .floor__form input:first-child,
   .floor__form button {
     grid-column: 1 / -1;
   }

@@ -74,9 +74,9 @@ async function onDropdownClick(tag: string) {
 <template>
   <div class="picker">
     <div class="picker__field" @click="showDropdown = true">
-      <span v-for="tag in modelValue" :key="tag" class="picker__chip">
+      <span v-for="tag in modelValue" :key="tag" class="chip flag--success">
         {{ tag }}
-        <button class="chip__remove picker__chipbtn" @click.stop="removeTag(tag)">×</button>
+        <button class="chip__remove" @click.stop="removeTag(tag)">×</button>
       </span>
       <input v-model="inputValue" :placeholder="modelValue.length === 0 ? placeholder : ''" class="picker__input" @keydown="onKeydown" @focus="showDropdown = true" @blur="showDropdown = false" />
     </div>
@@ -106,23 +106,6 @@ async function onDropdownClick(tag: string) {
 
 .picker__field:focus-within {
   border-color: var(--accent-primary);
-}
-
-.picker__chip {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--gap-xs);
-  padding: 1px var(--gap-xs);
-  background: color-mix(in srgb, var(--accent-primary) 14%, transparent);
-  border: none;
-  font-size: var(--font-xs);
-  color: var(--text-primary);
-  white-space: nowrap;
-  line-height: 1.4;
-}
-
-.picker__chipbtn {
-  color: var(--accent-red);
 }
 
 .picker__input {
@@ -171,6 +154,6 @@ async function onDropdownClick(tag: string) {
 }
 
 .picker__option:hover {
-  background: var(--bg-card);
+  background: var(--bg-primary);
 }
 </style>

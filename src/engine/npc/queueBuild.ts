@@ -1,6 +1,6 @@
-import type { NpcEngineFloor, NpcEngineInteractionTarget, NpcEnginePoint, NpcEngineQueue } from '@/engine/npc'
-import type { AssetDef, FloorData, ObjectData } from './types'
-import { resolveObjectDef } from './types'
+import type { AssetDef, FloorData, ObjectData } from '../../blueprint-editor/types'
+import { resolveObjectDef } from '../../blueprint-editor/types'
+import type { NpcEngineFloor, NpcEngineInteractionTarget, NpcEnginePoint, NpcEngineQueue } from './types'
 
 interface Direction {
 	dr: number
@@ -14,6 +14,9 @@ const DIRECTIONS: readonly Direction[] = [
 	{ dr: 0, dc: -1, tangent: 'row' },
 	{ dr: 0, dc: 1, tangent: 'row' },
 ]
+
+const DEFAULT_QUEUE_SLOTS = 3
+const DEFAULT_QUEUE_ADMISSION_DEPTH = 4
 
 function key(x: number, y: number): string {
 	return `${x},${y}`
@@ -52,6 +55,8 @@ export function buildNpcQueues(
 		const definition = resolveObjectDef(object.rotation, asset, { w: object.w, h: object.h })
 		const states = definition.tileStates
 		if (!states?.length) continue
+		const maxQueueSlots = definition.queue?.maxMembers ?? DEFAULT_QUEUE_SLOTS
+		const admissionDepth = definition.queue?.admissionDepth ?? DEFAULT_QUEUE_ADMISSION_DEPTH
 		const rows = states.length
 		const cols = states[0]?.length ?? 0
 		if (!cols) continue
@@ -81,7 +86,7 @@ export function buildNpcQueues(
 			for (const group of groups) {
 				const candidateSlots: Array<{ point: NpcEnginePoint; depth: number; tangentDistance: number }> = []
 				const midpoint = group.reduce((sum, cell) => sum + (direction.tangent === 'row' ? cell.row : cell.col), 0) / group.length
-				for (let depth = 1; depth <= 3; depth++) {
+				for (let depth = 1; depth <= maxQueueSlots; depth++) {
 					for (const cell of group) {
 						const base = objectCell(object, cell.row, cell.col, tileSize)
 						const point = { x: base.x + direction.dc * depth, y: base.y + direction.dr * depth }
@@ -101,20 +106,19 @@ export function buildNpcQueues(
 					slots.push(candidate.point)
 				}
 				if (!slots.length) continue
-				slots.splice(3)
-				const admissionCandidates = group
+				slots.splice(maxQueueSlots)
+				const admissionPoints = group
 					.map(cell => {
 						const base = objectCell(object, cell.row, cell.col, tileSize)
-						return { x: base.x + direction.dc * 4, y: base.y + direction.dr * 4 }
+						return { x: base.x + direction.dc * admissionDepth, y: base.y + direction.dr * admissionDepth }
 					})
 					.filter(point => walkable.has(key(point.x, point.y)))
-				const admissionPoints = admissionCandidates
 				queues.push({
 					key: `${floor.id}:queue:${object.id}:${direction.dr}:${direction.dc}:${group[0].row}:${group[0].col}`,
 					targetKeys,
 					slots,
 					admissionPoints,
-					maxMembers: 3,
+					maxMembers: maxQueueSlots,
 				})
 			}
 		}
