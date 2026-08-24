@@ -1,4 +1,4 @@
-import { ref, shallowRef, type Ref } from 'vue'
+import { ref, shallowRef } from 'vue'
 import {
 	NpcEngine,
 	NPC_ENGINE_DEFAULT_AGENT_CLEARANCE,
@@ -42,7 +42,7 @@ function resolveRole(config: NpcSimulationConfig, roleId: string): NpcRole | und
 		?? config.roles[0]
 }
 
-export function useNpcSimulationCore(host: NpcSimCoreHost) {
+export function useNpcSimulationCore(host: NpcSimulationCoreHost) {
 	const npcs = shallowRef<NpcSimDot[]>([])
 	const isPaused = ref(false)
 	const simSpeed = ref(1)
@@ -50,7 +50,6 @@ export function useNpcSimulationCore(host: NpcSimCoreHost) {
 
 	let animationId: number | null = null
 	let engine: NpcEngine | null = null
-	let deployedFloorId: string | null = null
 	let deploymentActive = false
 	let nextId = 1
 	let spawnFloorOverride: string | null = null
@@ -264,8 +263,7 @@ export function useNpcSimulationCore(host: NpcSimCoreHost) {
 			spawnFloorOverride = spawnFloorId ?? null
 			tickCostEma = 0
 			deploymentActive = true
-			deployedFloorId = newViewFloorId
-			viewFloorId = newViewFloorId
+				viewFloorId = newViewFloorId
 			buildEngine(floors, canvas)
 			start()
 		},
@@ -280,8 +278,7 @@ export function useNpcSimulationCore(host: NpcSimCoreHost) {
 		},
 		clearDeployment(): void {
 			deploymentActive = false
-			deployedFloorId = null
-		},
+			},
 		reset(): void {
 			stopLoop()
 			engine = null
@@ -290,8 +287,7 @@ export function useNpcSimulationCore(host: NpcSimCoreHost) {
 			frameDots.clear()
 			currentCanvas = null
 			viewFloorId = null
-			deployedFloorId = null
-			deploymentActive = false
+				deploymentActive = false
 			spawnFloorOverride = null
 			tickCostEma = 0
 			npcs.value = []

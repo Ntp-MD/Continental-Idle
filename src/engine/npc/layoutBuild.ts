@@ -123,6 +123,7 @@ function objectBlocksTile(
 	px: number,
 	py: number,
 ): boolean {
+	if (definition.walkable === true) return false
 	const state = resolveTileState(definition, object, px, py)
 	if (state === 'blocked') return true
 	if (definition.walkable === false) return !isWalkableState(state)
@@ -400,7 +401,7 @@ function buildPortalInteractionTargets(
 				targets.push({
 					floorId: floor.id,
 					itemId,
-					interactSpotId: `portal:${interactSpotIndex}→${destinationFloorId}`,
+					interactSpotId: `portal:${interactSpotIndex}->${destinationFloorId}`,
 					x: cell.x,
 					y: cell.y,
 					tags: [PORTAL_TAG, `${PORTAL_TAG}:${destinationFloorId}`],

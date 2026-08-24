@@ -85,11 +85,45 @@ export function serializeObject(obj: ObjectPlacement): ObjectPlacement {
 	if (obj.subId) out.subId = obj.subId
 	if (obj.linkGroupId) out.linkGroupId = obj.linkGroupId
 
-	if (obj.instanceLabel) out.instanceLabel = obj.instanceLabel
 	if (obj.locked !== undefined) out.locked = obj.locked
 	if (obj.fillColor && isValidColor(obj.fillColor)) out.fillColor = obj.fillColor
 	if (obj.strokeColor && isValidColor(obj.strokeColor)) out.strokeColor = obj.strokeColor
 	return out
+}
+
+export const ASSET_DEF_FIELD_COVERAGE: Record<keyof AssetDef, true> = {
+	id: true,
+	name: true,
+	category: true,
+	w: true,
+	h: true,
+	custom: true,
+	isWall: true,
+	walkable: true,
+	entranceRequired: true,
+	defaultPadding: true,
+	defaultRx: true,
+	defaultFillColor: true,
+	defaultStrokeColor: true,
+	defaultLabel: true,
+	defaultRadius: true,
+	defaultLabelPadding: true,
+	defaultLocked: true,
+	tags: true,
+	origin: true,
+	pxW: true,
+	pxH: true,
+	usePx: true,
+	linkedParts: true,
+	svg: true,
+	svgViewBox: true,
+	svgRoles: true,
+	walkableGrid: true,
+	tileStates: true,
+	tileEdges: true,
+	interactSpots: true,
+	interact: true,
+	queue: true,
 }
 
 export function serializeAsset(asset: AssetDef): AssetDef {
@@ -107,12 +141,11 @@ export function serializeAsset(asset: AssetDef): AssetDef {
 	if (asset.entranceRequired) out.entranceRequired = asset.entranceRequired
 	if (asset.defaultPadding && asset.defaultPadding > 0) out.defaultPadding = asset.defaultPadding
 	if (asset.defaultRx && (asset.defaultRx.tl > 0 || asset.defaultRx.tr > 0 || asset.defaultRx.br > 0 || asset.defaultRx.bl > 0)) out.defaultRx = asset.defaultRx
-	if (asset.defaultBgColor) out.defaultBgColor = asset.defaultBgColor
-	if (asset.defaultLabelColor) out.defaultLabelColor = asset.defaultLabelColor
+	if (asset.defaultFillColor) out.defaultFillColor = asset.defaultFillColor
+	if (asset.defaultStrokeColor) out.defaultStrokeColor = asset.defaultStrokeColor
 	if (asset.defaultLabel) out.defaultLabel = asset.defaultLabel
 	if (asset.defaultRadius && asset.defaultRadius > 0) out.defaultRadius = asset.defaultRadius
 	if (asset.defaultLabelPadding) out.defaultLabelPadding = asset.defaultLabelPadding
-	if (asset.defaultInstanceLabel) out.defaultInstanceLabel = asset.defaultInstanceLabel
 	if (asset.defaultLocked) out.defaultLocked = asset.defaultLocked
 	if (asset.tags?.length) out.tags = asset.tags
 	if (asset.pxW !== undefined) out.pxW = asset.pxW
@@ -131,6 +164,14 @@ export function serializeAsset(asset: AssetDef): AssetDef {
 	return out
 }
 
+
+export function assetSettingsIssues(asset: AssetDef): string[] {
+	const issues: string[] = []
+	if (!asset.walkableGrid) issues.push('walkable grid')
+	if (!asset.tileStates) issues.push('tile states')
+	if (!asset.tileEdges) issues.push('tile edges')
+	return issues
+}
 
 export interface PortalValidationResult {
 	errors: string[]
@@ -177,7 +218,7 @@ export function validateSettingsCompleteness(
 	}
 
 	if (!npcConfig.pool.length) {
-		issues.push('NPC pool is empty — no NPCs will spawn')
+		issues.push('NPC pool is empty - no NPCs will spawn')
 	}
 
 	const floorAssetTags = collectFloorAssetTags(layout, assetMap)
@@ -229,7 +270,7 @@ export function validateSettingsCompleteness(
 		}
 		if (entry.count <= 0) {
 			const role = npcConfig.roles.find(r => r.id === entry.roleId)
-			issues.push(`Pool entry for role "${role?.label ?? entry.roleId}" has count ${entry.count} — no NPCs will spawn`)
+			issues.push(`Pool entry for role "${role?.label ?? entry.roleId}" has count ${entry.count} - no NPCs will spawn`)
 		}
 	}
 
@@ -245,7 +286,7 @@ export function validateSettingsCompleteness(
 			return asset?.interactSpots?.length
 		})
 		if (interactableObjects.length > 0 && withInteractSpots.length === 0) {
-			issues.push(`Floor "${floor.label}" has ${interactableObjects.length} object(s) but none have interact spots — NPCs cannot interact here`)
+			issues.push(`Floor "${floor.label}" has ${interactableObjects.length} object(s) but none have interact spots - NPCs cannot interact here`)
 		}
 
 		for (const object of floor.objects) {

@@ -33,7 +33,7 @@ const variantClass = computed(() => {
     <span class="chip__label"
       ><slot>{{ label }}</slot></span
     >
-    <button v-if="removable" type="button" class="chip__remove" aria-label="Remove tag" @click="emit('remove')">×</button>
+    <button v-if="removable" type="button" class="chip__remove" aria-label="Remove tag" @click="emit('remove')">x</button>
   </div>
 </template>
 

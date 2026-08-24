@@ -44,6 +44,13 @@ export async function setCanvasBgColor(bgColor: string | undefined): Promise<boo
 	return saveLayout()
 }
 
+export async function setCanvasLabelColor(labelColor: string | undefined): Promise<boolean> {
+	if (labelColor !== undefined && !isValidColor(labelColor)) return false
+	if (labelColor) state.layout.canvas.labelColor = labelColor
+	else delete state.layout.canvas.labelColor
+	return saveLayout()
+}
+
 export async function setStreetFloor(floorId: string | null): Promise<boolean> {
 	if (floorId !== null && !state.layout.floors.some(f => f.id === floorId)) return false
 	if (floorId) state.layout.streetFloorId = floorId

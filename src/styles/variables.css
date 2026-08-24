@@ -7,8 +7,8 @@
 
 :root {
 	/* ── Background ── */
-	--bg-primary: #0d1117;
-	--bg-secondary: #151920;
+	--bg-primary: #0a0b0c;
+	--bg-secondary: #121418;
 	--bg-tertiary: #32332d;
 	--bg-primary-hover: color-mix(in srgb, var(--bg-primary) 85%, var(--bg-secondary));
 
@@ -20,6 +20,7 @@
 
 	/* ── Border ── */
 	--border-dim: #3c3c3c;
+	--asset-outline: #6f7680;
 
 	/* ── Accent ── */
 	--accent-primary: #007fd4;
@@ -36,11 +37,6 @@
 
 	/* ── Gradient ── */
 	--gradient-primary: linear-gradient(135deg, var(--accent-primary) 0%, color-mix(in srgb, var(--accent-primary) 75%, var(--bg-primary)) 100%);
-
-	/* ── Shadow ── */
-	--shadow-card: 0 2px 8px rgba(0, 0, 0, 0.3);
-	--shadow-card-hover: 0 4px 16px rgba(0, 0, 0, 0.4);
-	--shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.4);
 
 	/* ── Radius ── */
 	--radius-xs: 2px;

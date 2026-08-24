@@ -48,12 +48,31 @@ const isNpcDeployed = computed(() => store.state.mode === "npc-preview");
 const orphanAssetTags = computed(() => assetTags.value.filter((tag) => !managedTagSet.value.has(tag)));
 
 const previewSvgEl = ref<SVGSVGElement | null>(null);
+const PREVIEW_TILE = 25;
+
 const previewSvgViewBox = computed(() => {
-  const vb = props.asset.svgViewBox;
-  if (!vb || vb.w === 0 || vb.h === 0) return `0 0 ${props.asset.w} ${props.asset.h}`;
+  const a = props.asset;
+  const vb = a.svgViewBox;
+  if (!vb || vb.w === 0 || vb.h === 0) {
+    const w = a.usePx ? a.pxW ?? a.w * PREVIEW_TILE : a.w * PREVIEW_TILE;
+    const h = a.usePx ? a.pxH ?? a.h * PREVIEW_TILE : a.h * PREVIEW_TILE;
+    return `0 0 ${w} ${h}`;
+  }
   return `0 0 ${vb.w} ${vb.h}`;
 });
-const previewSvg = computed(() => props.asset.svg?.replace(/var\(--border-dim\)/g, "#fff") ?? "");
+
+function fallbackShapeSvg(a: AssetDef): string {
+  const TILE = 25;
+  const w = a.usePx ? a.pxW ?? a.w * TILE : a.w * TILE;
+  const h = a.usePx ? a.pxH ?? a.h * TILE : a.h * TILE;
+  const rx = Math.max(a.defaultRx?.tl ?? 0, a.defaultRx?.tr ?? 0, a.defaultRx?.br ?? 0, a.defaultRx?.bl ?? 0);
+  const rawFill = a.defaultFillColor ?? "none";
+  const fill = !rawFill || rawFill === "transparent" ? "none" : rawFill;
+  const stroke = a.defaultStrokeColor ?? "#6f7680";
+  return `<rect x="1" y="1" width="${Math.max(1, w - 2)}" height="${Math.max(1, h - 2)}" rx="${rx}" fill="${fill}" stroke="${stroke}" stroke-width="1"/>`;
+}
+
+const previewSvg = computed(() => props.asset.svg?.replace(/var\(--border-dim\)/g, "#fff") ?? fallbackShapeSvg(props.asset));
 
 function renderPreview() {
   const el = previewSvgEl.value;
@@ -100,20 +119,12 @@ async function saveAssetTags(tags: string[]) {
 async function onRotateAsset() {
   if (!isSvgAsset.value || !props.asset.svgViewBox) return;
   await store.rotateAsset(props.asset.id);
-  useToast().info("Asset rotated 90°");
-}
-
-async function onSave() {
-  await run(async () => {
-    await store.saveAssets();
-    await store.saveLayout();
-  });
-  useToast().success("Asset saved");
+  useToast().info("Asset rotated 90deg");
 }
 
 async function deleteAsset() {
   if (assetInUse.value) {
-    useToast().warning("Cannot delete — asset is placed on floors. Remove instances first.");
+    useToast().warning("Cannot delete - asset is placed on floors. Remove instances first.");
     return;
   }
   const confirmed = await confirm({
@@ -138,11 +149,12 @@ async function duplicateAsset() {
 
 <template>
   <div class="form__group">
-    <div v-if="isSvgAsset" class="form__col">
+    <div class="form__col">
       <label>Preview</label>
       <div class="preview__svg">
-        <svg ref="previewSvgEl" :viewBox="previewSvgViewBox" width="80" height="80" preserveAspectRatio="xMidYMid meet" class="preview__svg"></svg>
+        <svg ref="previewSvgEl" :viewBox="previewSvgViewBox" width="80" height="80" preserveAspectRatio="xMidYMid meet"></svg>
       </div>
+      <span v-if="!isSvgAsset" class="form__hint">Shape preview - non-SVG asset</span>
     </div>
     <div class="form__row">
       <label>Origin</label>
@@ -157,7 +169,7 @@ async function duplicateAsset() {
     </div>
 
     <div v-if="isLinkedAsset" class="card">
-      <span>Linked set — {{ linkedPartCount }} objects. Drag to place all parts linked together.</span>
+      <span>Linked set - {{ linkedPartCount }} objects. Drag to place all parts linked together.</span>
     </div>
     <div class="form__row">
       <label>Name</label>
@@ -174,7 +186,7 @@ async function duplicateAsset() {
     <div v-if="orphanAssetTags.length" class="card">Undefined tags: {{ orphanAssetTags.join(", ") }}. Recreate the tag definition or remove these assignments.</div>
     <div v-if="isSvgAsset" class="form__row">
       <label>Rotate</label>
-      <button @click="onRotateAsset">↻ 90°</button>
+      <button @click="onRotateAsset">90deg</button>
     </div>
     <div v-if="!isLinkedAsset" class="form__row">
       <label>Origin Setting</label>
@@ -188,10 +200,9 @@ async function duplicateAsset() {
     </div>
 
     <div v-if="collapsedCount > 0" class="card">
-      <span>{{ collapsedCount }} object(s) collapsed — overlapping! Shown in red on canvas.</span>
+      <span>{{ collapsedCount }} object(s) collapsed - overlapping! Shown in red on canvas.</span>
     </div>
     <div class="form__row">
-      <button class="flag--success" :disabled="pending" @click="onSave">Save</button>
       <button class="flag--warning" :disabled="pending" @click="duplicateAsset">Duplicate</button>
       <button class="flag--danger" :disabled="pending" @click="deleteAsset">Delete</button>
     </div>
@@ -212,5 +223,10 @@ async function duplicateAsset() {
   border-radius: var(--radius-sm);
   background: var(--bg-primary);
   padding: var(--gap-sm);
+}
+
+.preview__svg svg {
+  display: block;
+  overflow: hidden;
 }
 </style>

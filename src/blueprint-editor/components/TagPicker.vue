@@ -76,7 +76,7 @@ async function onDropdownClick(tag: string) {
     <div class="picker__field" @click="showDropdown = true">
       <span v-for="tag in modelValue" :key="tag" class="chip flag--success">
         {{ tag }}
-        <button class="chip__remove" @click.stop="removeTag(tag)">×</button>
+        <button class="chip__remove" @click.stop="removeTag(tag)">x</button>
       </span>
       <input v-model="inputValue" :placeholder="modelValue.length === 0 ? placeholder : ''" class="picker__input" @keydown="onKeydown" @focus="showDropdown = true" @blur="showDropdown = false" />
     </div>
@@ -113,12 +113,10 @@ async function onDropdownClick(tag: string) {
   font-size: var(--font-sm);
   background: transparent;
   border: none;
-  box-shadow: none;
   outline: none;
 }
 
 .picker__input:focus {
-  box-shadow: none;
   border: none;
 }
 
@@ -138,7 +136,6 @@ async function onDropdownClick(tag: string) {
   background: var(--bg-secondary);
   border: 1px solid var(--border-dim);
   border-radius: var(--radius-sm);
-  box-shadow: 0 4px 12px color-mix(in srgb, var(--bg-primary) 30%, transparent);
 }
 
 .picker__option {

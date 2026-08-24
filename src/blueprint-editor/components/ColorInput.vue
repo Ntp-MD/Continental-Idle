@@ -102,7 +102,7 @@ function toggleTransparent() {
       <span v-if="isTransparent" class="color__slash" aria-hidden="true" />
     </label>
     <input class="color__text" type="text" v-model="textValue" :placeholder="placeholder" :aria-label="ariaLabel" @change="onTextChange" />
-    <button v-if="allowTransparent" type="button" class="color__transparent" :class="{ 'color__transparent--active': isTransparent }" @click="toggleTransparent" title="Toggle transparent" aria-label="Toggle transparent">T</button>
+    <button v-if="allowTransparent" type="button" class="color__transparent" :class="{ 'color__transparent--active': isTransparent }" @click="toggleTransparent" title="Toggle transparent" aria-label="Toggle transparent">transparent</button>
   </div>
 </template>
 
@@ -173,13 +173,13 @@ function toggleTransparent() {
 
 .color__transparent {
   flex-shrink: 0;
-  width: 28px;
+  padding: 0 var(--gap-sm);
   height: 28px;
   background: var(--bg-primary);
   border: 1px solid var(--border-dim);
   border-radius: var(--radius-sm);
   color: var(--text-secondary);
-  font-size: var(--font-sm);
+  font-size: var(--font-xs);
   font-weight: 700;
   cursor: pointer;
   transition:

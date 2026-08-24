@@ -65,7 +65,7 @@ async function persistConfig(showToast = false): Promise<boolean> {
   const normalized = normalizeConfig(config.value);
   if (!isPersistable(normalized)) {
     saveState.value = "unsaved";
-    if (showToast) toast.warning("Cannot save — every role needs a label and valid color");
+    if (showToast) toast.warning("Cannot save - every role needs a label and valid color");
     return false;
   }
   pending.value = true;
@@ -138,7 +138,7 @@ async function deleteRole(role: NpcRole) {
   if (selectedRoleId.value === role.id) resetSelection();
   const ok = await persistConfig();
   if (ok) toast.success(`Role "${role.label}" deleted`);
-  else toast.error("Failed to delete role — changes not saved");
+  else toast.error("Failed to delete role - changes not saved");
 }
 
 async function setDefaultRole(role: NpcRole) {
@@ -195,9 +195,9 @@ async function removeTag(tag: string) {
   try {
     const deleted = await store.removeTag(tag);
     if (deleted) toast.success(`Tag "${tag}" deleted`);
-    else toast.error("Failed to delete tag — changes not saved");
+    else toast.error("Failed to delete tag - changes not saved");
   } catch {
-    toast.error("Failed to delete tag — changes not saved");
+    toast.error("Failed to delete tag - changes not saved");
   }
 }
 
@@ -253,8 +253,8 @@ onUnmounted(() => {
               ><strong class="npc__label">{{ role.label }}</strong
               ><small class="npc__sub">{{ role.id === config.defaultRoleId ? "Default role" : "" }}</small></span
             >
-            <button type="button" class="flag--ghost flag--icon" :class="{ 'flag--warning': role.id === config.defaultRoleId }" :title="role.id === config.defaultRoleId ? 'Default role' : 'Set as default role'" @click.stop="setDefaultRole(role)">★</button>
-            <button v-if="role.id !== config.defaultRoleId" type="button" class="flag--danger flag--icon" @click.stop="deleteRole(role)" aria-label="Delete role">×</button>
+            <button type="button" class="flag--ghost flag--icon" :class="{ 'flag--warning': role.id === config.defaultRoleId }" :title="role.id === config.defaultRoleId ? 'Default role' : 'Set as default role'" @click.stop="setDefaultRole(role)">*</button>
+            <button v-if="role.id !== config.defaultRoleId" type="button" class="flag--danger flag--icon" @click.stop="deleteRole(role)" aria-label="Delete role">x</button>
           </div>
           <div v-if="!roles.length" class="empty npc__empty">No roles</div>
         </div>
@@ -265,22 +265,22 @@ onUnmounted(() => {
         <h3 class="form__title">Tags</h3>
         <input v-model="tagSearch" type="search" placeholder="Search tags..." />
         <div class="form__row form__row--tight npc__add">
-          <input v-model="newTag" class="input--grow" type="text" placeholder="New tag" @keydown.enter="addTag" />
+          <input v-model="newTag" type="text" placeholder="New tag" @keydown.enter="addTag" />
           <button type="button" class="flag--active" @click="addTag">Add</button>
         </div>
         <div class="form__col form__col--tight form__col--scroll">
           <div v-for="tag in filteredTags" :key="tag" class="card--item">
-            <input class="input--disabled input--grow" :value="tag" readonly aria-label="Tag name" />
-            <button type="button" class="flag--danger flag--icon" @click="removeTag(tag)" aria-label="Delete tag">×</button>
+            <span class="npc__tagname">{{ tag }}</span>
+            <button type="button" class="flag--danger flag--icon" @click="removeTag(tag)" aria-label="Delete tag">x</button>
           </div>
           <div v-if="!filteredTags.length" class="empty npc__empty">No tags</div>
         </div>
         <h3 class="form__title">Tasks</h3>
         <div class="form__col form__col--tight form__col--scroll">
           <div v-for="task in config.tasks" :key="task.id" class="form__row form__row--tight npc__task">
-            <input v-model="task.label" class="input--grow" type="text" aria-label="Task label" @change="updateTask" />
+            <input v-model="task.label" type="text" aria-label="Task label" @change="updateTask" />
             <input
-              class="input--grow"
+             
               :value="task.tags.join(', ')"
               type="text"
               aria-label="Task tags"
@@ -293,7 +293,7 @@ onUnmounted(() => {
                 updateTask();
               "
             />
-            <button type="button" class="flag--danger flag--icon" @click="deleteTask(task.id)" aria-label="Delete task">×</button>
+            <button type="button" class="flag--danger flag--icon" @click="deleteTask(task.id)" aria-label="Delete task">x</button>
           </div>
           <div v-if="!config.tasks.length" class="empty npc__empty">No tasks</div>
         </div>
@@ -301,7 +301,7 @@ onUnmounted(() => {
       </section>
 
       <section class="form__group npc__column npc__detail">
-        <h3 class="form__title">Role Detail <span v-if="saveState === 'saved'" class="npc__saved" aria-live="polite">✓ Saved</span><span v-else-if="saveState === 'unsaved'" class="npc__unsaved" aria-live="polite">⚠ Not saved — check label and color</span></h3>
+        <h3 class="form__title">Role Detail <span v-if="saveState === 'saved'" class="npc__saved" aria-live="polite">Saved</span><span v-else-if="saveState === 'unsaved'" class="npc__unsaved" aria-live="polite">Not saved - check label and color</span></h3>
         <template v-if="selectedRole">
           <div class="form__row">
             <label class="label--fixed" :for="`npc-role-label-${selectedRole.id}`">Label</label>
@@ -315,12 +315,12 @@ onUnmounted(() => {
           <h4 class="form__subtitle">Focus Tags</h4>
           <div class="form__row form__row--tight form__row--wrap">
             <TagChip v-for="tag in selectedRole.focusTags" :key="`focus-${tag}`" :label="tag" variant="focus" removable :class="{ 'flag--warning': !managedTagSet.has(tag) }" @remove="removeRoleTag('focus', tag)" />
-            <span v-if="!selectedRole.focusTags.length" class="empty npc__empty">No focus tags — NPC wanders</span>
+            <span v-if="!selectedRole.focusTags.length" class="empty npc__empty">No focus tags - NPC wanders</span>
           </div>
           <div class="form__row">
             <input v-model="newFocusTag" type="text" placeholder="tag name" @keydown.enter="addRoleTag('focus')" />
             <select v-if="availableFocusTags.length" v-model="newFocusTag">
-              <option value="">or pick…</option>
+              <option value="">or pick...</option>
               <option v-for="tag in availableFocusTags" :key="tag" :value="tag">{{ tag }}</option>
             </select>
             <button type="button" @click="addRoleTag('focus')">Add</button>
@@ -334,7 +334,7 @@ onUnmounted(() => {
           <div class="form__row">
             <input v-model="newRestrictedTag" type="text" placeholder="tag name" @keydown.enter="addRoleTag('restricted')" />
             <select v-if="availableRestrictedTags.length" v-model="newRestrictedTag">
-              <option value="">or pick…</option>
+              <option value="">or pick...</option>
               <option v-for="tag in availableRestrictedTags" :key="tag" :value="tag">{{ tag }}</option>
             </select>
             <button type="button" @click="addRoleTag('restricted')">Add</button>
@@ -342,8 +342,8 @@ onUnmounted(() => {
 
           <div class="form__row">
             <label class="label--fixed" :for="`npc-role-chance-${selectedRole.id}`">Focus Chance</label>
-            <input :id="`npc-role-chance-${selectedRole.id}`" v-model.number="selectedRole.focusChance" class="input--grow" type="range" min="0" max="100" @change="updateRole" />
-            <input class="input--disabled input--num" :value="`${selectedRole.focusChance}%`" readonly aria-label="Focus chance value" />
+            <input :id="`npc-role-chance-${selectedRole.id}`" v-model.number="selectedRole.focusChance" type="range" min="0" max="100" @change="updateRole" />
+            <span class="form__hint npc__rate">{{ selectedRole.focusChance }}%</span>
           </div>
 
           <h4 class="form__subtitle">Tag Trigger Rates</h4>

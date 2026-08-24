@@ -21,9 +21,7 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const dataPath = path.join(root, 'src', 'blueprint-editor', 'data', 'blueprintData.json')
 
 // ─── Known AssetDef field set (must match types.ts AssetBase + AssetDef) ───
-// Update this set when a field is added/removed from AssetDef.
-// The script will flag data fields not in this set (stale) and
-// required fields missing from data (incomplete migration).
+// Keep in sync with ASSET_DEF_FIELD_COVERAGE (assetUtils.ts).
 const REQUIRED_FIELDS = ['id', 'name', 'w', 'h']
 const OPTIONAL_FIELDS = [
 	'origin', 'category', 'custom', 'isWall',
@@ -31,11 +29,11 @@ const OPTIONAL_FIELDS = [
 	'linkedParts', 'svg', 'svgViewBox', 'svgRoles',
 	'walkable', 'entranceRequired',
 	'walkableGrid', 'tileStates', 'tileEdges',
-	'interactSpots', 'interact',
-	'defaultPadding', 'defaultRx', 'defaultBgColor', 'defaultLabelColor',
+	'interactSpots', 'interact', 'queue',
+	'defaultPadding', 'defaultRx',
+	'defaultFillColor', 'defaultStrokeColor',
 	'defaultLabel', 'defaultRadius', 'defaultLabelPadding',
-	'defaultCustomProps', 'defaultInstanceLabel',
-	'defaultValidationRule', 'defaultLocked',
+	'defaultLocked',
 	'tags',
 ]
 const ALL_KNOWN_FIELDS = new Set([...REQUIRED_FIELDS, ...OPTIONAL_FIELDS, '$schema', 'version'])
@@ -78,7 +76,7 @@ function validateWalkableGrid(value) {
 
 function validateTileStates(value) {
 	if (!Array.isArray(value)) return 'must be an array'
-	const valid = ['walkable', 'blocked', 'door', 'entrance']
+	const valid = ['walkable', 'blocked', 'entrance']
 	for (let i = 0; i < value.length; i++) {
 		if (!Array.isArray(value[i])) return `row ${i}: must be an array`
 		for (let j = 0; j < value[i].length; j++) {

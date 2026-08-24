@@ -15,9 +15,4 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - run: npm run typecheck
-      - run: npm run lint:bem
-      - run: npm run test:npc-engine
-      - run: npm run test:npc-queue
-      - run: npm run test:blueprint-schema
-      - run: npm run build
+      - run: npm run verify

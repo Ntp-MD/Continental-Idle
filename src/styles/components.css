@@ -61,6 +61,15 @@
 	justify-content: space-between;
 }
 
+.form__row--pair {
+	align-items: stretch;
+}
+
+.form__row--pair > .form__row {
+	flex: 1;
+	min-width: 0;
+}
+
 .form__row--border {
 	border-top: 1px solid var(--border-dim);
 	padding-top: var(--gap-sm);
@@ -252,7 +261,6 @@
 	background: var(--bg-secondary);
 	border: 1px solid var(--border-dim);
 	border-radius: var(--radius-md);
-	box-shadow: 0 12px 32px color-mix(in srgb, var(--bg-primary) 50%, transparent);
 	color: var(--text-primary);
 	overflow: hidden;
 }
@@ -318,7 +326,6 @@
 	border-radius: var(--radius-md);
 	font-size: var(--font-sm);
 	font-weight: 500;
-	box-shadow: 0 8px 32px color-mix(in srgb, var(--bg-primary) 50%, transparent);
 	backdrop-filter: blur(12px);
 	-webkit-backdrop-filter: blur(12px);
 	animation: toastIn var(--duration-normal) var(--ease-out);
@@ -423,41 +430,22 @@
 
 
 /* ── Input Variants ── */
-.input--compact {
-	width: 28px;
-	text-align: center;
-	padding: 0 2px;
-}
-
-.input--num {
-	width: 39px;
-	text-align: center;
-}
-
-.input--grow {
-	flex: 1;
-	min-width: 0;
-}
-
 .input--disabled,
 .input--disabled:focus {
 	opacity: 0.5;
 	cursor: default;
-	box-shadow: none;
 }
 
 input.input--danger,
 select.input--danger,
 textarea.input--danger {
 	border-color: var(--accent-red);
-	box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent-red) 15%, transparent);
 }
 
 input.input--danger:focus,
 select.input--danger:focus,
 textarea.input--danger:focus {
 	border-color: var(--accent-red);
-	box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent-red) 15%, transparent);
 }
 
 

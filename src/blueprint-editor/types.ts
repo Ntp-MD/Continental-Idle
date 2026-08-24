@@ -318,7 +318,7 @@ export function normalizeObjectPlacement(value: unknown): ObjectPlacement | unde
 	if (typeof record.subId === 'string' && record.subId) placement.subId = record.subId
 	if (typeof record.linkGroupId === 'string' && record.linkGroupId) placement.linkGroupId = record.linkGroupId
 	if (typeof record.locked === 'boolean') placement.locked = record.locked
-	if (typeof record.instanceLabel === 'string' && record.instanceLabel) placement.instanceLabel = record.instanceLabel
+	if (typeof record.subId === 'string' && record.subId) placement.subId = record.subId
 	const fillColor = typeof record.fillColor === 'string' && isValidColor(record.fillColor.trim()) ? record.fillColor.trim() : undefined
 	if (fillColor) placement.fillColor = fillColor
 	const strokeColor = typeof record.strokeColor === 'string' && isValidColor(record.strokeColor.trim()) ? record.strokeColor.trim() : undefined
@@ -366,12 +366,11 @@ export interface AssetBase {
 	entranceRequired?: boolean
 	defaultPadding?: number
 	defaultRx?: { tl: number; tr: number; br: number; bl: number }
-	defaultBgColor?: string
-	defaultLabelColor?: string
+	defaultFillColor?: string
+	defaultStrokeColor?: string
 	defaultLabel?: string
 	defaultRadius?: number
 	defaultLabelPadding?: number
-	defaultInstanceLabel?: string
 	defaultLocked?: boolean
 	tags?: string[]
 }
@@ -544,7 +543,6 @@ export interface ObjectPlacement {
 	subId?: string
 	linkGroupId?: string
 	locked?: boolean
-	instanceLabel?: string
 	fillColor?: string
 	strokeColor?: string
 }
@@ -635,6 +633,7 @@ export interface CanvasConfig {
 	height: number
 	tileSize: number
 	bgColor?: string
+	labelColor?: string
 }
 
 export interface FloorLayoutData {
@@ -643,7 +642,6 @@ export interface FloorLayoutData {
 	floors: FloorData[]
 	streetWidthTiles?: number
 	streetFloorId?: string
-	instanceLabels?: Record<string, string>
 	npcConfig?: NpcSimulationConfig
 }
 

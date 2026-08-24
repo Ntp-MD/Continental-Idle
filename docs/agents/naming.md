@@ -7,6 +7,15 @@
 - Do not use vague names when a domain action can be named precisely.
 - Keep naming consistent within a domain. Do not mix singular/plural or different terms for the same concept without a semantic reason.
 
+## User-facing copy uses player vocabulary
+
+UI labels must be named from what a PLAYER would say, not from schema field or implementation names.
+
+- Bad: "Label Radius" (it shapes corners of the drawn shape, nothing to do with labels), "Walkthrough" (reads as a tutorial; means NPCs can pass through), "Sync Origins" (sync what to where?).
+- Good: "Shape Radius", "Passable", "Refresh Objects".
+- Test: read the label aloud to someone who has never seen the code. If they cannot guess what it changes, rename it.
+- Code identifiers may keep implementation names; only visible copy follows this rule.
+
 ## Short names
 
 Names must be as short as possible while staying unambiguous in their scope:

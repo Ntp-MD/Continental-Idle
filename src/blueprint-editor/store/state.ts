@@ -47,14 +47,14 @@ const _hmrData = import.meta.hot?.data
 const EDITOR_UI_STATE_KEY = 'blueprint-editor-ui-state'
 function loadPersistedUiState(): Partial<EditorState> | null {
 	try {
-		const raw = sessionStorage.getItem(EDITOR_UI_STATE_KEY)
+		const raw = localStorage.getItem(EDITOR_UI_STATE_KEY)
 		if (raw) return JSON.parse(raw) as Partial<EditorState>
 	} catch { }
 	return null
 }
 function savePersistedUiState(): void {
 	try {
-		sessionStorage.setItem(EDITOR_UI_STATE_KEY, JSON.stringify({
+		localStorage.setItem(EDITOR_UI_STATE_KEY, JSON.stringify({
 			currentFloorId: state.currentFloorId,
 			mode: state.mode,
 			selectionState: state.selectionState,

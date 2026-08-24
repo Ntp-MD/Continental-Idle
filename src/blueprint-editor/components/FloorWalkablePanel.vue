@@ -195,12 +195,12 @@ function close(): void {
         <button type="button" :class="{ 'flag--warning': activeMode === 'walk' }" @click="setMode('walk')">Wall / Block</button>
         <button type="button" :class="{ 'flag--warning': activeMode === 'entrance' }" @click="setMode('entrance')">Entrance / Wall</button>
         <template v-if="activeMode === 'walk'">
-          <button type="button" :class="{ 'flag--warning': walkBrush === 'walkable' }" @click="walkBrush = 'walkable'">✓ Walk</button>
-          <button type="button" :class="{ 'flag--warning': walkBrush === 'blocked' }" @click="walkBrush = 'blocked'">✕ Block</button>
+          <button type="button" :class="{ 'flag--warning': walkBrush === 'walkable' }" @click="walkBrush = 'walkable'">Walk</button>
+          <button type="button" :class="{ 'flag--warning': walkBrush === 'blocked' }" @click="walkBrush = 'blocked'">Block</button>
         </template>
         <template v-else>
-          <button type="button" :class="{ 'flag--warning': entranceBrush === 'door' }" @click="entranceBrush = 'door'">→ Door</button>
-          <button type="button" :class="{ 'flag--warning': entranceBrush === 'border' }" @click="entranceBrush = 'border'">▢ Wall</button>
+          <button type="button" :class="{ 'flag--warning': entranceBrush === 'door' }" @click="entranceBrush = 'door'">-> Door</button>
+          <button type="button" :class="{ 'flag--warning': entranceBrush === 'border' }" @click="entranceBrush = 'border'">Wall</button>
           <button type="button" @click="applyOuterWall">Outer Walls</button>
           <button type="button" @click="clearAllDoors">Clear Doors</button>
           <button type="button" @click="clearAllEdges">Clear Edges</button>
@@ -236,7 +236,7 @@ function close(): void {
       </div>
 
       <div class="form__row form__row--tight form__row--wrap">
-        <input class="input--disabled input--grow" :value="dirty ? 'Unsaved walkable changes' : 'Walkable saved'" readonly aria-label="Walkable status" />
+        <input class="input--disabled" :value="dirty ? 'Unsaved walkable changes' : 'Walkable saved'" readonly aria-label="Walkable status" />
         <div class="form__row">
           <button type="button" class="flag--ghost" @click="resetWalkable">Reset to floor default</button>
           <button type="button" class="flag--success" :disabled="!dirty" @click="saveWalkable">Save Walkable</button>

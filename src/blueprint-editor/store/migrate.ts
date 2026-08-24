@@ -63,12 +63,11 @@ export function migrate(data: unknown): { layout: FloorLayoutData; legacyAssets:
 			const assetTags = readTags(a.tags)
 			if (assetTags) base.tags = assetTags
 			if (typeof a.defaultPadding === 'number' && a.defaultPadding > 0) base.defaultPadding = a.defaultPadding
-			if (typeof a.defaultBgColor === 'string' && a.defaultBgColor && isValidColor(a.defaultBgColor)) base.defaultBgColor = a.defaultBgColor
-			if (typeof a.defaultLabelColor === 'string' && a.defaultLabelColor && isValidColor(a.defaultLabelColor)) base.defaultLabelColor = a.defaultLabelColor
+			if (typeof a.defaultFillColor === 'string' && a.defaultFillColor && isValidColor(a.defaultFillColor)) base.defaultFillColor = a.defaultFillColor
+			if (typeof a.defaultStrokeColor === 'string' && a.defaultStrokeColor && isValidColor(a.defaultStrokeColor)) base.defaultStrokeColor = a.defaultStrokeColor
 			if (typeof a.defaultLabel === 'string') base.defaultLabel = a.defaultLabel
 			if (typeof a.defaultRadius === 'number' && a.defaultRadius > 0) base.defaultRadius = a.defaultRadius
 			if (typeof a.defaultLabelPadding === 'number') base.defaultLabelPadding = a.defaultLabelPadding
-			if (typeof a.defaultInstanceLabel === 'string') base.defaultInstanceLabel = a.defaultInstanceLabel
 			if (typeof a.defaultLocked === 'boolean') base.defaultLocked = a.defaultLocked
 			if (a.defaultRx && typeof a.defaultRx === 'object') {
 				const rx = a.defaultRx as Record<string, unknown>
@@ -127,13 +126,15 @@ export function migrate(data: unknown): { layout: FloorLayoutData; legacyAssets:
 		canvas: validCanvas
 			? (() => {
 				const c = canvas as Record<string, unknown>
-				const bgColor = typeof c.bgColor === 'string' && isValidColor(c.bgColor) ? c.bgColor : undefined
-				return {
-					width: typeof c.width === 'number' && isFinite(c.width as number) ? c.width as number : EDITOR_CONFIG.defaultCanvas.width,
-					height: typeof c.height === 'number' && isFinite(c.height as number) ? c.height as number : EDITOR_CONFIG.defaultCanvas.height,
-					tileSize: c.tileSize as number,
-					...(bgColor ? { bgColor } : {}),
-				}
+		const bgColor = typeof c.bgColor === 'string' && isValidColor(c.bgColor) ? c.bgColor : undefined
+		const labelColor = typeof c.labelColor === 'string' && isValidColor(c.labelColor) ? c.labelColor : undefined
+		return {
+			width: typeof c.width === 'number' && isFinite(c.width as number) ? c.width as number : EDITOR_CONFIG.defaultCanvas.width,
+			height: typeof c.height === 'number' && isFinite(c.height as number) ? c.height as number : EDITOR_CONFIG.defaultCanvas.height,
+			tileSize: c.tileSize as number,
+			...(bgColor ? { bgColor } : {}),
+			...(labelColor ? { labelColor } : {}),
+		}
 			})()
 			: { ...EDITOR_CONFIG.defaultCanvas },
 		floors: Array.isArray(d.floors) && d.floors.length > 0
@@ -185,16 +186,6 @@ export function migrate(data: unknown): { layout: FloorLayoutData; legacyAssets:
 	if (typeof d.streetWidthTiles === 'number' && Number.isInteger(d.streetWidthTiles) && d.streetWidthTiles >= 5 && d.streetWidthTiles <= 20) {
 		migrated.streetWidthTiles = d.streetWidthTiles
 	}
-	const oldInstanceLabels = migrated.instanceLabels ?? {}
-	for (const floor of migrated.floors) {
-		for (const obj of floor.objects) {
-			if (obj.subId) {
-				if (oldInstanceLabels[obj.subId]) obj.instanceLabel = oldInstanceLabels[obj.subId]
-			}
-		}
-	}
-	delete migrated.instanceLabels
-
 	const migratedAssetMap = buildAssetMap([...originAssets, ...legacyAssets])
 	const t = migrated.canvas.tileSize
 	for (const asset of legacyAssets) {

@@ -1,7 +1,7 @@
-import type { ObjectData, AssetDef, LinkedPart, Rotation, EntityRef } from '../types'
-import { applySvgColorConvention, isValidColor } from '../types'
+import type { ObjectData, AssetDef, LinkedPart, Rotation, EntityRef, TileState } from '../types'
+import { applySvgColorConvention, resolveObjectDef } from '../types'
 import { findAssetCached } from '../assetUtils'
-import { assetSizeFor, buildingArea, normalizeObject } from '../geometry'
+import { buildingArea, normalizeObject } from '../geometry'
 import { aabbOverlap, objectOverlapsAny, recalcCollapsed } from '../collision'
 import {
 	state, toast, snap, clamp, assetMap,
@@ -342,69 +342,19 @@ export async function rotateSelected(): Promise<void> {
 
 		const cf = currentFloor.value
 		if (cf) recalcCollapsed(cf, assetMap())
-		await saveLayout()
+		const saved = await saveLayout()
+		if (saved) {
+			const def = resolveObjectDef(o.rotation, findAssetCached(assetMap(), o.type), { w: o.w, h: o.h })
+			const hasWalkData = !!def.walkableGrid && def.walkableGrid.some(row => row.some(cell => !cell))
+			toast.info(
+				hasWalkData
+					? 'Rotated 90deg - walkable/blocked tiles rotated with it. Review in Walkable Grid panel if the layout matters.'
+					: 'Rotated 90deg',
+			)
+		}
 	})
 }
 
-
-export type ObjectInstancePatch = Partial<Pick<ObjectData, 'x' | 'y' | 'fillColor' | 'strokeColor'>>
-
-export async function updateObjectProps(patch: ObjectInstancePatch): Promise<boolean> {
-	return withStateLock(async () => {
-		const o = selectedObject()
-		if (!o) return false
-		if (o.locked) {
-			toast.warning('Object is locked - unlock to edit properties')
-			return false
-		}
-		const needsSize = patch.x !== undefined || patch.y !== undefined
-		const sz = assetSizeFor(o.type, o.rotation, state.layout.canvas.tileSize, assetMap())
-		const w = sz?.w ?? o.w
-		const h = sz?.h ?? o.h
-		const rect = clamp({
-			x: patch.x ?? o.x, y: patch.y ?? o.y,
-			w, h,
-		})
-		if (needsSize && objectOverlapsAny(currentFloor.value?.objects ?? [], assetMap(), rect, o.id)) {
-			return false
-		}
-		for (const field of ['fillColor', 'strokeColor'] as const) {
-			const value = patch[field]
-			if (value === undefined) continue
-			const trimmed = value.trim()
-			if (trimmed === '') {
-				if (o[field] !== undefined) o[field] = undefined
-				continue
-			}
-			if (!isValidColor(trimmed)) {
-				toast.warning(`Invalid ${field === 'fillColor' ? 'fill' : 'stroke'} color`)
-				return false
-			}
-			if (o[field] !== trimmed) o[field] = trimmed
-		}
-		const changed = (patch.x !== undefined && o.x !== rect.x) ||
-			(patch.y !== undefined && o.y !== rect.y) ||
-			(needsSize && (o.w !== w || o.h !== h)) ||
-			patch.fillColor !== undefined || patch.strokeColor !== undefined
-		if (!changed) return true
-		if (patch.x !== undefined) o.x = rect.x
-		if (patch.y !== undefined) o.y = rect.y
-		if (needsSize) {
-			o.w = w
-			o.h = h
-		}
-		const cf = currentFloor.value
-		if (cf) recalcCollapsed(cf, assetMap())
-		await saveLayout()
-		return true
-	}).catch(e => {
-		if (e instanceof Error && e.message === 'Operation in progress') {
-			toast.warning('Operation in progress')
-			return false
-		}
-		throw e
-	})
-}
 
 export async function createLinkedAssetFromSelection(name?: string): Promise<string | null> {
 	const floor = currentFloor.value
@@ -449,7 +399,6 @@ export async function createLinkedAssetFromSelection(name?: string): Promise<str
 		}
 		if (obj.padding !== undefined) part.padding = obj.padding
 		if (obj.rx) part.rx = { ...obj.rx }
-		if (obj.fillColor) part.fillColor = obj.fillColor
 		if (obj.label) part.label = obj.label
 		return part
 	})
@@ -533,6 +482,14 @@ export async function toggleObjectLock(id: string): Promise<void> {
 	if (saved) toast.info(o.locked ? 'Object locked' : 'Object unlocked')
 }
 
+function namespaceSvgIds(svg: string, ns: string): string {
+	return svg
+		.replace(/\bid="([^"]*)"/g, (_m, v: string) => `id="${ns}-${v}"`)
+		.replace(/url\(#/g, `url(#${ns}-`)
+		.replace(/xlink:href="#/g, `xlink:href="#${ns}-`)
+		.replace(/\shref="#/g, ` href="#${ns}-`)
+}
+
 export async function flattenToSvgAsset(name?: string): Promise<string | null> {
 	return withStateLock(async () => {
 		const floor = currentFloor.value
@@ -565,7 +522,9 @@ export async function flattenToSvgAsset(name?: string): Promise<string | null> {
 		const t = state.layout.canvas.tileSize
 
 		const amap = assetMap()
+		const assetId = genId('custom')
 		const svgParts: string[] = []
+		let partIndex = 0
 		for (const obj of objs) {
 			const asset = findAssetCached(amap, obj.type)
 			const ox = obj.x - minX
@@ -589,33 +548,42 @@ export async function flattenToSvgAsset(name?: string): Promise<string | null> {
 				} else {
 					transform = `translate(${ox + pad}, ${oy + pad + dh}) rotate(270) scale(${scaleY}, ${scaleX})`
 				}
-				svgParts.push(`<g transform="${transform}">${asset.svg}</g>`)
+				svgParts.push(`<g transform="${transform}">${namespaceSvgIds(asset.svg, `${assetId}-p${partIndex}`)}</g>`)
+				partIndex++
 			} else {
-				const fill = obj.fillColor || asset?.defaultBgColor || 'var(--text-bright)'
+				const fill = obj.fillColor || asset?.defaultFillColor || 'var(--text-bright)'
+				const stroke = obj.strokeColor || asset?.defaultStrokeColor || 'var(--asset-outline)'
 				const rx = obj.rx
+				let body: string
 				if (rx) {
 					const maxR = Math.min(dw, dh) / 2
 					const r = (v: number) => Math.max(0, Math.min(v, maxR))
 					const rtl = r(rx.tl), rtr = r(rx.tr), rbr = r(rx.br), rbl = r(rx.bl)
-					svgParts.push(`<path d="M ${ox + pad + rtl} ${oy + pad} L ${ox + pad + dw - rtr} ${oy + pad} Q ${ox + pad + dw} ${oy + pad} ${ox + pad + dw} ${oy + pad + rtr} L ${ox + pad + dw} ${oy + pad + dh - rbr} Q ${ox + pad + dw} ${oy + pad + dh} ${ox + pad + dw - rbr} ${oy + pad + dh} L ${ox + pad + rtl} ${oy + pad + dh} Q ${ox + pad} ${oy + pad + dh} ${ox + pad} ${oy + pad + dh - rbl} L ${ox + pad} ${oy + pad + rtl} Q ${ox + pad} ${oy + pad} ${ox + pad + rtl} ${oy + pad} Z" fill="${fill}" stroke="var(--text-primary)" stroke-width="1"/>`)
+					body = `<path d="M ${ox + pad + rtl} ${oy + pad} L ${ox + pad + dw - rtr} ${oy + pad} Q ${ox + pad + dw} ${oy + pad} ${ox + pad + dw} ${oy + pad + rtr} L ${ox + pad + dw} ${oy + pad + dh - rbr} Q ${ox + pad + dw} ${oy + pad + dh} ${ox + pad + dw - rbr} ${oy + pad + dh} L ${ox + pad + rtl} ${oy + pad + dh} Q ${ox + pad} ${oy + pad + dh} ${ox + pad} ${oy + pad + dh - rbl} L ${ox + pad} ${oy + pad + rtl} Q ${ox + pad} ${oy + pad} ${ox + pad + rtl} ${oy + pad} Z" fill="${fill}" stroke="${stroke}" stroke-width="1"/>`
 				} else {
-					svgParts.push(`<rect x="${ox + pad}" y="${oy + pad}" width="${dw}" height="${dh}" fill="${fill}" stroke="var(--border-dim)" stroke-width="1" rx="${obj.radius ?? 0}"/>`)
+					body = `<rect x="${ox + pad}" y="${oy + pad}" width="${dw}" height="${dh}" fill="${fill}" stroke="${stroke}" stroke-width="1" rx="${obj.radius ?? 0}"/>`
 				}
+				const rot = ((obj.rotation % 360) + 360) % 360
+				svgParts.push(rot === 0 ? body : `<g transform="rotate(${rot} ${ox + pad + dw / 2} ${oy + pad + dh / 2})">${body}</g>`)
 			}
 		}
 
 		const safeName = (name && name.trim()) || `Flattened ${objs.length}`
-		const assetId = genId('custom')
 		const vbW = totalW
 		const vbH = totalH
 		const innerSvg = svgParts.join('\n  ')
 
+		const gridW = Math.max(1, Math.round(totalW / t))
+		const gridH = Math.max(1, Math.round(totalH / t))
 		const asset: AssetDef = {
 			origin: 'flattened',
 			id: assetId,
 			name: safeName,
-			w: Math.round(totalW / t),
-			h: Math.round(totalH / t),
+			w: gridW,
+			h: gridH,
+			walkable: false,
+			walkableGrid: Array.from({ length: gridH }, () => Array.from({ length: gridW }, () => false)),
+			tileStates: Array.from({ length: gridH }, () => Array.from({ length: gridW }, () => 'blocked' as TileState)),
 			svg: applySvgColorConvention(innerSvg),
 			svgViewBox: { w: vbW, h: vbH },
 		}
@@ -645,7 +613,7 @@ export async function flattenToSvgAsset(name?: string): Promise<string | null> {
 		await saveAssets()
 		await saveLayout()
 
-		toast.success(`Flattened ${objs.length} objects into "${safeName}" — independent asset, no unlink needed`)
+		toast.success(`Flattened ${objs.length} objects into "${safeName}" - independent asset, no unlink needed`)
 		return assetId
 	})
 }

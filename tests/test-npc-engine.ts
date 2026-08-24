@@ -1,9 +1,20 @@
 import assert from 'node:assert/strict'
-import { originAssetsData } from '../src/blueprint-editor/data/originAssets.data'
 import { NpcEngine, findNpcGridPath, selectBestTarget, WanderMemory, type NpcEngineLayout, type NpcEngineInteractionTarget, type NpcEngineFloor, type NpcEngineAgent } from '../src/engine/npc'
 import { normalizeAllowedRoleIds } from '../src/blueprint-editor/types'
 import { validatePortalConfiguration, buildAssetMap } from '../src/blueprint-editor/assetUtils'
 import type { AssetDef } from '../src/blueprint-editor/types'
+
+function makeElevatorAsset(): AssetDef {
+	const offsets = [12.5, 37.5, 62.5]
+	return {
+		id: 'builtin-elevator-1',
+		name: 'Elevator',
+		w: 3,
+		h: 3,
+		tags: ['portal'],
+		interactSpots: offsets.flatMap(y => offsets.map(x => ({ x, y }))),
+	}
+}
 
 function makeRng(seed: number): () => number {
 	let state = seed >>> 0 || 1
@@ -344,9 +355,8 @@ const directPath = (_floor: unknown, from: { x: number; y: number }, to: { x: nu
 
 {
 
-	const raw = { originAssets: originAssetsData } as { originAssets: AssetDef[] }
-	const assetMap = buildAssetMap(raw.originAssets)
-	const elevator = assetMap.get('builtin-elevator-1')!
+	const elevator = makeElevatorAsset()
+	const assetMap = buildAssetMap([elevator])
 	assert.ok(elevator.tags?.includes('portal'), 'elevator asset should have portal tag')
 	assert.equal(elevator.interactSpots?.length, 9, 'elevator asset should have 9 interactSpots')
 	const singleFloorLayout = {
@@ -425,9 +435,7 @@ function generateRuntimePortalTargets(
 
 
 {
-	const raw = { originAssets: originAssetsData } as { originAssets: AssetDef[] }
-	const assetMap = buildAssetMap(raw.originAssets)
-	const elevator = assetMap.get('builtin-elevator-1')!
+	const elevator = makeElevatorAsset()
 	assert.ok(elevator.interactSpots?.length === 9, 'elevator must have 9 interactspots for integration test')
 	const tileSize = 25
 
@@ -468,9 +476,7 @@ function generateRuntimePortalTargets(
 
 
 {
-	const raw = { originAssets: originAssetsData } as { originAssets: AssetDef[] }
-	const assetMap = buildAssetMap(raw.originAssets)
-	const elevator = assetMap.get('builtin-elevator-1')!
+	const elevator = makeElevatorAsset()
 	const tileSize = 25
 	const makeWalkable = (w: number, h: number) => {
 		const set = new Set<string>()
@@ -521,9 +527,7 @@ function generateRuntimePortalTargets(
 
 
 {
-	const raw = { originAssets: originAssetsData } as { originAssets: AssetDef[] }
-	const assetMap = buildAssetMap(raw.originAssets)
-	const elevator = assetMap.get('builtin-elevator-1')!
+	const elevator = makeElevatorAsset()
 	const tileSize = 25
 	const makeWalkable = (w: number, h: number) => {
 		const set = new Set<string>()
@@ -560,9 +564,7 @@ function generateRuntimePortalTargets(
 
 
 {
-	const raw = { originAssets: originAssetsData } as { originAssets: AssetDef[] }
-	const assetMap = buildAssetMap(raw.originAssets)
-	const elevator = assetMap.get('builtin-elevator-1')!
+	const elevator = makeElevatorAsset()
 	const tileSize = 25
 
 	const expectedCells = [

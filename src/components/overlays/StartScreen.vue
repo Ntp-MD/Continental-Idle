@@ -47,7 +47,7 @@ onUnmounted(() => {
 const features = [
   {
     title: "Blueprint Editor",
-    desc: "Design your hotel on a tile grid — rooms, corridors, lobbies, elevators, bathrooms and lounges.",
+    desc: "Design your hotel on a tile grid - rooms, corridors, lobbies, elevators, bathrooms and lounges.",
     tag: "Design",
   },
   {
@@ -91,7 +91,7 @@ const steps = ["Design floors & place furniture in the Blueprint Editor", "Enter
 
         <div class="start__footnote">
           <span>v2.0</span>
-          <span>Design · Simulate · Manage</span>
+          <span>Design - Simulate - Manage</span>
         </div>
       </aside>
 
@@ -100,7 +100,7 @@ const steps = ["Design floors & place furniture in the Blueprint Editor", "Enter
         <div class="start__story">
           <div class="start__storyicon">?</div>
           <div class="start__storytext">
-            <p class="start__storyline">Welcome to the Continental — a world where hospitality and precision meet.</p>
+            <p class="start__storyline">Welcome to the Continental - a world where hospitality and precision meet.</p>
             <p class="start__storyline">Design your hotel in the Blueprint Editor, then watch it come alive with NPCs moving through your layout.</p>
           </div>
         </div>
@@ -400,7 +400,6 @@ const steps = ["Design floors & place furniture in the Blueprint Editor", "Enter
   background: var(--gradient-primary);
   transition: width var(--duration-fast);
   border-radius: var(--radius-xs);
-  box-shadow: 0 0 8px rgba(240, 192, 64, 0.4);
 }
 
 .start__loadingstatus {

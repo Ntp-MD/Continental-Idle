@@ -54,14 +54,14 @@ async function onSyncOrigins() {
       npcSimulation.refresh();
       return count;
     });
-    toast.success(`Origins refreshed${refreshedCount ? ` — ${refreshedCount} instances rebuilt` : ""}`);
+    toast.success(`Origins refreshed${refreshedCount ? ` - ${refreshedCount} instances rebuilt` : ""}`);
   } catch {
     toast.error("Failed to refresh origins");
   }
 }
 
 const total = computed(() => npcs.value.length);
-const currentFloorLabel = computed(() => store.currentFloor.value?.label ?? "—");
+const currentFloorLabel = computed(() => store.currentFloor.value?.label ?? "-");
 const countsByRole = computed(() => {
   const map = new Map<string, number>();
   for (const npc of npcs.value) map.set(npc.type, (map.get(npc.type) ?? 0) + 1);
@@ -124,6 +124,7 @@ const widthInput = ref(store.state.layout.canvas.width);
 const heightInput = ref(store.state.layout.canvas.height);
 const tileInput = ref(store.state.layout.canvas.tileSize);
 const bgColorInput = ref(store.state.layout.canvas.bgColor);
+const labelColorInput = ref(store.state.layout.canvas.labelColor);
 
 watch(
   () => store.state.layout.canvas,
@@ -132,6 +133,7 @@ watch(
     heightInput.value = c.height;
     tileInput.value = c.tileSize;
     bgColorInput.value = c.bgColor;
+    labelColorInput.value = c.labelColor;
   },
 );
 
@@ -172,22 +174,21 @@ async function applyCanvasBgColor(value: string | undefined) {
   }
 }
 
+async function applyLabelColor(value: string | undefined) {
+  try {
+    const saved = await run(() => store.setCanvasLabelColor(value));
+    if (!saved) toast.error("Failed to set label color");
+  } catch {
+    toast.error("Failed to set label color");
+  }
+}
+
 async function applyStreetFloor(floorId: string | null) {
   try {
     const saved = await run(() => store.setStreetFloor(floorId));
     if (!saved) toast.error("Failed to update street floor");
   } catch {
     toast.error("Failed to update street floor");
-  }
-}
-
-async function onSave() {
-  try {
-    const saved = await run(() => store.saveLayout());
-    if (saved) toast.success("Layout saved");
-    else toast.error("Failed to save layout");
-  } catch {
-    toast.error("Failed to save layout");
   }
 }
 
@@ -198,7 +199,7 @@ function onSyncToGame() {
 
 <template>
   <div class="editor__toolbar">
-    <button class="flag--ghost flag--icon" @click="showSettings = true" title="Canvas Settings & Shortcuts" aria-label="Canvas settings">
+    <button class="flag--ghost flag--icon" @click="showSettings = true" title="Canvas Settings" aria-label="Canvas settings">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <circle cx="12" cy="12" r="3" />
         <path
@@ -212,14 +213,13 @@ function onSyncToGame() {
     <button :class="{ 'flag--warning': store.state.mode === 'move' }" @click="onSwitchMode('move')" aria-label="Switch to move mode">Move</button>
 
     <button @click="onNpcManager" title="Configure NPC roles and tags" aria-label="Open NPC manager">NPC Manager</button>
-    <button class="flag--warning" :disabled="pending" @click="onSyncOrigins" title="Re-resolve every placed object from its origin asset and rebuild walkable layout" aria-label="Refresh all origin assets">Sync Origins</button>
+    <button class="flag--warning" :disabled="pending" @click="onSyncOrigins" title="Re-resolve every placed object from its origin asset and rebuild walkable layout" aria-label="Refresh all placed objects from origins">Refresh Objects</button>
     <button @click="onFloorManager" title="Manage floors: add, delete, reorder, role restrictions" aria-label="Open floor manager">Floor Manager</button>
     <button :class="{ 'flag--warning': store.state.mode === 'npc-preview' }" @click="onDeployNpc" title="Deploy NPCs on current floor (configure roles first)">Deploy NPCs</button>
 
-    <button class="flag--success" :disabled="pending" @click="onSave" title="Save layout to assets-store.ts" aria-label="Save layout">Save</button>
     <button class="flag--success editor__toolbar--spacer" @click="onSyncToGame" title="Apply blueprint layout to the main game" aria-label="Sync blueprint to game">Sync Game</button>
 
-    <button class="flag--danger" @click="onBack" aria-label="Back to start screen">◀ Back</button>
+    <button class="flag--danger" @click="onBack" aria-label="Back to start screen">Back</button>
 
     <ModalShell :open="store.state.mode === 'npc-preview'" title="NPC Preview" max-width="340px" width="min(94vw, 340px)" floating @close="onExitDeploy">
       <div class="modal__body npc__body">
@@ -242,7 +242,7 @@ function onSyncToGame() {
           </span>
         </div>
         <div class="form__row form__row--border">
-          <button type="button" @click="onTogglePause" :aria-label="isPaused ? 'Resume NPC simulation' : 'Pause NPC simulation'">{{ isPaused ? "▶ Resume" : "❚❚ Pause" }}</button>
+          <button type="button" @click="onTogglePause" :aria-label="isPaused ? 'Resume NPC simulation' : 'Pause NPC simulation'">{{ isPaused ? "Resume" : "Pause" }}</button>
           <div class="npc__speed" role="group" aria-label="Simulation speed">
             <button
               v-for="s in [1, 2, 4, 8]"
@@ -269,17 +269,19 @@ function onSyncToGame() {
       <div class="modal__body settings__body">
         <div class="form__group">
           <div class="form__title">Canvas Size</div>
-          <div class="form__row">
-            <label for="canvas__width">Width</label>
-            <input id="canvas__width" class="input--grow" type="number" v-model.number="widthInput" min="100" step="25" />
-          </div>
-          <div class="form__row">
-            <label for="canvas__height">Height</label>
-            <input id="canvas__height" class="input--grow" type="number" v-model.number="heightInput" min="100" step="25" />
-          </div>
-          <div class="form__row">
-            <label for="canvas__tile">Tile Size</label>
-            <input id="canvas__tile" class="input--grow" type="number" v-model.number="tileInput" min="5" step="5" />
+          <div class="form__row form__row--pair">
+            <div class="form__row">
+              <label for="canvas__width">Width</label>
+              <input id="canvas__width" type="number" v-model.number="widthInput" min="100" step="25" />
+            </div>
+            <div class="form__row">
+              <label for="canvas__height">Height</label>
+              <input id="canvas__height" type="number" v-model.number="heightInput" min="100" step="25" />
+            </div>
+            <div class="form__row">
+              <label for="canvas__tile">Tile</label>
+              <input id="canvas__tile" type="number" v-model.number="tileInput" min="5" step="5" />
+            </div>
           </div>
           <button class="flag--active" :disabled="pending" @click="applyCanvasSize" aria-label="Apply canvas size">Apply</button>
           <div class="form__hint">Changing canvas size will re-snap all objects to the new grid.</div>
@@ -293,55 +295,42 @@ function onSyncToGame() {
           <div class="form__hint">Hex color or 'transparent'. Leave empty for default.</div>
         </div>
         <div class="form__group">
+          <div class="form__title">Labels</div>
+          <div class="form__row">
+            <label for="canvas__labelcolor">Color</label>
+            <ColorInput v-model="labelColorInput" allow-transparent placeholder="#RRGGBB (empty = theme default)" aria-label="Object label color" @commit="applyLabelColor" />
+          </div>
+          <div class="form__hint">One color for every object label on the canvas.</div>
+        </div>
+        <div class="form__group">
           <div class="form__title">Street</div>
-          <div class="form__row">
-            <label for="canvas__streetfloor">Show on floor</label>
-            <select
-              id="canvas__streetfloor"
-              class="input--grow"
-              :value="store.state.layout.streetFloorId ?? ''"
-              aria-label="Floor that displays the street ring"
-              @change="applyStreetFloor(($event.target as HTMLSelectElement).value || null)"
-            >
-              <option value="">None</option>
-              <option v-for="f in store.state.layout.floors" :key="f.id" :value="f.id">{{ f.label }} — {{ f.name }}</option>
-            </select>
+          <div class="form__row form__row--pair">
+            <div class="form__row">
+              <label for="canvas__streetfloor">On floor</label>
+              <select
+                id="canvas__streetfloor"
+                :value="store.state.layout.streetFloorId ?? ''"
+                aria-label="Floor that displays the street ring"
+                @change="applyStreetFloor(($event.target as HTMLSelectElement).value || null)"
+              >
+                <option value="">None</option>
+                <option v-for="f in store.state.layout.floors" :key="f.id" :value="f.id">{{ f.label }} - {{ f.name }}</option>
+              </select>
+            </div>
+            <div class="form__row">
+              <label for="canvas__streetwidth">Ring</label>
+              <select
+                id="canvas__streetwidth"
+                :value="store.state.layout.streetWidthTiles ?? ''"
+                aria-label="Street ring width in tiles"
+                @change="store.setStreetWidth(Number(($event.target as HTMLSelectElement).value) || null)"
+              >
+                <option value="">Default (8 tiles)</option>
+                <option v-for="w in [5, 6, 7, 8, 9, 10, 11, 12]" :key="w" :value="w">{{ w }} tiles</option>
+              </select>
+            </div>
           </div>
-          <div class="form__hint">The street ring renders only on the selected floor.</div>
-        </div>
-        <div class="form__group">
-          <div class="form__title">Street Width</div>
-          <div class="form__row">
-            <label for="canvas__streetwidth">Ring width</label>
-            <select
-              id="canvas__streetwidth"
-              class="input--grow"
-              :value="store.state.layout.streetWidthTiles ?? ''"
-              aria-label="Street ring width in tiles"
-              @change="store.setStreetWidth(Number(($event.target as HTMLSelectElement).value) || null)"
-            >
-              <option value="">Default (8 tiles)</option>
-              <option v-for="w in [5, 6, 7, 9, 10, 12]" :key="w" :value="w">{{ w }} tiles</option>
-            </select>
-          </div>
-          <div class="form__hint">Drives placement boundary, NPC walkable zone and the drawn road.</div>
-        </div>
-        <div class="form__group">
-          <div class="form__title">Keyboard Shortcuts</div>
-          <div class="settings__shortcuts">
-            <div class="settings__shortcut"><kbd>Delete</kbd><span>Delete selected</span></div>
-            <div class="settings__shortcut"><kbd>R</kbd><span>Rotate object</span></div>
-            <div class="settings__shortcut"><kbd>L</kbd><span>Lock/unlock object</span></div>
-            <div class="settings__shortcut"><kbd>Ctrl+C</kbd><span>Copy selected</span></div>
-            <div class="settings__shortcut"><kbd>Ctrl+V</kbd><span>Paste objects</span></div>
-            <div class="settings__shortcut"><kbd>Ctrl+L</kbd><span>Link selected objects</span></div>
-            <div class="settings__shortcut"><kbd>Shift+Click</kbd><span>Add to selection</span></div>
-            <div class="settings__shortcut"><kbd>Arrow Keys</kbd><span>Move selected by 1 tile</span></div>
-            <div class="settings__shortcut"><kbd>Space+Drag</kbd><span>Pan canvas</span></div>
-            <div class="settings__shortcut"><kbd>Ctrl+0</kbd><span>Fit to screen</span></div>
-            <div class="settings__shortcut"><kbd>+/-</kbd><span>Zoom in/out</span></div>
-            <div class="settings__shortcut"><kbd>Esc</kbd><span>Deselect / cancel drag</span></div>
-          </div>
+          <div class="form__hint">Street ring renders on one floor; ring width drives placement boundary, NPC walkable zone and the drawn road.</div>
         </div>
       </div>
     </ModalShell>
@@ -490,35 +479,5 @@ function onSyncToGame() {
 .settings__body .form__row label {
   min-width: fit-content;
   color: var(--text-primary);
-}
-
-.settings__shortcuts {
-  display: flex;
-  flex-direction: column;
-  gap: var(--gap-xs);
-}
-
-.settings__shortcut {
-  display: flex;
-  align-items: center;
-  gap: var(--gap-md);
-  font-size: var(--font-sm);
-}
-
-.settings__shortcut kbd {
-  display: inline-block;
-  min-width: fit-content;
-  padding: var(--gap-xxs) var(--gap-sm);
-  background: var(--bg-primary);
-  border: 1px solid var(--border-dim);
-  border-radius: var(--radius-sm);
-  font-family: var(--font-mono);
-  font-size: var(--font-xs);
-  color: var(--text-primary);
-  text-align: center;
-}
-
-.settings__shortcut span {
-  color: var(--text-secondary);
 }
 </style>

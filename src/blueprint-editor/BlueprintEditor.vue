@@ -51,7 +51,7 @@ provide("npcSimulation", npcSimulation);
       <ToastContainer />
       <ConfirmDialog />
     </template>
-    <div v-else class="editor--loading">Loading editor…</div>
+    <div v-else class="editor--loading">Loading editor...</div>
   </div>
 </template>
 

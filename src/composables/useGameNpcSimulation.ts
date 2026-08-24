@@ -37,7 +37,20 @@ function toFloors(payload: SyncedLayoutPayload) {
 
 export function useGameNpcSimulation(
 	payloadRef: Ref<SyncedLayoutPayload | null>,
-): { npcs: Ref<NpcSimDot[]>; deploy: () => void; start: () => void; stop: () => void; pause: () => void; resume: () => void; reset: () => void; isPaused: Ref<boolean>; simSpeed: Ref<number>; config: Ref<NpcSimulationConfig>; currentFloorId: Ref<string | null>; setFloor: (floorId: string) => void } {
+): {
+	npcs: Ref<NpcSimDot[]>
+	deploy: () => void
+	start: () => void
+	stop: () => void
+	pause: () => void
+	resume: () => void
+	reset: () => void
+	isPaused: Ref<boolean>
+	simSpeed: Ref<number>
+	config: Ref<NpcSimulationConfig>
+	currentFloorId: Ref<string | null>
+	setFloor: (floorId: string) => void
+} {
 	const currentFloorId = ref<string | null>(null)
 
 	const core: NpcSimulationCore = useNpcSimulationCore({
@@ -48,7 +61,7 @@ export function useGameNpcSimulation(
 			h: payloadRef.value?.canvas.height ?? 1000,
 			tileSize: payloadRef.value?.canvas.tileSize ?? 25,
 			streetTiles: payloadRef.value?.canvas.streetWidthTiles,
-		},
+		}),
 		getViewFloorId: () => currentFloorId.value,
 		idPrefix: 'npc-game-',
 		syncIntervalMs: 16,

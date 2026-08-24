@@ -59,7 +59,7 @@ function assetSvg(type: string): string | undefined {
 }
 
 function objFillColor(obj: SyncedObject): string {
-  return obj.fillColor ?? assetMap.get(obj.type)?.defaultBgColor ?? "var(--bg-primary)";
+      return obj.fillColor ?? assetMap.get(obj.type)?.defaultFillColor ?? "var(--bg-primary)";
 }
 
 function objPadding(obj: SyncedObject): number {
@@ -135,7 +135,8 @@ watch(
     </div>
 
     <div class="empty hotel__empty" v-if="!props.payload">
-      <p>No hotel data loaded. Open the Blueprint Editor and sync to see the hotel.</p>
+      <p>No hotel layout found yet.</p>
+      <p>Open the Blueprint Editor, place some objects and press Sync Game.</p>
     </div>
   </div>
 </template>

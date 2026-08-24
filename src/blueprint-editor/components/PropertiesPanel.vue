@@ -37,7 +37,7 @@ async function doFlatten() {
   <div class="form__panel">
     <div class="form__header">
       <span>Properties</span>
-      <span>{{ store.currentFloor.value?.label ?? "—" }} · {{ store.currentFloor.value?.name ?? "" }}</span>
+      <span>{{ store.currentFloor.value?.label ?? "-" }} - {{ store.currentFloor.value?.name ?? "" }}</span>
     </div>
     <div class="form__group">
       <div v-if="!object && !asset && store.state.selectionState.items.length === 0">
@@ -78,7 +78,7 @@ async function doFlatten() {
       </div>
 
       <!-- Asset editor -->
-      <AssetProperties v-if="asset" :asset="asset" />
+      <AssetProperties v-if="asset" :key="asset.id" :asset="asset" />
 
       <!-- Object editor -->
       <ObjectPropertiesForm v-else-if="object" :object="object" />

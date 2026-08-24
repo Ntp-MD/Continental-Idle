@@ -4,14 +4,24 @@ export const floorPlanData = {
     "width": 1600,
     "height": 1000,
     "tileSize": 25,
-    "bgColor": "#ffffff"
+    "bgColor": "#000000",
+    "labelColor": "#cfcfcf"
   },
   "floors": [
     {
       "id": "floor-g-basement",
       "name": "Basement",
       "label": "Test",
-      "objects": [],
+      "objects": [
+        {
+          "id": "obj-97d7ef9dd5",
+          "type": "custom-6f33db9d6f",
+          "x": 325,
+          "y": 325,
+          "rotation": 0,
+          "subId": "sub-31a54b2d65"
+        }
+      ],
       "defaultWalkable": true,
       "walkable": {
         "walkableGrid": [
@@ -7954,6 +7964,5 @@ export const floorPlanData = {
         ]
       }
     }
-  ],
-  "streetFloorId": "floor-g-basement"
+  ]
 }

@@ -3,6 +3,7 @@ import { ref, computed, watch } from "vue";
 import { useAssetsStore, startAssetDrag } from "../blueprintStore";
 import { useToast } from "@/composables/useToast";
 import { useAsyncAction } from "../composables/useAsyncAction";
+import { assetSettingsIssues } from "../assetUtils";
 import type { AssetDef } from "../types";
 
 const store = useAssetsStore();
@@ -19,11 +20,27 @@ const ORIGIN_LABELS: Record<string, string> = {
 
 function assetSizeLabel(asset: AssetDef): string {
   if (asset.linkedParts) return `${asset.linkedParts.length} linked`;
-  if (asset.pxW || asset.pxH) return `${asset.pxW ?? asset.w}×${asset.pxH ?? asset.h}px`;
-  return `${asset.w}×${asset.h}`;
+  if (asset.pxW || asset.pxH) return `${asset.pxW ?? asset.w}x${asset.pxH ?? asset.h}px`;
+  return `${asset.w}x${asset.h}`;
 }
 
 const allAssets = computed(() => [...store.assetMap().values()]);
+
+const incompleteMap = computed(() => {
+  const map = new Map<string, string[]>();
+  for (const asset of allAssets.value) {
+    const issues = assetSettingsIssues(asset);
+    if (issues.length > 0) map.set(asset.id, issues);
+  }
+  return map;
+});
+
+const incompleteCount = computed(() => incompleteMap.value.size);
+
+function incompleteTitle(asset: AssetDef): string {
+  const issues = incompleteMap.value.get(asset.id);
+  return issues?.length ? `Incomplete settings: ${issues.join(", ")}` : "";
+}
 
 const placedObjectCounts = computed(() => {
   const counts = new Map<string, number>();
@@ -106,15 +123,19 @@ function onItemClick(assetId: string) {
     <div class="form__group">
       <div class="form__search">
         <input v-model="searchQuery" placeholder="Search assets..." type="text" aria-label="Search assets" />
-        <button v-if="searchQuery" class="flag--ghost flag--icon" @click="searchQuery = ''" aria-label="Clear search" title="Clear search">×</button>
+        <button v-if="searchQuery" class="flag--ghost flag--icon" @click="searchQuery = ''" aria-label="Clear search" title="Clear search">x</button>
       </div>
     </div>
     <div class="form__group has__scroll">
-      <div class="form__header">Assets List</div>
+      <div class="form__header">
+        <span>Assets List</span>
+        <span v-if="incompleteCount" class="assets__warn flag--warning" title="Assets showing the yellow marker have incomplete settings">{{ incompleteCount }} incomplete</span>
+      </div>
       <div v-if="!filteredAssets.length" class="empty assets__empty">No assets found</div>
-      <div v-for="asset in filteredAssets" :key="asset.id" class="card--item assets__items" :class="{ 'assets--selected': store.state.selectedAssetId === asset.id, 'assets--linked': !!asset.linkedParts }" @mousedown="onAssetMouseDown(asset.id, $event)" @click="onItemClick(asset.id)">
-        <span class="assets__tiles">{{ assetSizeLabel(asset) }} · {{ originLabel(asset) }}</span>
+      <div v-for="asset in filteredAssets" :key="asset.id" class="card--item assets__items" :class="{ 'assets--selected': store.state.selectedAssetId === asset.id, 'assets--linked': !!asset.linkedParts }" :title="incompleteTitle(asset) || undefined" @mousedown="onAssetMouseDown(asset.id, $event)" @click="onItemClick(asset.id)">
+        <span class="assets__tiles">{{ assetSizeLabel(asset) }} - {{ originLabel(asset) }}</span>
         <span class="assets__name">{{ asset.name }}</span>
+        <span v-if="incompleteMap.get(asset.id)?.length" class="assets__warn flag--warning" title="Incomplete settings">!</span>
         <span class="assets__count" :class="{ 'assets__count--placed': placedObjectCount(asset.id) > 0 }" :title="`${placedObjectCount(asset.id)} placed object${placedObjectCount(asset.id) === 1 ? '' : 's'}`">{{ placedObjectCount(asset.id) }}</span>
       </div>
     </div>
@@ -127,9 +148,9 @@ function onItemClick(assetId: string) {
       <div v-if="showSvgForm" class="form__group">
         <input v-model="svgName" placeholder="Asset name" aria-label="SVG asset name" />
         <div class="form__row form__row--tight">
-          <input class="input--num" type="number" min="1" :value="svgW" disabled placeholder="W (auto)" aria-label="SVG width (auto)" />
-          <span aria-hidden="true">×</span>
-          <input class="input--num" type="number" min="1" :value="svgH" disabled placeholder="H (auto)" aria-label="SVG height (auto)" />
+          <input type="number" min="1" :value="svgW" disabled placeholder="W (auto)" aria-label="SVG width (auto)" />
+          <span aria-hidden="true">x</span>
+          <input type="number" min="1" :value="svgH" disabled placeholder="H (auto)" aria-label="SVG height (auto)" />
         </div>
         <textarea v-model="svgContent" placeholder="Paste SVG here (must include viewBox)..." rows="6" aria-label="SVG content"></textarea>
         <button class="flag--active" :disabled="pending" @click="submitSvgAsset">Import SVG</button>
@@ -167,6 +188,18 @@ function onItemClick(assetId: string) {
   border-color: var(--accent-blue);
   color: var(--accent-blue);
   background: color-mix(in srgb, var(--accent-blue) 12%, transparent);
+}
+
+.assets__warn {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 var(--gap-xxs);
+  font-size: var(--font-xs);
+  line-height: 1;
 }
 
 .assets__items {

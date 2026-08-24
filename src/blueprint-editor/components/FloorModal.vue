@@ -95,7 +95,7 @@ async function onDelete(id: string) {
   if (floors.value.length <= 1) return;
   const ok = await confirm({
     title: "Delete floor",
-    message: "Delete this floor? This cannot be undone via UI (only Ctrl+Z).",
+    message: "Delete this floor? This action cannot be undone.",
     confirmLabel: "Delete",
     cancelLabel: "Cancel",
     danger: true,
@@ -176,7 +176,7 @@ async function deleteSpawnZone(zoneId: string): Promise<void> {
 }
 
 function floorCounts(f: FloorData): string {
-  return `${f.objects.length} objects · ${f.spawnZones?.length ?? 0} spawn zones`;
+  return `${f.objects.length} objects - ${f.spawnZones?.length ?? 0} spawn zones`;
 }
 </script>
 
@@ -223,13 +223,13 @@ function floorCounts(f: FloorData): string {
           <div class="form__row">
             <label class="label--fixed">Label</label>
             <input v-if="editingLabel" v-model="editingLabelRaw" aria-label="Edit floor label" @keydown.enter="commitLabel" @blur="commitLabel" />
-            <input v-else class="input--disabled input--grow" :value="selectedFloor.label" readonly @dblclick="startEditLabel" aria-label="Floor label" />
+            <input v-else class="input--disabled" :value="selectedFloor.label" readonly @dblclick="startEditLabel" aria-label="Floor label" />
           </div>
 
           <div class="form__row">
             <label class="label--fixed">Name</label>
             <input v-if="editingName" :value="editingNameRaw" @input="editingNameRaw = sanitizeString(($event.target as HTMLInputElement).value)" aria-label="Edit floor name" @keydown.enter="commitName" @blur="commitName" />
-            <input v-else class="input--disabled input--grow" :value="selectedFloor.name" readonly @dblclick="startEditName" aria-label="Floor name" />
+            <input v-else class="input--disabled" :value="selectedFloor.name" readonly @dblclick="startEditName" title="Double-click to edit" aria-label="Floor name" />
           </div>
 
           <div class="form__row">
@@ -244,10 +244,10 @@ function floorCounts(f: FloorData): string {
             <label class="label--fixed">Spawn Zones</label>
             <div class="form__col form__col--tight">
               <div v-for="zone in selectedFloor.spawnZones ?? []" :key="zone.id" class="floor__zone">
-                <input class="input--disabled input--grow" :value="`${zone.label} (${zone.x}, ${zone.y}, ${zone.w}×${zone.h})`" readonly aria-label="Spawn zone info" />
-                <button class="flag--danger flag--icon" type="button" @click="deleteSpawnZone(zone.id)" aria-label="Delete spawn zone">×</button>
+                <span class="form__hint">{{ zone.label }} ({{ zone.x }}, {{ zone.y }}, {{ zone.w }}x{{ zone.h }})</span>
+                <button class="flag--danger flag--icon" type="button" @click="deleteSpawnZone(zone.id)" aria-label="Delete spawn zone">x</button>
               </div>
-              <span v-if="!selectedFloor.spawnZones?.length" class="form__hint">No zones — all walkable cells can spawn NPCs</span>
+              <span v-if="!selectedFloor.spawnZones?.length" class="form__hint">No zones - all walkable cells can spawn NPCs</span>
               <div class="floor__form">
                 <input v-model="spawnZoneDraft.label" type="text" placeholder="Zone label" aria-label="Spawn zone label" />
                 <input v-model.number="spawnZoneDraft.x" type="number" min="0" placeholder="X" aria-label="Spawn zone X" />
@@ -269,7 +269,7 @@ function floorCounts(f: FloorData): string {
 
           <div class="form__row">
             <label class="label--fixed">Stats</label>
-            <input class="input--disabled" :value="floorCounts(selectedFloor)" readonly aria-label="Floor stats" />
+            <span class="form__hint">{{ floorCounts(selectedFloor) }}</span>
           </div>
 
           <div class="floor__heading">Allowed Roles</div>
@@ -284,13 +284,13 @@ function floorCounts(f: FloorData): string {
                 <span class="swatch" :style="{ background: role.color }" />
                 <span>{{ role.label }}</span>
               </label>
-              <span v-if="!availableRoles.length" class="form__hint">No roles configured — open Role Manager to add roles</span>
+              <span v-if="!availableRoles.length" class="form__hint">No roles configured - open Role Manager to add roles</span>
             </div>
           </div>
 
           <div class="form__row form__row--border">
-            <button class="flag--ghost" @click="onDuplicate(selectedFloor.id)">⧉ Duplicate</button>
-            <button class="flag--danger" :disabled="floors.length <= 1" @click="onDelete(selectedFloor.id)">✕ Delete</button>
+            <button class="flag--ghost" @click="onDuplicate(selectedFloor.id)">Duplicate</button>
+            <button class="flag--danger" :disabled="floors.length <= 1" @click="onDelete(selectedFloor.id)">Delete</button>
           </div>
         </div>
         <div v-else class="empty empty--center">Select a floor to edit</div>

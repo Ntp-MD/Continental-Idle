@@ -37,14 +37,12 @@ export function normalizeObject(
 		subId: o.subId,
 		linkGroupId: o.linkGroupId,
 		locked: o.locked,
-		instanceLabel: o.instanceLabel,
 	}, asset, tileSize)
 	if (!resolved) return
 	o.w = resolved.w
 	o.h = resolved.h
 	o.radius = resolved.radius
 	o.labelPadding = resolved.labelPadding
-	o.instanceLabel = resolved.instanceLabel
 	o.locked = resolved.locked
 	o.padding = resolved.padding
 	o.rx = resolved.rx
@@ -70,11 +68,10 @@ export function resolvePlacedObject(
 		labelPadding: asset.defaultLabelPadding,
 		padding: asset.defaultPadding,
 		rx: asset.defaultRx ? { ...asset.defaultRx } : undefined,
-		fillColor: placement.fillColor ?? asset.defaultBgColor,
+		fillColor: placement.fillColor,
 		strokeColor: placement.strokeColor,
 		isWall: asset.isWall,
 		locked: placement.locked ?? asset.defaultLocked,
-		instanceLabel: placement.instanceLabel ?? asset.defaultInstanceLabel,
 		walkable: definition.walkable,
 		entranceRequired: definition.entranceRequired,
 		walkableGrid: definition.walkableGrid,

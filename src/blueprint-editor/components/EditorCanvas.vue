@@ -5,6 +5,7 @@ import { findAssetCached } from "../assetUtils";
 import { svgTransform as svgTransformGeo, roundedRectPath, buildingArea } from "../geometry";
 import { resolveStreetTiles } from "../types";
 import { useConfirm } from "@/composables/useConfirm";
+import { useToast } from "@/composables/useToast";
 import type { ObjectData, EntityRef } from "../types";
 import { resolveObjectDef } from "../types";
 import { useCanvasViewport } from "../composables/useCanvasViewport";
@@ -29,6 +30,7 @@ const vSvgContent = {
 
 const store = useAssetsStore();
 const confirm = useConfirm().confirm;
+const toast = useToast();
 const canvas = computed(() => store.state.layout.canvas);
 const floor = computed(() => store.currentFloor.value);
 const floors = computed(() => store.state.layout.floors);
@@ -168,7 +170,8 @@ watch(
 const VIEW_TOGGLE_KEY = "blueprint-view-toggles";
 const savedToggles = (() => {
   try {
-    return JSON.parse(sessionStorage.getItem(VIEW_TOGGLE_KEY) ?? "{}");
+    const parsed: unknown = JSON.parse(localStorage.getItem(VIEW_TOGGLE_KEY) ?? "{}");
+    return parsed && typeof parsed === "object" ? (parsed as Record<string, boolean>) : {};
   } catch {
     return {};
   }
@@ -291,7 +294,7 @@ const draftAssetId = ref<string | null>(null);
 const draftObjectId = ref<string | null>(null);
 const showSaveOrigin = ref(false);
 const originName = ref("");
-const originBgColor = ref<string | undefined>(undefined);
+const originFillColor = ref<string | undefined>(undefined);
 const draftObject = computed(() => floor.value?.objects.find((object) => object.id === draftObjectId.value) ?? null);
 
 async function onDrawComplete(rect: { x: number; y: number; w: number; h: number }) {
@@ -306,9 +309,11 @@ async function onDrawComplete(rect: { x: number; y: number; w: number; h: number
     draftAssetId.value = draft.asset.id;
     draftObjectId.value = draft.object.id;
     originName.value = "";
-    originBgColor.value = undefined;
+    originFillColor.value = undefined;
     showSaveOrigin.value = true;
-  } catch {}
+  } catch {
+    toast.error("Failed to start drawing");
+  }
 }
 
 const sel = useCanvasSelection({
@@ -337,6 +342,10 @@ const { paletteValid, paletteGhost, paletteGhostParts, paletteGhostRect, onWindo
 
 const showGrid = ref(savedToggles.showGrid ?? true);
 const showLabels = ref(savedToggles.showLabels ?? true);
+const selectedRotation = computed<number | null>(() => {
+  if (store.state.selectionState.primary?.type !== "object") return null;
+  return store.selectedObject()?.rotation ?? null;
+});
 const showStreet = computed(() => !!store.state.layout.streetFloorId && store.state.layout.streetFloorId === store.state.currentFloorId);
 const mouseCoords = ref({ x: 0, y: 0 });
 const rulerMouseX = ref(-1);
@@ -509,7 +518,7 @@ function onContainerMouseMove(e: MouseEvent) {
 
 function saveViewToggles() {
   try {
-    sessionStorage.setItem(
+    localStorage.setItem(
       VIEW_TOGGLE_KEY,
       JSON.stringify({
         showGrid: showGrid.value,
@@ -533,12 +542,6 @@ function toggleGrid() {
 function toggleLabels() {
   showLabels.value = !showLabels.value;
   saveViewToggles();
-}
-
-async function toggleStreet() {
-  try {
-    await store.setStreetFloor(showStreet.value ? null : store.state.currentFloorId);
-  } catch {}
 }
 
 function toggleWalkableOverlay() {
@@ -579,14 +582,14 @@ async function onKeyDown(e: KeyboardEvent) {
     spaceDown.value = true;
     return;
   }
-  if (e.key === "Delete" || e.key === "Backspace") {
+  if ((e.key === "Delete" || e.key === "Backspace") && !e.repeat) {
     if (store.state.selectionState.primary) {
       e.preventDefault();
       const sel = store.state.selectionState.primary;
       const count = store.state.selectionState.items.length || 1;
       const confirmed = await confirm({
         title: "Delete selection",
-        message: `Delete ${count} selected ${count === 1 ? sel.type : "object(s)"}? This cannot be undone via UI (only Ctrl+Z).`,
+        message: `Delete ${count} selected ${count === 1 ? sel.type : "object(s)"}? This action cannot be undone.`,
         confirmLabel: "Delete",
         cancelLabel: "Cancel",
         danger: true,
@@ -609,8 +612,9 @@ async function onKeyDown(e: KeyboardEvent) {
     if (store.state.selectionState.primary) {
       e.preventDefault();
       const t = canvas.value.tileSize;
-      const dx = e.key === "ArrowLeft" ? -t : e.key === "ArrowRight" ? t : 0;
-      const dy = e.key === "ArrowUp" ? -t : e.key === "ArrowDown" ? t : 0;
+      const step = e.shiftKey ? 10 : 1;
+      const dx = e.key === "ArrowLeft" ? -t * step : e.key === "ArrowRight" ? t * step : 0;
+      const dy = e.key === "ArrowUp" ? -t * step : e.key === "ArrowDown" ? t * step : 0;
       const sel = store.state.selectionState.primary;
       if (sel?.type === "object") {
         const o = store.selectedObject();
@@ -652,11 +656,16 @@ function onKeyUp(e: KeyboardEvent) {
   if (e.code === "Space") spaceDown.value = false;
 }
 
+function onWindowBlur() {
+  spaceDown.value = false;
+}
+
 const ZOOM_STORAGE_KEY = "blueprint-zoom-state";
 
 onMounted(() => {
   window.addEventListener("keydown", onKeyDown);
   window.addEventListener("keyup", onKeyUp);
+  window.addEventListener("blur", onWindowBlur);
   document.addEventListener("click", onFloorNavOutside);
   document.addEventListener("keydown", onFloorNavKeydown);
   if (!sessionStorage.getItem(ZOOM_STORAGE_KEY)) requestAnimationFrame(fitToScreen);
@@ -666,6 +675,7 @@ onUnmounted(() => {
   stopNpcDraw();
   window.removeEventListener("keydown", onKeyDown);
   window.removeEventListener("keyup", onKeyUp);
+  window.removeEventListener("blur", onWindowBlur);
   document.removeEventListener("click", onFloorNavOutside);
   document.removeEventListener("keydown", onFloorNavKeydown);
   window.removeEventListener("mousemove", onBoxSelectMouseMove);
@@ -695,13 +705,12 @@ function objDef(obj: ObjectData) {
 function objFillColor(obj: ObjectData): string {
   if (obj.fillColor) return obj.fillColor;
   const a = findAssetCached(store.assetMap(), obj.type);
-  if (a?.svg) return a.defaultBgColor ?? "transparent";
-  return a?.defaultBgColor ?? "var(--text-bright)";
+  if (a?.svg) return a.defaultFillColor ?? "transparent";
+  return a?.defaultFillColor ?? "var(--text-bright)";
 }
 
-function objLabelColor(obj: ObjectData): string {
-  const a = findAssetCached(store.assetMap(), obj.type);
-  return a?.defaultLabelColor || "var(--text-primary)";
+function objLabelColor(): string {
+  return canvas.value.labelColor || "var(--text-primary)";
 }
 
 function objIsWall(obj: ObjectData): boolean {
@@ -709,9 +718,7 @@ function objIsWall(obj: ObjectData): boolean {
 }
 
 function assetSvg(type: string): string | undefined {
-  const a = findAssetCached(store.assetMap(), type);
-  const svg = a?.svg;
-  return svg ? svg.replace(/var\(--border-dim\)/g, "var(--border-dim)") : undefined;
+  return findAssetCached(store.assetMap(), type)?.svg;
 }
 
 function svgTransform(obj: ObjectData): string {
@@ -720,9 +727,12 @@ function svgTransform(obj: ObjectData): string {
 }
 
 function svgColorVars(obj: ObjectData): string {
+  const a = findAssetCached(store.assetMap(), obj.type);
+  const fill = obj.fillColor ?? a?.defaultFillColor;
+  const stroke = obj.strokeColor ?? a?.defaultStrokeColor ?? (fill ? `color-mix(in srgb, ${fill} 55%, black)` : undefined);
   let vars = "";
-  if (obj.fillColor) vars += `--obj-fill:${obj.fillColor};`;
-  if (obj.strokeColor) vars += `--obj-stroke:${obj.strokeColor};`;
+  if (fill) vars += `--obj-fill:${fill};`;
+  if (stroke) vars += `--obj-stroke:${stroke};`;
   return vars;
 }
 
@@ -735,12 +745,14 @@ async function saveDrawnOrigin() {
   const name = originName.value.trim();
   if (!assetId || !name) return;
   try {
-    await store.updateAsset(assetId, { name, defaultBgColor: originBgColor.value });
+    await store.updateAsset(assetId, { name, defaultFillColor: originFillColor.value });
     showSaveOrigin.value = false;
     draftAssetId.value = null;
     draftObjectId.value = null;
     store.setMode("object");
-  } catch {}
+  } catch {
+    toast.error("Failed to save origin asset");
+  }
 }
 
 async function cancelDrawnOrigin() {
@@ -769,7 +781,7 @@ async function cancelDrawnOrigin() {
       rulerMouseY = -1;
     "
   >
-    <svg ref="svgRef" class="editor__svg" :viewBox="viewBox" preserveAspectRatio="xMidYMid meet" role="application" aria-label="Blueprint editor canvas — use arrow keys to move selected objects, Delete to remove, R to rotate" tabindex="0" @mousedown="onCanvasMouseDown">
+    <svg ref="svgRef" class="editor__svg" :viewBox="viewBox" preserveAspectRatio="xMidYMid meet" role="application" aria-label="Blueprint editor canvas - use arrow keys to move selected objects, Delete to remove, R to rotate" tabindex="0" @mousedown="onCanvasMouseDown">
       <defs>
         <pattern id="grid" :width="canvas.tileSize" :height="canvas.tileSize" patternUnits="userSpaceOnUse">
           <path :d="`M ${canvas.tileSize} 0 L 0 0 0 ${canvas.tileSize}`" fill="none" :style="{ stroke: 'var(--border-dim)' }" stroke-width="0.5" />
@@ -841,7 +853,7 @@ async function cancelDrawnOrigin() {
       </g>
 
       <g v-if="floor && floor.objects.length === 0">
-        <text :x="canvas.width / 2" :y="canvas.height / 2 - 10" text-anchor="middle" font-size="16" class="editor__svg--noevents" :style="{ fill: 'var(--text-primary)' }">Empty floor — drag objects from the palette</text>
+        <text :x="canvas.width / 2" :y="canvas.height / 2 - 10" text-anchor="middle" font-size="16" class="editor__svg--noevents" :style="{ fill: 'var(--text-primary)' }">Empty floor - drag objects from the palette</text>
       </g>
 
       <g v-if="renderWalkableOverlay && floor?.walkable?.tileStates" v-memo="[walkableRuns, renderWalkableOverlay]" class="editor__svg--noevents">
@@ -859,6 +871,8 @@ async function cancelDrawnOrigin() {
         <path :d="`M ${buildingAreaRect.x + buildingAreaRect.w} ${buildingAreaRect.y + buildingAreaRect.h - 16} L ${buildingAreaRect.x + buildingAreaRect.w} ${buildingAreaRect.y + buildingAreaRect.h} L ${buildingAreaRect.x + buildingAreaRect.w - 16} ${buildingAreaRect.y + buildingAreaRect.h}`" fill="none" stroke="var(--accent-green)" stroke-width="3.5" />
         <path :d="`M ${buildingAreaRect.x + 16} ${buildingAreaRect.y + buildingAreaRect.h} L ${buildingAreaRect.x} ${buildingAreaRect.y + buildingAreaRect.h} L ${buildingAreaRect.x} ${buildingAreaRect.y + buildingAreaRect.h - 16}`" fill="none" stroke="var(--accent-green)" stroke-width="3.5" />
       </g>
+
+      <rect v-if="showGrid" :width="canvas.width" :height="canvas.height" fill="url(#grid)" class="editor__svg--noevents" />
 
       <g v-if="floor">
         <g v-for="obj in floor.objects" :key="obj.id" @mousedown="onObjectMouseDown($event, obj.id)">
@@ -895,7 +909,7 @@ async function cancelDrawnOrigin() {
             </template>
           </template>
           <rect v-if="isObjectSelected(obj.id)" :x="obj.x + (obj.padding ?? 0)" :y="obj.y + (obj.padding ?? 0)" :width="obj.w - (obj.padding ?? 0) * 2" :height="obj.h - (obj.padding ?? 0) * 2" fill="none" :rx="obj.radius ?? 0" class="editor__canvas--selected editor__svg--noevents" />
-          <text v-if="showLabels" :x="obj.x + obj.w / 2" :y="obj.y + obj.h / 2 + (obj.labelPadding ?? 0)" text-anchor="middle" dominant-baseline="middle" font-size="8" class="editor__svg--noevents" :style="{ fill: objLabelColor(obj) }">
+          <text v-if="showLabels" :x="obj.x + obj.w / 2" :y="Math.max(obj.y - (obj.labelPadding ?? 0) - 3, 7)" text-anchor="middle" font-size="8" class="editor__svg--noevents" :style="{ fill: objLabelColor() }">
             {{ assetLabel(obj.type) }}
           </text>
           <g v-if="obj.linkGroupId" class="editor__svg--noevents">
@@ -918,8 +932,6 @@ async function cancelDrawnOrigin() {
         </g>
 
       </g>
-
-      <rect v-if="showGrid" :width="canvas.width" :height="canvas.height" fill="url(#grid)" class="editor__svg--noevents" />
 
       <rect :width="canvas.width" :height="canvas.height" fill="none" :style="{ stroke: 'var(--border-dim)' }" stroke-width="2" />
 
@@ -944,7 +956,7 @@ async function cancelDrawnOrigin() {
         <button class="floor__trigger" @click.stop="toggleFloorNav" :aria-expanded="floorNavOpen" aria-haspopup="listbox" title="Switch floor" aria-label="Switch floor">
           <span class="floor__tag" :style="{ color: floor.labelColor || undefined }">{{ floor.label }}</span>
           <span class="floor__text">{{ floor.name }}</span>
-          <span class="floor__caret" :class="{ 'floor__caret--rotated': floorNavOpen }">▾</span>
+          <span class="floor__caret" :class="{ 'floor__caret--rotated': floorNavOpen }"><svg viewBox="0 0 10 6" width="8" height="5" aria-hidden="true"><path d="M0 0l5 6 5-6z" fill="currentColor"/></svg></span>
         </button>
         <div v-if="floorNavOpen" class="floor__menu" role="listbox" aria-label="Floors">
           <button v-for="f in floors" :key="f.id" class="floor__item" :class="{ 'floor__item--active': f.id === store.state.currentFloorId }" role="option" :aria-selected="f.id === store.state.currentFloorId" @click="selectFloorNav(f.id)">
@@ -962,17 +974,16 @@ async function cancelDrawnOrigin() {
       {{ modeHint }}
     </div>
 
-    <div class="editor__coords">{{ mouseCoords.x }}, {{ mouseCoords.y }}</div>
+    <div class="editor__coords">{{ mouseCoords.x }}, {{ mouseCoords.y }}<template v-if="selectedRotation !== null"> - {{ selectedRotation }}deg</template></div>
 
     <div class="editor__controls">
-      <button class="flag--ghost flag--icon" @click="zoomBy(1 / 1.25)" title="Zoom Out (-)" aria-label="Zoom out">−</button>
+      <button class="flag--ghost flag--icon" @click="zoomBy(1 / 1.25)" title="Zoom Out (-)" aria-label="Zoom out">-</button>
       <span class="editor__zoom" aria-label="Zoom level">{{ zoomPercent }}%</span>
       <button class="flag--ghost flag--icon" @click="zoomBy(1.25)" title="Zoom In (+)" aria-label="Zoom in">+</button>
       <button class="flag--ghost" @click="fitToScreen" title="Fit to Screen (Ctrl+0)" aria-label="Fit to screen">Fit</button>
       <button class="flag--ghost" @click="centerView" title="Center View" aria-label="Center view">Center</button>
-      <button class="flag--ghost" @click="toggleGrid" title="Toggle Grid" aria-label="Toggle grid">Grid</button>
-      <button class="flag--ghost" @click="toggleLabels" title="Toggle Labels" aria-label="Toggle labels">Labels</button>
-      <button class="flag--ghost" :class="{ 'flag--active': showStreet }" @click="toggleStreet" title="Toggle street on current floor (Canvas Settings to pick the floor)" aria-label="Toggle street on current floor">Street</button>
+      <button class="flag--ghost" :class="{ 'flag--active': showGrid }" @click="toggleGrid" title="Toggle Grid" aria-label="Toggle grid">Grid</button>
+      <button class="flag--ghost" :class="{ 'flag--active': showLabels }" @click="toggleLabels" title="Toggle Labels" aria-label="Toggle labels">Labels</button>
       <button class="flag--ghost" :class="{ 'flag--active': showWalkableOverlay }" @click="toggleWalkableOverlay" title="Toggle Walkable + Entrance" aria-label="Toggle walkable view">Walk</button>
       <button class="flag--ghost" :class="{ 'flag--active': showWalls }" @click="toggleWalls" title="Toggle Outer Walls" aria-label="Toggle walls">Wall</button>
       <button class="flag--ghost" :class="{ 'flag--active': showInteractSpots }" @click="toggleInteractSpots" title="Toggle Interact Spots" aria-label="Toggle interact spots">Interact</button>
@@ -984,15 +995,15 @@ async function cancelDrawnOrigin() {
 
     <ModalShell :open="showSaveOrigin && !!draftObject" title="Save Placed Object as Origin" max-width="360px" width="min(360px, calc(100vw - 32px))" max-height="calc(100vh - 32px)" @close="cancelDrawnOrigin">
       <div class="modal__body">
-        <div class="editor__preview" :style="{ width: `${Math.min(draftObject?.w ?? 0, 220)}px`, height: `${Math.min(draftObject?.h ?? 0, 140)}px`, background: originBgColor || 'var(--bg-primary)' }" />
-        <input class="input--disabled" :value="`${(draftObject?.w ?? 0) / canvas.tileSize} × ${(draftObject?.h ?? 0) / canvas.tileSize} tiles`" readonly aria-label="Object size" />
+        <div class="editor__preview" :style="{ width: `${Math.min(draftObject?.w ?? 0, 220)}px`, height: `${Math.min(draftObject?.h ?? 0, 140)}px`, background: originFillColor || 'var(--bg-primary)' }" />
+        <input class="input--disabled" :value="`${(draftObject?.w ?? 0) / canvas.tileSize} x ${(draftObject?.h ?? 0) / canvas.tileSize} tiles`" readonly aria-label="Object size" />
         <label class="form__row">
           <span class="label--fixed">Name</span>
-          <input v-model="originName" class="input--grow" type="text" placeholder="Object name" autofocus />
+          <input v-model="originName" type="text" placeholder="Object name" autofocus />
         </label>
         <label class="form__row">
-          <span class="label--fixed">Background</span>
-          <ColorInput v-model="originBgColor" :allow-transparent="true" placeholder="#RRGGBB or transparent" aria-label="Origin background color" />
+          <span class="label--fixed">Fill Color</span>
+          <ColorInput v-model="originFillColor" :allow-transparent="true" placeholder="#RRGGBB or transparent" aria-label="Origin fill color" />
         </label>
         <div class="form__row">
           <button class="flag--ghost" type="button" @click="cancelDrawnOrigin">Cancel</button>
@@ -1055,7 +1066,6 @@ async function cancelDrawnOrigin() {
 .editor__svg {
   display: block;
   background: var(--bg-primary);
-  box-shadow: 0 8px 32px color-mix(in srgb, var(--bg-primary) 50%, transparent);
 }
 
 .editor__npccanvas {
@@ -1328,7 +1338,6 @@ async function cancelDrawnOrigin() {
   background: var(--bg-primary);
   border: 1px solid var(--border-dim);
   border-radius: var(--radius-sm);
-  box-shadow: 0 8px 24px color-mix(in srgb, var(--bg-primary) 50%, transparent);
   z-index: var(--z-layer-2);
   padding: var(--gap-xs);
 }

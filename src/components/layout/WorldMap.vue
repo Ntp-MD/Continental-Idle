@@ -160,7 +160,7 @@ function drawNodes(projection: d3.GeoProjection) {
     .style("cursor", "pointer")
     .attr("tabindex", 0)
     .attr("role", "button")
-    .attr("aria-label", (d) => `${d.name} — ${d.city}`);
+    .attr("aria-label", (d) => `${d.name} - ${d.city}`);
 
   nodeGroups.append("circle").attr("class", "nodepulse").attr("r", 8).style("stroke", "var(--accent-primary)");
 
@@ -246,7 +246,7 @@ onUnmounted(() => {
     <svg ref="svgRef" class="map__svg"></svg>
 
     <div v-if="mapLoading" class="map__status map__status--loading">Loading world map...</div>
-    <div v-if="mapError" class="map__status map__status--error">Map data unavailable — showing branches only</div>
+    <div v-if="mapError" class="map__status map__status--error">Map data unavailable - showing branches only</div>
 
     <div class="map__controls">
       <button class="map__btn" aria-label="Zoom in" @click="zoomIn">+</button>

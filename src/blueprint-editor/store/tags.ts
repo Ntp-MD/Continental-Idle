@@ -33,7 +33,3 @@ export async function ensureTag(tag: string): Promise<void> {
 		useToast().warning(`Tag "${normalized}" is not defined in the NPC Manager.`)
 	}
 }
-
-export async function ensureTags(tags: string[]): Promise<void> {
-	for (const tag of tags) await ensureTag(tag)
-}

@@ -7,6 +7,7 @@ import StartScreen from "@/components/overlays/StartScreen.vue";
 import ToastContainer from "@/components/overlays/ToastContainer.vue";
 import ErrorBoundary from "@/components/overlays/ErrorBoundary.vue";
 import { useToast } from "@/composables/useToast";
+import { loadPersistedSyncPayload } from "@/blueprint-editor/store/persistence";
 import type { SyncedLayoutPayload } from "@/blueprint-editor/types";
 
 const BlueprintEditor = defineAsyncComponent(() => import("@/blueprint-editor/BlueprintEditor.vue"));
@@ -47,6 +48,11 @@ function handleBlueprintSync(e: Event) {
 
 onMounted(() => {
   window.addEventListener("blueprint:sync", handleBlueprintSync);
+  void loadPersistedSyncPayload()
+    .then((persisted) => {
+      if (persisted && !syncedPayload.value) syncedPayload.value = persisted;
+    })
+    .catch(() => {});
 });
 
 onUnmounted(() => {
@@ -73,7 +79,7 @@ onUnmounted(() => {
         </main>
       </div>
       <footer class="game__status">
-        <span>Continental — Hotel Simulation</span>
+        <span>Continental - Hotel Simulation</span>
       </footer>
       <ToastContainer />
       <BlueprintEditor v-if="showEditor" @close="closeEditor" />

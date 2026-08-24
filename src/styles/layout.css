@@ -38,7 +38,6 @@
 .map__btn {
 	font-family: inherit;
 	font-size: var(--font-sm);
-	box-shadow: var(--shadow-card);
 }
 
 .map__btn:hover {
@@ -100,7 +99,6 @@
 	pointer-events: none;
 	z-index: var(--z-layer-2);
 	min-width: 90px;
-	box-shadow: var(--shadow-card-hover);
 	backdrop-filter: blur(8px);
 	-webkit-backdrop-filter: blur(8px);
 	animation: tooltip-pop var(--duration-fast) var(--ease-out);
@@ -206,13 +204,11 @@
 	border: 1px solid transparent;
 	font-family: inherit;
 	letter-spacing: 0.5px;
-	box-shadow: none;
 }
 
 .mapactions__btn:hover {
 	background: color-mix(in srgb, var(--accent-primary) 12%, transparent);
 	transform: none;
-	box-shadow: none;
 }
 
 

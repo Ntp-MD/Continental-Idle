@@ -8,25 +8,6 @@ import {
 import { genId } from './utils'
 import { saveAssets, saveBlueprintData, saveLayout } from './persistence'
 
-export async function addAsset(name: string, w: number, h: number, pxW?: number, pxH?: number, defaultRx?: { tl: number; tr: number; br: number; bl: number }, defaultBgColor?: string): Promise<AssetDef> {
-	return withStateLock(async () => {
-		const safeW = Math.max(1, Math.floor(w))
-		const safeH = Math.max(1, Math.floor(h))
-		const asset: AssetDef = { origin: 'drawn', id: genId('custom'), name, w: safeW, h: safeH }
-		if (pxW !== undefined && pxW > 0) asset.pxW = Math.floor(pxW)
-		if (pxH !== undefined && pxH > 0) asset.pxH = Math.floor(pxH)
-		if (defaultRx && (defaultRx.tl > 0 || defaultRx.tr > 0 || defaultRx.br > 0 || defaultRx.bl > 0)) asset.defaultRx = defaultRx
-		if (defaultBgColor && !isValidColor(defaultBgColor)) {
-			toast.warning('Background color must be a hex code')
-			return asset
-		}
-		if (defaultBgColor) asset.defaultBgColor = defaultBgColor
-		state.assetRegistry.push(asset)
-		await saveAssets()
-		return asset
-	})
-}
-
 const FURNITURE_COLOR_MAP: Record<string, string> = {
 	'#f4f8fc': 'var(--text-bright)',
 	'#e8f0fa': 'var(--text-bright)',
@@ -127,19 +108,19 @@ export async function addSvgAsset(name: string, w: number, h: number, svgString:
 	})
 }
 
-export async function updateAsset(id: string, patch: Partial<Pick<AssetDef, 'name' | 'w' | 'h' | 'pxW' | 'pxH' | 'usePx' | 'defaultPadding' | 'defaultRx' | 'defaultBgColor' | 'defaultLabelColor' | 'defaultLabel' | 'defaultRadius' | 'defaultLabelPadding' | 'defaultInstanceLabel' | 'defaultLocked' | 'entranceRequired' | 'tags' | 'interactSpots' | 'interact' | 'queue'>> & { walkable?: boolean; walkableGrid?: WalkableGrid; tileStates?: TileState[][]; tileEdges?: TileEdges[][] }): Promise<void> {
+export async function updateAsset(id: string, patch: Partial<Pick<AssetDef, 'name' | 'w' | 'h' | 'pxW' | 'pxH' | 'usePx' | 'defaultPadding' | 'defaultRx' | 'defaultFillColor' | 'defaultStrokeColor' | 'defaultLabel' | 'defaultRadius' | 'defaultLabelPadding' | 'defaultLocked' | 'entranceRequired' | 'tags' | 'interactSpots' | 'interact' | 'queue'>> & { walkable?: boolean; walkableGrid?: WalkableGrid; tileStates?: TileState[][]; tileEdges?: TileEdges[][] }): Promise<void> {
 	return withStateLock(async () => {
 		const asset = state.assetRegistry.find(a => a.id === id)
 		if (!asset) {
 			toast.warning('Asset not found')
 			return
 		}
-		if (patch.defaultBgColor !== undefined && !isValidColor(patch.defaultBgColor)) {
-			toast.warning('Background color must be a hex code')
+		if (patch.defaultFillColor !== undefined && patch.defaultFillColor !== '' && !isValidColor(patch.defaultFillColor)) {
+			toast.warning('Fill color must be a hex code')
 			return
 		}
-		if (patch.defaultLabelColor !== undefined && !isValidColor(patch.defaultLabelColor)) {
-			toast.warning('Label color must be a hex code')
+		if (patch.defaultStrokeColor !== undefined && patch.defaultStrokeColor !== '' && !isValidColor(patch.defaultStrokeColor)) {
+			toast.warning('Outline color must be a hex code')
 			return
 		}
 
@@ -149,7 +130,7 @@ export async function updateAsset(id: string, patch: Partial<Pick<AssetDef, 'nam
 		if (touchesSize) {
 			const inUse = state.layout.floors.some(f => f.objects.some(o => o.type === id))
 			if (inUse) {
-				toast.warning('Cannot resize — asset is placed on floors. Remove instances first.')
+				toast.warning('Cannot resize - asset is placed on floors. Remove instances first.')
 				return
 			}
 		}
@@ -164,16 +145,15 @@ export async function updateAsset(id: string, patch: Partial<Pick<AssetDef, 'nam
 			const r = patch.defaultRx
 			asset.defaultRx = (r.tl > 0 || r.tr > 0 || r.br > 0 || r.bl > 0) ? r : undefined
 		}
-		if (patch.defaultBgColor !== undefined) {
-			asset.defaultBgColor = patch.defaultBgColor || undefined
+		if (patch.defaultFillColor !== undefined) {
+			asset.defaultFillColor = patch.defaultFillColor || undefined
 		}
-		if (patch.defaultLabelColor !== undefined) {
-			asset.defaultLabelColor = patch.defaultLabelColor || undefined
+		if (patch.defaultStrokeColor !== undefined) {
+			asset.defaultStrokeColor = patch.defaultStrokeColor || undefined
 		}
 		if (patch.defaultLabel !== undefined) asset.defaultLabel = patch.defaultLabel || undefined
 		if (patch.defaultRadius !== undefined) asset.defaultRadius = patch.defaultRadius > 0 ? patch.defaultRadius : undefined
 		if (patch.defaultLabelPadding !== undefined) asset.defaultLabelPadding = patch.defaultLabelPadding || undefined
-		if (patch.defaultInstanceLabel !== undefined) asset.defaultInstanceLabel = patch.defaultInstanceLabel || undefined
 		if (patch.defaultLocked !== undefined) asset.defaultLocked = patch.defaultLocked
 		if (patch.walkable !== undefined) asset.walkable = patch.walkable
 		if (patch.entranceRequired !== undefined) asset.entranceRequired = patch.entranceRequired
@@ -207,13 +187,9 @@ export async function updateAsset(id: string, patch: Partial<Pick<AssetDef, 'nam
 				if (patch.defaultRx !== undefined) {
 					obj.rx = asset.defaultRx ? { ...asset.defaultRx } : undefined
 				}
-				if (patch.defaultBgColor !== undefined) {
-					obj.fillColor = asset.defaultBgColor || undefined
-				}
 				if (patch.defaultLabel !== undefined) obj.label = asset.defaultLabel
 				if (patch.defaultRadius !== undefined) obj.radius = asset.defaultRadius
 				if (patch.defaultLabelPadding !== undefined) obj.labelPadding = asset.defaultLabelPadding
-				if (patch.defaultInstanceLabel !== undefined) obj.instanceLabel = asset.defaultInstanceLabel
 				if (patch.defaultLocked !== undefined) obj.locked = asset.defaultLocked
 
 
@@ -285,7 +261,7 @@ export async function duplicateAsset(id: string): Promise<AssetDef | null> {
 		if (source.linkedParts) copy.linkedParts = source.linkedParts.map(p => ({ ...p }))
 		state.assetRegistry.push(copy)
 		await saveAssets()
-		toast.success(`Duplicated "${source.name}" → "${copy.name}"`)
+		toast.success(`Duplicated "${source.name}" -> "${copy.name}"`)
 		return copy
 	})
 }
@@ -293,7 +269,7 @@ export async function duplicateAsset(id: string): Promise<AssetDef | null> {
 export async function deleteAsset(id: string): Promise<boolean> {
 	const inUse = state.layout.floors.some(f => f.objects.some(o => o.type === id))
 	if (inUse) {
-		toast.warning('Cannot delete — asset is placed on floors. Remove instances first.')
+		toast.warning('Cannot delete - asset is placed on floors. Remove instances first.')
 		return false
 	}
 	const referencedByLinked = state.assetRegistry.some(a =>
@@ -304,7 +280,7 @@ export async function deleteAsset(id: string): Promise<boolean> {
 			.filter(a => a.linkedParts?.some(p => p.type === id))
 			.map(a => a.name)
 			.join(', ')
-		toast.warning(`Cannot delete — asset is used in linked set: ${linkedNames}. Remove the linked set first.`)
+		toast.warning(`Cannot delete - asset is used in linked set: ${linkedNames}. Remove the linked set first.`)
 		return false
 	}
 	const idx = state.assetRegistry.findIndex(a => a.id === id)

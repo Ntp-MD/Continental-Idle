@@ -37,7 +37,7 @@ export function useCanvasViewport(
 	}
 	function saveZoomState(zoom: number, panX: number, panY: number) {
 		try {
-			sessionStorage.setItem(ZOOM_STORAGE_KEY, JSON.stringify({ zoom, panX, panY }))
+			localStorage.setItem(ZOOM_STORAGE_KEY, JSON.stringify({ zoom, panX, panY }))
 		} catch { }
 	}
 

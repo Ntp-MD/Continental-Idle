@@ -75,7 +75,7 @@ export function buildSavedLayout(): FloorLayoutData {
 
 function normalizeBlueprintLayout(raw: unknown): BlueprintLayoutFile {
 	const r = raw as Record<string, unknown>
-	if (!r || typeof r !== 'object') throw new Error('blueprintData.json: invalid structure — expected an object')
+	if (!r || typeof r !== 'object') throw new Error('blueprintData.json: invalid structure - expected an object')
 	if (typeof r.version !== 'number' || !isFinite(r.version)) throw new Error('blueprintData.json: version must be a finite number')
 	if (!r.canvas || typeof r.canvas !== 'object') throw new Error('blueprintData.json: canvas must be an object')
 	if (!Array.isArray(r.floors)) throw new Error('blueprintData.json: floors must be an array')

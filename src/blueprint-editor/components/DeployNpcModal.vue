@@ -135,14 +135,14 @@ async function onDeploy() {
         <div class="form__title">Simulation</div>
         <div class="form__row">
           <label class="label--fixed" for="deploy-npc-speed">NPC Speed</label>
-          <input id="deploy-npc-speed" v-model.number="draft.speed" class="input--grow" type="range" min="0.01" max="0.2" step="0.01" @change="schedulePersist" />
+          <input id="deploy-npc-speed" v-model.number="draft.speed" type="range" min="0.01" max="0.2" step="0.01" @change="schedulePersist" />
           <span>{{ draft.speed.toFixed(2) }}</span>
         </div>
         <div class="form__row">
           <label class="label--fixed" for="deploy-spawn-floor">Spawn floor</label>
-          <select id="deploy-spawn-floor" v-model="spawnFloorId" class="input--grow">
+          <select id="deploy-spawn-floor" v-model="spawnFloorId">
             <option value="">All floors (per-role filters below)</option>
-            <option v-for="floor in floors" :key="`deploy-floor-${floor.id}`" :value="floor.id">{{ floor.label }} — {{ floor.name }}</option>
+            <option v-for="floor in floors" :key="`deploy-floor-${floor.id}`" :value="floor.id">{{ floor.label }} - {{ floor.name }}</option>
           </select>
         </div>
         <div class="form__hint">Spawn floor forces every NPC onto one floor; "All floors" uses each role's floor checks below.</div>
@@ -155,14 +155,14 @@ async function onDeploy() {
         <div v-for="role in roles" :key="role.id" class="deploy__row">
           <div class="form__row form__row--tight form__row--wrap">
             <span class="swatch" :style="{ background: role.color }" />
-            <input class="input--disabled input--grow" :value="role.label" readonly aria-label="Role name" />
+            <input class="input--disabled" :value="role.label" readonly aria-label="Role name" />
             <div class="form__row">
               <div class="form__row form__row--tight">
                 <label class="label--fixed">Count</label>
                 <div class="form__row form__row--wrap">
-                  <button class="flag--icon" @click="setPoolCount(role.id, getPoolCount(role.id) - 1)">−</button>
-                  <input :value="getPoolCount(role.id)" type="number" min="0" max="100" class="input--compact" @input="setPoolCount(role.id, Number(($event.target as HTMLInputElement).value))" />
-                  <button class="flag--icon" @click="setPoolCount(role.id, getPoolCount(role.id) + 1)">+</button>
+                  <button class="flag--icon" aria-label="Decrease count" @click="setPoolCount(role.id, getPoolCount(role.id) - 1)">-</button>
+                  <input :value="getPoolCount(role.id)" type="number" min="0" max="100" aria-label="Role count" @input="setPoolCount(role.id, Number(($event.target as HTMLInputElement).value))" />
+                  <button class="flag--icon" aria-label="Increase count" @click="setPoolCount(role.id, getPoolCount(role.id) + 1)">+</button>
                 </div>
               </div>
             </div>
@@ -183,7 +183,7 @@ async function onDeploy() {
               <div class="form__row form__row--tight form__row--wrap">
                 <div v-for="tag in role.spawnRule?.targetTags ?? []" :key="'st_' + role.id + tag" class="chip">
                   <span>{{ tag }}</span>
-                  <button class="chip__remove" @click="onRemoveSpawnTagFrom(role, tag)" aria-label="Remove tag">×</button>
+                  <button class="chip__remove" @click="onRemoveSpawnTagFrom(role, tag)" aria-label="Remove tag">x</button>
                 </div>
                 <input v-model="newSpawnTag[role.id]" type="text" placeholder="+ tag" class="deploy__addinput" @keydown.enter="onAddSpawnTagFor(role)" />
               </div>
@@ -193,7 +193,7 @@ async function onDeploy() {
       </div>
 
       <div class="form__row form__row--between form__row--border">
-        <input class="input--disabled" :value="`Total: ${totalNpcCount()} NPCs`" readonly aria-label="Total NPC count" />
+        <span class="form__hint">Total: {{ totalNpcCount() }} NPCs</span>
         <div class="form__row">
           <button class="flag--ghost" @click="onClose">Cancel</button>
           <button class="flag--active" @click="onDeploy" :disabled="totalNpcCount() === 0">Deploy</button>

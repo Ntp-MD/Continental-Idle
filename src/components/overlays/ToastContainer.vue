@@ -4,10 +4,10 @@ import { useToast } from "@/composables/useToast";
 const { toasts } = useToast();
 
 const icons: Record<string, string> = {
-  success: "✓",
-  warning: "⚠",
-  error: "✕",
-  info: "ℹ",
+  success: "OK",
+  warning: "!",
+  error: "x",
+  info: "i",
 };
 
 const classMap: Record<string, string> = {
