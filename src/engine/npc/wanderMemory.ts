@@ -2,6 +2,7 @@ import type { NpcEngineAgent, NpcEnginePoint } from './types'
 
 const DEFAULT_MAX_MEMORY = 32
 const DEFAULT_SMALL_MAP_THRESHOLD = 8
+const SAMPLE_SIZE = 24
 
 export class WanderMemory {
 	private readonly maxMemory: number
@@ -34,12 +35,29 @@ export class WanderMemory {
 		avoid: readonly NpcEnginePoint[] = [],
 	): NpcEnginePoint | null {
 		if (candidates.length === 0) return null
-		const separated = candidates.filter(candidate => avoid.every(point => Math.hypot(candidate.x - point.x, candidate.y - point.y) > 1.25))
-		const pool = separated.length > 0 ? separated : candidates
-		if (pool.length <= this.smallMapThreshold) return this.pickLeastRecent(pool)
+		if (candidates.length <= this.smallMapThreshold) return this.pickLeastRecent(candidates)
+		const sampled: NpcEnginePoint[] = []
+		for (let i = 0; i < SAMPLE_SIZE; i++) {
+			sampled.push(candidates[Math.floor(this.random() * candidates.length)])
+		}
+		const separated = sampled.filter(candidate => avoid.every(point => Math.hypot(candidate.x - point.x, candidate.y - point.y) > 1.25))
+		const pool = separated.length > 0 ? separated : sampled
 		const unvisited = pool.filter(c => !this.recentTiles.has(`${Math.floor(c.x)},${Math.floor(c.y)}`))
-		if (unvisited.length > 0) return this.pickControlled(unvisited, agent)
+		if (unvisited.length > 0) return this.pickNearest(unvisited, agent)
 		return this.pickLeastRecent(pool)
+	}
+
+	private pickNearest(candidates: readonly NpcEnginePoint[], agent: NpcEngineAgent): NpcEnginePoint | null {
+		let best: NpcEnginePoint | null = null
+		let bestDist = Infinity
+		for (const c of candidates) {
+			const distance = Math.hypot(c.x - agent.x, c.y - agent.y)
+			if (distance < bestDist) {
+				best = c
+				bestDist = distance
+			}
+		}
+		return best
 	}
 
 	private pickLeastRecent(candidates: readonly NpcEnginePoint[]): NpcEnginePoint | null {
@@ -56,16 +74,6 @@ export class WanderMemory {
 			}
 		}
 		return best
-	}
-
-	private pickControlled(candidates: readonly NpcEnginePoint[], agent: NpcEngineAgent): NpcEnginePoint | null {
-		const ranked = candidates.slice().sort((a, b) => {
-			const distance = Math.hypot(a.x - agent.x, a.y - agent.y) - Math.hypot(b.x - agent.x, b.y - agent.y)
-			if (distance !== 0) return distance
-			return `${Math.floor(a.x)},${Math.floor(a.y)}`.localeCompare(`${Math.floor(b.x)},${Math.floor(b.y)}`)
-		})
-		const shortlist = ranked.slice(0, Math.min(8, ranked.length))
-		return shortlist[Math.min(shortlist.length - 1, Math.floor(Math.max(0, Math.min(0.999999, this.random())) * shortlist.length))] ?? null
 	}
 
 	clear(): void {

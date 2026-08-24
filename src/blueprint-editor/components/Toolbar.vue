@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch, inject } from "vue";
+import { ref, computed, watch, inject, onUnmounted } from "vue";
 import { useAssetsStore } from "../blueprintStore";
 import { useToast } from "@/composables/useToast";
 import { useConfirm } from "@/composables/useConfirm";
@@ -41,10 +41,10 @@ function onDeployNpc() {
   showDeployModal.value = true;
 }
 
-function onConfirmDeploy() {
+function onConfirmDeploy(spawnFloorId?: string) {
   showDeployModal.value = false;
   store.setMode("npc-preview");
-  npcSimulation.deploy(store.state.currentFloorId);
+  npcSimulation.deploy(store.state.currentFloorId, spawnFloorId || undefined);
 }
 
 async function onSyncOrigins() {
@@ -71,7 +71,39 @@ const countsByRole = computed(() => {
 function onTogglePause() {
   isPaused.value ? resume() : pause();
 }
-function onReset() {
+
+const NPC_STATUS_ORDER = ["walking", "interacting", "queued", "waiting", "idle"] as const;
+type NpcStatusKey = (typeof NPC_STATUS_ORDER)[number];
+const NPC_STATUS_LABELS: Record<NpcStatusKey, string> = {
+  walking: "Moving",
+  interacting: "Interacting",
+  queued: "Queued",
+  waiting: "Waiting",
+  idle: "Idle",
+};
+const statusCounts = ref<{ key: NpcStatusKey; label: string; count: number }[]>([]);
+const statusTimer = window.setInterval(() => {
+  if (store.state.mode !== "npc-preview") return;
+  const counts = new Map<string, number>();
+  for (const npc of npcs.value) counts.set(npc.status, (counts.get(npc.status) ?? 0) + 1);
+  const next = NPC_STATUS_ORDER
+    .filter((status) => counts.has(status))
+    .map((status) => ({ key: status, label: NPC_STATUS_LABELS[status], count: counts.get(status)! }));
+  const prev = statusCounts.value;
+  if (prev.length === next.length && prev.every((p, i) => p.key === next[i].key && p.count === next[i].count)) return;
+  statusCounts.value = next;
+}, 300);
+onUnmounted(() => window.clearInterval(statusTimer));
+
+async function onReset() {
+  const confirmed = await confirm({
+    title: "Clear Simulation",
+    message: "Remove all deployed NPCs and exit preview?",
+    confirmLabel: "Clear",
+    cancelLabel: "Cancel",
+    danger: true,
+  });
+  if (!confirmed) return;
   reset();
   store.setMode("move");
 }
@@ -140,6 +172,15 @@ async function applyCanvasBgColor(value: string | undefined) {
   }
 }
 
+async function applyStreetFloor(floorId: string | null) {
+  try {
+    const saved = await run(() => store.setStreetFloor(floorId));
+    if (!saved) toast.error("Failed to update street floor");
+  } catch {
+    toast.error("Failed to update street floor");
+  }
+}
+
 async function onSave() {
   try {
     const saved = await run(() => store.saveLayout());
@@ -185,8 +226,9 @@ function onSyncToGame() {
         <div class="form__row form__row--between">
           <div class="npc__title">
             <strong>{{ currentFloorLabel }}</strong>
-            <span>{{ total }} NPCs</span>
+            <span>{{ total }} NPC{{ total === 1 ? "" : "s" }}</span>
           </div>
+          <span class="npc__status" :class="{ 'npc__status--paused': isPaused }" role="status">{{ isPaused ? "Paused" : "Running" }}</span>
           <div class="npc__roles">
             <span v-for="[type, count] in countsByRole" :key="type" class="npc__role">
               <span>{{ type }}</span>
@@ -194,17 +236,26 @@ function onSyncToGame() {
             </span>
           </div>
         </div>
+        <div v-if="total > 0" class="npc__stats">
+          <span v-for="s in statusCounts" :key="s.key" class="npc__stat" :class="`npc__stat--${s.key}`">
+            {{ s.label }} <b>{{ s.count }}</b>
+          </span>
+        </div>
         <div class="form__row form__row--border">
           <button type="button" @click="onTogglePause" :aria-label="isPaused ? 'Resume NPC simulation' : 'Pause NPC simulation'">{{ isPaused ? "▶ Resume" : "❚❚ Pause" }}</button>
-          <label class="npc__speed">
-            <span>Speed</span>
-            <select :value="simSpeed" @change="simSpeed = +($event.target as HTMLSelectElement).value" aria-label="Simulation speed">
-              <option :value="1">1x</option>
-              <option :value="2">2x</option>
-              <option :value="4">4x</option>
-              <option :value="8">8x</option>
-            </select>
-          </label>
+          <div class="npc__speed" role="group" aria-label="Simulation speed">
+            <button
+              v-for="s in [1, 2, 4, 8]"
+              :key="s"
+              type="button"
+              class="npc__speed-option"
+              :class="{ 'npc__speed-option--active': simSpeed === s }"
+              :aria-pressed="simSpeed === s"
+              @click="simSpeed = s"
+            >
+              {{ s }}x
+            </button>
+          </div>
           <button type="button" class="flag--danger" @click="onReset" aria-label="Clear all NPCs and exit preview">Clear</button>
         </div>
       </div>
@@ -240,6 +291,40 @@ function onSyncToGame() {
             <ColorInput v-model="bgColorInput" :allow-transparent="true" placeholder="#RRGGBB or transparent" aria-label="Canvas background color" @commit="applyCanvasBgColor" />
           </div>
           <div class="form__hint">Hex color or 'transparent'. Leave empty for default.</div>
+        </div>
+        <div class="form__group">
+          <div class="form__title">Street</div>
+          <div class="form__row">
+            <label for="canvas__streetfloor">Show on floor</label>
+            <select
+              id="canvas__streetfloor"
+              class="input--grow"
+              :value="store.state.layout.streetFloorId ?? ''"
+              aria-label="Floor that displays the street ring"
+              @change="applyStreetFloor(($event.target as HTMLSelectElement).value || null)"
+            >
+              <option value="">None</option>
+              <option v-for="f in store.state.layout.floors" :key="f.id" :value="f.id">{{ f.label }} — {{ f.name }}</option>
+            </select>
+          </div>
+          <div class="form__hint">The street ring renders only on the selected floor.</div>
+        </div>
+        <div class="form__group">
+          <div class="form__title">Street Width</div>
+          <div class="form__row">
+            <label for="canvas__streetwidth">Ring width</label>
+            <select
+              id="canvas__streetwidth"
+              class="input--grow"
+              :value="store.state.layout.streetWidthTiles ?? ''"
+              aria-label="Street ring width in tiles"
+              @change="store.setStreetWidth(Number(($event.target as HTMLSelectElement).value) || null)"
+            >
+              <option value="">Default (8 tiles)</option>
+              <option v-for="w in [5, 6, 7, 9, 10, 12]" :key="w" :value="w">{{ w }} tiles</option>
+            </select>
+          </div>
+          <div class="form__hint">Drives placement boundary, NPC walkable zone and the drawn road.</div>
         </div>
         <div class="form__group">
           <div class="form__title">Keyboard Shortcuts</div>
@@ -305,6 +390,57 @@ function onSyncToGame() {
   max-width: 180px;
 }
 
+.npc__status {
+  padding: var(--gap-xxs) var(--gap-xs);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--accent-green) 18%, transparent);
+  color: var(--accent-green);
+  font-size: var(--font-xs);
+  font-weight: 600;
+}
+
+.npc__status--paused {
+  background: color-mix(in srgb, var(--accent-gold) 18%, transparent);
+  color: var(--accent-gold);
+}
+
+.npc__stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--gap-xs);
+  font-size: var(--font-xs);
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.npc__stat b {
+  color: var(--text-primary);
+}
+
+.npc__stat::before {
+  content: "";
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  margin-right: 4px;
+  vertical-align: middle;
+  background: var(--dot-color, var(--text-secondary));
+}
+
+.npc__stat--walking {
+  --dot-color: var(--accent-blue);
+}
+
+.npc__stat--interacting {
+  --dot-color: var(--accent-green);
+}
+
+.npc__stat--queued,
+.npc__stat--waiting {
+  --dot-color: var(--accent-gold);
+}
+
 .npc__role {
   display: inline-flex;
   align-items: center;
@@ -322,18 +458,24 @@ function onSyncToGame() {
 
 .npc__speed {
   display: inline-flex;
-  align-items: center;
-  gap: var(--gap-xs);
+  gap: var(--gap-xxs);
   margin-right: auto;
-  color: var(--text-secondary);
-  font-size: var(--font-xs);
 }
 
-.npc__speed select {
-  min-width: 30px;
+.npc__speed-option {
+  padding: var(--gap-xxs) var(--gap-sm);
   font-size: var(--font-xs);
   background: var(--bg-primary);
+  border: 1px solid var(--border-dim);
+  border-radius: var(--radius-sm);
   cursor: pointer;
+  color: var(--text-primary);
+}
+
+.npc__speed-option--active {
+  background: color-mix(in srgb, var(--accent-blue) 25%, var(--bg-primary));
+  border-color: var(--accent-blue);
+  color: var(--text-bright);
 }
 
 .settings__body {

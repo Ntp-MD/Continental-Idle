@@ -17,6 +17,15 @@ export const editorLog = {
   },
 }
 
+export function assignSyncKey(label: string, index: number, usedKeys: Set<string>): string {
+	const canonical = editorFloorLabelToFloorId(label)
+	let base = canonical ?? (index === 0 ? 'G' : String(index))
+	if (!usedKeys.has(base)) return base
+	let n = 2
+	while (usedKeys.has(`${base}_${n}`)) n++
+	return `${base}_${n}`
+}
+
 export function editorFloorLabelToFloorId(label: string): string | null {
 	if (label === 'G') return 'G'
 	const match = label.match(/^F(\d+)$/)

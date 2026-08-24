@@ -1,4 +1,5 @@
-import type { AssetDef, FloorLayoutData, NpcSimulationConfig, ObjectPlacement, SvgRole, SvgRoleInfo, WalkableGrid, TileState } from './types'
+import { isValidColor } from './types'
+import type { AssetDef, FloorData, FloorLayoutData, NpcSimulationConfig, ObjectPlacement, SvgRole, SvgRoleInfo, WalkableGrid, TileState } from './types'
 
 export function findAsset(assets: AssetDef[], type: string): AssetDef | undefined {
 	return assets.find(a => a.id === type)
@@ -86,6 +87,8 @@ export function serializeObject(obj: ObjectPlacement): ObjectPlacement {
 
 	if (obj.instanceLabel) out.instanceLabel = obj.instanceLabel
 	if (obj.locked !== undefined) out.locked = obj.locked
+	if (obj.fillColor && isValidColor(obj.fillColor)) out.fillColor = obj.fillColor
+	if (obj.strokeColor && isValidColor(obj.strokeColor)) out.strokeColor = obj.strokeColor
 	return out
 }
 
@@ -150,7 +153,7 @@ function collectFloorAssetTags(layout: FloorLayoutData, assetMap: Map<string, As
 	return tags
 }
 
-function floorHasSpawnZoneForRole(floor: FloorLayoutData, roleId: string): boolean {
+function floorHasSpawnZoneForRole(floor: FloorData, roleId: string): boolean {
 	const zones = floor.spawnZones
 	if (!zones?.length) return false
 	return zones.some(zone => !zone.roleIds?.length || zone.roleIds.includes(roleId))

@@ -1,73 +1,35 @@
 import type { NpcEngineFloor, NpcEnginePoint } from './types'
 
-const CARDINAL_DIRECTIONS: readonly NpcEnginePoint[] = [
-	{ x: 1, y: 0 },
-	{ x: -1, y: 0 },
-	{ x: 0, y: 1 },
-	{ x: 0, y: -1 },
-]
-
-const DIAGONAL_DIRECTIONS: readonly NpcEnginePoint[] = [
-	{ x: 1, y: 1 },
-	{ x: 1, y: -1 },
-	{ x: -1, y: 1 },
-	{ x: -1, y: -1 },
-]
-
 const SQRT2 = Math.SQRT2
 
 function key(point: NpcEnginePoint): string {
 	return `${point.x},${point.y}`
 }
 
-function edgeKey(from: NpcEnginePoint, to: NpcEnginePoint): string {
-	return `${key(from)}>${key(to)}`
-}
-
-class MinHeap {
-	private values: { node: NpcEnginePoint; g: number; f: number }[] = []
-
-	push(value: { node: NpcEnginePoint; g: number; f: number }): void {
-		this.values.push(value)
-		let index = this.values.length - 1
-		while (index > 0) {
-			const parent = (index - 1) >> 1
-			if (this.values[parent].f <= this.values[index].f) break
-				;[this.values[parent], this.values[index]] = [this.values[index], this.values[parent]]
-			index = parent
-		}
-	}
-
-	pop(): { node: NpcEnginePoint; g: number; f: number } | undefined {
-		const first = this.values[0]
-		const last = this.values.pop()
-		if (this.values.length > 0 && last) {
-			this.values[0] = last
-			let index = 0
-			while (true) {
-				const left = index * 2 + 1
-				const right = left + 1
-				let smallest = index
-				if (left < this.values.length && this.values[left].f < this.values[smallest].f) smallest = left
-				if (right < this.values.length && this.values[right].f < this.values[smallest].f) smallest = right
-				if (smallest === index) break
-					;[this.values[index], this.values[smallest]] = [this.values[smallest], this.values[index]]
-				index = smallest
-			}
-		}
-		return first
-	}
-}
-
-function octileDistance(a: NpcEnginePoint, b: NpcEnginePoint): number {
-	const dx = Math.abs(a.x - b.x)
-	const dy = Math.abs(a.y - b.y)
+function octileDistance(ax: number, ay: number, bx: number, by: number): number {
+	const dx = Math.abs(ax - bx)
+	const dy = Math.abs(ay - by)
 	return (dx + dy) + (SQRT2 - 2) * Math.min(dx, dy)
 }
 
 interface FloorIndex {
-	walkable: Set<string>
-	blockedEdges: Set<string>
+	width: number
+	height: number
+	count: number
+	idOf: Map<string, number>
+	xs: Int32Array
+	ys: Int32Array
+	walkGrid: Int32Array
+	blocked: Set<number> | null
+	gScore: Float64Array
+	parent: Int32Array
+	stamp: Int32Array
+	transientMark: Uint8Array
+	lastTransientCells: number[]
+	searchGen: number
+	heapNode: number[]
+	heapG: number[]
+	heapF: number[]
 }
 
 const floorIndexCache = new WeakMap<NpcEngineFloor, FloorIndex>()
@@ -75,9 +37,50 @@ const floorIndexCache = new WeakMap<NpcEngineFloor, FloorIndex>()
 function resolveFloorIndex(floor: NpcEngineFloor): FloorIndex {
 	let index = floorIndexCache.get(floor)
 	if (!index) {
+		const width = floor.width
+		const height = floor.height
+		const count = floor.walkable.length
+		const idOf = new Map<string, number>()
+		const xs = new Int32Array(count)
+		const ys = new Int32Array(count)
+		const walkGrid = new Int32Array(width * height)
+		for (let i = 0; i < count; i++) {
+			const x = Math.floor(floor.walkable[i].x)
+			const y = Math.floor(floor.walkable[i].y)
+			xs[i] = x
+			ys[i] = y
+			idOf.set(`${x},${y}`, i)
+			walkGrid[y * width + x] = i + 1
+		}
+		let blocked: Set<number> | null = null
+		if ((floor.blockedEdges?.length ?? 0) > 0) {
+			blocked = new Set<number>()
+			for (const edge of floor.blockedEdges!) {
+				const fromId = idOf.get(key(edge.from))
+				const toId = idOf.get(key(edge.to))
+				if (fromId === undefined || toId === undefined) continue
+				blocked.add(fromId * count + toId)
+				blocked.add(toId * count + fromId)
+			}
+		}
 		index = {
-			walkable: new Set(floor.walkable.map(key)),
-			blockedEdges: new Set((floor.blockedEdges ?? []).flatMap(edge => [edgeKey(edge.from, edge.to), edgeKey(edge.to, edge.from)])),
+			width,
+			height,
+			count,
+			idOf,
+			xs,
+			ys,
+			walkGrid,
+			blocked,
+			gScore: new Float64Array(count),
+			parent: new Int32Array(count),
+			stamp: new Int32Array(count),
+			transientMark: new Uint8Array(width * height),
+			lastTransientCells: [],
+			searchGen: 0,
+			heapNode: [],
+			heapG: [],
+			heapF: [],
 		}
 		floorIndexCache.set(floor, index)
 	}
@@ -90,65 +93,174 @@ export function findNpcGridPath(
 	to: NpcEnginePoint,
 	blockedCells?: ReadonlySet<string>,
 ): NpcEnginePoint[] {
-	const { walkable, blockedEdges } = resolveFloorIndex(floor)
-	const start = { x: Math.floor(from.x), y: Math.floor(from.y) }
-	const goal = { x: Math.floor(to.x), y: Math.floor(to.y) }
-	if (!walkable.has(key(start)) || !walkable.has(key(goal))) return []
-	if (key(start) === key(goal)) return [start]
+	const idx = resolveFloorIndex(floor)
+	const { width, height, count, xs, ys, walkGrid } = idx
 
-	const transientBlocked = blockedCells ?? new Set<string>()
-	const cameFrom = new Map<string, string>()
-	const scores = new Map<string, number>([[key(start), 0]])
-	const heap = new MinHeap()
-	heap.push({ node: start, g: 0, f: octileDistance(start, goal) })
-	const maxIterations = Math.max(1000, walkable.size * 2)
+	const startX = Math.floor(from.x)
+	const startY = Math.floor(from.y)
+	const goalX = Math.floor(to.x)
+	const goalY = Math.floor(to.y)
+	if (startX < 0 || startY < 0 || startX >= width || startY >= height) return []
+	if (goalX < 0 || goalY < 0 || goalX >= width || goalY >= height) return []
+	const startCell = startY * width + startX
+	const goalCell = goalY * width + goalX
+	const startId = walkGrid[startCell] - 1
+	const goalId = walkGrid[goalCell] - 1
+	if (startId < 0 || goalId < 0) return []
+	if (startId === goalId) return [{ x: startX, y: startY }]
+
+	idx.searchGen++
+	const searchGen = idx.searchGen
+	const { gScore, parent, stamp } = idx
+
+	const transientMark = idx.transientMark
+	const lastTransientCells = idx.lastTransientCells
+	for (let i = 0; i < lastTransientCells.length; i++) transientMark[lastTransientCells[i]] = 0
+	lastTransientCells.length = 0
+	if (blockedCells && blockedCells.size > 0) {
+		for (const cellKeyStr of blockedCells) {
+			const comma = cellKeyStr.indexOf(',')
+			const x = Number(cellKeyStr.slice(0, comma))
+			const y = Number(cellKeyStr.slice(comma + 1))
+			if (!Number.isFinite(x) || !Number.isFinite(y)) continue
+			if (x < 0 || y < 0 || x >= width || y >= height) continue
+			const cell = y * width + x
+			transientMark[cell] = 1
+			lastTransientCells.push(cell)
+		}
+	}
+
+	const blocked = idx.blocked
+	const count_ = count
+	const isBlockedEdge = (fromId: number, toId: number): boolean =>
+		blocked !== null && blocked.has(fromId * count_ + toId)
+
+	const heapNode = idx.heapNode
+	const heapG = idx.heapG
+	const heapF = idx.heapF
+	heapNode.length = 0
+	heapG.length = 0
+	heapF.length = 0
+
+	let poppedNode = 0
+	let poppedG = 0
+	const push = (node: number, g: number, f: number): void => {
+		let index = heapNode.length
+		heapNode.push(node)
+		heapG.push(g)
+		heapF.push(f)
+		while (index > 0) {
+			const parentIndex = (index - 1) >> 1
+			if (heapF[parentIndex] <= heapF[index]) break
+			const tNode = heapNode[parentIndex]; heapNode[parentIndex] = heapNode[index]; heapNode[index] = tNode
+			const tG = heapG[parentIndex]; heapG[parentIndex] = heapG[index]; heapG[index] = tG
+			const tF = heapF[parentIndex]; heapF[parentIndex] = heapF[index]; heapF[index] = tF
+			index = parentIndex
+		}
+	}
+	const pop = (): void => {
+		poppedNode = heapNode[0]
+		poppedG = heapG[0]
+		const lastNode = heapNode.pop()!
+		const lastG = heapG.pop()!
+		const lastF = heapF.pop()!
+		if (heapNode.length > 0) {
+			heapNode[0] = lastNode
+			heapG[0] = lastG
+			heapF[0] = lastF
+			let index = 0
+			while (true) {
+				const left = index * 2 + 1
+				const right = left + 1
+				let smallest = index
+				if (left < heapNode.length && heapF[left] < heapF[smallest]) smallest = left
+				if (right < heapNode.length && heapF[right] < heapF[smallest]) smallest = right
+				if (smallest === index) break
+				const tNode = heapNode[smallest]; heapNode[smallest] = heapNode[index]; heapNode[index] = tNode
+				const tG = heapG[smallest]; heapG[smallest] = heapG[index]; heapG[index] = tG
+				const tF = heapF[smallest]; heapF[smallest] = heapF[index]; heapF[index] = tF
+				index = smallest
+			}
+		}
+	}
+
+	const bestG = (node: number): number => (stamp[node] === searchGen ? gScore[node] : Infinity)
+
+	push(startId, 0, octileDistance(startX, startY, goalX, goalY))
+	gScore[startId] = 0
+	parent[startId] = -1
+	stamp[startId] = searchGen
+
+	const maxIterations = Math.max(1000, count * 2)
 	let iterations = 0
 
 	while (++iterations <= maxIterations) {
-		const current = heap.pop()
-		if (!current) break
-		const currentKey = key(current.node)
-		if (current.g !== scores.get(currentKey)) continue
-		if (currentKey === key(goal)) {
+		if (heapNode.length === 0) break
+		pop()
+		const currentNode = poppedNode
+		const currentG = poppedG
+		if (currentG !== bestG(currentNode)) continue
+		if (currentNode === goalId) {
 			const path: NpcEnginePoint[] = []
-			let cursor: string | undefined = currentKey
-			while (cursor) {
-				const [x, y] = cursor.split(',').map(Number)
-				path.unshift({ x, y })
-				cursor = cameFrom.get(cursor)
+			let cursor = currentNode
+			while (cursor !== -1) {
+				path.unshift({ x: xs[cursor], y: ys[cursor] })
+				cursor = parent[cursor]
 			}
 			return path
 		}
 
-		for (const direction of CARDINAL_DIRECTIONS) {
-			const next = { x: current.node.x + direction.x, y: current.node.y + direction.y }
-			const nextKey = key(next)
-			if (!walkable.has(nextKey) || blockedEdges.has(edgeKey(current.node, next))) continue
-			if (transientBlocked.has(nextKey)) continue
-			const nextScore = current.g + 1
-			if (nextScore >= (scores.get(nextKey) ?? Infinity)) continue
-			cameFrom.set(nextKey, currentKey)
-			scores.set(nextKey, nextScore)
-			heap.push({ node: next, g: nextScore, f: nextScore + octileDistance(next, goal) })
+		const cx = xs[currentNode]
+		const cy = ys[currentNode]
+
+		for (let d = 0; d < 4; d++) {
+			const nx = cx + CARDINAL_DX[d]
+			const ny = cy + CARDINAL_DY[d]
+			if (nx < 0 || ny < 0 || nx >= width || ny >= height) continue
+			const nextId = walkGrid[ny * width + nx] - 1
+			if (nextId < 0) continue
+			if (isBlockedEdge(currentNode, nextId)) continue
+			if (transientMark[ny * width + nx] !== 0) continue
+			const nextScore = currentG + 1
+			if (nextScore >= bestG(nextId)) continue
+			parent[nextId] = currentNode
+			stamp[nextId] = searchGen
+			gScore[nextId] = nextScore
+			push(nextId, nextScore, nextScore + octileDistance(nx, ny, goalX, goalY))
 		}
 
-		for (const direction of DIAGONAL_DIRECTIONS) {
-			const next = { x: current.node.x + direction.x, y: current.node.y + direction.y }
-			const nextKey = key(next)
-			if (!walkable.has(nextKey) || blockedEdges.has(edgeKey(current.node, next))) continue
-			if (transientBlocked.has(nextKey)) continue
-			const side1 = { x: current.node.x + direction.x, y: current.node.y }
-			const side2 = { x: current.node.x, y: current.node.y + direction.y }
-			if (!walkable.has(key(side1)) || !walkable.has(key(side2))) continue
-			if (blockedEdges.has(edgeKey(current.node, side1)) || blockedEdges.has(edgeKey(current.node, side2))) continue
-			if (blockedEdges.has(edgeKey(side1, next)) || blockedEdges.has(edgeKey(side2, next))) continue
-			if (transientBlocked.has(key(side1)) || transientBlocked.has(key(side2))) continue
-			const nextScore = current.g + SQRT2
-			if (nextScore >= (scores.get(nextKey) ?? Infinity)) continue
-			cameFrom.set(nextKey, currentKey)
-			scores.set(nextKey, nextScore)
-			heap.push({ node: next, g: nextScore, f: nextScore + octileDistance(next, goal) })
+		for (let d = 0; d < 4; d++) {
+			const dx = DIAGONAL_DX[d]
+			const dy = DIAGONAL_DY[d]
+			const nx = cx + dx
+			const ny = cy + dy
+			if (nx < 0 || ny < 0 || nx >= width || ny >= height) continue
+			const s1x = cx + dx
+			const s1y = cy
+			const s2x = cx
+			const s2y = cy + dy
+			const side1 = walkGrid[s1y * width + s1x] - 1
+			const side2 = walkGrid[s2y * width + s2x] - 1
+			if (side1 < 0 || side2 < 0) continue
+			const nextId = walkGrid[ny * width + nx] - 1
+			if (nextId < 0) continue
+			if (isBlockedEdge(currentNode, nextId)) continue
+			if (isBlockedEdge(currentNode, side1) || isBlockedEdge(currentNode, side2)) continue
+			if (isBlockedEdge(side1, nextId) || isBlockedEdge(side2, nextId)) continue
+			if (transientMark[s1y * width + s1x] !== 0 || transientMark[s2y * width + s2x] !== 0) continue
+			if (transientMark[ny * width + nx] !== 0) continue
+			const nextScore = currentG + SQRT2
+			if (nextScore >= bestG(nextId)) continue
+			parent[nextId] = currentNode
+			stamp[nextId] = searchGen
+			gScore[nextId] = nextScore
+			push(nextId, nextScore, nextScore + octileDistance(nx, ny, goalX, goalY))
 		}
 	}
 	return []
 }
+
+const CARDINAL_DX = [1, -1, 0, 0]
+const CARDINAL_DY = [0, 0, 1, -1]
+const DIAGONAL_DX = [1, 1, -1, -1]
+const DIAGONAL_DY = [1, -1, 1, -1]

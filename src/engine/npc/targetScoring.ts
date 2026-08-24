@@ -71,8 +71,8 @@ export function selectBestTarget(ctx: TargetScoringContext): NpcEngineInteractio
 		}
 	}
 
-	if (ties.length > 1) {
-		const random = Math.max(0, Math.min(0.999999, ctx.random?.() ?? 0))
+	if (ties.length > 1 && ctx.random) {
+		const random = Math.max(0, Math.min(0.999999, ctx.random()))
 		return ties[Math.floor(random * ties.length)] ?? best
 	}
 	return best

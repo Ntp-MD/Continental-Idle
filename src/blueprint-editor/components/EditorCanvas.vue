@@ -2,10 +2,11 @@
 import { ref, computed, onMounted, onUnmounted, watch, inject } from "vue";
 import { useAssetsStore, dragState, endAssetDrag } from "../blueprintStore";
 import { findAssetCached } from "../assetUtils";
-import { svgTransform as svgTransformGeo, roundedRectPath } from "../geometry";
+import { svgTransform as svgTransformGeo, roundedRectPath, buildingArea } from "../geometry";
+import { resolveStreetTiles } from "../types";
 import { useConfirm } from "@/composables/useConfirm";
 import type { ObjectData, EntityRef } from "../types";
-import { resolveObjectDef, STREET_TILES } from "../types";
+import { resolveObjectDef } from "../types";
 import { useCanvasViewport } from "../composables/useCanvasViewport";
 import { useCanvasSelection } from "../composables/useCanvasSelection";
 import { useCanvasDragDrop } from "../composables/useCanvasDragDrop";
@@ -52,19 +53,115 @@ function onFloorNavKeydown(e: KeyboardEvent) {
 }
 
 const npcSimulation = inject("npcSimulation") as ReturnType<typeof useNpcSimulation>;
-const { npcs, start: startNpcSimulation, stop: stopNpcSimulation } = npcSimulation;
-const currentFloorNpcs = computed(() => {
+const { start: startNpcSimulation, stop: stopNpcSimulation } = npcSimulation;
+
+const npcCanvasRef = ref<HTMLCanvasElement | null>(null);
+let npcDrawRaf: number | null = null;
+
+function drawNpcFrame() {
+  npcDrawRaf = requestAnimationFrame(drawNpcFrame);
+  const canvas = npcCanvasRef.value;
+  const svg = vp.svgRef.value;
+  if (!canvas || !svg) return;
+  const sRect = svg.getBoundingClientRect();
+  const host = canvas.parentElement;
+  if (!host) return;
+  const hRect = host.getBoundingClientRect();
+  canvas.style.left = `${sRect.left - hRect.left}px`;
+  canvas.style.top = `${sRect.top - hRect.top}px`;
+  canvas.style.width = `${sRect.width}px`;
+  canvas.style.height = `${sRect.height}px`;
+  const dpr = window.devicePixelRatio || 1;
+  const targetW = Math.round(sRect.width * dpr);
+  const targetH = Math.round(sRect.height * dpr);
+  if (canvas.width !== targetW || canvas.height !== targetH) {
+    canvas.width = targetW;
+    canvas.height = targetH;
+  }
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, sRect.width, sRect.height);
+  const ctm = svg.getScreenCTM();
+  if (!ctm) return;
+  const style = getComputedStyle(document.documentElement);
+  const colAccent = style.getPropertyValue("--accent-primary").trim() || "#4cc9f0";
+  const colGuide = style.getPropertyValue("--accent-blue").trim() || "#3a86ff";
+  const colGreen = style.getPropertyValue("--accent-green").trim() || "#2ec4b6";
+  const colRing = "rgba(255,255,255,0.8)";
   const fid = store.state.currentFloorId;
-  return npcs.value.every((n) => n.floorId === fid) ? npcs.value : npcs.value.filter((n) => n.floorId === fid);
-});
+  for (const dot of npcSimulation.frameDots.values()) {
+    if (dot.floorId !== fid) continue;
+    const p = new DOMPoint(dot.x, dot.y).matrixTransform(ctm);
+    const sx = p.x - sRect.left;
+    const sy = p.y - sRect.top;
+    if (sx < -8 || sy < -8 || sx > sRect.width + 8 || sy > sRect.height + 8) continue;
+    if (showNpcGuides.value && dot.status === "walking") {
+      if (dot.path.length > 1) {
+        ctx.beginPath();
+        ctx.setLineDash([4, 3]);
+        ctx.moveTo(sx, sy);
+        for (let i = dot.pathIdx; i < dot.path.length; i++) {
+          const pt = new DOMPoint(dot.path[i][0], dot.path[i][1]).matrixTransform(ctm);
+          ctx.lineTo(pt.x - sRect.left, pt.y - sRect.top);
+        }
+        ctx.strokeStyle = colGuide;
+        ctx.lineWidth = 1;
+        ctx.globalAlpha = 0.7;
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.globalAlpha = 1;
+      }
+      const tp = new DOMPoint(dot.targetX, dot.targetY).matrixTransform(ctm);
+      const tx = tp.x - sRect.left;
+      const ty = tp.y - sRect.top;
+      ctx.strokeStyle = colAccent;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(tx - 3, ty);
+      ctx.lineTo(tx + 3, ty);
+      ctx.moveTo(tx, ty - 3);
+      ctx.lineTo(tx, ty + 3);
+      ctx.stroke();
+    }
+    ctx.beginPath();
+    ctx.arc(sx, sy, 4, 0, Math.PI * 2);
+    ctx.fillStyle = dot.color;
+    ctx.fill();
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = dot.status === "interacting" ? colGreen : colRing;
+    ctx.stroke();
+  }
+}
+
+function startNpcDraw() {
+  if (npcDrawRaf === null) npcDrawRaf = requestAnimationFrame(drawNpcFrame);
+}
+
+function stopNpcDraw() {
+  if (npcDrawRaf !== null) {
+    cancelAnimationFrame(npcDrawRaf);
+    npcDrawRaf = null;
+  }
+  const canvas = npcCanvasRef.value;
+  const ctx = canvas?.getContext("2d");
+  if (canvas && ctx) {
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+  }
+}
 
 watch(
   () => store.state.mode,
   (mode, previousMode) => {
     if (mode === "npc-preview") {
       startNpcSimulation();
+      startNpcDraw();
     }
-    if (previousMode === "npc-preview" && mode !== "npc-preview") stopNpcSimulation();
+    if (previousMode === "npc-preview" && mode !== "npc-preview") {
+      stopNpcSimulation();
+      stopNpcDraw();
+    }
   },
 );
 
@@ -80,12 +177,15 @@ const showWalkableOverlay = ref(savedToggles.showWalkableOverlay ?? false);
 const showInteractSpots = ref(savedToggles.showInteractSpots ?? false);
 const showWalls = ref(savedToggles.showWalls ?? false);
 const showObjectHighlights = ref(savedToggles.showObjectHighlights ?? false);
+const showBuildingBounds = ref(savedToggles.showBuildingBounds ?? true);
+const showNpcGuides = ref(savedToggles.showNpcGuides ?? true);
 
 const isInteracting = computed(() => !!panning.value || !!moving.value || zooming.value);
 const renderWalkableOverlay = computed(() => showWalkableOverlay.value && !isInteracting.value);
 const renderWalls = computed(() => showWalls.value && !isInteracting.value);
 const renderInteractSpots = computed(() => showInteractSpots.value && !isInteracting.value);
 const renderObjectHighlights = computed(() => showObjectHighlights.value && !isInteracting.value);
+const renderBuildingBounds = computed(() => showBuildingBounds.value);
 
 const selectedObjectIds = computed(() => {
   const ids = new Set<string>();
@@ -176,15 +276,10 @@ const modeHint = computed(() => {
   return hints[store.state.mode] ?? "";
 });
 
-const streetBorderPx = computed(() => STREET_TILES * canvas.value.tileSize);
-const buildingArea = computed(() => ({
-  x: streetBorderPx.value,
-  y: streetBorderPx.value,
-  w: canvas.value.width - streetBorderPx.value * 2,
-  h: canvas.value.height - streetBorderPx.value * 2,
-}));
+const buildingAreaRect = computed(() => buildingArea(canvas.value.width, canvas.value.height, canvas.value.tileSize, streetTotalTiles.value));
 const streetSidewalkWidth = computed(() => 2 * canvas.value.tileSize);
-const streetRoadWidth = computed(() => 4 * canvas.value.tileSize);
+const streetTotalTiles = computed(() => resolveStreetTiles(store.state.layout));
+const streetRoadWidth = computed(() => Math.max(1, streetTotalTiles.value - 4) * canvas.value.tileSize);
 
 const vp = useCanvasViewport(
   () => canvas.value.width,
@@ -242,7 +337,7 @@ const { paletteValid, paletteGhost, paletteGhostParts, paletteGhostRect, onWindo
 
 const showGrid = ref(savedToggles.showGrid ?? true);
 const showLabels = ref(savedToggles.showLabels ?? true);
-const showStreet = ref(savedToggles.showStreet ?? true);
+const showStreet = computed(() => !!store.state.layout.streetFloorId && store.state.layout.streetFloorId === store.state.currentFloorId);
 const mouseCoords = ref({ x: 0, y: 0 });
 const rulerMouseX = ref(-1);
 const rulerMouseY = ref(-1);
@@ -419,11 +514,12 @@ function saveViewToggles() {
       JSON.stringify({
         showGrid: showGrid.value,
         showLabels: showLabels.value,
-        showStreet: showStreet.value,
         showWalkableOverlay: showWalkableOverlay.value,
         showInteractSpots: showInteractSpots.value,
         showWalls: showWalls.value,
         showObjectHighlights: showObjectHighlights.value,
+        showBuildingBounds: showBuildingBounds.value,
+        showNpcGuides: showNpcGuides.value,
       }),
     );
   } catch {}
@@ -439,9 +535,10 @@ function toggleLabels() {
   saveViewToggles();
 }
 
-function toggleStreet() {
-  showStreet.value = !showStreet.value;
-  saveViewToggles();
+async function toggleStreet() {
+  try {
+    await store.setStreetFloor(showStreet.value ? null : store.state.currentFloorId);
+  } catch {}
 }
 
 function toggleWalkableOverlay() {
@@ -461,6 +558,16 @@ function toggleWalls() {
 
 function toggleObjectHighlights() {
   showObjectHighlights.value = !showObjectHighlights.value;
+  saveViewToggles();
+}
+
+function toggleBuildingBounds() {
+  showBuildingBounds.value = !showBuildingBounds.value;
+  saveViewToggles();
+}
+
+function toggleNpcGuides() {
+  showNpcGuides.value = !showNpcGuides.value;
   saveViewToggles();
 }
 
@@ -556,6 +663,7 @@ onMounted(() => {
 });
 onUnmounted(() => {
   stopNpcSimulation();
+  stopNpcDraw();
   window.removeEventListener("keydown", onKeyDown);
   window.removeEventListener("keyup", onKeyUp);
   document.removeEventListener("click", onFloorNavOutside);
@@ -609,6 +717,13 @@ function assetSvg(type: string): string | undefined {
 function svgTransform(obj: ObjectData): string {
   const asset = findAssetCached(store.assetMap(), obj.type);
   return svgTransformGeo(obj, asset);
+}
+
+function svgColorVars(obj: ObjectData): string {
+  let vars = "";
+  if (obj.fillColor) vars += `--obj-fill:${obj.fillColor};`;
+  if (obj.strokeColor) vars += `--obj-stroke:${obj.strokeColor};`;
+  return vars;
 }
 
 function isObjectSelected(id: string): boolean {
@@ -688,7 +803,7 @@ async function cancelDrawnOrigin() {
         <line :x1="canvas.width - streetSidewalkWidth - streetRoadWidth / 2" :y1="streetSidewalkWidth" :x2="canvas.width - streetSidewalkWidth - streetRoadWidth / 2" :y2="canvas.height - streetSidewalkWidth" stroke="var(--street-marking)" stroke-width="1" stroke-dasharray="12 8" opacity="0.5" />
 
         <!-- Building area outline (subtle border separating street from building) -->
-        <rect :x="buildingArea.x" :y="buildingArea.y" :width="buildingArea.w" :height="buildingArea.h" fill="none" stroke="var(--border-dim)" stroke-width="1" stroke-dasharray="4 4" opacity="0.6" />
+        <rect :x="buildingAreaRect.x" :y="buildingAreaRect.y" :width="buildingAreaRect.w" :height="buildingAreaRect.h" fill="none" stroke="var(--border-dim)" stroke-width="1" stroke-dasharray="4 4" opacity="0.6" />
       </g>
 
       <!-- Rulers (outside canvas, Photoshop-style) -->
@@ -737,12 +852,20 @@ async function cancelDrawnOrigin() {
         <line v-for="(run, i) in wallRuns" :key="`floor-wall-run-${i}`" :x1="run.x1" :y1="run.y1" :x2="run.x2" :y2="run.y2" stroke="var(--accent-gold)" stroke-width="2" />
       </g>
 
+      <g v-if="renderBuildingBounds" v-memo="[buildingAreaRect, renderBuildingBounds]" class="editor__bounds editor__svg--noevents">
+        <rect :x="buildingAreaRect.x" :y="buildingAreaRect.y" :width="buildingAreaRect.w" :height="buildingAreaRect.h" fill="none" stroke="var(--accent-green)" stroke-width="2" stroke-dasharray="10 6" opacity="0.85" />
+        <path :d="`M ${buildingAreaRect.x} ${buildingAreaRect.y + 16} L ${buildingAreaRect.x} ${buildingAreaRect.y} L ${buildingAreaRect.x + 16} ${buildingAreaRect.y}`" fill="none" stroke="var(--accent-green)" stroke-width="3.5" />
+        <path :d="`M ${buildingAreaRect.x + buildingAreaRect.w - 16} ${buildingAreaRect.y} L ${buildingAreaRect.x + buildingAreaRect.w} ${buildingAreaRect.y} L ${buildingAreaRect.x + buildingAreaRect.w} ${buildingAreaRect.y + 16}`" fill="none" stroke="var(--accent-green)" stroke-width="3.5" />
+        <path :d="`M ${buildingAreaRect.x + buildingAreaRect.w} ${buildingAreaRect.y + buildingAreaRect.h - 16} L ${buildingAreaRect.x + buildingAreaRect.w} ${buildingAreaRect.y + buildingAreaRect.h} L ${buildingAreaRect.x + buildingAreaRect.w - 16} ${buildingAreaRect.y + buildingAreaRect.h}`" fill="none" stroke="var(--accent-green)" stroke-width="3.5" />
+        <path :d="`M ${buildingAreaRect.x + 16} ${buildingAreaRect.y + buildingAreaRect.h} L ${buildingAreaRect.x} ${buildingAreaRect.y + buildingAreaRect.h} L ${buildingAreaRect.x} ${buildingAreaRect.y + buildingAreaRect.h - 16}`" fill="none" stroke="var(--accent-green)" stroke-width="3.5" />
+      </g>
+
       <g v-if="floor">
         <g v-for="obj in floor.objects" :key="obj.id" @mousedown="onObjectMouseDown($event, obj.id)">
           <rect :x="obj.x" :y="obj.y" :width="obj.w" :height="obj.h" fill="transparent" class="editor__svg--passall" />
           <template v-if="assetSvg(obj.type)">
             <rect :x="obj.x + (obj.padding ?? 0)" :y="obj.y + (obj.padding ?? 0)" :width="obj.w - (obj.padding ?? 0) * 2" :height="obj.h - (obj.padding ?? 0) * 2" :fill="objFillColor(obj)" :class="{ 'editor__canvas--collapsed': obj.collapsed }" :style="{ cursor: moving?.id === obj.id ? 'grabbing' : 'move' }" />
-            <g v-svg-content="assetSvg(obj.type)" :transform="svgTransform(obj)" :data-obj-id="obj.id" :class="{ 'editor__canvas--collapsed': obj.collapsed, 'editor__canvas--dragitem': moving?.id === obj.id, 'editor__canvas--locked': obj.locked, 'editor__canvas--nowall': !hasOuterWall(obj) }" :style="{ cursor: moving?.id === obj.id ? 'grabbing' : 'move' }" />
+            <g v-svg-content="assetSvg(obj.type)" :transform="svgTransform(obj)" :data-obj-id="obj.id" :class="{ 'editor__canvas--collapsed': obj.collapsed, 'editor__canvas--dragitem': moving?.id === obj.id, 'editor__canvas--locked': obj.locked, 'editor__canvas--nowall': !hasOuterWall(obj) }" :style="`cursor:${moving?.id === obj.id ? 'grabbing' : 'move'};${svgColorVars(obj)}`" />
           </template>
           <path
             v-else-if="roundedRectPath(obj.x + (obj.padding ?? 0), obj.y + (obj.padding ?? 0), obj.w - (obj.padding ?? 0) * 2, obj.h - (obj.padding ?? 0) * 2, obj.rx)"
@@ -779,7 +902,7 @@ async function cancelDrawnOrigin() {
             <circle :cx="obj.x + obj.w - 4" :cy="obj.y + 4" r="3" fill="var(--accent-blue)" stroke="var(--bg-primary)" stroke-width="0.5" />
             <text :x="obj.x + obj.w - 4" :y="obj.y + 5.5" text-anchor="middle" font-size="4" fill="var(--bg-primary)">L</text>
           </g>
-          <template v-if="(isObjectSelected(obj.id) || store.state.mode === 'npc-preview' || renderInteractSpots) && objDef(obj).interactSpots && objDef(obj).interactSpots!.length > 0" v-memo="[obj.id, obj.x, obj.y, isObjectSelected(obj.id), renderInteractSpots, store.state.mode, objDef(obj).interactSpots]">
+          <template v-if="renderInteractSpots && objDef(obj).interactSpots && objDef(obj).interactSpots!.length > 0" v-memo="[obj.id, obj.x, obj.y, renderInteractSpots, objDef(obj).interactSpots]">
             <g v-for="(interactSpot, interactSpotIdx) in objDef(obj).interactSpots" :key="`o-interactspot-${obj.id}-${interactSpotIdx}`" class="editor__svg--noevents">
               <circle :cx="obj.x + interactSpot.x" :cy="obj.y + interactSpot.y" r="4" fill="var(--accent-green)" stroke="var(--text-bright)" stroke-width="0.8" />
               <text :x="obj.x + interactSpot.x" :y="obj.y + interactSpot.y - 6" text-anchor="middle" font-size="5" fill="color-mix(in srgb, var(--accent-green) 70%, var(--bg-primary))">IS{{ interactSpotIdx + 1 }}</text>
@@ -787,23 +910,13 @@ async function cancelDrawnOrigin() {
           </template>
         </g>
 
-        <g v-if="renderWalkableOverlay || store.state.mode === 'npc-preview'" v-memo="[floor?.spawnZones, renderWalkableOverlay, store.state.mode]" class="editor__spawn editor__svg--noevents">
+        <g v-if="renderWalkableOverlay" v-memo="[floor?.spawnZones, renderWalkableOverlay]" class="editor__spawn editor__svg--noevents">
           <g v-for="zone in floor?.spawnZones ?? []" :key="`spawn-zone-${zone.id}`">
             <rect :x="zone.x" :y="zone.y" :width="zone.w" :height="zone.h" fill="color-mix(in srgb, var(--accent-green) 12%, transparent)" stroke="var(--accent-green)" stroke-width="1" stroke-dasharray="5 3" />
             <text :x="zone.x + 4" :y="zone.y + 10" font-size="6" fill="var(--accent-green)">{{ zone.label }}</text>
           </g>
         </g>
 
-        <g v-if="store.state.mode === 'npc-preview'" class="editor__npc editor__svg--noevents">
-          <g v-for="npc in currentFloorNpcs" :key="npc.id">
-            <polyline v-if="npc.path.length > 1" :points="npc.path.map((point) => point.join(',')).join(' ')" fill="none" stroke="var(--accent-blue)" stroke-width="1" stroke-dasharray="3 2" opacity="0.7" />
-            <line :x1="npc.targetX - 3" :y1="npc.targetY" :x2="npc.targetX + 3" :y2="npc.targetY" stroke="var(--accent-primary)" stroke-width="1" />
-            <line :x1="npc.targetX" :y1="npc.targetY - 3" :x2="npc.targetX" :y2="npc.targetY + 3" stroke="var(--accent-primary)" stroke-width="1" />
-            <circle :cx="npc.x" :cy="npc.y" r="6" :fill="npc.color" opacity="0.25" />
-            <circle :cx="npc.x" :cy="npc.y" r="4" :fill="npc.color" stroke="var(--text-bright)" stroke-width="1" />
-            <text :x="npc.x + 7" :y="npc.y - 7" font-size="4" fill="var(--text-bright)">{{ npc.status }}</text>
-          </g>
-        </g>
       </g>
 
       <rect v-if="showGrid" :width="canvas.width" :height="canvas.height" fill="url(#grid)" class="editor__svg--noevents" />
@@ -819,6 +932,7 @@ async function cancelDrawnOrigin() {
         <rect :x="paletteGhostRect.x" :y="paletteGhostRect.y" :width="paletteGhostRect.w" :height="paletteGhostRect.h" :style="{ fill: paletteValid ? 'color-mix(in srgb, var(--accent-green) 35%, transparent)' : 'color-mix(in srgb, var(--accent-red) 35%, transparent)', stroke: paletteValid ? 'var(--accent-green)' : 'var(--accent-red)' }" stroke-width="1.5" />
       </g>
     </svg>
+      <canvas ref="npcCanvasRef" class="editor__npccanvas"></canvas>
 
     <div class="editor__title" v-if="floor">
       <span class="editor__labels" :style="{ color: floor.labelColor || undefined }">{{ floor.label }}</span>
@@ -858,11 +972,13 @@ async function cancelDrawnOrigin() {
       <button class="flag--ghost" @click="centerView" title="Center View" aria-label="Center view">Center</button>
       <button class="flag--ghost" @click="toggleGrid" title="Toggle Grid" aria-label="Toggle grid">Grid</button>
       <button class="flag--ghost" @click="toggleLabels" title="Toggle Labels" aria-label="Toggle labels">Labels</button>
-      <button class="flag--ghost" :class="{ 'flag--active': showStreet }" @click="toggleStreet" title="Toggle Street" aria-label="Toggle street">Street</button>
+      <button class="flag--ghost" :class="{ 'flag--active': showStreet }" @click="toggleStreet" title="Toggle street on current floor (Canvas Settings to pick the floor)" aria-label="Toggle street on current floor">Street</button>
       <button class="flag--ghost" :class="{ 'flag--active': showWalkableOverlay }" @click="toggleWalkableOverlay" title="Toggle Walkable + Entrance" aria-label="Toggle walkable view">Walk</button>
       <button class="flag--ghost" :class="{ 'flag--active': showWalls }" @click="toggleWalls" title="Toggle Outer Walls" aria-label="Toggle walls">Wall</button>
       <button class="flag--ghost" :class="{ 'flag--active': showInteractSpots }" @click="toggleInteractSpots" title="Toggle Interact Spots" aria-label="Toggle interact spots">Interact</button>
       <button class="flag--ghost" :class="{ 'flag--active': showObjectHighlights }" @click="toggleObjectHighlights" title="Toggle object highlights" aria-label="Toggle object highlights">Highlight</button>
+      <button class="flag--ghost" :class="{ 'flag--active': showBuildingBounds }" @click="toggleBuildingBounds" title="Toggle building area boundary (placement limit against the street)" aria-label="Toggle building bounds">Bounds</button>
+      <button class="flag--ghost" :class="{ 'flag--active': showNpcGuides }" @click="toggleNpcGuides" title="Toggle NPC path guides (only in NPC Preview)" aria-label="Toggle NPC path guides">Guides</button>
     </div>
     <WalkableGridPanel />
 
@@ -940,6 +1056,11 @@ async function cancelDrawnOrigin() {
   display: block;
   background: var(--bg-primary);
   box-shadow: 0 8px 32px color-mix(in srgb, var(--bg-primary) 50%, transparent);
+}
+
+.editor__npccanvas {
+  position: absolute;
+  pointer-events: none;
 }
 
 .editor__svg--noevents,

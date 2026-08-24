@@ -18,6 +18,7 @@ export interface NpcCanvasBounds {
 	w: number
 	h: number
 	tileSize: number
+	streetTiles?: number
 }
 
 export interface NpcLayoutBuildResult {
@@ -108,10 +109,10 @@ function getTileEdge(
 	return definition.tileEdges[row][col]?.[side]
 }
 
-export function isStreetTile(tx: number, ty: number, width: number, height: number): boolean {
-	const start = STREET_TILES
-	const endX = width - STREET_TILES
-	const endY = height - STREET_TILES
+export function isStreetTile(tx: number, ty: number, width: number, height: number, streetTiles: number): boolean {
+	const start = streetTiles
+	const endX = width - streetTiles
+	const endY = height - streetTiles
 	if (endX <= start || endY <= start) return false
 	return tx < start || tx >= endX || ty < start || ty >= endY
 }
@@ -150,11 +151,12 @@ function isTileWalkable(
 	ty: number,
 	objects: readonly ObjectData[],
 	getAssetDef?: GetAssetDef,
+	streetTiles: number = STREET_TILES,
 ): boolean {
 	if (tx < 0 || ty < 0 || tx >= width || ty >= height) return false
 	const px = cellToPixel(tx, tileSize)
 	const py = cellToPixel(ty, tileSize)
-	if (isStreetTile(tx, ty, width, height)) {
+	if (isStreetTile(tx, ty, width, height, streetTiles)) {
 		for (const object of objects) {
 			if (px < object.x || px >= object.x + object.w || py < object.y || py >= object.y + object.h) continue
 			const definition = resolveObjectDef(object.rotation, getAssetDef?.(object.type), { w: object.w, h: object.h })
@@ -203,7 +205,7 @@ export function buildWalkableMap(
 	}
 	for (let y = 0; y < height; y++) {
 		for (let x = 0; x < width; x++) {
-			if (isTileWalkable(floor, width, height, cellSize, x, y, objectsByCell.get(tileKey(x, y)) ?? [], getAssetDef)) tiles.add(tileKey(x, y))
+			if (isTileWalkable(floor, width, height, cellSize, x, y, objectsByCell.get(tileKey(x, y)) ?? [], getAssetDef, canvas.streetTiles ?? STREET_TILES)) tiles.add(tileKey(x, y))
 		}
 	}
 	return { tiles, width, height, cellSize }

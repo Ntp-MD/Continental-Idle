@@ -179,6 +179,12 @@ export function migrate(data: unknown): { layout: FloorLayoutData; legacyAssets:
 			: [],
 		npcConfig: migrateNpcConfig(d.npcConfig),
 	}
+	if (typeof d.streetFloorId === 'string' && migrated.floors.some(f => f.id === d.streetFloorId)) {
+		migrated.streetFloorId = d.streetFloorId
+	}
+	if (typeof d.streetWidthTiles === 'number' && Number.isInteger(d.streetWidthTiles) && d.streetWidthTiles >= 5 && d.streetWidthTiles <= 20) {
+		migrated.streetWidthTiles = d.streetWidthTiles
+	}
 	const oldInstanceLabels = migrated.instanceLabels ?? {}
 	for (const floor of migrated.floors) {
 		for (const obj of floor.objects) {

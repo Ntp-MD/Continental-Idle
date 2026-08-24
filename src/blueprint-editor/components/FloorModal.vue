@@ -5,6 +5,7 @@ import { useToast } from "@/composables/useToast";
 import { useConfirm } from "@/composables/useConfirm";
 import { sanitizeString } from "../../utils/sanitize";
 import { genId } from "../store/utils";
+import { resolveStreetTiles } from "../types";
 import type { FloorData, NpcSpawnZone } from "../types";
 import ModalShell from "./ModalShell.vue";
 import FloorWalkablePanel from "./FloorWalkablePanel.vue";
@@ -296,7 +297,7 @@ function floorCounts(f: FloorData): string {
       </div>
     </div>
   </ModalShell>
-  <FloorWalkablePanel :open="showWalkable" :floor="selectedFloor" @close="showWalkable = false" />
+  <FloorWalkablePanel :open="showWalkable" :floor="selectedFloor" :street-tiles="resolveStreetTiles(store.state.layout)" @close="showWalkable = false" />
 </template>
 
 <style scoped>

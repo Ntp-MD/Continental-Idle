@@ -1,6 +1,7 @@
-import { ref, computed, watch, type Ref, type ComputedRef } from 'vue'
+import { ref, computed, watch, onUnmounted, type Ref, type ComputedRef } from 'vue'
 import { dragState, endAssetDrag } from '../blueprintStore'
 import { findAssetCached } from '../assetUtils'
+import { buildingArea } from '../geometry'
 import { useToast } from '@/composables/useToast'
 import type { FloorData } from '../types'
 import type { AssetsStore } from '../store/index'
@@ -25,8 +26,7 @@ export function useCanvasDragDrop(
 		store: AssetsStore
 		tileSize: () => number
 	},
-): DragDropState {
-	const mousePos = ref({ x: -1000, y: -1000 })
+): DragDropState {	const mousePos = ref({ x: -1000, y: -1000 })
 	const paletteValid = ref(false)
 	const toast = useToast()
 
@@ -52,10 +52,13 @@ export function useCanvasDragDrop(
 	const paletteGhostRect = computed(() => {
 		const ghost = paletteGhost.value
 		if (!ghost) return null
+		const b = buildingArea(opts.canvasWidth(), opts.canvasHeight(), opts.tileSize())
 		let x = opts.store.snap(mousePos.value.x - ghost.w / 2)
 		let y = opts.store.snap(mousePos.value.y - ghost.h / 2)
-		x -= Math.max(0, x + ghost.w - opts.canvasWidth())
-		y -= Math.max(0, y + ghost.h - opts.canvasHeight())
+		x -= Math.max(0, x + ghost.w - (b.x + b.w))
+		y -= Math.max(0, y + ghost.h - (b.y + b.h))
+		if (x < b.x) x = b.x
+		if (y < b.y) y = b.y
 		return { x, y, w: ghost.w, h: ghost.h }
 	})
 
@@ -95,6 +98,11 @@ export function useCanvasDragDrop(
 			window.removeEventListener('mousemove', onWindowMouseMoveForDrag)
 			window.removeEventListener('mouseup', onWindowMouseUpForDrag)
 		}
+	})
+
+	onUnmounted(() => {
+		window.removeEventListener('mousemove', onWindowMouseMoveForDrag)
+		window.removeEventListener('mouseup', onWindowMouseUpForDrag)
 	})
 
 	return { mousePos, paletteValid, paletteGhost, paletteGhostParts, paletteGhostRect, onWindowMouseMoveForDrag, onWindowMouseUpForDrag }

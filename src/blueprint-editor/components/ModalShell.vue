@@ -30,7 +30,7 @@ const containerRef = ref<HTMLElement>();
 const isOpen = computed(() => props.open);
 useFocusTrap(isOpen, containerRef);
 
-const { pos, isDragging, onDown, reset } = useDraggable(containerRef, containerRef);
+const { pos, isDragging, onDown, reset } = useDraggable(containerRef);
 
 const titleId = computed(() => `modal-shell-title-${Math.random().toString(36).slice(2, 9)}`);
 
@@ -62,8 +62,8 @@ onUnmounted(() => {
 <template>
   <Teleport to="body">
     <div v-if="open" :class="floating ? 'modal__overlay--floating' : 'modal__overlay'" @click.self="!floating && onClose()">
-      <div ref="containerRef" class="modal__dialog" :class="{ 'modal__dialog--dragging': isDragging, [dialogClass]: !!dialogClass }" :style="{ maxWidth, width, height, maxHeight, transform: `translate(${pos.x}px, ${pos.y}px)` }" role="dialog" :aria-modal="!floating" :aria-labelledby="titleId" @mousedown="onDown">
-        <div class="modal__header">
+      <div ref="containerRef" class="modal__dialog" :class="{ 'modal__dialog--dragging': isDragging, [dialogClass]: !!dialogClass }" :style="{ maxWidth, width, height, maxHeight, transform: `translate(${pos.x}px, ${pos.y}px)` }" role="dialog" :aria-modal="!floating" :aria-labelledby="titleId">
+        <div class="modal__header" @mousedown="onDown">
           <span :id="titleId" class="modal__title">{{ title }}</span>
           <button class="flag--ghost flag--icon" @click="onClose" aria-label="Close">✕</button>
         </div>

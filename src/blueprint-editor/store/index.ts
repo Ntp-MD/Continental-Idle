@@ -20,7 +20,7 @@ import {
 import { saveLayout, saveAssets, saveNpcConfig, saveBlueprintData, syncToGame } from './persistence'
 import { selectedObject, selectedAsset, selectAsset, selectedObjectIds, clearSelection } from './selection'
 import { getLinkedObjects } from './utils'
-import { setMode, resizeCanvas, setCanvasBgColor } from './mode'
+import { setMode, resizeCanvas, setCanvasBgColor, setStreetFloor, setStreetWidth } from './mode'
 import { tagCatalog, globalTags, managedTagSet, addTag, removeTag, ensureTag, ensureTags } from './tags'
 export * from '../crud/originAssets'
 export * from '../crud/floorPlan'
@@ -52,7 +52,7 @@ export {
 export { saveLayout, saveAssets, saveNpcConfig, saveBlueprintData, syncToGame } from './persistence'
 export { selectedObject, selectedAsset, selectAsset, selectedObjectIds, clearSelection } from './selection'
 export { getLinkedObjects } from './utils'
-export { setMode, resizeCanvas, setCanvasBgColor } from './mode'
+export { setMode, resizeCanvas, setCanvasBgColor, setStreetFloor, setStreetWidth } from './mode'
 export { tagCatalog, globalTags, managedTagSet, addTag, removeTag, ensureTag, ensureTags } from './tags'
 export { dragState, startAssetDrag, endAssetDrag } from './state'
 
@@ -79,7 +79,7 @@ export function useAssetsStore() {
 		saveLayout, saveAssets, saveNpcConfig, saveBlueprintData, syncToGame,
 		selectedObject, selectedAsset, selectAsset, selectedObjectIds, clearSelection,
 		getLinkedObjects,
-		setMode, resizeCanvas, setCanvasBgColor,
+		setMode, resizeCanvas, setCanvasBgColor, setStreetFloor, setStreetWidth,
 		tagCatalog, globalTags, managedTagSet, addTag, removeTag, ensureTag, ensureTags,
 	}
 }

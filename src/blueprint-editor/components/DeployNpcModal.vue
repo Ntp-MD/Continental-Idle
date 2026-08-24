@@ -7,7 +7,7 @@ import { normalizeNpcConfig, type NpcSimulationConfig, type NpcRole, type NpcSpa
 import ModalShell from "./ModalShell.vue";
 
 const props = defineProps<{ open: boolean }>();
-const emit = defineEmits<{ (e: "close"): void; (e: "deploy"): void }>();
+const emit = defineEmits<{ (e: "close"): void; (e: "deploy", spawnFloorId: string): void }>();
 
 const toast = useToast();
 const store = useAssetsStore();
@@ -21,6 +21,7 @@ function cloneConfig(value: NpcSimulationConfig): NpcSimulationConfig {
 
 const draft = ref<NpcSimulationConfig>(cloneConfig(state.layout.npcConfig));
 const newSpawnTag = ref<Record<string, string>>({});
+const spawnFloorId = ref("");
 
 const roles = computed(() => draft.value.roles);
 const floors = computed(() => store.state.layout.floors);
@@ -123,22 +124,34 @@ async function onDeploy() {
     persistTimer = null;
   }
   await persistDraft();
-  emit("deploy");
+  emit("deploy", spawnFloorId.value);
 }
 </script>
 
 <template>
   <ModalShell :open="open" title="Deploy NPCs" max-width="520px" width="50vw" height="auto" max-height="80vh" @close="onClose">
     <div class="modal__body deploy__body">
-      <div class="form__row deploy__speed">
-        <label class="label--fixed" for="deploy-npc-speed">NPC Speed</label>
-        <input id="deploy-npc-speed" v-model.number="draft.speed" class="input--grow" type="range" min="0.01" max="0.2" step="0.01" @change="schedulePersist" />
-        <span>{{ draft.speed.toFixed(2) }}</span>
+      <div class="deploy__section">
+        <div class="form__title">Simulation</div>
+        <div class="form__row">
+          <label class="label--fixed" for="deploy-npc-speed">NPC Speed</label>
+          <input id="deploy-npc-speed" v-model.number="draft.speed" class="input--grow" type="range" min="0.01" max="0.2" step="0.01" @change="schedulePersist" />
+          <span>{{ draft.speed.toFixed(2) }}</span>
+        </div>
+        <div class="form__row">
+          <label class="label--fixed" for="deploy-spawn-floor">Spawn floor</label>
+          <select id="deploy-spawn-floor" v-model="spawnFloorId" class="input--grow">
+            <option value="">All floors (per-role filters below)</option>
+            <option v-for="floor in floors" :key="`deploy-floor-${floor.id}`" :value="floor.id">{{ floor.label }} — {{ floor.name }}</option>
+          </select>
+        </div>
+        <div class="form__hint">Spawn floor forces every NPC onto one floor; "All floors" uses each role's floor checks below.</div>
       </div>
 
       <div v-if="roles.length === 0" class="empty empty--center deploy__empty">No roles configured. Open NPC Manager to create roles first.</div>
 
-      <div v-else class="form__col form__col--tight form__col--scroll">
+      <div v-else class="form__col form__col--tight form__col--scroll deploy__roles">
+        <div class="form__title">Roles</div>
         <div v-for="role in roles" :key="role.id" class="deploy__row">
           <div class="form__row form__row--tight form__row--wrap">
             <span class="swatch" :style="{ background: role.color }" />
@@ -193,14 +206,26 @@ async function onDeploy() {
 <style scoped>
 .deploy__body {
   flex: 1;
+  min-height: 0;
   padding: var(--gap-sm);
   overflow: hidden;
+  gap: var(--gap-xs);
 }
 
-.deploy__speed {
-  padding: var(--gap-xs) 0;
-  border-bottom: 1px solid var(--border-dim);
+.deploy__section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-xs);
+  padding: var(--gap-xs) var(--gap-sm) var(--gap-sm);
+  background: var(--bg-primary);
+  border: 1px solid var(--border-dim);
+  border-radius: var(--radius-sm);
   flex-shrink: 0;
+}
+
+.deploy__roles {
+  flex: 1;
+  min-height: 0;
 }
 
 .deploy__row {

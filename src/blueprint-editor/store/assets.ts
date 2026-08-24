@@ -1,5 +1,5 @@
 import type { AssetDef, WalkableGrid, TileState, TileEdges } from '../types'
-import { isValidColor, normalizeNpcQueueConfig } from '../types'
+import { isValidColor, normalizeNpcQueueConfig, applySvgColorConvention } from '../types'
 import { aabbOverlap } from '../collision'
 import { assetSizeFor, normalizeObject } from '../geometry'
 import {
@@ -108,6 +108,7 @@ export async function addSvgAsset(name: string, w: number, h: number, svgString:
 		const innerMatch = trimmed.match(/<svg[^>]*>([\s\S]*)<\/svg>/i)
 		const rawSvg = innerMatch ? innerMatch[1].trim() : trimmed
 		const innerSvg = sanitizeSvg(rawSvg)
+		const themedSvg = applySvgColorConvention(innerSvg)
 		if (!innerSvg || !/<(?:rect|circle|ellipse|line|path|polyline|polygon|g|text|image|use|defs|linearGradient|radialGradient|stop|tspan)\b/i.test(innerSvg)) {
 			toast.warning('SVG contains no valid drawable elements after sanitization')
 			return null
@@ -116,7 +117,7 @@ export async function addSvgAsset(name: string, w: number, h: number, svgString:
 			origin: 'svg-import',
 			id: genId('custom'), name,
 			w: safeW, h: safeH,
-			svg: innerSvg,
+			svg: themedSvg,
 			svgViewBox: { w: vbW, h: vbH },
 		}
 		initAssetFields(asset)

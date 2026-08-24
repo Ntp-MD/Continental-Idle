@@ -1,6 +1,7 @@
 import type { ObjectData, AssetDef, LinkedPart, Rotation, EntityRef } from '../types'
+import { applySvgColorConvention, isValidColor } from '../types'
 import { findAssetCached } from '../assetUtils'
-import { assetSizeFor, normalizeObject } from '../geometry'
+import { assetSizeFor, buildingArea, normalizeObject } from '../geometry'
 import { aabbOverlap, objectOverlapsAny, recalcCollapsed } from '../collision'
 import {
 	state, toast, snap, clamp, assetMap,
@@ -47,14 +48,16 @@ export async function addObject(type: string, x: number, y: number): Promise<Obj
 		if (asset.linkedParts) {
 			const parts = asset.linkedParts
 			const partRects = parts.map(p => ({ x: snap(rect.x + p.dx), y: snap(rect.y + p.dy), w: snap(p.w), h: snap(p.h) }))
+			const c = state.layout.canvas
+			const b = buildingArea(c.width, c.height, c.tileSize)
 			const groupMaxX = Math.max(...partRects.map(r => r.x + r.w))
 			const groupMaxY = Math.max(...partRects.map(r => r.y + r.h))
-			const overflowX = Math.max(0, groupMaxX - state.layout.canvas.width)
-			const overflowY = Math.max(0, groupMaxY - state.layout.canvas.height)
+			const overflowX = Math.max(0, groupMaxX - (b.x + b.w))
+			const overflowY = Math.max(0, groupMaxY - (b.y + b.h))
 			if (overflowX > 0 || overflowY > 0) {
 				for (const pr of partRects) {
-					pr.x = Math.max(0, pr.x - overflowX)
-					pr.y = Math.max(0, pr.y - overflowY)
+					pr.x = Math.max(b.x, pr.x - overflowX)
+					pr.y = Math.max(b.y, pr.y - overflowY)
 				}
 			}
 			for (const pr of partRects) {
@@ -121,14 +124,16 @@ export function canPlaceObject(type: string, x: number, y: number): boolean {
 		const partRects = asset.linkedParts.map(p =>
 			({ x: snap(rect.x + p.dx), y: snap(rect.y + p.dy), w: snap(p.w), h: snap(p.h) })
 		)
+		const c = state.layout.canvas
+		const b = buildingArea(c.width, c.height, c.tileSize)
 		const groupMaxX = Math.max(...partRects.map(r => r.x + r.w))
 		const groupMaxY = Math.max(...partRects.map(r => r.y + r.h))
-		const overflowX = Math.max(0, groupMaxX - state.layout.canvas.width)
-		const overflowY = Math.max(0, groupMaxY - state.layout.canvas.height)
+		const overflowX = Math.max(0, groupMaxX - (b.x + b.w))
+		const overflowY = Math.max(0, groupMaxY - (b.y + b.h))
 		if (overflowX > 0 || overflowY > 0) {
 			for (const pr of partRects) {
-				pr.x = Math.max(0, pr.x - overflowX)
-				pr.y = Math.max(0, pr.y - overflowY)
+				pr.x = Math.max(b.x, pr.x - overflowX)
+				pr.y = Math.max(b.y, pr.y - overflowY)
 			}
 		}
 		const currentObjects = currentFloor.value?.objects ?? []
@@ -236,13 +241,14 @@ function moveMembersTo(members: ObjectData[], anchor: ObjectData, x: number, y: 
 	const maxX = Math.max(...members.map(member => member.x + member.w))
 	const maxY = Math.max(...members.map(member => member.y + member.h))
 	const bounds = { minX, minY, w: maxX - minX, h: maxY - minY }
-	const { width, height } = state.layout.canvas
+	const c = state.layout.canvas
+	const b = buildingArea(c.width, c.height, c.tileSize)
 	const requestedDx = x - anchor.x
 	const requestedDy = y - anchor.y
-	const minDx = -bounds.minX
-	const maxDx = width - (bounds.minX + bounds.w)
-	const minDy = -bounds.minY
-	const maxDy = height - (bounds.minY + bounds.h)
+	const minDx = b.x - bounds.minX
+	const maxDx = (b.x + b.w) - (bounds.minX + bounds.w)
+	const minDy = b.y - bounds.minY
+	const maxDy = (b.y + b.h) - (bounds.minY + bounds.h)
 	const dx = Math.max(minDx, Math.min(requestedDx, maxDx))
 	const dy = Math.max(minDy, Math.min(requestedDy, maxDy))
 	for (const member of members) {
@@ -341,7 +347,7 @@ export async function rotateSelected(): Promise<void> {
 }
 
 
-export type ObjectInstancePatch = Partial<Pick<ObjectData, 'x' | 'y'>>
+export type ObjectInstancePatch = Partial<Pick<ObjectData, 'x' | 'y' | 'fillColor' | 'strokeColor'>>
 
 export async function updateObjectProps(patch: ObjectInstancePatch): Promise<boolean> {
 	return withStateLock(async () => {
@@ -362,9 +368,24 @@ export async function updateObjectProps(patch: ObjectInstancePatch): Promise<boo
 		if (needsSize && objectOverlapsAny(currentFloor.value?.objects ?? [], assetMap(), rect, o.id)) {
 			return false
 		}
+		for (const field of ['fillColor', 'strokeColor'] as const) {
+			const value = patch[field]
+			if (value === undefined) continue
+			const trimmed = value.trim()
+			if (trimmed === '') {
+				if (o[field] !== undefined) o[field] = undefined
+				continue
+			}
+			if (!isValidColor(trimmed)) {
+				toast.warning(`Invalid ${field === 'fillColor' ? 'fill' : 'stroke'} color`)
+				return false
+			}
+			if (o[field] !== trimmed) o[field] = trimmed
+		}
 		const changed = (patch.x !== undefined && o.x !== rect.x) ||
 			(patch.y !== undefined && o.y !== rect.y) ||
-			(needsSize && (o.w !== w || o.h !== h))
+			(needsSize && (o.w !== w || o.h !== h)) ||
+			patch.fillColor !== undefined || patch.strokeColor !== undefined
 		if (!changed) return true
 		if (patch.x !== undefined) o.x = rect.x
 		if (patch.y !== undefined) o.y = rect.y
@@ -595,7 +616,7 @@ export async function flattenToSvgAsset(name?: string): Promise<string | null> {
 			name: safeName,
 			w: Math.round(totalW / t),
 			h: Math.round(totalH / t),
-			svg: innerSvg,
+			svg: applySvgColorConvention(innerSvg),
 			svgViewBox: { w: vbW, h: vbH },
 		}
 

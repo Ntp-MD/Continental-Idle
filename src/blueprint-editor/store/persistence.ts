@@ -1,7 +1,7 @@
 import type { ObjectData, SyncedFloor, SyncedObject, SyncedLayoutPayload } from '../types'
-import { normalizeAllowedRoleIds, normalizeInteractSpots, normalizeInteractConfig, normalizeNpcQueueConfig, normalizeNpcSpawnZones, normalizeFloorWalkable, normalizeTileEdges, normalizeTileStates, normalizeWalkableGrid } from '../types'
+import { normalizeAllowedRoleIds, normalizeInteractSpots, normalizeInteractConfig, normalizeNpcQueueConfig, normalizeNpcSpawnZones, normalizeFloorWalkable, normalizeTileEdges, normalizeTileStates, normalizeWalkableGrid, normalizeNpcConfig, resolveStreetTiles } from '../types'
 import { state, toast, isStateLocked, withStateLock, assetMap, reloadEditorData } from './state'
-import { editorLog, editorFloorLabelToFloorId } from './utils'
+import { editorLog, assignSyncKey } from './utils'
 import { EDITOR_CONFIG } from './migrate'
 import { buildBlueprintData } from './dataLoader'
 import { validateSettingsCompleteness } from '../assetUtils'
@@ -65,9 +65,12 @@ export async function saveNpcConfig(): Promise<boolean> {
 export function syncToGame(): boolean {
 	try {
 		const floors: Record<string, SyncedFloor> = {}
-		for (const floor of state.layout.floors) {
-			const floorId = editorFloorLabelToFloorId(floor.label)
-			if (!floorId) continue
+		const usedKeys = new Set<string>()
+		const mappedInfo: string[] = []
+		state.layout.floors.forEach((floor, index) => {
+			const floorId = assignSyncKey(floor.label, index, usedKeys)
+			usedKeys.add(floorId)
+			mappedInfo.push(`${floor.label || floor.name || '?'}->${floorId}`)
 			const allowedRoleIds = normalizeAllowedRoleIds(floor.allowedRoleIds)
 			const walkable = normalizeFloorWalkable(floor.walkable)
 			const spawnZones = normalizeNpcSpawnZones(floor.spawnZones)
@@ -96,6 +99,7 @@ export function syncToGame(): boolean {
 						entranceRequired: asset?.entranceRequired ?? false,
 					}
 					if (o.fillColor) obj.fillColor = o.fillColor
+					if (o.strokeColor) obj.strokeColor = o.strokeColor
 					if (o.label) obj.label = o.label
 					if (walkableGrid) obj.walkableGrid = walkableGrid
 					if (tileStates) obj.tileStates = tileStates
@@ -105,9 +109,22 @@ export function syncToGame(): boolean {
 					if (queue) obj.queue = queue
 					return obj
 				}),
-			}
+				}
+		})
+		if (Object.keys(floors).length === 0) {
+			toast.error('Sync failed: no floors could be mapped to the game')
+			editorLog.error('syncToGame', new Error('zero mappable floors'))
+			return false
 		}
-		const payload: SyncedLayoutPayload = { version: 3, canvas: state.layout.canvas, floors, timestamp: Date.now() }
+		editorLog.info('syncToGame floors', mappedInfo.join(', '))
+		const npcConfig = normalizeNpcConfig(state.layout.npcConfig)
+		const payload: SyncedLayoutPayload = {
+			version: 3,
+			canvas: { ...state.layout.canvas, streetWidthTiles: resolveStreetTiles(state.layout) },
+			floors,
+			...(npcConfig ? { npcConfig } : {}),
+			timestamp: Date.now(),
+		}
 		window.dispatchEvent(new CustomEvent('blueprint:sync', { detail: payload }))
 
 		const completeness = validateSettingsCompleteness(state.layout, assetMap(), state.layout.npcConfig)

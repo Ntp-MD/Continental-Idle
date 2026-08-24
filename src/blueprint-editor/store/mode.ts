@@ -43,3 +43,17 @@ export async function setCanvasBgColor(bgColor: string | undefined): Promise<boo
 	else delete state.layout.canvas.bgColor
 	return saveLayout()
 }
+
+export async function setStreetFloor(floorId: string | null): Promise<boolean> {
+	if (floorId !== null && !state.layout.floors.some(f => f.id === floorId)) return false
+	if (floorId) state.layout.streetFloorId = floorId
+	else delete state.layout.streetFloorId
+	return saveLayout()
+}
+
+export async function setStreetWidth(tiles: number | null): Promise<boolean> {
+	if (tiles !== null && (!Number.isInteger(tiles) || tiles < 5 || tiles > 20)) return false
+	if (tiles !== null) state.layout.streetWidthTiles = tiles
+	else delete state.layout.streetWidthTiles
+	return saveLayout()
+}

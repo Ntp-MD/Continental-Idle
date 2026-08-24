@@ -3,6 +3,11 @@ export type Rotation = 0 | 90 | 180 | 270
 
 export const STREET_TILES = 8
 
+export function resolveStreetTiles(layout: { streetWidthTiles?: number } | null | undefined): number {
+	const v = layout?.streetWidthTiles
+	return typeof v === 'number' && Number.isInteger(v) && v >= 5 && v <= 20 ? v : STREET_TILES
+}
+
 export type SvgRole = 'wall' | 'door' | 'fixture'
 
 export interface SvgRoleInfo {
@@ -314,6 +319,10 @@ export function normalizeObjectPlacement(value: unknown): ObjectPlacement | unde
 	if (typeof record.linkGroupId === 'string' && record.linkGroupId) placement.linkGroupId = record.linkGroupId
 	if (typeof record.locked === 'boolean') placement.locked = record.locked
 	if (typeof record.instanceLabel === 'string' && record.instanceLabel) placement.instanceLabel = record.instanceLabel
+	const fillColor = typeof record.fillColor === 'string' && isValidColor(record.fillColor.trim()) ? record.fillColor.trim() : undefined
+	if (fillColor) placement.fillColor = fillColor
+	const strokeColor = typeof record.strokeColor === 'string' && isValidColor(record.strokeColor.trim()) ? record.strokeColor.trim() : undefined
+	if (strokeColor) placement.strokeColor = strokeColor
 	return placement
 }
 
@@ -414,6 +423,22 @@ export interface BlueprintDataFile {
 	npcConfig: NpcSimulationConfig
 }
 
+const SVG_COLOR_VALUE_RE = /^(#(?:[0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\([^)]*\)|hsla?\([^)]*\))$/
+
+export function applySvgColorConvention(svg: string): string {
+	return svg.replace(/\b(fill|stroke)(\s*=\s*)(["\'])([^"\']*)\3/g, (_m, attr: string, sep: string, q: string, value: string) => {
+		const v = value.trim()
+		if (v.startsWith('var(--obj-fill') || v.startsWith('var(--obj-stroke')) return _m
+		if (attr === 'fill') {
+			if (v === 'none') return `${attr}${sep}${q}var(--obj-fill,none)${q}`
+			if (SVG_COLOR_VALUE_RE.test(v)) return `${attr}${sep}${q}var(--obj-fill,${v})${q}`
+		} else if (SVG_COLOR_VALUE_RE.test(v)) {
+			return `${attr}${sep}${q}var(--obj-stroke,${v})${q}`
+		}
+		return _m
+	})
+}
+
 export function normalizeOriginAsset(value: unknown): AssetDef | undefined {
 	if (!value || typeof value !== 'object') return undefined
 	const record = value as Record<string, unknown>
@@ -429,6 +454,7 @@ export function normalizeOriginAsset(value: unknown): AssetDef | undefined {
 	if (record.interactSpots !== undefined) asset.interactSpots = normalizeInteractSpots(record.interactSpots)
 	if (record.interact !== undefined) asset.interact = normalizeInteractConfig(record.interact)
 	if (record.queue !== undefined) asset.queue = normalizeNpcQueueConfig(record.queue)
+	if (asset.svg) asset.svg = applySvgColorConvention(asset.svg)
 	return asset
 }
 
@@ -519,6 +545,8 @@ export interface ObjectPlacement {
 	linkGroupId?: string
 	locked?: boolean
 	instanceLabel?: string
+	fillColor?: string
+	strokeColor?: string
 }
 
 export interface ObjectData extends ObjectPlacement {
@@ -529,7 +557,6 @@ export interface ObjectData extends ObjectPlacement {
 	labelPadding?: number
 	padding?: number
 	collapsed?: boolean
-	fillColor?: string
 	label?: string
 	isWall?: boolean
 }
@@ -614,6 +641,8 @@ export interface FloorLayoutData {
 	version: number
 	canvas: CanvasConfig
 	floors: FloorData[]
+	streetWidthTiles?: number
+	streetFloorId?: string
 	instanceLabels?: Record<string, string>
 	npcConfig?: NpcSimulationConfig
 }
@@ -624,6 +653,7 @@ export interface SyncedCanvas {
 	height: number
 	tileSize: number
 	bgColor?: string
+	streetWidthTiles?: number
 }
 
 
@@ -636,6 +666,7 @@ export interface SyncedObject {
 	h: number
 	rotation: Rotation
 	fillColor?: string
+	strokeColor?: string
 	label?: string
 	walkable?: boolean
 	entranceRequired?: boolean

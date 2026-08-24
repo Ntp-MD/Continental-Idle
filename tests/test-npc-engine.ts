@@ -5,6 +5,16 @@ import { normalizeAllowedRoleIds } from '../src/blueprint-editor/types'
 import { validatePortalConfiguration, buildAssetMap } from '../src/blueprint-editor/assetUtils'
 import type { AssetDef } from '../src/blueprint-editor/types'
 
+function makeRng(seed: number): () => number {
+	let state = seed >>> 0 || 1
+	return () => {
+		state = (state * 1664525 + 1013904223) >>> 0
+		return state / 4294967296
+	}
+}
+let rngSeqN = 0
+const rngSeq = (): (() => number) => makeRng((rngSeqN++ + 0x9e3779b9) >>> 0)
+
 const layout: NpcEngineLayout = {
 	floors: [{ id: 'F1', width: 10, height: 10, tileSize: 1, walkable: [] }],
 	interactionTargets: [
@@ -667,7 +677,7 @@ function makeGridFloor(id: string, w: number, h: number, blocked: string[] = [],
 		floorId: 'F1', itemId: 'item1', interactSpotId: 'a0', x: 5, y: 0, tags: [],
 		capacity: 1, durationMinSeconds: 1, durationMaxSeconds: 1,
 	}]
-	const engine = new NpcEngine({ floors: [floor], interactionTargets: targets }, {
+	const engine = new NpcEngine({ floors: [floor], interactionTargets: targets }, { random: rngSeq(),
 		pathfinder: (f, from, to) => findNpcGridPath(f, from, to),
 		ticksPerSecond: 10,
 	})
@@ -688,7 +698,7 @@ function makeGridFloor(id: string, w: number, h: number, blocked: string[] = [],
 		capacity: 1, durationMinSeconds: 1, durationMaxSeconds: 1,
 	}]
 	let repathCount = 0
-	const engine = new NpcEngine({ floors: [floor], interactionTargets: targets }, {
+	const engine = new NpcEngine({ floors: [floor], interactionTargets: targets }, { random: rngSeq(),
 		pathfinder: (f, from, to, blocked) => findNpcGridPath(f, from, to, blocked),
 		ticksPerSecond: 10,
 	})
@@ -711,7 +721,7 @@ function makeGridFloor(id: string, w: number, h: number, blocked: string[] = [],
 		floorId: 'F1', itemId: 'item1', interactSpotId: 'a0', x: 4, y: 0, tags: [],
 		capacity: 1, durationMinSeconds: 100, durationMaxSeconds: 100,
 	}]
-	const engine = new NpcEngine({ floors: [floor], interactionTargets: targets }, {
+	const engine = new NpcEngine({ floors: [floor], interactionTargets: targets }, { random: rngSeq(),
 		pathfinder: (f, from, to) => findNpcGridPath(f, from, to),
 		ticksPerSecond: 10,
 	})
@@ -729,7 +739,7 @@ function makeGridFloor(id: string, w: number, h: number, blocked: string[] = [],
 		floorId: 'F1', itemId: 'item1', interactSpotId: 'a0', x: 9, y: 0, tags: [],
 		capacity: 1, durationMinSeconds: 1, durationMaxSeconds: 1,
 	}]
-	const engine = new NpcEngine({ floors: [floor], interactionTargets: targets }, {
+	const engine = new NpcEngine({ floors: [floor], interactionTargets: targets }, { random: rngSeq(),
 		pathfinder: (f, from, to) => findNpcGridPath(f, from, to),
 		ticksPerSecond: 10,
 	})
@@ -746,7 +756,7 @@ function makeGridFloor(id: string, w: number, h: number, blocked: string[] = [],
 		floorId: 'F1', itemId: 'item1', interactSpotId: 'a0', x: 3, y: 3, tags: [],
 		capacity: 1, durationMinSeconds: 1, durationMaxSeconds: 1,
 	}]
-	const engine = new NpcEngine({ floors: [floor], interactionTargets: targets }, {
+	const engine = new NpcEngine({ floors: [floor], interactionTargets: targets }, { random: rngSeq(),
 		pathfinder: (f, from, to) => findNpcGridPath(f, from, to),
 		ticksPerSecond: 10,
 	})

@@ -1,7 +1,7 @@
 import { reactive, computed } from 'vue'
 import type { BlueprintTagDefinition, FloorLayoutData, AssetDef, FloorData, EditorMode, SelectionState, Rect, NpcSimulationConfig } from '../types'
 import { buildAssetMap, parseSvgRoles, buildWalkableGrid } from '../assetUtils'
-import { snap as _snap, clamp as _clamp } from '../geometry'
+import { snap as _snap, clamp as _clamp, buildingArea } from '../geometry'
 import { originAssets, blueprintTagDefinitions, fetchBlueprintDataFromDisk, buildBlueprintData } from './dataLoader'
 import { useToast } from '@/composables/useToast'
 import { loadInitial, migrate } from './migrate'
@@ -119,10 +119,6 @@ export function initAssetFields(asset: AssetDef): void {
 	}
 }
 
-for (const asset of state.assetRegistry) {
-	initAssetFields(asset)
-}
-
 if (!state.currentFloorId) state.currentFloorId = state.layout.floors[0]?.id ?? ''
 
 const _assetMap = computed(() => buildAssetMap([...state.assetRegistry]))
@@ -138,8 +134,10 @@ export function snap(value: number, tileSize?: number): number {
 	return _snap(value, tileSize ?? state.layout.canvas.tileSize)
 }
 
-export function clamp(rect: Rect, maxWidth?: number, maxHeight?: number): Rect {
-	return _clamp(rect, maxWidth ?? state.layout.canvas.width, maxHeight ?? state.layout.canvas.height)
+export function clamp(rect: Rect): Rect {
+	const c = state.layout.canvas
+	const b = buildingArea(c.width, c.height, c.tileSize)
+	return _clamp(rect, b.x + b.w, b.y + b.h, b.x, b.y)
 }
 
 if (import.meta.hot) {

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { normalizeObjectPlacement, resolveObjectDef } from '../src/blueprint-editor/types'
+import { applySvgColorConvention, normalizeObjectPlacement, resolveObjectDef } from '../src/blueprint-editor/types'
 import { serializeAsset, serializeObject } from '../src/blueprint-editor/assetUtils'
 import { resolvePlacedObject } from '../src/blueprint-editor/geometry'
 import { buildBlueprintData } from '../src/blueprint-editor/store/dataLoader'
@@ -31,6 +31,7 @@ const runtimeObject: ObjectData = {
 	h: 25,
 	padding: 10,
 	fillColor: '#fff',
+	strokeColor: '#123456',
 }
 const serializedObject = serializeObject(runtimeObject)
 assert.deepEqual(serializedObject, {
@@ -39,6 +40,8 @@ assert.deepEqual(serializedObject, {
 	x: 25,
 	y: 50,
 	rotation: 0,
+	fillColor: '#fff',
+	strokeColor: '#123456',
 })
 
 const runtimeAsset = {
@@ -91,9 +94,18 @@ const saved = buildBlueprintData(layout, [runtimeAsset], {
 	pool: [],
 }, [])
 const savedObject = saved.layout.floors[0].objects[0]
-assert.deepEqual(Object.keys(savedObject).sort(), ['id', 'rotation', 'type', 'x', 'y'])
+assert.deepEqual(Object.keys(savedObject).sort(), ['fillColor', 'id', 'rotation', 'strokeColor', 'type', 'x', 'y'])
 assert.equal('w' in savedObject, false)
 assert.equal('interactSpots' in savedObject, false)
 assert.equal('walkableGrid' in savedObject, false)
+
+const conv = applySvgColorConvention
+assert.equal(conv('<rect fill="none" stroke="#ff0000"/>'), '<rect fill="var(--obj-fill,none)" stroke="var(--obj-stroke,#ff0000)"/>')
+assert.equal(conv('<rect stroke="url(#grad)" fill="#aabbcc"/>'), '<rect stroke="url(#grad)" fill="var(--obj-fill,#aabbcc)"/>')
+assert.equal(conv('<rect fill="var(--obj-fill,none)" stroke="none"/>'), '<rect fill="var(--obj-fill,none)" stroke="none"/>')
+assert.equal(conv("<circle fill='#fff' stroke='rgba(1,2,3,0.5)'/>"), "<circle fill='var(--obj-fill,#fff)' stroke='var(--obj-stroke,rgba(1,2,3,0.5))'/>")
+assert.equal(conv('<path d="M0 0"/>'), '<path d="M0 0"/>')
+assert.equal(conv('<rect fill="none" stroke="#abc" fill="none"/>'), '<rect fill="var(--obj-fill,none)" stroke="var(--obj-stroke,#abc)" fill="var(--obj-fill,none)"/>')
+console.log('SVG color convention checks passed')
 
 console.log('Blueprint schema checks passed')

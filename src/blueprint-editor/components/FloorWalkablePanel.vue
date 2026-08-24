@@ -8,6 +8,7 @@ type WalkableMode = "walk" | "entrance";
 type BorderSide = "top" | "right" | "bottom" | "left";
 
 const props = defineProps<{
+	streetTiles?: number,
   open: boolean;
   floor?: FloorData;
 }>();
@@ -24,10 +25,11 @@ const dirty = ref(false);
 const tileSize = computed(() => Math.max(1, Math.round(store.state.layout.canvas.tileSize)));
 const cols = computed(() => Math.max(1, Math.ceil(store.state.layout.canvas.width / tileSize.value)));
 const rows = computed(() => Math.max(1, Math.ceil(store.state.layout.canvas.height / tileSize.value)));
-const buildingStartRow = computed(() => Math.min(STREET_TILES, Math.floor(rows.value / 2)));
-const buildingEndRow = computed(() => Math.max(rows.value - STREET_TILES, buildingStartRow.value));
-const buildingStartCol = computed(() => Math.min(STREET_TILES, Math.floor(cols.value / 2)));
-const buildingEndCol = computed(() => Math.max(cols.value - STREET_TILES, buildingStartCol.value));
+const resolvedStreetTiles = computed(() => props.streetTiles ?? STREET_TILES);
+const buildingStartRow = computed(() => Math.min(resolvedStreetTiles.value, Math.floor(rows.value / 2)));
+const buildingEndRow = computed(() => Math.max(rows.value - resolvedStreetTiles.value, buildingStartRow.value));
+const buildingStartCol = computed(() => Math.min(resolvedStreetTiles.value, Math.floor(cols.value / 2)));
+const buildingEndCol = computed(() => Math.max(cols.value - resolvedStreetTiles.value, buildingStartCol.value));
 const buildingRows = computed(() => buildingEndRow.value - buildingStartRow.value);
 const buildingCols = computed(() => buildingEndCol.value - buildingStartCol.value);
 const gridStyle = computed(() => ({ "--walk-cols": buildingCols.value }));

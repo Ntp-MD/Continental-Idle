@@ -7,6 +7,7 @@ import { useAsyncAction } from "../composables/useAsyncAction";
 import { useFieldError } from "../composables/useFieldError";
 import { useClipboardCopy } from "../composables/useClipboardCopy";
 import type { ObjectData, AssetDef } from "../types";
+import ColorInput from "./ColorInput.vue";
 
 const props = defineProps<{ object: ObjectData }>();
 const store = useAssetsStore();
@@ -35,6 +36,11 @@ async function commitField(field: "x" | "y") {
     flashError(field);
     (fields.value as unknown as Record<string, unknown>)[field] = (props.object as unknown as Record<string, unknown>)[field];
   }
+}
+
+async function commitColor(field: "fillColor" | "strokeColor", value: string | undefined) {
+  const ok = await store.updateObjectProps({ [field]: value ?? "" } as Partial<ObjectData>);
+  if (!ok) flashError(field);
 }
 
 async function rotate() {
@@ -105,6 +111,16 @@ async function onSave() {
       <div class="form__row">
         <label>Size</label>
         <span>{{ object.w }}×{{ object.h }}</span>
+      </div>
+      <div class="form__row">
+        <label>Fill Color</label>
+        <ColorInput :model-value="props.object.fillColor ?? ''" allow-transparent placeholder="asset default" aria-label="Object fill color override" @commit="(v) => commitColor('fillColor', v)" />
+        <span class="form__hint">empty = asset default</span>
+      </div>
+      <div class="form__row">
+        <label>Stroke Color</label>
+        <ColorInput :model-value="props.object.strokeColor ?? ''" allow-transparent placeholder="theme outline" aria-label="Object stroke color override" @commit="(v) => commitColor('strokeColor', v)" />
+        <span class="form__hint">overrides SVG outline</span>
       </div>
       <div class="form__row">
         <label>Bg Color</label>

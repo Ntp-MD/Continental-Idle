@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onUnmounted } from "vue";
+import { ref, onMounted, onUnmounted } from "vue";
 import { useRouter } from "vue-router";
 
 const emit = defineEmits<{ start: [] }>();
@@ -12,6 +12,7 @@ const loadingText = ref("Initializing Continental OS...");
 let loadingInterval: number | null = null;
 
 function startGame() {
+  if (loading.value) return;
   loading.value = true;
   const steps = ["Initializing Continental OS...", "Loading world map...", "Establishing HQ connection...", "Ready."];
   let step = 0;
@@ -29,9 +30,39 @@ function startGame() {
   }, 200);
 }
 
+function openEditor() {
+  router.push({ name: "editor" });
+}
+
+function onKeydown(e: KeyboardEvent) {
+  if (e.key === "Enter" && !loading.value) startGame();
+}
+
+onMounted(() => window.addEventListener("keydown", onKeydown));
 onUnmounted(() => {
+  window.removeEventListener("keydown", onKeydown);
   if (loadingInterval) clearInterval(loadingInterval);
 });
+
+const features = [
+  {
+    title: "Blueprint Editor",
+    desc: "Design your hotel on a tile grid — rooms, corridors, lobbies, elevators, bathrooms and lounges.",
+    tag: "Design",
+  },
+  {
+    title: "Living Simulation",
+    desc: "Deploy up to hundreds of NPCs that walk, queue, interact and ride elevators between floors.",
+    tag: "Simulate",
+  },
+  {
+    title: "Real Behavior",
+    desc: "Roles with focus tags, reservations, queues and pathfinding drive every guest's decisions.",
+    tag: "Systems",
+  },
+];
+
+const steps = ["Design floors & place furniture in the Blueprint Editor", "Enter the hotel and deploy NPC guests", "Watch them explore, queue and ride elevators"];
 </script>
 
 <template>
@@ -54,8 +85,13 @@ onUnmounted(() => {
         <p class="start__subtitle">Hotel Simulation</p>
 
         <div class="start__actions">
-          <button class="flag--warning" @click="startGame">ENTER HOTEL</button>
-          <button class="flag--ghost" @click="router.push({ name: 'editor' })" aria-label="Open Blueprint Editor">Blueprint Editor</button>
+          <button class="flag--warning start__cta" @click="startGame">Enter Hotel<span class="start__ctahint">Enter</span></button>
+          <button class="flag--ghost" @click="openEditor" aria-label="Open Blueprint Editor">Blueprint Editor</button>
+        </div>
+
+        <div class="start__footnote">
+          <span>v2.0</span>
+          <span>Design · Simulate · Manage</span>
         </div>
       </aside>
 
@@ -67,6 +103,24 @@ onUnmounted(() => {
             <p class="start__storyline">Welcome to the Continental — a world where hospitality and precision meet.</p>
             <p class="start__storyline">Design your hotel in the Blueprint Editor, then watch it come alive with NPCs moving through your layout.</p>
           </div>
+        </div>
+
+        <div class="start__features">
+          <article v-for="f in features" :key="f.title" class="start__feature">
+            <div class="start__featuretag">{{ f.tag }}</div>
+            <h2 class="start__featuretitle">{{ f.title }}</h2>
+            <p class="start__featuredesc">{{ f.desc }}</p>
+          </article>
+        </div>
+
+        <div class="start__quickstart">
+          <div class="start__quicktitle">Quick Start</div>
+          <ol class="start__steps">
+            <li v-for="(s, i) in steps" :key="i" class="start__step">
+              <span class="start__stepnum">{{ i + 1 }}</span>
+              <span>{{ s }}</span>
+            </li>
+          </ol>
         </div>
       </section>
     </div>
@@ -91,7 +145,7 @@ onUnmounted(() => {
   padding: var(--gap-md);
   flex: 1;
   display: grid;
-  grid-template-columns: 20fr 80fr;
+  grid-template-columns: minmax(280px, 30fr) 70fr;
   gap: var(--gap-md);
   overflow: hidden;
 }
@@ -100,21 +154,52 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   gap: var(--gap-md);
-  overflow: hidden;
+  overflow-y: auto;
+  padding-right: var(--gap-xs);
 }
 
 .start__board {
   display: flex;
   flex-direction: column;
   gap: var(--gap-md);
-  overflow: hidden;
+  overflow-y: auto;
+  padding-right: var(--gap-xs);
 }
 
 .start__actions {
   display: flex;
   flex-direction: column;
-  gap: var(--gap-md);
+  gap: var(--gap-sm);
   flex-shrink: 0;
+}
+
+.start__cta {
+  position: relative;
+  padding: var(--gap-sm) var(--gap-lg);
+}
+
+.start__ctahint {
+  position: absolute;
+  right: var(--gap-sm);
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: var(--font-xxs, 10px);
+  font-weight: 400;
+  letter-spacing: 1px;
+  opacity: 0.75;
+  border: 1px solid currentColor;
+  border-radius: var(--radius-xs, 3px);
+  padding: 1px 6px;
+}
+
+.start__footnote {
+  margin-top: auto;
+  display: flex;
+  justify-content: space-between;
+  font-size: var(--font-xs, 11px);
+  color: var(--text-dim);
+  letter-spacing: 1px;
+  text-transform: uppercase;
 }
 
 .start__title {
@@ -146,8 +231,7 @@ onUnmounted(() => {
   border: 1px solid var(--border-dim);
   border-radius: var(--radius-md);
   padding: var(--gap-md);
-  flex: 1;
-  overflow-y: auto;
+  flex-shrink: 0;
 }
 
 .start__storyicon {
@@ -168,6 +252,112 @@ onUnmounted(() => {
   font-size: var(--font-sm);
   color: var(--text-secondary);
   line-height: 1.6;
+}
+
+.start__features {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--gap-md);
+}
+
+.start__feature {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-xs);
+  background: var(--bg-primary);
+  border: 1px solid var(--border-dim);
+  border-radius: var(--radius-md);
+  padding: var(--gap-md);
+}
+
+.start__featuretag {
+  align-self: flex-start;
+  font-size: var(--font-xxs, 10px);
+  font-weight: 600;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--accent-primary);
+  border: 1px solid color-mix(in srgb, var(--accent-primary) 45%, transparent);
+  border-radius: var(--radius-xs, 3px);
+  padding: 2px 8px;
+}
+
+.start__featuretitle {
+  font-size: var(--font-md);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.start__featuredesc {
+  font-size: var(--font-sm);
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+.start__quickstart {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-sm);
+  background: var(--bg-primary);
+  border: 1px solid var(--border-dim);
+  border-radius: var(--radius-md);
+  padding: var(--gap-md);
+}
+
+.start__quicktitle {
+  font-size: var(--font-sm);
+  font-weight: 600;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.start__steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-xs);
+}
+
+.start__step {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-sm);
+  font-size: var(--font-sm);
+  color: var(--text-secondary);
+}
+
+.start__stepnum {
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  border: 1px solid var(--accent-primary);
+  color: var(--accent-primary);
+  font-size: var(--font-xs, 11px);
+  font-weight: 600;
+}
+
+@media (max-width: 900px) {
+  .start {
+    overflow-y: auto;
+    padding: var(--gap-md) 0;
+  }
+
+  .start__content {
+    grid-template-columns: 1fr;
+    overflow-y: auto;
+  }
+
+  .start__panel,
+  .start__board {
+    overflow: visible;
+  }
 }
 
 .start button {

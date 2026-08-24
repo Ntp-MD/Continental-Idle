@@ -43,6 +43,8 @@ export function createNpcEnginePolicy(context: NpcPolicyContext): NpcEnginePolic
 	const roleWanderCandidateCache = new Map<string, NpcEnginePoint[]>()
 	const wanderMemoryByAgent = new Map<string, WanderMemory>()
 	const targetLastSelectedTick = new Map<string, number>()
+	let wanderAvoidTick = -1
+	const wanderAvoidByFloor = new Map<string, NpcEnginePoint[]>()
 
 	function resolveRole(roleId: string | undefined): NpcRole | undefined {
 		const config = context.getConfig()
@@ -247,11 +249,19 @@ export function createNpcEnginePolicy(context: NpcPolicyContext): NpcEnginePolic
 		if (!roleContext) return null
 		const candidates = resolveWanderCandidates(roleContext, agent.floorId)
 		if (!candidates.length) return null
-		const activeDestinations: NpcEnginePoint[] = context.listAgents()
-			.filter(other => other.id !== agent.id && other.floorId === agent.floorId && (other.status === 'walking' || other.status === 'queued'))
-			.map(other => ({ x: other.targetX, y: other.targetY }))
+		const tick = context.getTickNumber()
+		if (tick !== wanderAvoidTick) {
+			wanderAvoidTick = tick
+			wanderAvoidByFloor.clear()
+			for (const other of context.listAgents()) {
+				if (other.status !== 'walking' && other.status !== 'queued') continue
+				const list = wanderAvoidByFloor.get(other.floorId) ?? []
+				list.push({ x: other.targetX, y: other.targetY })
+				wanderAvoidByFloor.set(other.floorId, list)
+			}
+		}
 		const memory = resolveWanderMemory(agent.id)
-		const selected = memory.selectWanderTile(candidates, agent, activeDestinations)
+		const selected = memory.selectWanderTile(candidates, agent, wanderAvoidByFloor.get(agent.floorId) ?? [])
 		if (selected) memory.recordVisit(selected, context.getTickNumber())
 		return selected
 	}

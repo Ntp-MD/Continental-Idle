@@ -7,7 +7,7 @@ interface Position {
 
 const INTERACTIVE_SELECTOR = "button, input, select, textarea, a, label, [role='button'], [contenteditable]";
 
-export function useDraggable(target: Ref<HTMLElement | undefined>, handle: Ref<HTMLElement | undefined>) {
+export function useDraggable(target: Ref<HTMLElement | undefined>) {
 	const pos = ref<Position>({ x: 0, y: 0 });
 	const isDragging = ref(false);
 	let start = { x: 0, y: 0, posX: 0, posY: 0 };

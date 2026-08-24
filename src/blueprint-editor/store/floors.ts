@@ -22,6 +22,9 @@ export async function deleteFloor(id: string): Promise<boolean> {
 	if (state.currentFloorId === id) {
 		state.currentFloorId = state.layout.floors[0].id
 	}
+	if (state.layout.streetFloorId === id) {
+		delete state.layout.streetFloorId
+	}
 	state.selectionState = { primary: null, items: [] }
 	return saveLayout()
 }

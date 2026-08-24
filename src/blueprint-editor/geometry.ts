@@ -1,6 +1,6 @@
 import type { AssetDef, ObjectData, ObjectPlacement, ResolvedObject, Rotation, Rect } from './types'
+import { resolveObjectDef, STREET_TILES } from './types'
 import { findAsset, findAssetCached } from './assetUtils'
-import { resolveObjectDef } from './types'
 
 export function assetSizeFor(
 	type: string,
@@ -70,7 +70,8 @@ export function resolvePlacedObject(
 		labelPadding: asset.defaultLabelPadding,
 		padding: asset.defaultPadding,
 		rx: asset.defaultRx ? { ...asset.defaultRx } : undefined,
-		fillColor: asset.defaultBgColor,
+		fillColor: placement.fillColor ?? asset.defaultBgColor,
+		strokeColor: placement.strokeColor,
 		isWall: asset.isWall,
 		locked: placement.locked ?? asset.defaultLocked,
 		instanceLabel: placement.instanceLabel ?? asset.defaultInstanceLabel,
@@ -132,11 +133,16 @@ export function snap(value: number, tileSize: number): number {
 	return snapped
 }
 
-export function clamp(rect: Rect, maxWidth: number, maxHeight: number): Rect {
+export function clamp(rect: Rect, maxWidth: number, maxHeight: number, minX = 0, minY = 0): Rect {
 	let { x, y, w, h } = rect
-	w = Math.min(w, maxWidth)
-	h = Math.min(h, maxHeight)
-	x = Math.max(0, Math.min(x, maxWidth - w))
-	y = Math.max(0, Math.min(y, maxHeight - h))
+	w = Math.min(w, maxWidth - minX)
+	h = Math.min(h, maxHeight - minY)
+	x = Math.max(minX, Math.min(x, maxWidth - w))
+	y = Math.max(minY, Math.min(y, maxHeight - h))
 	return { x, y, w, h }
+}
+
+export function buildingArea(width: number, height: number, tileSize: number, streetTiles: number = STREET_TILES): Rect {
+	const inset = streetTiles * tileSize
+	return { x: inset, y: inset, w: Math.max(0, width - inset * 2), h: Math.max(0, height - inset * 2) }
 }
