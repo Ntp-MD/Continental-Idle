@@ -98,6 +98,7 @@ export async function addSvgAsset(name: string, w: number, h: number, svgString:
 			origin: 'svg-import',
 			id: genId('custom'), name,
 			w: safeW, h: safeH,
+			defaultFillColor: '#ffffff',
 			svg: themedSvg,
 			svgViewBox: { w: vbW, h: vbH },
 		}
@@ -259,6 +260,7 @@ export async function duplicateAsset(id: string): Promise<AssetDef | null> {
 		if (source.defaultRx) copy.defaultRx = { ...source.defaultRx }
 		if (source.tags) copy.tags = [...source.tags]
 		if (source.linkedParts) copy.linkedParts = source.linkedParts.map(p => ({ ...p }))
+		if (!copy.defaultFillColor) copy.defaultFillColor = '#ffffff'
 		state.assetRegistry.push(copy)
 		await saveAssets()
 		toast.success(`Duplicated "${source.name}" -> "${copy.name}"`)

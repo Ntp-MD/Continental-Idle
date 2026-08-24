@@ -37,7 +37,7 @@ export function syncNpcConfigToState(config: NpcSimulationConfig): void {
 
 export async function persistNpcConfigToDisk(): Promise<void> {
 	const saved = await saveNpcConfig()
-	if (!saved) throw new Error('NPC configuration was not saved to blueprintData.json')
+	if (!saved) throw new Error('NPC configuration was not saved')
 }
 
 export async function updateNpcConfig(config: NpcSimulationConfig): Promise<void> {

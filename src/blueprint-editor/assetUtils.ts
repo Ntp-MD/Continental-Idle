@@ -15,6 +15,18 @@ export function buildAssetMap(assets: AssetDef[]): Map<string, AssetDef> {
 	)
 }
 
+export function svgColorVarStyle(fill: string | undefined, stroke: string | undefined): string {
+	const resolvedStroke = stroke || (fill ? `color-mix(in srgb, ${fill} 55%, black)` : undefined)
+	let vars = ''
+	if (fill) vars += `--obj-fill:${fill};`
+	if (resolvedStroke) vars += `--obj-stroke:${resolvedStroke};`
+	return vars
+}
+
+export function assetSvgVarStyle(asset: AssetDef | undefined): string {
+	return asset ? svgColorVarStyle(asset.defaultFillColor, asset.defaultStrokeColor) : ''
+}
+
 const VALID_ROLES = new Set<SvgRole>(['wall', 'door', 'fixture'])
 
 export function parseSvgRoles(svg: string): SvgRoleInfo[] {

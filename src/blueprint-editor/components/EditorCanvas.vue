@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch, inject } from "vue";
 import { useAssetsStore, dragState, endAssetDrag } from "../blueprintStore";
-import { findAssetCached } from "../assetUtils";
+import { findAssetCached, svgColorVarStyle } from "../assetUtils";
 import { svgTransform as svgTransformGeo, roundedRectPath, buildingArea } from "../geometry";
 import { resolveStreetTiles } from "../types";
 import { useConfirm } from "@/composables/useConfirm";
@@ -728,12 +728,7 @@ function svgTransform(obj: ObjectData): string {
 
 function svgColorVars(obj: ObjectData): string {
   const a = findAssetCached(store.assetMap(), obj.type);
-  const fill = obj.fillColor ?? a?.defaultFillColor;
-  const stroke = obj.strokeColor ?? a?.defaultStrokeColor ?? (fill ? `color-mix(in srgb, ${fill} 55%, black)` : undefined);
-  let vars = "";
-  if (fill) vars += `--obj-fill:${fill};`;
-  if (stroke) vars += `--obj-stroke:${stroke};`;
-  return vars;
+  return svgColorVarStyle(obj.fillColor ?? a?.defaultFillColor, obj.strokeColor ?? a?.defaultStrokeColor);
 }
 
 function isObjectSelected(id: string): boolean {
@@ -878,7 +873,6 @@ async function cancelDrawnOrigin() {
         <g v-for="obj in floor.objects" :key="obj.id" @mousedown="onObjectMouseDown($event, obj.id)">
           <rect :x="obj.x" :y="obj.y" :width="obj.w" :height="obj.h" fill="transparent" class="editor__svg--passall" />
           <template v-if="assetSvg(obj.type)">
-            <rect :x="obj.x + (obj.padding ?? 0)" :y="obj.y + (obj.padding ?? 0)" :width="obj.w - (obj.padding ?? 0) * 2" :height="obj.h - (obj.padding ?? 0) * 2" :fill="objFillColor(obj)" :class="{ 'editor__canvas--collapsed': obj.collapsed }" :style="{ cursor: moving?.id === obj.id ? 'grabbing' : 'move' }" />
             <g v-svg-content="assetSvg(obj.type)" :transform="svgTransform(obj)" :data-obj-id="obj.id" :class="{ 'editor__canvas--collapsed': obj.collapsed, 'editor__canvas--dragitem': moving?.id === obj.id, 'editor__canvas--locked': obj.locked, 'editor__canvas--nowall': !hasOuterWall(obj) }" :style="`cursor:${moving?.id === obj.id ? 'grabbing' : 'move'};${svgColorVars(obj)}`" />
           </template>
           <path

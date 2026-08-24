@@ -1,8 +1,9 @@
 /**
  * verify-assets.mjs
  *
- * Loads blueprintData.json and validates every asset against the current
- * AssetDef shape. Catches:
+ * Loads originAssets.data.ts (the live asset registry served/saved by the
+ * dev-server /__blueprint-data middleware) and validates every asset against
+ * the current AssetDef shape. Catches:
  * - Fields present in data but no longer on the type (stale data after removal)
  * - Fields required by the type but missing from data (incomplete migration)
  * - Shape mismatches (e.g. interactSpots entries as [x,y] tuples instead of {x,y})
@@ -18,7 +19,14 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
-const dataPath = path.join(root, 'src', 'blueprint-editor', 'data', 'blueprintData.json')
+const dataPath = path.join(root, 'src', 'blueprint-editor', 'data', 'originAssets.data.ts')
+
+function readOriginAssets() {
+	const source = fs.readFileSync(dataPath, 'utf8').replace(/^\uFEFF/, '')
+	const prefix = 'export const originAssetsData ='
+	if (!source.trimStart().startsWith(prefix)) throw new Error('originAssets.data.ts has an invalid export')
+	return JSON.parse(source.trimStart().slice(prefix.length).trim().replace(/;\s*$/, ''))
+}
 
 // ─── Known AssetDef field set (must match types.ts AssetBase + AssetDef) ───
 // Keep in sync with ASSET_DEF_FIELD_COVERAGE (assetUtils.ts).
@@ -129,34 +137,25 @@ function warn(assetId, msg) {
 	warnings++
 }
 
-console.log('Verifying blueprintData.json against AssetDef shape...\n')
+console.log('Verifying originAssets.data.ts against AssetDef shape...\n')
 
 let raw
 try {
-	raw = JSON.parse(fs.readFileSync(dataPath, 'utf8').replace(/^\uFEFF/, ''))
+	raw = readOriginAssets()
 } catch (e) {
-	console.error(`Failed to read/parse blueprintData.json: ${e.message}`)
+	console.error(`Failed to read/parse originAssets.data.ts: ${e.message}`)
 	process.exit(1)
 }
 
-// File-level checks
-if (raw.$schema !== 'blueprint-data.v1.json') {
-	console.error(`File-level: $schema must be "blueprint-data.v1.json", got "${raw.$schema}"`)
-	errors++
-}
-if (typeof raw.version !== 'number') {
-	console.error(`File-level: version must be a number, got ${typeof raw.version}`)
-	errors++
-}
-if (!Array.isArray(raw.originAssets)) {
-	console.error(`File-level: originAssets must be an array, got ${typeof raw.originAssets}`)
+if (!Array.isArray(raw)) {
+	console.error(`File-level: originAssetsData must be an array, got ${typeof raw}`)
 	process.exit(1)
 }
 
-console.log(`Checking ${raw.originAssets.length} assets...\n`)
+console.log(`Checking ${raw.length} assets...\n`)
 
 const seenIds = new Set()
-for (const asset of raw.originAssets) {
+for (const asset of raw) {
 	const id = asset.id ?? '<no-id>'
 
 	// Required fields
@@ -222,7 +221,7 @@ if (errors > 0) {
 } else if (warnings > 0) {
 	console.warn(`\nPASS (with warnings): 0 errors, ${warnings} warning(s)`)
 	process.exit(0)
-} else {
-	console.log(`\nPASS: ${raw.originAssets.length} assets valid, 0 errors, 0 warnings`)
-	process.exit(0)
-}
+	} else {
+		console.log(`\nPASS: ${raw.length} assets valid, 0 errors, 0 warnings`)
+		process.exit(0)
+	}

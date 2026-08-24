@@ -16,10 +16,42 @@ export const floorPlanData = {
         {
           "id": "obj-97d7ef9dd5",
           "type": "custom-6f33db9d6f",
-          "x": 325,
-          "y": 325,
+          "x": 525,
+          "y": 350,
           "rotation": 0,
           "subId": "sub-31a54b2d65"
+        },
+        {
+          "id": "obj-b6561f901c",
+          "type": "custom-washer-1",
+          "x": 425,
+          "y": 575,
+          "rotation": 0,
+          "subId": "sub-6115c23379"
+        },
+        {
+          "id": "obj-15a4fc58f1",
+          "type": "custom-double-bed-1",
+          "x": 575,
+          "y": 550,
+          "rotation": 0,
+          "subId": "sub-2f452de294"
+        },
+        {
+          "id": "obj-e428f22928",
+          "type": "custom-kitchen-table-1",
+          "x": 725,
+          "y": 525,
+          "rotation": 0,
+          "subId": "sub-6c5510aadb"
+        },
+        {
+          "id": "obj-333a23929a",
+          "type": "custom-single-sofa-1",
+          "x": 250,
+          "y": 500,
+          "rotation": 0,
+          "subId": "sub-396e0daabb"
         }
       ],
       "defaultWalkable": true,
@@ -7964,5 +7996,6 @@ export const floorPlanData = {
         ]
       }
     }
-  ]
+  ],
+  "streetFloorId": "floor-g-basement"
 }

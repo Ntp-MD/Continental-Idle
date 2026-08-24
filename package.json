@@ -9,6 +9,7 @@
     "preview": "vite preview",
     "test:npc-engine": "tsx tests/test-npc-engine.ts",
     "test:npc-queue": "tsx tests/test-npc-queue.ts",
+    "test:behavior": "tsx tests/audit-behavior.ts",
     "test:blueprint-schema": "tsx tests/test-blueprint-schema.ts",
     "test:asset-schema": "tsx tests/test-asset-schema.ts",
     "test:sync-payload": "tsx tests/test-sync-payload.ts",

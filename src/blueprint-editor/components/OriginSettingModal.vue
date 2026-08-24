@@ -3,7 +3,7 @@ import { ref, watch, computed, nextTick } from "vue";
 import { useAssetsStore } from "../blueprintStore";
 import { useToast } from "@/composables/useToast";
 import type { AssetDef } from "../types";
-import { isHexColor } from "../types";
+import { isHexColor, isValidColor } from "../types";
 import ModalShell from "./ModalShell.vue";
 import ColorInput from "./ColorInput.vue";
 
@@ -99,8 +99,8 @@ async function commitField(field: "w" | "h" | "pxW" | "pxH" | "usePx" | "default
     return;
   }
   const val = dimFields.value[field];
-  if ((field === "defaultFillColor" || field === "defaultStrokeColor") && typeof val === "string" && val && !isHexColor(val)) {
-    useToast().warning("Color must be a hex code");
+  if ((field === "defaultFillColor" || field === "defaultStrokeColor") && typeof val === "string" && val && !isValidColor(val)) {
+    useToast().warning("Color must be a hex code or 'transparent'");
     return;
   }
   await store.updateAsset(props.asset.id, { [field]: val } as Partial<AssetDef>);

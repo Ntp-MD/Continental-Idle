@@ -38,6 +38,38 @@ Before work that changes data flow, persisted fields, migration, saves, sync, va
 - Undefined/orphan tags must not silently control matching.
 - Comparison and persistence use the canonical tag normalization helper.
 
+## Origin asset authoring
+
+Lessons encoded after the washer/double-bed round; follow these when adding or editing assets in `originAssets.data.ts`.
+
+### Where
+
+- `src/blueprint-editor/data/*.data.ts` (the four modules) are the ONLY persisted store. The dev server serves/saves them via `/__blueprint-data`; no JSON snapshot exists or may be reintroduced as a second copy.
+- Re-read the file immediately before editing - the editor save-flow rewrites it at any moment; current content wins over any earlier snapshot in memory or chat.
+
+### Creation defaults
+
+- Every new asset carries `defaultFillColor: '#ffffff'` on every creation path (drawn, svg-import, flattened, linked set; duplicates inherit the source or fall back to `#ffffff`).
+- Existing assets on disk are never migrated to new defaults by hand edits; defaults apply at creation time only.
+
+### SVG art rules
+
+- Body shapes use the theme convention: `fill="var(--obj-fill,#ffffff)"` + `stroke="var(--obj-stroke,#ffffff)"`. Detail lines use `stroke="var(--asset-outline)"`. Never hardcode decorative colors inside asset art.
+- Every surface that renders an asset SVG must set `--obj-fill` / `--obj-stroke` first via `svgColorVarStyle` / `assetSvgVarStyle` (`assetUtils.ts`) - raw attribute fallbacks alone render white-on-white. This applies to previews, palette thumbnails, and the game view, not just the editor canvas.
+- The SVG is the whole visual. Editor canvas, game view, and palette preview all render the SVG alone - there is no backing plate behind placed objects. If art needs a base shape, draw it inside the SVG.
+- Placed objects resolve colors live from their origin asset; they never carry editable color copies.
+
+### Colors
+
+- User-facing color values accept hex (`#RGB`/`#RRGGBB`/`#RRGGBBAA`) or `'transparent'`. Validate with `isValidColor`, never the hex-only `isHexColor`, wherever a transparent-capable input commits.
+- Outline auto-derived from fill applies to hex fills only; a transparent fill leaves the outline untouched.
+
+### Before reporting done
+
+- Run `npm run verify:assets`: every entry must pass with ZERO warnings (stale fields such as `defaultBgColor` / `defaultLabelColor` are removed types - do not add them).
+- New ids must be unique across the file; sizes are tile counts (w x h), pixel size = w x h x tileSize unless `usePx`.
+- If the asset participates in NPC simulation, decide deliberately: `tileStates` (`entrance` rows enable queue slots), `walkableGrid`, `interactSpots` (snapped to nearest walkable cell within radius 5), `interact` durations, `queue` capacity, tags (`portal`, role restrictions).
+
 ## Domain engines (preview/runtime)
 
 - Editor preview and runtime share one pure engine implementation, independent of UI frameworks.

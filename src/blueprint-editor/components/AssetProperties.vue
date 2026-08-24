@@ -7,6 +7,7 @@ import { useAsyncAction } from "../composables/useAsyncAction";
 import { useWalkableGridPanel } from "../composables/useWalkableGridPanel";
 import { useClipboardCopy } from "../composables/useClipboardCopy";
 import { renderSvgInto } from "../svgSanitizer";
+import { assetSvgVarStyle } from "../assetUtils";
 import type { AssetDef } from "../types";
 import TagPicker from "./TagPicker.vue";
 import OriginSettingModal from "./OriginSettingModal.vue";
@@ -73,6 +74,7 @@ function fallbackShapeSvg(a: AssetDef): string {
 }
 
 const previewSvg = computed(() => props.asset.svg?.replace(/var\(--border-dim\)/g, "#fff") ?? fallbackShapeSvg(props.asset));
+const previewVars = computed(() => assetSvgVarStyle(props.asset));
 
 function renderPreview() {
   const el = previewSvgEl.value;
@@ -152,7 +154,7 @@ async function duplicateAsset() {
     <div class="form__col">
       <label>Preview</label>
       <div class="preview__svg">
-        <svg ref="previewSvgEl" :viewBox="previewSvgViewBox" width="80" height="80" preserveAspectRatio="xMidYMid meet"></svg>
+        <svg ref="previewSvgEl" :viewBox="previewSvgViewBox" width="80" height="80" preserveAspectRatio="xMidYMid meet" :style="previewVars"></svg>
       </div>
       <span v-if="!isSvgAsset" class="form__hint">Shape preview - non-SVG asset</span>
     </div>

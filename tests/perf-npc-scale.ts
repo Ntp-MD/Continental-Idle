@@ -127,6 +127,12 @@ function runScenario(name: string, floors: FloorData[], perFloor: number, ticks:
 	console.log('selector/path split:', parts || 'none')
 }
 
-const curFloors = normalizeFloors(JSON.parse(JSON.stringify(floorPlanData.floors)))
-runScenario(`CURRENT layout: ${curFloors.length} floor(s) x 100`, curFloors, 100, 1800)
-runScenario('FUTURE scale: 11 floors x 100', cloneTo11Floors(), 100, 1800)
+const perFloorTiers = [25, 50, 75, 100]
+if (process.argv.includes('--current')) {
+	const curFloors = normalizeFloors(JSON.parse(JSON.stringify(floorPlanData.floors)))
+	runScenario(`CURRENT layout: ${curFloors.length} floor(s) x 100`, curFloors, 100, 1800)
+} else {
+	for (const perFloor of perFloorTiers) {
+		runScenario(`FUTURE scale: 11 floors x ${perFloor}`, cloneTo11Floors(), perFloor, 1800)
+	}
+}

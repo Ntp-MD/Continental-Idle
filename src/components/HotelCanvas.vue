@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, watch } from "vue";
 import type { SyncedLayoutPayload, SyncedFloor, SyncedObject, ObjectData } from "@/blueprint-editor/types";
-import { buildAssetMap } from "@/blueprint-editor/assetUtils";
+import { buildAssetMap, svgColorVarStyle } from "@/blueprint-editor/assetUtils";
 import { originAssets } from "@/blueprint-editor/store/dataLoader";
 import { useGameNpcSimulation } from "@/composables/useGameNpcSimulation";
 import { svgTransform as svgTransformGeo, roundedRectPath } from "@/blueprint-editor/geometry";
@@ -62,10 +62,6 @@ function objFillColor(obj: SyncedObject): string {
       return obj.fillColor ?? assetMap.get(obj.type)?.defaultFillColor ?? "var(--bg-primary)";
 }
 
-function objPadding(obj: SyncedObject): number {
-  return assetMap.get(obj.type)?.defaultPadding ?? 0;
-}
-
 function objRx(obj: SyncedObject): { tl: number; tr: number; br: number; bl: number } | undefined {
   return assetMap.get(obj.type)?.defaultRx;
 }
@@ -77,6 +73,11 @@ function objRadius(obj: SyncedObject): number {
 function svgTransform(obj: SyncedObject): string {
   const fakeObj = { ...obj } as ObjectData;
   return svgTransformGeo(fakeObj, assetMap.get(obj.type));
+}
+
+function svgVars(obj: SyncedObject): string {
+  const a = assetMap.get(obj.type);
+  return svgColorVarStyle(obj.fillColor ?? a?.defaultFillColor, obj.strokeColor ?? a?.defaultStrokeColor);
 }
 
 onMounted(() => {
@@ -109,8 +110,7 @@ watch(
         <g v-for="obj in currentFloor.objects" :key="obj.id">
           <rect :x="obj.x" :y="obj.y" :width="obj.w" :height="obj.h" fill="transparent" class="hotel__hit" />
           <template v-if="assetSvg(obj.type)">
-            <rect :x="obj.x + objPadding(obj)" :y="obj.y + objPadding(obj)" :width="obj.w - objPadding(obj) * 2" :height="obj.h - objPadding(obj) * 2" :fill="objFillColor(obj)" />
-            <g v-svg-content="assetSvg(obj.type)" :transform="svgTransform(obj)" />
+            <g v-svg-content="assetSvg(obj.type)" :transform="svgTransform(obj)" :style="svgVars(obj)" />
           </template>
           <path v-else-if="roundedRectPath(obj.x, obj.y, obj.w, obj.h, objRx(obj))" :d="roundedRectPath(obj.x, obj.y, obj.w, obj.h, objRx(obj))!" :fill="objFillColor(obj)" stroke="var(--text-primary)" stroke-width="1" />
           <rect v-else :x="obj.x" :y="obj.y" :width="obj.w" :height="obj.h" :fill="objFillColor(obj)" stroke="var(--text-primary)" stroke-width="1" :rx="objRadius(obj)" />

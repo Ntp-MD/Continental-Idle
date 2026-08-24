@@ -75,10 +75,10 @@ export function buildSavedLayout(): FloorLayoutData {
 
 function normalizeBlueprintLayout(raw: unknown): BlueprintLayoutFile {
 	const r = raw as Record<string, unknown>
-	if (!r || typeof r !== 'object') throw new Error('blueprintData.json: invalid structure - expected an object')
-	if (typeof r.version !== 'number' || !isFinite(r.version)) throw new Error('blueprintData.json: version must be a finite number')
-	if (!r.canvas || typeof r.canvas !== 'object') throw new Error('blueprintData.json: canvas must be an object')
-	if (!Array.isArray(r.floors)) throw new Error('blueprintData.json: floors must be an array')
+	if (!r || typeof r !== 'object') throw new Error('floorPlan.data.ts: invalid structure - expected an object')
+	if (typeof r.version !== 'number' || !isFinite(r.version)) throw new Error('floorPlan.data.ts: version must be a finite number')
+	if (!r.canvas || typeof r.canvas !== 'object') throw new Error('floorPlan.data.ts: canvas must be an object')
+	if (!Array.isArray(r.floors)) throw new Error('floorPlan.data.ts: floors must be an array')
 	return {
 		$schema: typeof r.$schema === 'string' ? r.$schema : 'blueprint-layout.v1.json',
 		version: r.version,

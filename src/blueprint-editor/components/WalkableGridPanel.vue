@@ -5,6 +5,7 @@ import { useToast } from "@/composables/useToast";
 import { useConfirm } from "@/composables/useConfirm";
 import { useWalkableGridPanel } from "../composables/useWalkableGridPanel";
 import { renderSvgInto } from "../svgSanitizer";
+import { assetSvgVarStyle } from "../assetUtils";
 import type { AssetDef, TileState, TileEdges, InteractSpot } from "../types";
 import { normalizeInteractConfig, normalizeNpcQueueConfig, resolveInteractForTarget } from "../types";
 import ModalShell from "./ModalShell.vue";
@@ -109,6 +110,7 @@ const svgPreviewViewBox = computed(() => {
 });
 const previewSvg = computed(() => gridAsset.value?.svg?.replace(/var\(--border-dim\)/g, "var(--text-dim)") ?? "");
 const hasSvgPreview = computed(() => !!gridAsset.value?.svg);
+const previewVars = computed(() => assetSvgVarStyle(gridAsset.value));
 
 const previewSvgEl = ref<SVGSVGElement | null>(null);
 
@@ -612,7 +614,7 @@ onBeforeUnmount(() => {
           <div class="walkablegrid__label">Real Visual</div>
           <div class="walkablegrid__grid walkablegrid__visual">
             <div class="walkablegrid__preview card card--active" :style="{ width: `${tilePreviewW}px`, height: `${tilePreviewH}px` }">
-              <svg v-if="hasSvgPreview" ref="previewSvgEl" :viewBox="svgPreviewViewBox" :width="svgPreviewW" :height="svgPreviewH" preserveAspectRatio="xMidYMid meet" class="walkablegrid__fill"></svg>
+              <svg v-if="hasSvgPreview" ref="previewSvgEl" :viewBox="svgPreviewViewBox" :width="svgPreviewW" :height="svgPreviewH" preserveAspectRatio="xMidYMid meet" class="walkablegrid__fill" :style="previewVars"></svg>
               <div v-else class="walkablegrid__fill walkablegrid__shape"></div>
             </div>
           </div>

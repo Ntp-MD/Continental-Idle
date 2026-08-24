@@ -10,7 +10,7 @@ Structure: **Universal Rules** apply to every web project. **Project Specifics**
 3. **Stale-tooling first.** If a tool's output contradicts the source on disk, suspect a stale cache or transform before debugging logic. Rerun isolated (e.g., copy the failing script to a new filename).
 4. **One verification entry point.** Maintain a single command (conventionally `npm run verify`) chaining typecheck → lint → tests. Run it before reporting completion. Suites-only variant (`npm test`) may exist for quick loops.
 5. **Guardrails over memory.** When the same mistake can happen twice, add an automated check (CI job, hook, runtime validator, backup snapshot) instead of relying on reminders.
-6. **Correspondence discipline.** Every symbol travels with its consumers. Before reporting completion of ANY change that adds/renames/removes a function, type field, CSS class, store export, or doc claim: (a) grep BOTH directions repo-wide — `src/ tests/ scripts/ *.md` — for the old and new names; (b) update every re-export list, facade return object, whitelist, and doc mention in the SAME change; (c) run `npm run verify` — it chains typecheck, BEM lint (template↔CSS), engine/schema suites incl. the AssetDef coverage gate (`ASSET_DEF_FIELD_COVERAGE`), and `verify:assets` (blueprintData.json ↔ AssetDef). Zero references to removed symbols is the definition of done.
+6. **Correspondence discipline.** Every symbol travels with its consumers. Before reporting completion of ANY change that adds/renames/removes a function, type field, CSS class, store export, or doc claim: (a) grep BOTH directions repo-wide — `src/ tests/ scripts/ *.md` — for the old and new names; (b) update every re-export list, facade return object, whitelist, and doc mention in the SAME change; (c) run `npm run verify` — it chains typecheck, BEM lint (template↔CSS), engine/schema suites incl. the AssetDef coverage gate (`ASSET_DEF_FIELD_COVERAGE`), and `verify:assets` (originAssets.data.ts ↔ AssetDef). Zero references to removed symbols is the definition of done.
 7. **Sync floor keys contract.** Game floors are keyed `G` + numeric (legacy `F<n>` labels honored); unmapped labels auto-index by floor order via `assignSyncKey`, collisions get `_N` suffixes. Never silently drop a floor that fails mapping — surface the error.
 8. **Report honestly.** Unrelated pre-existing failures are listed separately, never hidden or fixed silently inside unrelated changes.
 9. **Scope discipline.** Prefer direct implementations; no new infrastructure without demonstrated need; delete dead code in the same change that removes its last reference; never commit unless explicitly asked.
@@ -31,8 +31,9 @@ Structure: **Universal Rules** apply to every web project. **Project Specifics**
 
 ### Data & seed files (rewritten by editor save-flow)
 
-- `src/blueprint-editor/data/floorPlan.data.ts`, `originAssets.data.ts`, `npcSettings.data.ts` are overwritten by the editor save-flow at any time. Re-read them immediately before editing; current content wins.
+- The FOUR modules in `src/blueprint-editor/data/` - `floorPlan.data.ts`, `originAssets.data.ts`, `npcSettings.data.ts`, `tagManager.data.ts` - are the ONLY persisted blueprint store. The dev server serves/saves them via the `/__blueprint-data` middleware (vite.config.ts); there is no JSON snapshot. All are overwritten by the editor save-flow at any time. Re-read them immediately before editing; current content wins. Never treat another file as the asset/floor source of truth.
 - Object colors follow the **SVG v2 convention**: asset shapes reference `var(--obj-stroke, …)` / `var(--obj-fill, …)`. Every ingress (new import, flatten, load) is auto-themed via `applySvgColorConvention` (types.ts). Asset defaults are `defaultFillColor` / `defaultStrokeColor` (outline derives from fill when unset; fallback token `--asset-outline`). Placed objects do NOT carry editable color copies — they resolve colors live from their origin asset.
+- Adding or editing an origin asset? Follow the **Origin asset authoring** checklist in [`docs/agents/data.md`](docs/agents/data.md) (creation defaults, SVG art rules, color validation, verify gate).
 
 ### AssetDef schema changes (guardrail)
 
@@ -53,6 +54,6 @@ When adding / renaming / removing any field on `AssetBase` or `AssetDef` (`types
 
 | Command | Purpose |
 |---|---|
-| `npm run verify` | typecheck + BEM lint + engine/schema suites + `verify:assets` (blueprintData.json ↔ AssetDef) |
+| `npm run verify` | typecheck + BEM lint + engine/schema suites + `verify:assets` (originAssets.data.ts ↔ AssetDef) |
 | `npm test` | engine/schema suites only (quick loop) |
 | `npm run test:npc-scale` | perf smoke (local only, timing-sensitive) |

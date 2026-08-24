@@ -17,7 +17,7 @@ export async function beginDrawnObject(name: string, w: number, h: number, x: nu
 		const floor = currentFloor.value
 		if (!floor) return null
 		const t = state.layout.canvas.tileSize
-		const asset: AssetDef = { origin: 'drawn', id: genId('custom'), name, w: Math.max(1, Math.floor(w)), h: Math.max(1, Math.floor(h)) }
+		const asset: AssetDef = { origin: 'drawn', id: genId('custom'), name, w: Math.max(1, Math.floor(w)), h: Math.max(1, Math.floor(h)), defaultFillColor: '#ffffff' }
 		initAssetFields(asset)
 		const rect = clamp({ x: snap(x), y: snap(y), w: asset.w * t, h: asset.h * t })
 		if (objectOverlapsAny(floor.objects, assetMap(), rect)) {
@@ -412,6 +412,7 @@ export async function createLinkedAssetFromSelection(name?: string): Promise<str
 		w: Math.round(totalW / t),
 		h: Math.round(totalH / t),
 		linkedParts,
+		defaultFillColor: '#ffffff',
 	}
 
 	state.assetRegistry.push(assetDef)
@@ -582,6 +583,7 @@ export async function flattenToSvgAsset(name?: string): Promise<string | null> {
 			w: gridW,
 			h: gridH,
 			walkable: false,
+			defaultFillColor: '#ffffff',
 			walkableGrid: Array.from({ length: gridH }, () => Array.from({ length: gridW }, () => false)),
 			tileStates: Array.from({ length: gridH }, () => Array.from({ length: gridW }, () => 'blocked' as TileState)),
 			svg: applySvgColorConvention(innerSvg),
