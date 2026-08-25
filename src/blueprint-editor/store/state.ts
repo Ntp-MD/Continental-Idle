@@ -10,6 +10,7 @@ export interface EditorState {
 	layout: FloorLayoutData
 	currentFloorId: string
 	mode: EditorMode
+	wallPaint: boolean
 	selectionState: SelectionState
 	selectedAssetId: string | null
 	assetRegistry: AssetDef[]
@@ -73,6 +74,7 @@ export const state = reactive<EditorState>({
 	layout: initial.layout,
 	currentFloorId: _restoredUi.currentFloorId ?? '',
 	mode: _restoredUi.mode === 'npc-preview' || (_restoredUi.mode as string) === 'erase' ? 'move' : _restoredUi.mode ?? 'object',
+	wallPaint: false,
 	selectionState: _restoredUi.selectionState ?? { primary: null, items: [] },
 	selectedAssetId: _restoredUi.selectedAssetId ?? null,
 	assetRegistry: originAssets.map(asset => JSON.parse(JSON.stringify(asset)) as AssetDef),

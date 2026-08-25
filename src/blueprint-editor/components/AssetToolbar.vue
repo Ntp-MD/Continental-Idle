@@ -5,11 +5,13 @@ import { useToast } from "@/composables/useToast";
 import { useAsyncAction } from "../composables/useAsyncAction";
 import { assetSettingsIssues } from "../assetUtils";
 import type { AssetDef } from "../types";
+import AssetPickerModal from "./AssetPickerModal.vue";
 
 const store = useAssetsStore();
 const { pending, run } = useAsyncAction();
 
 const searchQuery = ref("");
+const showPicker = ref(false);
 
 const ORIGIN_LABELS: Record<string, string> = {
   drawn: "Drawn",
@@ -130,6 +132,7 @@ function onItemClick(assetId: string) {
       <div class="form__header">
         <span>Assets List</span>
         <span v-if="incompleteCount" class="assets__warn flag--warning" title="Assets showing the yellow marker have incomplete settings">{{ incompleteCount }} incomplete</span>
+        <button class="flag--ghost" @click="showPicker = true" title="Browse assets in a grid" aria-label="Browse assets">Browse</button>
       </div>
       <div v-if="!filteredAssets.length" class="empty assets__empty">No assets found</div>
       <div v-for="asset in filteredAssets" :key="asset.id" class="card--item assets__items" :class="{ 'assets--selected': store.state.selectedAssetId === asset.id, 'assets--linked': !!asset.linkedParts }" :title="incompleteTitle(asset) || undefined" @mousedown="onAssetMouseDown(asset.id, $event)" @click="onItemClick(asset.id)">
@@ -156,6 +159,7 @@ function onItemClick(assetId: string) {
         <button class="flag--active" :disabled="pending" @click="submitSvgAsset">Import SVG</button>
       </div>
     </div>
+    <AssetPickerModal :open="showPicker" @close="showPicker = false" />
   </div>
 </template>
 

@@ -5,6 +5,19 @@ export function genId(prefix: string): string {
   return `${prefix}-${suffix}`
 }
 
+export function assetSlug(name: string): string {
+  const slug = name.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
+  return slug || 'asset'
+}
+
+export function genAssetId(prefix: string, name: string, isTaken: (candidate: string) => boolean): string {
+  const base = `${prefix}-${assetSlug(name)}`
+  if (!isTaken(base)) return base
+  let n = 2
+  while (isTaken(`${base}-${n}`)) n++
+  return `${base}-${n}`
+}
+
 export const editorLog = {
   error(context: string, error: unknown) {
     console.error(`[BlueprintEditor] ${context}:`, error)

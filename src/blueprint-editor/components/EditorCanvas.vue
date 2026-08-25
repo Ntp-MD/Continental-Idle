@@ -11,10 +11,10 @@ import { resolveObjectDef } from "../types";
 import { useCanvasViewport } from "../composables/useCanvasViewport";
 import { useCanvasSelection } from "../composables/useCanvasSelection";
 import { useCanvasDragDrop } from "../composables/useCanvasDragDrop";
-import WalkableGridPanel from "./WalkableGridPanel.vue";
 import ColorInput from "./ColorInput.vue";
 import ModalShell from "./ModalShell.vue";
 import { useNpcSimulation } from "../composables/useNpcSimulation";
+import { useWallPaint, type WallSegment } from "../composables/useWallPaint";
 import { renderSvgInto as renderSvgContent } from "../svgSanitizer";
 
 const vSvgContent = {
@@ -185,7 +185,7 @@ const showNpcGuides = ref(savedToggles.showNpcGuides ?? true);
 
 const isInteracting = computed(() => !!panning.value || !!moving.value || zooming.value);
 const renderWalkableOverlay = computed(() => showWalkableOverlay.value && !isInteracting.value);
-const renderWalls = computed(() => showWalls.value && !isInteracting.value);
+const renderWalls = computed(() => (showWalls.value || store.state.wallPaint) && !isInteracting.value);
 const renderInteractSpots = computed(() => showInteractSpots.value && !isInteracting.value);
 const renderObjectHighlights = computed(() => showObjectHighlights.value && !isInteracting.value);
 const renderBuildingBounds = computed(() => showBuildingBounds.value);
@@ -233,12 +233,7 @@ const walkableRuns = computed<TileRun[]>(() => {
   return runs;
 });
 
-interface WallRun {
-  x1: number;
-  y1: number;
-  x2: number;
-  y2: number;
-}
+interface WallRun extends WallSegment {}
 const wallRuns = computed<WallRun[]>(() => {
   const tileEdges = floor.value?.walkable?.tileEdges;
   if (!tileEdges) return [];
@@ -259,7 +254,43 @@ const wallRuns = computed<WallRun[]>(() => {
   return runs;
 });
 
+function wallDistance(point: { x: number; y: number }, wall: WallSegment): number {
+  const dx = wall.x2 - wall.x1;
+  const dy = wall.y2 - wall.y1;
+  const lengthSquared = dx * dx + dy * dy;
+  if (lengthSquared === 0) return Math.hypot(point.x - wall.x1, point.y - wall.y1);
+  const position = Math.max(0, Math.min(1, ((point.x - wall.x1) * dx + (point.y - wall.y1) * dy) / lengthSquared));
+  return Math.hypot(point.x - (wall.x1 + position * dx), point.y - (wall.y1 + position * dy));
+}
+
+function wallAtPoint(point: { x: number; y: number }): WallSegment | null {
+  const tolerance = Math.max(6, canvas.value.tileSize * 0.2);
+  let closest: WallSegment | null = null;
+  let closestDistance = tolerance;
+  for (const wall of wallRuns.value) {
+    const distance = wallDistance(point, wall);
+    if (distance <= closestDistance) {
+      closest = wall;
+      closestDistance = distance;
+    }
+  }
+  return closest;
+}
+
+function wallsInRect(rect: { x: number; y: number; w: number; h: number }): WallSegment[] {
+  const maxX = rect.x + rect.w;
+  const maxY = rect.y + rect.h;
+  return wallRuns.value.filter((wall) => {
+    const minWallX = Math.min(wall.x1, wall.x2);
+    const maxWallX = Math.max(wall.x1, wall.x2);
+    const minWallY = Math.min(wall.y1, wall.y2);
+    const maxWallY = Math.max(wall.y1, wall.y2);
+    return maxWallX >= rect.x && minWallX <= maxX && maxWallY >= rect.y && minWallY <= maxY;
+  });
+}
+
 const modeLabel = computed(() => {
+  if (wallPaintActive.value) return "Wall Paint Mode";
   const labels: Record<string, string> = {
     object: "Object",
     draw: "Draw Object",
@@ -270,6 +301,7 @@ const modeLabel = computed(() => {
 });
 
 const modeHint = computed(() => {
+  if (wallPaintActive.value) return "Click a wall to select it - drag a box over walls to select multiple - Delete removes them - left-drag draws - Alt+drag or right-drag erases - Escape exits";
   const hints: Record<string, string> = {
     object: "Drag an asset from the palette onto the canvas",
     draw: "Drag a rectangle, then save it as an origin asset",
@@ -289,6 +321,59 @@ const vp = useCanvasViewport(
   () => canvas.value.height,
 );
 const { viewBox, zoomPercent, spaceDown, panning, zooming, svgRef, RULER_SIZE, fitToScreen, centerView, zoomBy, onWheel, startPan, onPanMouseDown, onPanMouseMove, onPanMouseUp, localPoint } = vp;
+
+const wallPaint = useWallPaint({
+  disabled: () => store.state.mode === "npc-preview",
+  localPoint,
+  tileSize: () => canvas.value.tileSize,
+  canvasWidth: () => canvas.value.width,
+  canvasHeight: () => canvas.value.height,
+  floor,
+  wallAtPoint,
+  wallsInRect,
+  clearOtherSelection: () => {
+    store.select(null);
+    store.selectAsset(null);
+  },
+  commit: async (floorId, walkable) => {
+    try {
+      const saved = await store.updateFloor(floorId, { walkable });
+      if (saved) toast.success("Wall saved");
+      else toast.error("Failed to save walls - floor not found");
+    } catch {
+      toast.error("Failed to save walls");
+    }
+  },
+});
+const wallPaintActive = computed(() => store.state.wallPaint);
+const DEFAULT_WALL_COLOR = "var(--accent-green)";
+const DEFAULT_WALL_THICKNESS = 3;
+const wallColor = computed(() => canvas.value.wallColor || DEFAULT_WALL_COLOR);
+const wallThickness = computed(() => canvas.value.wallThickness ?? DEFAULT_WALL_THICKNESS);
+const wallPreview = wallPaint.preview;
+const wallErasing = wallPaint.erasing;
+const selectedWall = wallPaint.selected;
+watch(
+  () => store.state.wallPaint,
+  (on) => {
+    wallPaint.active.value = on;
+    if (!on) {
+      wallPaint.clearSelected();
+    } else if (!showWalls.value) {
+      showWalls.value = true;
+      saveViewToggles();
+    }
+  },
+  { immediate: true },
+);
+function onCanvasMouseDownWithWalls(e: MouseEvent) {
+  if (wallPaint.onMouseDown(e)) return;
+  wallPaint.clearSelected();
+  onCanvasMouseDown(e);
+}
+function onCanvasContextMenu(e: MouseEvent) {
+  if (wallPaintActive.value) e.preventDefault();
+}
 
 const draftAssetId = ref<string | null>(null);
 const draftObjectId = ref<string | null>(null);
@@ -429,6 +514,11 @@ function tryCycleSelect(p: { x: number; y: number }): EntityRef | null {
 }
 
 function onObjectMouseDown(e: MouseEvent, id: string) {
+  if (wallPaintActive.value) {
+    wallPaint.clearSelected();
+    return;
+  }
+  wallPaint.clearSelected();
   if (e.button === 1 || spaceDown.value) return;
   e.stopPropagation();
   if (e.shiftKey || e.ctrlKey || e.metaKey) {
@@ -583,6 +673,19 @@ async function onKeyDown(e: KeyboardEvent) {
     return;
   }
   if ((e.key === "Delete" || e.key === "Backspace") && !e.repeat) {
+    if (wallPaint.selected.value.length > 0) {
+      e.preventDefault();
+      const count = wallPaint.selected.value.length;
+      const confirmed = await confirm({
+        title: "Delete wall selection",
+        message: `Delete ${count} selected wall${count === 1 ? "" : "s"}? This action cannot be undone.`,
+        confirmLabel: "Delete",
+        cancelLabel: "Cancel",
+        danger: true,
+      });
+      if (confirmed) await wallPaint.deleteSelected();
+      return;
+    }
     if (store.state.selectionState.primary) {
       e.preventDefault();
       const sel = store.state.selectionState.primary;
@@ -625,6 +728,11 @@ async function onKeyDown(e: KeyboardEvent) {
       }
     }
   } else if (e.key === "Escape") {
+    wallPaint.clearSelected();
+    if (wallPaintActive.value) {
+      store.setWallPaint(false);
+      return;
+    }
     if (dragState.assetId) endAssetDrag();
     store.state.selectionState = { primary: null, items: [] };
   } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "l") {
@@ -735,6 +843,10 @@ function isObjectSelected(id: string): boolean {
   return selectedObjectIds.value.has(id);
 }
 
+function isWallSelected(wall: WallSegment): boolean {
+  return selectedWall.value.some((selected) => selected.floorId === floor.value?.id && selected.segment.x1 === wall.x1 && selected.segment.y1 === wall.y1 && selected.segment.x2 === wall.x2 && selected.segment.y2 === wall.y2);
+}
+
 async function saveDrawnOrigin() {
   const assetId = draftAssetId.value;
   const name = originName.value.trim();
@@ -767,7 +879,7 @@ async function cancelDrawnOrigin() {
   <div
     :ref="vp.containerRef"
     class="editor__canvas"
-    :class="{ 'editor__canvas--panning': spaceDown, 'editor__canvas--dragging': !!panning, 'editor__mode--draw': store.state.mode === 'draw', 'editor__mode--move': store.state.mode === 'move' }"
+    :class="{ 'editor__canvas--panning': spaceDown, 'editor__canvas--dragging': !!panning, 'editor__mode--draw': store.state.mode === 'draw', 'editor__mode--move': store.state.mode === 'move', 'editor__mode--wallpaint': wallPaintActive }"
     @wheel="onWheel"
     @mousedown="onPanMouseDown"
     @mousemove="onContainerMouseMove"
@@ -776,7 +888,7 @@ async function cancelDrawnOrigin() {
       rulerMouseY = -1;
     "
   >
-    <svg ref="svgRef" class="editor__svg" :viewBox="viewBox" preserveAspectRatio="xMidYMid meet" role="application" aria-label="Blueprint editor canvas - use arrow keys to move selected objects, Delete to remove, R to rotate" tabindex="0" @mousedown="onCanvasMouseDown">
+    <svg ref="svgRef" class="editor__svg" :viewBox="viewBox" preserveAspectRatio="xMidYMid meet" role="application" aria-label="Blueprint editor canvas - use arrow keys to move selected objects, Delete to remove, R to rotate" tabindex="0" @mousedown="onCanvasMouseDownWithWalls" @contextmenu="onCanvasContextMenu">
       <defs>
         <pattern id="grid" :width="canvas.tileSize" :height="canvas.tileSize" patternUnits="userSpaceOnUse">
           <path :d="`M ${canvas.tileSize} 0 L 0 0 0 ${canvas.tileSize}`" fill="none" :style="{ stroke: 'var(--border-dim)' }" stroke-width="0.5" />
@@ -855,16 +967,16 @@ async function cancelDrawnOrigin() {
         <rect v-for="(run, i) in walkableRuns" :key="`floor-walk-run-${i}`" :x="run.x" :y="run.y" :width="run.w" :height="run.h" :class="`editor__tile editor__tile--${run.state}`" />
       </g>
 
-      <g v-if="renderWalls && floor?.walkable?.tileEdges" v-memo="[wallRuns, renderWalls]" class="editor__walls editor__svg--noevents">
-        <line v-for="(run, i) in wallRuns" :key="`floor-wall-run-${i}`" :x1="run.x1" :y1="run.y1" :x2="run.x2" :y2="run.y2" stroke="var(--accent-gold)" stroke-width="2" />
+      <g v-if="renderWalls && floor?.walkable?.tileEdges" v-memo="[wallRuns, renderWalls, wallColor, wallThickness, selectedWall]" class="editor__walls editor__svg--noevents">
+        <line v-for="(run, i) in wallRuns" :key="`floor-wall-run-${i}`" :x1="run.x1" :y1="run.y1" :x2="run.x2" :y2="run.y2" :class="{ 'editor__wall--selected': isWallSelected(run) }" :stroke="isWallSelected(run) ? 'var(--accent-primary)' : wallColor" :stroke-width="isWallSelected(run) ? wallThickness + 2 : wallThickness" />
       </g>
 
+      <line v-if="wallPreview && !isInteracting" :x1="wallPreview.x1" :y1="wallPreview.y1" :x2="wallPreview.x2" :y2="wallPreview.y2" :stroke="wallErasing ? 'var(--accent-red)' : wallColor" :stroke-width="Math.max(2, wallThickness)" stroke-dasharray="6 4" opacity="0.9" class="editor__svg--noevents" />
+
+      <rect v-if="wallPaint.selectionBox" :x="wallPaint.selectionBox.x" :y="wallPaint.selectionBox.y" :width="wallPaint.selectionBox.w" :height="wallPaint.selectionBox.h" fill="color-mix(in srgb, var(--accent-primary) 10%, transparent)" stroke="var(--accent-primary)" stroke-width="1.5" stroke-dasharray="5 3" class="editor__wallbox editor__svg--noevents" />
+
       <g v-if="renderBuildingBounds" v-memo="[buildingAreaRect, renderBuildingBounds]" class="editor__bounds editor__svg--noevents">
-        <rect :x="buildingAreaRect.x" :y="buildingAreaRect.y" :width="buildingAreaRect.w" :height="buildingAreaRect.h" fill="none" stroke="var(--accent-green)" stroke-width="2" stroke-dasharray="10 6" opacity="0.85" />
-        <path :d="`M ${buildingAreaRect.x} ${buildingAreaRect.y + 16} L ${buildingAreaRect.x} ${buildingAreaRect.y} L ${buildingAreaRect.x + 16} ${buildingAreaRect.y}`" fill="none" stroke="var(--accent-green)" stroke-width="3.5" />
-        <path :d="`M ${buildingAreaRect.x + buildingAreaRect.w - 16} ${buildingAreaRect.y} L ${buildingAreaRect.x + buildingAreaRect.w} ${buildingAreaRect.y} L ${buildingAreaRect.x + buildingAreaRect.w} ${buildingAreaRect.y + 16}`" fill="none" stroke="var(--accent-green)" stroke-width="3.5" />
-        <path :d="`M ${buildingAreaRect.x + buildingAreaRect.w} ${buildingAreaRect.y + buildingAreaRect.h - 16} L ${buildingAreaRect.x + buildingAreaRect.w} ${buildingAreaRect.y + buildingAreaRect.h} L ${buildingAreaRect.x + buildingAreaRect.w - 16} ${buildingAreaRect.y + buildingAreaRect.h}`" fill="none" stroke="var(--accent-green)" stroke-width="3.5" />
-        <path :d="`M ${buildingAreaRect.x + 16} ${buildingAreaRect.y + buildingAreaRect.h} L ${buildingAreaRect.x} ${buildingAreaRect.y + buildingAreaRect.h} L ${buildingAreaRect.x} ${buildingAreaRect.y + buildingAreaRect.h - 16}`" fill="none" stroke="var(--accent-green)" stroke-width="3.5" />
+        <rect :x="buildingAreaRect.x" :y="buildingAreaRect.y" :width="buildingAreaRect.w" :height="buildingAreaRect.h" fill="none" stroke="var(--accent-green)" stroke-width="6" opacity="0.9" />
       </g>
 
       <rect v-if="showGrid" :width="canvas.width" :height="canvas.height" fill="url(#grid)" class="editor__svg--noevents" />
@@ -924,7 +1036,6 @@ async function cancelDrawnOrigin() {
             <text :x="zone.x + 4" :y="zone.y + 10" font-size="6" fill="var(--accent-green)">{{ zone.label }}</text>
           </g>
         </g>
-
       </g>
 
       <rect :width="canvas.width" :height="canvas.height" fill="none" :style="{ stroke: 'var(--border-dim)' }" stroke-width="2" />
@@ -938,7 +1049,7 @@ async function cancelDrawnOrigin() {
         <rect :x="paletteGhostRect.x" :y="paletteGhostRect.y" :width="paletteGhostRect.w" :height="paletteGhostRect.h" :style="{ fill: paletteValid ? 'color-mix(in srgb, var(--accent-green) 35%, transparent)' : 'color-mix(in srgb, var(--accent-red) 35%, transparent)', stroke: paletteValid ? 'var(--accent-green)' : 'var(--accent-red)' }" stroke-width="1.5" />
       </g>
     </svg>
-      <canvas ref="npcCanvasRef" class="editor__npccanvas"></canvas>
+    <canvas ref="npcCanvasRef" class="editor__npccanvas"></canvas>
 
     <div class="editor__title" v-if="floor">
       <span class="editor__labels" :style="{ color: floor.labelColor || undefined }">{{ floor.label }}</span>
@@ -950,7 +1061,9 @@ async function cancelDrawnOrigin() {
         <button class="floor__trigger" @click.stop="toggleFloorNav" :aria-expanded="floorNavOpen" aria-haspopup="listbox" title="Switch floor" aria-label="Switch floor">
           <span class="floor__tag" :style="{ color: floor.labelColor || undefined }">{{ floor.label }}</span>
           <span class="floor__text">{{ floor.name }}</span>
-          <span class="floor__caret" :class="{ 'floor__caret--rotated': floorNavOpen }"><svg viewBox="0 0 10 6" width="8" height="5" aria-hidden="true"><path d="M0 0l5 6 5-6z" fill="currentColor"/></svg></span>
+          <span class="floor__caret" :class="{ 'floor__caret--rotated': floorNavOpen }"
+            ><svg viewBox="0 0 10 6" width="8" height="5" aria-hidden="true"><path d="M0 0l5 6 5-6z" fill="currentColor" /></svg
+          ></span>
         </button>
         <div v-if="floorNavOpen" class="floor__menu" role="listbox" aria-label="Floors">
           <button v-for="f in floors" :key="f.id" class="floor__item" :class="{ 'floor__item--active': f.id === store.state.currentFloorId }" role="option" :aria-selected="f.id === store.state.currentFloorId" @click="selectFloorNav(f.id)">
@@ -968,7 +1081,9 @@ async function cancelDrawnOrigin() {
       {{ modeHint }}
     </div>
 
-    <div class="editor__coords">{{ mouseCoords.x }}, {{ mouseCoords.y }}<template v-if="selectedRotation !== null"> - {{ selectedRotation }}deg</template></div>
+    <div class="editor__coords">
+      {{ mouseCoords.x }}, {{ mouseCoords.y }}<template v-if="selectedRotation !== null"> - {{ selectedRotation }}deg</template>
+    </div>
 
     <div class="editor__controls">
       <button class="flag--ghost flag--icon" @click="zoomBy(1 / 1.25)" title="Zoom Out (-)" aria-label="Zoom out">-</button>
@@ -985,7 +1100,6 @@ async function cancelDrawnOrigin() {
       <button class="flag--ghost" :class="{ 'flag--active': showBuildingBounds }" @click="toggleBuildingBounds" title="Toggle building area boundary (placement limit against the street)" aria-label="Toggle building bounds">Bounds</button>
       <button class="flag--ghost" :class="{ 'flag--active': showNpcGuides }" @click="toggleNpcGuides" title="Toggle NPC path guides (only in NPC Preview)" aria-label="Toggle NPC path guides">Guides</button>
     </div>
-    <WalkableGridPanel />
 
     <ModalShell :open="showSaveOrigin && !!draftObject" title="Save Placed Object as Origin" max-width="360px" width="min(360px, calc(100vw - 32px))" max-height="calc(100vh - 32px)" @close="cancelDrawnOrigin">
       <div class="modal__body">
@@ -1051,6 +1165,18 @@ async function cancelDrawnOrigin() {
 
 .editor__mode--move .editor__svg {
   cursor: grab;
+}
+
+.editor__mode--wallpaint .editor__svg {
+  cursor: crosshair;
+}
+
+.editor__wall--selected {
+  stroke-linecap: round;
+}
+
+.editor__wallbox {
+  pointer-events: none;
 }
 
 .editor__mode--move.editor__canvas--dragging .editor__svg {

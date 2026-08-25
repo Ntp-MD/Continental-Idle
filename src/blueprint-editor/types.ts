@@ -634,6 +634,51 @@ export interface CanvasConfig {
 	tileSize: number
 	bgColor?: string
 	labelColor?: string
+	wallColor?: string
+	wallThickness?: number
+}
+
+export interface CanvasFieldSpec {
+	kind: 'number' | 'color' | 'int'
+	required?: boolean
+	min?: number
+	max?: number
+}
+
+export const CANVAS_FIELD_SPECS = {
+	width: { kind: 'number', required: true },
+	height: { kind: 'number', required: true },
+	tileSize: { kind: 'number', required: true },
+	bgColor: { kind: 'color' },
+	labelColor: { kind: 'color' },
+	wallColor: { kind: 'color' },
+	wallThickness: { kind: 'int', min: 1, max: 10 },
+} as const satisfies Record<keyof CanvasConfig, CanvasFieldSpec>
+
+export function parseCanvasConfig(raw: unknown, strict: boolean): CanvasConfig | null {
+	if (!raw || typeof raw !== 'object') return null
+	const rec = raw as Record<string, unknown>
+	const out: Record<string, unknown> = {}
+	let failed = false
+	for (const [key, spec] of Object.entries(CANVAS_FIELD_SPECS)) {
+		const value = rec[key]
+		if (value === undefined || value === null) {
+			if (spec.required) return null
+			continue
+		}
+		let ok = false
+		if (spec.kind === 'number') ok = typeof value === 'number' && Number.isFinite(value) && value > 0
+		else if (spec.kind === 'color') ok = typeof value === 'string' && isValidColor(value)
+		else if (spec.kind === 'int') ok = typeof value === 'number' && Number.isInteger(value) && (spec.min === undefined || value >= spec.min) && (spec.max === undefined || value <= spec.max)
+		if (!ok) {
+			if (strict) return null
+			failed = true
+			continue
+		}
+		out[key] = value
+	}
+	if (Object.keys(out).length === 0) return null
+	return { ...out } as CanvasConfig
 }
 
 export interface FloorLayoutData {
@@ -652,6 +697,7 @@ export interface SyncedCanvas {
 	tileSize: number
 	bgColor?: string
 	streetWidthTiles?: number
+	streetFloorId?: string
 }
 
 
@@ -716,11 +762,9 @@ export function validateLayoutData(data: unknown): FloorLayoutData | null {
 	const layout = data as FloorLayoutData
 
 	if (typeof layout.version !== 'number' || layout.version < 0) return null
-	if (!layout.canvas || typeof layout.canvas !== 'object') return null
-	if (typeof layout.canvas.width !== 'number' || layout.canvas.width <= 0) return null
-	if (typeof layout.canvas.height !== 'number' || layout.canvas.height <= 0) return null
-	if (typeof layout.canvas.tileSize !== 'number' || layout.canvas.tileSize <= 0) return null
-	if (layout.canvas.bgColor !== undefined && !isValidColor(layout.canvas.bgColor)) return null
+	const canvas = parseCanvasConfig(layout.canvas, true)
+	if (!canvas) return null
+	Object.assign(layout, { canvas })
 
 	if (!Array.isArray(layout.floors) || layout.floors.length === 0) return null
 

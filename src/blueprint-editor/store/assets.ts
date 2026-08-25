@@ -5,7 +5,7 @@ import { assetSizeFor, normalizeObject } from '../geometry'
 import {
 	state, toast, clamp, withStateLock, initAssetFields, assetMap,
 } from './state'
-import { genId } from './utils'
+import { genAssetId } from './utils'
 import { saveAssets, saveBlueprintData, saveLayout } from './persistence'
 
 const FURNITURE_COLOR_MAP: Record<string, string> = {
@@ -96,7 +96,7 @@ export async function addSvgAsset(name: string, w: number, h: number, svgString:
 		}
 		const asset: AssetDef = {
 			origin: 'svg-import',
-			id: genId('custom'), name,
+			id: genAssetId('custom', name, c => state.assetRegistry.some(a => a.id === c)), name,
 			w: safeW, h: safeH,
 			defaultFillColor: '#ffffff',
 			svg: themedSvg,
@@ -245,7 +245,7 @@ export async function duplicateAsset(id: string): Promise<AssetDef | null> {
 		}
 		const copy: AssetDef = {
 			...source,
-			id: genId('custom'),
+			id: genAssetId('custom', `${source.name} copy`, c => state.assetRegistry.some(a => a.id === c)),
 			name: `${source.name} copy`,
 			origin: 'drawn',
 		}

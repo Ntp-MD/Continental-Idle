@@ -1,5 +1,5 @@
 import type { FloorLayoutData, ObjectData, AssetBase, AssetDef, LinkedPart, Rotation } from '../types'
-import { isAssetDef, validateLayoutData, validateLayoutIntegrity, normalizeInteractSpots, normalizeInteractConfig, normalizeTileEdges, normalizeWalkableGrid, normalizeTileStates, normalizeAllowedRoleIds, normalizeNpcSpawnZones, normalizeFloorWalkable, normalizeObjectPlacement, isValidColor } from '../types'
+import { isAssetDef, validateLayoutData, validateLayoutIntegrity, normalizeInteractSpots, normalizeInteractConfig, normalizeTileEdges, normalizeWalkableGrid, normalizeTileStates, normalizeAllowedRoleIds, normalizeNpcSpawnZones, normalizeFloorWalkable, normalizeObjectPlacement, isValidColor, parseCanvasConfig } from '../types'
 import { findAssetCached, buildAssetMap, validatePortalConfiguration } from '../assetUtils'
 import { normalizeObject, snap } from '../geometry'
 import { recalcCollapsed } from '../collision'
@@ -39,11 +39,8 @@ function applyAssetDefFields(asset: AssetDef, a: Record<string, unknown>): void 
 export function migrate(data: unknown): { layout: FloorLayoutData; legacyAssets: AssetDef[] } {
 	if (!data || typeof data !== 'object') return { layout: JSON.parse(JSON.stringify(buildSavedLayout())), legacyAssets: [] }
 	const d = data as Record<string, unknown>
-	const canvas = d.canvas
-	const validCanvas = canvas && typeof canvas === 'object'
-		&& typeof (canvas as Record<string, unknown>).tileSize === 'number'
-		&& isFinite((canvas as Record<string, unknown>).tileSize as number)
-		&& (canvas as Record<string, unknown>).tileSize as number > 0
+	const parsedCanvas = parseCanvasConfig(d.canvas, false)
+	const canvas = { ...EDITOR_CONFIG.defaultCanvas, ...(parsedCanvas ?? {}) }
 	const legacyAssets = Array.isArray(d.customAssets)
 		? d.customAssets.filter(
 			(a: unknown): a is Record<string, unknown> => {
@@ -123,20 +120,7 @@ export function migrate(data: unknown): { layout: FloorLayoutData; legacyAssets:
 
 	const migrated: FloorLayoutData = {
 		version: LAYOUT_VERSION,
-		canvas: validCanvas
-			? (() => {
-				const c = canvas as Record<string, unknown>
-		const bgColor = typeof c.bgColor === 'string' && isValidColor(c.bgColor) ? c.bgColor : undefined
-		const labelColor = typeof c.labelColor === 'string' && isValidColor(c.labelColor) ? c.labelColor : undefined
-		return {
-			width: typeof c.width === 'number' && isFinite(c.width as number) ? c.width as number : EDITOR_CONFIG.defaultCanvas.width,
-			height: typeof c.height === 'number' && isFinite(c.height as number) ? c.height as number : EDITOR_CONFIG.defaultCanvas.height,
-			tileSize: c.tileSize as number,
-			...(bgColor ? { bgColor } : {}),
-			...(labelColor ? { labelColor } : {}),
-		}
-			})()
-			: { ...EDITOR_CONFIG.defaultCanvas },
+		canvas,
 		floors: Array.isArray(d.floors) && d.floors.length > 0
 			? d.floors.map((f: unknown) => {
 				const fRec = (f ?? {}) as Record<string, unknown>

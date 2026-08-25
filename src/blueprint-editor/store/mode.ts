@@ -6,7 +6,12 @@ import { saveLayout } from './persistence'
 
 export function setMode(mode: EditorMode) {
 	state.mode = mode
+	state.wallPaint = false
 	state.selectionState = { primary: null, items: [] }
+}
+
+export function setWallPaint(on: boolean) {
+	state.wallPaint = on
 }
 
 export async function resizeCanvas(width: number, height: number, tileSize: number): Promise<boolean> {
@@ -48,6 +53,20 @@ export async function setCanvasLabelColor(labelColor: string | undefined): Promi
 	if (labelColor !== undefined && !isValidColor(labelColor)) return false
 	if (labelColor) state.layout.canvas.labelColor = labelColor
 	else delete state.layout.canvas.labelColor
+	return saveLayout()
+}
+
+export async function setWallColor(wallColor: string | undefined): Promise<boolean> {
+	if (wallColor !== undefined && !isValidColor(wallColor)) return false
+	if (wallColor) state.layout.canvas.wallColor = wallColor
+	else delete state.layout.canvas.wallColor
+	return saveLayout()
+}
+
+export async function setWallThickness(thickness: number | null): Promise<boolean> {
+	if (thickness !== null && (!Number.isInteger(thickness) || thickness < 1 || thickness > 10)) return false
+	if (thickness !== null) state.layout.canvas.wallThickness = thickness
+	else delete state.layout.canvas.wallThickness
 	return saveLayout()
 }
 

@@ -19,11 +19,13 @@ const props = withDefaults(
 const emit = defineEmits<{
   (e: "update:modelValue", value: string | undefined): void;
   (e: "commit", value: string | undefined): void;
+  (e: "commit-invalid", value: string): void;
 }>();
 
 const draftValue = ref(props.modelValue);
 const textValue = ref(props.modelValue ?? "");
 const isEditing = ref(false);
+const isInvalid = ref(false);
 
 watch(
   () => props.modelValue,
@@ -45,6 +47,7 @@ const swatchStyle = computed(() => {
 
 function commitValue(value: string | undefined) {
   isEditing.value = false;
+  isInvalid.value = false;
   draftValue.value = value;
   textValue.value = value ?? "";
   emit("update:modelValue", value);
@@ -87,7 +90,9 @@ function onTextChange() {
     commitValue(v);
     return;
   }
+  isInvalid.value = true;
   textValue.value = draftValue.value ?? "";
+  emit("commit-invalid");
 }
 
 function toggleTransparent() {
@@ -101,7 +106,7 @@ function toggleTransparent() {
       <input class="color__native" type="color" :value="nativeValue" :aria-label="ariaLabel" @input="onNativeInput" @change="onNativeChange" />
       <span v-if="isTransparent" class="color__slash" aria-hidden="true" />
     </label>
-    <input class="color__text" type="text" v-model="textValue" :placeholder="placeholder" :aria-label="ariaLabel" @change="onTextChange" />
+    <input class="color__text" :class="{ 'color__text--invalid': isInvalid }" type="text" v-model="textValue" :placeholder="placeholder" :aria-label="ariaLabel" @change="onTextChange" />
     <button v-if="allowTransparent" type="button" class="color__transparent" :class="{ 'color__transparent--active': isTransparent }" @click="toggleTransparent" title="Toggle transparent" aria-label="Toggle transparent">transparent</button>
   </div>
 </template>
@@ -158,6 +163,11 @@ function toggleTransparent() {
 .color__text {
   flex: 1;
   min-width: 0;
+}
+
+.color__text--invalid {
+  border-color: var(--accent-red);
+  color: var(--accent-red);
 }
 
 .color__slash {

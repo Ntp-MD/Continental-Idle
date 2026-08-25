@@ -57,7 +57,11 @@ export function buildSyncedPayload(
 		const normalizedNpcConfig = npcConfig ? normalizeNpcConfig(npcConfig) : undefined
 		return {
 			version: 3,
-			canvas: { ...layout.canvas, streetWidthTiles: resolveStreetTiles(layout) },
+			canvas: {
+				...layout.canvas,
+				streetWidthTiles: resolveStreetTiles(layout),
+				...(layout.streetFloorId ? { streetFloorId: layout.streetFloorId } : {}),
+			},
 			floors,
 			...(normalizedNpcConfig ? { npcConfig: normalizedNpcConfig } : {}),
 			timestamp: Date.now(),

@@ -43,7 +43,17 @@ When adding / renaming / removing any field on `AssetBase` or `AssetDef` (`types
 2. Populate the field in the `sample` fixture of `tests/test-asset-schema.ts`.
 3. Extend the whitelist in `serializeAsset` (`assetUtils.ts`) — persistence drops unlisted fields silently.
 4. Extend the patch union in `updateAsset` (`store/assets.ts`) if instances/origin settings may edit it — unlisted patches are ignored silently.
-5. If user-editable, wire it in `OriginSettingModal.vue` / `AssetProperties.vue`.
+5. If user-editable, wire it in `OriginSettingPanel.vue` / `AssetProperties.vue`.
+
+### CanvasConfig schema changes (guardrail)
+
+When adding / renaming / removing any field on `CanvasConfig` (`types.ts`):
+
+1. Add/update its entry in `CANVAS_FIELD_SPECS` (`types.ts`) — `satisfies Record<keyof CanvasConfig, CanvasFieldSpec>` makes a missing spec a type error.
+2. Nothing else is required for persistence: `validateLayoutData` (strict) and `migrate()` (lenient) both read `CANVAS_FIELD_SPECS` via `parseCanvasConfig`. Never re-enumerate canvas keys by hand elsewhere.
+3. If user-editable, add a row to the Canvas Settings modal (`Toolbar.vue`) + a setter in `store/mode.ts`, and extend the input-sync watch there.
+4. If the game needs it, mirror it on `SyncedCanvas` + `syncedPayload.ts`; editor-visual-only fields must NOT go into the sync payload.
+5. Extend the round-trip cases in `tests/test-blueprint-schema.ts` ("Canvas config pipeline checks").
 
 ### Engine test rules
 

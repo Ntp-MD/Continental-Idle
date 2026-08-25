@@ -28,7 +28,7 @@ onMounted(async () => {
 const npcSimulation = useNpcSimulation(
   () => store.state.layout.npcConfig,
   () => store.currentFloor.value,
-  () => ({ w: store.state.layout.canvas.width, h: store.state.layout.canvas.height, tileSize: store.state.layout.canvas.tileSize, streetTiles: resolveStreetTiles(store.state.layout) }),
+  () => ({ w: store.state.layout.canvas.width, h: store.state.layout.canvas.height, tileSize: store.state.layout.canvas.tileSize, streetTiles: resolveStreetTiles(store.state.layout), streetFloorId: store.state.layout.streetFloorId }),
   (id: string) => store.state.layout.floors.find((f) => f.id === id),
   () => store.state.layout.floors,
   (id: string) => store.assetMap().get(id)?.tags,

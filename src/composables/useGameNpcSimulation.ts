@@ -61,6 +61,7 @@ export function useGameNpcSimulation(
 			h: payloadRef.value?.canvas.height ?? 1000,
 			tileSize: payloadRef.value?.canvas.tileSize ?? 25,
 			streetTiles: payloadRef.value?.canvas.streetWidthTiles,
+			streetFloorId: payloadRef.value?.canvas.streetFloorId,
 		}),
 		getViewFloorId: () => currentFloorId.value,
 		idPrefix: 'npc-game-',

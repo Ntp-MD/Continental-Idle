@@ -86,9 +86,7 @@ const statusTimer = window.setInterval(() => {
   if (store.state.mode !== "npc-preview") return;
   const counts = new Map<string, number>();
   for (const npc of npcs.value) counts.set(npc.status, (counts.get(npc.status) ?? 0) + 1);
-  const next = NPC_STATUS_ORDER
-    .filter((status) => counts.has(status))
-    .map((status) => ({ key: status, label: NPC_STATUS_LABELS[status], count: counts.get(status)! }));
+  const next = NPC_STATUS_ORDER.filter((status) => counts.has(status)).map((status) => ({ key: status, label: NPC_STATUS_LABELS[status], count: counts.get(status)! }));
   const prev = statusCounts.value;
   if (prev.length === next.length && prev.every((p, i) => p.key === next[i].key && p.count === next[i].count)) return;
   statusCounts.value = next;
@@ -125,6 +123,8 @@ const heightInput = ref(store.state.layout.canvas.height);
 const tileInput = ref(store.state.layout.canvas.tileSize);
 const bgColorInput = ref(store.state.layout.canvas.bgColor);
 const labelColorInput = ref(store.state.layout.canvas.labelColor);
+const wallColorInput = ref(store.state.layout.canvas.wallColor);
+const wallThicknessInput = ref<number | undefined>(store.state.layout.canvas.wallThickness);
 
 watch(
   () => store.state.layout.canvas,
@@ -134,6 +134,8 @@ watch(
     tileInput.value = c.tileSize;
     bgColorInput.value = c.bgColor;
     labelColorInput.value = c.labelColor;
+    wallColorInput.value = c.wallColor;
+    wallThicknessInput.value = c.wallThickness;
   },
 );
 
@@ -183,6 +185,33 @@ async function applyLabelColor(value: string | undefined) {
   }
 }
 
+async function applyWallColor(value: string | undefined) {
+  try {
+    const saved = await run(() => store.setWallColor(value));
+    if (!saved) {
+      toast.error("Failed to set wall color");
+      return;
+    }
+    toast.success(value ? `Wall color saved: ${value}` : "Wall color reset to default");
+  } catch {
+    toast.error("Failed to set wall color");
+  }
+}
+
+function onWallColorInvalid(value: string) {
+  toast.error(`"${value}" is not a valid color - use #RRGGBB`);
+}
+
+async function applyWallThickness() {
+  const value = typeof wallThicknessInput.value === "number" && wallThicknessInput.value > 0 ? Math.round(wallThicknessInput.value) : null;
+  try {
+    const saved = await run(() => store.setWallThickness(value));
+    if (!saved) toast.error("Wall thickness must be 1-10");
+  } catch {
+    toast.error("Failed to set wall thickness");
+  }
+}
+
 async function applyStreetFloor(floorId: string | null) {
   try {
     const saved = await run(() => store.setStreetFloor(floorId));
@@ -211,6 +240,7 @@ function onSyncToGame() {
     <button :class="{ 'flag--warning': store.state.mode === 'object' }" @click="onSwitchMode('object')" aria-label="Switch to object mode">Object</button>
     <button :class="{ 'flag--warning': store.state.mode === 'draw' }" @click="onSwitchMode('draw')" aria-label="Switch to draw mode">Draw Object</button>
     <button :class="{ 'flag--warning': store.state.mode === 'move' }" @click="onSwitchMode('move')" aria-label="Switch to move mode">Move</button>
+    <button :class="{ 'flag--warning': store.state.wallPaint }" :disabled="store.state.mode === 'npc-preview'" @click="store.setWallPaint(!store.state.wallPaint)" title="Paint wall lines on tile boundaries - click to select, drag a box over walls to select multiple, Delete removes, left-drag draws, Alt+drag or right-drag erases, Escape exits" aria-label="Toggle wall paint tool">Wall Paint</button>
 
     <button @click="onNpcManager" title="Configure NPC roles and tags" aria-label="Open NPC manager">NPC Manager</button>
     <button class="flag--warning" :disabled="pending" @click="onSyncOrigins" title="Re-resolve every placed object from its origin asset and rebuild walkable layout" aria-label="Refresh all placed objects from origins">Refresh Objects</button>
@@ -244,17 +274,7 @@ function onSyncToGame() {
         <div class="form__row form__row--border">
           <button type="button" @click="onTogglePause" :aria-label="isPaused ? 'Resume NPC simulation' : 'Pause NPC simulation'">{{ isPaused ? "Resume" : "Pause" }}</button>
           <div class="npc__speed" role="group" aria-label="Simulation speed">
-            <button
-              v-for="s in [1, 2, 4, 8]"
-              :key="s"
-              type="button"
-              class="npc__speed-option"
-              :class="{ 'npc__speed-option--active': simSpeed === s }"
-              :aria-pressed="simSpeed === s"
-              @click="simSpeed = s"
-            >
-              {{ s }}x
-            </button>
+            <button v-for="s in [1, 2, 4, 8]" :key="s" type="button" class="npc__speed-option" :class="{ 'npc__speed-option--active': simSpeed === s }" :aria-pressed="simSpeed === s" @click="simSpeed = s">{{ s }}x</button>
           </div>
           <button type="button" class="flag--danger" @click="onReset" aria-label="Clear all NPCs and exit preview">Clear</button>
         </div>
@@ -303,28 +323,32 @@ function onSyncToGame() {
           <div class="form__hint">One color for every object label on the canvas.</div>
         </div>
         <div class="form__group">
+          <div class="form__title">Walls</div>
+          <div class="form__row form__row--pair">
+            <div class="form__row">
+              <label>Color</label>
+              <ColorInput v-model="wallColorInput" placeholder="#RRGGBB (empty = theme green)" aria-label="Wall line color" @commit="applyWallColor" @commit-invalid="onWallColorInvalid" />
+            </div>
+            <div class="form__row">
+              <label for="canvas__wallthickness">Thickness</label>
+              <input id="canvas__wallthickness" type="number" v-model.number="wallThicknessInput" min="1" max="10" step="1" :placeholder="'3'" @change="applyWallThickness" />
+            </div>
+          </div>
+          <div class="form__hint">Line style for painted floor walls and the building boundary.</div>
+        </div>
+        <div class="form__group">
           <div class="form__title">Street</div>
           <div class="form__row form__row--pair">
             <div class="form__row">
               <label for="canvas__streetfloor">On floor</label>
-              <select
-                id="canvas__streetfloor"
-                :value="store.state.layout.streetFloorId ?? ''"
-                aria-label="Floor that displays the street ring"
-                @change="applyStreetFloor(($event.target as HTMLSelectElement).value || null)"
-              >
+              <select id="canvas__streetfloor" :value="store.state.layout.streetFloorId ?? ''" aria-label="Floor that displays the street ring" @change="applyStreetFloor(($event.target as HTMLSelectElement).value || null)">
                 <option value="">None</option>
                 <option v-for="f in store.state.layout.floors" :key="f.id" :value="f.id">{{ f.label }} - {{ f.name }}</option>
               </select>
             </div>
             <div class="form__row">
               <label for="canvas__streetwidth">Ring</label>
-              <select
-                id="canvas__streetwidth"
-                :value="store.state.layout.streetWidthTiles ?? ''"
-                aria-label="Street ring width in tiles"
-                @change="store.setStreetWidth(Number(($event.target as HTMLSelectElement).value) || null)"
-              >
+              <select id="canvas__streetwidth" :value="store.state.layout.streetWidthTiles ?? ''" aria-label="Street ring width in tiles" @change="store.setStreetWidth(Number(($event.target as HTMLSelectElement).value) || null)">
                 <option value="">Default (8 tiles)</option>
                 <option v-for="w in [5, 6, 7, 8, 9, 10, 11, 12]" :key="w" :value="w">{{ w }} tiles</option>
               </select>

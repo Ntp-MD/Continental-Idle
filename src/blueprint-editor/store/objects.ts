@@ -7,7 +7,7 @@ import {
 	state, toast, snap, clamp, assetMap,
 	currentFloor, withStateLock, initAssetFields,
 } from './state'
-import { genId } from './utils'
+import { genId, genAssetId } from './utils'
 import { selectedObject, selectedObjectIds, select as selectEntity, clearSelection, toggleMultiSelect as toggleMultiSelectEntity } from './selection'
 import { getLinkedObjects } from './utils'
 import { saveLayout, saveAssets } from './persistence'
@@ -17,7 +17,7 @@ export async function beginDrawnObject(name: string, w: number, h: number, x: nu
 		const floor = currentFloor.value
 		if (!floor) return null
 		const t = state.layout.canvas.tileSize
-		const asset: AssetDef = { origin: 'drawn', id: genId('custom'), name, w: Math.max(1, Math.floor(w)), h: Math.max(1, Math.floor(h)), defaultFillColor: '#ffffff' }
+		const asset: AssetDef = { origin: 'drawn', id: genAssetId('custom', name, c => state.assetRegistry.some(a => a.id === c)), name, w: Math.max(1, Math.floor(w)), h: Math.max(1, Math.floor(h)), defaultFillColor: '#ffffff' }
 		initAssetFields(asset)
 		const rect = clamp({ x: snap(x), y: snap(y), w: asset.w * t, h: asset.h * t })
 		if (objectOverlapsAny(floor.objects, assetMap(), rect)) {
@@ -404,7 +404,7 @@ export async function createLinkedAssetFromSelection(name?: string): Promise<str
 	})
 
 	const safeName = (name && name.trim()) || `Linked Set ${objs.length}`
-	const assetId = genId('linked')
+	const assetId = genAssetId('linked', safeName, c => state.assetRegistry.some(a => a.id === c))
 	const assetDef: AssetDef = {
 		origin: 'linked',
 		id: assetId,
@@ -523,7 +523,8 @@ export async function flattenToSvgAsset(name?: string): Promise<string | null> {
 		const t = state.layout.canvas.tileSize
 
 		const amap = assetMap()
-		const assetId = genId('custom')
+		const flatName = (name && name.trim()) || `Flattened ${objs.length}`
+		const assetId = genAssetId('custom', flatName, c => state.assetRegistry.some(a => a.id === c))
 		const svgParts: string[] = []
 		let partIndex = 0
 		for (const obj of objs) {
@@ -569,7 +570,6 @@ export async function flattenToSvgAsset(name?: string): Promise<string | null> {
 			}
 		}
 
-		const safeName = (name && name.trim()) || `Flattened ${objs.length}`
 		const vbW = totalW
 		const vbH = totalH
 		const innerSvg = svgParts.join('\n  ')
@@ -579,7 +579,7 @@ export async function flattenToSvgAsset(name?: string): Promise<string | null> {
 		const asset: AssetDef = {
 			origin: 'flattened',
 			id: assetId,
-			name: safeName,
+			name: flatName,
 			w: gridW,
 			h: gridH,
 			walkable: false,
@@ -615,7 +615,7 @@ export async function flattenToSvgAsset(name?: string): Promise<string | null> {
 		await saveAssets()
 		await saveLayout()
 
-		toast.success(`Flattened ${objs.length} objects into "${safeName}" - independent asset, no unlink needed`)
+		toast.success(`Flattened ${objs.length} objects into "${flatName}" - independent asset, no unlink needed`)
 		return assetId
 	})
 }

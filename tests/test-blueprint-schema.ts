@@ -1,9 +1,10 @@
 import assert from 'node:assert/strict'
-import { applySvgColorConvention, normalizeObjectPlacement, resolveObjectDef } from '../src/blueprint-editor/types'
+import { applySvgColorConvention, normalizeObjectPlacement, resolveObjectDef, parseCanvasConfig, CANVAS_FIELD_SPECS } from '../src/blueprint-editor/types'
 import { serializeAsset, serializeObject } from '../src/blueprint-editor/assetUtils'
 import { resolvePlacedObject } from '../src/blueprint-editor/geometry'
 import { buildBlueprintData } from '../src/blueprint-editor/store/dataLoader'
-import type { AssetDef, FloorLayoutData, ObjectData } from '../src/blueprint-editor/types'
+import { applyWallSegment } from '../src/blueprint-editor/composables/useWallPaint'
+import type { AssetDef, CanvasConfig, FloorLayoutData, ObjectData, TileEdges } from '../src/blueprint-editor/types'
 
 const rawPlacement = normalizeObjectPlacement({
 	id: 'obj-test',
@@ -107,5 +108,39 @@ assert.equal(conv("<circle fill='#fff' stroke='rgba(1,2,3,0.5)'/>"), "<circle fi
 assert.equal(conv('<path d="M0 0"/>'), '<path d="M0 0"/>')
 assert.equal(conv('<rect fill="none" stroke="#abc" fill="none"/>'), '<rect fill="var(--obj-fill,none)" stroke="var(--obj-stroke,#abc)" fill="var(--obj-fill,none)"/>')
 console.log('SVG color convention checks passed')
+
+const canvasKeys = Object.keys(CANVAS_FIELD_SPECS).sort()
+assert.deepEqual(canvasKeys, ['bgColor', 'height', 'labelColor', 'tileSize', 'wallColor', 'wallThickness', 'width'])
+
+const sampleCanvas: Required<CanvasConfig> = { width: 100, height: 50, tileSize: 25, bgColor: '#000000', labelColor: '#cccccc', wallColor: '#ffffff', wallThickness: 4 }
+const roundTrip = parseCanvasConfig(sampleCanvas, true)
+assert.deepEqual(roundTrip, sampleCanvas)
+
+const strictCanvas = parseCanvasConfig({ width: 100, height: 50, tileSize: 25, wallColor: '#ffffff', wallThickness: 4 }, true)
+assert.deepEqual(strictCanvas, { width: 100, height: 50, tileSize: 25, wallColor: '#ffffff', wallThickness: 4 })
+assert.equal(parseCanvasConfig({ width: 100, height: 50, tileSize: 25, wallColor: 'white' }, true), null)
+assert.equal(parseCanvasConfig({ width: 100, height: 50, tileSize: 25, wallThickness: 11 }, true), null)
+assert.equal(parseCanvasConfig({ height: 50, tileSize: 25 }, true), null)
+
+const lenientCanvas = parseCanvasConfig({ width: 100, height: 50, tileSize: 25, wallColor: 'not-a-color', wallThickness: 99 }, false)
+assert.deepEqual(lenientCanvas, { width: 100, height: 50, tileSize: 25 })
+console.log('Canvas config pipeline checks passed')
+
+const wallEdges: TileEdges[][] = [[{}, {}], [{}, {}]]
+applyWallSegment(wallEdges, { x1: 5, y1: 5, x2: 6, y2: 5 }, 10, true)
+assert.deepEqual(wallEdges, [[{}, { bottom: true }], [{}, { top: true }]])
+const wallSaved = buildBlueprintData({
+	...layout,
+	floors: [{ ...layout.floors[0], walkable: { tileEdges: wallEdges } }],
+}, [], {
+	speed: 0.2,
+	defaultRoleId: '',
+	roles: [],
+	tasks: [],
+	pool: [],
+}, [])
+assert.deepEqual(wallSaved.layout.floors[0].walkable?.tileEdges, wallEdges)
+
+console.log('Wall paint persistence checks passed')
 
 console.log('Blueprint schema checks passed')

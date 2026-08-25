@@ -179,9 +179,10 @@ export function serializeAsset(asset: AssetDef): AssetDef {
 
 export function assetSettingsIssues(asset: AssetDef): string[] {
 	const issues: string[] = []
-	if (!asset.walkableGrid) issues.push('walkable grid')
-	if (!asset.tileStates) issues.push('tile states')
-	if (!asset.tileEdges) issues.push('tile edges')
+	if (!asset.walkable) {
+		if (!asset.walkableGrid) issues.push('walkable grid')
+		if (!asset.tileStates) issues.push('tile states')
+	}
 	return issues
 }
 

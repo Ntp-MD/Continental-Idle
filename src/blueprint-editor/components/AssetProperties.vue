@@ -4,20 +4,18 @@ import { useAssetsStore } from "../blueprintStore";
 import { useToast } from "@/composables/useToast";
 import { useConfirm } from "@/composables/useConfirm";
 import { useAsyncAction } from "../composables/useAsyncAction";
-import { useWalkableGridPanel } from "../composables/useWalkableGridPanel";
 import { useClipboardCopy } from "../composables/useClipboardCopy";
 import { renderSvgInto } from "../svgSanitizer";
 import { assetSvgVarStyle } from "../assetUtils";
 import type { AssetDef } from "../types";
 import TagPicker from "./TagPicker.vue";
-import OriginSettingModal from "./OriginSettingModal.vue";
+import AssetEditModal from "./AssetEditModal.vue";
 import { managedTagSet } from "../store/tags";
 
 const props = defineProps<{ asset: AssetDef }>();
 const store = useAssetsStore();
 const confirm = useConfirm().confirm;
 const { pending, run } = useAsyncAction();
-const { showWalkableGridPanel, openWalkableGridPanel, closeWalkableGridPanel } = useWalkableGridPanel();
 const { copyId } = useClipboardCopy();
 
 const assetFields = ref<{ name: string; defaultLabel: string }>({
@@ -25,7 +23,7 @@ const assetFields = ref<{ name: string; defaultLabel: string }>({
   defaultLabel: "",
 });
 const assetTags = ref<string[]>([]);
-const showOriginSetting = ref(false);
+const showEditor = ref(false);
 const portal = ref(props.asset.tags?.includes("portal") ?? false);
 
 watch(
@@ -37,7 +35,7 @@ watch(
     };
     assetTags.value = a.tags ? [...a.tags] : [];
     portal.value = a.tags?.includes("portal") ?? false;
-    closeWalkableGridPanel();
+    showEditor.value = false;
   },
   { immediate: true },
 );
@@ -191,14 +189,8 @@ async function duplicateAsset() {
       <button @click="onRotateAsset">90deg</button>
     </div>
     <div v-if="!isLinkedAsset" class="form__row">
-      <label>Origin Setting</label>
-      <button class="flag--warning" @click="showOriginSetting = true">Manage</button>
-    </div>
-    <div v-if="!isLinkedAsset" class="form__row">
-      <label>Walkable Grid</label>
-      <button class="flag--warning" @click="showWalkableGridPanel ? closeWalkableGridPanel() : openWalkableGridPanel()">
-        {{ showWalkableGridPanel ? "Close" : "Manage" }}
-      </button>
+      <label>Edit Asset</label>
+      <button class="flag--warning" @click="showEditor = true">Manage</button>
     </div>
 
     <div v-if="collapsedCount > 0" class="card">
@@ -210,7 +202,7 @@ async function duplicateAsset() {
     </div>
   </div>
 
-  <OriginSettingModal :open="showOriginSetting" :asset="asset" @close="showOriginSetting = false" />
+  <AssetEditModal :open="showEditor" :asset="asset" @close="showEditor = false" />
 </template>
 
 <style scoped>

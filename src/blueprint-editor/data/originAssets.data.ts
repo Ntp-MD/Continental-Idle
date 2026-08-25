@@ -1,6 +1,6 @@
 export const originAssetsData = [
   {
-    "id": "custom-df26b61bdb",
+    "id": "custom-table-1",
     "name": "Table 1",
     "w": 2,
     "h": 1,
@@ -30,8 +30,18 @@ export const originAssetsData = [
     ],
     "tileEdges": [
       [
-        {},
-        {}
+        {
+          "top": false,
+          "right": false,
+          "bottom": false,
+          "left": false
+        },
+        {
+          "top": false,
+          "right": false,
+          "bottom": false,
+          "left": false
+        }
       ]
     ],
     "interactSpots": [
@@ -55,8 +65,8 @@ export const originAssetsData = [
     }
   },
   {
-    "id": "custom-9ed2ecb37c",
-    "name": "chair",
+    "id": "custom-chair",
+    "name": "Chair",
     "w": 1,
     "h": 1,
     "origin": "drawn",
@@ -79,11 +89,6 @@ export const originAssetsData = [
         "walkable"
       ]
     ],
-    "tileEdges": [
-      [
-        {}
-      ]
-    ],
     "interactSpots": [
       {
         "x": 13,
@@ -101,7 +106,7 @@ export const originAssetsData = [
     }
   },
   {
-    "id": "custom-6f33db9d6f",
+    "id": "custom-table-set",
     "name": "Table Set",
     "w": 2,
     "h": 3,
@@ -138,20 +143,6 @@ export const originAssetsData = [
       [
         "walkable",
         "walkable"
-      ]
-    ],
-    "tileEdges": [
-      [
-        {},
-        {}
-      ],
-      [
-        {},
-        {}
-      ],
-      [
-        {},
-        {}
       ]
     ],
     "interactSpots": [
@@ -237,7 +228,26 @@ export const originAssetsData = [
           "right": true
         }
       ]
-    ]
+    ],
+    "interactSpots": [
+      {
+        "x": 14,
+        "y": 25
+      },
+      {
+        "x": 36,
+        "y": 25
+      }
+    ],
+    "interact": {
+      "capacity": 1,
+      "durationMin": 30,
+      "durationMax": 60
+    },
+    "queue": {
+      "maxMembers": 3,
+      "admissionDepth": 4
+    }
   },
   {
     "id": "custom-washer-1",
@@ -273,6 +283,10 @@ export const originAssetsData = [
       "capacity": 1,
       "durationMin": 10,
       "durationMax": 20
+    },
+    "queue": {
+      "maxMembers": 3,
+      "admissionDepth": 4
     }
   },
   {
@@ -315,25 +329,28 @@ export const originAssetsData = [
       "capacity": 1,
       "durationMin": 10,
       "durationMax": 25
+    },
+    "queue": {
+      "maxMembers": 3,
+      "admissionDepth": 4
     }
   },
   {
     "id": "custom-kitchen-table-1",
     "name": "Kitchen Table",
-    "w": 3,
+    "w": 2,
     "h": 1,
     "origin": "svg-import",
     "category": "Special",
     "walkable": false,
     "defaultFillColor": "#ffffff",
-    "svg": "<rect x=\"1\" y=\"4\" width=\"73\" height=\"17\" rx=\"2\" fill=\"var(--obj-fill,#ffffff)\" stroke=\"var(--obj-stroke,#ffffff)\" stroke-width=\"1\"/><line x1=\"2\" y1=\"10\" x2=\"73\" y2=\"10\" stroke=\"var(--asset-outline)\" stroke-width=\"0.6\"/><path d=\"M 25.5 12 V 18 M 49.5 12 V 18\" fill=\"none\" stroke=\"var(--asset-outline)\" stroke-width=\"0.55\"/><path d=\"M 13 13.5 H 21 M 37.5 13.5 H 45.5 M 62 13.5 H 70\" fill=\"none\" stroke=\"var(--asset-outline)\" stroke-width=\"0.8\"/>",
+    "svg": "<rect x=\"1\" y=\"2\" width=\"48\" height=\"21\" rx=\"2\" fill=\"var(--obj-fill,#ffffff)\" stroke=\"var(--obj-stroke,#ffffff)\" stroke-width=\"1\"/><circle cx=\"13.5\" cy=\"12.5\" r=\"8\" fill=\"none\" stroke=\"var(--asset-outline)\" stroke-width=\"0.9\"/><circle cx=\"13.5\" cy=\"12.5\" r=\"4.5\" fill=\"none\" stroke=\"var(--asset-outline)\" stroke-width=\"0.6\"/><circle cx=\"13.5\" cy=\"12.5\" r=\"1.2\" fill=\"none\" stroke=\"var(--asset-outline)\" stroke-width=\"0.5\"/><rect x=\"28.5\" y=\"4.5\" width=\"17\" height=\"16\" rx=\"2\" fill=\"none\" stroke=\"var(--asset-outline)\" stroke-width=\"0.8\"/><rect x=\"32\" y=\"8.5\" width=\"10\" height=\"8\" rx=\"1\" fill=\"none\" stroke=\"var(--asset-outline)\" stroke-width=\"0.5\"/>",
     "svgViewBox": {
-      "w": 75,
+      "w": 50,
       "h": 25
     },
     "walkableGrid": [
       [
-        false,
         false,
         false
       ]
@@ -341,13 +358,12 @@ export const originAssetsData = [
     "tileStates": [
       [
         "blocked",
-        "blocked",
         "blocked"
       ]
     ],
     "interactSpots": [
       {
-        "x": 37.5,
+        "x": 25,
         "y": 31
       }
     ],
@@ -355,6 +371,10 @@ export const originAssetsData = [
       "capacity": 2,
       "durationMin": 5,
       "durationMax": 15
+    },
+    "queue": {
+      "maxMembers": 3,
+      "admissionDepth": 4
     }
   },
   {
@@ -397,6 +417,10 @@ export const originAssetsData = [
       "capacity": 1,
       "durationMin": 8,
       "durationMax": 20
+    },
+    "queue": {
+      "maxMembers": 3,
+      "admissionDepth": 4
     }
   },
   {
@@ -433,6 +457,404 @@ export const originAssetsData = [
       "capacity": 1,
       "durationMin": 8,
       "durationMax": 20
+    },
+    "queue": {
+      "maxMembers": 3,
+      "admissionDepth": 4
+    }
+  },
+  {
+    "id": "custom-reception-desk",
+    "name": "Reception Desk",
+    "w": 8,
+    "h": 1,
+    "origin": "svg-import",
+    "category": "Special",
+    "walkable": false,
+    "defaultFillColor": "#ffffff",
+    "svg": "<rect x=\"2\" y=\"3\" width=\"196\" height=\"7\" rx=\"2\" fill=\"var(--obj-fill,#ffffff)\" stroke=\"var(--obj-stroke,#ffffff)\" stroke-width=\"1\"/><rect x=\"5\" y=\"10\" width=\"190\" height=\"13\" rx=\"1.5\" fill=\"var(--obj-fill,#ffffff)\" stroke=\"var(--obj-stroke,#ffffff)\" stroke-width=\"0.9\"/><line x1=\"5\" y1=\"14\" x2=\"195\" y2=\"14\" stroke=\"var(--asset-outline)\" stroke-width=\"0.55\"/><path d=\"M 53 14 V 21 M 100 14 V 21 M 147 14 V 21\" fill=\"none\" stroke=\"var(--asset-outline)\" stroke-width=\"0.55\"/><circle cx=\"176\" cy=\"6.5\" r=\"2.2\" fill=\"none\" stroke=\"var(--asset-outline)\" stroke-width=\"0.7\"/>",
+    "svgViewBox": {
+      "w": 200,
+      "h": 25
+    },
+    "walkableGrid": [
+      [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    ],
+    "tileStates": [
+      [
+        "blocked",
+        "blocked",
+        "blocked",
+        "blocked",
+        "blocked",
+        "blocked",
+        "blocked",
+        "blocked"
+      ]
+    ],
+    "interactSpots": [
+      {
+        "x": 40,
+        "y": 31
+      },
+      {
+        "x": 100,
+        "y": 31
+      },
+      {
+        "x": 160,
+        "y": 31
+      }
+    ],
+    "interact": {
+      "capacity": 1,
+      "durationMin": 5,
+      "durationMax": 12
+    },
+    "queue": {
+      "maxMembers": 4,
+      "admissionDepth": 4
+    }
+  },
+  {
+    "id": "custom-vending-machine",
+    "name": "Vending Machine",
+    "w": 2,
+    "h": 1,
+    "origin": "svg-import",
+    "category": "Special",
+    "walkable": false,
+    "defaultFillColor": "#ffffff",
+    "svg": "<g transform=\"translate(50, 0) rotate(90)\"><rect x=\"2\" y=\"2\" width=\"21\" height=\"46\" rx=\"2\" fill=\"var(--obj-fill,#ffffff)\" stroke=\"var(--obj-stroke,#ffffff)\" stroke-width=\"1\"/><rect x=\"4.5\" y=\"4.5\" width=\"16\" height=\"6\" rx=\"1\" fill=\"none\" stroke=\"var(--asset-outline)\" stroke-width=\"0.8\"/><rect x=\"4.5\" y=\"13.5\" width=\"11\" height=\"17\" rx=\"1\" fill=\"none\" stroke=\"var(--asset-outline)\" stroke-width=\"0.8\"/><path d=\"M 4.5 19.5 H 15.5 M 4.5 24.5 H 15.5\" fill=\"none\" stroke=\"var(--asset-outline)\" stroke-width=\"0.55\"/><circle cx=\"18.8\" cy=\"16\" r=\"0.9\" fill=\"none\" stroke=\"var(--asset-outline)\" stroke-width=\"0.5\"/><circle cx=\"18.8\" cy=\"20\" r=\"0.9\" fill=\"none\" stroke=\"var(--asset-outline)\" stroke-width=\"0.5\"/><circle cx=\"18.8\" cy=\"24\" r=\"0.9\" fill=\"none\" stroke=\"var(--asset-outline)\" stroke-width=\"0.5\"/><rect x=\"4.5\" y=\"35\" width=\"16\" height=\"7\" rx=\"1\" fill=\"none\" stroke=\"var(--asset-outline)\" stroke-width=\"0.8\"/><line x1=\"7\" y1=\"38.5\" x2=\"18\" y2=\"38.5\" stroke=\"var(--asset-outline)\" stroke-width=\"0.6\"/></g>",
+    "svgViewBox": {
+      "w": 50,
+      "h": 25
+    },
+    "walkableGrid": [
+      [
+        false,
+        false
+      ]
+    ],
+    "tileStates": [
+      [
+        "blocked",
+        "blocked"
+      ]
+    ],
+    "interactSpots": [
+      {
+        "x": 12.5,
+        "y": 55
+      }
+    ],
+    "interact": {
+      "capacity": 1,
+      "durationMin": 3,
+      "durationMax": 8
+    },
+    "queue": {
+      "maxMembers": 3,
+      "admissionDepth": 4
+    }
+  },
+  {
+    "id": "custom-bathtub",
+    "name": "Bathtub",
+    "w": 2,
+    "h": 1,
+    "origin": "svg-import",
+    "category": "Special",
+    "walkable": false,
+    "defaultFillColor": "#ffffff",
+    "svg": "<rect x=\"2\" y=\"2\" width=\"46\" height=\"21\" rx=\"8\" fill=\"var(--obj-fill,#ffffff)\" stroke=\"var(--obj-stroke,#ffffff)\" stroke-width=\"1\"/><rect x=\"5.5\" y=\"5.5\" width=\"39\" height=\"14\" rx=\"6\" fill=\"none\" stroke=\"var(--asset-outline)\" stroke-width=\"0.8\"/><circle cx=\"40\" cy=\"12.5\" r=\"1.8\" fill=\"none\" stroke=\"var(--asset-outline)\" stroke-width=\"0.6\"/><circle cx=\"7.5\" cy=\"12.5\" r=\"1.3\" fill=\"none\" stroke=\"var(--asset-outline)\" stroke-width=\"0.6\"/>",
+    "svgViewBox": {
+      "w": 50,
+      "h": 25
+    },
+    "walkableGrid": [
+      [
+        false,
+        false
+      ]
+    ],
+    "tileStates": [
+      [
+        "blocked",
+        "blocked"
+      ]
+    ],
+    "interactSpots": [
+      {
+        "x": 25,
+        "y": 31
+      }
+    ],
+    "interact": {
+      "capacity": 1,
+      "durationMin": 15,
+      "durationMax": 40
+    },
+    "queue": {
+      "maxMembers": 3,
+      "admissionDepth": 4
+    }
+  },
+  {
+    "id": "custom-toilet",
+    "name": "Toilet",
+    "w": 1,
+    "h": 1,
+    "origin": "svg-import",
+    "category": "Special",
+    "walkable": false,
+    "defaultFillColor": "#ffffff",
+    "svg": "<rect x=\"6\" y=\"2\" width=\"13\" height=\"6\" rx=\"1.5\" fill=\"var(--obj-fill,#ffffff)\" stroke=\"var(--obj-stroke,#ffffff)\" stroke-width=\"0.9\"/><ellipse cx=\"12.5\" cy=\"15\" rx=\"8\" ry=\"7.5\" fill=\"var(--obj-fill,#ffffff)\" stroke=\"var(--obj-stroke,#ffffff)\" stroke-width=\"1\"/><ellipse cx=\"12.5\" cy=\"15\" rx=\"5.5\" ry=\"5\" fill=\"none\" stroke=\"var(--asset-outline)\" stroke-width=\"0.6\"/>",
+    "svgViewBox": {
+      "w": 25,
+      "h": 25
+    },
+    "walkableGrid": [
+      [
+        false
+      ]
+    ],
+    "tileStates": [
+      [
+        "blocked"
+      ]
+    ],
+    "interactSpots": [
+      {
+        "x": 12.5,
+        "y": 30
+      }
+    ],
+    "interact": {
+      "capacity": 1,
+      "durationMin": 3,
+      "durationMax": 8
+    },
+    "queue": {
+      "maxMembers": 3,
+      "admissionDepth": 4
+    }
+  },
+  {
+    "id": "custom-washbasin",
+    "name": "Washbasin",
+    "w": 1,
+    "h": 1,
+    "origin": "svg-import",
+    "category": "Special",
+    "walkable": false,
+    "defaultFillColor": "#ffffff",
+    "svg": "<rect x=\"2.5\" y=\"2.5\" width=\"20\" height=\"20\" rx=\"5\" fill=\"var(--obj-fill,#ffffff)\" stroke=\"var(--obj-stroke,#ffffff)\" stroke-width=\"1\"/><ellipse cx=\"12.5\" cy=\"13.5\" rx=\"7\" ry=\"6\" fill=\"none\" stroke=\"var(--asset-outline)\" stroke-width=\"0.7\"/><circle cx=\"12.5\" cy=\"5.8\" r=\"1.2\" fill=\"none\" stroke=\"var(--asset-outline)\" stroke-width=\"0.6\"/><line x1=\"12.5\" y1=\"7\" x2=\"12.5\" y2=\"8.8\" stroke=\"var(--asset-outline)\" stroke-width=\"0.5\"/>",
+    "svgViewBox": {
+      "w": 25,
+      "h": 25
+    },
+    "walkableGrid": [
+      [
+        false
+      ]
+    ],
+    "tileStates": [
+      [
+        "blocked"
+      ]
+    ],
+    "interactSpots": [
+      {
+        "x": 12.5,
+        "y": 30
+      }
+    ],
+    "interact": {
+      "capacity": 1,
+      "durationMin": 2,
+      "durationMax": 5
+    },
+    "queue": {
+      "maxMembers": 3,
+      "admissionDepth": 4
+    }
+  },
+  {
+    "id": "custom-shower",
+    "name": "Shower",
+    "w": 1,
+    "h": 1,
+    "origin": "svg-import",
+    "category": "Special",
+    "walkable": false,
+    "defaultFillColor": "#ffffff",
+    "svg": "<rect x=\"2\" y=\"2\" width=\"21\" height=\"21\" rx=\"2\" fill=\"var(--obj-fill,#ffffff)\" stroke=\"var(--obj-stroke,#ffffff)\" stroke-width=\"1\"/><circle cx=\"12.5\" cy=\"12.5\" r=\"2\" fill=\"none\" stroke=\"var(--asset-outline)\" stroke-width=\"0.7\"/><circle cx=\"12.5\" cy=\"12.5\" r=\"0.7\" fill=\"none\" stroke=\"var(--asset-outline)\" stroke-width=\"0.5\"/><path d=\"M 4 12.5 A 8.5 8.5 0 0 1 12.5 4\" fill=\"none\" stroke=\"var(--asset-outline)\" stroke-width=\"0.45\"/>",
+    "svgViewBox": {
+      "w": 25,
+      "h": 25
+    },
+    "walkableGrid": [
+      [
+        false
+      ]
+    ],
+    "tileStates": [
+      [
+        "blocked"
+      ]
+    ],
+    "interactSpots": [
+      {
+        "x": 12.5,
+        "y": 30
+      }
+    ],
+    "interact": {
+      "capacity": 1,
+      "durationMin": 10,
+      "durationMax": 25
+    },
+    "queue": {
+      "maxMembers": 3,
+      "admissionDepth": 4
+    }
+  },
+  {
+    "id": "custom-kitchen-sink",
+    "name": "Kitchen Sink",
+    "w": 2,
+    "h": 1,
+    "origin": "svg-import",
+    "category": "Special",
+    "walkable": false,
+    "defaultFillColor": "#ffffff",
+    "svg": "<rect x=\"1.5\" y=\"2\" width=\"47\" height=\"21\" rx=\"2\" fill=\"var(--obj-fill,#ffffff)\" stroke=\"var(--obj-stroke,#ffffff)\" stroke-width=\"1\"/><rect x=\"4.5\" y=\"5\" width=\"17\" height=\"15\" rx=\"2.5\" fill=\"none\" stroke=\"var(--asset-outline)\" stroke-width=\"0.8\"/><circle cx=\"13\" cy=\"12.5\" r=\"1.5\" fill=\"none\" stroke=\"var(--asset-outline)\" stroke-width=\"0.5\"/><circle cx=\"13\" cy=\"6.8\" r=\"1.1\" fill=\"none\" stroke=\"var(--asset-outline)\" stroke-width=\"0.5\"/><path d=\"M 30 6 V 19 M 33.5 6 V 19 M 37 6 V 19 M 40.5 6 V 19 M 44 6 V 19\" fill=\"none\" stroke=\"var(--asset-outline)\" stroke-width=\"0.45\"/>",
+    "svgViewBox": {
+      "w": 50,
+      "h": 25
+    },
+    "walkableGrid": [
+      [
+        false,
+        false
+      ]
+    ],
+    "tileStates": [
+      [
+        "blocked",
+        "blocked"
+      ]
+    ],
+    "interactSpots": [
+      {
+        "x": 25,
+        "y": 31
+      }
+    ],
+    "interact": {
+      "capacity": 1,
+      "durationMin": 3,
+      "durationMax": 8
+    },
+    "queue": {
+      "maxMembers": 3,
+      "admissionDepth": 4
+    }
+  },
+  {
+    "id": "custom-bench",
+    "name": "Bench",
+    "w": 2,
+    "h": 1,
+    "origin": "svg-import",
+    "category": "Special",
+    "walkable": true,
+    "defaultFillColor": "#ffffff",
+    "svg": "<line x1=\"6\" y1=\"17\" x2=\"6\" y2=\"21.5\" stroke=\"var(--asset-outline)\" stroke-width=\"0.8\"/><line x1=\"44\" y1=\"17\" x2=\"44\" y2=\"21.5\" stroke=\"var(--asset-outline)\" stroke-width=\"0.8\"/><rect x=\"2\" y=\"8\" width=\"46\" height=\"9\" rx=\"1.5\" fill=\"var(--obj-fill,#ffffff)\" stroke=\"var(--obj-stroke,#ffffff)\" stroke-width=\"1\"/><path d=\"M 4 11 H 46 M 4 14 H 46\" fill=\"none\" stroke=\"var(--asset-outline)\" stroke-width=\"0.5\"/>",
+    "svgViewBox": {
+      "w": 50,
+      "h": 25
+    },
+    "walkableGrid": [
+      [
+        true,
+        true
+      ]
+    ],
+    "tileStates": [
+      [
+        "walkable",
+        "walkable"
+      ]
+    ],
+    "interactSpots": [
+      {
+        "x": 14,
+        "y": 15
+      },
+      {
+        "x": 36,
+        "y": 15
+      }
+    ],
+    "interact": {
+      "capacity": 1,
+      "durationMin": 5,
+      "durationMax": 12
+    },
+    "queue": {
+      "maxMembers": 3,
+      "admissionDepth": 4
+    }
+  },
+  {
+    "id": "custom-office-chair",
+    "name": "Office Chair",
+    "w": 1,
+    "h": 1,
+    "origin": "svg-import",
+    "category": "Special",
+    "walkable": true,
+    "defaultFillColor": "#ffffff",
+    "svg": "<rect x=\"5\" y=\"3\" width=\"15\" height=\"7\" rx=\"3\" fill=\"var(--obj-fill,#ffffff)\" stroke=\"var(--obj-stroke,#ffffff)\" stroke-width=\"0.9\"/><rect x=\"6\" y=\"12\" width=\"13\" height=\"9\" rx=\"3\" fill=\"var(--obj-fill,#ffffff)\" stroke=\"var(--obj-stroke,#ffffff)\" stroke-width=\"1\"/><line x1=\"3.5\" y1=\"8\" x2=\"3.5\" y2=\"17\" stroke=\"var(--asset-outline)\" stroke-width=\"0.6\"/><line x1=\"21.5\" y1=\"8\" x2=\"21.5\" y2=\"17\" stroke=\"var(--asset-outline)\" stroke-width=\"0.6\"/><circle cx=\"12.5\" cy=\"22.2\" r=\"1\" fill=\"none\" stroke=\"var(--asset-outline)\" stroke-width=\"0.5\"/>",
+    "svgViewBox": {
+      "w": 25,
+      "h": 25
+    },
+    "walkableGrid": [
+      [
+        true
+      ]
+    ],
+    "tileStates": [
+      [
+        "walkable"
+      ]
+    ],
+    "interactSpots": [
+      {
+        "x": 12.5,
+        "y": 15
+      }
+    ],
+    "interact": {
+      "capacity": 1,
+      "durationMin": 3,
+      "durationMax": 10
+    },
+    "queue": {
+      "maxMembers": 3,
+      "admissionDepth": 4
     }
   }
 ]

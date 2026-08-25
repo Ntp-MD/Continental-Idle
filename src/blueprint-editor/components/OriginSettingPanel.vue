@@ -4,11 +4,9 @@ import { useAssetsStore } from "../blueprintStore";
 import { useToast } from "@/composables/useToast";
 import type { AssetDef } from "../types";
 import { isHexColor, isValidColor } from "../types";
-import ModalShell from "./ModalShell.vue";
 import ColorInput from "./ColorInput.vue";
 
-const props = defineProps<{ open: boolean; asset: AssetDef }>();
-const emit = defineEmits<{ (e: "close"): void }>();
+const props = defineProps<{ asset: AssetDef }>();
 const store = useAssetsStore();
 
 const dimFields = ref<{
@@ -176,51 +174,45 @@ watch(portal, async (v) => {
     portal.value = !v;
   }
 });
-
-function onClose() {
-  emit("close");
-}
 </script>
 
 <template>
-  <ModalShell :open="open" title="Origin Setting" max-width="500px" width="90vw" max-height="85vh" @close="onClose">
-    <div class="modal__body">
-      <template v-if="!isLinkedAsset">
-        <div v-if="sizeLocked" class="card">
-          
-          <span>Size is locked - asset is placed on floors. Remove all instances to resize.</span>
+  <div class="modal__body">
+    <div v-if="sizeLocked" class="card">
+      <span>Size is locked - asset is placed on floors. Remove all instances to resize.</span>
+    </div>
+    <div class="originpanel__section">
+      <div class="originpanel__title">Dimensions</div>
+      <div v-if="!isSvgAsset" class="form__row">
+        <label>Unit Mode</label>
+        <div class="form__row form__row--tight">
+          <button :class="{ 'flag--warning': !dimFields.usePx }" :disabled="sizeLocked" @click="dimFields.usePx ? toggleUsePx() : null">Tiles</button>
+          <button :class="{ 'flag--warning': dimFields.usePx }" :disabled="sizeLocked" @click="!dimFields.usePx ? toggleUsePx() : null">Pixels</button>
         </div>
-        <div v-if="!isSvgAsset" class="form__row">
-          <label>Unit Mode</label>
-          <div class="form__row form__row--tight">
-            <button :class="{ 'flag--warning': !dimFields.usePx }" :disabled="sizeLocked" @click="dimFields.usePx ? toggleUsePx() : null">Tiles</button>
-            <button :class="{ 'flag--warning': dimFields.usePx }" :disabled="sizeLocked" @click="!dimFields.usePx ? toggleUsePx() : null">Pixels</button>
+      </div>
+      <template v-if="!dimFields.usePx">
+        <div class="form__row form__row--pair">
+          <div class="form__row">
+            <label>Width</label>
+            <input type="number" min="1" :disabled="sizeLocked" v-model.number="dimFields.w" @change="commitField('w')" />
+          </div>
+          <div class="form__row">
+            <label>Height</label>
+            <input type="number" min="1" :disabled="sizeLocked" v-model.number="dimFields.h" @change="commitField('h')" />
           </div>
         </div>
-        <template v-if="!dimFields.usePx">
-          <div class="form__row form__row--pair">
-            <div class="form__row">
-              <label>Width</label>
-              <input type="number" min="1" :disabled="sizeLocked" v-model.number="dimFields.w" @change="commitField('w')" />
-            </div>
-            <div class="form__row">
-              <label>Height</label>
-              <input type="number" min="1" :disabled="sizeLocked" v-model.number="dimFields.h" @change="commitField('h')" />
-            </div>
+      </template>
+      <template v-else>
+        <div class="form__row form__row--pair">
+          <div class="form__row">
+            <label>Width (px)</label>
+            <input type="number" min="1" :disabled="sizeLocked" v-model.number="dimFields.pxW" @change="commitField('pxW')" />
           </div>
-        </template>
-        <template v-else>
-          <div class="form__row form__row--pair">
-            <div class="form__row">
-              <label>Width (px)</label>
-              <input type="number" min="1" :disabled="sizeLocked" v-model.number="dimFields.pxW" @change="commitField('pxW')" />
-            </div>
-            <div class="form__row">
-              <label>Height (px)</label>
-              <input type="number" min="1" :disabled="sizeLocked" v-model.number="dimFields.pxH" @change="commitField('pxH')" />
-            </div>
+          <div class="form__row">
+            <label>Height (px)</label>
+            <input type="number" min="1" :disabled="sizeLocked" v-model.number="dimFields.pxH" @change="commitField('pxH')" />
           </div>
-        </template>
+        </div>
       </template>
       <div class="form__row form__row--pair">
         <div class="form__row">
@@ -236,35 +228,36 @@ function onClose() {
         <label>Shape Radius</label>
         <input type="number" min="0" v-model.number="dimFields.defaultRadius" @change="commitField('defaultRadius')" />
       </div>
-      <template v-if="!isLinkedAsset">
-        <div class="form__row">
-          <label>Corner Radius</label>
-          <div class="form__row form__row--tight">
-            <label class="form__row form__row--tight">
-              <span>TL</span>
-              <input type="number" min="0" v-model.number="dimFields.rxTL" @input="onRxInput('rxTL')" />
-            </label>
-            <label class="form__row form__row--tight">
-              <span>TR</span>
-              <input type="number" min="0" v-model.number="dimFields.rxTR" @input="onRxInput('rxTR')" />
-            </label>
-            <label class="form__row form__row--tight">
-              <span>BL</span>
-              <input type="number" min="0" v-model.number="dimFields.rxBL" @input="onRxInput('rxBL')" />
-            </label>
-            <label class="form__row form__row--tight">
-              <span>BR</span>
-              <input type="number" min="0" v-model.number="dimFields.rxBR" @input="onRxInput('rxBR')" />
-            </label>
-            <button type="button" class="flag--icon" :class="{ 'flag--active': assetRxSync }" :aria-pressed="assetRxSync" :title="assetRxSync ? 'Sync all corners - ON' : 'Sync all corners - OFF'" @click="assetRxSync = !assetRxSync">
-              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
-                <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
-              </svg>
-            </button>
-          </div>
+      <div v-if="!isLinkedAsset" class="form__row">
+        <label>Corner Radius</label>
+        <div class="form__row form__row--tight">
+          <label class="form__row form__row--tight">
+            <span>TL</span>
+            <input type="number" min="0" v-model.number="dimFields.rxTL" @input="onRxInput('rxTL')" />
+          </label>
+          <label class="form__row form__row--tight">
+            <span>TR</span>
+            <input type="number" min="0" v-model.number="dimFields.rxTR" @input="onRxInput('rxTR')" />
+          </label>
+          <label class="form__row form__row--tight">
+            <span>BL</span>
+            <input type="number" min="0" v-model.number="dimFields.rxBL" @input="onRxInput('rxBL')" />
+          </label>
+          <label class="form__row form__row--tight">
+            <span>BR</span>
+            <input type="number" min="0" v-model.number="dimFields.rxBR" @input="onRxInput('rxBR')" />
+          </label>
+          <button type="button" class="flag--icon" :class="{ 'flag--active': assetRxSync }" :aria-pressed="assetRxSync" :title="assetRxSync ? 'Sync all corners - ON' : 'Sync all corners - OFF'" @click="assetRxSync = !assetRxSync">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+              <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+            </svg>
+          </button>
         </div>
-      </template>
+      </div>
+    </div>
+    <div class="originpanel__section">
+      <div class="originpanel__title">Appearance</div>
       <div class="form__row">
         <label>Fill Color</label>
         <div class="form__row">
@@ -285,6 +278,9 @@ function onClose() {
           <button type="button" @click="clearAssetStrokeColor">Reset</button>
         </div>
       </div>
+    </div>
+    <div class="originpanel__section">
+      <div class="originpanel__title">Behavior</div>
       <div class="form__row">
         <label>Portal</label>
         <button :class="{ 'flag--success': portal, 'flag--danger': !portal }" :disabled="isNpcDeployed" @click="portal = !portal" :title="isNpcDeployed ? 'Exit NPC preview to change Portal setting' : portal ? 'NPCs can travel to another floor through this object' : 'NPCs cannot use this object for cross-floor travel'">
@@ -293,5 +289,24 @@ function onClose() {
       </div>
       <div class="form__hint">Portal objects let NPCs travel between floors (e.g. elevators, stairs).</div>
     </div>
-  </ModalShell>
+  </div>
 </template>
+
+<style scoped>
+.originpanel__section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-sm);
+  border: 1px solid var(--border-dim);
+  border-radius: var(--radius-sm);
+  padding: var(--gap-sm);
+}
+
+.originpanel__title {
+  font-size: var(--font-xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--text-dim);
+}
+</style>
