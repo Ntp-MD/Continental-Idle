@@ -240,7 +240,7 @@ function onSyncToGame() {
     <button :class="{ 'flag--warning': store.state.mode === 'object' && !store.state.wallPaint }" @click="onSwitchMode('object')" aria-label="Switch to object mode">Object</button>
     <button :class="{ 'flag--warning': store.state.mode === 'draw' && !store.state.wallPaint }" @click="onSwitchMode('draw')" aria-label="Switch to draw mode">Draw Object</button>
     <button :class="{ 'flag--warning': store.state.mode === 'move' && !store.state.wallPaint }" @click="onSwitchMode('move')" aria-label="Switch to move mode">Move</button>
-    <button :class="{ 'flag--warning': store.state.wallPaint }" :disabled="store.state.mode === 'npc-preview'" @click="store.setWallPaint(!store.state.wallPaint)" title="Paint wall lines on tile boundaries - Shift+drag box-selects walls in any mode, Delete removes, in wall paint: left-drag draws, Alt+drag or right-drag erases, Escape exits" aria-label="Toggle wall paint tool">Wall Paint</button>
+    <button :class="{ 'flag--warning': store.state.wallPaint }" :disabled="store.state.mode === 'npc-preview'" @click="store.setWallPaint(!store.state.wallPaint)" title="Draw walls on tile boundaries" aria-label="Toggle draw wall tool">Draw Wall</button>
 
     <button @click="onNpcManager" title="Configure NPC roles and tags" aria-label="Open NPC manager">NPC Manager</button>
     <button class="flag--warning" :disabled="pending" @click="onSyncOrigins" title="Re-resolve every placed object from its origin asset and rebuild walkable layout" aria-label="Refresh all placed objects from origins">Refresh Objects</button>
@@ -267,7 +267,7 @@ function onSyncToGame() {
           </div>
         </div>
         <div v-if="total > 0" class="npc__stats">
-          <span v-for="s in statusCounts" :key="s.key" class="npc__stat" :class="`npc__stat--${s.key}`">
+          <span v-for="s in statusCounts" :key="s.key" class="npc__stat" :class="s.key === 'idle' ? undefined : `npc__stat--${s.key}`">
             {{ s.label }} <b>{{ s.count }}</b>
           </span>
         </div>

@@ -255,10 +255,8 @@ onUnmounted(() => {
     </div>
 
     <div class="map__legend">
-      <div class="map__legend">
-        <span class="map__legenddot map__legenddot--primary"></span>
-        Continental Branch
-      </div>
+      <span class="map__legenddot map__legenddot--primary"></span>
+      Continental Branch
     </div>
 
     <div v-if="tooltipVisible" class="map__tooltip" role="tooltip" :style="{ left: tooltipX + 'px', top: tooltipY + 'px' }">

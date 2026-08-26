@@ -21,6 +21,8 @@ export function useCanvasSelection(
 		store: AssetsStore
 		getMode: () => EditorMode
 		onDrawComplete?: (rect: Rect) => void
+		onBoxSelectStart?: () => void
+		onBoxSelectComplete?: (rect: Rect) => void
 	},
 ): SelectionState {
 	const BOX_SELECT_THRESHOLD = 4
@@ -43,6 +45,7 @@ export function useCanvasSelection(
 		}
 		store.select(null)
 		store.selectAsset(null)
+		opts.onBoxSelectStart?.()
 		boxSelect.value = { startX: p.x, startY: p.y, x: p.x, y: p.y, w: 0, h: 0 }
 		window.addEventListener('mousemove', onBoxSelectMouseMove)
 		window.addEventListener('mouseup', onBoxSelectMouseUp)
@@ -72,6 +75,7 @@ export function useCanvasSelection(
 				boxSelect.value = null
 				return
 			}
+			opts.onBoxSelectComplete?.(rect)
 			const floor = opts.floor.value
 			const objs: ObjectData[] = floor?.objects ?? []
 			const hitIds = objs.filter(o => aabbOverlap(o, rect)).map(o => o.id)

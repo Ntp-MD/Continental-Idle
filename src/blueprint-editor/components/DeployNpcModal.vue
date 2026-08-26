@@ -4,6 +4,7 @@ import { useToast } from "@/composables/useToast";
 import { useAssetsStore } from "../blueprintStore";
 import { state } from "../store/state";
 import { normalizeNpcConfig, type NpcSimulationConfig, type NpcRole, type NpcSpawnRule } from "../types";
+import { emptyNpcConfig } from "../store/utils";
 import ModalShell from "./ModalShell.vue";
 
 const props = defineProps<{ open: boolean }>();
@@ -13,7 +14,7 @@ const toast = useToast();
 const store = useAssetsStore();
 
 if (!state.layout.npcConfig) {
-  state.layout.npcConfig = { speed: 0.2, defaultRoleId: "", roles: [], tasks: [], pool: [] };
+  state.layout.npcConfig = emptyNpcConfig();
 }
 function cloneConfig(value: NpcSimulationConfig): NpcSimulationConfig {
   return JSON.parse(JSON.stringify(value)) as NpcSimulationConfig;

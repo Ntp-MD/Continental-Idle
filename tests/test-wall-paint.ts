@@ -1,84 +1,103 @@
 import assert from 'node:assert/strict'
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
+import { useCanvasSelection } from '../src/blueprint-editor/composables/useCanvasSelection'
 import { useWallPaint } from '../src/blueprint-editor/composables/useWallPaint'
+import type { AssetsStore } from '../src/blueprint-editor/store/index'
 import type { FloorData } from '../src/blueprint-editor/types'
 
-	; (async () => {
-		const selectedWallSegment = { x1: 0, y1: 10, x2: 10, y2: 10 }
-		const secondWallSegment = { x1: 10, y1: 10, x2: 20, y2: 10 }
-		const listeners = new Map<string, Array<(event: MouseEvent) => void>>()
-		const windowMock = {
-			addEventListener: (type: string, listener: (event: MouseEvent) => void) => {
-				listeners.set(type, [...(listeners.get(type) ?? []), listener])
-			},
-			removeEventListener: (type: string, listener: (event: MouseEvent) => void) => {
-				listeners.set(type, (listeners.get(type) ?? []).filter(item => item !== listener))
-			},
-		}
-			; (globalThis as { window?: unknown }).window = windowMock
-		const selectedWallFloor: FloorData = {
-			id: 'floor-wall',
-			name: 'Wall Floor',
-			label: 'W',
-			objects: [],
-			defaultWalkable: true,
-			walkable: { tileEdges: [[{ bottom: true }, { bottom: true }], [{ top: true }, { top: true }]] },
-		}
-		let clearedObjectSelection = false
-		let deletedWalkable: FloorData['walkable']
-		const wallTool = useWallPaint({
-			disabled: () => false,
-			localPoint: (event) => ({ x: event.clientX, y: event.clientY }),
-			tileSize: () => 10,
-			canvasWidth: () => 20,
-			canvasHeight: () => 20,
-			floor: computed(() => selectedWallFloor),
-			wallAtPoint: (point) => point.y === 10 ? selectedWallSegment : null,
-			wallsInRect: () => [selectedWallSegment, secondWallSegment],
-			clearOtherSelection: () => { clearedObjectSelection = true },
-			commit: async (_floorId, walkable) => { deletedWalkable = walkable },
-		})
-		wallTool.active.value = true
+const listeners = new Map<string, Array<(event: MouseEvent) => void>>()
+const windowMock = {
+	addEventListener: (type: string, listener: (event: MouseEvent) => void) => {
+		listeners.set(type, [...(listeners.get(type) ?? []), listener])
+	},
+	removeEventListener: (type: string, listener: (event: MouseEvent) => void) => {
+		listeners.set(type, (listeners.get(type) ?? []).filter(item => item !== listener))
+	},
+}
 
-		assert.equal(wallTool.onMouseDown({ button: 0, clientX: 5, clientY: 10 } as MouseEvent), true)
-		for (const listener of listeners.get('mouseup') ?? []) listener({} as MouseEvent)
-		assert.deepEqual(wallTool.selected.value, [{ floorId: 'floor-wall', segment: selectedWallSegment }])
-		assert.equal(clearedObjectSelection, true)
-		assert.equal(wallTool.onMouseDown({ button: 0, clientX: 0, clientY: 0 } as MouseEvent), true)
-		for (const listener of listeners.get('mousemove') ?? []) listener({ clientX: 20, clientY: 20 } as MouseEvent)
-		for (const listener of listeners.get('mouseup') ?? []) listener({} as MouseEvent)
-		await Promise.resolve()
-		assert.deepEqual(wallTool.selected.value, [
-			{ floorId: 'floor-wall', segment: selectedWallSegment },
-			{ floorId: 'floor-wall', segment: secondWallSegment },
-		])
-		await wallTool.deleteSelected()
-		assert.deepEqual(deletedWalkable?.tileEdges, [[{}, {}], [{}, {}]])
-		assert.equal(wallTool.selected.value.length, 0)
-		assert.equal(wallTool.selectionBox.value, null)
+defineWindow(windowMock)
 
-		// Shift+drag box-selects walls even with the tool inactive (any mode)
-		const inactiveDeleted: FloorData['walkable'][] = []
-		const inactiveTool = useWallPaint({
-			disabled: () => false,
-			localPoint: (event) => ({ x: event.clientX, y: event.clientY }),
-			tileSize: () => 10,
-			canvasWidth: () => 20,
-			canvasHeight: () => 20,
-			floor: computed(() => selectedWallFloor),
-			wallAtPoint: () => null,
-			wallsInRect: () => [selectedWallSegment, secondWallSegment],
-			clearOtherSelection: () => { clearedObjectSelection = true },
-			commit: async (_floorId, walkable) => { inactiveDeleted.push(walkable) },
-		})
-		assert.equal(inactiveTool.active.value, false)
-		assert.equal(inactiveTool.onMouseDown({ button: 0, clientX: 0, clientY: 0, shiftKey: true } as MouseEvent), true)
-		for (const listener of listeners.get('mousemove') ?? []) listener({ clientX: 20, clientY: 20 } as MouseEvent)
-		for (const listener of listeners.get('mouseup') ?? []) listener({} as MouseEvent)
-		assert.equal(inactiveTool.selected.value.length, 2)
-		assert.equal(inactiveDeleted.length, 0)
-		console.log('Wall multi-selection deletion checks passed')
-	})().catch(error => {
-		console.error(error)
-		process.exitCode = 1
-	})
+function defineWindow(value: unknown): void {
+	; (globalThis as { window?: unknown }).window = value
+}
+
+function emit(type: string, event: MouseEvent): void {
+	for (const listener of [...(listeners.get(type) ?? [])]) listener(event)
+}
+
+const floor: FloorData = {
+	id: 'floor-wall',
+	name: 'Wall Floor',
+	label: 'W',
+	objects: [],
+	defaultWalkable: true,
+	walkable: { tileEdges: [[{}, {}], [{}, {}]] },
+}
+const saved: NonNullable<FloorData['walkable']>[] = []
+const wallTool = useWallPaint({
+	disabled: () => false,
+	localPoint: event => ({ x: event.clientX, y: event.clientY }),
+	tileSize: () => 10,
+	canvasWidth: () => 20,
+	canvasHeight: () => 20,
+	floor: computed(() => floor),
+	wallAtPoint: () => null,
+	wallsInRect: () => [
+		{ x1: 0, y1: 0, x2: 10, y2: 0 },
+		{ x1: 10, y1: 10, x2: 10, y2: 20 },
+		{ x1: 0, y1: 10, x2: 10, y2: 10 },
+	],
+	commit: async (_floorId, walkable) => {
+		floor.walkable = walkable
+		saved.push(walkable)
+	},
+})
+
+wallTool.active.value = true
+assert.equal(wallTool.onMouseDown({ button: 0, clientX: 4, clientY: 0 } as MouseEvent), true)
+emit('mouseup', {} as MouseEvent)
+assert.deepEqual(floor.walkable?.tileEdges, [[{ top: true }, {}], [{}, {}]])
+assert.equal(saved.length, 1)
+
+assert.equal(wallTool.onMouseDown({ button: 0, clientX: 5, clientY: 5 } as MouseEvent), true)
+emit('mousemove', { clientX: 5, clientY: 20 } as MouseEvent)
+emit('mouseup', {} as MouseEvent)
+assert.deepEqual(floor.walkable?.tileEdges, [[{ top: true }, {}], [{ right: true }, { left: true }]])
+assert.equal(saved.length, 2)
+
+assert.equal(wallTool.onMouseDown({ button: 0, clientX: 4, clientY: 10 } as MouseEvent), true)
+emit('mousemove', { clientX: 14, clientY: 10 } as MouseEvent)
+emit('mouseup', {} as MouseEvent)
+assert.deepEqual(floor.walkable?.tileEdges, [[{ bottom: true, top: true }, {}], [{ right: true, top: true }, { left: true }]])
+assert.equal(saved.length, 3)
+
+const objectToolStore = {
+	state: { mode: 'object', selectionState: { primary: null, items: [] } },
+	select: () => { },
+	selectAsset: () => { },
+} as unknown as AssetsStore
+const objectSelection = useCanvasSelection({
+	spaceDown: ref(false),
+	localPoint: event => ({ x: event.clientX, y: event.clientY }),
+	canvasWidth: () => 20,
+	canvasHeight: () => 20,
+	startPan: () => { },
+	floor: computed(() => floor),
+	store: objectToolStore,
+	getMode: () => 'object',
+	onBoxSelectComplete: rect => wallTool.selectInRect(rect),
+})
+objectSelection.onCanvasMouseDown({ button: 0, clientX: 0, clientY: 0 } as MouseEvent)
+emit('mousemove', { clientX: 20, clientY: 20 } as MouseEvent)
+emit('mouseup', {} as MouseEvent)
+assert.equal(wallTool.selected.value.length, 3)
+await wallTool.deleteSelected()
+assert.deepEqual(floor.walkable?.tileEdges, [[{}, {}], [{}, {}]])
+assert.equal(saved.length, 4)
+assert.equal(wallTool.selected.value.length, 0)
+
+assert.equal(wallTool.onMouseDown({ button: 2, clientX: 0, clientY: 0 } as MouseEvent), false)
+wallTool.cancel()
+assert.equal(listeners.get('mousemove')?.length ?? 0, 0)
+assert.equal(listeners.get('mouseup')?.length ?? 0, 0)
+console.log('Draw Wall and object-tool multi-select checks passed')

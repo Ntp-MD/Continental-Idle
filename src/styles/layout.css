@@ -5,13 +5,6 @@
    ═══════════════════════════════════════════════ */
 
 
-/* ── Game Shell ── */
-.game__layout {
-	display: flex;
-	flex-direction: column;
-}
-
-
 /* ── Map Container ── */
 .map {
 	position: relative;
@@ -179,50 +172,6 @@
 	stroke-dasharray: 4 3;
 	opacity: 0.3;
 	fill: none;
-}
-
-
-/* ── Map Action Buttons ── */
-.mapactions {
-	position: absolute;
-	bottom: var(--gap-md);
-	left: 50%;
-	transform: translateX(-50%);
-	display: flex;
-	gap: var(--gap-xs);
-	z-index: var(--z-layer-1);
-	padding: var(--gap-xs);
-	background: color-mix(in srgb, var(--bg-primary) 75%, transparent);
-	backdrop-filter: blur(12px);
-	-webkit-backdrop-filter: blur(12px);
-	border: 1px solid var(--border-dim);
-	border-radius: var(--radius-md);
-}
-
-.mapactions__btn {
-	background: transparent;
-	border: 1px solid transparent;
-	font-family: inherit;
-	letter-spacing: 0.5px;
-}
-
-.mapactions__btn:hover {
-	background: color-mix(in srgb, var(--accent-primary) 12%, transparent);
-	transform: none;
-}
-
-
-/* ── Status Bar ── */
-.game__status {
-	background: var(--bg-secondary);
-	border-top: 1px solid var(--border-dim);
-	padding: var(--gap-xs) var(--gap-md);
-	display: flex;
-	justify-content: space-between;
-	font-size: var(--font-xs);
-	color: var(--text-dim);
-	flex-shrink: 0;
-	letter-spacing: 0.3px;
 }
 
 

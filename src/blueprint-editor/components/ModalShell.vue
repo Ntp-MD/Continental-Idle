@@ -61,7 +61,7 @@ onUnmounted(() => {
 
 <template>
   <Teleport to="body">
-    <div v-if="open" :class="floating ? 'modal__overlay--floating' : 'modal__overlay'" @click.self="!floating && onClose()">
+    <div v-if="open" class="modal__overlay" :class="{ 'modal__overlay--floating': floating }" @click.self="!floating && onClose()">
       <div ref="containerRef" class="modal__dialog" :class="{ 'modal__dialog--dragging': isDragging, [dialogClass]: !!dialogClass }" :style="{ maxWidth, width, height, maxHeight, transform: `translate(${pos.x}px, ${pos.y}px)` }" role="dialog" :aria-modal="!floating" :aria-labelledby="titleId">
         <div class="modal__header" @mousedown="onDown">
           <span :id="titleId" class="modal__title">{{ title }}</span>

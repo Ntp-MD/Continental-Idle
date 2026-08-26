@@ -15,6 +15,8 @@ import ColorInput from "./ColorInput.vue";
 import ModalShell from "./ModalShell.vue";
 import { useNpcSimulation } from "../composables/useNpcSimulation";
 import { useWallPaint, type WallSegment } from "../composables/useWallPaint";
+import { wallRunsFromEdges } from "../roomConvert";
+import { assetSizeFor } from "../geometry";
 import { renderSvgInto as renderSvgContent } from "../svgSanitizer";
 
 const vSvgContent = {
@@ -237,22 +239,51 @@ interface WallRun extends WallSegment {}
 const wallRuns = computed<WallRun[]>(() => {
   const tileEdges = floor.value?.walkable?.tileEdges;
   if (!tileEdges) return [];
+  return wallRunsFromEdges(tileEdges, canvas.value.tileSize);
+});
+
+interface ObjWallLine extends WallSegment { id: string }
+const objWallLines = computed<ObjWallLine[]>(() => {
+  const fl = floor.value;
+  if (!fl) return [];
   const t = canvas.value.tileSize;
-  const runs: WallRun[] = [];
-  for (let r = 0; r < tileEdges.length; r++) {
-    const row = tileEdges[r];
-    if (!row) continue;
-    for (let c = 0; c < row.length; c++) {
-      const edges = row[c];
-      if (!edges) continue;
-      if (edges.top) runs.push({ x1: c * t, y1: r * t, x2: (c + 1) * t, y2: r * t });
-      if (edges.bottom) runs.push({ x1: c * t, y1: (r + 1) * t, x2: (c + 1) * t, y2: (r + 1) * t });
-      if (edges.left) runs.push({ x1: c * t, y1: r * t, x2: c * t, y2: (r + 1) * t });
-      if (edges.right) runs.push({ x1: (c + 1) * t, y1: r * t, x2: (c + 1) * t, y2: (r + 1) * t });
+  const assets = store.assetMap();
+  const lines: ObjWallLine[] = [];
+  for (const o of fl.objects) {
+    const asset = assets.get(o.type);
+    if (!asset?.tileEdges?.length) continue;
+    const resolved = resolveObjectDef(o.rotation, asset, { w: o.w, h: o.h });
+    const edges = resolved.tileEdges;
+    if (!edges?.length) continue;
+    const size = assetSizeFor(o.type, o.rotation, t, assets) ?? { w: Math.max(o.w, t), h: Math.max(o.h, t) };
+    const cellH = size.h / edges.length;
+    const cols = edges[0]?.length ?? 0;
+    if (!cols) continue;
+    const cellW = size.w / cols;
+    for (let r = 0; r < edges.length; r++) {
+      const row = edges[r];
+      if (!row) continue;
+      for (let c = 0; c < row.length; c++) {
+        const cell = row[c];
+        if (!cell) continue;
+        const x0 = o.x + c * cellW;
+        const y0 = o.y + r * cellH;
+        if (cell.top) lines.push({ id: o.id, x1: x0, y1: y0, x2: x0 + cellW, y2: y0 });
+        if (cell.bottom) lines.push({ id: o.id, x1: x0, y1: y0 + cellH, x2: x0 + cellW, y2: y0 + cellH });
+        if (cell.left) lines.push({ id: o.id, x1: x0, y1: y0, x2: x0, y2: y0 + cellH });
+        if (cell.right) lines.push({ id: o.id, x1: x0 + cellW, y1: y0, x2: x0 + cellW, y2: y0 + cellH });
+      }
     }
   }
-  return runs;
+  return lines;
 });
+
+async function convertSelectedWalls() {
+  const selected = wallPaint.selected.value;
+  if (selected.length === 0 || !floor.value) return;
+  await store.convertWallsToRoom(floor.value.id, selected.map((s) => s.segment));
+  wallPaint.clearSelection();
+}
 
 function wallDistance(point: { x: number; y: number }, wall: WallSegment): number {
   const dx = wall.x2 - wall.x1;
@@ -290,7 +321,7 @@ function wallsInRect(rect: { x: number; y: number; w: number; h: number }): Wall
 }
 
 const modeLabel = computed(() => {
-  if (wallPaintActive.value) return "Wall Paint Mode";
+  if (wallPaintActive.value) return "Draw Wall Mode";
   const labels: Record<string, string> = {
     object: "Object",
     draw: "Draw Object",
@@ -301,11 +332,11 @@ const modeLabel = computed(() => {
 });
 
 const modeHint = computed(() => {
-  if (wallPaintActive.value) return "Click a wall to select it - drag a box over walls to select multiple - Delete removes them - left-drag draws - Alt+drag or right-drag erases - Escape exits";
+  if (wallPaintActive.value) return "Draw Wall: click or drag boundaries - Object tool drag empty space selects walls - Delete removes selection - Escape exits";
   const hints: Record<string, string> = {
-    object: "Drag an asset from the palette onto the canvas",
+    object: "Drag an asset from the palette onto the canvas - drag empty space to select objects and walls",
     draw: "Drag a rectangle, then save it as an origin asset",
-    move: "Click and drag an object to reposition it - Shift+drag empty space box-selects walls too - Delete removes the selection",
+    move: "Click and drag an object to reposition it - Delete removes the selection",
     "npc-preview": "NPCs are simulating on this floor",
   };
   return hints[store.state.mode] ?? "";
@@ -331,10 +362,6 @@ const wallPaint = useWallPaint({
   floor,
   wallAtPoint,
   wallsInRect,
-  clearOtherSelection: () => {
-    store.select(null);
-    store.selectAsset(null);
-  },
   commit: async (floorId, walkable) => {
     try {
       const saved = await store.updateFloor(floorId, { walkable });
@@ -351,25 +378,28 @@ const DEFAULT_WALL_THICKNESS = 3;
 const wallColor = computed(() => canvas.value.wallColor || DEFAULT_WALL_COLOR);
 const wallThickness = computed(() => canvas.value.wallThickness ?? DEFAULT_WALL_THICKNESS);
 const wallPreview = wallPaint.preview;
-const wallErasing = wallPaint.erasing;
 const selectedWall = wallPaint.selected;
-const wallSelectionBox = computed(() => wallPaint.selectionBox.value);
 watch(
   () => store.state.wallPaint,
   (on) => {
     wallPaint.active.value = on;
     if (!on) {
-      wallPaint.clearSelected();
-    } else if (!showWalls.value) {
-      showWalls.value = true;
-      saveViewToggles();
+      wallPaint.cancel();
+      wallPaint.clearSelection();
+    } else {
+      store.select(null);
+      store.selectAsset(null);
+      wallPaint.clearSelection();
+      if (!showWalls.value) {
+        showWalls.value = true;
+        saveViewToggles();
+      }
     }
   },
   { immediate: true },
 );
 function onCanvasMouseDownWithWalls(e: MouseEvent) {
   if (wallPaint.onMouseDown(e)) return;
-  wallPaint.clearSelected();
   onCanvasMouseDown(e);
 }
 function onCanvasContextMenu(e: MouseEvent) {
@@ -412,6 +442,8 @@ const sel = useCanvasSelection({
   store: store,
   getMode: () => store.state.mode,
   onDrawComplete,
+  onBoxSelectStart: () => wallPaint.clearSelection(),
+  onBoxSelectComplete: (rect) => wallPaint.selectInRect(rect),
 });
 const { boxSelect, onCanvasMouseDown, onBoxSelectMouseMove, onBoxSelectMouseUp } = sel;
 
@@ -433,6 +465,7 @@ const selectedRotation = computed<number | null>(() => {
   return store.selectedObject()?.rotation ?? null;
 });
 const showStreet = computed(() => !!store.state.layout.streetFloorId && store.state.layout.streetFloorId === store.state.currentFloorId);
+
 const mouseCoords = ref({ x: 0, y: 0 });
 const rulerMouseX = ref(-1);
 const rulerMouseY = ref(-1);
@@ -515,11 +548,8 @@ function tryCycleSelect(p: { x: number; y: number }): EntityRef | null {
 }
 
 function onObjectMouseDown(e: MouseEvent, id: string) {
-  if (wallPaintActive.value) {
-    wallPaint.clearSelected();
-    return;
-  }
-  wallPaint.clearSelected();
+  if (wallPaintActive.value) return;
+  wallPaint.clearSelection();
   if (e.button === 1 || spaceDown.value) return;
   e.stopPropagation();
   if (e.shiftKey || e.ctrlKey || e.metaKey) {
@@ -720,8 +750,9 @@ async function onKeyDown(e: KeyboardEvent) {
       }
     }
   } else if (e.key === "Escape") {
-    wallPaint.clearSelected();
     if (wallPaintActive.value) {
+      wallPaint.cancel();
+      wallPaint.clearSelection();
       store.setWallPaint(false);
       return;
     }
@@ -771,6 +802,8 @@ onMounted(() => {
 onUnmounted(() => {
   stopNpcSimulation();
   stopNpcDraw();
+  wallPaint.cancel();
+  wallPaint.clearSelection();
   window.removeEventListener("keydown", onKeyDown);
   window.removeEventListener("keyup", onKeyUp);
   window.removeEventListener("blur", onWindowBlur);
@@ -837,18 +870,7 @@ function wallKey(wall: WallSegment): string {
   return `${wall.x1},${wall.y1},${wall.x2},${wall.y2}`;
 }
 
-const wallSelectionKeys = computed(() => {
-  const keys = new Set<string>();
-  const fid = floor.value?.id;
-  for (const selected of selectedWall.value) {
-    if (selected.floorId === fid) keys.add(wallKey(selected.segment));
-  }
-  const box = wallPaint.selectionBox.value;
-  if (box && box.floorId === fid) {
-    for (const wall of wallsInRect({ x: box.x, y: box.y, w: box.w, h: box.h })) keys.add(wallKey(wall));
-  }
-  return keys;
-});
+const wallSelectionKeys = computed(() => new Set(selectedWall.value.map((selection) => wallKey(selection.segment))));
 
 function isWallSelected(wall: WallSegment): boolean {
   return wallSelectionKeys.value.has(wallKey(wall));
@@ -886,7 +908,7 @@ async function cancelDrawnOrigin() {
   <div
     :ref="vp.containerRef"
     class="editor__canvas"
-    :class="{ 'editor__canvas--panning': spaceDown, 'editor__canvas--dragging': !!panning, 'editor__mode--draw': store.state.mode === 'draw', 'editor__mode--move': store.state.mode === 'move', 'editor__mode--wallpaint': wallPaintActive }"
+    :class="{ 'editor__canvas--panning': spaceDown, 'editor__canvas--dragging': !!panning, 'editor__canvas--draw': store.state.mode === 'draw', 'editor__canvas--move': store.state.mode === 'move', 'editor__canvas--wallpaint': wallPaintActive }"
     @wheel="onWheel"
     @mousedown="onPanMouseDown"
     @mousemove="onContainerMouseMove"
@@ -974,15 +996,14 @@ async function cancelDrawnOrigin() {
         <rect v-for="(run, i) in walkableRuns" :key="`floor-walk-run-${i}`" :x="run.x" :y="run.y" :width="run.w" :height="run.h" :class="`editor__tile editor__tile--${run.state}`" />
       </g>
 
-      <g v-if="renderWalls && floor?.walkable?.tileEdges" v-memo="[wallRuns, renderWalls, wallColor, wallThickness, selectedWall, wallSelectionBox]" class="editor__walls editor__svg--noevents">
+      <g v-if="renderWalls" v-memo="[wallRuns, objWallLines, renderWalls, wallColor, wallThickness, selectedWall]" class="editor__svg--noevents">
         <line v-for="(run, i) in wallRuns" :key="`floor-wall-run-${i}`" :x1="run.x1" :y1="run.y1" :x2="run.x2" :y2="run.y2" :class="{ 'editor__wall--selected': isWallSelected(run) }" :stroke="isWallSelected(run) ? 'var(--accent-primary)' : wallColor" :stroke-width="isWallSelected(run) ? wallThickness + 3 : wallThickness" :stroke-dasharray="isWallSelected(run) ? '10 5' : undefined" />
+        <line v-for="(line, i) in objWallLines" :key="`obj-wall-${line.id}-${i}`" :x1="line.x1" :y1="line.y1" :x2="line.x2" :y2="line.y2" :stroke="wallColor" :stroke-width="wallThickness" />
       </g>
 
-      <line v-if="wallPreview && !isInteracting" :x1="wallPreview.x1" :y1="wallPreview.y1" :x2="wallPreview.x2" :y2="wallPreview.y2" :stroke="wallErasing ? 'var(--accent-red)' : wallColor" :stroke-width="Math.max(2, wallThickness)" stroke-dasharray="6 4" opacity="0.9" class="editor__svg--noevents" />
+      <line v-if="wallPreview && !isInteracting" :x1="wallPreview.x1" :y1="wallPreview.y1" :x2="wallPreview.x2" :y2="wallPreview.y2" :stroke="wallColor" :stroke-width="Math.max(2, wallThickness)" stroke-dasharray="6 4" opacity="0.9" class="editor__svg--noevents" />
 
-      <rect v-if="wallSelectionBox" :x="wallSelectionBox.x" :y="wallSelectionBox.y" :width="wallSelectionBox.w" :height="wallSelectionBox.h" fill="color-mix(in srgb, var(--accent-primary) 10%, transparent)" stroke="var(--accent-primary)" stroke-width="1.5" stroke-dasharray="5 3" class="editor__wallbox editor__svg--noevents" />
-
-      <g v-if="renderBuildingBounds" v-memo="[buildingAreaRect, renderBuildingBounds]" class="editor__bounds editor__svg--noevents">
+      <g v-if="renderBuildingBounds" v-memo="[buildingAreaRect, renderBuildingBounds]" class="editor__svg--noevents">
         <rect :x="buildingAreaRect.x" :y="buildingAreaRect.y" :width="buildingAreaRect.w" :height="buildingAreaRect.h" fill="none" stroke="var(--accent-green)" stroke-width="6" opacity="0.9" />
       </g>
 
@@ -992,7 +1013,7 @@ async function cancelDrawnOrigin() {
         <g v-for="obj in floor.objects" :key="obj.id" @mousedown="onObjectMouseDown($event, obj.id)">
           <rect :x="obj.x" :y="obj.y" :width="obj.w" :height="obj.h" fill="transparent" class="editor__svg--passall" />
           <template v-if="assetSvg(obj.type)">
-            <g v-svg-content="assetSvg(obj.type)" :transform="svgTransform(obj)" :data-obj-id="obj.id" :class="{ 'editor__canvas--collapsed': obj.collapsed, 'editor__canvas--dragitem': moving?.id === obj.id, 'editor__canvas--locked': obj.locked, 'editor__canvas--nowall': !hasOuterWall(obj) }" :style="`cursor:${moving?.id === obj.id ? 'grabbing' : 'move'};${svgColorVars(obj)}`" />
+            <g v-svg-content="assetSvg(obj.type)" :transform="svgTransform(obj)" :data-obj-id="obj.id" :class="{ 'editor__object--collapsed': obj.collapsed, 'editor__object--dragging': moving?.id === obj.id, 'editor__object--locked': obj.locked, 'editor__object--nowall': !hasOuterWall(obj) }" :style="`cursor:${moving?.id === obj.id ? 'grabbing' : 'move'};${svgColorVars(obj)}`" />
           </template>
           <path
             v-else-if="roundedRectPath(obj.x + (obj.padding ?? 0), obj.y + (obj.padding ?? 0), obj.w - (obj.padding ?? 0) * 2, obj.h - (obj.padding ?? 0) * 2, obj.rx)"
@@ -1000,7 +1021,7 @@ async function cancelDrawnOrigin() {
             :fill="objFillColor(obj)"
             :stroke-width="objIsWall(obj) ? 2 : 1"
             :stroke-dasharray="objIsWall(obj) ? '6 3' : undefined"
-            :class="{ 'editor__canvas--collapsed': obj.collapsed, 'editor__canvas--dragitem': moving?.id === obj.id, 'editor__canvas--linked': !!obj.linkGroupId, 'editor__canvas--locked': obj.locked }"
+            :class="{ 'editor__object--collapsed': obj.collapsed, 'editor__object--dragging': moving?.id === obj.id, 'editor__object--linked': !!obj.linkGroupId, 'editor__object--locked': obj.locked }"
             :style="{ stroke: 'var(--text-primary)', cursor: moving?.id === obj.id ? 'grabbing' : 'move' }"
           />
           <rect
@@ -1012,16 +1033,16 @@ async function cancelDrawnOrigin() {
             :fill="objFillColor(obj)"
             stroke-width="1"
             :rx="obj.radius ?? 0"
-            :class="{ 'editor__canvas--collapsed': obj.collapsed, 'editor__canvas--dragitem': moving?.id === obj.id, 'editor__canvas--linked': !!obj.linkGroupId, 'editor__canvas--locked': obj.locked }"
+            :class="{ 'editor__object--collapsed': obj.collapsed, 'editor__object--dragging': moving?.id === obj.id, 'editor__object--linked': !!obj.linkGroupId, 'editor__object--locked': obj.locked }"
             :style="{ stroke: 'var(--text-primary)', cursor: moving?.id === obj.id ? 'grabbing' : 'move' }"
           />
-          <rect v-if="renderObjectHighlights" :x="obj.x + 1" :y="obj.y + 1" :width="Math.max(0, obj.w - 2)" :height="Math.max(0, obj.h - 2)" fill="none" :rx="obj.radius ?? 0" class="editor__canvas--highlight editor__svg--noevents" />
+          <rect v-if="renderObjectHighlights" :x="obj.x + 1" :y="obj.y + 1" :width="Math.max(0, obj.w - 2)" :height="Math.max(0, obj.h - 2)" fill="none" :rx="obj.radius ?? 0" class="editor__overlay--highlight editor__svg--noevents" />
           <template v-if="renderWalkableOverlay && objDef(obj).walkableGrid" v-memo="[obj.id, obj.x, obj.y, obj.w, obj.h, renderWalkableOverlay, objDef(obj).walkableGrid]">
             <template v-for="(row, gr) in objDef(obj).walkableGrid" :key="'wg_' + obj.id + '-' + gr">
               <rect v-for="(cell, gc) in row" :key="'wg_' + obj.id + '-' + gr + '-' + gc" :x="obj.x + gc * (obj.w / row.length)" :y="obj.y + gr * (obj.h / objDef(obj).walkableGrid!.length)" :width="obj.w / row.length" :height="obj.h / objDef(obj).walkableGrid!.length" :class="`editor__tile editor__tile--obj-${cell ? 'walkable' : 'blocked'}`" />
             </template>
           </template>
-          <rect v-if="isObjectSelected(obj.id)" :x="obj.x + (obj.padding ?? 0)" :y="obj.y + (obj.padding ?? 0)" :width="obj.w - (obj.padding ?? 0) * 2" :height="obj.h - (obj.padding ?? 0) * 2" fill="none" :rx="obj.radius ?? 0" class="editor__canvas--selected editor__svg--noevents" />
+          <rect v-if="isObjectSelected(obj.id)" :x="obj.x + (obj.padding ?? 0)" :y="obj.y + (obj.padding ?? 0)" :width="obj.w - (obj.padding ?? 0) * 2" :height="obj.h - (obj.padding ?? 0) * 2" fill="none" :rx="obj.radius ?? 0" class="editor__overlay--selected editor__svg--noevents" />
           <text v-if="showLabels" :x="obj.x + obj.w / 2" :y="Math.max(obj.y - (obj.labelPadding ?? 0) - 3, 7)" text-anchor="middle" font-size="8" class="editor__svg--noevents" :style="{ fill: objLabelColor() }">
             {{ assetLabel(obj.type) }}
           </text>
@@ -1037,7 +1058,7 @@ async function cancelDrawnOrigin() {
           </template>
         </g>
 
-        <g v-if="renderWalkableOverlay" v-memo="[floor?.spawnZones, renderWalkableOverlay]" class="editor__spawn editor__svg--noevents">
+        <g v-if="renderWalkableOverlay" v-memo="[floor?.spawnZones, renderWalkableOverlay]" class="editor__svg--noevents">
           <g v-for="zone in floor?.spawnZones ?? []" :key="`spawn-zone-${zone.id}`">
             <rect :x="zone.x" :y="zone.y" :width="zone.w" :height="zone.h" fill="color-mix(in srgb, var(--accent-green) 12%, transparent)" stroke="var(--accent-green)" stroke-width="1" stroke-dasharray="5 3" />
             <text :x="zone.x + 4" :y="zone.y + 10" font-size="6" fill="var(--accent-green)">{{ zone.label }}</text>
@@ -1102,6 +1123,7 @@ async function cancelDrawnOrigin() {
       <button class="flag--ghost" :class="{ 'flag--active': showLabels }" @click="toggleLabels" title="Toggle Labels" aria-label="Toggle labels">Labels</button>
       <button class="flag--ghost" :class="{ 'flag--active': showWalkableOverlay }" @click="toggleWalkableOverlay" title="Toggle Walkable + Entrance" aria-label="Toggle walkable view">Walk</button>
       <button class="flag--ghost" :class="{ 'flag--active': showWalls }" @click="toggleWalls" title="Toggle Outer Walls" aria-label="Toggle walls">Wall</button>
+      <button v-if="wallPaintActive" class="flag--warning" :disabled="wallPaint.selected.value.length === 0" @click="convertSelectedWalls" title="Convert selected walls into a Room object (edit tags/queue in Origin settings)" aria-label="Convert selected walls to room object">To Room</button>
       <button class="flag--ghost" :class="{ 'flag--active': showInteractSpots }" @click="toggleInteractSpots" title="Toggle Interact Spots" aria-label="Toggle interact spots">Interact</button>
       <button class="flag--ghost" :class="{ 'flag--active': showObjectHighlights }" @click="toggleObjectHighlights" title="Toggle object highlights" aria-label="Toggle object highlights">Highlight</button>
       <button class="flag--ghost" :class="{ 'flag--active': showBuildingBounds }" @click="toggleBuildingBounds" title="Toggle building area boundary (placement limit against the street)" aria-label="Toggle building bounds">Bounds</button>
@@ -1166,15 +1188,15 @@ async function cancelDrawnOrigin() {
   cursor: grabbing;
 }
 
-.editor__mode--draw .editor__svg {
+.editor__canvas--draw .editor__svg {
   cursor: crosshair;
 }
 
-.editor__mode--move .editor__svg {
+.editor__canvas--move .editor__svg {
   cursor: grab;
 }
 
-.editor__mode--wallpaint .editor__svg {
+.editor__canvas--wallpaint .editor__svg {
   cursor: crosshair;
 }
 
@@ -1182,11 +1204,7 @@ async function cancelDrawnOrigin() {
   stroke-linecap: round;
 }
 
-.editor__wallbox {
-  pointer-events: none;
-}
-
-.editor__mode--move.editor__canvas--dragging .editor__svg {
+.editor__canvas--move.editor__canvas--dragging .editor__svg {
   cursor: grabbing;
 }
 
@@ -1213,14 +1231,14 @@ async function cancelDrawnOrigin() {
   outline: 2px solid var(--accent-primary);
 }
 
-.editor__canvas--selected {
+.editor__overlay--selected {
   stroke: var(--accent-primary);
   stroke-width: 2px;
   fill: none;
   pointer-events: none;
 }
 
-.editor__canvas--highlight {
+.editor__overlay--highlight {
   stroke: var(--accent-primary);
   stroke-width: 1.5px;
   stroke-dasharray: 5 3;
@@ -1229,24 +1247,24 @@ async function cancelDrawnOrigin() {
   pointer-events: none;
 }
 
-:deep(.editor__canvas--nowall .svg_role__wall) {
+:deep(.editor__object--nowall .svg_role__wall) {
   display: none;
 }
 
-.editor__canvas--linked {
+.editor__object--linked {
   stroke: var(--accent-blue);
   stroke-width: 1.5px;
 }
 
-.editor__canvas--locked {
+.editor__object--locked {
   opacity: 0.6;
 }
 
-.editor__canvas--collapsed {
+.editor__object--collapsed {
   opacity: 0.4;
 }
 
-.editor__canvas--dragitem {
+.editor__object--dragging {
   opacity: 0.7;
 }
 

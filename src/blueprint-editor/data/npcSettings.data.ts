@@ -19,15 +19,7 @@ export const npcSettingsData = {
         "guest-room"
       ],
       "restrictedTags": [],
-      "taskIds": [
-        "t-checkin",
-        "t-drink",
-        "t-swim",
-        "t-massage",
-        "t-workout",
-        "t-rest",
-        "t-lounge"
-      ],
+      "taskIds": [],
       "focusChance": 70
     },
     {
@@ -38,9 +30,7 @@ export const npcSettingsData = {
         "front-desk"
       ],
       "restrictedTags": [],
-      "taskIds": [
-        "t-checkin"
-      ],
+      "taskIds": [],
       "focusChance": 100,
       "spawnRule": {
         "targetTags": [
@@ -57,9 +47,7 @@ export const npcSettingsData = {
         "bar"
       ],
       "restrictedTags": [],
-      "taskIds": [
-        "t-drink"
-      ],
+      "taskIds": [],
       "focusChance": 100,
       "spawnRule": {
         "targetTags": [
@@ -76,9 +64,7 @@ export const npcSettingsData = {
         "gym"
       ],
       "restrictedTags": [],
-      "taskIds": [
-        "t-workout"
-      ],
+      "taskIds": [],
       "focusChance": 100,
       "spawnRule": {
         "targetTags": [
@@ -96,9 +82,7 @@ export const npcSettingsData = {
         "pool"
       ],
       "restrictedTags": [],
-      "taskIds": [
-        "t-massage"
-      ],
+      "taskIds": [],
       "focusChance": 100,
       "spawnRule": {
         "targetTags": [
@@ -116,9 +100,7 @@ export const npcSettingsData = {
         "guest-room"
       ],
       "restrictedTags": [],
-      "taskIds": [
-        "t-clean"
-      ],
+      "taskIds": [],
       "focusChance": 100,
       "spawnRule": {
         "targetTags": [
@@ -128,65 +110,7 @@ export const npcSettingsData = {
       }
     }
   ],
-  "tasks": [
-    {
-      "id": "t-checkin",
-      "label": "Check-in",
-      "tags": [
-        "front-desk"
-      ]
-    },
-    {
-      "id": "t-drink",
-      "label": "Order drink",
-      "tags": [
-        "bar"
-      ]
-    },
-    {
-      "id": "t-swim",
-      "label": "Swim",
-      "tags": [
-        "pool"
-      ]
-    },
-    {
-      "id": "t-massage",
-      "label": "Massage",
-      "tags": [
-        "spa"
-      ]
-    },
-    {
-      "id": "t-workout",
-      "label": "Workout",
-      "tags": [
-        "gym"
-      ]
-    },
-    {
-      "id": "t-rest",
-      "label": "Rest",
-      "tags": [
-        "guest-room"
-      ]
-    },
-    {
-      "id": "t-lounge",
-      "label": "Lounge",
-      "tags": [
-        "lounge"
-      ]
-    },
-    {
-      "id": "t-clean",
-      "label": "Clean room",
-      "tags": [
-        "housekeeping",
-        "guest-room"
-      ]
-    }
-  ],
+  "tasks": [],
   "pool": [
     {
       "roleId": "role-guest",

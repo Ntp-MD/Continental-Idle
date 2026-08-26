@@ -70,13 +70,13 @@ a {
 body {
 	font-family: var(--font-mono);
 	background: var(--bg-primary);
-	color: var(--text-primary);
 	overflow: auto;
 	font-size: calc(12px * var(--font-scale));
 	letter-spacing: 0.3px;
 	line-height: 1.5;
 	-webkit-font-smoothing: antialiased;
 	-moz-osx-font-smoothing: grayscale;
+	color: var(--text-primary);
 }
 
 
@@ -86,7 +86,6 @@ button {
 	cursor: pointer;
 	border: 1px solid var(--border-dim);
 	background: var(--bg-primary);
-	color: var(--text-secondary);
 	padding: var(--gap-sm) var(--gap-md);
 	text-transform: uppercase;
 	letter-spacing: 0.8px;
@@ -99,17 +98,16 @@ button {
 	justify-content: center;
 	gap: var(--gap-xs);
 	line-height: 1;
+	color: var(--text-primary);
 }
 
 button:hover {
 	border-color: var(--accent-primary);
-	color: var(--accent-primary);
 	background: var(--bg-primary-hover);
 }
 
 button:active {
 	background: var(--accent-primary);
-	color: var(--bg-primary);
 }
 
 button:disabled {

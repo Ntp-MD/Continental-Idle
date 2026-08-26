@@ -126,20 +126,20 @@ function onItemClick(assetId: string) {
       <div class="form__search">
         <input v-model="searchQuery" placeholder="Search assets..." type="text" aria-label="Search assets" />
         <button v-if="searchQuery" class="flag--ghost flag--icon" @click="searchQuery = ''" aria-label="Clear search" title="Clear search">x</button>
+        <button class="flag--ghost" @click="showPicker = true" title="Browse assets in a grid" aria-label="Browse assets">Browse</button>
       </div>
     </div>
     <div class="form__group has__scroll">
       <div class="form__header">
         <span>Assets List</span>
-        <span v-if="incompleteCount" class="assets__warn flag--warning" title="Assets showing the yellow marker have incomplete settings">{{ incompleteCount }} incomplete</span>
-        <button class="flag--ghost" @click="showPicker = true" title="Browse assets in a grid" aria-label="Browse assets">Browse</button>
+        <span v-if="incompleteCount" class="badge badge--warning flag--warning" title="Assets showing the yellow marker have incomplete settings">{{ incompleteCount }} incomplete</span>
       </div>
       <div v-if="!filteredAssets.length" class="empty assets__empty">No assets found</div>
-      <div v-for="asset in filteredAssets" :key="asset.id" class="card--item assets__items" :class="{ 'assets--selected': store.state.selectedAssetId === asset.id, 'assets--linked': !!asset.linkedParts }" :title="incompleteTitle(asset) || undefined" @mousedown="onAssetMouseDown(asset.id, $event)" @click="onItemClick(asset.id)">
+      <div v-for="asset in filteredAssets" :key="asset.id" class="card__item assets__item" :class="{ 'assets__item--selected': store.state.selectedAssetId === asset.id, 'assets__item--linked': !!asset.linkedParts }" :title="incompleteTitle(asset) || undefined" @mousedown="onAssetMouseDown(asset.id, $event)" @click="onItemClick(asset.id)">
         <span class="assets__tiles">{{ assetSizeLabel(asset) }} - {{ originLabel(asset) }}</span>
-        <span class="assets__name">{{ asset.name }}</span>
-        <span v-if="incompleteMap.get(asset.id)?.length" class="assets__warn flag--warning" title="Incomplete settings">!</span>
-        <span class="assets__count" :class="{ 'assets__count--placed': placedObjectCount(asset.id) > 0 }" :title="`${placedObjectCount(asset.id)} placed object${placedObjectCount(asset.id) === 1 ? '' : 's'}`">{{ placedObjectCount(asset.id) }}</span>
+        <span class="asset__name">{{ asset.name }}</span>
+        <span v-if="incompleteMap.get(asset.id)?.length" class="badge badge--warning flag--warning" title="Incomplete settings">!</span>
+        <span class="badge badge--count" :class="{ 'badge--placed': placedObjectCount(asset.id) > 0 }" :title="`${placedObjectCount(asset.id)} placed object${placedObjectCount(asset.id) === 1 ? '' : 's'}`">{{ placedObjectCount(asset.id) }}</span>
       </div>
     </div>
     <div class="form__group form__group--bottom">
@@ -176,62 +176,32 @@ function onItemClick(assetId: string) {
   white-space: nowrap;
 }
 
-.assets__count {
-  flex-shrink: 0;
-  min-width: 11px;
-  padding: 2px 5px;
-  border: 1px solid var(--border-dim);
-  border-radius: var(--radius-sm);
-  color: var(--text-dim);
-  font-size: var(--font-xs);
-  line-height: 1;
-  text-align: center;
-}
-
-.assets__count--placed {
-  border-color: var(--accent-blue);
-  color: var(--accent-blue);
-  background: color-mix(in srgb, var(--accent-blue) 12%, transparent);
-}
-
-.assets__warn {
-  flex-shrink: 0;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 16px;
-  height: 16px;
-  padding: 0 var(--gap-xxs);
-  font-size: var(--font-xs);
-  line-height: 1;
-}
-
-.assets__items {
+.assets__item {
   gap: var(--gap-sm);
   transition:
     background var(--duration-fast) ease-out,
     border-color var(--duration-fast) ease-out;
 }
 
-.assets__items:hover {
+.assets__item:hover {
   border-color: var(--accent-primary);
 }
 
-.assets__name {
+.assets__item .asset__name {
   flex: 1;
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: var(--font-sm);
 }
 
-.assets--selected {
+.assets__item .badge--placed {
+  background: color-mix(in srgb, var(--accent-blue) 12%, transparent);
+}
+
+.assets__item--selected {
   border-color: var(--accent-primary);
   background: color-mix(in srgb, var(--accent-primary) 12%, transparent);
 }
 
-.assets--linked {
+.assets__item--linked {
   border-color: var(--accent-blue);
 }
 </style>

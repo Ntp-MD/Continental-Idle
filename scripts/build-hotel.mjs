@@ -210,7 +210,6 @@ function makeComposer() {
 }
 const c = makeComposer();
 
-const ELEVATOR_X = 1330;
 const zone = (id, label, x, y, w, h, roleIds) => ({ id, label, x, y, w, h, ...(roleIds ? { roleIds } : {}) });
 
 // Guest-floor corridor system: horizontal hall rows 18-19, vertical ribs
@@ -344,27 +343,15 @@ c.place("custom-reception-desk", 800, 260);
 c.place("custom-bench", 1100, 300);
 c.place("custom-vending-machine", 1250, 700);
 
-// Elevator shaft: one portal per floor, identical position
 const builtFloors = c.done();
-for (const f of builtFloors) {
-  seq += 1;
-  f.objects.push({
-    id: `obj-portal-${f.label === "G" ? "g" : f.label}`,
-    type: "custom-elevator",
-    x: ELEVATOR_X,
-    y: 205,
-    rotation: 0,
-    subId: subFor(seq),
-  });
-}
 
-// BUILD_HOTEL_FURNITURE=0 strips every placement except the elevator
-// portals, leaving the bare floor scaffold (zones, role gates, corridor
-// walkable paint, portal mesh) for manual authoring in the editor.
+// BUILD_HOTEL_FURNITURE=0 strips every placement, leaving the bare floor
+// scaffold (zones, role gates, corridor walkable paint) for manual authoring
+// in the editor.
 const FURNISH = process.env.BUILD_HOTEL_FURNITURE !== "0";
 const finalFloors = FURNISH
   ? builtFloors
-  : builtFloors.map(f => ({ ...f, objects: f.objects.filter(o => o.type === "custom-elevator") }));
+  : builtFloors.map(f => ({ ...f, objects: [] }));
 
 const oldLayout = readModule("floorPlan.data.ts", "floorPlanData");
 writeModule("floorPlan.data.ts", "floorPlanData", {

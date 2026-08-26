@@ -6,6 +6,7 @@ import ModalShell from "../../blueprint-editor/components/ModalShell.vue";
 const { pending, resolve } = useConfirm();
 
 const inputRef = ref<HTMLInputElement>();
+const confirmRef = ref<HTMLButtonElement>();
 const inputValue = ref("");
 const isOpen = computed(() => pending.value !== null);
 const isPrompt = computed(() => pending.value?.prompt !== undefined);
@@ -20,6 +21,8 @@ watch(isOpen, (open) => {
       inputRef.value?.focus();
       inputRef.value?.select();
     });
+  } else {
+    nextTick(() => confirmRef.value?.focus());
   }
 });
 
@@ -39,13 +42,13 @@ function onConfirm() {
 </script>
 
 <template>
-  <ModalShell v-if="pending" :open="!!pending" :title="pending.title" max-width="90vw" width="400px" @close="onCancel">
-    <div class="modal__body confirmdialog__body">
+  <ModalShell :open="!!pending" :title="pending?.title ?? ''" max-width="90vw" width="400px" @close="onCancel">
+    <div v-if="pending" class="modal__body confirmdialog__body" @keydown.enter.stop.prevent="onConfirm">
       <p class="confirmdialog__msg">{{ pending.message }}</p>
       <input v-if="isPrompt" ref="inputRef" v-model="inputValue" class="confirmdialog__input" :placeholder="pending.promptPlaceholder ?? ''" @keydown.enter.stop.prevent="submitPrompt" @keydown.escape.stop.prevent="onCancel" />
       <div class="form__row form__row--fill confirmdialog__actions">
         <button class="flag--ghost" @click="onCancel">{{ pending.cancelLabel }}</button>
-        <button :class="pending.danger ? 'flag--danger' : 'flag--active'" data-autofocus="true" @click="onConfirm">{{ pending.confirmLabel }}</button>
+        <button ref="confirmRef" data-autofocus :class="pending.danger ? 'flag--danger' : 'flag--active'" @click="onConfirm">{{ pending.confirmLabel }}</button>
       </div>
     </div>
   </ModalShell>

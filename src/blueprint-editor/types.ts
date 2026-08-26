@@ -33,6 +33,13 @@ export interface FloorWalkable {
 	tileEdges?: TileEdges[][]
 }
 
+export interface WallSegment {
+	x1: number
+	y1: number
+	x2: number
+	y2: number
+}
+
 export function normalizeFloorWalkable(value: unknown): FloorWalkable | undefined {
 	if (!value || typeof value !== 'object') return undefined
 	const record = value as Record<string, unknown>

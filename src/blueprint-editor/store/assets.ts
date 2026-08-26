@@ -1,11 +1,13 @@
-import type { AssetDef, WalkableGrid, TileState, TileEdges } from '../types'
+import type { AssetDef, WalkableGrid, TileState, TileEdges, WallSegment } from '../types'
 import { isValidColor, normalizeNpcQueueConfig, applySvgColorConvention } from '../types'
+import { applyWallSegment } from '../composables/useWallPaint'
+import { deriveRoomFromSegments } from '../roomConvert'
 import { aabbOverlap } from '../collision'
 import { assetSizeFor, normalizeObject } from '../geometry'
 import {
 	state, toast, clamp, withStateLock, initAssetFields, assetMap,
 } from './state'
-import { genAssetId } from './utils'
+import { genAssetId, genId } from './utils'
 import { saveAssets, saveBlueprintData, saveLayout } from './persistence'
 
 const FURNITURE_COLOR_MAP: Record<string, string> = {
@@ -215,8 +217,7 @@ export async function updateAsset(id: string, patch: Partial<Pick<AssetDef, 'nam
 }
 
 
-export async function refreshOriginInstances(): Promise<number> {
-	return withStateLock(async () => {
+export async function refreshOriginInstances(): Promise<number> {	return withStateLock(async () => {
 		const tileSize = state.layout.canvas.tileSize
 		const assets = assetMap()
 		let refreshedCount = 0
@@ -233,6 +234,77 @@ export async function refreshOriginInstances(): Promise<number> {
 		}
 		await saveBlueprintData()
 		return refreshedCount
+	})
+}
+
+function roomBodySvg(widthTiles: number, heightTiles: number, tileSize: number): { svg: string; viewBox: { w: number; h: number } } {
+	const vbW = widthTiles * tileSize
+	const vbH = heightTiles * tileSize
+	return {
+		svg: `<rect x="0.5" y="0.5" width="${vbW - 1}" height="${vbH - 1}" rx="2" fill="var(--obj-fill,#ffffff)" stroke="var(--asset-outline)" stroke-width="1"/>`,
+		viewBox: { w: vbW, h: vbH },
+	}
+}
+
+export async function convertWallsToRoom(floorId: string, segments: readonly WallSegment[], name?: string): Promise<AssetDef | null> {
+	return withStateLock(async () => {
+		const floor = state.layout.floors.find(f => f.id === floorId)
+		if (!floor) {
+			toast.warning('Floor not found')
+			return null
+		}
+		const tileSize = state.layout.canvas.tileSize
+		const room = deriveRoomFromSegments(segments, tileSize)
+		if (!room) {
+			toast.warning('Select tile-aligned wall segments first')
+			return null
+		}
+		const roomCount = state.assetRegistry.filter(a => /^Room \d+$/.test(a.name)).length
+		const assetName = name?.trim() || `Room ${roomCount + 1}`
+		const body = roomBodySvg(room.widthTiles, room.heightTiles, tileSize)
+		const tileStates: TileState[][] = Array.from({ length: room.heightTiles }, () =>
+			Array.from({ length: room.widthTiles }, () => 'walkable' as TileState),
+		)
+		const asset: AssetDef = {
+			origin: 'flattened',
+			id: genAssetId('custom', assetName, c => state.assetRegistry.some(a => a.id === c)),
+			name: assetName,
+			w: room.widthTiles,
+			h: room.heightTiles,
+			category: 'Special',
+			isWall: true,
+			walkable: false,
+			defaultFillColor: '#ffffff',
+			svg: applySvgColorConvention(body.svg),
+			svgViewBox: body.viewBox,
+			tileEdges: room.tileEdges,
+			tileStates,
+		}
+		initAssetFields(asset)
+		state.assetRegistry.push(asset)
+
+		const sourceEdges = floor.walkable?.tileEdges
+		if (sourceEdges) {
+			for (const seg of segments) applyWallSegment(sourceEdges, seg, tileSize, false)
+		}
+
+		const object = {
+			id: genId('obj'),
+			subId: genId('sub'),
+			type: asset.id,
+			x: room.x,
+			y: room.y,
+			w: 0,
+			h: 0,
+			rotation: 0 as const,
+		}
+		normalizeObject(object, tileSize, assetMap())
+		floor.objects.push(object)
+		state.selectionState = { primary: { type: 'object', id: object.id }, items: [{ type: 'object', id: object.id }] }
+
+		await saveBlueprintData()
+		toast.success(`${assetName} created - set tags and queue in Origin settings`)
+		return asset
 	})
 }
 

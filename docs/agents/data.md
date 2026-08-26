@@ -1,5 +1,9 @@
 # Data, Persistence, and Domain Principles
 
+Floor/wall/decoration authoring conventions live in
+[floor-authoring.md](floor-authoring.md) - read it before drawing or
+editing anything in `floorPlan.data.ts`.
+
 ## Definitions and instances
 
 - A reusable definition (identified by id) owns defaults, validation metadata, tags, configuration. An instance references it by id and owns only position/rotation/instance-specific overrides.

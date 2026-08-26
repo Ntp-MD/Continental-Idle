@@ -12,6 +12,7 @@ import {
 } from './objects'
 import {
 	addSvgAsset, updateAsset, deleteAsset, rotateAsset, duplicateAsset, refreshOriginInstances,
+	convertWallsToRoom,
 } from './assets'
 import { updateNpcConfig, syncNpcConfigToState, persistNpcConfigToDisk } from './npcDefault'
 import {
@@ -38,6 +39,7 @@ export {
 } from './objects'
 export {
 	addSvgAsset, updateAsset, deleteAsset, rotateAsset, duplicateAsset, refreshOriginInstances,
+	convertWallsToRoom,
 } from './assets'
 export { updateNpcConfig, syncNpcConfigToState, persistNpcConfigToDisk } from './npcDefault'
 export {
@@ -64,6 +66,7 @@ export function useAssetsStore() {
 		createLinkedAssetFromSelection, flattenToSvgAsset,
 		linkObjects, unlinkObject, toggleObjectLock,
 		addSvgAsset, updateAsset, deleteAsset, rotateAsset, duplicateAsset, refreshOriginInstances,
+		convertWallsToRoom,
 		updateNpcConfig, syncNpcConfigToState, persistNpcConfigToDisk,
 		copySelected, pasteObjects,
 		saveLayout, saveAssets, saveNpcConfig, saveBlueprintData, syncToGame,

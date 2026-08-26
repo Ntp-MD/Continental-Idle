@@ -8,7 +8,7 @@ type WalkableMode = "walk" | "entrance";
 type BorderSide = "top" | "right" | "bottom" | "left";
 
 const props = defineProps<{
-	streetTiles?: number,
+  streetTiles?: number;
   open: boolean;
   floor?: FloorData;
 }>();
@@ -281,6 +281,7 @@ function close(): void {
   aspect-ratio: var(--walk-cols) / auto;
   border: 1px solid var(--border-dim);
   background: var(--bg-primary);
+  margin: 0 auto;
 }
 
 .walk__cell {

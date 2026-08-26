@@ -4,9 +4,8 @@ import { useAssetsStore } from "../blueprintStore";
 import { useToast } from "@/composables/useToast";
 import { useConfirm } from "@/composables/useConfirm";
 import { sanitizeString } from "../../utils/sanitize";
-import { genId } from "../store/utils";
 import { resolveStreetTiles } from "../types";
-import type { FloorData, NpcSpawnZone } from "../types";
+import type { FloorData } from "../types";
 import ModalShell from "./ModalShell.vue";
 import FloorWalkablePanel from "./FloorWalkablePanel.vue";
 
@@ -24,7 +23,6 @@ const editingLabel = ref(false);
 const editingLabelRaw = ref("");
 const floorDragIndex = ref<number | null>(null);
 const showWalkable = ref(false);
-const spawnZoneDraft = ref({ label: "Road", x: 0, y: 0, w: 400, h: 200, roleIds: [] as string[] });
 
 const floors = computed(() => store.state.layout.floors);
 const availableRoles = computed(() => store.state.layout.npcConfig?.roles ?? []);
@@ -143,40 +141,8 @@ async function clearRoles() {
   await store.updateFloor(selectedFloor.value.id, { allowedRoleIds: [] });
 }
 
-function toggleSpawnZoneRole(roleId: string): void {
-  const roleIds = new Set(spawnZoneDraft.value.roleIds);
-  if (roleIds.has(roleId)) roleIds.delete(roleId);
-  else roleIds.add(roleId);
-  spawnZoneDraft.value.roleIds = [...roleIds];
-}
-
-async function addSpawnZone(): Promise<void> {
-  if (!selectedFloor.value) return;
-  const draft = spawnZoneDraft.value;
-  const zone: NpcSpawnZone = {
-    id: genId("spawn-zone"),
-    label: sanitizeString(draft.label) || "Spawn Zone",
-    x: Math.max(0, Number(draft.x) || 0),
-    y: Math.max(0, Number(draft.y) || 0),
-    w: Math.max(1, Number(draft.w) || 1),
-    h: Math.max(1, Number(draft.h) || 1),
-    ...(draft.roleIds.length ? { roleIds: [...draft.roleIds] } : {}),
-  };
-  const saved = await store.updateFloor(selectedFloor.value.id, { spawnZones: [...(selectedFloor.value.spawnZones ?? []), zone] });
-  if (saved) {
-    spawnZoneDraft.value = { label: "Road", x: 0, y: 0, w: 400, h: 200, roleIds: [] };
-    toast.success("Spawn zone added");
-  }
-}
-
-async function deleteSpawnZone(zoneId: string): Promise<void> {
-  if (!selectedFloor.value) return;
-  const zones = (selectedFloor.value.spawnZones ?? []).filter((zone) => zone.id !== zoneId);
-  await store.updateFloor(selectedFloor.value.id, { spawnZones: zones });
-}
-
 function floorCounts(f: FloorData): string {
-  return `${f.objects.length} objects - ${f.spawnZones?.length ?? 0} spawn zones`;
+  return `${f.objects.length} objects`;
 }
 </script>
 
@@ -193,10 +159,10 @@ function floorCounts(f: FloorData): string {
           <div
             v-for="(f, index) in floors"
             :key="f.id"
-            class="card--item floor__row"
+            class="card__item floor__item"
             :class="{
-              'floor__row--active': f.id === selectedFloorId,
-              'floor__row--current': f.id === store.state.currentFloorId,
+              'floor__item--active': f.id === selectedFloorId,
+              'floor__item--current': f.id === store.state.currentFloorId,
             }"
             draggable="true"
             @dragstart="onDragStart(index)"
@@ -207,7 +173,7 @@ function floorCounts(f: FloorData): string {
             <span class="floor__label" :style="{ color: f.labelColor || undefined }">{{ f.label }}</span>
             <span class="floor__name">{{ f.name }}</span>
             <span class="floor__count">{{ floorCounts(f) }}</span>
-            <span v-if="f.id === store.state.currentFloorId" class="badge__blue">ACTIVE</span>
+            <span v-if="f.id === store.state.currentFloorId" class="badge badge--blue">ACTIVE</span>
           </div>
         </div>
       </div>
@@ -238,33 +204,6 @@ function floorCounts(f: FloorData): string {
               <input type="checkbox" :checked="selectedFloor.defaultWalkable ?? true" @change="toggleWalkable" />
               <span>Empty areas are walkable</span>
             </label>
-          </div>
-
-          <div class="form__row">
-            <label class="label--fixed">Spawn Zones</label>
-            <div class="form__col form__col--tight">
-              <div v-for="zone in selectedFloor.spawnZones ?? []" :key="zone.id" class="floor__zone">
-                <span class="form__hint">{{ zone.label }} ({{ zone.x }}, {{ zone.y }}, {{ zone.w }}x{{ zone.h }})</span>
-                <button class="flag--danger flag--icon" type="button" @click="deleteSpawnZone(zone.id)" aria-label="Delete spawn zone">x</button>
-              </div>
-              <span v-if="!selectedFloor.spawnZones?.length" class="form__hint">No zones - all walkable cells can spawn NPCs</span>
-              <div class="floor__form">
-                <input v-model="spawnZoneDraft.label" type="text" placeholder="Zone label" aria-label="Spawn zone label" />
-                <input v-model.number="spawnZoneDraft.x" type="number" min="0" placeholder="X" aria-label="Spawn zone X" />
-                <input v-model.number="spawnZoneDraft.y" type="number" min="0" placeholder="Y" aria-label="Spawn zone Y" />
-                <input v-model.number="spawnZoneDraft.w" type="number" min="1" placeholder="Width" aria-label="Spawn zone width" />
-                <input v-model.number="spawnZoneDraft.h" type="number" min="1" placeholder="Height" aria-label="Spawn zone height" />
-                <button type="button" class="flag--active" @click="addSpawnZone">Add</button>
-              </div>
-              <div v-if="availableRoles.length" class="form__row form__row--tight form__row--wrap">
-                <label v-for="role in availableRoles" :key="`spawn-role-${role.id}`" class="chip" :class="{ 'flag--active': spawnZoneDraft.roleIds.includes(role.id) }">
-                  <input type="checkbox" :checked="spawnZoneDraft.roleIds.includes(role.id)" @change="toggleSpawnZoneRole(role.id)" />
-                  <span class="swatch" :style="{ background: role.color }" />
-                  <span>{{ role.label }}</span>
-                </label>
-                <span class="form__hint">No selected roles = all roles</span>
-              </div>
-            </div>
           </div>
 
           <div class="form__row">
@@ -325,12 +264,12 @@ function floorCounts(f: FloorData): string {
   flex-shrink: 0;
 }
 
-.floor__row--active {
+.floor__item--active {
   border-color: var(--accent-blue);
   background: var(--bg-primary);
 }
 
-.floor__row--current {
+.floor__item--current {
   border-left: 3px solid var(--accent-blue);
 }
 
@@ -359,28 +298,6 @@ function floorCounts(f: FloorData): string {
   cursor: pointer;
 }
 
-.floor__zone {
-  display: flex;
-  align-items: center;
-  gap: var(--gap-xs);
-  padding: var(--gap-xs);
-  background: var(--bg-primary);
-  border: 1px solid var(--border-dim);
-  border-radius: var(--radius-sm);
-}
-
-.floor__form {
-  display: grid;
-  grid-template-columns: minmax(0, 1.5fr) repeat(4, minmax(0, 0.7fr)) auto;
-  gap: var(--gap-xs);
-  min-width: 0;
-}
-
-.floor__form input {
-  min-width: 0;
-  width: 100%;
-}
-
 .form__group > .form__row--border {
   padding-top: var(--gap-md);
 }
@@ -388,15 +305,6 @@ function floorCounts(f: FloorData): string {
 @media (max-width: 720px) {
   .floor__body {
     grid-template-columns: 1fr;
-  }
-
-  .floor__form {
-    grid-template-columns: 1fr 1fr;
-  }
-
-  .floor__form input:first-child,
-  .floor__form button {
-    grid-column: 1 / -1;
   }
 }
 </style>

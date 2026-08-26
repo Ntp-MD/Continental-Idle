@@ -70,16 +70,16 @@ function originLabel(asset: AssetDef): string {
 function assetViewBox(asset: AssetDef): string {
   const vb = asset.svgViewBox;
   if (!vb || vb.w === 0 || vb.h === 0) {
-    const w = asset.usePx ? asset.pxW ?? asset.w * TILE : asset.w * TILE;
-    const h = asset.usePx ? asset.pxH ?? asset.h * TILE : asset.h * TILE;
+    const w = asset.usePx ? (asset.pxW ?? asset.w * TILE) : asset.w * TILE;
+    const h = asset.usePx ? (asset.pxH ?? asset.h * TILE) : asset.h * TILE;
     return `0 0 ${w} ${h}`;
   }
   return `0 0 ${vb.w} ${vb.h}`;
 }
 
 function fallbackShapeSvg(asset: AssetDef): string {
-  const w = asset.usePx ? asset.pxW ?? asset.w * TILE : asset.w * TILE;
-  const h = asset.usePx ? asset.pxH ?? asset.h * TILE : asset.h * TILE;
+  const w = asset.usePx ? (asset.pxW ?? asset.w * TILE) : asset.w * TILE;
+  const h = asset.usePx ? (asset.pxH ?? asset.h * TILE) : asset.h * TILE;
   const rx = Math.max(asset.defaultRx?.tl ?? 0, asset.defaultRx?.tr ?? 0, asset.defaultRx?.br ?? 0, asset.defaultRx?.bl ?? 0);
   const rawFill = asset.defaultFillColor ?? "none";
   const fill = !rawFill || rawFill === "transparent" ? "none" : rawFill;
@@ -140,10 +140,10 @@ function pick(asset: AssetDef) {
           >
             <div class="picker__thumb">
               <svg :ref="(el) => setThumbEl(asset.id, el)" :viewBox="assetViewBox(asset)" preserveAspectRatio="xMidYMid meet" :style="assetSvgVarStyle(asset)"></svg>
-              <span v-if="incompleteMap.get(asset.id)?.length" class="picker__warn flag--warning" title="Incomplete settings">!</span>
-              <span class="picker__count" :class="{ 'picker__count--placed': placedObjectCount(asset.id) > 0 }" :title="`${placedObjectCount(asset.id)} placed object${placedObjectCount(asset.id) === 1 ? '' : 's'}`">{{ placedObjectCount(asset.id) }}</span>
+              <span v-if="incompleteMap.get(asset.id)?.length" class="badge badge--warning flag--warning" title="Incomplete settings">!</span>
+              <span class="badge badge--count" :class="{ 'badge--placed': placedObjectCount(asset.id) > 0 }" :title="`${placedObjectCount(asset.id)} placed object${placedObjectCount(asset.id) === 1 ? '' : 's'}`">{{ placedObjectCount(asset.id) }}</span>
             </div>
-            <span class="picker__name">{{ asset.name }}</span>
+            <span class="asset__name">{{ asset.name }}</span>
             <span class="picker__meta">{{ assetSizeLabel(asset) }} - {{ originLabel(asset) }}</span>
           </div>
         </div>
@@ -214,45 +214,20 @@ function pick(asset: AssetDef) {
   height: 100%;
 }
 
-.picker__warn {
+.picker__thumb .badge--warning {
   position: absolute;
   top: 2px;
   right: 2px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 16px;
-  height: 16px;
-  padding: 0 var(--gap-xxs);
-  font-size: var(--font-xs);
-  line-height: 1;
 }
 
-.picker__count {
+.picker__thumb .badge--count {
   position: absolute;
   top: 2px;
   left: 2px;
-  min-width: 11px;
-  padding: 2px 5px;
-  border: 1px solid var(--border-dim);
-  border-radius: var(--radius-sm);
   background: color-mix(in srgb, var(--bg-primary) 80%, transparent);
-  color: var(--text-dim);
-  font-size: var(--font-xs);
-  line-height: 1;
-  text-align: center;
 }
 
-.picker__count--placed {
-  border-color: var(--accent-blue);
-  color: var(--accent-blue);
-}
-
-.picker__name {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: var(--font-sm);
+.picker__item .asset__name {
   text-align: center;
 }
 

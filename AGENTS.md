@@ -14,7 +14,7 @@ Structure: **Universal Rules** apply to every web project. **Project Specifics**
 7. **Sync floor keys contract.** Game floors are keyed `G` + numeric (legacy `F<n>` labels honored); unmapped labels auto-index by floor order via `assignSyncKey`, collisions get `_N` suffixes. Never silently drop a floor that fails mapping — surface the error.
 8. **Report honestly.** Unrelated pre-existing failures are listed separately, never hidden or fixed silently inside unrelated changes.
 9. **Scope discipline.** Prefer direct implementations; no new infrastructure without demonstrated need; delete dead code in the same change that removes its last reference; never commit unless explicitly asked.
-10. **Record the why.** Significant decisions get a short ADR-style note (decision, trade-off, revisit trigger) written while context is fresh.
+10. **Record the why.** High-impact, DIRECTION-level decisions get an entry in [`docs/timeline-decision.md`](docs/timeline-decision.md) (Problem / Final solution / Trade-off / Revisit trigger) written while context is fresh - it is the project's single decision history (supersedes the former docs/adr/). Routine fixes, refactors, and cleanups do NOT get entries; only choices that constrain future work do.
 
 ## Project Specifics
 
@@ -27,7 +27,11 @@ Structure: **Universal Rules** apply to every web project. **Project Specifics**
 - **Never round-trip file text through PowerShell** (`Get-Content`/`Set-Content`) — PS 5.1 misreads UTF-8-without-BOM as ANSI and silently corrupts non-ASCII characters. Use the Edit tool or Node scripts for any scripted text transformation.
 - **ASCII-only source and copy.** Do not use decorative Unicode characters (em/en dashes, ellipses, degree signs, math/arrows/dingbat symbols: `— – … ° × ÷ ± ⊘ ↻ ▾ ▶ ◀` etc.) anywhere in code identifiers, comments, or user-facing strings. Write plain ASCII equivalents (`-`, `...`, `deg`, `x`). Prefer words or real SVG icons over symbol glyphs in buttons.
 - **No box-shadow.** Never add `box-shadow` / `filter: drop-shadow` — no focus rings, elevation, or glows. Depth and state come from borders and background contrast only (`border-color` on `:focus`/`:hover`, danger states via border color).
-- Detailed domain principles live in [`docs/agents/`](docs/agents/): read the matching file before touching an area (core / naming / css / data).
+- Detailed domain principles live in [`docs/agents/`](docs/agents/): read the matching file before touching an area (core / naming / css / data / floor-authoring).
+
+### Active scope restriction (editor-first)
+
+- **Blueprint editor only.** The game-facing presentation layer was removed by user decision (2026-08-26): `GameLayout.vue`, `HotelCanvas.vue`, `CadPlans.vue`, `StartScreen.vue`, the game `ToastContainer.vue`, `useGameNpcSimulation.ts` and `router.ts` are gone. `WorldMap.vue` + `branches.ts` are archived in `_archive/worldmap/`. Do NOT rebuild, re-reference, or "restore" any of these unprompted. The app boots straight into `BlueprintEditor.vue` (`App.vue`). Engine code under `src/engine/` and its tests stay untouched unless a task explicitly requires it.
 
 ### Data & seed files (rewritten by editor save-flow)
 
@@ -62,8 +66,14 @@ When adding / renaming / removing any field on `CanvasConfig` (`types.ts`):
 
 ### Commands
 
-| Command | Purpose |
-|---|---|
-| `npm run verify` | typecheck + BEM lint + engine/schema suites + `verify:assets` (originAssets.data.ts ↔ AssetDef) |
-| `npm test` | engine/schema suites only (quick loop) |
-| `npm run test:npc-scale` | perf smoke (local only, timing-sensitive) |
+| Command                  | Purpose                                                                                         |
+| ------------------------ | ----------------------------------------------------------------------------------------------- |
+| `npm run verify`         | typecheck + BEM lint + engine/schema suites + `verify:assets` (originAssets.data.ts ↔ AssetDef) |
+| `npm test`               | engine/schema suites only (quick loop)                                                          |
+| `npm run test:npc-scale` | perf smoke (local only, timing-sensitive)                                                       |
+
+### Test invocation discipline
+
+- Run ONLY the single suite relevant to the file you changed (`npm run test:<name>`), plus ONE final `npm run verify` before reporting completion. Do NOT re-run verify between every micro-edit.
+- Never run `test:npc-perf`, `test:npc-scale`, `test:behavior`, or `observe:hotel` unless the task explicitly asks for perf/observation data.
+- Never execute files under `tests/` directly with `npx tsx` for exploration; temp diagnostic scripts belong in `tests/_*.tmp.ts`, must be deleted in the same session, and must not be committed.

@@ -1,37 +1,22 @@
 import { ref, computed, type Ref, type ComputedRef } from 'vue'
-import type { FloorData, FloorWalkable, TileEdges, TileState } from '../types'
+import type { FloorData, FloorWalkable, TileEdges, TileState, WallSegment } from '../types'
 
-export interface WallSegment {
-	x1: number
-	y1: number
-	x2: number
-	y2: number
-}
+export type { WallSegment }
 
 export interface WallSelection {
 	floorId: string
 	segment: WallSegment
 }
 
-export interface WallSelectionBox {
-	floorId: string
-	startX: number
-	startY: number
-	x: number
-	y: number
-	w: number
-	h: number
-}
-
 export interface WallPaintState {
 	active: Ref<boolean>
-	erasing: Ref<boolean>
 	selected: Ref<WallSelection[]>
-	selectionBox: Ref<WallSelectionBox | null>
 	preview: ComputedRef<WallSegment | null>
 	onMouseDown: (e: MouseEvent) => boolean
-	clearSelected: () => void
+	selectInRect: (rect: { x: number; y: number; w: number; h: number }) => void
+	clearSelection: () => void
 	deleteSelected: () => Promise<void>
+	cancel: () => void
 }
 
 export function applyWallSegment(edges: TileEdges[][], segment: WallSegment, tileSize: number, on: boolean): void {
@@ -73,16 +58,12 @@ export function useWallPaint(opts: {
 	floor: ComputedRef<FloorData | undefined>
 	wallAtPoint?: (point: { x: number; y: number }) => WallSegment | null
 	wallsInRect?: (rect: { x: number; y: number; w: number; h: number }) => WallSegment[]
-	clearOtherSelection?: () => void
 	commit: (floorId: string, walkable: FloorWalkable) => Promise<void>
 }): WallPaintState {
 	const active = ref(false)
-	const erasing = ref(false)
 	const selected = ref<WallSelection[]>([])
-	const selectionBox = ref<WallSelectionBox | null>(null)
 	const segment = ref<WallSegment | null>(null)
-	let start: { x: number; y: number; erase: boolean; floorId: string; hit: WallSegment | null } | null = null
-	let selecting = false
+	let start: { x: number; y: number; floorId: string; hit: WallSegment | null } | null = null
 
 	const preview = computed(() => segment.value)
 
@@ -90,55 +71,43 @@ export function useWallPaint(opts: {
 		return Math.round(v / t) * t
 	}
 
-	function clearSelected() {
+	function clearSelection() {
 		selected.value = []
-		selectionBox.value = null
-		if (selecting) {
-			selecting = false
-			start = null
-			window.removeEventListener('mousemove', onMouseMove)
-			window.removeEventListener('mouseup', onMouseUp)
-		}
 	}
 
-	function updateSelectionBox(point: { x: number; y: number }) {
-		if (!selectionBox.value) return
-		const box = selectionBox.value
-		box.x = Math.min(box.startX, point.x)
-		box.y = Math.min(box.startY, point.y)
-		box.w = Math.abs(point.x - box.startX)
-		box.h = Math.abs(point.y - box.startY)
-	}
-
-	function selectWallsInBox() {
-		const box = selectionBox.value
-		selectionBox.value = null
+	function selectInRect(rect: { x: number; y: number; w: number; h: number }) {
 		const floor = opts.floor.value
-		if (!box || !floor || floor.id !== box.floorId) return
-		const walls = opts.wallsInRect?.({ x: box.x, y: box.y, w: box.w, h: box.h }) ?? []
+		if (!floor) {
+			clearSelection()
+			return
+		}
+		const seen = new Set<string>()
+		const walls = (opts.wallsInRect?.(rect) ?? []).filter(wall => {
+			const key = `${wall.x1},${wall.y1},${wall.x2},${wall.y2}`
+			if (seen.has(key)) return false
+			seen.add(key)
+			return true
+		})
 		selected.value = walls.map(segment => ({ floorId: floor.id, segment }))
-		if (selected.value.length > 0) opts.clearOtherSelection?.()
+	}
+
+	function cancel() {
+		segment.value = null
+		start = null
+		window.removeEventListener('mousemove', onMouseMove)
+		window.removeEventListener('mouseup', onMouseUp)
 	}
 
 	function onMouseDown(e: MouseEvent): boolean {
-		if (e.button !== 0 && e.button !== 2) return false
+		if (e.button !== 0 || !active.value || opts.disabled()) return false
 		const p = opts.localPoint(e)
-		if (!p) return false
 		const floor = opts.floor.value
-		if (!floor) return false
-		const disabled = opts.disabled()
-		const hit = !disabled && e.button === 0 && !e.altKey ? opts.wallAtPoint?.(p) ?? null : null
-		const boxSelect = !disabled && e.button === 0 && e.shiftKey
-		if (!active.value && !hit && !boxSelect) return false
-		clearSelected()
-		selecting = boxSelect
-		start = { x: p.x, y: p.y, erase: e.button === 2 || e.altKey, floorId: floor.id, hit }
-		erasing.value = start.erase
-		segment.value = boxSelect ? null : { x1: p.x, y1: p.y, x2: p.x, y2: p.y }
-		if (boxSelect) {
-			opts.clearOtherSelection?.()
-			selectionBox.value = { floorId: floor.id, startX: p.x, startY: p.y, x: p.x, y: p.y, w: 0, h: 0 }
-		}
+		if (!p || !floor) return false
+		cancel()
+		clearSelection()
+		const hit = opts.wallAtPoint?.(p) ?? null
+		start = { x: p.x, y: p.y, floorId: floor.id, hit }
+		segment.value = hit ? { ...hit } : { x1: p.x, y1: p.y, x2: p.x, y2: p.y }
 		window.addEventListener('mousemove', onMouseMove)
 		window.addEventListener('mouseup', onMouseUp)
 		return true
@@ -148,32 +117,15 @@ export function useWallPaint(opts: {
 		if (!start) return
 		const p = opts.localPoint(e)
 		if (!p) return
+		const t = opts.tileSize()
 		const dx = Math.abs(p.x - start.x)
 		const dy = Math.abs(p.y - start.y)
-		if (!selecting && !start.erase && Math.max(dx, dy) > 4) {
-			const box = {
-				x: Math.min(start.x, p.x),
-				y: Math.min(start.y, p.y),
-				w: dx,
-				h: dy,
-			}
-			const hasWalls = (opts.wallsInRect?.(box).length ?? 0) > 0
-			if (start.hit || hasWalls) {
-				selecting = true
-				segment.value = null
-				selectionBox.value = { floorId: start.floorId, startX: start.x, startY: start.y, ...box }
-			}
-		}
-		if (selecting) {
-			updateSelectionBox(p)
-			return
-		}
-		const t = opts.tileSize()
-		if (dx >= dy) {
-			const gy = snap(start.y, t)
+		const horizontal = start.hit ? start.hit.y1 === start.hit.y2 : dx >= dy
+		if (horizontal) {
+			const gy = start.hit ? start.hit.y1 : snap(start.y, t)
 			segment.value = { x1: snap(start.x, t), y1: gy, x2: snap(p.x, t), y2: gy }
 		} else {
-			const gx = snap(start.x, t)
+			const gx = start.hit ? start.hit.x1 : snap(start.x, t)
 			segment.value = { x1: gx, y1: snap(start.y, t), x2: gx, y2: snap(p.y, t) }
 		}
 	}
@@ -199,27 +151,16 @@ export function useWallPaint(opts: {
 		window.removeEventListener('mousemove', onMouseMove)
 		window.removeEventListener('mouseup', onMouseUp)
 		const seg = segment.value
-		segment.value = null
 		const st = start
+		segment.value = null
 		start = null
-		if (selecting) {
-			selecting = false
-			selectWallsInBox()
-			return
-		}
 		const floor = opts.floor.value
-		if (!seg || !st || !floor) return
-		if (floor.id !== st.floorId) return
-		if (st.hit && !st.erase && seg.x1 === st.x && seg.y1 === st.y && seg.x2 === st.x && seg.y2 === st.y) {
-			selected.value = [{ floorId: floor.id, segment: st.hit }]
-			opts.clearOtherSelection?.()
-			return
-		}
+		if (!seg || !st || !floor || floor.id !== st.floorId) return
 		const t = opts.tileSize()
 		const cols = Math.max(1, Math.round(opts.canvasWidth() / t))
 		const rows = Math.max(1, Math.round(opts.canvasHeight() / t))
 		const walkable = resolveWalkable(floor, rows, cols)
-		applyWallSegment(walkable.tileEdges, seg, t, !st.erase)
+		applyWallSegment(walkable.tileEdges, seg, t, true)
 		await opts.commit(floor.id, walkable)
 	}
 
@@ -227,7 +168,7 @@ export function useWallPaint(opts: {
 		const picked = selected.value
 		const floor = opts.floor.value
 		if (picked.length === 0 || !floor || picked.some(selection => selection.floorId !== floor.id)) {
-			clearSelected()
+			clearSelection()
 			return
 		}
 		const t = opts.tileSize()
@@ -236,8 +177,8 @@ export function useWallPaint(opts: {
 		const walkable = resolveWalkable(floor, rows, cols)
 		for (const selection of picked) applyWallSegment(walkable.tileEdges, selection.segment, t, false)
 		await opts.commit(floor.id, walkable)
-		clearSelected()
+		clearSelection()
 	}
 
-	return { active, erasing, selected, selectionBox, preview, onMouseDown, clearSelected, deleteSelected }
+	return { active, selected, preview, onMouseDown, selectInRect, clearSelection, deleteSelected, cancel }
 }
