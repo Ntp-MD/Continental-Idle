@@ -92,7 +92,7 @@ function onTextChange() {
   }
   isInvalid.value = true;
   textValue.value = draftValue.value ?? "";
-  emit("commit-invalid");
+  emit("commit-invalid", v);
 }
 
 function toggleTransparent() {

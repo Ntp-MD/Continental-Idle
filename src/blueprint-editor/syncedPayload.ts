@@ -29,6 +29,7 @@ import {
 	resolveStreetTiles,
 } from './types'
 import { assignSyncKey } from './store/storeUtils'
+import { assetSizeFor } from './geometry'
 
 export function buildSyncedPayload(
 	layout: FloorLayoutData,
@@ -38,6 +39,7 @@ export function buildSyncedPayload(
 	try {
 		const floors: Record<string, SyncedFloor> = {}
 		const usedKeys = new Set<string>()
+		const tileSize = layout.canvas.tileSize
 		layout.floors.forEach((floor, index) => {
 			const floorId = assignSyncKey(floor.label, index, usedKeys)
 			usedKeys.add(floorId)
@@ -49,7 +51,7 @@ export function buildSyncedPayload(
 				...(walkable ? { walkable } : {}),
 				...(spawnZones?.length ? { spawnZones } : {}),
 				...(allowedRoleIds ? { allowedRoleIds } : {}),
-				objects: floor.objects.map((o: ObjectData) => buildSyncedObject(o, assets)),
+				objects: floor.objects.map((o: ObjectData) => buildSyncedObject(o, assets, tileSize)),
 			}
 		})
 		if (Object.keys(floors).length === 0) return null
@@ -71,8 +73,11 @@ export function buildSyncedPayload(
 	}
 }
 
-function buildSyncedObject(o: ObjectData, assets: ReadonlyMap<string, AssetDef>): SyncedObject {
+function buildSyncedObject(o: ObjectData, assets: ReadonlyMap<string, AssetDef>, tileSize: number): SyncedObject {
 	const asset = assets.get(o.type)
+	const size = hasPositiveSize(o)
+		? { w: o.w, h: o.h }
+		: assetSizeFor(o.type, o.rotation ?? 0, tileSize, assets)
 	const interactSpots = normalizeInteractSpots(asset?.interactSpots)
 	const interact = normalizeInteractConfig(asset?.interact)
 	const queue = normalizeNpcQueueConfig(asset?.queue)
@@ -84,8 +89,8 @@ function buildSyncedObject(o: ObjectData, assets: ReadonlyMap<string, AssetDef>)
 		type: o.type,
 		x: o.x,
 		y: o.y,
-		w: o.w,
-		h: o.h,
+		w: size?.w ?? 0,
+		h: size?.h ?? 0,
 		rotation: o.rotation,
 		walkable: asset?.walkable ?? false,
 		entranceRequired: asset?.entranceRequired ?? false,
@@ -100,4 +105,9 @@ function buildSyncedObject(o: ObjectData, assets: ReadonlyMap<string, AssetDef>)
 	if (interact) obj.interact = interact
 	if (queue) obj.queue = queue
 	return obj
+}
+
+function hasPositiveSize(o: ObjectData): boolean {
+	return typeof o.w === 'number' && Number.isFinite(o.w) && o.w > 0
+		&& typeof o.h === 'number' && Number.isFinite(o.h) && o.h > 0
 }

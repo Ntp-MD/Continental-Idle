@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "npm run clear-cache && vite",
-    "build": "npm run clear-cache && vue-tsc -b && vite build",
+    "build": "vue-tsc -b && vite build",
     "preview": "vite preview",
     "test:npc-engine": "tsx tests/test-npc-engine.ts",
     "test:npc-queue": "tsx tests/test-npc-queue.ts",
@@ -14,15 +14,19 @@
     "test:wall-paint": "tsx tests/test-wall-paint.ts",
     "test:asset-schema": "tsx tests/test-asset-schema.ts",
     "test:sync-payload": "tsx tests/test-sync-payload.ts",
+    "test:cad": "tsx tests/test-cad-layout.ts",
     "test:npc-perf": "tsx tests/perf-npc-engine.ts",
     "test:npc-scale": "tsx tests/perf-npc-scale.ts",
-    "test": "npm run test:npc-engine && npm run test:npc-queue && npm run test:blueprint-schema && npm run test:wall-paint && npm run test:asset-schema && npm run test:sync-payload && npm run verify:assets",
+    "test": "npm run test:npc-engine  &&  npm run test:npc-queue  &&  npm run test:blueprint-schema  &&  npm run test:wall-paint  &&  npm run test:asset-schema  &&  npm run test:sync-payload  && npm run test:hotel-layout &&  npm run test:cad &&  npm run verify:assets",
     "verify": "npm run typecheck && npm run lint:bem && npm test",
-    "typecheck": "npm run clear-cache && vue-tsc --noEmit",
+    "typecheck": "vue-tsc --noEmit",
     "typecheck:test": "tsc --noEmit -p tsconfig.test.json",
     "lint:bem": "node scripts/lint-bem.mjs",
     "clear-cache": "node -e \"const fs=require('fs');const p=require('path');const dir=p.join(process.cwd(),'node_modules','.tmp');if(fs.existsSync(dir)){fs.rmSync(dir,{recursive:true,force:true});console.log('[clear-cache] removed node_modules/.tmp')}else{console.log('[clear-cache] nothing to remove')};const vite=p.join(process.cwd(),'node_modules','.vite');if(fs.existsSync(vite)){fs.rmSync(vite,{recursive:true,force:true});console.log('[clear-cache] removed node_modules/.vite')}\"",
-    "verify:assets": "node scripts/verify-assets.mjs"
+    "verify:assets": "node scripts/verify-assets.mjs",
+    "build:hotel": "node scripts/build-hotel.mjs",
+    "test:hotel-layout": "tsx tests/test-hotel-layout.ts",
+    "observe:hotel": "tsx scripts/observe-hotel.ts"
   },
   "dependencies": {
     "d3": "^7.9.0",

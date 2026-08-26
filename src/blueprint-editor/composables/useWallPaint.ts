@@ -128,9 +128,9 @@ export function useWallPaint(opts: {
 		if (!floor) return false
 		const disabled = opts.disabled()
 		const hit = !disabled && e.button === 0 && !e.altKey ? opts.wallAtPoint?.(p) ?? null : null
-		if (!active.value && !hit) return false
-		clearSelected()
 		const boxSelect = !disabled && e.button === 0 && e.shiftKey
+		if (!active.value && !hit && !boxSelect) return false
+		clearSelected()
 		selecting = boxSelect
 		start = { x: p.x, y: p.y, erase: e.button === 2 || e.altKey, floorId: floor.id, hit }
 		erasing.value = start.erase

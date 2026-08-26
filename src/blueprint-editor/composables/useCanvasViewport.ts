@@ -1,4 +1,4 @@
-import { ref, computed, watch, type Ref, type ComputedRef } from 'vue'
+import { ref, computed, type Ref, type ComputedRef } from 'vue'
 
 export interface ViewportState {
 	zoom: Ref<number>
@@ -27,34 +27,15 @@ export function useCanvasViewport(
 	canvasWidth: () => number,
 	canvasHeight: () => number,
 ): ViewportState {
-	const ZOOM_STORAGE_KEY = 'blueprint-zoom-state'
-	function loadZoomState(): { zoom: number; panX: number; panY: number } {
-		try {
-			const raw = sessionStorage.getItem(ZOOM_STORAGE_KEY)
-			if (raw) return JSON.parse(raw)
-		} catch { }
-		return { zoom: 1, panX: 0, panY: 0 }
-	}
-	function saveZoomState(zoom: number, panX: number, panY: number) {
-		try {
-			localStorage.setItem(ZOOM_STORAGE_KEY, JSON.stringify({ zoom, panX, panY }))
-		} catch { }
-	}
-
 	const svgRef = ref<SVGSVGElement | null>(null)
 	const containerRef = ref<HTMLElement | null>(null)
 
-	const _initial = loadZoomState()
-	const zoom = ref(_initial.zoom)
-	const panX = ref(_initial.panX)
-	const panY = ref(_initial.panY)
+	const zoom = ref(1)
+	const panX = ref(0)
+	const panY = ref(0)
 	const MIN_ZOOM = 0.1
 	const MAX_ZOOM = 8
 	const RULER_SIZE = 22
-
-	watch(zoom, v => saveZoomState(v, panX.value, panY.value))
-	watch(panX, v => saveZoomState(zoom.value, v, panY.value))
-	watch(panY, v => saveZoomState(zoom.value, panX.value, v))
 
 	const viewBox = computed(() => {
 		const w = canvasWidth() / zoom.value

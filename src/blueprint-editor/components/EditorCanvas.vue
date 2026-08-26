@@ -305,7 +305,7 @@ const modeHint = computed(() => {
   const hints: Record<string, string> = {
     object: "Drag an asset from the palette onto the canvas",
     draw: "Drag a rectangle, then save it as an origin asset",
-    move: "Click and drag an object to reposition it",
+    move: "Click and drag an object to reposition it - Shift+drag empty space box-selects walls too - Delete removes the selection",
     "npc-preview": "NPCs are simulating on this floor",
   };
   return hints[store.state.mode] ?? "";
@@ -353,6 +353,7 @@ const wallThickness = computed(() => canvas.value.wallThickness ?? DEFAULT_WALL_
 const wallPreview = wallPaint.preview;
 const wallErasing = wallPaint.erasing;
 const selectedWall = wallPaint.selected;
+const wallSelectionBox = computed(() => wallPaint.selectionBox.value);
 watch(
   () => store.state.wallPaint,
   (on) => {
@@ -673,33 +674,24 @@ async function onKeyDown(e: KeyboardEvent) {
     return;
   }
   if ((e.key === "Delete" || e.key === "Backspace") && !e.repeat) {
-    if (wallPaint.selected.value.length > 0) {
-      e.preventDefault();
-      const count = wallPaint.selected.value.length;
-      const confirmed = await confirm({
-        title: "Delete wall selection",
-        message: `Delete ${count} selected wall${count === 1 ? "" : "s"}? This action cannot be undone.`,
-        confirmLabel: "Delete",
-        cancelLabel: "Cancel",
-        danger: true,
-      });
-      if (confirmed) await wallPaint.deleteSelected();
-      return;
-    }
-    if (store.state.selectionState.primary) {
-      e.preventDefault();
-      const sel = store.state.selectionState.primary;
-      const count = store.state.selectionState.items.length || 1;
-      const confirmed = await confirm({
-        title: "Delete selection",
-        message: `Delete ${count} selected ${count === 1 ? sel.type : "object(s)"}? This action cannot be undone.`,
-        confirmLabel: "Delete",
-        cancelLabel: "Cancel",
-        danger: true,
-      });
-      if (!confirmed) return;
-      await store.deleteSelected();
-    }
+    const wallCount = wallPaint.selected.value.length;
+    const primary = store.state.selectionState.primary;
+    const objCount = primary ? store.state.selectionState.items.length || 1 : 0;
+    if (wallCount === 0 && objCount === 0) return;
+    e.preventDefault();
+    const parts: string[] = [];
+    if (wallCount > 0) parts.push(`${wallCount} selected wall${wallCount === 1 ? "" : "s"}`);
+    if (objCount > 0) parts.push(`${objCount} selected ${primary!.type === "object" ? (objCount === 1 ? "object" : "objects") : primary!.type}`);
+    const confirmed = await confirm({
+      title: "Delete selection",
+      message: `Delete ${parts.join(" and ")}? This action cannot be undone.`,
+      confirmLabel: "Delete",
+      cancelLabel: "Cancel",
+      danger: true,
+    });
+    if (!confirmed) return;
+    if (wallCount > 0) await wallPaint.deleteSelected();
+    if (objCount > 0) await store.deleteSelected();
   } else if (e.key === "r" || e.key === "R") {
     if (store.state.selectionState.primary?.type === "object") {
       await store.rotateSelected();
@@ -768,15 +760,13 @@ function onWindowBlur() {
   spaceDown.value = false;
 }
 
-const ZOOM_STORAGE_KEY = "blueprint-zoom-state";
-
 onMounted(() => {
   window.addEventListener("keydown", onKeyDown);
   window.addEventListener("keyup", onKeyUp);
   window.addEventListener("blur", onWindowBlur);
   document.addEventListener("click", onFloorNavOutside);
   document.addEventListener("keydown", onFloorNavKeydown);
-  if (!sessionStorage.getItem(ZOOM_STORAGE_KEY)) requestAnimationFrame(fitToScreen);
+  requestAnimationFrame(fitToScreen);
 });
 onUnmounted(() => {
   stopNpcSimulation();
@@ -843,8 +833,25 @@ function isObjectSelected(id: string): boolean {
   return selectedObjectIds.value.has(id);
 }
 
+function wallKey(wall: WallSegment): string {
+  return `${wall.x1},${wall.y1},${wall.x2},${wall.y2}`;
+}
+
+const wallSelectionKeys = computed(() => {
+  const keys = new Set<string>();
+  const fid = floor.value?.id;
+  for (const selected of selectedWall.value) {
+    if (selected.floorId === fid) keys.add(wallKey(selected.segment));
+  }
+  const box = wallPaint.selectionBox.value;
+  if (box && box.floorId === fid) {
+    for (const wall of wallsInRect({ x: box.x, y: box.y, w: box.w, h: box.h })) keys.add(wallKey(wall));
+  }
+  return keys;
+});
+
 function isWallSelected(wall: WallSegment): boolean {
-  return selectedWall.value.some((selected) => selected.floorId === floor.value?.id && selected.segment.x1 === wall.x1 && selected.segment.y1 === wall.y1 && selected.segment.x2 === wall.x2 && selected.segment.y2 === wall.y2);
+  return wallSelectionKeys.value.has(wallKey(wall));
 }
 
 async function saveDrawnOrigin() {
@@ -967,13 +974,13 @@ async function cancelDrawnOrigin() {
         <rect v-for="(run, i) in walkableRuns" :key="`floor-walk-run-${i}`" :x="run.x" :y="run.y" :width="run.w" :height="run.h" :class="`editor__tile editor__tile--${run.state}`" />
       </g>
 
-      <g v-if="renderWalls && floor?.walkable?.tileEdges" v-memo="[wallRuns, renderWalls, wallColor, wallThickness, selectedWall]" class="editor__walls editor__svg--noevents">
-        <line v-for="(run, i) in wallRuns" :key="`floor-wall-run-${i}`" :x1="run.x1" :y1="run.y1" :x2="run.x2" :y2="run.y2" :class="{ 'editor__wall--selected': isWallSelected(run) }" :stroke="isWallSelected(run) ? 'var(--accent-primary)' : wallColor" :stroke-width="isWallSelected(run) ? wallThickness + 2 : wallThickness" />
+      <g v-if="renderWalls && floor?.walkable?.tileEdges" v-memo="[wallRuns, renderWalls, wallColor, wallThickness, selectedWall, wallSelectionBox]" class="editor__walls editor__svg--noevents">
+        <line v-for="(run, i) in wallRuns" :key="`floor-wall-run-${i}`" :x1="run.x1" :y1="run.y1" :x2="run.x2" :y2="run.y2" :class="{ 'editor__wall--selected': isWallSelected(run) }" :stroke="isWallSelected(run) ? 'var(--accent-primary)' : wallColor" :stroke-width="isWallSelected(run) ? wallThickness + 3 : wallThickness" :stroke-dasharray="isWallSelected(run) ? '10 5' : undefined" />
       </g>
 
       <line v-if="wallPreview && !isInteracting" :x1="wallPreview.x1" :y1="wallPreview.y1" :x2="wallPreview.x2" :y2="wallPreview.y2" :stroke="wallErasing ? 'var(--accent-red)' : wallColor" :stroke-width="Math.max(2, wallThickness)" stroke-dasharray="6 4" opacity="0.9" class="editor__svg--noevents" />
 
-      <rect v-if="wallPaint.selectionBox" :x="wallPaint.selectionBox.x" :y="wallPaint.selectionBox.y" :width="wallPaint.selectionBox.w" :height="wallPaint.selectionBox.h" fill="color-mix(in srgb, var(--accent-primary) 10%, transparent)" stroke="var(--accent-primary)" stroke-width="1.5" stroke-dasharray="5 3" class="editor__wallbox editor__svg--noevents" />
+      <rect v-if="wallSelectionBox" :x="wallSelectionBox.x" :y="wallSelectionBox.y" :width="wallSelectionBox.w" :height="wallSelectionBox.h" fill="color-mix(in srgb, var(--accent-primary) 10%, transparent)" stroke="var(--accent-primary)" stroke-width="1.5" stroke-dasharray="5 3" class="editor__wallbox editor__svg--noevents" />
 
       <g v-if="renderBuildingBounds" v-memo="[buildingAreaRect, renderBuildingBounds]" class="editor__bounds editor__svg--noevents">
         <rect :x="buildingAreaRect.x" :y="buildingAreaRect.y" :width="buildingAreaRect.w" :height="buildingAreaRect.h" fill="none" stroke="var(--accent-green)" stroke-width="6" opacity="0.9" />

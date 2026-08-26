@@ -8,93 +8,230 @@ export const npcSettingsData = {
       "id": "role-guest",
       "label": "Guest",
       "color": "#3794ff",
-      "focusTags": [],
-      "restrictedTags": [],
-      "taskIds": [],
-      "focusChance": 80
-    },
-    {
-      "id": "role-35fe1cf9ca",
-      "label": "go tag1",
-      "color": "#4fc1ff",
       "focusTags": [
-        "tag1"
+        "portal",
+        "lounge",
+        "dining",
+        "pool",
+        "spa",
+        "gym",
+        "wellness",
+        "guest-room"
       ],
       "restrictedTags": [],
-      "taskIds": [],
-      "focusChance": 100,
-      "spawnRule": {
-        "targetTags": [],
-        "count": 0
-      }
-    },
-    {
-      "id": "role-b9ba582cec",
-      "label": "go tag2",
-      "color": "#89d185",
-      "focusTags": [
-        "tag2"
+      "taskIds": [
+        "t-checkin",
+        "t-drink",
+        "t-swim",
+        "t-massage",
+        "t-workout",
+        "t-rest",
+        "t-lounge"
       ],
-      "restrictedTags": [],
-      "taskIds": [],
-      "focusChance": 100,
-      "spawnRule": {
-        "targetTags": [],
-        "count": 0
-      }
+      "focusChance": 70
     },
     {
-      "id": "role-d6a47712fa",
-      "label": "go tag3",
+      "id": "role-receptionist",
+      "label": "Receptionist",
       "color": "#dcdcaa",
       "focusTags": [
-        "tag3"
+        "front-desk"
       ],
       "restrictedTags": [],
-      "taskIds": [],
+      "taskIds": [
+        "t-checkin"
+      ],
       "focusChance": 100,
       "spawnRule": {
-        "targetTags": [],
-        "count": 0
+        "targetTags": [
+          "front-desk"
+        ],
+        "count": 2
       }
     },
     {
-      "id": "role-56fb018b2c",
-      "label": "go tag4",
-      "color": "#c586c0",
+      "id": "role-bartender",
+      "label": "Bartender",
+      "color": "#ce9178",
       "focusTags": [
-        "tag4"
+        "bar"
       ],
       "restrictedTags": [],
-      "taskIds": [],
+      "taskIds": [
+        "t-drink"
+      ],
       "focusChance": 100,
       "spawnRule": {
-        "targetTags": [],
-        "count": 0
+        "targetTags": [
+          "bar"
+        ],
+        "count": 2
+      }
+    },
+    {
+      "id": "role-trainer",
+      "label": "Trainer",
+      "color": "#4fc1ff",
+      "focusTags": [
+        "gym"
+      ],
+      "restrictedTags": [],
+      "taskIds": [
+        "t-workout"
+      ],
+      "focusChance": 100,
+      "spawnRule": {
+        "targetTags": [
+          "gym"
+        ],
+        "count": 2
+      }
+    },
+    {
+      "id": "role-therapist",
+      "label": "Therapist",
+      "color": "#c586c0",
+      "focusTags": [
+        "spa",
+        "pool"
+      ],
+      "restrictedTags": [],
+      "taskIds": [
+        "t-massage"
+      ],
+      "focusChance": 100,
+      "spawnRule": {
+        "targetTags": [
+          "spa"
+        ],
+        "count": 3
+      }
+    },
+    {
+      "id": "role-housekeeper",
+      "label": "Housekeeper",
+      "color": "#89d185",
+      "focusTags": [
+        "housekeeping",
+        "guest-room"
+      ],
+      "restrictedTags": [],
+      "taskIds": [
+        "t-clean"
+      ],
+      "focusChance": 100,
+      "spawnRule": {
+        "targetTags": [
+          "housekeeping"
+        ],
+        "count": 4
       }
     }
   ],
-  "tasks": [],
+  "tasks": [
+    {
+      "id": "t-checkin",
+      "label": "Check-in",
+      "tags": [
+        "front-desk"
+      ]
+    },
+    {
+      "id": "t-drink",
+      "label": "Order drink",
+      "tags": [
+        "bar"
+      ]
+    },
+    {
+      "id": "t-swim",
+      "label": "Swim",
+      "tags": [
+        "pool"
+      ]
+    },
+    {
+      "id": "t-massage",
+      "label": "Massage",
+      "tags": [
+        "spa"
+      ]
+    },
+    {
+      "id": "t-workout",
+      "label": "Workout",
+      "tags": [
+        "gym"
+      ]
+    },
+    {
+      "id": "t-rest",
+      "label": "Rest",
+      "tags": [
+        "guest-room"
+      ]
+    },
+    {
+      "id": "t-lounge",
+      "label": "Lounge",
+      "tags": [
+        "lounge"
+      ]
+    },
+    {
+      "id": "t-clean",
+      "label": "Clean room",
+      "tags": [
+        "housekeeping",
+        "guest-room"
+      ]
+    }
+  ],
   "pool": [
     {
       "roleId": "role-guest",
-      "count": 10
+      "count": 16
     },
     {
-      "roleId": "role-35fe1cf9ca",
-      "count": 6
+      "roleId": "role-receptionist",
+      "count": 2,
+      "floorIds": [
+        "G"
+      ]
     },
     {
-      "roleId": "role-b9ba582cec",
-      "count": 9
+      "roleId": "role-bartender",
+      "count": 2,
+      "floorIds": [
+        "G",
+        "2"
+      ]
     },
     {
-      "roleId": "role-d6a47712fa",
-      "count": 6
+      "roleId": "role-trainer",
+      "count": 2,
+      "floorIds": [
+        "3"
+      ]
     },
     {
-      "roleId": "role-56fb018b2c",
-      "count": 4
+      "roleId": "role-therapist",
+      "count": 3,
+      "floorIds": [
+        "4",
+        "5"
+      ]
+    },
+    {
+      "roleId": "role-housekeeper",
+      "count": 4,
+      "floorIds": [
+        "6",
+        "7",
+        "8",
+        "9",
+        "10"
+      ]
     }
   ]
 }

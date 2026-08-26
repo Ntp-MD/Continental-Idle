@@ -659,8 +659,7 @@ export function parseCanvasConfig(raw: unknown, strict: boolean): CanvasConfig |
 	if (!raw || typeof raw !== 'object') return null
 	const rec = raw as Record<string, unknown>
 	const out: Record<string, unknown> = {}
-	let failed = false
-	for (const [key, spec] of Object.entries(CANVAS_FIELD_SPECS)) {
+	for (const [key, spec] of Object.entries(CANVAS_FIELD_SPECS) as [string, CanvasFieldSpec][]) {
 		const value = rec[key]
 		if (value === undefined || value === null) {
 			if (spec.required) return null
@@ -672,13 +671,12 @@ export function parseCanvasConfig(raw: unknown, strict: boolean): CanvasConfig |
 		else if (spec.kind === 'int') ok = typeof value === 'number' && Number.isInteger(value) && (spec.min === undefined || value >= spec.min) && (spec.max === undefined || value <= spec.max)
 		if (!ok) {
 			if (strict) return null
-			failed = true
 			continue
 		}
 		out[key] = value
 	}
 	if (Object.keys(out).length === 0) return null
-	return { ...out } as CanvasConfig
+	return { ...out } as unknown as CanvasConfig
 }
 
 export interface FloorLayoutData {

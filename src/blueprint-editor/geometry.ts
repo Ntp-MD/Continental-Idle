@@ -6,11 +6,11 @@ export function assetSizeFor(
 	type: string,
 	rotation: Rotation,
 	tileSize: number,
-	assetLookup: AssetDef[] | Map<string, AssetDef>,
+	assetLookup: readonly AssetDef[] | ReadonlyMap<string, AssetDef>,
 ): { w: number; h: number } | null {
 	const asset = Array.isArray(assetLookup)
 		? findAsset(assetLookup, type)
-		: findAssetCached(assetLookup, type)
+		: findAssetCached(assetLookup as Map<string, AssetDef>, type)
 	if (!asset) return null
 	const aw = asset.usePx ? (asset.pxW ?? asset.w * tileSize) : asset.w * tileSize
 	const ah = asset.usePx ? (asset.pxH ?? asset.h * tileSize) : asset.h * tileSize

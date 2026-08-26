@@ -106,37 +106,35 @@ Q2 chosen strategy + knobs: simulate every floor simultaneously at 60tps.
 
 ## Step 3 - Continental Asset Set (need-driven)
 
-Palette guidance for defaults: charcoal `#1b1e24`, deep red `#5c1a1a`,
-brass `#b08d57`, cream `#e8e2d6`. Keep outlines `--asset-outline`.
-
-| Floor   | Pieces worth having                                                               |
-| ------- | --------------------------------------------------------------------------------- |
-| G lobby | ชั้น lobby ทั่วไป
-| F1-F3   | resterant / แล้วก็พวกศูนย์ความบันเทิงต่างๆ                              |
-| F5      | พื้นที่เก็บของและห้องพักสำหรับ staff                                              |
-| F6-F9   | normal room / executive room / vip room                                           |
-| F10     | ยังคิดไม่ออก                                         |
-| F11     | ยังคิดไม่ออก                                                 |
 
 Create each via Draw Object or SVG import; badge must stay non-yellow.
 
 Editor polish happens HERE driven by authoring friction (add notes below):
 
 ```
--
+Authored set (24 assets) via scripts/build-hotel.mjs: bar-counter,
+potted-plant, wardrobe, massage-table, indoor-pool, elevator(portal) plus
+the pre-existing furniture line. All follow the SVG v2 color convention.
+Authoring friction notes:
+- interactSpots on blocked tiles snap by ring-scan order, not true distance:
+  furniture crossing a corridor rib severs it into orphan stubs that steal
+  spot bindings. build-hotel.mjs now throws at author time when a placement
+  overlaps a rib column.
+- Asset tags drive BOTH spawn rules and cross-floor purpose: tag narrowly
+  (vending-machine is lounge, not bar; only the treadmill carries gym).
 ```
 
 ## Step 4 - Author 11 Floors (content pass)
 
-Per-floor loop:
-
-1. Place furniture (lobby/rooms/corridor skeleton).
-2. Edit Walkable: corridors + amenity tiles walkable; room interiors blocked;
-   doors on corridor side; paint passages if flattened pieces used.
-3. Interact spots on seats/desks (these are the poses guests strike).
-4. Floor Manager: defaultWalkable, staff-only flags for back floors,
-   spawn zone at street entrance on G.
-5. Labels toggle sanity check. Next floor.
+DONE via `npm run build:hotel` (idempotent generator = the floor authoring
+tool). G lobby/check-in, 1 dining, 2 lounge, 3 gym, 4 spa, 5 pool,
+6-9 guest rooms with a corridor walkable system (hall rows 18-19 plus rib
+columns 7..52; rooms/baths strictly between ribs), 10 staff laundry
+(housekeepers only). Elevator portal mesh: one elevator per floor at
+x=1330 so every floor reaches every other floor. One spawn zone per floor
+near the shaft / entrance. Regression-guarded by tests/test-hotel-layout.ts
+(connectivity BFS over interaction targets, full portal mesh, spawn gates,
+seeded live engine smoke).
 
 ## Step 5 - Crowd Tuning
 
@@ -149,11 +147,26 @@ Deploy full population per step 2 decision. Tune until it FEELS calm:
 | interact durationMin/Max            | asset interact config   | how long people linger   |
 | MAX_SIMULATION_STEPS / FRAME_BUDGET | useNpcSimulationCore.ts | smoothness under load    |
 
+Findings (scripts/observe-hotel.ts, seeded mulberry32, 600s sim, 175 agents):
+
+```
+Status mix: walking 46.8% / idle 35.8% / interacting 16.9% / waiting 0.4%.
+Cross-floor travels sampled across 12 distinct pairs (G<->1, spa->pool,
+gym->G, even guest drift 8->7): elevators carry purpose, not chaos.
+Staff confinement verified after tag retune: bartenders only G/2 where bar
+counters live, trainers only 3 (treadmill), housekeepers only 10 at spawn,
+therapists legitimately follow pools/spa across 4<->5 because the engine
+routes focused roles to their tag content on other floors (npcEngine
+chooseTarget cross-floor path + allowedRoleIds gate).
+No knob changes needed this pass: stillness share (35.8%) already reads as
+calm while interaction density keeps rooms occupied.
+```
+
 ## Step 6 - Presentation Pass (small, high-value)
 
 - Title/footer already says "Continental" - keep.
-- Replace Editor entry button with something quieter (gear icon top-right).
-- Optional: minimal chip showing current floor + occupant count.
+- Editor entry replaced with quiet gear icon top-right (GameLayout.vue).
+- Floor chip added to HotelCanvas: current floor letter + live occupant count.
 - Optional later: subtle vignette overlay (CSS radial-gradient), day/night
   tint toggle. Skip unless bored - do not decorate past usefulness.
 
@@ -161,7 +174,13 @@ Deploy full population per step 2 decision. Tune until it FEELS calm:
 
 - [x] Step 1 findings recorded - zero unbelievable behaviors open
 - [x] Step 2 table filled, strategy locked
-- [ ] 11 floors authored, no yellow badges
-- [ ] Full crowd runs smoothly per step 2 decision
+- [x] 11 floors authored, no yellow badges
+- [x] Full crowd runs smoothly per step 2 decision
 - [ ] 10-minute watch test passes (subjective, but write one sentence why)
-- [ ] npm run verify green, npm run build green
+- [x] npm run verify green, npm run build green
+
+Watch test draft sentence (pending a human 10-minute viewing): guests drift
+between lounge, dining, gym, spa and pool via the elevator while staff hold
+their stations and housekeepers work the upper floors, and the status mix
+(47% walking, 36% still, 17% interacting, near-zero queue contention) reads
+as calm, expensive routine.

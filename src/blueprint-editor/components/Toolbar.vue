@@ -237,10 +237,10 @@ function onSyncToGame() {
       </svg>
     </button>
 
-    <button :class="{ 'flag--warning': store.state.mode === 'object' }" @click="onSwitchMode('object')" aria-label="Switch to object mode">Object</button>
-    <button :class="{ 'flag--warning': store.state.mode === 'draw' }" @click="onSwitchMode('draw')" aria-label="Switch to draw mode">Draw Object</button>
-    <button :class="{ 'flag--warning': store.state.mode === 'move' }" @click="onSwitchMode('move')" aria-label="Switch to move mode">Move</button>
-    <button :class="{ 'flag--warning': store.state.wallPaint }" :disabled="store.state.mode === 'npc-preview'" @click="store.setWallPaint(!store.state.wallPaint)" title="Paint wall lines on tile boundaries - click to select, drag a box over walls to select multiple, Delete removes, left-drag draws, Alt+drag or right-drag erases, Escape exits" aria-label="Toggle wall paint tool">Wall Paint</button>
+    <button :class="{ 'flag--warning': store.state.mode === 'object' && !store.state.wallPaint }" @click="onSwitchMode('object')" aria-label="Switch to object mode">Object</button>
+    <button :class="{ 'flag--warning': store.state.mode === 'draw' && !store.state.wallPaint }" @click="onSwitchMode('draw')" aria-label="Switch to draw mode">Draw Object</button>
+    <button :class="{ 'flag--warning': store.state.mode === 'move' && !store.state.wallPaint }" @click="onSwitchMode('move')" aria-label="Switch to move mode">Move</button>
+    <button :class="{ 'flag--warning': store.state.wallPaint }" :disabled="store.state.mode === 'npc-preview'" @click="store.setWallPaint(!store.state.wallPaint)" title="Paint wall lines on tile boundaries - Shift+drag box-selects walls in any mode, Delete removes, in wall paint: left-drag draws, Alt+drag or right-drag erases, Escape exits" aria-label="Toggle wall paint tool">Wall Paint</button>
 
     <button @click="onNpcManager" title="Configure NPC roles and tags" aria-label="Open NPC manager">NPC Manager</button>
     <button class="flag--warning" :disabled="pending" @click="onSyncOrigins" title="Re-resolve every placed object from its origin asset and rebuild walkable layout" aria-label="Refresh all placed objects from origins">Refresh Objects</button>

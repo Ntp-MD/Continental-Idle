@@ -1,18 +1,46 @@
 export const tagManagerData = [
   {
-    "id": "tag1",
-    "label": "tag1"
+    "id": "front-desk",
+    "label": "front-desk"
   },
   {
-    "id": "tag2",
-    "label": "tag2"
+    "id": "lounge",
+    "label": "lounge"
   },
   {
-    "id": "tag3",
-    "label": "tag3"
+    "id": "bar",
+    "label": "bar"
   },
   {
-    "id": "tag4",
-    "label": "tag4"
+    "id": "dining",
+    "label": "dining"
+  },
+  {
+    "id": "gym",
+    "label": "gym"
+  },
+  {
+    "id": "spa",
+    "label": "spa"
+  },
+  {
+    "id": "pool",
+    "label": "pool"
+  },
+  {
+    "id": "guest-room",
+    "label": "guest-room"
+  },
+  {
+    "id": "housekeeping",
+    "label": "housekeeping"
+  },
+  {
+    "id": "wellness",
+    "label": "wellness"
+  },
+  {
+    "id": "decor",
+    "label": "decor"
   }
 ]

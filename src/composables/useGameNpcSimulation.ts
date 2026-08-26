@@ -1,6 +1,10 @@
 import { onUnmounted, ref, watch, type Ref } from 'vue'
 import type { NpcSimDot, NpcSimulationConfig, SyncedLayoutPayload } from '@/blueprint-editor/types'
 import { useNpcSimulationCore, type NpcSimulationCore } from './useNpcSimulationCore'
+import { originAssets } from '@/blueprint-editor/store/dataLoader'
+import { buildAssetMap } from '@/blueprint-editor/assetUtils'
+
+const gameAssetMap = buildAssetMap(originAssets)
 
 function toObjectData(object: SyncedLayoutPayload['floors'][string]['objects'][number]) {
 	return {
@@ -64,6 +68,8 @@ export function useGameNpcSimulation(
 			streetFloorId: payloadRef.value?.canvas.streetFloorId,
 		}),
 		getViewFloorId: () => currentFloorId.value,
+		getAssetTags: (type) => gameAssetMap.get(type)?.tags,
+		getAssetDef: (type) => gameAssetMap.get(type),
 		idPrefix: 'npc-game-',
 		syncIntervalMs: 16,
 	})

@@ -108,6 +108,30 @@ function makeAsset(over: Partial<AssetDef>): AssetDef {
 	assert.equal(orphan.interactSpots, undefined)
 }
 
+// ── Persisted placements without w/h derive size from origin asset ──
+{
+	const table = makeAsset({ id: 'a-table', name: 'Table', w: 2, h: 1 })
+	const layout = makeLayout({
+		floors: [
+			{
+				id: 'f1',
+				name: 'Ground',
+				label: 'G',
+				objects: [
+					{ id: 'o1', type: 'a-table', x: 325, y: 225, rotation: 0 },
+					{ id: 'o2', type: 'a-table', x: 400, y: 300, rotation: 90 },
+				],
+			},
+		],
+	} as Partial<FloorLayoutData>)
+	const payload = buildSyncedPayload(layout, buildAssetMap([table]), undefined)!
+	const floor = payload.floors['G']!
+	assert.equal(floor.objects[0].w, 50, 'missing w derived from asset (2 tiles x tileSize)')
+	assert.equal(floor.objects[0].h, 25, 'missing h derived from asset (1 tile x tileSize)')
+	assert.equal(floor.objects[1].w, 25, 'rotation 90 swaps derived width')
+	assert.equal(floor.objects[1].h, 50, 'rotation 90 swaps derived height')
+}
+
 // ── Canvas + npcConfig ──
 {
 	const payload = buildSyncedPayload(makeLayout(), new Map(), NPC_CONFIG)!

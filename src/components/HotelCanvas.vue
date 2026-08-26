@@ -134,6 +134,11 @@ watch(
       </button>
     </div>
 
+    <div class="hotel__chip" v-if="currentFloor" aria-live="polite">
+      <span class="hotel__chip-floor">{{ currentFloorId === "G" ? "B" : currentFloorId }}</span>
+      <span class="hotel__chip-count">{{ currentFloorNpcs.length }}</span>
+    </div>
+
     <div class="empty hotel__empty" v-if="!props.payload">
       <p>No hotel layout found yet.</p>
       <p>Open the Blueprint Editor, place some objects and press Sync Game.</p>
@@ -154,6 +159,32 @@ watch(
   width: 100%;
   height: 100%;
   display: block;
+}
+
+.hotel__chip {
+  position: absolute;
+  top: var(--gap-sm);
+  right: var(--gap-sm);
+  display: flex;
+  align-items: baseline;
+  gap: var(--gap-xs);
+  padding: 4px 10px;
+  background: color-mix(in srgb, var(--bg-primary) 78%, transparent);
+  border: 1px solid var(--border-dim);
+  border-radius: var(--radius-md);
+  z-index: var(--z-layer-2);
+  pointer-events: none;
+}
+
+.hotel__chip-floor {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-bright);
+}
+
+.hotel__chip-count {
+  font-size: 11px;
+  color: var(--text-dim);
 }
 
 .hotel__hit {

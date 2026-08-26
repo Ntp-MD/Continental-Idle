@@ -44,39 +44,16 @@ export function startAssetDrag(assetId: string) {
 export function endAssetDrag() {
 	dragState.assetId = null
 }
-const _hmrData = import.meta.hot?.data
-const EDITOR_UI_STATE_KEY = 'blueprint-editor-ui-state'
-function loadPersistedUiState(): Partial<EditorState> | null {
-	try {
-		const raw = localStorage.getItem(EDITOR_UI_STATE_KEY)
-		if (raw) return JSON.parse(raw) as Partial<EditorState>
-	} catch { }
-	return null
-}
-function savePersistedUiState(): void {
-	try {
-		localStorage.setItem(EDITOR_UI_STATE_KEY, JSON.stringify({
-			currentFloorId: state.currentFloorId,
-			mode: state.mode,
-			selectionState: state.selectionState,
-			selectedAssetId: state.selectedAssetId,
-		}))
-	} catch { }
-}
-
-const _persistedUi = loadPersistedUiState()
-const _restoredUi = _hmrData?._editorState ?? _persistedUi ?? {}
-
 const initial = loadInitial()
 const initialBlueprintData = buildBlueprintData(initial.layout, originAssets, initial.layout.npcConfig, blueprintTagDefinitions)
 
 export const state = reactive<EditorState>({
 	layout: initial.layout,
-	currentFloorId: _restoredUi.currentFloorId ?? '',
-	mode: _restoredUi.mode === 'npc-preview' || (_restoredUi.mode as string) === 'erase' ? 'move' : _restoredUi.mode ?? 'object',
+	currentFloorId: '',
+	mode: 'object',
 	wallPaint: false,
-	selectionState: _restoredUi.selectionState ?? { primary: null, items: [] },
-	selectedAssetId: _restoredUi.selectedAssetId ?? null,
+	selectionState: { primary: null, items: [] },
+	selectedAssetId: null,
 	assetRegistry: originAssets.map(asset => JSON.parse(JSON.stringify(asset)) as AssetDef),
 	tagDefinitions: initialBlueprintData.tags.map(tag => ({ ...tag })),
 })
@@ -93,6 +70,9 @@ export async function reloadEditorData(): Promise<void> {
 	state.assetRegistry = combined.originAssets.map(asset => JSON.parse(JSON.stringify(asset)) as AssetDef)
 	state.tagDefinitions = combined.tags.map(tag => ({ ...tag }))
 	for (const asset of state.assetRegistry) initAssetFields(asset)
+	if (!state.layout.floors.some((f: FloorData) => f.id === state.currentFloorId)) {
+		state.currentFloorId = state.layout.floors[0]?.id ?? ''
+	}
 }
 
 export function initAssetFields(asset: AssetDef): void {
@@ -121,7 +101,9 @@ export function initAssetFields(asset: AssetDef): void {
 	}
 }
 
-if (!state.currentFloorId) state.currentFloorId = state.layout.floors[0]?.id ?? ''
+if (!state.layout.floors.some((f: FloorData) => f.id === state.currentFloorId)) {
+	state.currentFloorId = state.layout.floors[0]?.id ?? ''
+}
 
 const _assetMap = computed(() => buildAssetMap([...state.assetRegistry]))
 export function assetMap(): Map<string, AssetDef> {
@@ -145,16 +127,7 @@ export function clamp(rect: Rect): Rect {
 if (import.meta.hot) {
 	import.meta.hot.dispose((data: any) => {
 		data._editorLayout = JSON.stringify(state.layout)
-		data._editorState = {
-			currentFloorId: state.currentFloorId,
-			mode: state.mode,
-			selectionState: state.selectionState,
-			selectedAssetId: state.selectedAssetId,
-			assetRegistry: state.assetRegistry,
-		}
-		savePersistedUiState()
+		data._editorState = { assetRegistry: state.assetRegistry }
 	})
 	import.meta.hot.accept()
 }
-
-window.addEventListener('beforeunload', savePersistedUiState)

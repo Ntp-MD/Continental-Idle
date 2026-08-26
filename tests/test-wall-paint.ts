@@ -56,6 +56,27 @@ import type { FloorData } from '../src/blueprint-editor/types'
 		assert.deepEqual(deletedWalkable?.tileEdges, [[{}, {}], [{}, {}]])
 		assert.equal(wallTool.selected.value.length, 0)
 		assert.equal(wallTool.selectionBox.value, null)
+
+		// Shift+drag box-selects walls even with the tool inactive (any mode)
+		const inactiveDeleted: FloorData['walkable'][] = []
+		const inactiveTool = useWallPaint({
+			disabled: () => false,
+			localPoint: (event) => ({ x: event.clientX, y: event.clientY }),
+			tileSize: () => 10,
+			canvasWidth: () => 20,
+			canvasHeight: () => 20,
+			floor: computed(() => selectedWallFloor),
+			wallAtPoint: () => null,
+			wallsInRect: () => [selectedWallSegment, secondWallSegment],
+			clearOtherSelection: () => { clearedObjectSelection = true },
+			commit: async (_floorId, walkable) => { inactiveDeleted.push(walkable) },
+		})
+		assert.equal(inactiveTool.active.value, false)
+		assert.equal(inactiveTool.onMouseDown({ button: 0, clientX: 0, clientY: 0, shiftKey: true } as MouseEvent), true)
+		for (const listener of listeners.get('mousemove') ?? []) listener({ clientX: 20, clientY: 20 } as MouseEvent)
+		for (const listener of listeners.get('mouseup') ?? []) listener({} as MouseEvent)
+		assert.equal(inactiveTool.selected.value.length, 2)
+		assert.equal(inactiveDeleted.length, 0)
 		console.log('Wall multi-selection deletion checks passed')
 	})().catch(error => {
 		console.error(error)

@@ -62,7 +62,10 @@ export const originAssetsData = [
     "queue": {
       "maxMembers": 3,
       "admissionDepth": 4
-    }
+    },
+    "tags": [
+      "lounge"
+    ]
   },
   {
     "id": "custom-chair",
@@ -103,7 +106,10 @@ export const originAssetsData = [
     "queue": {
       "maxMembers": 3,
       "admissionDepth": 4
-    }
+    },
+    "tags": [
+      "lounge"
+    ]
   },
   {
     "id": "custom-table-set",
@@ -171,7 +177,11 @@ export const originAssetsData = [
     "queue": {
       "maxMembers": 3,
       "admissionDepth": 4
-    }
+    },
+    "tags": [
+      "lounge",
+      "dining"
+    ]
   },
   {
     "id": "custom-double-bed-1",
@@ -247,7 +257,10 @@ export const originAssetsData = [
     "queue": {
       "maxMembers": 3,
       "admissionDepth": 4
-    }
+    },
+    "tags": [
+      "guest-room"
+    ]
   },
   {
     "id": "custom-washer-1",
@@ -287,7 +300,10 @@ export const originAssetsData = [
     "queue": {
       "maxMembers": 3,
       "admissionDepth": 4
-    }
+    },
+    "tags": [
+      "housekeeping"
+    ]
   },
   {
     "id": "custom-treadmill-1",
@@ -333,7 +349,10 @@ export const originAssetsData = [
     "queue": {
       "maxMembers": 3,
       "admissionDepth": 4
-    }
+    },
+    "tags": [
+      "gym"
+    ]
   },
   {
     "id": "custom-kitchen-table-1",
@@ -375,7 +394,10 @@ export const originAssetsData = [
     "queue": {
       "maxMembers": 3,
       "admissionDepth": 4
-    }
+    },
+    "tags": [
+      "dining"
+    ]
   },
   {
     "id": "custom-sofa-1",
@@ -421,7 +443,10 @@ export const originAssetsData = [
     "queue": {
       "maxMembers": 3,
       "admissionDepth": 4
-    }
+    },
+    "tags": [
+      "lounge"
+    ]
   },
   {
     "id": "custom-single-sofa-1",
@@ -461,7 +486,10 @@ export const originAssetsData = [
     "queue": {
       "maxMembers": 3,
       "admissionDepth": 4
-    }
+    },
+    "tags": [
+      "lounge"
+    ]
   },
   {
     "id": "custom-reception-desk",
@@ -523,7 +551,10 @@ export const originAssetsData = [
     "queue": {
       "maxMembers": 4,
       "admissionDepth": 4
-    }
+    },
+    "tags": [
+      "front-desk"
+    ]
   },
   {
     "id": "custom-vending-machine",
@@ -565,7 +596,10 @@ export const originAssetsData = [
     "queue": {
       "maxMembers": 3,
       "admissionDepth": 4
-    }
+    },
+    "tags": [
+      "lounge"
+    ]
   },
   {
     "id": "custom-bathtub",
@@ -607,7 +641,10 @@ export const originAssetsData = [
     "queue": {
       "maxMembers": 3,
       "admissionDepth": 4
-    }
+    },
+    "tags": [
+      "wellness"
+    ]
   },
   {
     "id": "custom-toilet",
@@ -647,7 +684,10 @@ export const originAssetsData = [
     "queue": {
       "maxMembers": 3,
       "admissionDepth": 4
-    }
+    },
+    "tags": [
+      "wellness"
+    ]
   },
   {
     "id": "custom-washbasin",
@@ -687,7 +727,10 @@ export const originAssetsData = [
     "queue": {
       "maxMembers": 3,
       "admissionDepth": 4
-    }
+    },
+    "tags": [
+      "wellness"
+    ]
   },
   {
     "id": "custom-shower",
@@ -727,7 +770,10 @@ export const originAssetsData = [
     "queue": {
       "maxMembers": 3,
       "admissionDepth": 4
-    }
+    },
+    "tags": [
+      "wellness"
+    ]
   },
   {
     "id": "custom-kitchen-sink",
@@ -769,7 +815,10 @@ export const originAssetsData = [
     "queue": {
       "maxMembers": 3,
       "admissionDepth": 4
-    }
+    },
+    "tags": [
+      "dining"
+    ]
   },
   {
     "id": "custom-bench",
@@ -815,7 +864,10 @@ export const originAssetsData = [
     "queue": {
       "maxMembers": 3,
       "admissionDepth": 4
-    }
+    },
+    "tags": [
+      "lounge"
+    ]
   },
   {
     "id": "custom-office-chair",
@@ -855,6 +907,319 @@ export const originAssetsData = [
     "queue": {
       "maxMembers": 3,
       "admissionDepth": 4
-    }
+    },
+    "tags": [
+      "lounge"
+    ]
+  },
+  {
+    "id": "custom-bar-counter",
+    "name": "Bar Counter",
+    "w": 4,
+    "h": 1,
+    "origin": "svg-import",
+    "category": "Special",
+    "walkable": false,
+    "defaultFillColor": "#ffffff",
+    "svg": "<rect x=\"2\" y=\"9\" width=\"96\" height=\"14\" rx=\"2\" fill=\"var(--obj-fill,#ffffff)\" stroke=\"var(--obj-stroke,#ffffff)\" stroke-width=\"1\"/><rect x=\"2\" y=\"4\" width=\"96\" height=\"5\" rx=\"1.5\" fill=\"var(--obj-fill,#ffffff)\" stroke=\"var(--obj-stroke,#ffffff)\" stroke-width=\"0.8\"/><path d=\"M 20 13 V 21 M 50 13 V 21 M 80 13 V 21\" fill=\"none\" stroke=\"var(--asset-outline)\" stroke-width=\"0.6\"/>",
+    "svgViewBox": {
+      "w": 100,
+      "h": 25
+    },
+    "walkableGrid": [
+      [
+        false,
+        false,
+        false,
+        false
+      ]
+    ],
+    "tileStates": [
+      [
+        "blocked",
+        "blocked",
+        "blocked",
+        "blocked"
+      ]
+    ],
+    "interactSpots": [
+      {
+        "x": 25,
+        "y": 31
+      },
+      {
+        "x": 50,
+        "y": 31
+      },
+      {
+        "x": 75,
+        "y": 31
+      }
+    ],
+    "interact": {
+      "capacity": 3,
+      "durationMin": 4,
+      "durationMax": 10
+    },
+    "queue": {
+      "maxMembers": 3,
+      "admissionDepth": 4
+    },
+    "tags": [
+      "bar"
+    ]
+  },
+  {
+    "id": "custom-potted-plant",
+    "name": "Potted Plant",
+    "w": 1,
+    "h": 1,
+    "origin": "svg-import",
+    "category": "Special",
+    "walkable": false,
+    "defaultFillColor": "#ffffff",
+    "svg": "<circle cx=\"12.5\" cy=\"9\" r=\"6.5\" fill=\"none\" stroke=\"var(--asset-outline)\" stroke-width=\"0.8\"/><circle cx=\"9\" cy=\"7.5\" r=\"3.2\" fill=\"none\" stroke=\"var(--asset-outline)\" stroke-width=\"0.6\"/><circle cx=\"16\" cy=\"7.5\" r=\"3.2\" fill=\"none\" stroke=\"var(--asset-outline)\" stroke-width=\"0.6\"/><path d=\"M 8 16 L 17 16 L 15.5 23 L 9.5 23 Z\" fill=\"var(--obj-fill,#ffffff)\" stroke=\"var(--obj-stroke,#ffffff)\" stroke-width=\"1\"/><line x1=\"7\" y1=\"16\" x2=\"18\" y2=\"16\" stroke=\"var(--asset-outline)\" stroke-width=\"0.6\"/>",
+    "svgViewBox": {
+      "w": 25,
+      "h": 25
+    },
+    "walkableGrid": [
+      [
+        false
+      ]
+    ],
+    "tileStates": [
+      [
+        "blocked"
+      ]
+    ],
+    "tags": [
+      "decor"
+    ]
+  },
+  {
+    "id": "custom-wardrobe",
+    "name": "Wardrobe",
+    "w": 1,
+    "h": 2,
+    "origin": "svg-import",
+    "category": "Special",
+    "walkable": false,
+    "defaultFillColor": "#ffffff",
+    "svg": "<rect x=\"2.5\" y=\"2.5\" width=\"20\" height=\"45\" rx=\"1\" fill=\"var(--obj-fill,#ffffff)\" stroke=\"var(--obj-stroke,#ffffff)\" stroke-width=\"1\"/><line x1=\"12.5\" y1=\"2.5\" x2=\"12.5\" y2=\"47.5\" stroke=\"var(--asset-outline)\" stroke-width=\"0.7\"/><line x1=\"10.8\" y1=\"22\" x2=\"10.8\" y2=\"26\" stroke=\"var(--asset-outline)\" stroke-width=\"0.7\"/><line x1=\"14.2\" y1=\"22\" x2=\"14.2\" y2=\"26\" stroke=\"var(--asset-outline)\" stroke-width=\"0.7\"/><line x1=\"5\" y1=\"6.5\" x2=\"20\" y2=\"6.5\" stroke=\"var(--asset-outline)\" stroke-width=\"0.5\"/>",
+    "svgViewBox": {
+      "w": 25,
+      "h": 50
+    },
+    "walkableGrid": [
+      [
+        false
+      ],
+      [
+        false
+      ]
+    ],
+    "tileStates": [
+      [
+        "blocked"
+      ],
+      [
+        "blocked"
+      ]
+    ],
+    "interactSpots": [
+      {
+        "x": 12.5,
+        "y": 56
+      }
+    ],
+    "interact": {
+      "capacity": 1,
+      "durationMin": 3,
+      "durationMax": 8
+    },
+    "queue": {
+      "maxMembers": 3,
+      "admissionDepth": 4
+    },
+    "tags": [
+      "guest-room"
+    ]
+  },
+  {
+    "id": "custom-massage-table",
+    "name": "Massage Table",
+    "w": 2,
+    "h": 1,
+    "origin": "svg-import",
+    "category": "Special",
+    "walkable": false,
+    "defaultFillColor": "#ffffff",
+    "svg": "<rect x=\"4\" y=\"7\" width=\"42\" height=\"8\" rx=\"3\" fill=\"var(--obj-fill,#ffffff)\" stroke=\"var(--obj-stroke,#ffffff)\" stroke-width=\"1\"/><path d=\"M 8 15 V 22 M 42 15 V 22\" fill=\"none\" stroke=\"var(--obj-stroke,#ffffff)\" stroke-width=\"0.9\"/><rect x=\"6\" y=\"3.5\" width=\"7\" height=\"4\" rx=\"1.5\" fill=\"none\" stroke=\"var(--asset-outline)\" stroke-width=\"0.6\"/>",
+    "svgViewBox": {
+      "w": 50,
+      "h": 25
+    },
+    "walkableGrid": [
+      [
+        false,
+        false
+      ]
+    ],
+    "tileStates": [
+      [
+        "blocked",
+        "blocked"
+      ]
+    ],
+    "interactSpots": [
+      {
+        "x": 12,
+        "y": 31
+      },
+      {
+        "x": 38,
+        "y": 31
+      }
+    ],
+    "interact": {
+      "capacity": 2,
+      "durationMin": 20,
+      "durationMax": 40
+    },
+    "queue": {
+      "maxMembers": 2,
+      "admissionDepth": 3
+    },
+    "tags": [
+      "spa"
+    ]
+  },
+  {
+    "id": "custom-indoor-pool",
+    "name": "Indoor Pool",
+    "w": 4,
+    "h": 2,
+    "origin": "svg-import",
+    "category": "Special",
+    "walkable": false,
+    "defaultFillColor": "#ffffff",
+    "svg": "<rect x=\"2\" y=\"2\" width=\"96\" height=\"46\" rx=\"8\" fill=\"var(--obj-fill,#ffffff)\" stroke=\"var(--obj-stroke,#ffffff)\" stroke-width=\"1\"/><rect x=\"7\" y=\"7\" width=\"86\" height=\"36\" rx=\"5\" fill=\"none\" stroke=\"var(--asset-outline)\" stroke-width=\"0.9\"/><path d=\"M 14 20 Q 19 16 24 20 T 34 20 T 44 20 T 54 20 T 64 20\" fill=\"none\" stroke=\"var(--asset-outline)\" stroke-width=\"0.55\"/><path d=\"M 20 32 Q 25 28 30 32 T 40 32 T 50 32 T 60 32 T 70 32\" fill=\"none\" stroke=\"var(--asset-outline)\" stroke-width=\"0.55\"/><path d=\"M 84 12 V 38 M 90 12 V 38 M 84 19 H 90 M 84 31 H 90\" fill=\"none\" stroke=\"var(--asset-outline)\" stroke-width=\"0.7\"/>",
+    "svgViewBox": {
+      "w": 100,
+      "h": 50
+    },
+    "walkableGrid": [
+      [
+        false,
+        false,
+        false,
+        false
+      ],
+      [
+        false,
+        false,
+        false,
+        false
+      ]
+    ],
+    "tileStates": [
+      [
+        "blocked",
+        "blocked",
+        "blocked",
+        "blocked"
+      ],
+      [
+        "blocked",
+        "blocked",
+        "blocked",
+        "blocked"
+      ]
+    ],
+    "interactSpots": [
+      {
+        "x": 25,
+        "y": 56
+      },
+      {
+        "x": 50,
+        "y": 56
+      },
+      {
+        "x": 75,
+        "y": 56
+      }
+    ],
+    "interact": {
+      "capacity": 4,
+      "durationMin": 15,
+      "durationMax": 45
+    },
+    "queue": {
+      "maxMembers": 4,
+      "admissionDepth": 4
+    },
+    "tags": [
+      "pool",
+      "wellness"
+    ]
+  },
+  {
+    "id": "custom-elevator",
+    "name": "Elevator",
+    "w": 2,
+    "h": 2,
+    "origin": "svg-import",
+    "category": "Special",
+    "walkable": false,
+    "defaultFillColor": "#ffffff",
+    "svg": "<rect x=\"2\" y=\"2\" width=\"46\" height=\"46\" rx=\"2\" fill=\"var(--obj-fill,#ffffff)\" stroke=\"var(--obj-stroke,#ffffff)\" stroke-width=\"1\"/><rect x=\"6\" y=\"6\" width=\"38\" height=\"30\" rx=\"1.5\" fill=\"none\" stroke=\"var(--asset-outline)\" stroke-width=\"0.8\"/><path d=\"M 6 21 H 44 M 25 6 V 36\" fill=\"none\" stroke=\"var(--asset-outline)\" stroke-width=\"0.5\"/><path d=\"M 14 41 L 25 48 L 36 41\" fill=\"none\" stroke=\"var(--asset-outline)\" stroke-width=\"0.8\"/>",
+    "svgViewBox": {
+      "w": 50,
+      "h": 50
+    },
+    "walkableGrid": [
+      [
+        false,
+        false
+      ],
+      [
+        false,
+        false
+      ]
+    ],
+    "tileStates": [
+      [
+        "blocked",
+        "blocked"
+      ],
+      [
+        "blocked",
+        "blocked"
+      ]
+    ],
+    "interactSpots": [
+      {
+        "x": 15,
+        "y": 56
+      },
+      {
+        "x": 35,
+        "y": 56
+      }
+    ],
+    "interact": {
+      "capacity": 2,
+      "durationMin": 0,
+      "durationMax": 0
+    },
+    "queue": {
+      "maxMembers": 4,
+      "admissionDepth": 4
+    },
+    "tags": [
+      "portal"
+    ]
   }
 ]
