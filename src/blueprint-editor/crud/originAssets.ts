@@ -1,1 +1,1 @@
-export { updateAsset, deleteAsset, rotateAsset, duplicateAsset } from '../store/assets'
+export { updateAsset, deleteAsset, duplicateAsset } from '../store/assets'

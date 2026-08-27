@@ -9,8 +9,8 @@ import type { AssetsStore } from '../store/index'
 export interface DragDropState {
 	mousePos: Ref<{ x: number; y: number }>
 	paletteValid: Ref<boolean>
-	paletteGhost: ComputedRef<{ w: number; h: number; linkedParts?: { dx: number; dy: number; w: number; h: number }[] } | null>
-	paletteGhostParts: ComputedRef<{ x: number; y: number; w: number; h: number }[] | null>
+	paletteGhost: ComputedRef<{ w: number; h: number } | null>
+	paletteGhostParts: ComputedRef<null>
 	paletteGhostRect: ComputedRef<{ x: number; y: number; w: number; h: number } | null>
 	onWindowMouseMoveForDrag: (e: MouseEvent) => void
 	onWindowMouseUpForDrag: (e: MouseEvent) => void
@@ -37,17 +37,10 @@ export function useCanvasDragDrop(
 		const t = opts.tileSize()
 		const aw = opts.store.snap(asset.usePx ? (asset.pxW ?? asset.w * t) : asset.w * t)
 		const ah = opts.store.snap(asset.usePx ? (asset.pxH ?? asset.h * t) : asset.h * t)
-		const linkedParts = asset.linkedParts ? asset.linkedParts.map(p => ({ dx: p.dx, dy: p.dy, w: opts.store.snap(p.w), h: opts.store.snap(p.h) })) : undefined
-		return { w: aw, h: ah, linkedParts }
+		return { w: aw, h: ah }
 	})
 
-	const paletteGhostParts = computed(() => {
-		const ghost = paletteGhost.value
-		if (!ghost?.linkedParts?.length) return null
-		const gx = opts.store.snap(mousePos.value.x - ghost.w / 2)
-		const gy = opts.store.snap(mousePos.value.y - ghost.h / 2)
-		return ghost.linkedParts.map(p => ({ x: opts.store.snap(gx + p.dx), y: opts.store.snap(gy + p.dy), w: p.w, h: p.h }))
-	})
+	const paletteGhostParts = computed(() => null as null)
 
 	const paletteGhostRect = computed(() => {
 		const ghost = paletteGhost.value

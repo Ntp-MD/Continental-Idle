@@ -1,7 +1,7 @@
 const ENV = import.meta.env ?? {}
 
 const RAW_CONFIG = {
-	layoutVersion: 2,
+	layoutVersion: 3,
 	historyLimit: 50,
 	blueprintDataEndpoint: ENV.VITE_BLUEPRINT_DATA_ENDPOINT || '/__blueprint-data',
 	saveDebounceMs: 500,

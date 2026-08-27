@@ -132,6 +132,26 @@ function makeAsset(over: Partial<AssetDef>): AssetDef {
 	assert.equal(floor.objects[1].h, 50, 'rotation 90 swaps derived height')
 }
 
+// ── Wall object and asset wall propagation ──
+{
+	const wall = makeAsset({ id: 'a-wall', name: 'Wall', w: 2, h: 1, walkable: true, wallSegments: [{ x1: 0, y1: 0, x2: 2, y2: 0 }] })
+	const payload = buildSyncedPayload(makeLayout({
+		floors: [{
+			id: 'f1',
+			name: 'Ground',
+			label: 'G',
+			objects: [
+				{ id: 'canvas-wall', type: '__canvas-wall__', x: 0, y: 0, w: 50, h: 1, rotation: 0, isWall: true, x1: 0, y1: 1, x2: 2, y2: 1 },
+				{ id: 'asset-wall', type: wall.id, x: 100, y: 100, w: 50, h: 25, rotation: 0 },
+			],
+		}],
+	}), buildAssetMap([wall]), undefined)!
+	const syncedObjects = payload.floors.G!.objects
+	assert.equal(syncedObjects[0].isWall, true)
+	assert.deepEqual([syncedObjects[0].x1, syncedObjects[0].y1, syncedObjects[0].x2, syncedObjects[0].y2], [0, 1, 2, 1])
+	assert.deepEqual(syncedObjects[1].wallSegments, wall.wallSegments)
+}
+
 // ── Canvas + npcConfig ──
 {
 	const payload = buildSyncedPayload(makeLayout(), new Map(), NPC_CONFIG)!

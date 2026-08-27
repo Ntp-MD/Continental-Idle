@@ -2,7 +2,7 @@ import type { AssetDef, BlueprintDataFile, BlueprintTagDefinition, FloorLayoutDa
 import { normalizeOriginAssetFile, normalizeNpcConfig, validateLayoutData } from '../types'
 import { serializeAsset, serializeObject } from '../assetUtils'
 import { EDITOR_CONFIG } from '../editorConfig'
-import { migrateNpcConfig } from './migrateNpc'
+import { emptyNpcConfig } from './storeUtils'
 import { originAssetsData } from '../data/originAssets.data'
 import { floorPlanData } from '../data/floorPlan.data'
 import { npcSettingsData } from '../data/npcSettings.data'
@@ -13,17 +13,19 @@ export interface BlueprintLayoutFile extends PersistedFloorLayoutData {
 	canvas: CanvasConfig
 }
 
-export const blueprintTagDefinitions: BlueprintTagDefinition[] = Array.isArray(tagManagerData)
-	? tagManagerData.map(tag => ({ id: tag.id, label: tag.label }))
-	: []
+export const blueprintTagDefinitions: BlueprintTagDefinition[] = (tagManagerData as unknown[]).flatMap((value) => {
+	if (!value || typeof value !== 'object') return []
+	const tag = value as Record<string, unknown>
+	return typeof tag.id === 'string' && typeof tag.label === 'string' ? [{ id: tag.id, label: tag.label }] : []
+})
 export const originAssetFile: OriginAssetFile = normalizeOriginAssetFile({
-	$schema: 'origin-assets.v1.json',
-	version: 1,
+	$schema: 'origin-assets.v2.json',
+	version: 2,
 	originAssets: originAssetsData,
-}) ?? { $schema: 'origin-assets.v1.json', version: 1, originAssets: [] }
+}) ?? { $schema: 'origin-assets.v2.json', version: 2, originAssets: [] }
 export const originAssets: AssetDef[] = originAssetFile.originAssets
 export const blueprintLayout: BlueprintLayoutFile = normalizeBlueprintLayout(floorPlanData)
-export const npcConfig: NpcSimulationConfig = normalizeNpcConfig(npcSettingsData) ?? migrateNpcConfig(npcSettingsData)
+export const npcConfig: NpcSimulationConfig = normalizeNpcConfig(npcSettingsData) ?? emptyNpcConfig()
 
 export function buildBlueprintData(
 	layout: FloorLayoutData = buildSavedLayout(),
@@ -32,8 +34,8 @@ export function buildBlueprintData(
 	tags: BlueprintTagDefinition[] = blueprintTagDefinitions,
 ): BlueprintDataFile {
 	return {
-		$schema: 'blueprint-data.v1.json',
-		version: 1,
+		$schema: 'blueprint-data.v2.json',
+		version: 2,
 		tags: tags.map(tag => ({ ...tag })),
 		originAssets: assets.map(serializeAsset),
 		layout: {
@@ -58,8 +60,8 @@ export async function fetchBlueprintDataFromDisk(): Promise<BlueprintDataFile | 
 		const layout = validateLayoutData(raw.layout)
 		if (!layout) return null
 		const assetFile = normalizeOriginAssetFile({
-			$schema: 'origin-assets.v1.json',
-			version: 1,
+			$schema: 'origin-assets.v2.json',
+			version: 2,
 			originAssets: raw.originAssets,
 		})
 		if (!assetFile) return null
@@ -68,8 +70,8 @@ export async function fetchBlueprintDataFromDisk(): Promise<BlueprintDataFile | 
 				t != null && typeof t === 'object' && typeof t.id === 'string' && typeof t.label === 'string')
 			: []
 		return {
-			$schema: typeof raw.$schema === 'string' ? raw.$schema : 'blueprint-data.v1.json',
-			version: typeof raw.version === 'number' ? raw.version : 1,
+			$schema: typeof raw.$schema === 'string' ? raw.$schema : 'blueprint-data.v2.json',
+			version: typeof raw.version === 'number' ? raw.version : 2,
 			tags,
 			originAssets: assetFile.originAssets,
 			layout: layout as PersistedFloorLayoutData,

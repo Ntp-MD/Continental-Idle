@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict'
 import { computed, ref } from 'vue'
 import { useCanvasSelection } from '../src/blueprint-editor/composables/useCanvasSelection'
-import { useWallPaint } from '../src/blueprint-editor/composables/useWallPaint'
+import { useWallPaint, type WallSelection } from '../src/blueprint-editor/composables/useWallPaint'
 import type { AssetsStore } from '../src/blueprint-editor/store/index'
-import type { FloorData } from '../src/blueprint-editor/types'
+import type { FloorData, ObjectData } from '../src/blueprint-editor/types'
 
 const listeners = new Map<string, Array<(event: MouseEvent) => void>>()
 const windowMock = {
@@ -31,9 +31,9 @@ const floor: FloorData = {
 	label: 'W',
 	objects: [],
 	defaultWalkable: true,
-	walkable: { tileEdges: [[{}, {}], [{}, {}]] },
 }
-const saved: NonNullable<FloorData['walkable']>[] = []
+const saved: ObjectData[] = []
+let id = 0
 const wallTool = useWallPaint({
 	disabled: () => false,
 	localPoint: event => ({ x: event.clientX, y: event.clientY }),
@@ -42,33 +42,53 @@ const wallTool = useWallPaint({
 	canvasHeight: () => 20,
 	floor: computed(() => floor),
 	wallAtPoint: () => null,
-	wallsInRect: () => [
-		{ x1: 0, y1: 0, x2: 10, y2: 0 },
-		{ x1: 10, y1: 10, x2: 10, y2: 20 },
-		{ x1: 0, y1: 10, x2: 10, y2: 10 },
-	],
-	commit: async (_floorId, walkable) => {
-		floor.walkable = walkable
-		saved.push(walkable)
+	wallsInRect: () => floor.objects
+		.filter(object => object.isWall)
+		.map(object => ({
+			floorId: floor.id,
+			objectId: object.id,
+			segment: { x1: object.x1!, y1: object.y1!, x2: object.x2!, y2: object.y2! },
+		})),
+	idGenerator: prefix => `${prefix}-${++id}`,
+	commit: async (_floorId, wall) => {
+		floor.objects.push(wall)
+		saved.push(wall)
+	},
+	remove: async (_floorId, objectIds) => {
+		floor.objects = floor.objects.filter(object => !objectIds.includes(object.id))
 	},
 })
 
 wallTool.active.value = true
 assert.equal(wallTool.onMouseDown({ button: 0, clientX: 4, clientY: 0 } as MouseEvent), true)
 emit('mouseup', {} as MouseEvent)
-assert.deepEqual(floor.walkable?.tileEdges, [[{ top: true }, {}], [{}, {}]])
+assert.deepEqual(floor.objects[0], {
+	id: 'wall-1',
+	subId: 'wall-sub-2',
+	type: '__canvas-wall__',
+	x: 0,
+	y: 0,
+	w: 10,
+	h: 1,
+	rotation: 0,
+	isWall: true,
+	x1: 0,
+	y1: 0,
+	x2: 1,
+	y2: 0,
+})
 assert.equal(saved.length, 1)
 
 assert.equal(wallTool.onMouseDown({ button: 0, clientX: 5, clientY: 5 } as MouseEvent), true)
 emit('mousemove', { clientX: 5, clientY: 20 } as MouseEvent)
 emit('mouseup', {} as MouseEvent)
-assert.deepEqual(floor.walkable?.tileEdges, [[{ top: true }, {}], [{ right: true }, { left: true }]])
+assert.deepEqual([floor.objects[1]?.x1, floor.objects[1]?.y1, floor.objects[1]?.x2, floor.objects[1]?.y2], [1, 1, 1, 2])
 assert.equal(saved.length, 2)
 
 assert.equal(wallTool.onMouseDown({ button: 0, clientX: 4, clientY: 10 } as MouseEvent), true)
 emit('mousemove', { clientX: 14, clientY: 10 } as MouseEvent)
 emit('mouseup', {} as MouseEvent)
-assert.deepEqual(floor.walkable?.tileEdges, [[{ bottom: true, top: true }, {}], [{ right: true, top: true }, { left: true }]])
+assert.deepEqual([floor.objects[2]?.x1, floor.objects[2]?.y1, floor.objects[2]?.x2, floor.objects[2]?.y2], [0, 1, 1, 1])
 assert.equal(saved.length, 3)
 
 const objectToolStore = {
@@ -92,10 +112,12 @@ emit('mousemove', { clientX: 20, clientY: 20 } as MouseEvent)
 emit('mouseup', {} as MouseEvent)
 assert.equal(wallTool.selected.value.length, 3)
 await wallTool.deleteSelected()
-assert.deepEqual(floor.walkable?.tileEdges, [[{}, {}], [{}, {}]])
-assert.equal(saved.length, 4)
+assert.equal(floor.objects.length, 0)
+assert.equal(saved.length, 3)
 assert.equal(wallTool.selected.value.length, 0)
 
+const outsideSelection: WallSelection[] = []
+assert.deepEqual(outsideSelection, [])
 assert.equal(wallTool.onMouseDown({ button: 2, clientX: 0, clientY: 0 } as MouseEvent), false)
 wallTool.cancel()
 assert.equal(listeners.get('mousemove')?.length ?? 0, 0)

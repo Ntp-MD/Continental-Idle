@@ -33,10 +33,8 @@ routine fixes, refactors and minor cleanups do NOT belong here.
 
 ### 3. `asset.walkable` is the single passability master switch
 
-- Problem: asset flag and painted per-tile grid overlapped ambiguously.
-- Final solution: walkable=true bypasses walkableGrid/tileEdges entirely;
-  false = grid governs. Flattened assets reset to fully blocked
-  (deny-by-default). Rotation rotates grid/states/edges/spots clockwise.
+- Problem: the asset passability flag and per-tile navigation data overlapped ambiguously.
+- Final solution: walkable=true bypasses the per-tile blocking grid; false = the grid governs. Flattened assets reset to fully blocked (deny-by-default). Rotation rotates navigation grids and interaction spots clockwise.
 - Revisit trigger: sub-tile collision precision is ever needed.
 
 ### 4. Economy stays out until it has a purpose
@@ -49,16 +47,12 @@ routine fixes, refactors and minor cleanups do NOT belong here.
 
 ## 2026-08-25
 
-### 5. Perimeter hotel wall is derived, not painted
+### 5. Perimeter hotel boundary is derived, not placed
 
-- Problem: NPCs crossed the envelope on floors without hand-painted walls,
-  and persisted per-floor walls would fight canvas resize.
-- Final solution: street-ring tiles are walkable ONLY on
-  `layout.streetFloorId`, blocked on every other floor; derived from
-  `isStreetTile` / `buildingArea()` instead of being persisted. Interior
-  walls stay hand-painted in `walkable.tileEdges`.
+- Problem: NPCs crossed the envelope on floors without an explicit boundary, and persisted per-floor boundary data would fight canvas resize.
+- Final solution: street-ring tiles are walkable only on `layout.streetFloorId`, blocked on every other floor; the envelope is derived from `isStreetTile` and `buildingArea()` instead of being persisted. Interior boundaries use explicit canvas wall segments.
 - Trade-off: no sidewalk standing on non-street floors.
-- Revisit trigger: exterior loitering or per-floor wall overrides needed.
+- Revisit trigger: exterior loitering or per-floor boundary overrides are needed.
 
 ### 6. Synced objects derive size from origin assets
 
@@ -121,37 +115,17 @@ routine fixes, refactors and minor cleanups do NOT belong here.
 
 ### 11. Agent floor authoring follows a written convention
 
-- Problem: whole-floor drawing (walls via `walkable.tileEdges`, doors,
-  decorations) was improvised per session; results were inconsistent and
-  unverified, and `build:hotel` could silently wipe hand-painted floors.
-- Final solution: `docs/agents/floor-authoring.md` is the mandatory
-  how-to-draw contract - paint only via `applyWallSegment`, doors are gaps
-  (never arc objects), placements reference origin asset ids with live
-  color resolution, and every floor edit must pass the verification gate
-  (strict validate + per-room seal check + BFS door connectivity +
-  `npm run verify`). `build-hotel.mjs` is demoted to scaffold-only while
-  hand-authored floors are on disk.
-- Trade-off: regeneration path (`npm run build:hotel`) is now dangerous to
-  run casually.
-- Revisit trigger: floors return to code-generated authoring - then fold
-  the wall conventions into `build-hotel.mjs` itself.
+- Problem: whole-floor drawing, doors, and decorations were improvised per session; results were inconsistent and unverified, and `build:hotel` could silently wipe hand-authored floors.
+- Final solution: `docs/agents/floor-authoring.md` is the mandatory how-to-draw contract. Canvas walls are placed objects with logical grid coordinates, asset walls live on origin assets, doors are gaps, placements inherit origin definitions, and every floor edit must pass strict validation, engine boundary checks, BFS connectivity, and `npm run verify`. `build-hotel.mjs` remains scaffold-only while hand-authored floors are on disk.
+- Trade-off: regeneration path (`npm run build:hotel`) is dangerous to run casually.
+- Revisit trigger: floors return to code-generated authoring; then fold the wall conventions into `build-hotel.mjs` itself.
 
-### 12. Asset tileEdges are the canvas wall system; rooms convert one-way
+### 12. Room conversion was retired in favor of origin composition
 
-- Problem: painted floor walls (`walkable.tileEdges`) and `isWall` objects
-  were two unmanaged wall concepts; rooms assembled from pieces (bathroom:
-  needs capacity + tags) had no path into the wall/blocking system.
-- Final solution: ONE wall representation - `TileEdges[][]`. Asset-level
-  edges block NPCs through the same engine path as floor walls and render
-  live with canvas `wallColor`/`wallThickness` (never baked into SVG).
-  "To Room" converts framed painted walls into a single room asset
-  (flattened, walkable:false, interior tileStates 'walkable', perimeter
-  edges with door gaps) and erases the source edges. One-way: no
-  object->painted-wall conversion.
-- Trade-off: converted rooms are full-tile rects (boundary-line walls
-  snap inward); free-form wall shapes stay in the painted system.
-- Revisit trigger: L-shaped / non-rectangular room assets are requested,
-  or live per-object wall thickness separate from canvas config.
+- Problem: the former room conversion path created a separate room concept that did not compose cleanly with furniture, capacity, tags, or reusable presets.
+- Final solution: room creation is no longer a separate canvas action. Users compose canvas wall segments and placed objects, then merge or flatten them into one origin asset. Asset-setting wall segments are edited in origin settings; canvas wall segments remain independent placed objects. Wall appearance is resolved from the global canvas settings.
+- Trade-off: old room definitions and old floor content require the explicit clean-reset migration before new authoring begins.
+- Revisit trigger: a future room authoring workflow needs semantic room metadata beyond origin composition.
 
 ### 13. Every load boundary routes through canonical normalize helpers
 
@@ -180,3 +154,14 @@ routine fixes, refactors and minor cleanups do NOT belong here.
 - Revisit trigger: a new ingress path (import, paste, sync receive) is
   added - it MUST route through the matching `normalize*` /
   `validateLayoutData` helper at the boundary, never via `as` casts.
+
+## 2026-08-27
+
+### 14. Wall canvas uses first-class segment geometry
+
+- Problem: canvas boundaries and asset-setting boundaries were represented by separate implicit systems, which made selection, composition, and inheritance difficult to reason about.
+- Final solution: `WallSegment` geometry (`x1,y1,x2,y2`) has two explicit sources. A canvas wall segment is stored on a wall placed object and is selectable/deletable through the object tool. An asset-setting wall segment is stored once on an origin asset and inherited live by every placed object that references that origin. The NPC engine consumes both sources as edge-blocking geometry. New presets merge all selected content into one origin asset and one placed object.
+- Trade-off: the clean-reset migration intentionally discards old floor placements and old canvas boundaries; origin definitions are materialized before new authoring begins. Asset-setting walls remain origin-level and cannot be overridden per placement.
+- Overlap policy: canvas wall segments and asset-setting wall segments are independent layers. Overlap is allowed without warning; rendering shows both and the engine treats either source as blocking the same edge. Deleting a canvas wall does not affect origin asset walls.
+- Style policy: `wallColor` and `wallThickness` are controlled only by Canvas Settings and apply to every wall layer.
+- Revisit trigger: per-placement wall overrides or a separate wall style per segment are requested.

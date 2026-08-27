@@ -8,9 +8,7 @@ const store = useAssetsStore();
 
 const object = computed(() => store.selectedObject());
 const asset = computed(() => store.selectedAsset.value);
-const wallCount = computed(
-  () => store.wallSelection.value.filter((w) => w.floorId === store.currentFloor.value?.id).length,
-);
+const wallCount = computed(() => store.wallSelection.value.filter((w) => w.floorId === store.currentFloor.value?.id).length);
 
 const linkedName = ref("");
 const flattenName = ref("");
@@ -23,14 +21,15 @@ async function doLink() {
 
 async function doCreateLinked() {
   const ids = store.state.selectionState.items.filter((i) => i.type === "object").map((i) => i.id);
-  if (ids.length < 2) return;
+  const wallCount = store.wallSelection.value.filter((w) => w.floorId === store.currentFloor.value?.id).length;
+  if (ids.length + wallCount < 2) return;
   const id = await store.createLinkedAssetFromSelection(linkedName.value || undefined);
   if (id) linkedName.value = "";
 }
 
 async function doFlatten() {
   const ids = store.state.selectionState.items.filter((i) => i.type === "object").map((i) => i.id);
-  const walls = store.wallSelection.value.filter((w) => w.floorId === store.currentFloor.value?.id).map((w) => w.segment);
+  const walls = store.wallSelection.value.filter((w) => w.floorId === store.currentFloor.value?.id);
   if (ids.length + walls.length < 2) return;
   const id = await store.flattenToSvgAsset(flattenName.value || undefined, walls);
   if (id) {
@@ -69,12 +68,12 @@ async function doFlatten() {
           </div>
         </div>
         <div class="form__group">
-          <h3>Save as Linked Set</h3>
+          <h3>Merge to Origin Asset</h3>
           <div class="form__row">
             <label>Name</label>
             <input type="text" v-model="linkedName" placeholder="e.g. Table + Chairs" />
           </div>
-          <button @click="doCreateLinked">Save as Linked Asset</button>
+          <button @click="doCreateLinked">Merge to Origin Asset</button>
         </div>
         <div class="form__group">
           <h3>Flatten to Single Asset</h3>

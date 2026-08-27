@@ -1,11 +1,10 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import { useAssetsStore } from "../blueprintStore";
-import { STREET_TILES, type FloorData, type TileEdges, type TileState } from "../types";
+import { STREET_TILES, type FloorData, type TileState, type WallSegment } from "../types";
 import ModalShell from "./ModalShell.vue";
 
 type WalkableMode = "walk" | "entrance";
-type BorderSide = "top" | "right" | "bottom" | "left";
 
 const props = defineProps<{
   streetTiles?: number;
@@ -17,10 +16,56 @@ const emit = defineEmits<{ (event: "close"): void }>();
 const store = useAssetsStore();
 const activeMode = ref<WalkableMode>("walk");
 const walkBrush = ref<TileState>("walkable");
-const entranceBrush = ref<"door" | "border">("door");
 const tileStates = ref<TileState[][]>([]);
-const tileEdges = ref<TileEdges[][]>([]);
+const wallSegments = ref<WallSegment[]>([]);
 const dirty = ref(false);
+
+function wallKey(segment: WallSegment): string {
+  return `${segment.x1},${segment.y1},${segment.x2},${segment.y2}`;
+}
+
+function addWall(segment: WallSegment): void {
+  const key = wallKey(segment);
+  if (!wallSegments.value.some((item) => wallKey(item) === key)) wallSegments.value.push(segment);
+}
+
+function removeWallAt(row: number, col: number, side: "top" | "right" | "bottom" | "left"): void {
+  const segment = side === "top" ? { x1: col, y1: row, x2: col + 1, y2: row } : side === "bottom" ? { x1: col, y1: row + 1, x2: col + 1, y2: row + 1 } : side === "left" ? { x1: col, y1: row, x2: col, y2: row + 1 } : { x1: col + 1, y1: row, x2: col + 1, y2: row + 1 };
+  wallSegments.value = wallSegments.value.filter((item) => wallKey(item) !== wallKey(segment));
+}
+
+function removeOuterWallsForTile(row: number, col: number): void {
+  if (row === buildingStartRow.value) removeWallAt(row, col, "top");
+  if (row === buildingEndRow.value - 1) removeWallAt(row, col, "bottom");
+  if (col === buildingStartCol.value) removeWallAt(row, col, "left");
+  if (col === buildingEndCol.value - 1) removeWallAt(row, col, "right");
+}
+
+function applyOuterWall(): void {
+  for (let row = buildingStartRow.value; row < buildingEndRow.value; row++) {
+    for (let col = buildingStartCol.value; col < buildingEndCol.value; col++) {
+      if (row === buildingStartRow.value && tileStates.value[row]?.[col] !== "entrance") addWall({ x1: col, y1: row, x2: col + 1, y2: row });
+      if (row === buildingEndRow.value - 1 && tileStates.value[row]?.[col] !== "entrance") addWall({ x1: col, y1: row + 1, x2: col + 1, y2: row + 1 });
+      if (col === buildingStartCol.value && tileStates.value[row]?.[col] !== "entrance") addWall({ x1: col, y1: row, x2: col, y2: row + 1 });
+      if (col === buildingEndCol.value - 1 && tileStates.value[row]?.[col] !== "entrance") addWall({ x1: col + 1, y1: row, x2: col + 1, y2: row + 1 });
+    }
+  }
+  dirty.value = true;
+}
+
+function clearAllDoors(): void {
+  for (let row = 0; row < tileStates.value.length; row++) {
+    for (let col = 0; col < (tileStates.value[row]?.length ?? 0); col++) {
+      if (tileStates.value[row][col] === "entrance") tileStates.value[row][col] = "walkable";
+    }
+  }
+  dirty.value = true;
+}
+
+function clearAllEdges(): void {
+  wallSegments.value = [];
+  dirty.value = true;
+}
 
 const tileSize = computed(() => Math.max(1, Math.round(store.state.layout.canvas.tileSize)));
 const cols = computed(() => Math.max(1, Math.ceil(store.state.layout.canvas.width / tileSize.value)));
@@ -47,17 +92,9 @@ function createTileStates(floor?: FloorData): TileState[][] {
   return Array.from({ length: rows.value }, () => Array.from({ length: cols.value }, () => fallback));
 }
 
-function createTileEdges(floor?: FloorData): TileEdges[][] {
-  const existing = floor?.walkable?.tileEdges;
-  if (existing?.length === rows.value && existing.every((row) => row.length === cols.value)) {
-    return existing.map((row) => row.map((edge) => ({ ...edge })));
-  }
-  return Array.from({ length: rows.value }, () => Array.from({ length: cols.value }, () => ({})));
-}
-
 function resetDraft(): void {
   tileStates.value = createTileStates(props.floor);
-  tileEdges.value = createTileEdges(props.floor);
+  wallSegments.value = (props.floor?.objects ?? []).filter((object) => object.isWall && [object.x1, object.y1, object.x2, object.y2].every((value) => typeof value === "number")).map((object) => ({ x1: object.x1!, y1: object.y1!, x2: object.x2!, y2: object.y2! }));
   dirty.value = false;
 }
 
@@ -73,81 +110,9 @@ function tileState(row: number, col: number): TileState {
   return tileStates.value[row]?.[col] ?? "blocked";
 }
 
-function edge(row: number, col: number): TileEdges {
-  return tileEdges.value[row]?.[col] ?? {};
-}
-
-function detectEdgeSide(event: MouseEvent): BorderSide | null {
-  const target = event.currentTarget as HTMLElement;
-  const rect = target.getBoundingClientRect();
-  const distances = {
-    top: event.clientY - rect.top,
-    right: rect.right - event.clientX,
-    bottom: rect.bottom - event.clientY,
-    left: event.clientX - rect.left,
-  };
-  const side = (Object.keys(distances) as BorderSide[]).sort((a, b) => distances[a] - distances[b])[0];
-  return distances[side] <= Math.max(6, Math.min(rect.width, rect.height) * 0.25) ? side : null;
-}
-
-function toggleEdge(row: number, col: number, side: BorderSide): void {
-  const current = tileEdges.value[row][col] ?? {};
-  tileEdges.value[row][col] = { ...current, [side]: !current[side] };
-  dirty.value = true;
-}
-
-function applyOuterWall(): void {
-  for (let row = buildingStartRow.value; row < buildingEndRow.value; row++) {
-    for (let col = buildingStartCol.value; col < buildingEndCol.value; col++) {
-      const current = tileEdges.value[row][col] ?? {};
-      const entrance = tileStates.value[row]?.[col] === "entrance";
-      tileEdges.value[row][col] = {
-        ...current,
-        ...(row === buildingStartRow.value ? { top: !entrance } : {}),
-        ...(col === buildingEndCol.value - 1 ? { right: !entrance } : {}),
-        ...(row === buildingEndRow.value - 1 ? { bottom: !entrance } : {}),
-        ...(col === buildingStartCol.value ? { left: !entrance } : {}),
-      };
-    }
-  }
-  dirty.value = true;
-}
-
-function clearAllDoors(): void {
-  for (let row = buildingStartRow.value; row < buildingEndRow.value; row++) {
-    for (let col = buildingStartCol.value; col < buildingEndCol.value; col++) {
-      if (tileStates.value[row][col] === "entrance") tileStates.value[row][col] = "walkable";
-    }
-  }
-  dirty.value = true;
-}
-
-function clearAllEdges(): void {
-  tileEdges.value = tileEdges.value.map((row) => row.map(() => ({})));
-  dirty.value = true;
-}
-
-function clearOuterWallsForTile(row: number, col: number): void {
-  const current = tileEdges.value[row]?.[col];
-  if (!current) return;
-  if (row === buildingStartRow.value) current.top = false;
-  if (row === buildingEndRow.value - 1) current.bottom = false;
-  if (col === buildingStartCol.value) current.left = false;
-  if (col === buildingEndCol.value - 1) current.right = false;
-}
-
-function updateTile(row: number, col: number, event: MouseEvent): void {
-  if (activeMode.value === "entrance") {
-    if (entranceBrush.value === "border") {
-      const side = detectEdgeSide(event);
-      if (side) toggleEdge(row, col, side);
-      return;
-    }
-    tileStates.value[row][col] = "entrance";
-    clearOuterWallsForTile(row, col);
-  } else {
-    tileStates.value[row][col] = walkBrush.value;
-  }
+function updateTile(row: number, col: number): void {
+  tileStates.value[row][col] = activeMode.value === "entrance" ? "entrance" : walkBrush.value;
+  if (activeMode.value === "entrance") removeOuterWallsForTile(row, col);
   dirty.value = true;
 }
 
@@ -165,10 +130,11 @@ async function saveWalkable(): Promise<void> {
     }
   }
   const walkableGrid = states.map((row) => row.map((state) => state === "walkable" || state === "entrance"));
-  await store.updateFloor(props.floor.id, {
-    walkable: { walkableGrid, tileStates: states, tileEdges: tileEdges.value.map((row) => row.map((edgeValue) => ({ ...edgeValue }))) },
+  const saved = await store.updateFloor(props.floor.id, {
+    walkable: { walkableGrid, tileStates: states },
   });
-  dirty.value = false;
+  if (saved) await store.replaceCanvasWallSegments(props.floor.id, wallSegments.value);
+  dirty.value = !saved;
 }
 
 function resetWalkable(): void {
@@ -179,7 +145,7 @@ function resetWalkable(): void {
       return isStreet ? "walkable" : fallback;
     }),
   );
-  tileEdges.value = Array.from({ length: rows.value }, () => Array.from({ length: cols.value }, () => ({})));
+  wallSegments.value = [];
   dirty.value = true;
 }
 
@@ -199,13 +165,10 @@ function close(): void {
           <button type="button" :class="{ 'flag--warning': walkBrush === 'blocked' }" @click="walkBrush = 'blocked'">Block</button>
         </template>
         <template v-else>
-          <button type="button" :class="{ 'flag--warning': entranceBrush === 'door' }" @click="entranceBrush = 'door'">-> Door</button>
-          <button type="button" :class="{ 'flag--warning': entranceBrush === 'border' }" @click="entranceBrush = 'border'">Wall</button>
           <button type="button" @click="applyOuterWall">Outer Walls</button>
           <button type="button" @click="clearAllDoors">Clear Doors</button>
-          <button type="button" @click="clearAllEdges">Clear Edges</button>
+          <button type="button" @click="clearAllEdges">Clear Walls</button>
         </template>
-        <span class="form__hint">Use the same Wall / Block and Entrance / Wall workflow as Origin Assets.</span>
       </div>
 
       <div class="form__row form__row--tight form__row--wrap walk__legend" aria-label="Walkable legend">
@@ -223,14 +186,8 @@ function close(): void {
             type="button"
             class="walk__cell"
             :class="`walk__cell--${tileState(buildingStartRow + rowIndex - 1, buildingStartCol + colIndex - 1)}`"
-            :style="{
-              borderTopColor: edge(buildingStartRow + rowIndex - 1, buildingStartCol + colIndex - 1).top ? 'var(--accent-gold)' : undefined,
-              borderRightColor: edge(buildingStartRow + rowIndex - 1, buildingStartCol + colIndex - 1).right ? 'var(--accent-gold)' : undefined,
-              borderBottomColor: edge(buildingStartRow + rowIndex - 1, buildingStartCol + colIndex - 1).bottom ? 'var(--accent-gold)' : undefined,
-              borderLeftColor: edge(buildingStartRow + rowIndex - 1, buildingStartCol + colIndex - 1).left ? 'var(--accent-gold)' : undefined,
-            }"
             :aria-label="`Row ${rowIndex}, column ${colIndex}, ${tileState(buildingStartRow + rowIndex - 1, buildingStartCol + colIndex - 1)}`"
-            @mousedown.prevent="updateTile(buildingStartRow + rowIndex - 1, buildingStartCol + colIndex - 1, $event)"
+            @mousedown.prevent="updateTile(buildingStartRow + rowIndex - 1, buildingStartCol + colIndex - 1)"
           />
         </template>
       </div>

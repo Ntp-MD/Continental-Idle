@@ -1,13 +1,11 @@
-import type { AssetDef, WalkableGrid, TileState, TileEdges, WallSegment } from '../types'
-import { isValidColor, normalizeNpcQueueConfig, applySvgColorConvention } from '../types'
-import { applyWallSegment } from '../composables/useWallPaint'
-import { deriveRoomFromSegments } from '../roomConvert'
+import type { AssetDef, WalkableGrid, TileState } from '../types'
+import { isValidColor, normalizeNpcQueueConfig, normalizeWallSegments, applySvgColorConvention } from '../types'
 import { aabbOverlap } from '../collision'
 import { assetSizeFor, normalizeObject } from '../geometry'
 import {
 	state, toast, clamp, withStateLock, initAssetFields, assetMap,
 } from './state'
-import { genAssetId, genId } from './utils'
+import { genAssetId } from './utils'
 import { saveAssets, saveBlueprintData, saveLayout } from './persistence'
 
 const FURNITURE_COLOR_MAP: Record<string, string> = {
@@ -111,11 +109,16 @@ export async function addSvgAsset(name: string, w: number, h: number, svgString:
 	})
 }
 
-export async function updateAsset(id: string, patch: Partial<Pick<AssetDef, 'name' | 'w' | 'h' | 'pxW' | 'pxH' | 'usePx' | 'defaultPadding' | 'defaultRx' | 'defaultFillColor' | 'defaultStrokeColor' | 'defaultLabel' | 'defaultRadius' | 'defaultLabelPadding' | 'defaultLocked' | 'entranceRequired' | 'tags' | 'interactSpots' | 'interact' | 'queue'>> & { walkable?: boolean; walkableGrid?: WalkableGrid; tileStates?: TileState[][]; tileEdges?: TileEdges[][] }): Promise<void> {
+export async function updateAsset(id: string, patch: Partial<Pick<AssetDef, 'name' | 'defaultPadding' | 'defaultRx' | 'defaultFillColor' | 'defaultStrokeColor' | 'defaultLabel' | 'defaultRadius' | 'defaultLabelPadding' | 'defaultLocked' | 'entranceRequired' | 'tags' | 'interactSpots' | 'interact' | 'queue' | 'wallSegments'>> & { walkable?: boolean; walkableGrid?: WalkableGrid; tileStates?: TileState[][] }): Promise<void> {
 	return withStateLock(async () => {
 		const asset = state.assetRegistry.find(a => a.id === id)
 		if (!asset) {
 			toast.warning('Asset not found')
+			return
+		}
+		const sizeKeys = ['w', 'h', 'pxW', 'pxH', 'usePx']
+		if (sizeKeys.some(key => key in (patch as Record<string, unknown>))) {
+			toast.warning('Origin asset dimensions are immutable after creation')
 			return
 		}
 		if (patch.defaultFillColor !== undefined && patch.defaultFillColor !== '' && !isValidColor(patch.defaultFillColor)) {
@@ -128,21 +131,7 @@ export async function updateAsset(id: string, patch: Partial<Pick<AssetDef, 'nam
 		}
 
 
-		const sizePatchKeys: (keyof typeof patch)[] = ['w', 'h', 'pxW', 'pxH', 'usePx']
-		const touchesSize = sizePatchKeys.some(k => patch[k] !== undefined)
-		if (touchesSize) {
-			const inUse = state.layout.floors.some(f => f.objects.some(o => o.type === id))
-			if (inUse) {
-				toast.warning('Cannot resize - asset is placed on floors. Remove instances first.')
-				return
-			}
-		}
 		if (patch.name !== undefined) asset.name = patch.name
-		if (patch.w !== undefined) asset.w = Math.max(1, Math.floor(patch.w))
-		if (patch.h !== undefined) asset.h = Math.max(1, Math.floor(patch.h))
-		if (patch.usePx !== undefined) asset.usePx = patch.usePx
-		if (patch.pxW !== undefined) asset.pxW = patch.pxW > 0 ? Math.floor(patch.pxW) : undefined
-		if (patch.pxH !== undefined) asset.pxH = patch.pxH > 0 ? Math.floor(patch.pxH) : undefined
 		if (patch.defaultPadding !== undefined) asset.defaultPadding = patch.defaultPadding > 0 ? patch.defaultPadding : undefined
 		if (patch.defaultRx !== undefined) {
 			const r = patch.defaultRx
@@ -163,7 +152,7 @@ export async function updateAsset(id: string, patch: Partial<Pick<AssetDef, 'nam
 		if (patch.tags !== undefined) asset.tags = patch.tags.length > 0 ? [...patch.tags] : undefined
 		if (patch.walkableGrid !== undefined) asset.walkableGrid = patch.walkableGrid
 		if (patch.tileStates !== undefined) asset.tileStates = patch.tileStates
-		if (patch.tileEdges !== undefined) asset.tileEdges = patch.tileEdges
+		if (patch.wallSegments !== undefined) asset.wallSegments = normalizeWallSegments(patch.wallSegments)
 		if (patch.interactSpots !== undefined) asset.interactSpots = patch.interactSpots.length > 0 ? patch.interactSpots.map(p => ({ ...p })) : undefined
 		if (patch.interact !== undefined) asset.interact = patch.interact ? { ...patch.interact } : undefined
 		if (patch.queue !== undefined) asset.queue = normalizeNpcQueueConfig(patch.queue)
@@ -217,7 +206,8 @@ export async function updateAsset(id: string, patch: Partial<Pick<AssetDef, 'nam
 }
 
 
-export async function refreshOriginInstances(): Promise<number> {	return withStateLock(async () => {
+export async function refreshOriginInstances(): Promise<number> {
+	return withStateLock(async () => {
 		const tileSize = state.layout.canvas.tileSize
 		const assets = assetMap()
 		let refreshedCount = 0
@@ -234,77 +224,6 @@ export async function refreshOriginInstances(): Promise<number> {	return withSta
 		}
 		await saveBlueprintData()
 		return refreshedCount
-	})
-}
-
-function roomBodySvg(widthTiles: number, heightTiles: number, tileSize: number): { svg: string; viewBox: { w: number; h: number } } {
-	const vbW = widthTiles * tileSize
-	const vbH = heightTiles * tileSize
-	return {
-		svg: `<rect x="0.5" y="0.5" width="${vbW - 1}" height="${vbH - 1}" rx="2" fill="var(--obj-fill,#ffffff)" stroke="var(--asset-outline)" stroke-width="1"/>`,
-		viewBox: { w: vbW, h: vbH },
-	}
-}
-
-export async function convertWallsToRoom(floorId: string, segments: readonly WallSegment[], name?: string): Promise<AssetDef | null> {
-	return withStateLock(async () => {
-		const floor = state.layout.floors.find(f => f.id === floorId)
-		if (!floor) {
-			toast.warning('Floor not found')
-			return null
-		}
-		const tileSize = state.layout.canvas.tileSize
-		const room = deriveRoomFromSegments(segments, tileSize)
-		if (!room) {
-			toast.warning('Select tile-aligned wall segments first')
-			return null
-		}
-		const roomCount = state.assetRegistry.filter(a => /^Room \d+$/.test(a.name)).length
-		const assetName = name?.trim() || `Room ${roomCount + 1}`
-		const body = roomBodySvg(room.widthTiles, room.heightTiles, tileSize)
-		const tileStates: TileState[][] = Array.from({ length: room.heightTiles }, () =>
-			Array.from({ length: room.widthTiles }, () => 'walkable' as TileState),
-		)
-		const asset: AssetDef = {
-			origin: 'flattened',
-			id: genAssetId('custom', assetName, c => state.assetRegistry.some(a => a.id === c)),
-			name: assetName,
-			w: room.widthTiles,
-			h: room.heightTiles,
-			category: 'Special',
-			isWall: true,
-			walkable: false,
-			defaultFillColor: '#ffffff',
-			svg: applySvgColorConvention(body.svg),
-			svgViewBox: body.viewBox,
-			tileEdges: room.tileEdges,
-			tileStates,
-		}
-		initAssetFields(asset)
-		state.assetRegistry.push(asset)
-
-		const sourceEdges = floor.walkable?.tileEdges
-		if (sourceEdges) {
-			for (const seg of segments) applyWallSegment(sourceEdges, seg, tileSize, false)
-		}
-
-		const object = {
-			id: genId('obj'),
-			subId: genId('sub'),
-			type: asset.id,
-			x: room.x,
-			y: room.y,
-			w: 0,
-			h: 0,
-			rotation: 0 as const,
-		}
-		normalizeObject(object, tileSize, assetMap())
-		floor.objects.push(object)
-		state.selectionState = { primary: { type: 'object', id: object.id }, items: [{ type: 'object', id: object.id }] }
-
-		await saveBlueprintData()
-		toast.success(`${assetName} created - set tags and queue in Origin settings`)
-		return asset
 	})
 }
 
@@ -326,12 +245,11 @@ export async function duplicateAsset(id: string): Promise<AssetDef | null> {
 		if (source.svgViewBox) copy.svgViewBox = { ...source.svgViewBox }
 		if (source.walkableGrid) copy.walkableGrid = source.walkableGrid.map(row => [...row])
 		if (source.tileStates) copy.tileStates = source.tileStates.map(row => [...row])
-		if (source.tileEdges) copy.tileEdges = source.tileEdges.map(row => row.map(e => e ? { ...e } : e))
+		if (source.wallSegments) copy.wallSegments = source.wallSegments.map(segment => ({ ...segment }))
 		if (source.interactSpots) copy.interactSpots = source.interactSpots.map(p => ({ ...p }))
 		if (source.interact) copy.interact = { ...source.interact }
 		if (source.defaultRx) copy.defaultRx = { ...source.defaultRx }
 		if (source.tags) copy.tags = [...source.tags]
-		if (source.linkedParts) copy.linkedParts = source.linkedParts.map(p => ({ ...p }))
 		if (!copy.defaultFillColor) copy.defaultFillColor = '#ffffff'
 		state.assetRegistry.push(copy)
 		await saveAssets()
@@ -346,17 +264,6 @@ export async function deleteAsset(id: string): Promise<boolean> {
 		toast.warning('Cannot delete - asset is placed on floors. Remove instances first.')
 		return false
 	}
-	const referencedByLinked = state.assetRegistry.some(a =>
-		a.linkedParts?.some(p => p.type === id)
-	)
-	if (referencedByLinked) {
-		const linkedNames = state.assetRegistry
-			.filter(a => a.linkedParts?.some(p => p.type === id))
-			.map(a => a.name)
-			.join(', ')
-		toast.warning(`Cannot delete - asset is used in linked set: ${linkedNames}. Remove the linked set first.`)
-		return false
-	}
 	const idx = state.assetRegistry.findIndex(a => a.id === id)
 	if (idx === -1) {
 		toast.warning('Asset not found')
@@ -366,71 +273,4 @@ export async function deleteAsset(id: string): Promise<boolean> {
 	if (state.selectedAssetId === id) state.selectedAssetId = null
 	await saveAssets()
 	return true
-}
-
-export async function rotateAsset(id: string): Promise<void> {
-	return withStateLock(async () => {
-		const asset = state.assetRegistry.find(a => a.id === id)
-		if (!asset || !asset.svg || !asset.svgViewBox) return
-		const vb = asset.svgViewBox
-		asset.svg = `<g transform="translate(${vb.h}, 0) rotate(90)">${asset.svg}</g>`
-		asset.svgViewBox = { w: vb.h, h: vb.w }
-		const tmp = asset.w
-		asset.w = asset.h
-		asset.h = tmp
-		if (asset.walkableGrid && asset.walkableGrid.length > 0) {
-			const rows = asset.walkableGrid.length
-			const cols = asset.walkableGrid[0].length
-			const rotated: boolean[][] = []
-			for (let r = 0; r < cols; r++) {
-				rotated[r] = []
-				for (let c = 0; c < rows; c++) {
-					rotated[r][c] = asset.walkableGrid[rows - 1 - c][r]
-				}
-			}
-			asset.walkableGrid = rotated
-		}
-		if (asset.tileStates && asset.tileStates.length > 0) {
-			const rows = asset.tileStates.length
-			const cols = asset.tileStates[0].length
-			const rotated: TileState[][] = []
-			for (let r = 0; r < cols; r++) {
-				rotated[r] = []
-				for (let c = 0; c < rows; c++) {
-					rotated[r][c] = asset.tileStates[rows - 1 - c][r]
-				}
-			}
-			asset.tileStates = rotated
-		}
-		if (asset.tileEdges && asset.tileEdges.length > 0) {
-			const rows = asset.tileEdges.length
-			const cols = asset.tileEdges[0].length
-			const rotated: TileEdges[][] = []
-			for (let r = 0; r < cols; r++) {
-				rotated[r] = []
-				for (let c = 0; c < rows; c++) {
-					const e = asset.tileEdges[rows - 1 - c][r]
-					rotated[r][c] = e ? { top: e.left, right: e.top, bottom: e.right, left: e.bottom } : e
-				}
-			}
-			asset.tileEdges = rotated
-		}
-
-		const t = state.layout.canvas.tileSize
-		const newW = asset.w * t
-		const newH = asset.h * t
-		for (const floor of state.layout.floors) {
-			for (const obj of floor.objects) {
-				if (obj.type !== id) continue
-				obj.w = newW
-				obj.h = newH
-				const clamped = clamp({ x: obj.x, y: obj.y, w: newW, h: newH })
-				obj.x = clamped.x
-				obj.y = clamped.y
-
-			}
-		}
-
-		await saveAssets()
-	})
 }

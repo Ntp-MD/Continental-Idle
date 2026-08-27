@@ -31,22 +31,6 @@ export const originAssetsData = [
         "walkable"
       ]
     ],
-    "tileEdges": [
-      [
-        {
-          "top": false,
-          "right": false,
-          "bottom": false,
-          "left": false
-        },
-        {
-          "top": false,
-          "right": false,
-          "bottom": false,
-          "left": false
-        }
-      ]
-    ],
     "interactSpots": [
       {
         "x": 13,
@@ -220,28 +204,6 @@ export const originAssetsData = [
         "walkable"
       ]
     ],
-    "tileEdges": [
-      [
-        {
-          "top": true,
-          "left": true
-        },
-        {
-          "top": true,
-          "right": true
-        }
-      ],
-      [
-        {
-          "bottom": true,
-          "left": true
-        },
-        {
-          "bottom": true,
-          "right": true
-        }
-      ]
-    ],
     "interactSpots": [
       {
         "x": 14,
@@ -260,7 +222,57 @@ export const originAssetsData = [
     "queue": {
       "maxMembers": 3,
       "admissionDepth": 4
-    }
+    },
+    "wallSegments": [
+      {
+        "x1": 0,
+        "y1": 0,
+        "x2": 1,
+        "y2": 0
+      },
+      {
+        "x1": 0,
+        "y1": 0,
+        "x2": 0,
+        "y2": 1
+      },
+      {
+        "x1": 1,
+        "y1": 0,
+        "x2": 2,
+        "y2": 0
+      },
+      {
+        "x1": 2,
+        "y1": 0,
+        "x2": 2,
+        "y2": 1
+      },
+      {
+        "x1": 0,
+        "y1": 2,
+        "x2": 1,
+        "y2": 2
+      },
+      {
+        "x1": 0,
+        "y1": 1,
+        "x2": 0,
+        "y2": 2
+      },
+      {
+        "x1": 1,
+        "y1": 2,
+        "x2": 2,
+        "y2": 2
+      },
+      {
+        "x1": 2,
+        "y1": 1,
+        "x2": 2,
+        "y2": 2
+      }
+    ]
   },
   {
     "id": "custom-washer-1",
@@ -970,212 +982,49 @@ export const originAssetsData = [
     }
   },
   {
-    "id": "custom-potted-plant",
-    "name": "Potted Plant",
-    "w": 1,
+    "id": "custom-table-stove",
+    "name": "table stove",
+    "w": 2,
     "h": 1,
     "origin": "svg-import",
     "category": "Special",
     "walkable": false,
     "defaultFillColor": "#ffffff",
-    "tags": [
-      "decor"
-    ],
-    "svg": "<circle cx=\"12.5\" cy=\"9\" r=\"6.5\" fill=\"none\" stroke=\"var(--asset-outline)\" stroke-width=\"0.8\"/><circle cx=\"9\" cy=\"7.5\" r=\"3.2\" fill=\"none\" stroke=\"var(--asset-outline)\" stroke-width=\"0.6\"/><circle cx=\"16\" cy=\"7.5\" r=\"3.2\" fill=\"none\" stroke=\"var(--asset-outline)\" stroke-width=\"0.6\"/><path d=\"M 8 16 L 17 16 L 15.5 23 L 9.5 23 Z\" fill=\"var(--obj-fill,#ffffff)\" stroke=\"var(--obj-stroke,#ffffff)\" stroke-width=\"1\"/><line x1=\"7\" y1=\"16\" x2=\"18\" y2=\"16\" stroke=\"var(--asset-outline)\" stroke-width=\"0.6\"/>",
+    "svg": "<rect x=\"1\" y=\"2\" width=\"48\" height=\"21\" rx=\"2\" fill=\"var(--obj-fill,#ffffff)\" stroke=\"var(--obj-stroke,#ffffff)\" stroke-width=\"1\"/><line x1=\"25\" y1=\"2\" x2=\"25\" y2=\"23\" stroke=\"var(--asset-outline)\" stroke-width=\"0.6\"/><circle cx=\"12.5\" cy=\"12.5\" r=\"7\" fill=\"none\" stroke=\"var(--asset-outline)\" stroke-width=\"0.8\"/><circle cx=\"12.5\" cy=\"12.5\" r=\"3\" fill=\"none\" stroke=\"var(--asset-outline)\" stroke-width=\"0.5\"/><rect x=\"30.5\" y=\"7.5\" width=\"14\" height=\"10\" rx=\"1.5\" fill=\"none\" stroke=\"var(--asset-outline)\" stroke-width=\"0.8\"/>",
     "svgViewBox": {
-      "w": 25,
+      "w": 50,
       "h": 25
     },
     "walkableGrid": [
       [
+        false,
         false
       ]
     ],
     "tileStates": [
       [
-        "blocked"
-      ]
-    ]
-  },
-  {
-    "id": "custom-wardrobe",
-    "name": "Wardrobe",
-    "w": 1,
-    "h": 2,
-    "origin": "svg-import",
-    "category": "Special",
-    "walkable": false,
-    "defaultFillColor": "#ffffff",
-    "tags": [
-      "guest-room"
-    ],
-    "svg": "<rect x=\"2.5\" y=\"2.5\" width=\"20\" height=\"45\" rx=\"1\" fill=\"var(--obj-fill,#ffffff)\" stroke=\"var(--obj-stroke,#ffffff)\" stroke-width=\"1\"/><line x1=\"12.5\" y1=\"2.5\" x2=\"12.5\" y2=\"47.5\" stroke=\"var(--asset-outline)\" stroke-width=\"0.7\"/><line x1=\"10.8\" y1=\"22\" x2=\"10.8\" y2=\"26\" stroke=\"var(--asset-outline)\" stroke-width=\"0.7\"/><line x1=\"14.2\" y1=\"22\" x2=\"14.2\" y2=\"26\" stroke=\"var(--asset-outline)\" stroke-width=\"0.7\"/><line x1=\"5\" y1=\"6.5\" x2=\"20\" y2=\"6.5\" stroke=\"var(--asset-outline)\" stroke-width=\"0.5\"/>",
-    "svgViewBox": {
-      "w": 25,
-      "h": 50
-    },
-    "walkableGrid": [
-      [
-        false
-      ],
-      [
-        false
-      ]
-    ],
-    "tileStates": [
-      [
-        "blocked"
-      ],
-      [
+        "blocked",
         "blocked"
       ]
     ],
     "interactSpots": [
       {
         "x": 12.5,
-        "y": 56
+        "y": 31
+      },
+      {
+        "x": 37.5,
+        "y": 31
       }
     ],
     "interact": {
-      "capacity": 1,
-      "durationMin": 3,
-      "durationMax": 8
+      "capacity": 2,
+      "durationMin": 5,
+      "durationMax": 12
     },
     "queue": {
       "maxMembers": 3,
       "admissionDepth": 4
     }
-  },
-  {
-    "id": "custom-massage-table",
-    "name": "Massage Table",
-    "w": 2,
-    "h": 1,
-    "origin": "svg-import",
-    "category": "Special",
-    "walkable": false,
-    "defaultFillColor": "#ffffff",
-    "tags": [
-      "spa"
-    ],
-    "svg": "<rect x=\"4\" y=\"7\" width=\"42\" height=\"8\" rx=\"3\" fill=\"var(--obj-fill,#ffffff)\" stroke=\"var(--obj-stroke,#ffffff)\" stroke-width=\"1\"/><path d=\"M 8 15 V 22 M 42 15 V 22\" fill=\"none\" stroke=\"var(--obj-stroke,#ffffff)\" stroke-width=\"0.9\"/><rect x=\"6\" y=\"3.5\" width=\"7\" height=\"4\" rx=\"1.5\" fill=\"none\" stroke=\"var(--asset-outline)\" stroke-width=\"0.6\"/>",
-    "svgViewBox": {
-      "w": 50,
-      "h": 25
-    },
-    "walkableGrid": [
-      [
-        false,
-        false
-      ]
-    ],
-    "tileStates": [
-      [
-        "blocked",
-        "blocked"
-      ]
-    ],
-    "interactSpots": [
-      {
-        "x": 12,
-        "y": 31
-      },
-      {
-        "x": 38,
-        "y": 31
-      }
-    ],
-    "interact": {
-      "capacity": 2,
-      "durationMin": 20,
-      "durationMax": 40
-    },
-    "queue": {
-      "maxMembers": 2,
-      "admissionDepth": 3
-    }
-  },
-  {
-    "id": "custom-elevator",
-    "name": "Elevator",
-    "w": 2,
-    "h": 2,
-    "origin": "svg-import",
-    "category": "Special",
-    "walkable": false,
-    "defaultFillColor": "#ffffff",
-    "tags": [
-      "portal"
-    ],
-    "svg": "<rect x=\"2\" y=\"2\" width=\"46\" height=\"46\" rx=\"2\" fill=\"var(--obj-fill,#ffffff)\" stroke=\"var(--obj-stroke,#ffffff)\" stroke-width=\"1\"/><rect x=\"6\" y=\"6\" width=\"38\" height=\"30\" rx=\"1.5\" fill=\"none\" stroke=\"var(--asset-outline)\" stroke-width=\"0.8\"/><path d=\"M 6 21 H 44 M 25 6 V 36\" fill=\"none\" stroke=\"var(--asset-outline)\" stroke-width=\"0.5\"/><path d=\"M 14 41 L 25 48 L 36 41\" fill=\"none\" stroke=\"var(--asset-outline)\" stroke-width=\"0.8\"/>",
-    "svgViewBox": {
-      "w": 50,
-      "h": 50
-    },
-    "walkableGrid": [
-      [
-        false,
-        false
-      ],
-      [
-        false,
-        false
-      ]
-    ],
-    "tileStates": [
-      [
-        "blocked",
-        "blocked"
-      ],
-      [
-        "blocked",
-        "blocked"
-      ]
-    ],
-    "interactSpots": [
-      {
-        "x": 15,
-        "y": 56
-      },
-      {
-        "x": 35,
-        "y": 56
-      }
-    ],
-    "interact": {
-      "capacity": 2,
-      "durationMin": 0,
-      "durationMax": 0
-    },
-    "queue": {
-      "maxMembers": 4,
-      "admissionDepth": 4
-    }
-  },
-  {
-    "id": "custom-flattened-2",
-    "name": "Flattened 2",
-    "w": 2,
-    "h": 1,
-    "origin": "flattened",
-    "walkable": false,
-    "defaultFillColor": "#ffffff",
-    "svg": "<g transform=\"translate(25, 0) scale(1, 1)\"><rect x=\"6\" y=\"2\" width=\"13\" height=\"6\" rx=\"1.5\" fill=\"var(--obj-fill,#ffffff)\" stroke=\"var(--obj-stroke,#ffffff)\" stroke-width=\"0.9\"/><ellipse cx=\"12.5\" cy=\"15\" rx=\"8\" ry=\"7.5\" fill=\"var(--obj-fill,#ffffff)\" stroke=\"var(--obj-stroke,#ffffff)\" stroke-width=\"1\"/><ellipse cx=\"12.5\" cy=\"15\" rx=\"5.5\" ry=\"5\" fill=\"var(--obj-fill,none)\" stroke=\"var(--asset-outline)\" stroke-width=\"0.6\"/></g>\n  <g transform=\"translate(0, 0) scale(1, 1)\"><rect x=\"2.5\" y=\"2.5\" width=\"20\" height=\"20\" rx=\"5\" fill=\"var(--obj-fill,#ffffff)\" stroke=\"var(--obj-stroke,#ffffff)\" stroke-width=\"1\"/><ellipse cx=\"12.5\" cy=\"13.5\" rx=\"7\" ry=\"6\" fill=\"var(--obj-fill,none)\" stroke=\"var(--asset-outline)\" stroke-width=\"0.7\"/><circle cx=\"12.5\" cy=\"5.8\" r=\"1.2\" fill=\"var(--obj-fill,none)\" stroke=\"var(--asset-outline)\" stroke-width=\"0.6\"/><line x1=\"12.5\" y1=\"7\" x2=\"12.5\" y2=\"8.8\" stroke=\"var(--asset-outline)\" stroke-width=\"0.5\"/></g>",
-    "svgViewBox": {
-      "w": 50,
-      "h": 25
-    },
-    "walkableGrid": [
-      [
-        false,
-        false
-      ]
-    ],
-    "tileStates": [
-      [
-        "blocked",
-        "blocked"
-      ]
-    ]
   }
 ]

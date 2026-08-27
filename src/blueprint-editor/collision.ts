@@ -14,6 +14,7 @@ export function objectOverlapsAny(
 	const excluded = Array.isArray(excludeId) ? new Set(excludeId) : excludeId ? new Set([excludeId]) : null
 	return objects.some(o => {
 		if (excluded && excluded.has(o.id)) return false
+		if (o.isWall) return false
 		const asset = findAssetCached(assetMap, o.type)
 		if (asset?.svg) return false
 		return aabbOverlap(rect, o)
@@ -37,10 +38,11 @@ export function recalcCollapsed(
 		? floor.objects.filter(o => aabbOverlap(o, changedRect))
 		: floor.objects
 	for (const obj of candidates) {
+		if (obj.isWall) { obj.collapsed = false; continue }
 		const asset = getAsset(obj.type)
 		if (asset?.svg) { obj.collapsed = false; continue }
 		obj.collapsed = floor.objects.some(o => {
-			if (o.id === obj.id) return false
+			if (o.id === obj.id || o.isWall) return false
 			if (!aabbOverlap(obj, o)) return false
 			const oAsset = getAsset(o.type)
 			if (oAsset?.svg) return false

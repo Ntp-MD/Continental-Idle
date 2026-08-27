@@ -1,5 +1,5 @@
-import type { AssetDef, FloorData, NpcRole, ObjectData, ResolvedObjectDef, TileEdges } from '../../blueprint-editor/types'
-import { resolveInteractForTarget, resolveObjectDef, STREET_TILES } from '../../blueprint-editor/types'
+import type { AssetDef, FloorData, NpcRole, ObjectData, ResolvedObjectDef, WallSegment } from '../../blueprint-editor/types'
+import { CANVAS_WALL_OBJECT_TYPE, resolveInteractForTarget, resolveObjectDef, resolveWallSegmentsForObject, STREET_TILES } from '../../blueprint-editor/types'
 import { buildNpcQueues } from './queueBuild'
 import { getObjectTags, hasMatchingTag } from './tagMatching'
 import type { NpcEngineBlockedEdge, NpcEngineFloor, NpcEngineInteractionTarget, NpcEngineLayout, NpcEnginePoint } from './types'
@@ -90,26 +90,6 @@ function isEdgeTile(row: number, col: number, rows: number, cols: number): boole
 	return row === 0 || row === rows - 1 || col === 0 || col === cols - 1
 }
 
-function getTileEdge(
-	object: ObjectData,
-	definition: ResolvedObjectDef,
-	tx: number,
-	ty: number,
-	tileSize: number,
-	side: keyof TileEdges,
-): boolean | undefined {
-	if (!definition.tileEdges?.length) return undefined
-	const px = cellToPixel(tx, tileSize)
-	const py = cellToPixel(ty, tileSize)
-	if (px < object.x || px >= object.x + object.w || py < object.y || py >= object.y + object.h) return undefined
-	if (resolveTileState(definition, object, px, py) === 'entrance') return false
-	const row = resolveGridIndex(definition.tileEdges, object.h, py - object.y)
-	const cols = definition.tileEdges[row]?.length ?? 0
-	if (!cols) return undefined
-	const col = Math.min(cols - 1, Math.floor(Math.max(0, px - object.x) * cols / Math.max(1, object.w)))
-	return definition.tileEdges[row][col]?.[side]
-}
-
 export function isStreetTile(tx: number, ty: number, width: number, height: number, streetTiles: number): boolean {
 	const start = streetTiles
 	const endX = width - streetTiles
@@ -124,13 +104,14 @@ function objectBlocksTile(
 	px: number,
 	py: number,
 ): boolean {
+	if (object.isWall && object.type === CANVAS_WALL_OBJECT_TYPE) return false
 	if (definition.walkable === true) return false
 	const state = resolveTileState(definition, object, px, py)
 	if (state === 'blocked') return true
 	if (definition.walkable === false) return !isWalkableState(state)
 	const localX = Math.max(0, Math.min(object.w - 0.001, px - object.x))
 	const localY = Math.max(0, Math.min(object.h - 0.001, py - object.y))
-	if (definition.tileStates?.length && definition.entranceRequired && !definition.tileEdges?.length) {
+	if (definition.tileStates?.length && definition.entranceRequired && !definition.wallSegments?.length) {
 		const row = resolveGridIndex(definition.tileStates, object.h, localY)
 		const cols = definition.tileStates[row]?.length ?? 0
 		const col = cols ? Math.min(cols - 1, Math.floor(localX * cols / Math.max(1, object.w))) : 0
@@ -216,15 +197,6 @@ export function buildWalkableMap(
 	return { tiles, width, height, cellSize }
 }
 
-function getFloorWalkableEdge(
-	floor: FloorData,
-	x: number,
-	y: number,
-	side: keyof TileEdges,
-): boolean | undefined {
-	return floor.walkable?.tileEdges?.[y]?.[x]?.[side]
-}
-
 function isObjectEntranceTile(
 	tx: number,
 	ty: number,
@@ -240,6 +212,39 @@ function isObjectEntranceTile(
 	return false
 }
 
+function wallBlocksEdge(segment: WallSegment, x: number, y: number, nx: number, ny: number, tileSize: number): boolean {
+	const epsilon = 1e-6
+	if (segment.y1 === segment.y2 && nx === x && ny === y + 1) {
+		const boundary = Math.round(segment.y1 / tileSize)
+		const start = Math.min(segment.x1, segment.x2) / tileSize
+		const end = Math.max(segment.x1, segment.x2) / tileSize
+		return boundary === ny && x >= start - epsilon && x < end - epsilon
+	}
+	if (segment.x1 === segment.x2 && nx === x + 1 && ny === y) {
+		const boundary = Math.round(segment.x1 / tileSize)
+		const start = Math.min(segment.y1, segment.y2) / tileSize
+		const end = Math.max(segment.y1, segment.y2) / tileSize
+		return boundary === nx && y >= start - epsilon && y < end - epsilon
+	}
+	return false
+}
+
+function wallSegmentsForFloor(floor: FloorData, tileSize: number, getAssetDef?: GetAssetDef): WallSegment[] {
+	const segments: WallSegment[] = []
+	for (const object of floor.objects) {
+		if (object.isWall && object.type === CANVAS_WALL_OBJECT_TYPE) {
+			if ([object.x1, object.y1, object.x2, object.y2].every((value): value is number => typeof value === 'number' && Number.isFinite(value))) {
+				segments.push({ x1: object.x1! * tileSize, y1: object.y1! * tileSize, x2: object.x2! * tileSize, y2: object.y2! * tileSize })
+			}
+			continue
+		}
+		const asset = getAssetDef?.(object.type)
+		if (!asset?.wallSegments?.length) continue
+		segments.push(...resolveWallSegmentsForObject(asset.wallSegments, asset, object, tileSize))
+	}
+	return segments
+}
+
 export function buildBlockedEdges(
 	floor: FloorData,
 	map: NpcWalkableMap,
@@ -250,23 +255,18 @@ export function buildBlockedEdges(
 		definition: resolveObjectDef(object.rotation, getAssetDef?.(object.type), { w: object.w, h: object.h }),
 	}))
 	const floorTileStates = floor.walkable?.tileStates
+	const wallSegments = wallSegmentsForFloor(floor, map.cellSize, getAssetDef)
 	const edges: NpcEngineBlockedEdge[] = []
 	for (const cell of map.tiles) {
 		const [x, y] = cell.split(',').map(Number)
-		for (const [dx, dy, side] of [[1, 0, 'right'], [0, 1, 'bottom']] as const) {
+		for (const [dx, dy] of [[1, 0], [0, 1]] as const) {
 			const nx = x + dx
 			const ny = y + dy
 			if (!map.tiles.has(tileKey(nx, ny))) continue
-			const opposite = side === 'right' ? 'left' : 'top'
 			const isEntranceA = floorTileStates?.[y]?.[x] === 'entrance' || isObjectEntranceTile(x, y, map.cellSize, definitions)
 			const isEntranceB = floorTileStates?.[ny]?.[nx] === 'entrance' || isObjectEntranceTile(nx, ny, map.cellSize, definitions)
 			if (isEntranceA || isEntranceB) continue
-			const blocked = getFloorWalkableEdge(floor, x, y, side) === true
-				|| getFloorWalkableEdge(floor, nx, ny, opposite) === true
-				|| definitions.some(({ object, definition }) =>
-					getTileEdge(object, definition, x, y, map.cellSize, side) === true
-					|| getTileEdge(object, definition, nx, ny, map.cellSize, opposite) === true,
-				)
+			const blocked = wallSegments.some(segment => wallBlocksEdge(segment, x, y, nx, ny, map.cellSize))
 			if (!blocked) continue
 			edges.push({ from: { x, y }, to: { x: nx, y: ny } })
 		}

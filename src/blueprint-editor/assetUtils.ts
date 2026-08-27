@@ -98,6 +98,11 @@ export function serializeObject(obj: ObjectPlacement): ObjectPlacement {
 	if (obj.linkGroupId) out.linkGroupId = obj.linkGroupId
 
 	if (obj.locked !== undefined) out.locked = obj.locked
+	if (obj.isWall !== undefined) out.isWall = obj.isWall
+	for (const key of ['x1', 'y1', 'x2', 'y2'] as const) {
+		const value = obj[key]
+		if (typeof value === 'number' && Number.isFinite(value)) out[key] = value
+	}
 	if (obj.fillColor && isValidColor(obj.fillColor)) out.fillColor = obj.fillColor
 	if (obj.strokeColor && isValidColor(obj.strokeColor)) out.strokeColor = obj.strokeColor
 	return out
@@ -111,6 +116,7 @@ export const ASSET_DEF_FIELD_COVERAGE: Record<keyof AssetDef, true> = {
 	h: true,
 	custom: true,
 	isWall: true,
+	wallSegments: true,
 	walkable: true,
 	entranceRequired: true,
 	defaultPadding: true,
@@ -126,13 +132,11 @@ export const ASSET_DEF_FIELD_COVERAGE: Record<keyof AssetDef, true> = {
 	pxW: true,
 	pxH: true,
 	usePx: true,
-	linkedParts: true,
 	svg: true,
 	svgViewBox: true,
 	svgRoles: true,
 	walkableGrid: true,
 	tileStates: true,
-	tileEdges: true,
 	interactSpots: true,
 	interact: true,
 	queue: true,
@@ -149,6 +153,7 @@ export function serializeAsset(asset: AssetDef): AssetDef {
 	if (asset.category) out.category = asset.category
 	if (asset.custom) out.custom = asset.custom
 	if (asset.isWall !== undefined) out.isWall = asset.isWall
+	if (asset.wallSegments?.length) out.wallSegments = asset.wallSegments.map(segment => ({ ...segment }))
 	if (asset.walkable !== undefined) out.walkable = asset.walkable
 	if (asset.entranceRequired) out.entranceRequired = asset.entranceRequired
 	if (asset.defaultPadding && asset.defaultPadding > 0) out.defaultPadding = asset.defaultPadding
@@ -163,13 +168,11 @@ export function serializeAsset(asset: AssetDef): AssetDef {
 	if (asset.pxW !== undefined) out.pxW = asset.pxW
 	if (asset.pxH !== undefined) out.pxH = asset.pxH
 	if (asset.usePx) out.usePx = asset.usePx
-	if (asset.linkedParts?.length) out.linkedParts = asset.linkedParts
 	if (asset.svg) out.svg = asset.svg
 	if (asset.svgViewBox) out.svgViewBox = asset.svgViewBox
 	if (asset.svgRoles?.length) out.svgRoles = asset.svgRoles
 	if (asset.walkableGrid) out.walkableGrid = asset.walkableGrid
 	if (asset.tileStates) out.tileStates = asset.tileStates
-	if (asset.tileEdges) out.tileEdges = asset.tileEdges
 	if (asset.interactSpots?.length) out.interactSpots = asset.interactSpots
 	if (asset.interact) out.interact = asset.interact
 	if (asset.queue) out.queue = asset.queue

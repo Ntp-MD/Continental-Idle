@@ -3,7 +3,7 @@ import { ref, computed, onMounted, onUnmounted, watch, inject } from "vue";
 import { useAssetsStore, dragState, endAssetDrag, wallSelection } from "../blueprintStore";
 import { findAssetCached, svgColorVarStyle } from "../assetUtils";
 import { svgTransform as svgTransformGeo, roundedRectPath, buildingArea } from "../geometry";
-import { resolveStreetTiles } from "../types";
+import { CANVAS_WALL_OBJECT_TYPE, resolveStreetTiles, resolveWallSegmentsForObject } from "../types";
 import { useConfirm } from "@/composables/useConfirm";
 import { useToast } from "@/composables/useToast";
 import type { ObjectData, EntityRef } from "../types";
@@ -14,9 +14,7 @@ import { useCanvasDragDrop } from "../composables/useCanvasDragDrop";
 import ColorInput from "./ColorInput.vue";
 import ModalShell from "./ModalShell.vue";
 import { useNpcSimulation } from "../composables/useNpcSimulation";
-import { useWallPaint, type WallSegment } from "../composables/useWallPaint";
-import { wallRunsFromEdges } from "../roomConvert";
-import { assetSizeFor } from "../geometry";
+import { useWallPaint, type WallSegment, type WallSelection } from "../composables/useWallPaint";
 import { renderSvgInto as renderSvgContent } from "../svgSanitizer";
 
 const vSvgContent = {
@@ -235,55 +233,35 @@ const walkableRuns = computed<TileRun[]>(() => {
   return runs;
 });
 
-interface WallRun extends WallSegment {}
+interface WallRun extends WallSegment {
+  objectId: string;
+}
 const wallRuns = computed<WallRun[]>(() => {
-  const tileEdges = floor.value?.walkable?.tileEdges;
-  if (!tileEdges) return [];
-  return wallRunsFromEdges(tileEdges, canvas.value.tileSize);
-});
-
-interface ObjWallLine extends WallSegment { id: string }
-const objWallLines = computed<ObjWallLine[]>(() => {
   const fl = floor.value;
   if (!fl) return [];
   const t = canvas.value.tileSize;
-  const assets = store.assetMap();
-  const lines: ObjWallLine[] = [];
-  for (const o of fl.objects) {
-    const asset = assets.get(o.type);
-    if (!asset?.tileEdges?.length) continue;
-    const resolved = resolveObjectDef(o.rotation, asset, { w: o.w, h: o.h });
-    const edges = resolved.tileEdges;
-    if (!edges?.length) continue;
-    const size = assetSizeFor(o.type, o.rotation, t, assets) ?? { w: Math.max(o.w, t), h: Math.max(o.h, t) };
-    const cellH = size.h / edges.length;
-    const cols = edges[0]?.length ?? 0;
-    if (!cols) continue;
-    const cellW = size.w / cols;
-    for (let r = 0; r < edges.length; r++) {
-      const row = edges[r];
-      if (!row) continue;
-      for (let c = 0; c < row.length; c++) {
-        const cell = row[c];
-        if (!cell) continue;
-        const x0 = o.x + c * cellW;
-        const y0 = o.y + r * cellH;
-        if (cell.top) lines.push({ id: o.id, x1: x0, y1: y0, x2: x0 + cellW, y2: y0 });
-        if (cell.bottom) lines.push({ id: o.id, x1: x0, y1: y0 + cellH, x2: x0 + cellW, y2: y0 + cellH });
-        if (cell.left) lines.push({ id: o.id, x1: x0, y1: y0, x2: x0, y2: y0 + cellH });
-        if (cell.right) lines.push({ id: o.id, x1: x0 + cellW, y1: y0, x2: x0 + cellW, y2: y0 + cellH });
-      }
-    }
-  }
-  return lines;
+  return fl.objects
+    .filter((object) => object.isWall && object.type === CANVAS_WALL_OBJECT_TYPE)
+    .flatMap((object) => {
+      if ([object.x1, object.y1, object.x2, object.y2].some((value) => typeof value !== "number")) return [];
+      return [{ objectId: object.id, x1: object.x1! * t, y1: object.y1! * t, x2: object.x2! * t, y2: object.y2! * t }];
+    });
 });
 
-async function convertSelectedWalls() {
-  const selected = wallPaint.selected.value;
-  if (selected.length === 0 || !floor.value) return;
-  await store.convertWallsToRoom(floor.value.id, selected.map((s) => s.segment));
-  wallPaint.clearSelection();
+interface ObjWallLine extends WallSegment {
+  id: string;
 }
+const objWallLines = computed<ObjWallLine[]>(() => {
+  const fl = floor.value;
+  if (!fl) return [];
+  const assets = store.assetMap();
+  const t = canvas.value.tileSize;
+  return fl.objects.flatMap((object) => {
+    const asset = assets.get(object.type);
+    if (!asset?.wallSegments?.length) return [];
+    return resolveWallSegmentsForObject(asset.wallSegments, asset, object, t).map((segment) => ({ ...segment, id: object.id }));
+  });
+});
 
 function wallDistance(point: { x: number; y: number }, wall: WallSegment): number {
   const dx = wall.x2 - wall.x1;
@@ -294,30 +272,41 @@ function wallDistance(point: { x: number; y: number }, wall: WallSegment): numbe
   return Math.hypot(point.x - (wall.x1 + position * dx), point.y - (wall.y1 + position * dy));
 }
 
-function wallAtPoint(point: { x: number; y: number }): WallSegment | null {
+function wallAtPoint(point: { x: number; y: number }): WallSelection | null {
   const tolerance = Math.max(6, canvas.value.tileSize * 0.2);
-  let closest: WallSegment | null = null;
+  let closest: WallSelection | null = null;
   let closestDistance = tolerance;
   for (const wall of wallRuns.value) {
     const distance = wallDistance(point, wall);
     if (distance <= closestDistance) {
-      closest = wall;
+      closest = {
+        floorId: floor.value?.id ?? "",
+        objectId: wall.objectId,
+        segment: { x1: wall.x1, y1: wall.y1, x2: wall.x2, y2: wall.y2 },
+      };
       closestDistance = distance;
     }
   }
   return closest;
 }
 
-function wallsInRect(rect: { x: number; y: number; w: number; h: number }): WallSegment[] {
+function wallsInRect(rect: { x: number; y: number; w: number; h: number }): WallSelection[] {
   const maxX = rect.x + rect.w;
   const maxY = rect.y + rect.h;
-  return wallRuns.value.filter((wall) => {
-    const minWallX = Math.min(wall.x1, wall.x2);
-    const maxWallX = Math.max(wall.x1, wall.x2);
-    const minWallY = Math.min(wall.y1, wall.y2);
-    const maxWallY = Math.max(wall.y1, wall.y2);
-    return maxWallX >= rect.x && minWallX <= maxX && maxWallY >= rect.y && minWallY <= maxY;
-  });
+  const floorId = floor.value?.id ?? "";
+  return wallRuns.value
+    .filter((wall) => {
+      const minWallX = Math.min(wall.x1, wall.x2);
+      const maxWallX = Math.max(wall.x1, wall.x2);
+      const minWallY = Math.min(wall.y1, wall.y2);
+      const maxWallY = Math.max(wall.y1, wall.y2);
+      return maxWallX >= rect.x && minWallX <= maxX && maxWallY >= rect.y && minWallY <= maxY;
+    })
+    .map((wall) => ({
+      floorId,
+      objectId: wall.objectId,
+      segment: { x1: wall.x1, y1: wall.y1, x2: wall.x2, y2: wall.y2 },
+    }));
 }
 
 const modeLabel = computed(() => {
@@ -363,14 +352,31 @@ const wallPaint = useWallPaint({
   floor,
   wallAtPoint,
   wallsInRect,
-  commit: async (floorId, walkable) => {
+  commit: async (floorId, wall) => {
     try {
-      const saved = await store.updateFloor(floorId, { walkable });
+      const target = store.state.layout.floors.find((item) => item.id === floorId);
+      if (!target) {
+        toast.error("Failed to save wall - floor not found");
+        return;
+      }
+      target.objects.push(wall);
+      const saved = await store.saveLayout();
       if (saved) toast.success("Wall saved");
-      else toast.error("Failed to save walls - floor not found");
+      else toast.error("Failed to save wall");
     } catch {
-      toast.error("Failed to save walls");
+      toast.error("Failed to save wall");
     }
+  },
+  remove: async (floorId, objectIds) => {
+    const target = store.state.layout.floors.find((item) => item.id === floorId);
+    if (!target) return;
+    const removable = new Set(target.objects.filter((object) => objectIds.includes(object.id) && !object.locked).map((object) => object.id));
+    if (removable.size === 0) {
+      toast.warning("Selected walls are locked");
+      return;
+    }
+    target.objects = target.objects.filter((object) => !removable.has(object.id));
+    await store.saveLayout();
   },
 });
 const wallPaintActive = computed(() => store.state.wallPaint);
@@ -401,6 +407,30 @@ watch(
 );
 function onCanvasMouseDownWithWalls(e: MouseEvent) {
   if (wallPaint.onMouseDown(e)) return;
+  if (e.button === 0 && !spaceDown.value && store.state.mode === "object") {
+    const point = localPoint(e);
+    if (point) {
+      const canvasWall = wallAtPoint(point);
+      if (canvasWall) {
+        store.select({ type: "object", id: canvasWall.objectId });
+        return;
+      }
+      const tolerance = Math.max(6, canvas.value.tileSize * 0.2);
+      let closestAsset: ObjWallLine | null = null;
+      let closestDistance = tolerance;
+      for (const line of objWallLines.value) {
+        const distance = wallDistance(point, line);
+        if (distance <= closestDistance) {
+          closestAsset = line;
+          closestDistance = distance;
+        }
+      }
+      if (closestAsset) {
+        store.select({ type: "object", id: closestAsset.id });
+        return;
+      }
+    }
+  }
   onCanvasMouseDown(e);
 }
 function onCanvasContextMenu(e: MouseEvent) {
@@ -503,19 +533,9 @@ let _cycleIndex = 0;
 const CYCLE_THRESHOLD = 6;
 
 function hasOuterWall(obj: ObjectData): boolean {
-  const def = resolveObjectDef(obj.rotation, findAssetCached(store.assetMap(), obj.type), { w: obj.w, h: obj.h });
-  const edges = def.tileEdges;
-  if (!edges || edges.length === 0) return false;
-  const rows = edges.length;
-  const cols = edges[0]?.length ?? 0;
-  if (cols === 0) return false;
-  for (let c = 0; c < cols; c++) {
-    if (edges[0][c]?.top || edges[rows - 1][c]?.bottom) return true;
-  }
-  for (let r = 0; r < rows; r++) {
-    if (edges[r][0]?.left || edges[r][cols - 1]?.right) return true;
-  }
-  return false;
+  const asset = findAssetCached(store.assetMap(), obj.type);
+  if (!asset?.wallSegments?.length) return false;
+  return asset.wallSegments.some((segment) => segment.x1 === 0 || segment.x2 === 0 || segment.x1 === asset.w || segment.x2 === asset.w || segment.y1 === 0 || segment.y2 === 0 || segment.y1 === asset.h || segment.y2 === asset.h);
 }
 
 function findEntitiesAtPoint(p: { x: number; y: number }): EntityRef[] {
@@ -846,7 +866,7 @@ function objLabelColor(): string {
 }
 
 function objIsWall(obj: ObjectData): boolean {
-  return findAssetCached(store.assetMap(), obj.type)?.isWall ?? false;
+  return obj.isWall === true || (findAssetCached(store.assetMap(), obj.type)?.isWall ?? false);
 }
 
 function assetSvg(type: string): string | undefined {
@@ -867,14 +887,10 @@ function isObjectSelected(id: string): boolean {
   return selectedObjectIds.value.has(id);
 }
 
-function wallKey(wall: WallSegment): string {
-  return `${wall.x1},${wall.y1},${wall.x2},${wall.y2}`;
-}
+const wallSelectionKeys = computed(() => new Set(selectedWall.value.map((selection) => selection.objectId)));
 
-const wallSelectionKeys = computed(() => new Set(selectedWall.value.map((selection) => wallKey(selection.segment))));
-
-function isWallSelected(wall: WallSegment): boolean {
-  return wallSelectionKeys.value.has(wallKey(wall));
+function isWallSelected(wall: WallRun): boolean {
+  return wallSelectionKeys.value.has(wall.objectId);
 }
 
 async function saveDrawnOrigin() {
@@ -1011,53 +1027,55 @@ async function cancelDrawnOrigin() {
       <rect v-if="showGrid" :width="canvas.width" :height="canvas.height" fill="url(#grid)" class="editor__svg--noevents" />
 
       <g v-if="floor">
-        <g v-for="obj in floor.objects" :key="obj.id" @mousedown="onObjectMouseDown($event, obj.id)">
-          <rect :x="obj.x" :y="obj.y" :width="obj.w" :height="obj.h" fill="transparent" class="editor__svg--passall" />
-          <template v-if="assetSvg(obj.type)">
-            <g v-svg-content="assetSvg(obj.type)" :transform="svgTransform(obj)" :data-obj-id="obj.id" :class="{ 'editor__object--collapsed': obj.collapsed, 'editor__object--dragging': moving?.id === obj.id, 'editor__object--locked': obj.locked, 'editor__object--nowall': !hasOuterWall(obj) }" :style="`cursor:${moving?.id === obj.id ? 'grabbing' : 'move'};${svgColorVars(obj)}`" />
-          </template>
-          <path
-            v-else-if="roundedRectPath(obj.x + (obj.padding ?? 0), obj.y + (obj.padding ?? 0), obj.w - (obj.padding ?? 0) * 2, obj.h - (obj.padding ?? 0) * 2, obj.rx)"
-            :d="roundedRectPath(obj.x + (obj.padding ?? 0), obj.y + (obj.padding ?? 0), obj.w - (obj.padding ?? 0) * 2, obj.h - (obj.padding ?? 0) * 2, obj.rx)!"
-            :fill="objFillColor(obj)"
-            :stroke-width="objIsWall(obj) ? 2 : 1"
-            :stroke-dasharray="objIsWall(obj) ? '6 3' : undefined"
-            :class="{ 'editor__object--collapsed': obj.collapsed, 'editor__object--dragging': moving?.id === obj.id, 'editor__object--linked': !!obj.linkGroupId, 'editor__object--locked': obj.locked }"
-            :style="{ stroke: 'var(--text-primary)', cursor: moving?.id === obj.id ? 'grabbing' : 'move' }"
-          />
-          <rect
-            v-else
-            :x="obj.x + (obj.padding ?? 0)"
-            :y="obj.y + (obj.padding ?? 0)"
-            :width="obj.w - (obj.padding ?? 0) * 2"
-            :height="obj.h - (obj.padding ?? 0) * 2"
-            :fill="objFillColor(obj)"
-            stroke-width="1"
-            :rx="obj.radius ?? 0"
-            :class="{ 'editor__object--collapsed': obj.collapsed, 'editor__object--dragging': moving?.id === obj.id, 'editor__object--linked': !!obj.linkGroupId, 'editor__object--locked': obj.locked }"
-            :style="{ stroke: 'var(--text-primary)', cursor: moving?.id === obj.id ? 'grabbing' : 'move' }"
-          />
-          <rect v-if="renderObjectHighlights" :x="obj.x + 1" :y="obj.y + 1" :width="Math.max(0, obj.w - 2)" :height="Math.max(0, obj.h - 2)" fill="none" :rx="obj.radius ?? 0" class="editor__overlay--highlight editor__svg--noevents" />
-          <template v-if="renderWalkableOverlay && objDef(obj).walkableGrid" v-memo="[obj.id, obj.x, obj.y, obj.w, obj.h, renderWalkableOverlay, objDef(obj).walkableGrid]">
-            <template v-for="(row, gr) in objDef(obj).walkableGrid" :key="'wg_' + obj.id + '-' + gr">
-              <rect v-for="(cell, gc) in row" :key="'wg_' + obj.id + '-' + gr + '-' + gc" :x="obj.x + gc * (obj.w / row.length)" :y="obj.y + gr * (obj.h / objDef(obj).walkableGrid!.length)" :width="obj.w / row.length" :height="obj.h / objDef(obj).walkableGrid!.length" :class="`editor__tile editor__tile--obj-${cell ? 'walkable' : 'blocked'}`" />
+        <template v-for="obj in floor.objects" :key="obj.id">
+          <g v-if="obj.type !== CANVAS_WALL_OBJECT_TYPE" @mousedown="onObjectMouseDown($event, obj.id)">
+            <rect :x="obj.x" :y="obj.y" :width="obj.w" :height="obj.h" fill="transparent" class="editor__svg--passall" />
+            <template v-if="assetSvg(obj.type)">
+              <g v-svg-content="assetSvg(obj.type)" :transform="svgTransform(obj)" :data-obj-id="obj.id" :class="{ 'editor__object--collapsed': obj.collapsed, 'editor__object--dragging': moving?.id === obj.id, 'editor__object--locked': obj.locked, 'editor__object--nowall': !hasOuterWall(obj) }" :style="`cursor:${moving?.id === obj.id ? 'grabbing' : 'move'};${svgColorVars(obj)}`" />
             </template>
-          </template>
-          <rect v-if="isObjectSelected(obj.id)" :x="obj.x + (obj.padding ?? 0)" :y="obj.y + (obj.padding ?? 0)" :width="obj.w - (obj.padding ?? 0) * 2" :height="obj.h - (obj.padding ?? 0) * 2" fill="none" :rx="obj.radius ?? 0" class="editor__overlay--selected editor__svg--noevents" />
-          <text v-if="showLabels" :x="obj.x + obj.w / 2" :y="Math.max(obj.y - (obj.labelPadding ?? 0) - 3, 7)" text-anchor="middle" font-size="8" class="editor__svg--noevents" :style="{ fill: objLabelColor() }">
-            {{ assetLabel(obj.type) }}
-          </text>
-          <g v-if="obj.linkGroupId" class="editor__svg--noevents">
-            <circle :cx="obj.x + obj.w - 4" :cy="obj.y + 4" r="3" fill="var(--accent-blue)" stroke="var(--bg-primary)" stroke-width="0.5" />
-            <text :x="obj.x + obj.w - 4" :y="obj.y + 5.5" text-anchor="middle" font-size="4" fill="var(--bg-primary)">L</text>
-          </g>
-          <template v-if="renderInteractSpots && objDef(obj).interactSpots && objDef(obj).interactSpots!.length > 0" v-memo="[obj.id, obj.x, obj.y, renderInteractSpots, objDef(obj).interactSpots]">
-            <g v-for="(interactSpot, interactSpotIdx) in objDef(obj).interactSpots" :key="`o-interactspot-${obj.id}-${interactSpotIdx}`" class="editor__svg--noevents">
-              <circle :cx="obj.x + interactSpot.x" :cy="obj.y + interactSpot.y" r="4" fill="var(--accent-green)" stroke="var(--text-bright)" stroke-width="0.8" />
-              <text :x="obj.x + interactSpot.x" :y="obj.y + interactSpot.y - 6" text-anchor="middle" font-size="5" fill="color-mix(in srgb, var(--accent-green) 70%, var(--bg-primary))">IS{{ interactSpotIdx + 1 }}</text>
+            <path
+              v-else-if="roundedRectPath(obj.x + (obj.padding ?? 0), obj.y + (obj.padding ?? 0), obj.w - (obj.padding ?? 0) * 2, obj.h - (obj.padding ?? 0) * 2, obj.rx)"
+              :d="roundedRectPath(obj.x + (obj.padding ?? 0), obj.y + (obj.padding ?? 0), obj.w - (obj.padding ?? 0) * 2, obj.h - (obj.padding ?? 0) * 2, obj.rx)!"
+              :fill="objFillColor(obj)"
+              :stroke-width="objIsWall(obj) ? 2 : 1"
+              :stroke-dasharray="objIsWall(obj) ? '6 3' : undefined"
+              :class="{ 'editor__object--collapsed': obj.collapsed, 'editor__object--dragging': moving?.id === obj.id, 'editor__object--linked': !!obj.linkGroupId, 'editor__object--locked': obj.locked }"
+              :style="{ stroke: 'var(--text-primary)', cursor: moving?.id === obj.id ? 'grabbing' : 'move' }"
+            />
+            <rect
+              v-else
+              :x="obj.x + (obj.padding ?? 0)"
+              :y="obj.y + (obj.padding ?? 0)"
+              :width="obj.w - (obj.padding ?? 0) * 2"
+              :height="obj.h - (obj.padding ?? 0) * 2"
+              :fill="objFillColor(obj)"
+              stroke-width="1"
+              :rx="obj.radius ?? 0"
+              :class="{ 'editor__object--collapsed': obj.collapsed, 'editor__object--dragging': moving?.id === obj.id, 'editor__object--linked': !!obj.linkGroupId, 'editor__object--locked': obj.locked }"
+              :style="{ stroke: 'var(--text-primary)', cursor: moving?.id === obj.id ? 'grabbing' : 'move' }"
+            />
+            <rect v-if="renderObjectHighlights" :x="obj.x + 1" :y="obj.y + 1" :width="Math.max(0, obj.w - 2)" :height="Math.max(0, obj.h - 2)" fill="none" :rx="obj.radius ?? 0" class="editor__overlay--highlight editor__svg--noevents" />
+            <template v-if="renderWalkableOverlay && objDef(obj).walkableGrid" v-memo="[obj.id, obj.x, obj.y, obj.w, obj.h, renderWalkableOverlay, objDef(obj).walkableGrid]">
+              <template v-for="(row, gr) in objDef(obj).walkableGrid" :key="'wg_' + obj.id + '-' + gr">
+                <rect v-for="(cell, gc) in row" :key="'wg_' + obj.id + '-' + gr + '-' + gc" :x="obj.x + gc * (obj.w / row.length)" :y="obj.y + gr * (obj.h / objDef(obj).walkableGrid!.length)" :width="obj.w / row.length" :height="obj.h / objDef(obj).walkableGrid!.length" :class="`editor__tile editor__tile--obj-${cell ? 'walkable' : 'blocked'}`" />
+              </template>
+            </template>
+            <rect v-if="isObjectSelected(obj.id)" :x="obj.x + (obj.padding ?? 0)" :y="obj.y + (obj.padding ?? 0)" :width="obj.w - (obj.padding ?? 0) * 2" :height="obj.h - (obj.padding ?? 0) * 2" fill="none" :rx="obj.radius ?? 0" class="editor__overlay--selected editor__svg--noevents" />
+            <text v-if="showLabels" :x="obj.x + obj.w / 2" :y="Math.max(obj.y - (obj.labelPadding ?? 0) - 3, 7)" text-anchor="middle" font-size="8" class="editor__svg--noevents" :style="{ fill: objLabelColor() }">
+              {{ assetLabel(obj.type) }}
+            </text>
+            <g v-if="obj.linkGroupId" class="editor__svg--noevents">
+              <circle :cx="obj.x + obj.w - 4" :cy="obj.y + 4" r="3" fill="var(--accent-blue)" stroke="var(--bg-primary)" stroke-width="0.5" />
+              <text :x="obj.x + obj.w - 4" :y="obj.y + 5.5" text-anchor="middle" font-size="4" fill="var(--bg-primary)">L</text>
             </g>
-          </template>
-        </g>
+            <template v-if="renderInteractSpots && objDef(obj).interactSpots && objDef(obj).interactSpots!.length > 0" v-memo="[obj.id, obj.x, obj.y, renderInteractSpots, objDef(obj).interactSpots]">
+              <g v-for="(interactSpot, interactSpotIdx) in objDef(obj).interactSpots" :key="`o-interactspot-${obj.id}-${interactSpotIdx}`" class="editor__svg--noevents">
+                <circle :cx="obj.x + interactSpot.x" :cy="obj.y + interactSpot.y" r="4" fill="var(--accent-green)" stroke="var(--text-bright)" stroke-width="0.8" />
+                <text :x="obj.x + interactSpot.x" :y="obj.y + interactSpot.y - 6" text-anchor="middle" font-size="5" fill="color-mix(in srgb, var(--accent-green) 70%, var(--bg-primary))">IS{{ interactSpotIdx + 1 }}</text>
+              </g>
+            </template>
+          </g>
+        </template>
 
         <g v-if="renderWalkableOverlay" v-memo="[floor?.spawnZones, renderWalkableOverlay]" class="editor__svg--noevents">
           <g v-for="zone in floor?.spawnZones ?? []" :key="`spawn-zone-${zone.id}`">
@@ -1124,7 +1142,6 @@ async function cancelDrawnOrigin() {
       <button class="flag--ghost" :class="{ 'flag--active': showLabels }" @click="toggleLabels" title="Toggle Labels" aria-label="Toggle labels">Labels</button>
       <button class="flag--ghost" :class="{ 'flag--active': showWalkableOverlay }" @click="toggleWalkableOverlay" title="Toggle Walkable + Entrance" aria-label="Toggle walkable view">Walk</button>
       <button class="flag--ghost" :class="{ 'flag--active': showWalls }" @click="toggleWalls" title="Toggle Outer Walls" aria-label="Toggle walls">Wall</button>
-      <button v-if="wallPaintActive" class="flag--warning" :disabled="wallPaint.selected.value.length === 0" @click="convertSelectedWalls" title="Convert selected walls into a Room object (edit tags/queue in Origin settings)" aria-label="Convert selected walls to room object">To Room</button>
       <button class="flag--ghost" :class="{ 'flag--active': showInteractSpots }" @click="toggleInteractSpots" title="Toggle Interact Spots" aria-label="Toggle interact spots">Interact</button>
       <button class="flag--ghost" :class="{ 'flag--active': showObjectHighlights }" @click="toggleObjectHighlights" title="Toggle object highlights" aria-label="Toggle object highlights">Highlight</button>
       <button class="flag--ghost" :class="{ 'flag--active': showBuildingBounds }" @click="toggleBuildingBounds" title="Toggle building area boundary (placement limit against the street)" aria-label="Toggle building bounds">Bounds</button>

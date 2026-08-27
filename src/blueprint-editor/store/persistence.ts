@@ -4,7 +4,7 @@ import { editorLog } from './utils'
 import { EDITOR_CONFIG } from './migrate'
 import { buildBlueprintData, fetchBlueprintDataFromDisk } from './dataLoader'
 import { validateSettingsCompleteness, buildAssetMap } from '../assetUtils'
-import type { AssetDef, FloorLayoutData, NpcSimulationConfig } from '../types'
+import type { FloorLayoutData, NpcSimulationConfig } from '../types'
 import { buildSyncedPayload } from '../syncedPayload'
 
 const MAX_SAVE_RETRIES = 3

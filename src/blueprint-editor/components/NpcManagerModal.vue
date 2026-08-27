@@ -312,7 +312,7 @@ async function removeTag(tag: string) {
   if (
     !(await confirm({
       title: "Delete tag",
-      message: `Delete "${tag}"? Existing role and asset assignments will remain as orphan references and show warnings.`,
+      message: `Delete "${tag}"? It will be removed from all origin assets, roles and tasks.`,
       confirmLabel: "Delete",
       cancelLabel: "Cancel",
       danger: true,

@@ -3,6 +3,7 @@ import { fileURLToPath, URL } from 'node:url'
 import vue from '@vitejs/plugin-vue'
 import fs from 'node:fs'
 import path from 'node:path'
+import { validateLayoutData, normalizeNpcConfig, normalizeOriginAssetFile } from './src/blueprint-editor/types'
 
 function isLocalhostOrigin(value: string | undefined): boolean {
 	if (!value) return true
@@ -108,7 +109,13 @@ function blueprintDataPlugin() {
 				try {
 					const parsed = JSON.parse(body)
 					if (!Array.isArray(parsed.tags) || !Array.isArray(parsed.originAssets) || !parsed.layout || !parsed.npcConfig) throw new Error('Invalid blueprint data shape')
-					writeData(parsed)
+					const validatedLayout = validateLayoutData(parsed.layout)
+					if (!validatedLayout) throw new Error('Layout failed strict validation - refusing to write invalid data')
+					const validatedNpc = normalizeNpcConfig(parsed.npcConfig)
+					if (!validatedNpc) throw new Error('NPC config failed validation - refusing to write invalid data')
+					const validatedAssets = normalizeOriginAssetFile({ $schema: 'origin-assets.v2.json', version: 2, originAssets: parsed.originAssets })
+					if (!validatedAssets) throw new Error('Origin assets failed validation - refusing to write invalid data')
+					writeData({ tags: parsed.tags, originAssets: validatedAssets.originAssets, layout: validatedLayout, npcConfig: validatedNpc })
 					for (const entry of Object.values(moduleFiles)) invalidateJsonModule(server, entry.path)
 					const verified = readData()
 					res.statusCode = 200

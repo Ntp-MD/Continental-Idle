@@ -40,6 +40,7 @@ export const dragState = reactive<{ assetId: string | null }>({ assetId: null })
 
 export interface WallSelectionEntry {
 	floorId: string
+	objectId: string
 	segment: WallSegment
 }
 export const wallSelection = ref<WallSelectionEntry[]>([])
@@ -73,7 +74,7 @@ for (const asset of state.assetRegistry) initAssetFields(asset)
 export async function reloadEditorData(): Promise<void> {
 	const combined = await fetchBlueprintDataFromDisk()
 	if (!combined) return
-	const migrated = migrate(combined.layout)
+	const migrated = migrate(combined.layout, combined.originAssets)
 	state.layout = migrated.layout
 	state.layout.npcConfig = JSON.parse(JSON.stringify(combined.npcConfig)) as NpcSimulationConfig
 	state.assetRegistry = combined.originAssets.map(asset => JSON.parse(JSON.stringify(asset)) as AssetDef)

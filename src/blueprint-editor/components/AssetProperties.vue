@@ -40,30 +40,28 @@ watch(
   { immediate: true },
 );
 
-const isLinkedAsset = computed(() => !!props.asset.linkedParts);
-const linkedPartCount = computed(() => props.asset.linkedParts?.length ?? 0);
 const isSvgAsset = computed(() => !!props.asset.svg);
 const isNpcDeployed = computed(() => store.state.mode === "npc-preview");
 const orphanAssetTags = computed(() => assetTags.value.filter((tag) => !managedTagSet.value.has(tag)));
 
 const previewSvgEl = ref<SVGSVGElement | null>(null);
-const PREVIEW_TILE = 25;
+const canvasTileSize = computed(() => Math.max(1, store.state.layout.canvas.tileSize));
 
 const previewSvgViewBox = computed(() => {
   const a = props.asset;
   const vb = a.svgViewBox;
   if (!vb || vb.w === 0 || vb.h === 0) {
-    const w = a.usePx ? a.pxW ?? a.w * PREVIEW_TILE : a.w * PREVIEW_TILE;
-    const h = a.usePx ? a.pxH ?? a.h * PREVIEW_TILE : a.h * PREVIEW_TILE;
+    const w = a.usePx ? (a.pxW ?? a.w * canvasTileSize.value) : a.w * canvasTileSize.value;
+    const h = a.usePx ? (a.pxH ?? a.h * canvasTileSize.value) : a.h * canvasTileSize.value;
     return `0 0 ${w} ${h}`;
   }
   return `0 0 ${vb.w} ${vb.h}`;
 });
 
 function fallbackShapeSvg(a: AssetDef): string {
-  const TILE = 25;
-  const w = a.usePx ? a.pxW ?? a.w * TILE : a.w * TILE;
-  const h = a.usePx ? a.pxH ?? a.h * TILE : a.h * TILE;
+  const TILE = canvasTileSize.value;
+  const w = a.usePx ? (a.pxW ?? a.w * TILE) : a.w * TILE;
+  const h = a.usePx ? (a.pxH ?? a.h * TILE) : a.h * TILE;
   const rx = Math.max(a.defaultRx?.tl ?? 0, a.defaultRx?.tr ?? 0, a.defaultRx?.br ?? 0, a.defaultRx?.bl ?? 0);
   const rawFill = a.defaultFillColor ?? "none";
   const fill = !rawFill || rawFill === "transparent" ? "none" : rawFill;
@@ -116,12 +114,6 @@ async function saveAssetTags(tags: string[]) {
   await store.updateAsset(props.asset.id, { tags });
 }
 
-async function onRotateAsset() {
-  if (!isSvgAsset.value || !props.asset.svgViewBox) return;
-  await store.rotateAsset(props.asset.id);
-  useToast().info("Asset rotated 90deg");
-}
-
 async function deleteAsset() {
   if (assetInUse.value) {
     useToast().warning("Cannot delete - asset is placed on floors. Remove instances first.");
@@ -168,9 +160,6 @@ async function duplicateAsset() {
       </div>
     </div>
 
-    <div v-if="isLinkedAsset" class="card">
-      <span>Linked set - {{ linkedPartCount }} objects. Drag to place all parts linked together.</span>
-    </div>
     <div class="form__row">
       <label>Name</label>
       <input type="text" v-model="assetFields.name" @change="commitField('name')" />
@@ -184,11 +173,7 @@ async function duplicateAsset() {
       <TagPicker :model-value="assetTags" @update:model-value="saveAssetTags" placeholder="rest, service, target" />
     </div>
     <div v-if="orphanAssetTags.length" class="card">Undefined tags: {{ orphanAssetTags.join(", ") }}. Recreate the tag definition or remove these assignments.</div>
-    <div v-if="isSvgAsset" class="form__row">
-      <label>Rotate</label>
-      <button @click="onRotateAsset">90deg</button>
-    </div>
-    <div v-if="!isLinkedAsset" class="form__row">
+    <div class="form__row">
       <label>Edit Asset</label>
       <button class="flag--warning" @click="showEditor = true">Manage</button>
     </div>

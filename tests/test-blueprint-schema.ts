@@ -3,8 +3,7 @@ import { applySvgColorConvention, normalizeObjectPlacement, resolveObjectDef, pa
 import { serializeAsset, serializeObject } from '../src/blueprint-editor/assetUtils'
 import { resolvePlacedObject } from '../src/blueprint-editor/geometry'
 import { buildBlueprintData } from '../src/blueprint-editor/store/dataLoader'
-import { applyWallSegment } from '../src/blueprint-editor/composables/useWallPaint'
-import type { AssetDef, CanvasConfig, FloorLayoutData, ObjectData, TileEdges } from '../src/blueprint-editor/types'
+import type { AssetDef, CanvasConfig, FloorLayoutData, ObjectData } from '../src/blueprint-editor/types'
 
 const rawPlacement = normalizeObjectPlacement({
 	id: 'obj-test',
@@ -126,12 +125,36 @@ const lenientCanvas = parseCanvasConfig({ width: 100, height: 50, tileSize: 25, 
 assert.deepEqual(lenientCanvas, { width: 100, height: 50, tileSize: 25 })
 console.log('Canvas config pipeline checks passed')
 
-const wallEdges: TileEdges[][] = [[{}, {}], [{}, {}]]
-applyWallSegment(wallEdges, { x1: 5, y1: 5, x2: 6, y2: 5 }, 10, true)
-assert.deepEqual(wallEdges, [[{}, { bottom: true }], [{}, { top: true }]])
+const wallObject: ObjectData = {
+	id: 'wall-test',
+	type: '__canvas-wall__',
+	x: 0,
+	y: 0,
+	w: 50,
+	h: 1,
+	rotation: 0,
+	isWall: true,
+	x1: 0,
+	y1: 0,
+	x2: 2,
+	y2: 0,
+}
+const serializedWall = serializeObject(wallObject)
+assert.deepEqual(serializedWall, {
+	id: 'wall-test',
+	type: '__canvas-wall__',
+	x: 0,
+	y: 0,
+	rotation: 0,
+	isWall: true,
+	x1: 0,
+	y1: 0,
+	x2: 2,
+	y2: 0,
+})
 const wallSaved = buildBlueprintData({
 	...layout,
-	floors: [{ ...layout.floors[0], walkable: { tileEdges: wallEdges } }],
+	floors: [{ ...layout.floors[0], objects: [wallObject] }],
 }, [], {
 	speed: 0.2,
 	defaultRoleId: '',
@@ -139,7 +162,7 @@ const wallSaved = buildBlueprintData({
 	tasks: [],
 	pool: [],
 }, [])
-assert.deepEqual(wallSaved.layout.floors[0].walkable?.tileEdges, wallEdges)
+assert.deepEqual(wallSaved.layout.floors[0].objects[0], serializedWall)
 
 console.log('Wall paint persistence checks passed')
 

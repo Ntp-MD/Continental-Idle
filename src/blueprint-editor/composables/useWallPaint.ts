@@ -1,10 +1,13 @@
 import { ref, computed, type Ref, type ComputedRef } from 'vue'
-import type { FloorData, FloorWalkable, TileEdges, TileState, WallSegment } from '../types'
+import type { FloorData, WallSegment, ObjectData } from '../types'
+import { CANVAS_WALL_OBJECT_TYPE, normalizeWallSegment } from '../types'
+import { genId } from '../store/storeUtils'
 
 export type { WallSegment }
 
 export interface WallSelection {
 	floorId: string
+	objectId: string
 	segment: WallSegment
 }
 
@@ -19,36 +22,6 @@ export interface WallPaintState {
 	cancel: () => void
 }
 
-export function applyWallSegment(edges: TileEdges[][], segment: WallSegment, tileSize: number, on: boolean): void {
-	const rows = edges.length
-	const cols = edges[0]?.length ?? 0
-	const setEdge = (r: number, c: number, side: keyof TileEdges) => {
-		const cell = edges[r]?.[c]
-		if (!cell) return
-		if (on) cell[side] = true
-		else delete cell[side]
-	}
-
-	if (segment.y1 === segment.y2) {
-		const boundary = Math.round(segment.y1 / tileSize)
-		const startCol = Math.round(Math.min(segment.x1, segment.x2) / tileSize)
-		const endCol = Math.max(startCol + 1, Math.round(Math.max(segment.x1, segment.x2) / tileSize))
-		for (let c = startCol; c < endCol; c++) {
-			if (boundary >= 0 && boundary < rows) setEdge(boundary, c, 'top')
-			if (boundary - 1 >= 0 && boundary - 1 < rows) setEdge(boundary - 1, c, 'bottom')
-		}
-		return
-	}
-
-	const boundary = Math.round(segment.x1 / tileSize)
-	const startRow = Math.round(Math.min(segment.y1, segment.y2) / tileSize)
-	const endRow = Math.max(startRow + 1, Math.round(Math.max(segment.y1, segment.y2) / tileSize))
-	for (let r = startRow; r < endRow; r++) {
-		if (boundary >= 0 && boundary < cols) setEdge(r, boundary, 'left')
-		if (boundary - 1 >= 0 && boundary - 1 < cols) setEdge(r, boundary - 1, 'right')
-	}
-}
-
 export function useWallPaint(opts: {
 	disabled: () => boolean
 	localPoint: (e: MouseEvent) => { x: number; y: number } | null
@@ -56,15 +29,18 @@ export function useWallPaint(opts: {
 	canvasWidth: () => number
 	canvasHeight: () => number
 	floor: ComputedRef<FloorData | undefined>
-	wallAtPoint?: (point: { x: number; y: number }) => WallSegment | null
-	wallsInRect?: (rect: { x: number; y: number; w: number; h: number }) => WallSegment[]
-	commit: (floorId: string, walkable: FloorWalkable) => Promise<void>
+	wallAtPoint?: (point: { x: number; y: number }) => WallSelection | null
+	wallsInRect?: (rect: { x: number; y: number; w: number; h: number }) => WallSelection[]
+	commit: (floorId: string, wall: ObjectData) => Promise<void>
+	remove: (floorId: string, objectIds: string[]) => Promise<void>
+	idGenerator?: (prefix: string) => string
 	selection?: Ref<WallSelection[]>
 }): WallPaintState {
 	const active = ref(false)
 	const selected = opts.selection ?? ref<WallSelection[]>([])
+	const makeId = opts.idGenerator ?? genId
 	const segment = ref<WallSegment | null>(null)
-	let start: { x: number; y: number; floorId: string; hit: WallSegment | null } | null = null
+	let start: { x: number; y: number; floorId: string } | null = null
 
 	const preview = computed(() => segment.value)
 
@@ -84,12 +60,11 @@ export function useWallPaint(opts: {
 		}
 		const seen = new Set<string>()
 		const walls = (opts.wallsInRect?.(rect) ?? []).filter(wall => {
-			const key = `${wall.x1},${wall.y1},${wall.x2},${wall.y2}`
-			if (seen.has(key)) return false
-			seen.add(key)
+			if (seen.has(wall.objectId)) return false
+			seen.add(wall.objectId)
 			return true
 		})
-		selected.value = walls.map(segment => ({ floorId: floor.id, segment }))
+		selected.value = walls.filter(wall => wall.floorId === floor.id)
 	}
 
 	function cancel() {
@@ -101,14 +76,13 @@ export function useWallPaint(opts: {
 
 	function onMouseDown(e: MouseEvent): boolean {
 		if (e.button !== 0 || !active.value || opts.disabled()) return false
-		const p = opts.localPoint(e)
+		const point = opts.localPoint(e)
 		const floor = opts.floor.value
-		if (!p || !floor) return false
+		if (!point || !floor) return false
 		cancel()
 		clearSelection()
-		const hit = opts.wallAtPoint?.(p) ?? null
-		start = { x: p.x, y: p.y, floorId: floor.id, hit }
-		segment.value = hit ? { ...hit } : { x1: p.x, y1: p.y, x2: p.x, y2: p.y }
+		start = { x: point.x, y: point.y, floorId: floor.id }
+		segment.value = { x1: point.x, y1: point.y, x2: point.x, y2: point.y }
 		window.addEventListener('mousemove', onMouseMove)
 		window.addEventListener('mouseup', onMouseUp)
 		return true
@@ -116,53 +90,51 @@ export function useWallPaint(opts: {
 
 	function onMouseMove(e: MouseEvent) {
 		if (!start) return
-		const p = opts.localPoint(e)
-		if (!p) return
+		const point = opts.localPoint(e)
+		if (!point) return
 		const t = opts.tileSize()
-		const dx = Math.abs(p.x - start.x)
-		const dy = Math.abs(p.y - start.y)
-		const horizontal = start.hit ? start.hit.y1 === start.hit.y2 : dx >= dy
-		if (horizontal) {
-			const gy = start.hit ? start.hit.y1 : snap(start.y, t)
-			segment.value = { x1: snap(start.x, t), y1: gy, x2: snap(p.x, t), y2: gy }
+		const dx = Math.abs(point.x - start.x)
+		const dy = Math.abs(point.y - start.y)
+		if (dx >= dy) {
+			segment.value = { x1: snap(start.x, t), y1: snap(start.y, t), x2: snap(point.x, t), y2: snap(start.y, t) }
 		} else {
-			const gx = start.hit ? start.hit.x1 : snap(start.x, t)
-			segment.value = { x1: gx, y1: snap(start.y, t), x2: gx, y2: snap(p.y, t) }
-		}
-	}
-
-	function baseGrid<T>(rows: number, cols: number, fill: () => T): T[][] {
-		return Array.from({ length: rows }, () => Array.from({ length: cols }, fill))
-	}
-
-	function resolveWalkable(floor: FloorData, rows: number, cols: number): Required<FloorWalkable> {
-		const w = floor.walkable
-		const gridOk = !!w?.walkableGrid && w.walkableGrid.length === rows && w.walkableGrid[0]?.length === cols
-		const statesOk = !!w?.tileStates && w.tileStates.length === rows && w.tileStates[0]?.length === cols
-		const edgesOk = !!w?.tileEdges && w.tileEdges.length === rows && w.tileEdges[0]?.length === cols
-		const blockedDefault = floor.defaultWalkable === false
-		return {
-			walkableGrid: gridOk ? w!.walkableGrid!.map(row => [...row]) : baseGrid(rows, cols, () => !blockedDefault),
-			tileStates: statesOk ? w!.tileStates!.map(row => [...row]) : baseGrid<TileState>(rows, cols, () => (blockedDefault ? 'blocked' : 'walkable')),
-			tileEdges: edgesOk ? w!.tileEdges!.map(row => row.map(edge => ({ ...(edge ?? {}) }))) : baseGrid<TileEdges>(rows, cols, () => ({})),
+			segment.value = { x1: snap(start.x, t), y1: snap(start.y, t), x2: snap(start.x, t), y2: snap(point.y, t) }
 		}
 	}
 
 	async function onMouseUp() {
 		window.removeEventListener('mousemove', onMouseMove)
 		window.removeEventListener('mouseup', onMouseUp)
-		const seg = segment.value
-		const st = start
+		const raw = segment.value
+		const current = start
 		segment.value = null
 		start = null
-		const floor = opts.floor.value
-		if (!seg || !st || !floor || floor.id !== st.floorId) return
+		if (!raw || !current || !opts.floor.value) return
 		const t = opts.tileSize()
-		const cols = Math.max(1, Math.round(opts.canvasWidth() / t))
-		const rows = Math.max(1, Math.round(opts.canvasHeight() / t))
-		const walkable = resolveWalkable(floor, rows, cols)
-		applyWallSegment(walkable.tileEdges, seg, t, true)
-		await opts.commit(floor.id, walkable)
+		const source = raw.x1 === raw.x2 && raw.y1 === raw.y2
+			? { x1: snap(raw.x1, t), y1: snap(raw.y1, t), x2: snap(raw.x1, t) + t, y2: snap(raw.y1, t) }
+			: raw
+		const normalized = normalizeWallSegment({ x1: source.x1 / t, y1: source.y1 / t, x2: source.x2 / t, y2: source.y2 / t })
+		if (!normalized) return
+		const minX = Math.min(normalized.x1, normalized.x2) * t
+		const minY = Math.min(normalized.y1, normalized.y2) * t
+		const width = Math.max(1, Math.abs(normalized.x2 - normalized.x1) * t)
+		const height = Math.max(1, Math.abs(normalized.y2 - normalized.y1) * t)
+		await opts.commit(current.floorId, {
+			id: makeId('wall'),
+			subId: makeId('wall-sub'),
+			type: CANVAS_WALL_OBJECT_TYPE,
+			x: minX,
+			y: minY,
+			w: width,
+			h: height,
+			rotation: 0,
+			isWall: true,
+			x1: normalized.x1,
+			y1: normalized.y1,
+			x2: normalized.x2,
+			y2: normalized.y2,
+		})
 	}
 
 	async function deleteSelected() {
@@ -172,12 +144,7 @@ export function useWallPaint(opts: {
 			clearSelection()
 			return
 		}
-		const t = opts.tileSize()
-		const cols = Math.max(1, Math.round(opts.canvasWidth() / t))
-		const rows = Math.max(1, Math.round(opts.canvasHeight() / t))
-		const walkable = resolveWalkable(floor, rows, cols)
-		for (const selection of picked) applyWallSegment(walkable.tileEdges, selection.segment, t, false)
-		await opts.commit(floor.id, walkable)
+		await opts.remove(floor.id, [...new Set(picked.map(selection => selection.objectId))])
 		clearSelection()
 	}
 

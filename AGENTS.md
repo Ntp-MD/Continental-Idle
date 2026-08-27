@@ -27,7 +27,7 @@ Structure: **Universal Rules** apply to every web project. **Project Specifics**
 - **Never round-trip file text through PowerShell** (`Get-Content`/`Set-Content`) — PS 5.1 misreads UTF-8-without-BOM as ANSI and silently corrupts non-ASCII characters. Use the Edit tool or Node scripts for any scripted text transformation.
 - **ASCII-only source and copy.** Do not use decorative Unicode characters (em/en dashes, ellipses, degree signs, math/arrows/dingbat symbols: `— – … ° × ÷ ± ⊘ ↻ ▾ ▶ ◀` etc.) anywhere in code identifiers, comments, or user-facing strings. Write plain ASCII equivalents (`-`, `...`, `deg`, `x`). Prefer words or real SVG icons over symbol glyphs in buttons.
 - **No box-shadow.** Never add `box-shadow` / `filter: drop-shadow` — no focus rings, elevation, or glows. Depth and state come from borders and background contrast only (`border-color` on `:focus`/`:hover`, danger states via border color).
-- Detailed domain principles live in [`docs/agents/`](docs/agents/): read the matching file before touching an area (core / naming / css / data / floor-authoring).
+- Detailed domain principles live in [`docs/agents/`](docs/agents/): read the matching file before touching an area (core / naming / css / data).
 
 ### Active scope restriction (editor-first)
 
@@ -36,6 +36,7 @@ Structure: **Universal Rules** apply to every web project. **Project Specifics**
 ### Data & seed files (rewritten by editor save-flow)
 
 - The FOUR modules in `src/blueprint-editor/data/` - `floorPlan.data.ts`, `originAssets.data.ts`, `npcSettings.data.ts`, `tagManager.data.ts` - are the ONLY persisted blueprint store. The dev server serves/saves them via the `/__blueprint-data` middleware (vite.config.ts); there is no JSON snapshot. All are overwritten by the editor save-flow at any time. Re-read them immediately before editing; current content wins. Never treat another file as the asset/floor source of truth.
+- **Never restore deleted data via `git checkout HEAD -- src/blueprint-editor/data/*`** — intentional deletions are guarded by `npm run guard:data-restore` (part of `verify`). Use `ALLOW_DATA_RESTORE=1` only for explicit migration restores.
 - Object colors follow the **SVG v2 convention**: asset shapes reference `var(--obj-stroke, …)` / `var(--obj-fill, …)`. Every ingress (new import, flatten, load) is auto-themed via `applySvgColorConvention` (types.ts). Asset defaults are `defaultFillColor` / `defaultStrokeColor` (outline derives from fill when unset; fallback token `--asset-outline`). Placed objects do NOT carry editable color copies — they resolve colors live from their origin asset.
 - Adding or editing an origin asset? Follow the **Origin asset authoring** checklist in [`docs/agents/data.md`](docs/agents/data.md) (creation defaults, SVG art rules, color validation, verify gate).
 

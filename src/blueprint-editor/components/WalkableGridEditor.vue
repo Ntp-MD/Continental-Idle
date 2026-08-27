@@ -5,8 +5,10 @@ import { useToast } from "@/composables/useToast";
 import { useConfirm } from "@/composables/useConfirm";
 import { renderSvgInto } from "../svgSanitizer";
 import { assetSvgVarStyle } from "../assetUtils";
-import type { AssetDef, TileState, TileEdges, InteractSpot } from "../types";
+import type { AssetDef, TileState, InteractSpot } from "../types";
 import { normalizeInteractConfig, normalizeNpcQueueConfig, resolveInteractForTarget } from "../types";
+
+type TileEdges = { top?: boolean; right?: boolean; bottom?: boolean; left?: boolean };
 
 type BorderSide = "top" | "right" | "bottom" | "left";
 
@@ -15,7 +17,7 @@ const props = defineProps<{ asset?: AssetDef; active: boolean }>();
 const store = useAssetsStore();
 const confirm = useConfirm().confirm;
 
-const gridAsset = computed(() => (props.asset && !props.asset.linkedParts ? props.asset : undefined));
+const gridAsset = computed(() => props.asset);
 
 const gridTiles = ref<TileState[][]>([]);
 const gridEdges = ref<TileEdges[][]>([]);
@@ -89,8 +91,8 @@ function assetPixelSize(a: AssetDef): { w: number; h: number } {
   const vb = a.svgViewBox;
   if (vb && vb.w > 0 && vb.h > 0) return { w: vb.w, h: vb.h };
   return {
-    w: a.usePx ? (a.pxW ?? a.w * 25) : a.w * 25,
-    h: a.usePx ? (a.pxH ?? a.h * 25) : a.h * 25,
+    w: a.usePx ? (a.pxW ?? a.w * canvasTileSize.value) : a.w * canvasTileSize.value,
+    h: a.usePx ? (a.pxH ?? a.h * canvasTileSize.value) : a.h * canvasTileSize.value,
   };
 }
 
@@ -102,7 +104,7 @@ const svgPreviewViewBox = computed(() => {
 });
 
 function fallbackShapeSvg(a: AssetDef): string {
-  const TILE = 25;
+  const TILE = canvasTileSize.value;
   const w = a.usePx ? (a.pxW ?? a.w * TILE) : a.w * TILE;
   const h = a.usePx ? (a.pxH ?? a.h * TILE) : a.h * TILE;
   const rx = Math.max(a.defaultRx?.tl ?? 0, a.defaultRx?.tr ?? 0, a.defaultRx?.br ?? 0, a.defaultRx?.bl ?? 0);
@@ -151,7 +153,7 @@ const assetSignature = computed(() => ({
   w: gridAsset.value?.w,
   h: gridAsset.value?.h,
   tileStates: gridAsset.value?.tileStates,
-  tileEdges: gridAsset.value?.tileEdges,
+  wallSegments: gridAsset.value?.wallSegments,
   interactSpots: gridAsset.value?.interactSpots,
   interact: gridAsset.value?.interact,
 }));
@@ -216,6 +218,51 @@ watch(
   { immediate: true },
 );
 
+function wallSegmentsToEdges(segments: AssetDef["wallSegments"], rows: number, cols: number): TileEdges[][] {
+  const edges = Array.from({ length: rows }, () => Array.from({ length: cols }, () => ({}) as TileEdges));
+  for (const segment of segments ?? []) {
+    if (segment.y1 === segment.y2) {
+      const boundary = Math.round(segment.y1);
+      const start = Math.round(Math.min(segment.x1, segment.x2));
+      const end = Math.max(start + 1, Math.round(Math.max(segment.x1, segment.x2)));
+      for (let col = start; col < end; col++) {
+        if (boundary >= 0 && boundary < rows && col >= 0 && col < cols) edges[boundary][col].top = true;
+        if (boundary - 1 >= 0 && boundary - 1 < rows && col >= 0 && col < cols) edges[boundary - 1][col].bottom = true;
+      }
+    } else {
+      const boundary = Math.round(segment.x1);
+      const start = Math.round(Math.min(segment.y1, segment.y2));
+      const end = Math.max(start + 1, Math.round(Math.max(segment.y1, segment.y2)));
+      for (let row = start; row < end; row++) {
+        if (row >= 0 && row < rows && boundary >= 0 && boundary < cols) edges[row][boundary].left = true;
+        if (row >= 0 && row < rows && boundary - 1 >= 0 && boundary - 1 < cols) edges[row][boundary - 1].right = true;
+      }
+    }
+  }
+  return edges;
+}
+
+function edgesToWallSegments(edges: TileEdges[][]): NonNullable<AssetDef["wallSegments"]> {
+  const segments: NonNullable<AssetDef["wallSegments"]> = [];
+  const seen = new Set<string>();
+  const add = (segment: { x1: number; y1: number; x2: number; y2: number }) => {
+    const key = `${segment.x1},${segment.y1},${segment.x2},${segment.y2}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    segments.push(segment);
+  };
+  for (let row = 0; row < edges.length; row++) {
+    for (let col = 0; col < (edges[row]?.length ?? 0); col++) {
+      const edge = edges[row][col];
+      if (edge.top) add({ x1: col, y1: row, x2: col + 1, y2: row });
+      if (edge.bottom) add({ x1: col, y1: row + 1, x2: col + 1, y2: row + 1 });
+      if (edge.left) add({ x1: col, y1: row, x2: col, y2: row + 1 });
+      if (edge.right) add({ x1: col + 1, y1: row, x2: col + 1, y2: row + 1 });
+    }
+  }
+  return segments;
+}
+
 function initGridTiles(a: AssetDef) {
   const rows = Math.max(1, a.h);
   const cols = Math.max(1, a.w);
@@ -237,17 +284,7 @@ function initGridTiles(a: AssetDef) {
     }
   }
 
-  const edges = a.tileEdges;
-  if (edges && edges.length === rows && edges[0]?.length === cols) {
-    gridEdges.value = edges.map((row) => row.map((e) => (e ? { ...e } : e)));
-  } else {
-    const defaultEdges: TileEdges[][] = [];
-    for (let r = 0; r < rows; r++) {
-      defaultEdges[r] = [];
-      for (let c = 0; c < cols; c++) defaultEdges[r][c] = {};
-    }
-    gridEdges.value = defaultEdges;
-  }
+  gridEdges.value = wallSegmentsToEdges(a.wallSegments, rows, cols);
 }
 
 function removeInteractSpotsOnTile(r: number, c: number) {
@@ -577,7 +614,7 @@ async function saveGrid() {
   if (!a) return;
   const states = gridTiles.value.map((row) => [...row]);
   const grid = states.map((row) => row.map((t) => t === "walkable" || t === "entrance"));
-  const edges = gridEdges.value.map((row) => row.map((e) => (e ? { ...e } : e)));
+  const wallSegments = edgesToWallSegments(gridEdges.value);
   const interactSpots = gridInteractSpots.value.map((p) => ({ ...p }));
   const interact = normalizeInteractConfig({
     capacity: interactCapacity.value,
@@ -588,7 +625,7 @@ async function saveGrid() {
     maxMembers: queueMaxMembers.value,
     admissionDepth: queueAdmissionDepth.value,
   });
-  await store.updateAsset(a.id, { walkable: walkthrough.value, walkableGrid: grid, tileStates: states, tileEdges: edges, interactSpots, interact, queue });
+  await store.updateAsset(a.id, { walkable: walkthrough.value, walkableGrid: grid, tileStates: states, wallSegments, interactSpots, interact, queue });
   savedGridKey.value = gridKey();
   savedInteractSpotsKey.value = interactSpotsKey();
   savedInteractKey.value = interactKey();

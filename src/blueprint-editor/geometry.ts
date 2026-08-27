@@ -1,5 +1,5 @@
 import type { AssetDef, ObjectData, ObjectPlacement, ResolvedObject, Rotation, Rect } from './types'
-import { resolveObjectDef, STREET_TILES } from './types'
+import { CANVAS_WALL_OBJECT_TYPE, normalizeWallSegment, resolveObjectDef, STREET_TILES } from './types'
 import { findAsset, findAssetCached } from './assetUtils'
 
 export function assetSizeFor(
@@ -23,6 +23,20 @@ export function normalizeObject(
 	tileSize: number,
 	assetLookup: AssetDef[] | Map<string, AssetDef>,
 ): void {
+	if (o.isWall && o.type === CANVAS_WALL_OBJECT_TYPE) {
+		const segment = normalizeWallSegment({ x1: o.x1, y1: o.y1, x2: o.x2, y2: o.y2 })
+		if (!segment) return
+		o.x1 = segment.x1
+		o.y1 = segment.y1
+		o.x2 = segment.x2
+		o.y2 = segment.y2
+		o.x = Math.min(segment.x1, segment.x2) * tileSize
+		o.y = Math.min(segment.y1, segment.y2) * tileSize
+		o.w = Math.max(1, Math.abs(segment.x2 - segment.x1) * tileSize)
+		o.h = Math.max(1, Math.abs(segment.y2 - segment.y1) * tileSize)
+		o.rotation = 0
+		return
+	}
 	o.x = Math.round(o.x / tileSize) * tileSize
 	o.y = Math.round(o.y / tileSize) * tileSize
 	const asset = Array.isArray(assetLookup)
@@ -37,6 +51,11 @@ export function normalizeObject(
 		subId: o.subId,
 		linkGroupId: o.linkGroupId,
 		locked: o.locked,
+		isWall: o.isWall,
+		x1: o.x1,
+		y1: o.y1,
+		x2: o.x2,
+		y2: o.y2,
 	}, asset, tileSize)
 	if (!resolved) return
 	o.w = resolved.w
@@ -70,13 +89,13 @@ export function resolvePlacedObject(
 		rx: asset.defaultRx ? { ...asset.defaultRx } : undefined,
 		fillColor: placement.fillColor,
 		strokeColor: placement.strokeColor,
-		isWall: asset.isWall,
+		isWall: placement.isWall ?? asset.isWall,
 		locked: placement.locked ?? asset.defaultLocked,
 		walkable: definition.walkable,
 		entranceRequired: definition.entranceRequired,
 		walkableGrid: definition.walkableGrid,
 		tileStates: definition.tileStates,
-		tileEdges: definition.tileEdges,
+		wallSegments: definition.wallSegments,
 		interactSpots: definition.interactSpots,
 		interact: definition.interact,
 	}

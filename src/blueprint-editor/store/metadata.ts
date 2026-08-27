@@ -13,14 +13,18 @@ export function copySelected() {
 	const objIds = selectedObjectIds()
 	if (objIds.length > 0) {
 		clipboard = floor.objects
-			.filter(o => objIds.includes(o.id))
+			.filter(o => objIds.includes(o.id) && !o.isWall)
 			.map(o => ({ ...o }))
+		if (clipboard.length === 0) {
+			toast.warning('Canvas wall objects cannot be copied')
+			return
+		}
 		toast.info(`Copied ${clipboard.length} object(s)`)
 	} else {
 		const primary = state.selectionState.primary
 		if (primary?.type === 'object') {
 			const o = floor.objects.find(o => o.id === primary.id)
-			if (o) {
+			if (o && !o.isWall) {
 				clipboard = [{ ...o }]
 				toast.info('Copied 1 object')
 			}

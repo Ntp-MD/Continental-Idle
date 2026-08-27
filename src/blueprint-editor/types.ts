@@ -2,6 +2,7 @@ export type EditorMode = 'object' | 'draw' | 'move' | 'npc-preview'
 export type Rotation = 0 | 90 | 180 | 270
 
 export const STREET_TILES = 8
+export const CANVAS_WALL_OBJECT_TYPE = '__canvas-wall__'
 
 export function resolveStreetTiles(layout: { streetWidthTiles?: number } | null | undefined): number {
 	const v = layout?.streetWidthTiles
@@ -20,17 +21,9 @@ export type TileState = 'walkable' | 'blocked' | 'entrance'
 
 export type WalkableGrid = boolean[][]
 
-export interface TileEdges {
-	top?: boolean
-	right?: boolean
-	bottom?: boolean
-	left?: boolean
-}
-
 export interface FloorWalkable {
 	walkableGrid?: WalkableGrid
 	tileStates?: TileState[][]
-	tileEdges?: TileEdges[][]
 }
 
 export interface WallSegment {
@@ -40,17 +33,73 @@ export interface WallSegment {
 	y2: number
 }
 
+export function normalizeWallSegment(value: unknown): WallSegment | undefined {
+	if (!value || typeof value !== 'object') return undefined
+	const record = value as Record<string, unknown>
+	if (![record.x1, record.y1, record.x2, record.y2].every(item => typeof item === 'number' && Number.isFinite(item))) return undefined
+	const x1 = record.x1 as number
+	const y1 = record.y1 as number
+	const x2 = record.x2 as number
+	const y2 = record.y2 as number
+	if (x1 !== x2 && y1 !== y2) return undefined
+	if (x1 === x2 && y1 === y2) return undefined
+	if (x1 === x2) return y1 <= y2 ? { x1, y1, x2, y2 } : { x1: x2, y1: y2, x2: x1, y2: y1 }
+	return x1 <= x2 ? { x1, y1, x2, y2 } : { x1: x2, y1: y2, x2: x1, y2: y1 }
+}
+
+export function normalizeWallSegments(value: unknown): WallSegment[] | undefined {
+	if (!Array.isArray(value)) return undefined
+	const seen = new Set<string>()
+	const segments: WallSegment[] = []
+	for (const item of value) {
+		const segment = normalizeWallSegment(item)
+		if (!segment) continue
+		const key = `${segment.x1},${segment.y1},${segment.x2},${segment.y2}`
+		if (seen.has(key)) continue
+		seen.add(key)
+		segments.push(segment)
+	}
+	return segments.length > 0 ? segments : undefined
+}
+
+export function resolveWallSegmentsForObject(
+	segments: readonly WallSegment[] | undefined,
+	asset: Pick<AssetDef, 'w' | 'h' | 'usePx' | 'pxW' | 'pxH'>,
+	object: Pick<ObjectData, 'x' | 'y' | 'w' | 'h' | 'rotation'>,
+	tileSize: number,
+): WallSegment[] {
+	if (!segments?.length || asset.w <= 0 || asset.h <= 0) return []
+	const sourceW = asset.usePx ? (asset.pxW ?? asset.w * tileSize) : asset.w * tileSize
+	const sourceH = asset.usePx ? (asset.pxH ?? asset.h * tileSize) : asset.h * tileSize
+	if (sourceW <= 0 || sourceH <= 0 || object.w <= 0 || object.h <= 0) return []
+	const rotatedW = object.rotation === 90 || object.rotation === 270 ? sourceH : sourceW
+	const rotatedH = object.rotation === 90 || object.rotation === 270 ? sourceW : sourceH
+	const scaleX = object.w / rotatedW
+	const scaleY = object.h / rotatedH
+	const transformPoint = (x: number, y: number): { x: number; y: number } => {
+		const localX = x / asset.w * sourceW
+		const localY = y / asset.h * sourceH
+		if (object.rotation === 90) return { x: object.x + (sourceH - localY) * scaleX, y: object.y + localX * scaleY }
+		if (object.rotation === 180) return { x: object.x + (sourceW - localX) * scaleX, y: object.y + (sourceH - localY) * scaleY }
+		if (object.rotation === 270) return { x: object.x + localY * scaleX, y: object.y + (sourceW - localX) * scaleY }
+		return { x: object.x + localX * scaleX, y: object.y + localY * scaleY }
+	}
+	return segments.flatMap(segment => {
+		const a = transformPoint(segment.x1, segment.y1)
+		const b = transformPoint(segment.x2, segment.y2)
+		return normalizeWallSegment({ x1: a.x, y1: a.y, x2: b.x, y2: b.y }) ?? []
+	})
+}
+
 export function normalizeFloorWalkable(value: unknown): FloorWalkable | undefined {
 	if (!value || typeof value !== 'object') return undefined
 	const record = value as Record<string, unknown>
 	const walkableGrid = normalizeWalkableGrid(record.walkableGrid)
 	const tileStates = normalizeTileStates(record.tileStates)
-	const tileEdges = normalizeTileEdges(record.tileEdges)
-	if (!walkableGrid && !tileStates && !tileEdges) return undefined
+	if (!walkableGrid && !tileStates) return undefined
 	return {
 		...(walkableGrid ? { walkableGrid } : {}),
 		...(tileStates ? { tileStates } : {}),
-		...(tileEdges ? { tileEdges } : {}),
 	}
 }
 
@@ -149,28 +198,6 @@ export function normalizeCornerRx(value: unknown): CornerRx | undefined {
 }
 
 
-export function normalizeTileEdges(value: unknown): TileEdges[][] | undefined {
-	if (!Array.isArray(value) || value.length === 0) return undefined
-	const rows: TileEdges[][] = []
-	for (const row of value) {
-		if (!Array.isArray(row) || row.length === 0) return undefined
-		const cols: TileEdges[] = []
-		for (const cell of row) {
-			if (!cell || typeof cell !== 'object') return undefined
-			const rec = cell as Record<string, unknown>
-			const edge: TileEdges = {}
-			if (typeof rec.top === 'boolean') edge.top = rec.top
-			if (typeof rec.right === 'boolean') edge.right = rec.right
-			if (typeof rec.bottom === 'boolean') edge.bottom = rec.bottom
-			if (typeof rec.left === 'boolean') edge.left = rec.left
-			cols.push(edge)
-		}
-		rows.push(cols)
-	}
-	return rows
-}
-
-
 export function normalizeWalkableGrid(value: unknown): WalkableGrid | undefined {
 	if (!Array.isArray(value) || value.length === 0) return undefined
 	const rows: boolean[][] = []
@@ -254,34 +281,12 @@ export function rotateGrid90<T>(grid: T[][] | undefined, times: number): T[][] |
 }
 
 
-export function rotateTileEdges90(edges: TileEdges[][] | undefined, times: number): TileEdges[][] | undefined {
-	if (!edges || edges.length === 0) return edges
-	const n = ((times % 4) + 4) % 4
-	if (n === 0) return edges
-	let result = edges
-	for (let i = 0; i < n; i++) {
-		const rows = result.length
-		const cols = result[0]?.length ?? 0
-		const rotated: TileEdges[][] = []
-		for (let r = 0; r < cols; r++) {
-			rotated[r] = []
-			for (let c = 0; c < rows; c++) {
-				const e = result[rows - 1 - c][r]
-				rotated[r][c] = e ? { top: e.left, right: e.top, bottom: e.right, left: e.bottom } : e
-			}
-		}
-		result = rotated
-	}
-	return result
-}
-
-
 export interface ResolvedObjectDef {
 	walkable: boolean
 	entranceRequired: boolean
 	walkableGrid?: boolean[][]
 	tileStates?: TileState[][]
-	tileEdges?: TileEdges[][]
+	wallSegments?: WallSegment[]
 	interactSpots?: InteractSpot[]
 	interact?: InteractConfig
 	queue?: NpcQueueConfig
@@ -324,7 +329,7 @@ export function resolveObjectDef(
 	const rotSteps = Math.round(rotation / 90)
 	const walkableGrid = rotateGrid90(normalizeWalkableGrid(asset?.walkableGrid), rotSteps)
 	const tileStates = rotateGrid90(normalizeTileStates(asset?.tileStates), rotSteps)
-	const tileEdges = rotateTileEdges90(normalizeTileEdges(asset?.tileEdges), rotSteps)
+	const wallSegments = normalizeWallSegments(asset?.wallSegments)
 	const interactSpots = normalizeInteractSpots(asset?.interactSpots)
 	const sourceSize = size
 		? (rotSteps % 2 === 0 ? size : { w: size.h, h: size.w })
@@ -334,7 +339,7 @@ export function resolveObjectDef(
 		: interactSpots
 	const interact = normalizeInteractConfig(asset?.interact)
 	const queue = normalizeNpcQueueConfig(asset?.queue)
-	return { walkable, entranceRequired, walkableGrid, tileStates, tileEdges, interactSpots: rotatedInteractSpots, interact, queue }
+	return { walkable, entranceRequired, walkableGrid, tileStates, wallSegments, interactSpots: rotatedInteractSpots, interact, queue }
 }
 
 
@@ -357,7 +362,11 @@ export function normalizeObjectPlacement(value: unknown): ObjectPlacement | unde
 	if (typeof record.subId === 'string' && record.subId) placement.subId = record.subId
 	if (typeof record.linkGroupId === 'string' && record.linkGroupId) placement.linkGroupId = record.linkGroupId
 	if (typeof record.locked === 'boolean') placement.locked = record.locked
-	if (typeof record.subId === 'string' && record.subId) placement.subId = record.subId
+	if (typeof record.isWall === 'boolean') placement.isWall = record.isWall
+	for (const key of ['x1', 'y1', 'x2', 'y2'] as const) {
+		const value = record[key]
+		if (typeof value === 'number' && Number.isFinite(value)) placement[key] = value
+	}
 	const fillColor = typeof record.fillColor === 'string' && isValidColor(record.fillColor.trim()) ? record.fillColor.trim() : undefined
 	if (fillColor) placement.fillColor = fillColor
 	const strokeColor = typeof record.strokeColor === 'string' && isValidColor(record.strokeColor.trim()) ? record.strokeColor.trim() : undefined
@@ -380,19 +389,6 @@ export function normalizeAllowedRoleIds(value: unknown): string[] | undefined {
 	return ids.length > 0 ? ids : undefined
 }
 
-export interface LinkedPart {
-	type: string
-	dx: number
-	dy: number
-	w: number
-	h: number
-	rotation?: Rotation
-	padding?: number
-	rx?: { tl: number; tr: number; br: number; bl: number }
-	fillColor?: string
-	label?: string
-}
-
 export interface AssetBase {
 	id: string
 	name: string
@@ -401,6 +397,7 @@ export interface AssetBase {
 	h: number
 	custom?: boolean
 	isWall?: boolean
+	wallSegments?: WallSegment[]
 	walkable?: boolean
 	entranceRequired?: boolean
 	defaultPadding?: number
@@ -414,20 +411,18 @@ export interface AssetBase {
 	tags?: string[]
 }
 
-export type AssetOrigin = 'drawn' | 'svg-import' | 'linked' | 'flattened'
+export type AssetOrigin = 'drawn' | 'svg-import' | 'flattened'
 
 export interface AssetDef extends AssetBase {
 	origin?: AssetOrigin
 	pxW?: number
 	pxH?: number
 	usePx?: boolean
-	linkedParts?: LinkedPart[]
 	svg?: string
 	svgViewBox?: { w: number; h: number }
 	svgRoles?: SvgRoleInfo[]
 	walkableGrid?: WalkableGrid
 	tileStates?: TileState[][]
-	tileEdges?: TileEdges[][]
 	interactSpots?: InteractSpot[]
 	interact?: InteractConfig
 	queue?: NpcQueueConfig
@@ -482,10 +477,11 @@ export function normalizeOriginAsset(value: unknown): AssetDef | undefined {
 	const record = value as Record<string, unknown>
 	if (typeof record.id !== 'string' || !record.id.trim() || typeof record.name !== 'string' || typeof record.w !== 'number' || !Number.isFinite(record.w) || record.w <= 0 || typeof record.h !== 'number' || !Number.isFinite(record.h) || record.h <= 0) return undefined
 	const asset = JSON.parse(JSON.stringify(record)) as AssetDef
-	if (asset.origin !== undefined && !['drawn', 'svg-import', 'linked', 'flattened'].includes(asset.origin)) delete asset.origin
+	if (asset.origin !== undefined && !['drawn', 'svg-import', 'flattened'].includes(asset.origin)) delete asset.origin
 	if (record.walkableGrid !== undefined) asset.walkableGrid = normalizeWalkableGrid(record.walkableGrid)
 	if (record.tileStates !== undefined) asset.tileStates = normalizeTileStates(record.tileStates)
-	if (record.tileEdges !== undefined) asset.tileEdges = normalizeTileEdges(record.tileEdges)
+	const wallSegments = normalizeWallSegments(record.wallSegments)
+	if (wallSegments) asset.wallSegments = wallSegments
 	const tags = normalizeTags(record.tags)
 	if (tags !== undefined) asset.tags = tags
 	else delete asset.tags
@@ -505,7 +501,7 @@ export function normalizeOriginAssetFile(value: unknown): OriginAssetFile | unde
 		const asset = normalizeOriginAsset(value)
 		if (asset) assets.set(asset.id, asset)
 	}
-	return { $schema: typeof record.$schema === 'string' ? record.$schema : 'origin-assets.v1.json', version: typeof record.version === 'number' ? record.version : 1, originAssets: [...assets.values()] }
+	return { $schema: typeof record.$schema === 'string' ? record.$schema : 'origin-assets.v2.json', version: typeof record.version === 'number' ? record.version : 2, originAssets: [...assets.values()] }
 }
 
 export interface NpcTask {
@@ -579,6 +575,11 @@ export interface ObjectPlacement {
 	x: number
 	y: number
 	rotation: Rotation
+	isWall?: boolean
+	x1?: number
+	y1?: number
+	x2?: number
+	y2?: number
 	subId?: string
 	linkGroupId?: string
 	locked?: boolean
@@ -612,7 +613,7 @@ export interface ResolvedObject extends ObjectPlacement {
 	entranceRequired: boolean
 	walkableGrid?: WalkableGrid
 	tileStates?: TileState[][]
-	tileEdges?: TileEdges[][]
+	wallSegments?: WallSegment[]
 	interactSpots?: InteractSpot[]
 	interact?: InteractConfig
 	queue?: NpcQueueConfig
@@ -746,6 +747,11 @@ export interface SyncedObject {
 	w: number
 	h: number
 	rotation: Rotation
+	isWall?: boolean
+	x1?: number
+	y1?: number
+	x2?: number
+	y2?: number
 	fillColor?: string
 	strokeColor?: string
 	label?: string
@@ -753,7 +759,7 @@ export interface SyncedObject {
 	entranceRequired?: boolean
 	walkableGrid?: boolean[][]
 	tileStates?: TileState[][]
-	tileEdges?: TileEdges[][]
+	wallSegments?: WallSegment[]
 	interactSpots?: InteractSpot[]
 	interact?: InteractConfig
 	queue?: NpcQueueConfig
@@ -794,6 +800,13 @@ export interface SelectionState {
 	items: EntityRef[]
 }
 
+function isValidWallPlacement(object: ObjectPlacement): boolean {
+	const hasWallFields = [object.x1, object.y1, object.x2, object.y2].some(value => value !== undefined)
+	if (!object.isWall) return !hasWallFields
+	return object.type === CANVAS_WALL_OBJECT_TYPE
+		&& normalizeWallSegment({ x1: object.x1, y1: object.y1, x2: object.x2, y2: object.y2 }) !== undefined
+}
+
 export function validateLayoutData(data: unknown): FloorLayoutData | null {
 	if (!data || typeof data !== 'object') return null
 	const layout = data as FloorLayoutData
@@ -816,6 +829,8 @@ export function validateLayoutData(data: unknown): FloorLayoutData | null {
 		for (const object of floor.objects) {
 			if (!object || typeof object !== 'object') return null
 			if (typeof object.id !== 'string' || typeof object.type !== 'string') return null
+			const placement = normalizeObjectPlacement(object)
+			if (!placement || !isValidWallPlacement(placement)) return null
 		}
 	}
 
@@ -874,38 +889,96 @@ export function isNpcConfig(value: unknown): value is NpcSimulationConfig {
 	return true
 }
 
+function isValidRole(r: unknown): r is NpcRole {
+	if (!r || typeof r !== 'object') return false
+	const role = r as Record<string, unknown>
+	if (typeof role.id !== 'string' || typeof role.label !== 'string' || typeof role.color !== 'string') return false
+	if (typeof role.focusChance !== 'number' || role.focusChance < 0 || role.focusChance > 100) return false
+	if (!Array.isArray(role.focusTags) || role.focusTags.some((t: unknown) => typeof t !== 'string')) return false
+	if (!Array.isArray(role.restrictedTags) || role.restrictedTags.some((t: unknown) => typeof t !== 'string')) return false
+	if (!Array.isArray(role.taskIds) || role.taskIds.some((t: unknown) => typeof t !== 'string')) return false
+	return true
+}
+
+function isValidTask(t: unknown): t is NpcTask {
+	if (!t || typeof t !== 'object') return false
+	const task = t as Record<string, unknown>
+	return typeof task.id === 'string' && typeof task.label === 'string'
+		&& Array.isArray(task.tags) && task.tags.every((x: unknown) => typeof x === 'string')
+}
+
+function isValidPoolEntry(p: unknown): p is NpcDeploymentPool {
+	if (!p || typeof p !== 'object') return false
+	const pool = p as Record<string, unknown>
+	if (typeof pool.roleId !== 'string' || typeof pool.count !== 'number') return false
+	return pool.floorIds === undefined
+		|| (Array.isArray(pool.floorIds) && pool.floorIds.every((id: unknown) => typeof id === 'string'))
+}
+
 export function normalizeNpcConfig(value: unknown): NpcSimulationConfig | undefined {
-	if (!isNpcConfig(value)) return undefined
-	const config = JSON.parse(JSON.stringify(value)) as NpcSimulationConfig
-	config.speed = Math.max(0.001, Math.min(1, config.speed))
-	for (const role of config.roles) {
-		role.label = role.label.trim()
-		role.focusTags = normalizeTags(role.focusTags) ?? []
-		role.restrictedTags = normalizeTags(role.restrictedTags) ?? []
-		role.taskIds = [...new Set(role.taskIds.filter(taskId => config.tasks.some(task => task.id === taskId)))]
-		role.focusChance = Math.max(0, Math.min(100, Math.floor(role.focusChance)))
-		if (role.spawnRule) {
-			role.spawnRule.targetTags = normalizeTags(role.spawnRule.targetTags)
-			role.spawnRule.count = Math.max(0, Math.min(1000, Math.floor(role.spawnRule.count)))
-		}
+	if (!value || typeof value !== 'object') return undefined
+	const c = value as Record<string, unknown>
+	if (typeof c.speed !== 'number' || !isFinite(c.speed)) return undefined
+	if (typeof c.defaultRoleId !== 'string') return undefined
+	if (!Array.isArray(c.roles) || !Array.isArray(c.tasks) || !Array.isArray(c.pool)) return undefined
+	const rawRoles = c.roles as unknown[]
+	const rawTasks = c.tasks as unknown[]
+	const rawPool = c.pool as unknown[]
+	const roles = rawRoles.filter(isValidRole)
+	const tasks = rawTasks.filter(isValidTask)
+	const validPool = rawPool.filter(isValidPoolEntry)
+	const pool = validPool.filter(entry => roles.some(role => role.id === entry.roleId))
+	const droppedRoles = rawRoles.length - roles.length
+	const droppedTasks = rawTasks.length - tasks.length
+	const droppedPool = rawPool.length - pool.length
+	if (droppedRoles > 0 || droppedTasks > 0 || droppedPool > 0) {
+		const parts: string[] = []
+		if (droppedRoles > 0) parts.push(`${droppedRoles} role(s)`)
+		if (droppedTasks > 0) parts.push(`${droppedTasks} task(s)`)
+		if (droppedPool > 0) parts.push(`${droppedPool} pool entr(y/ies)`)
+		console.warn(`[BlueprintEditor] NPC config salvage: dropped ${parts.join(', ')} during normalization`)
 	}
-	for (const task of config.tasks) {
-		task.label = task.label.trim()
-		task.tags = normalizeTags(task.tags) ?? []
-	}
-	const rates: Record<string, number> = {}
-	for (const [tag, rate] of Object.entries(config.tagTriggerRates ?? {})) {
-		const normalized = normalizeTags([tag])?.[0]
-		if (normalized && Number.isFinite(rate) && rate > 0) rates[normalized] = Math.max(0, Math.min(100, Math.floor(rate)))
-	}
-	config.tagTriggerRates = Object.keys(rates).length ? rates : undefined
-	config.pool = config.pool
-		.filter(entry => config.roles.some(role => role.id === entry.roleId))
-		.map(entry => ({
+	if (roles.length === 0) return undefined
+	const config: NpcSimulationConfig = {
+		speed: Math.max(0.001, Math.min(1, c.speed)),
+		defaultRoleId: c.defaultRoleId,
+		roles: roles.map(role => {
+			const normalized: NpcRole = {
+				id: role.id,
+				label: role.label.trim(),
+				color: role.color,
+				focusTags: normalizeTags(role.focusTags) ?? [],
+				restrictedTags: normalizeTags(role.restrictedTags) ?? [],
+				taskIds: [...new Set(role.taskIds.filter(taskId => tasks.some(task => task.id === taskId)))],
+				focusChance: Math.max(0, Math.min(100, Math.floor(role.focusChance))),
+			}
+			if (role.spawnRule) {
+				normalized.spawnRule = {
+					targetTags: normalizeTags(role.spawnRule.targetTags) ?? [],
+					count: Math.max(0, Math.min(1000, Math.floor(role.spawnRule.count))),
+				}
+			}
+			return normalized
+		}),
+		tasks: tasks.map(task => ({
+			id: task.id,
+			label: task.label.trim(),
+			tags: normalizeTags(task.tags) ?? [],
+		})),
+		pool: pool.map(entry => ({
 			roleId: entry.roleId,
 			count: Math.max(0, Math.min(1000, Math.floor(entry.count))),
 			...(entry.floorIds?.length ? { floorIds: [...new Set(entry.floorIds.map(id => id.trim()).filter(Boolean))] } : {}),
-		}))
+		})),
+	}
+	const rates: Record<string, number> = {}
+	if (c.tagTriggerRates && typeof c.tagTriggerRates === 'object') {
+		for (const [tag, rate] of Object.entries(c.tagTriggerRates as Record<string, unknown>)) {
+			const normalized = normalizeTags([tag])?.[0]
+			if (normalized && typeof rate === 'number' && Number.isFinite(rate) && rate > 0) rates[normalized] = Math.max(0, Math.min(100, Math.floor(rate)))
+		}
+	}
+	config.tagTriggerRates = Object.keys(rates).length ? rates : undefined
 	if (!config.roles.some(role => role.id === config.defaultRoleId)) config.defaultRoleId = config.roles[0]?.id ?? ''
 	return config
 }
@@ -977,35 +1050,16 @@ function isRotation(value: unknown): value is Rotation {
 	return typeof value === 'number' && [0, 90, 180, 270].includes(value)
 }
 
-function isLinkedPart(value: unknown): value is LinkedPart {
-	if (!value || typeof value !== 'object') return false
-	const p = value as Record<string, unknown>
-	return typeof p.type === 'string'
-		&& typeof p.dx === 'number'
-		&& typeof p.dy === 'number'
-		&& typeof p.w === 'number'
-		&& typeof p.h === 'number'
-		&& (p.rotation === undefined || isRotation(p.rotation))
-}
-
 export function isSimpleAsset(value: unknown): value is AssetDef {
 	if (!isAssetBase(value)) return false
 	const a = value as unknown as Record<string, unknown>
-	if (Array.isArray(a.linkedParts) && a.linkedParts.length > 0) return false
 	if (typeof a.svg === 'string' && a.svg) return false
 	return typeof a.usePx === 'boolean' || a.usePx === undefined
-}
-
-export function isLinkedAsset(value: unknown): value is AssetDef {
-	if (!isAssetBase(value)) return false
-	const a = value as unknown as Record<string, unknown>
-	return Array.isArray(a.linkedParts) && a.linkedParts.length > 0 && a.linkedParts.every(isLinkedPart)
 }
 
 export function isSvgAsset(value: unknown): value is AssetDef {
 	if (!isAssetBase(value)) return false
 	const a = value as unknown as Record<string, unknown>
-	if (Array.isArray(a.linkedParts) && a.linkedParts.length > 0) return false
 	return typeof a.svg === 'string'
 		&& !!a.svgViewBox
 		&& typeof (a.svgViewBox as Record<string, unknown>).w === 'number'
@@ -1013,5 +1067,5 @@ export function isSvgAsset(value: unknown): value is AssetDef {
 }
 
 export function isAssetDef(value: unknown): value is AssetDef {
-	return isSimpleAsset(value) || isLinkedAsset(value) || isSvgAsset(value)
+	return isSimpleAsset(value) || isSvgAsset(value)
 }

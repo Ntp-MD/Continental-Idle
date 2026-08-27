@@ -516,5 +516,6 @@ textarea.input--danger:focus {
 /* ── Search ── */
 .form__search {
 	display: flex;
+	gap: var(--gap-sm);
 	width: 100%;
 }

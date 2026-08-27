@@ -19,7 +19,7 @@ const ORIGIN_LABELS: Record<string, string> = {
   flattened: "Flattened",
 };
 
-const TILE = 25;
+const canvasTileSize = computed(() => Math.max(1, store.state.layout.canvas.tileSize));
 
 const allAssets = computed(() => [...store.assetMap().values()]);
 
@@ -58,7 +58,6 @@ function placedObjectCount(assetId: string): number {
 }
 
 function assetSizeLabel(asset: AssetDef): string {
-  if (asset.linkedParts) return `${asset.linkedParts.length} linked`;
   if (asset.pxW || asset.pxH) return `${asset.pxW ?? asset.w}x${asset.pxH ?? asset.h}px`;
   return `${asset.w}x${asset.h}`;
 }
@@ -70,16 +69,16 @@ function originLabel(asset: AssetDef): string {
 function assetViewBox(asset: AssetDef): string {
   const vb = asset.svgViewBox;
   if (!vb || vb.w === 0 || vb.h === 0) {
-    const w = asset.usePx ? (asset.pxW ?? asset.w * TILE) : asset.w * TILE;
-    const h = asset.usePx ? (asset.pxH ?? asset.h * TILE) : asset.h * TILE;
+    const w = asset.usePx ? (asset.pxW ?? asset.w * canvasTileSize.value) : asset.w * canvasTileSize.value;
+    const h = asset.usePx ? (asset.pxH ?? asset.h * canvasTileSize.value) : asset.h * canvasTileSize.value;
     return `0 0 ${w} ${h}`;
   }
   return `0 0 ${vb.w} ${vb.h}`;
 }
 
 function fallbackShapeSvg(asset: AssetDef): string {
-  const w = asset.usePx ? (asset.pxW ?? asset.w * TILE) : asset.w * TILE;
-  const h = asset.usePx ? (asset.pxH ?? asset.h * TILE) : asset.h * TILE;
+  const w = asset.usePx ? (asset.pxW ?? asset.w * canvasTileSize.value) : asset.w * canvasTileSize.value;
+  const h = asset.usePx ? (asset.pxH ?? asset.h * canvasTileSize.value) : asset.h * canvasTileSize.value;
   const rx = Math.max(asset.defaultRx?.tl ?? 0, asset.defaultRx?.tr ?? 0, asset.defaultRx?.br ?? 0, asset.defaultRx?.bl ?? 0);
   const rawFill = asset.defaultFillColor ?? "none";
   const fill = !rawFill || rawFill === "transparent" ? "none" : rawFill;
@@ -127,17 +126,7 @@ function pick(asset: AssetDef) {
       <div class="picker__scroll">
         <div v-if="!filteredAssets.length" class="empty picker__empty">No assets found</div>
         <div v-else class="picker__grid">
-          <div
-            v-for="asset in filteredAssets"
-            :key="asset.id"
-            class="picker__item"
-            :class="{ 'picker__item--selected': store.state.selectedAssetId === asset.id, 'picker__item--linked': !!asset.linkedParts }"
-            role="button"
-            tabindex="0"
-            :title="incompleteTitle(asset) || `${asset.name} (${assetSizeLabel(asset)}) - click, then click the canvas to place`"
-            @click="pick(asset)"
-            @keydown.enter="pick(asset)"
-          >
+          <div v-for="asset in filteredAssets" :key="asset.id" class="picker__item" :class="{ 'picker__item--selected': store.state.selectedAssetId === asset.id }" role="button" tabindex="0" :title="incompleteTitle(asset) || `${asset.name} (${assetSizeLabel(asset)}) - click, then click the canvas to place`" @click="pick(asset)" @keydown.enter="pick(asset)">
             <div class="picker__thumb">
               <svg :ref="(el) => setThumbEl(asset.id, el)" :viewBox="assetViewBox(asset)" preserveAspectRatio="xMidYMid meet" :style="assetSvgVarStyle(asset)"></svg>
               <span v-if="incompleteMap.get(asset.id)?.length" class="badge badge--warning flag--warning" title="Incomplete settings">!</span>

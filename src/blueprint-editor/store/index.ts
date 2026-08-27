@@ -7,12 +7,11 @@ import {
 	beginDrawnObject, addObject, canPlaceObject, select, toggleMultiSelect, deleteSelected,
 	moveSelectedTo, commitMove, rotateSelected,
 	createLinkedAssetFromSelection,
-	flattenToSvgAsset,
+	flattenToSvgAsset, replaceCanvasWallSegments,
 	linkObjects, unlinkObject, toggleObjectLock,
 } from './objects'
 import {
-	addSvgAsset, updateAsset, deleteAsset, rotateAsset, duplicateAsset, refreshOriginInstances,
-	convertWallsToRoom,
+	addSvgAsset, updateAsset, deleteAsset, duplicateAsset, refreshOriginInstances,
 } from './assets'
 import { updateNpcConfig, syncNpcConfigToState, persistNpcConfigToDisk } from './npcDefault'
 import {
@@ -34,12 +33,11 @@ export {
 	beginDrawnObject, addObject, canPlaceObject, select, toggleMultiSelect, deleteSelected,
 	moveSelectedTo, commitMove, rotateSelected,
 	createLinkedAssetFromSelection,
-	flattenToSvgAsset,
+	flattenToSvgAsset, replaceCanvasWallSegments,
 	linkObjects, unlinkObject, toggleObjectLock,
 } from './objects'
 export {
-	addSvgAsset, updateAsset, deleteAsset, rotateAsset, duplicateAsset, refreshOriginInstances,
-	convertWallsToRoom,
+	addSvgAsset, updateAsset, deleteAsset, duplicateAsset, refreshOriginInstances,
 } from './assets'
 export { updateNpcConfig, syncNpcConfigToState, persistNpcConfigToDisk } from './npcDefault'
 export {
@@ -65,10 +63,9 @@ export function useAssetsStore() {
 		reorderFloors, selectFloor, updateFloor,
 		beginDrawnObject, addObject, canPlaceObject, select, toggleMultiSelect, deleteSelected,
 		moveSelectedTo, commitMove, rotateSelected,
-		createLinkedAssetFromSelection, flattenToSvgAsset,
+		createLinkedAssetFromSelection, flattenToSvgAsset, replaceCanvasWallSegments,
 		linkObjects, unlinkObject, toggleObjectLock,
-		addSvgAsset, updateAsset, deleteAsset, rotateAsset, duplicateAsset, refreshOriginInstances,
-		convertWallsToRoom,
+		addSvgAsset, updateAsset, deleteAsset, duplicateAsset, refreshOriginInstances,
 		updateNpcConfig, syncNpcConfigToState, persistNpcConfigToDisk,
 		copySelected, pasteObjects,
 		saveLayout, saveAssets, saveNpcConfig, saveBlueprintData, syncToGame,

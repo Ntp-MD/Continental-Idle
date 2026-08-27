@@ -75,27 +75,10 @@ watch(
   { immediate: true },
 );
 
-const isLinkedAsset = computed(() => !!props.asset.linkedParts);
 const isSvgAsset = computed(() => !!props.asset.svg);
 const isNpcDeployed = computed(() => store.state.mode === "npc-preview");
 
-const assetInUse = computed(() => {
-  return store.state.layout.floors.some((f) => f.objects.some((o) => o.type === props.asset.id));
-});
-
-const SIZE_FIELDS = ["w", "h", "pxW", "pxH"] as const;
-const sizeLocked = computed(() => assetInUse.value);
-
-function revertSizeField(field: "w" | "h" | "pxW" | "pxH") {
-  dimFields.value[field] = props.asset[field] ?? 0;
-}
-
-async function commitField(field: "w" | "h" | "pxW" | "pxH" | "usePx" | "defaultPadding" | "defaultRadius" | "defaultLabelPadding" | "defaultFillColor" | "defaultStrokeColor") {
-  if ((SIZE_FIELDS as readonly string[]).includes(field) && sizeLocked.value) {
-    useToast().warning("Cannot resize - asset is placed on floors. Remove instances first.");
-    revertSizeField(field as "w" | "h" | "pxW" | "pxH");
-    return;
-  }
+async function commitField(field: "defaultPadding" | "defaultRadius" | "defaultLabelPadding" | "defaultFillColor" | "defaultStrokeColor") {
   const val = dimFields.value[field];
   if ((field === "defaultFillColor" || field === "defaultStrokeColor") && typeof val === "string" && val && !isValidColor(val)) {
     useToast().warning("Color must be a hex code or 'transparent'");
@@ -113,17 +96,11 @@ function darkenHex(hex: string): string {
   const m = /^#([0-9a-fA-F]{6})$/.exec(hex);
   if (!m) return hex;
   const n = parseInt(m[1], 16);
-  const ch = (v: number) => Math.round(v * 0.55).toString(16).padStart(2, "0");
+  const ch = (v: number) =>
+    Math.round(v * 0.55)
+      .toString(16)
+      .padStart(2, "0");
   return `#${ch((n >> 16) & 255)}${ch((n >> 8) & 255)}${ch(n & 255)}`;
-}
-
-async function toggleUsePx() {
-  if (sizeLocked.value) {
-    useToast().warning("Cannot change unit mode - asset is placed on floors. Remove instances first.");
-    return;
-  }
-  dimFields.value.usePx = !dimFields.value.usePx;
-  await store.updateAsset(props.asset.id, { usePx: dimFields.value.usePx });
 }
 
 async function commitRx() {
@@ -175,27 +152,24 @@ watch(portal, async (v) => {
 
 <template>
   <div class="modal__body">
-    <div v-if="sizeLocked" class="card">
-      <span>Size is locked - asset is placed on floors. Remove all instances to resize.</span>
-    </div>
     <div class="originpanel__section">
       <div class="originpanel__title">Dimensions</div>
       <div v-if="!isSvgAsset" class="form__row">
         <label>Unit Mode</label>
         <div class="form__row form__row--tight">
-          <button :class="{ 'flag--warning': !dimFields.usePx }" :disabled="sizeLocked" @click="dimFields.usePx ? toggleUsePx() : null">Tiles</button>
-          <button :class="{ 'flag--warning': dimFields.usePx }" :disabled="sizeLocked" @click="!dimFields.usePx ? toggleUsePx() : null">Pixels</button>
+          <button :class="{ 'flag--warning': !dimFields.usePx }" disabled>Tiles</button>
+          <button :class="{ 'flag--warning': dimFields.usePx }" disabled>Pixels</button>
         </div>
       </div>
       <template v-if="!dimFields.usePx">
         <div class="form__row form__row--pair">
           <div class="form__row">
             <label>Width</label>
-            <input type="number" min="1" :disabled="sizeLocked" v-model.number="dimFields.w" @change="commitField('w')" />
+            <input type="number" min="1" :value="dimFields.w" disabled readonly />
           </div>
           <div class="form__row">
             <label>Height</label>
-            <input type="number" min="1" :disabled="sizeLocked" v-model.number="dimFields.h" @change="commitField('h')" />
+            <input type="number" min="1" :value="dimFields.h" disabled readonly />
           </div>
         </div>
       </template>
@@ -203,11 +177,11 @@ watch(portal, async (v) => {
         <div class="form__row form__row--pair">
           <div class="form__row">
             <label>Width (px)</label>
-            <input type="number" min="1" :disabled="sizeLocked" v-model.number="dimFields.pxW" @change="commitField('pxW')" />
+            <input type="number" min="1" :value="dimFields.pxW" disabled readonly />
           </div>
           <div class="form__row">
             <label>Height (px)</label>
-            <input type="number" min="1" :disabled="sizeLocked" v-model.number="dimFields.pxH" @change="commitField('pxH')" />
+            <input type="number" min="1" :value="dimFields.pxH" disabled readonly />
           </div>
         </div>
       </template>
@@ -225,7 +199,7 @@ watch(portal, async (v) => {
         <label>Shape Radius</label>
         <input type="number" min="0" v-model.number="dimFields.defaultRadius" @change="commitField('defaultRadius')" />
       </div>
-      <div v-if="!isLinkedAsset" class="form__row">
+      <div class="form__row">
         <label>Corner Radius</label>
         <div class="form__row form__row--tight">
           <label class="form__row form__row--tight">

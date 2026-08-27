@@ -21,7 +21,6 @@ const ORIGIN_LABELS: Record<string, string> = {
 };
 
 function assetSizeLabel(asset: AssetDef): string {
-  if (asset.linkedParts) return `${asset.linkedParts.length} linked`;
   if (asset.pxW || asset.pxH) return `${asset.pxW ?? asset.w}x${asset.pxH ?? asset.h}px`;
   return `${asset.w}x${asset.h}`;
 }
@@ -74,7 +73,7 @@ const svgW = ref(1);
 const svgH = ref(1);
 const svgContent = ref("");
 
-const TILE_UNIT = 25;
+const canvasTileSize = computed(() => Math.max(1, store.state.layout.canvas.tileSize));
 
 watch(svgContent, (val) => {
   if (!val) return;
@@ -85,8 +84,8 @@ watch(svgContent, (val) => {
   const vbW = parts[2];
   const vbH = parts[3];
   if (vbW <= 0 || vbH <= 0) return;
-  svgW.value = Math.max(1, Math.round(vbW / TILE_UNIT));
-  svgH.value = Math.max(1, Math.round(vbH / TILE_UNIT));
+  svgW.value = Math.max(1, Math.round(vbW / canvasTileSize.value));
+  svgH.value = Math.max(1, Math.round(vbH / canvasTileSize.value));
 });
 
 async function submitSvgAsset() {
@@ -135,7 +134,7 @@ function onItemClick(assetId: string) {
         <span v-if="incompleteCount" class="badge badge--warning flag--warning" title="Assets showing the yellow marker have incomplete settings">{{ incompleteCount }} incomplete</span>
       </div>
       <div v-if="!filteredAssets.length" class="empty assets__empty">No assets found</div>
-      <div v-for="asset in filteredAssets" :key="asset.id" class="card__item assets__item" :class="{ 'assets__item--selected': store.state.selectedAssetId === asset.id, 'assets__item--linked': !!asset.linkedParts }" :title="incompleteTitle(asset) || undefined" @mousedown="onAssetMouseDown(asset.id, $event)" @click="onItemClick(asset.id)">
+      <div v-for="asset in filteredAssets" :key="asset.id" class="card__item assets__item" :class="{ 'assets__item--selected': store.state.selectedAssetId === asset.id }" :title="incompleteTitle(asset) || undefined" @mousedown="onAssetMouseDown(asset.id, $event)" @click="onItemClick(asset.id)">
         <span class="assets__tiles">{{ assetSizeLabel(asset) }} - {{ originLabel(asset) }}</span>
         <span class="asset__name">{{ asset.name }}</span>
         <span v-if="incompleteMap.get(asset.id)?.length" class="badge badge--warning flag--warning" title="Incomplete settings">!</span>

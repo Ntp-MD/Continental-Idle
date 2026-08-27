@@ -1,8 +1,6 @@
 # Data, Persistence, and Domain Principles
 
-Floor/wall/decoration authoring conventions live in
-[floor-authoring.md](floor-authoring.md) - read it before drawing or
-editing anything in `floorPlan.data.ts`.
+Floor/wall/decoration authoring conventions live in the sibling authoring guide - read it before drawing or editing anything in the persisted floor plan module.
 
 ## Definitions and instances
 
@@ -33,7 +31,7 @@ Before work that changes data flow, persisted fields, migration, saves, sync, va
 - User-facing deletes confirm at the UI boundary. Cancelling a draft is not a delete and must not open a second confirmation.
 - Success follows verified persistence only. Failed saves show no success toast; restore last canonical state.
 - Removing an assignment from a form is distinct from deleting the owning entity unless the product defines otherwise.
-- Destructive entity deletes: confirm → persist → verify → report.
+- Destructive entity deletes: confirm -> persist -> verify -> report.
 
 ## Tags
 
@@ -44,35 +42,35 @@ Before work that changes data flow, persisted fields, migration, saves, sync, va
 
 ## Origin asset authoring
 
-Lessons encoded after the washer/double-bed round; follow these when adding or editing assets in `originAssets.data.ts`.
+Lessons encoded after the washer/double-bed round; follow these when adding or editing assets in the persisted origin asset module.
 
 ### Where
 
-- `src/blueprint-editor/data/*.data.ts` (the four modules) are the ONLY persisted store. The dev server serves/saves them via `/__blueprint-data`; no JSON snapshot exists or may be reintroduced as a second copy.
+- The persisted asset/data modules are the ONLY persisted store. The dev server serves/saves them via the blueprint data middleware; no JSON snapshot exists or may be reintroduced as a second copy.
 - Re-read the file immediately before editing - the editor save-flow rewrites it at any moment; current content wins over any earlier snapshot in memory or chat.
 
 ### Creation defaults
 
-- Every new asset carries `defaultFillColor: '#ffffff'` on every creation path (drawn, svg-import, flattened, linked set; duplicates inherit the source or fall back to `#ffffff`).
+- Every new asset carries the canonical default fill color on every creation path (drawn, svg-import, flattened, linked set; duplicates inherit the source or fall back to the canonical default).
 - Existing assets on disk are never migrated to new defaults by hand edits; defaults apply at creation time only.
 
 ### SVG art rules
 
-- Body shapes use the theme convention: `fill="var(--obj-fill,#ffffff)"` + `stroke="var(--obj-stroke,#ffffff)"`. Detail lines use `stroke="var(--asset-outline)"`. Never hardcode decorative colors inside asset art.
-- Every surface that renders an asset SVG must set `--obj-fill` / `--obj-stroke` first via `svgColorVarStyle` / `assetSvgVarStyle` (`assetUtils.ts`) - raw attribute fallbacks alone render white-on-white. This applies to previews, palette thumbnails, and the game view, not just the editor canvas.
+- Body shapes use the theme convention: fill and stroke reference the asset fill/stroke theme variables with a fallback to the canonical default. Detail lines reference the asset outline theme variable. Never hardcode decorative colors inside asset art.
+- Every surface that renders an asset SVG must set the fill/stroke theme variables first via the asset color style helpers - raw attribute fallbacks alone render white-on-white. This applies to previews, palette thumbnails, and the game view, not just the editor canvas.
 - The SVG is the whole visual. Editor canvas, game view, and palette preview all render the SVG alone - there is no backing plate behind placed objects. If art needs a base shape, draw it inside the SVG.
 - Placed objects resolve colors live from their origin asset; they never carry editable color copies.
 
 ### Colors
 
-- User-facing color values accept hex (`#RGB`/`#RRGGBB`/`#RRGGBBAA`) or `'transparent'`. Validate with `isValidColor`, never the hex-only `isHexColor`, wherever a transparent-capable input commits.
+- User-facing color values accept hex (`#RGB`/`#RRGGBB`/`#RRGGBBAA`) or `'transparent'`. Validate with the transparent-capable color validator, never the hex-only validator, wherever a transparent-capable input commits.
 - Outline auto-derived from fill applies to hex fills only; a transparent fill leaves the outline untouched.
 
 ### Before reporting done
 
-- Run `npm run verify:assets`: every entry must pass with ZERO warnings (stale fields such as `defaultBgColor` / `defaultLabelColor` are removed types - do not add them).
-- New ids must be unique across the file; sizes are tile counts (w x h), pixel size = w x h x tileSize unless `usePx`.
-- If the asset participates in NPC simulation, decide deliberately: `tileStates` (`entrance` rows enable queue slots), `walkableGrid`, `interactSpots` (snapped to nearest walkable cell within radius 5), `interact` durations, `queue` capacity, tags (`portal`, role restrictions).
+- Run the asset verification command: every entry must pass with ZERO warnings (stale removed-typed fields must not be re-added).
+- New ids must be unique across the file; sizes are tile counts (w x h), pixel size = w x h x tileSize unless the pixel-size flag is set.
+- If the asset participates in NPC simulation, decide deliberately: tile states (entrance rows enable queue slots), walkable grid, interact spots (snapped to nearest walkable cell within radius 5), interact durations, queue capacity, tags (portal, role restrictions).
 
 ## Domain engines (preview/runtime)
 

@@ -32,11 +32,11 @@ function readOriginAssets() {
 // Keep in sync with ASSET_DEF_FIELD_COVERAGE (assetUtils.ts).
 const REQUIRED_FIELDS = ['id', 'name', 'w', 'h']
 const OPTIONAL_FIELDS = [
-	'origin', 'category', 'custom', 'isWall',
+	'origin', 'category', 'custom', 'isWall', 'wallSegments',
 	'pxW', 'pxH', 'usePx',
-	'linkedParts', 'svg', 'svgViewBox', 'svgRoles',
+	'svg', 'svgViewBox', 'svgRoles',
 	'walkable', 'entranceRequired',
-	'walkableGrid', 'tileStates', 'tileEdges',
+	'walkableGrid', 'tileStates',
 	'interactSpots', 'interact', 'queue',
 	'defaultPadding', 'defaultRx',
 	'defaultFillColor', 'defaultStrokeColor',
@@ -53,7 +53,7 @@ function validateAnchorPoints(value) {
 	if (!Array.isArray(value)) return 'must be an array'
 	for (let i = 0; i < value.length; i++) {
 		const a = value[i]
-		if (Array.isArray(a)) return `entry ${i}: legacy [x,y] tuple — must be {x,y} object`
+		if (Array.isArray(a)) return `entry ${i}: [x,y] tuple not allowed — must be {x,y} object`
 		if (!a || typeof a !== 'object') return `entry ${i}: must be an object`
 		if (!isFiniteNum(a.x) || !isFiniteNum(a.y)) return `entry ${i}: x and y must be finite numbers`
 	}
@@ -94,15 +94,14 @@ function validateTileStates(value) {
 	return null
 }
 
-function validateTileEdges(value) {
+function validateWallSegments(value) {
 	if (!Array.isArray(value)) return 'must be an array'
 	for (let i = 0; i < value.length; i++) {
-		if (!Array.isArray(value[i])) return `row ${i}: must be an array`
-		for (let j = 0; j < value[i].length; j++) {
-			const e = value[i][j]
-			if (e === null || e === undefined) continue
-			if (typeof e !== 'object') return `cell [${i}][${j}]: must be an object`
-		}
+		const segment = value[i]
+		if (!segment || typeof segment !== 'object') return `entry ${i}: must be an object`
+		if (![segment.x1, segment.y1, segment.x2, segment.y2].every(isFiniteNum)) return `entry ${i}: endpoints must be finite numbers`
+		if (segment.x1 !== segment.x2 && segment.y1 !== segment.y2) return `entry ${i}: must be axis-aligned`
+		if (segment.x1 === segment.x2 && segment.y1 === segment.y2) return `entry ${i}: must not be zero-length`
 	}
 	return null
 }
@@ -120,7 +119,7 @@ const SHAPE_VALIDATORS = {
 	interact: validateInteract,
 	walkableGrid: validateWalkableGrid,
 	tileStates: validateTileStates,
-	tileEdges: validateTileEdges,
+	wallSegments: validateWallSegments,
 	defaultRx: validateDefaultRx,
 }
 
@@ -205,7 +204,7 @@ for (const asset of raw) {
 
 	// origin must be valid
 	if (asset.origin !== undefined) {
-		const validOrigins = ['drawn', 'svg-import', 'linked', 'flattened']
+		const validOrigins = ['drawn', 'svg-import', 'flattened']
 		if (!validOrigins.includes(asset.origin)) {
 			error(id, `origin: invalid value "${asset.origin}" — must be one of ${validOrigins.join(', ')}`)
 		}
