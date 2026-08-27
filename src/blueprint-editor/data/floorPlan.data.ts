@@ -43,13 +43,6 @@ export const floorPlanData = {
           "rotation": 0
         },
         {
-          "id": "obj-lobby-020",
-          "type": "custom-potted-plant",
-          "x": 525,
-          "y": 475,
-          "rotation": 0
-        },
-        {
           "id": "obj-16ea9ca367",
           "type": "custom-table-set",
           "x": 1025,
@@ -192,6 +185,22 @@ export const floorPlanData = {
           "y": 275,
           "rotation": 0,
           "subId": "sub-cc0399599c"
+        },
+        {
+          "id": "obj-1245170c91",
+          "type": "custom-flattened-2",
+          "x": 875,
+          "y": 600,
+          "rotation": 0,
+          "subId": "sub-87cb6525f4"
+        },
+        {
+          "id": "obj-4f369b1c4e",
+          "type": "custom-flattened-2",
+          "x": 650,
+          "y": 650,
+          "rotation": 0,
+          "subId": "sub-63cbdf4f09"
         }
       ],
       "defaultWalkable": true,
@@ -7499,8 +7508,12 @@ export const floorPlanData = {
             {},
             {},
             {},
-            {},
-            {},
+            {
+              "bottom": true
+            },
+            {
+              "bottom": true
+            },
             {},
             {},
             {},
@@ -7590,10 +7603,111 @@ export const floorPlanData = {
             {},
             {},
             {},
+            {
+              "right": true
+            },
+            {
+              "top": true,
+              "left": true
+            },
+            {
+              "top": true,
+              "right": true
+            },
+            {
+              "left": true
+            },
             {},
             {},
             {},
             {},
+            {},
+            {},
+            {},
+            {},
+            {
+              "right": true
+            },
+            {
+              "left": true
+            },
+            {},
+            {},
+            {},
+            {},
+            {},
+            {},
+            {},
+            {},
+            {},
+            {},
+            {
+              "right": true
+            },
+            {
+              "left": true
+            },
+            {},
+            {},
+            {},
+            {},
+            {},
+            {},
+            {}
+          ],
+          [
+            {},
+            {},
+            {},
+            {},
+            {},
+            {},
+            {},
+            {
+              "right": true
+            },
+            {
+              "left": true
+            },
+            {},
+            {},
+            {},
+            {},
+            {},
+            {},
+            {
+              "right": true
+            },
+            {
+              "left": true
+            },
+            {},
+            {},
+            {},
+            {},
+            {},
+            {},
+            {},
+            {},
+            {},
+            {},
+            {},
+            {},
+            {},
+            {},
+            {
+              "right": true
+            },
+            {
+              "bottom": true,
+              "left": true
+            },
+            {
+              "right": true
+            },
+            {
+              "left": true
+            },
             {},
             {},
             {},
@@ -7673,89 +7787,9 @@ export const floorPlanData = {
             {},
             {},
             {},
-            {},
-            {},
-            {},
-            {},
-            {},
-            {},
-            {},
-            {},
-            {},
-            {},
-            {},
             {
-              "right": true
+              "top": true
             },
-            {
-              "left": true
-            },
-            {},
-            {},
-            {},
-            {},
-            {},
-            {},
-            {},
-            {},
-            {},
-            {},
-            {
-              "right": true
-            },
-            {
-              "left": true
-            },
-            {},
-            {},
-            {},
-            {},
-            {},
-            {},
-            {}
-          ],
-          [
-            {},
-            {},
-            {},
-            {},
-            {},
-            {},
-            {},
-            {
-              "right": true
-            },
-            {
-              "left": true
-            },
-            {},
-            {},
-            {},
-            {},
-            {},
-            {},
-            {
-              "right": true
-            },
-            {
-              "left": true
-            },
-            {},
-            {},
-            {},
-            {},
-            {},
-            {},
-            {},
-            {},
-            {},
-            {},
-            {},
-            {},
-            {},
-            {},
-            {},
-            {},
             {},
             {},
             {},

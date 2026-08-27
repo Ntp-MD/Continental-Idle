@@ -1151,5 +1151,31 @@ export const originAssetsData = [
       "maxMembers": 4,
       "admissionDepth": 4
     }
+  },
+  {
+    "id": "custom-flattened-2",
+    "name": "Flattened 2",
+    "w": 2,
+    "h": 1,
+    "origin": "flattened",
+    "walkable": false,
+    "defaultFillColor": "#ffffff",
+    "svg": "<g transform=\"translate(25, 0) scale(1, 1)\"><rect x=\"6\" y=\"2\" width=\"13\" height=\"6\" rx=\"1.5\" fill=\"var(--obj-fill,#ffffff)\" stroke=\"var(--obj-stroke,#ffffff)\" stroke-width=\"0.9\"/><ellipse cx=\"12.5\" cy=\"15\" rx=\"8\" ry=\"7.5\" fill=\"var(--obj-fill,#ffffff)\" stroke=\"var(--obj-stroke,#ffffff)\" stroke-width=\"1\"/><ellipse cx=\"12.5\" cy=\"15\" rx=\"5.5\" ry=\"5\" fill=\"var(--obj-fill,none)\" stroke=\"var(--asset-outline)\" stroke-width=\"0.6\"/></g>\n  <g transform=\"translate(0, 0) scale(1, 1)\"><rect x=\"2.5\" y=\"2.5\" width=\"20\" height=\"20\" rx=\"5\" fill=\"var(--obj-fill,#ffffff)\" stroke=\"var(--obj-stroke,#ffffff)\" stroke-width=\"1\"/><ellipse cx=\"12.5\" cy=\"13.5\" rx=\"7\" ry=\"6\" fill=\"var(--obj-fill,none)\" stroke=\"var(--asset-outline)\" stroke-width=\"0.7\"/><circle cx=\"12.5\" cy=\"5.8\" r=\"1.2\" fill=\"var(--obj-fill,none)\" stroke=\"var(--asset-outline)\" stroke-width=\"0.6\"/><line x1=\"12.5\" y1=\"7\" x2=\"12.5\" y2=\"8.8\" stroke=\"var(--asset-outline)\" stroke-width=\"0.5\"/></g>",
+    "svgViewBox": {
+      "w": 50,
+      "h": 25
+    },
+    "walkableGrid": [
+      [
+        false,
+        false
+      ]
+    ],
+    "tileStates": [
+      [
+        "blocked",
+        "blocked"
+      ]
+    ]
   }
 ]

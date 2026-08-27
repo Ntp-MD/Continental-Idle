@@ -60,7 +60,10 @@ export function buildSyncedPayload(
 		return {
 			version: 3,
 			canvas: {
-				...layout.canvas,
+				width: layout.canvas.width,
+				height: layout.canvas.height,
+				tileSize: layout.canvas.tileSize,
+				...(layout.canvas.bgColor ? { bgColor: layout.canvas.bgColor } : {}),
 				streetWidthTiles: resolveStreetTiles(layout),
 				...(layout.streetFloorId ? { streetFloorId: layout.streetFloorId } : {}),
 			},

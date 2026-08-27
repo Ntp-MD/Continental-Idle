@@ -130,6 +130,25 @@ export function normalizeInteractConfig(value: unknown): InteractConfig | undefi
 }
 
 
+export interface CornerRx {
+	tl: number
+	tr: number
+	br: number
+	bl: number
+}
+
+export function normalizeCornerRx(value: unknown): CornerRx | undefined {
+	if (!value || typeof value !== 'object') return undefined
+	const rec = value as Record<string, unknown>
+	const tl = typeof rec.tl === 'number' && Number.isFinite(rec.tl) ? Math.max(0, rec.tl) : 0
+	const tr = typeof rec.tr === 'number' && Number.isFinite(rec.tr) ? Math.max(0, rec.tr) : 0
+	const br = typeof rec.br === 'number' && Number.isFinite(rec.br) ? Math.max(0, rec.br) : 0
+	const bl = typeof rec.bl === 'number' && Number.isFinite(rec.bl) ? Math.max(0, rec.bl) : 0
+	if (tl === 0 && tr === 0 && br === 0 && bl === 0) return undefined
+	return { tl, tr, br, bl }
+}
+
+
 export function normalizeTileEdges(value: unknown): TileEdges[][] | undefined {
 	if (!Array.isArray(value) || value.length === 0) return undefined
 	const rows: TileEdges[][] = []
@@ -198,6 +217,19 @@ export function resolveInteractForTarget(
 		? Math.floor(interact.capacity)
 		: Math.max(1, interactSpotCount)
 	return { capacity, durationMinSeconds, durationMaxSeconds }
+}
+
+
+export function resolveQueueForTarget(
+	queue: NpcQueueConfig | undefined,
+): { maxMembers: number; admissionDepth: number } {
+	const maxMembers = typeof queue?.maxMembers === 'number' && Number.isFinite(queue.maxMembers)
+		? Math.max(1, Math.min(100, Math.floor(queue.maxMembers)))
+		: 3
+	const admissionDepth = typeof queue?.admissionDepth === 'number' && Number.isFinite(queue.admissionDepth)
+		? Math.max(1, Math.min(20, Math.floor(queue.admissionDepth)))
+		: 4
+	return { maxMembers, admissionDepth }
 }
 
 

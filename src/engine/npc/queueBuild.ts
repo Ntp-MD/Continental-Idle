@@ -1,5 +1,5 @@
 import type { AssetDef, FloorData, ObjectData } from '../../blueprint-editor/types'
-import { resolveObjectDef } from '../../blueprint-editor/types'
+import { resolveObjectDef, resolveQueueForTarget } from '../../blueprint-editor/types'
 import type { NpcEngineFloor, NpcEngineInteractionTarget, NpcEnginePoint, NpcEngineQueue } from './types'
 
 interface Direction {
@@ -14,9 +14,6 @@ const DIRECTIONS: readonly Direction[] = [
 	{ dr: 0, dc: -1, tangent: 'row' },
 	{ dr: 0, dc: 1, tangent: 'row' },
 ]
-
-const DEFAULT_QUEUE_SLOTS = 3
-const DEFAULT_QUEUE_ADMISSION_DEPTH = 4
 
 function key(x: number, y: number): string {
 	return `${x},${y}`
@@ -55,8 +52,9 @@ export function buildNpcQueues(
 		const definition = resolveObjectDef(object.rotation, asset, { w: object.w, h: object.h })
 		const states = definition.tileStates
 		if (!states?.length) continue
-		const maxQueueSlots = definition.queue?.maxMembers ?? DEFAULT_QUEUE_SLOTS
-		const admissionDepth = definition.queue?.admissionDepth ?? DEFAULT_QUEUE_ADMISSION_DEPTH
+		const resolvedQueue = resolveQueueForTarget(definition.queue)
+		const maxQueueSlots = resolvedQueue.maxMembers
+		const admissionDepth = resolvedQueue.admissionDepth
 		const rows = states.length
 		const cols = states[0]?.length ?? 0
 		if (!cols) continue

@@ -8,6 +8,9 @@ const store = useAssetsStore();
 
 const object = computed(() => store.selectedObject());
 const asset = computed(() => store.selectedAsset.value);
+const wallCount = computed(
+  () => store.wallSelection.value.filter((w) => w.floorId === store.currentFloor.value?.id).length,
+);
 
 const linkedName = ref("");
 const flattenName = ref("");
@@ -27,9 +30,13 @@ async function doCreateLinked() {
 
 async function doFlatten() {
   const ids = store.state.selectionState.items.filter((i) => i.type === "object").map((i) => i.id);
-  if (ids.length < 2) return;
-  const id = await store.flattenToSvgAsset(flattenName.value || undefined);
-  if (id) flattenName.value = "";
+  const walls = store.wallSelection.value.filter((w) => w.floorId === store.currentFloor.value?.id).map((w) => w.segment);
+  if (ids.length + walls.length < 2) return;
+  const id = await store.flattenToSvgAsset(flattenName.value || undefined, walls);
+  if (id) {
+    flattenName.value = "";
+    store.clearWallSelection();
+  }
 }
 </script>
 
@@ -48,12 +55,14 @@ async function doFlatten() {
       </div>
 
       <!-- Multi-selection -->
-      <div v-if="store.state.selectionState.items.length >= 2">
+      <div v-if="store.state.selectionState.items.length >= 2 || wallCount > 0">
         <div class="form__group">
-          <h3>{{ store.state.selectionState.items.length }} objects selected</h3>
+          <h3>
+            {{ store.state.selectionState.items.length }} object{{ store.state.selectionState.items.length === 1 ? "" : "s" }} selected<template v-if="wallCount"> + {{ wallCount }} wall{{ wallCount === 1 ? "" : "s" }}</template>
+          </h3>
           <div class="form__row">
             <label>Tip</label>
-            <span>Shift+click to add/remove</span>
+            <span>Shift+click to add/remove - box-select picks up walls too</span>
           </div>
           <div class="form__row">
             <button @click="doLink">Link Objects</button>
@@ -72,6 +81,9 @@ async function doFlatten() {
           <div class="form__row">
             <label>Name</label>
             <input type="text" v-model="flattenName" placeholder="e.g. Table + Chairs" />
+          </div>
+          <div v-if="wallCount" class="form__row">
+            <span>{{ wallCount }} selected wall{{ wallCount === 1 ? "" : "s" }} will be merged into the asset and removed from the floor grid</span>
           </div>
           <button class="flag--success" @click="doFlatten">Flatten to SVG Asset</button>
         </div>

@@ -59,9 +59,10 @@ export function useWallPaint(opts: {
 	wallAtPoint?: (point: { x: number; y: number }) => WallSegment | null
 	wallsInRect?: (rect: { x: number; y: number; w: number; h: number }) => WallSegment[]
 	commit: (floorId: string, walkable: FloorWalkable) => Promise<void>
+	selection?: Ref<WallSelection[]>
 }): WallPaintState {
 	const active = ref(false)
-	const selected = ref<WallSelection[]>([])
+	const selected = opts.selection ?? ref<WallSelection[]>([])
 	const segment = ref<WallSegment | null>(null)
 	let start: { x: number; y: number; floorId: string; hit: WallSegment | null } | null = null
 

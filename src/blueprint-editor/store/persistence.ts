@@ -4,7 +4,7 @@ import { editorLog } from './utils'
 import { EDITOR_CONFIG } from './migrate'
 import { buildBlueprintData, fetchBlueprintDataFromDisk } from './dataLoader'
 import { validateSettingsCompleteness, buildAssetMap } from '../assetUtils'
-import type { AssetDef, NpcSimulationConfig } from '../types'
+import type { AssetDef, FloorLayoutData, NpcSimulationConfig } from '../types'
 import { buildSyncedPayload } from '../syncedPayload'
 
 const MAX_SAVE_RETRIES = 3
@@ -88,7 +88,7 @@ export function syncToGame(): boolean {
 export async function loadPersistedSyncPayload(): Promise<SyncedLayoutPayload | null> {
 	const data = await fetchBlueprintDataFromDisk()
 	if (!data) return null
-	const assets = buildAssetMap(data.originAssets as AssetDef[])
+	const assets = buildAssetMap(data.originAssets)
 	const npcConfig: NpcSimulationConfig | undefined = data.npcConfig ?? undefined
-	return buildSyncedPayload(data.layout as never, assets, npcConfig)
+	return buildSyncedPayload(data.layout as FloorLayoutData, assets, npcConfig)
 }

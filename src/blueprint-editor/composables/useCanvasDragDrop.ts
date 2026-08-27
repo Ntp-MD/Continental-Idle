@@ -71,23 +71,21 @@ export function useCanvasDragDrop(
 		if (ghost) paletteValid.value = opts.store.canPlaceObject(dragState.assetId, p.x - ghost.w / 2, p.y - ghost.h / 2)
 	}
 
-	async function onWindowMouseUpForDrag(e: MouseEvent): Promise<void> {
+	function onWindowMouseUpForDrag(e: MouseEvent): void {
 		if (!dragState.assetId) return
 		const assetId = dragState.assetId
 		const svgEl = opts.svgRef.value
 		const ghost = paletteGhost.value
-		if (svgEl && ghost) {
-			const rect = svgEl.getBoundingClientRect()
-			const inside = e.clientX >= rect.left && e.clientX <= rect.right && e.clientY >= rect.top && e.clientY <= rect.bottom
-			if (inside) {
-				const p = opts.localPoint(e)
-				if (p) {
-					try { await opts.store.addObject(assetId, p.x - ghost.w / 2, p.y - ghost.h / 2) }
-					catch (err) { toast.error(err instanceof Error ? err.message : 'Failed to place object') }
-				}
-			}
-		}
 		endAssetDrag()
+		if (!svgEl || !ghost) return
+		const rect = svgEl.getBoundingClientRect()
+		const inside = e.clientX >= rect.left && e.clientX <= rect.right && e.clientY >= rect.top && e.clientY <= rect.bottom
+		if (!inside) return
+		const p = opts.localPoint(e)
+		if (!p) return
+		opts.store.addObject(assetId, p.x - ghost.w / 2, p.y - ghost.h / 2).catch((err: unknown) => {
+			toast.error(err instanceof Error ? err.message : 'Failed to place object')
+		})
 	}
 
 	watch(() => dragState.assetId, (id) => {

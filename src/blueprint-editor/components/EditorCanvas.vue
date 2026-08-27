@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch, inject } from "vue";
-import { useAssetsStore, dragState, endAssetDrag } from "../blueprintStore";
+import { useAssetsStore, dragState, endAssetDrag, wallSelection } from "../blueprintStore";
 import { findAssetCached, svgColorVarStyle } from "../assetUtils";
 import { svgTransform as svgTransformGeo, roundedRectPath, buildingArea } from "../geometry";
 import { resolveStreetTiles } from "../types";
@@ -355,6 +355,7 @@ const { viewBox, zoomPercent, spaceDown, panning, zooming, svgRef, RULER_SIZE, f
 
 const wallPaint = useWallPaint({
   disabled: () => store.state.mode === "npc-preview",
+  selection: wallSelection,
   localPoint,
   tileSize: () => canvas.value.tileSize,
   canvasWidth: () => canvas.value.width,

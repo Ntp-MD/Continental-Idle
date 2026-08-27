@@ -1,8 +1,9 @@
-import type { ObjectData, AssetDef, LinkedPart, Rotation, EntityRef, TileState } from '../types'
+import type { ObjectData, AssetDef, LinkedPart, Rotation, EntityRef, TileState, TileEdges, WallSegment } from '../types'
 import { applySvgColorConvention, resolveObjectDef } from '../types'
 import { findAssetCached } from '../assetUtils'
 import { buildingArea, normalizeObject } from '../geometry'
 import { aabbOverlap, objectOverlapsAny, recalcCollapsed } from '../collision'
+import { applyWallSegment } from '../composables/useWallPaint'
 import {
 	state, toast, snap, clamp, assetMap,
 	currentFloor, withStateLock, initAssetFields,
@@ -491,17 +492,18 @@ function namespaceSvgIds(svg: string, ns: string): string {
 		.replace(/\shref="#/g, ` href="#${ns}-`)
 }
 
-export async function flattenToSvgAsset(name?: string): Promise<string | null> {
+export async function flattenToSvgAsset(name?: string, walls?: readonly WallSegment[]): Promise<string | null> {
 	return withStateLock(async () => {
 		const floor = currentFloor.value
 		if (!floor) return null
 		const ids = selectedObjectIds()
-		if (ids.length < 2) {
-			toast.warning('Select at least 2 objects to flatten')
+		const segs = walls ?? []
+		if (ids.length + segs.length < 2) {
+			toast.warning('Select at least 2 items to flatten (Shift+click, box-select picks up walls too)')
 			return null
 		}
 		const objs = ids.map(id => floor.objects.find(o => o.id === id)).filter(Boolean) as ObjectData[]
-		if (objs.length < 2) return null
+		if (objs.length + segs.length < 2) return null
 		if (objs.some(o => o.locked)) {
 			toast.warning('Cannot flatten locked objects - unlock first')
 			return null
@@ -514,6 +516,13 @@ export async function flattenToSvgAsset(name?: string): Promise<string | null> {
 			maxX = Math.max(maxX, obj.x + obj.w)
 			maxY = Math.max(maxY, obj.y + obj.h)
 		}
+		for (const seg of segs) {
+			minX = Math.min(minX, seg.x1, seg.x2)
+			minY = Math.min(minY, seg.y1, seg.y2)
+			maxX = Math.max(maxX, seg.x1, seg.x2)
+			maxY = Math.max(maxY, seg.y1, seg.y2)
+		}
+		if (!Number.isFinite(minX) || !Number.isFinite(minY)) return null
 		minX = snap(Math.round(minX))
 		minY = snap(Math.round(minY))
 		maxX = snap(Math.round(maxX))
@@ -565,9 +574,14 @@ export async function flattenToSvgAsset(name?: string): Promise<string | null> {
 				} else {
 					body = `<rect x="${ox + pad}" y="${oy + pad}" width="${dw}" height="${dh}" fill="${fill}" stroke="${stroke}" stroke-width="1" rx="${obj.radius ?? 0}"/>`
 				}
-				const rot = ((obj.rotation % 360) + 360) % 360
-				svgParts.push(rot === 0 ? body : `<g transform="rotate(${rot} ${ox + pad + dw / 2} ${oy + pad + dh / 2})">${body}</g>`)
-			}
+			const rot = ((obj.rotation % 360) + 360) % 360
+			svgParts.push(rot === 0 ? body : `<g transform="rotate(${rot} ${ox + pad + dw / 2} ${oy + pad + dh / 2})">${body}</g>`)
+		}
+
+		const wallThickness = state.layout.canvas.wallThickness ?? 3
+		for (let wi = 0; wi < segs.length; wi++) {
+			const s = segs[wi]
+			svgParts.push(`<line x1="${s.x1 - minX}" y1="${s.y1 - minY}" x2="${s.x2 - minX}" y2="${s.y2 - minY}" fill="none" stroke="var(--obj-stroke,var(--asset-outline))" stroke-width="${wallThickness}" stroke-linecap="square"/>`)
 		}
 
 		const vbW = totalW
@@ -588,6 +602,16 @@ export async function flattenToSvgAsset(name?: string): Promise<string | null> {
 			tileStates: Array.from({ length: gridH }, () => Array.from({ length: gridW }, () => 'blocked' as TileState)),
 			svg: applySvgColorConvention(innerSvg),
 			svgViewBox: { w: vbW, h: vbH },
+		}
+
+		if (segs.length) {
+			const localEdges: TileEdges[][] = Array.from({ length: gridH }, () =>
+				Array.from({ length: gridW }, () => ({}) as TileEdges),
+			)
+			for (const s of segs) {
+				applyWallSegment(localEdges, { x1: s.x1 - minX, y1: s.y1 - minY, x2: s.x2 - minX, y2: s.y2 - minY }, t, true)
+			}
+			asset.tileEdges = localEdges
 		}
 
 		initAssetFields(asset)
@@ -612,10 +636,16 @@ export async function flattenToSvgAsset(name?: string): Promise<string | null> {
 		recalcCollapsed(floor, assetMap())
 		clearSelection()
 		selectEntity({ type: 'object', id: newObj.id })
+		const sourceEdges = floor.walkable?.tileEdges
+		if (sourceEdges && segs.length) {
+			for (const s of segs) applyWallSegment(sourceEdges, s, t, false)
+		}
 		await saveAssets()
 		await saveLayout()
 
-		toast.success(`Flattened ${objs.length} objects into "${flatName}" - independent asset, no unlink needed`)
+		toast.success(segs.length
+			? `Flattened ${objs.length} object${objs.length === 1 ? '' : 's'} + ${segs.length} wall${segs.length === 1 ? '' : 's'} into "${flatName}"`
+			: `Flattened ${objs.length} objects into "${flatName}" - independent asset, no unlink needed`)
 		return assetId
 	})
 }

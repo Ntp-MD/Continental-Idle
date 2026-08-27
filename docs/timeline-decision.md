@@ -152,3 +152,31 @@ routine fixes, refactors and minor cleanups do NOT belong here.
   snap inward); free-form wall shapes stay in the painted system.
 - Revisit trigger: L-shaped / non-rectangular room assets are requested,
   or live per-object wall thickness separate from canvas config.
+
+### 13. Every load boundary routes through canonical normalize helpers
+
+- Problem: `fetchBlueprintDataFromDisk` and `normalizeBlueprintLayout`
+  spread raw disk JSON into the store via `as` casts (including an
+  `as never`), bypassing `validateLayoutData()` and
+  `normalizeOriginAssetFile()`. Only `npcConfig` was normalized at the
+  load boundary; layout and origin assets entered unvalidated, creating
+  a round-trip vulnerability where malformed/legacy persisted data could
+  corrupt editor state and re-save unvalidated.
+- Final solution: ALL load boundaries now route through the canonical
+  helpers - `fetchBlueprintDataFromDisk` calls `validateLayoutData` +
+  `normalizeOriginAssetFile` + `normalizeNpcConfig` before returning;
+  `normalizeBlueprintLayout` delegates to `validateLayoutData` instead
+  of duplicating validation with raw casts; `loadPersistedSyncPayload`
+  dropped its `as never`/`as AssetDef[]` casts. The save path was
+  already compliant (whitelist serializers + coverage records) and is
+  the contract the load path must mirror. Engine-side queue defaults
+  moved into a new `resolveQueueForTarget` helper paralleling
+  `resolveInteractForTarget`, and corner-radius validation moved into
+  `normalizeCornerRx` so `migrate.ts` and `OriginSettingPanel.vue`
+  share one validator.
+- Trade-off: load now rejects (returns null / throws) on data that
+  previously entered silently - stricter, surfaces corruption instead
+  of hiding it.
+- Revisit trigger: a new ingress path (import, paste, sync receive) is
+  added - it MUST route through the matching `normalize*` /
+  `validateLayoutData` helper at the boundary, never via `as` casts.

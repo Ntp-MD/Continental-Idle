@@ -7,7 +7,7 @@ export function migrateNpcConfig(value: unknown): NpcSimulationConfig {
 	if (!value || typeof value !== 'object') return empty
 	const c = value as Record<string, unknown>
 
-	if (isNpcConfig(c)) return c as NpcSimulationConfig
+	if (isNpcConfig(c)) return c
 
 	const speed = (typeof c.speed === 'number' && isFinite(c.speed)) ? c.speed : empty.speed
 	const defaultRoleId = typeof c.defaultRoleId === 'string' ? c.defaultRoleId : (typeof c.role === 'string' ? c.role : '')
@@ -16,10 +16,11 @@ export function migrateNpcConfig(value: unknown): NpcSimulationConfig {
 	const existingTasks: NpcTask[] = Array.isArray(c.tasks)
 		? c.tasks.filter((t: unknown) => {
 			const rec = t as Record<string, unknown>
-			return rec && typeof rec.id === 'string' && typeof rec.label === 'string' && Array.isArray(rec.tags)
+			return rec && typeof rec.id === 'string' && typeof rec.label === 'string'
+				&& Array.isArray(rec.tags) && rec.tags.every((tag: unknown) => typeof tag === 'string')
 		}).map((t: unknown) => {
-			const rec = t as NpcTask
-			return { id: rec.id, label: rec.label, tags: [...rec.tags] }
+			const rec = t as Record<string, unknown>
+			return { id: rec.id as string, label: rec.label as string, tags: [...(rec.tags as string[])] }
 		})
 		: []
 
@@ -30,20 +31,20 @@ export function migrateNpcConfig(value: unknown): NpcSimulationConfig {
 	type OldRole = { id?: string; label?: string; color?: string; behavior?: { focusTaskId?: string; focusChance?: number; restrictedTaskIds?: string[] }; focusTags?: string[]; restrictedTags?: string[]; taskIds?: string[]; focusChance?: number }
 	let rawRoles: OldRole[] = []
 	if (Array.isArray(c.roles)) {
-		rawRoles = c.roles as OldRole[]
+		rawRoles = c.roles.filter((r: unknown) => r != null && typeof r === 'object') as OldRole[]
 	} else if (c.roleBehaviors && typeof c.roleBehaviors === 'object') {
-		const old = c as unknown as { role: string; roleBehaviors: Record<string, { targetTags: string[]; randomChance: number }> }
+		const roleBehaviors = c.roleBehaviors as Record<string, unknown>
+		const selectedRole = typeof c.role === 'string' ? c.role : ''
 		const legacyColors: Record<string, string> = {
 			guest: '#22d3ee',
 			staff: '#f472b6',
 			visitor: '#a78bfa',
 			assassin: '#ef4444',
 		}
-		for (const roleId of Object.keys(old.roleBehaviors ?? {})) {
+		for (const roleId of Object.keys(roleBehaviors ?? {})) {
 			rawRoles.push({ id: roleId, label: roleId.charAt(0).toUpperCase() + roleId.slice(1), color: legacyColors[roleId] ?? '#3b82f6' })
 		}
-		const selectedRole = old.role
-		if (!rawRoles.some(r => r.id === selectedRole)) {
+		if (selectedRole && !rawRoles.some(r => r.id === selectedRole)) {
 			rawRoles.push({ id: selectedRole, label: selectedRole.charAt(0).toUpperCase() + selectedRole.slice(1), color: legacyColors[selectedRole] ?? '#22d3ee' })
 		}
 	}

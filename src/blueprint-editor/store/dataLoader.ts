@@ -1,5 +1,5 @@
 import type { AssetDef, BlueprintDataFile, BlueprintTagDefinition, FloorLayoutData, NpcSimulationConfig, CanvasConfig, ObjectData, OriginAssetFile, PersistedFloorLayoutData } from '../types'
-import { normalizeOriginAssetFile, normalizeNpcConfig } from '../types'
+import { normalizeOriginAssetFile, normalizeNpcConfig, validateLayoutData } from '../types'
 import { serializeAsset, serializeObject } from '../assetUtils'
 import { EDITOR_CONFIG } from '../editorConfig'
 import { migrateNpcConfig } from './migrateNpc'
@@ -35,7 +35,7 @@ export function buildBlueprintData(
 		$schema: 'blueprint-data.v1.json',
 		version: 1,
 		tags: tags.map(tag => ({ ...tag })),
-		originAssets: assets.map(serializeAsset) as unknown as AssetDef[],
+		originAssets: assets.map(serializeAsset),
 		layout: {
 			...layout,
 			npcConfig: undefined,
@@ -52,10 +52,29 @@ export async function fetchBlueprintDataFromDisk(): Promise<BlueprintDataFile | 
 	try {
 		const res = await fetch(EDITOR_CONFIG.blueprintDataEndpoint)
 		if (!res.ok) return null
-		const raw = await res.json() as Partial<BlueprintDataFile>
+		const raw = await res.json() as Record<string, unknown>
 		const config = normalizeNpcConfig(raw.npcConfig)
-		if (!raw.layout || !Array.isArray(raw.originAssets) || !config || !Array.isArray(raw.tags)) return null
-		return { ...buildBlueprintData(), ...raw, npcConfig: config }
+		if (!config) return null
+		const layout = validateLayoutData(raw.layout)
+		if (!layout) return null
+		const assetFile = normalizeOriginAssetFile({
+			$schema: 'origin-assets.v1.json',
+			version: 1,
+			originAssets: raw.originAssets,
+		})
+		if (!assetFile) return null
+		const tags: BlueprintTagDefinition[] = Array.isArray(raw.tags)
+			? raw.tags.filter((t): t is BlueprintTagDefinition =>
+				t != null && typeof t === 'object' && typeof t.id === 'string' && typeof t.label === 'string')
+			: []
+		return {
+			$schema: typeof raw.$schema === 'string' ? raw.$schema : 'blueprint-data.v1.json',
+			version: typeof raw.version === 'number' ? raw.version : 1,
+			tags,
+			originAssets: assetFile.originAssets,
+			layout: layout as PersistedFloorLayoutData,
+			npcConfig: config,
+		}
 	} catch {
 		return null
 	}
@@ -76,13 +95,12 @@ export function buildSavedLayout(): FloorLayoutData {
 function normalizeBlueprintLayout(raw: unknown): BlueprintLayoutFile {
 	const r = raw as Record<string, unknown>
 	if (!r || typeof r !== 'object') throw new Error('floorPlan.data.ts: invalid structure - expected an object')
-	if (typeof r.version !== 'number' || !isFinite(r.version)) throw new Error('floorPlan.data.ts: version must be a finite number')
-	if (!r.canvas || typeof r.canvas !== 'object') throw new Error('floorPlan.data.ts: canvas must be an object')
-	if (!Array.isArray(r.floors)) throw new Error('floorPlan.data.ts: floors must be an array')
+	const layout = validateLayoutData(r)
+	if (!layout) throw new Error('floorPlan.data.ts: failed layout validation (version, canvas, or floors invalid)')
 	return {
 		$schema: typeof r.$schema === 'string' ? r.$schema : 'blueprint-layout.v1.json',
-		version: r.version,
-		canvas: r.canvas as CanvasConfig,
-		floors: r.floors as PersistedFloorLayoutData['floors'],
+		version: layout.version,
+		canvas: layout.canvas,
+		floors: layout.floors as PersistedFloorLayoutData['floors'],
 	}
 }

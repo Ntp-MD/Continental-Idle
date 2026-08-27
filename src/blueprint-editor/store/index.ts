@@ -1,4 +1,4 @@
-import { state, currentFloor, snap, assetMap, dragState } from './state'
+import { state, currentFloor, snap, assetMap, dragState, wallSelection, clearWallSelection } from './state'
 import {
 	addFloor, deleteFloor, duplicateFloor, renameFloor,
 	reorderFloors, selectFloor, updateFloor,
@@ -50,7 +50,7 @@ export { selectedObject, selectedAsset, selectAsset, selectedObjectIds, clearSel
 export { getLinkedObjects } from './utils'
 export { setMode, setWallPaint, resizeCanvas, setCanvasBgColor, setCanvasLabelColor, setWallColor, setWallThickness, setStreetFloor, setStreetWidth } from './mode'
 export { tagCatalog, globalTags, managedTagSet, addTag, removeTag, ensureTag } from './tags'
-export { dragState, startAssetDrag, endAssetDrag } from './state'
+export { dragState, startAssetDrag, endAssetDrag, wallSelection, clearWallSelection } from './state'
 
 export function useAssetsStore() {
 	return {
@@ -59,6 +59,8 @@ export function useAssetsStore() {
 		snap,
 		assetMap,
 		dragState,
+		wallSelection,
+		clearWallSelection,
 		addFloor, deleteFloor, duplicateFloor, renameFloor,
 		reorderFloors, selectFloor, updateFloor,
 		beginDrawnObject, addObject, canPlaceObject, select, toggleMultiSelect, deleteSelected,

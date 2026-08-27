@@ -1,5 +1,5 @@
 import type { FloorLayoutData, ObjectData, AssetBase, AssetDef, LinkedPart, Rotation } from '../types'
-import { isAssetDef, validateLayoutData, validateLayoutIntegrity, normalizeInteractSpots, normalizeInteractConfig, normalizeTileEdges, normalizeWalkableGrid, normalizeTileStates, normalizeAllowedRoleIds, normalizeNpcSpawnZones, normalizeFloorWalkable, normalizeObjectPlacement, isValidColor, parseCanvasConfig } from '../types'
+import { isAssetDef, validateLayoutData, validateLayoutIntegrity, normalizeInteractSpots, normalizeInteractConfig, normalizeTileEdges, normalizeWalkableGrid, normalizeTileStates, normalizeAllowedRoleIds, normalizeNpcSpawnZones, normalizeFloorWalkable, normalizeObjectPlacement, normalizeCornerRx, isValidColor, parseCanvasConfig } from '../types'
 import { findAssetCached, buildAssetMap, validatePortalConfiguration } from '../assetUtils'
 import { normalizeObject, snap } from '../geometry'
 import { recalcCollapsed } from '../collision'
@@ -152,7 +152,8 @@ export function migrate(data: unknown): { layout: FloorLayoutData; legacyAssets:
 						if (typeof o.isWall === 'boolean') base.isWall = o.isWall
 
 
-						if (typeof o.rx === 'object' && o.rx !== null) base.rx = o.rx as ObjectData['rx']
+						const rx = normalizeCornerRx(o.rx)
+					if (rx) base.rx = rx
 						return base
 					}) : [],
 					defaultWalkable: typeof fRec.defaultWalkable === 'boolean' ? fRec.defaultWalkable : true,

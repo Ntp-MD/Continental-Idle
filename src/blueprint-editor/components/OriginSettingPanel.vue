@@ -3,7 +3,7 @@ import { ref, watch, computed, nextTick } from "vue";
 import { useAssetsStore } from "../blueprintStore";
 import { useToast } from "@/composables/useToast";
 import type { AssetDef } from "../types";
-import { isHexColor, isValidColor } from "../types";
+import { isHexColor, isValidColor, normalizeCornerRx } from "../types";
 import ColorInput from "./ColorInput.vue";
 
 const props = defineProps<{ asset: AssetDef }>();
@@ -128,11 +128,8 @@ async function toggleUsePx() {
 
 async function commitRx() {
   const { rxTL, rxTR, rxBR, rxBL } = dimFields.value;
-  if (rxTL === 0 && rxTR === 0 && rxBR === 0 && rxBL === 0) {
-    await store.updateAsset(props.asset.id, { defaultRx: undefined });
-  } else {
-    await store.updateAsset(props.asset.id, { defaultRx: { tl: rxTL, tr: rxTR, br: rxBR, bl: rxBL } });
-  }
+  const normalized = normalizeCornerRx({ tl: rxTL, tr: rxTR, br: rxBR, bl: rxBL });
+  await store.updateAsset(props.asset.id, { defaultRx: normalized });
 }
 
 async function onRxInput(corner: "rxTL" | "rxTR" | "rxBR" | "rxBL") {

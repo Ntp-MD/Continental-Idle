@@ -1,5 +1,5 @@
-import { reactive, computed } from 'vue'
-import type { BlueprintTagDefinition, FloorLayoutData, AssetDef, FloorData, EditorMode, SelectionState, Rect, NpcSimulationConfig } from '../types'
+import { reactive, computed, ref } from 'vue'
+import type { BlueprintTagDefinition, FloorLayoutData, AssetDef, FloorData, EditorMode, SelectionState, Rect, NpcSimulationConfig, WallSegment } from '../types'
 import { buildAssetMap, parseSvgRoles, buildWalkableGrid } from '../assetUtils'
 import { snap as _snap, clamp as _clamp, buildingArea } from '../geometry'
 import { originAssets, blueprintTagDefinitions, fetchBlueprintDataFromDisk, buildBlueprintData } from './dataLoader'
@@ -37,6 +37,15 @@ export async function withStateLock<T>(fn: () => Promise<T>): Promise<T> {
 }
 
 export const dragState = reactive<{ assetId: string | null }>({ assetId: null })
+
+export interface WallSelectionEntry {
+	floorId: string
+	segment: WallSegment
+}
+export const wallSelection = ref<WallSelectionEntry[]>([])
+export function clearWallSelection(): void {
+	wallSelection.value = []
+}
 
 export function startAssetDrag(assetId: string) {
 	dragState.assetId = assetId
