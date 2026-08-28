@@ -6,9 +6,9 @@ import { useConfirm } from "@/composables/useConfirm";
 import { renderSvgInto } from "../svgSanitizer";
 import { assetSvgVarStyle } from "../assetUtils";
 import type { AssetDef, TileState, InteractSpot } from "../types";
-import { normalizeInteractConfig, normalizeNpcQueueConfig, resolveInteractForTarget } from "../types";
+import { normalizeInteractConfig, normalizeNpcQueueConfig, resolveInteractForTarget, normalizeEditorSettings } from "../types";
 
-type TileEdges = { top?: boolean; right?: boolean; bottom?: boolean; left?: boolean };
+type TileEdges = { top?: boolean; right?: boolean; bottom?: boolean; left?: boolean; doorTop?: boolean; doorRight?: boolean; doorBottom?: boolean; doorLeft?: boolean };
 
 type BorderSide = "top" | "right" | "bottom" | "left";
 
@@ -22,7 +22,7 @@ const gridAsset = computed(() => props.asset);
 const gridTiles = ref<TileState[][]>([]);
 const gridEdges = ref<TileEdges[][]>([]);
 const walkBrush = ref<TileState>("walkable");
-const entranceBrush = ref<"door" | "border">("door");
+const doorBrush = ref<"door" | "border">("door");
 const isDraggingGrid = ref(false);
 const gridDirty = ref(false);
 const savedGridKey = ref("");
@@ -84,8 +84,15 @@ function flushAutoSave() {
   }
 }
 
-const DISPLAY_TILE_SIZE = 30;
-const tilePx = computed(() => DISPLAY_TILE_SIZE);
+const editorSettings = computed(() => normalizeEditorSettings(store.state.layout.editorSettings));
+const tilePx = computed(() => {
+  if (!gridAsset.value) return 30;
+  const cols = gridAsset.value.w;
+  const rows = gridAsset.value.h;
+  const maxByWidth = Math.floor(editorSettings.value.walkableGridMaxWidthPx / Math.max(1, cols));
+  const maxByHeight = Math.floor(editorSettings.value.walkableGridMaxHeightPx / Math.max(1, rows));
+  return Math.max(editorSettings.value.walkableGridMinTilePx, Math.min(editorSettings.value.walkableGridMaxTilePx, Math.min(maxByWidth, maxByHeight)));
+});
 
 function assetPixelSize(a: AssetDef): { w: number; h: number } {
   const vb = a.svgViewBox;
@@ -221,21 +228,34 @@ watch(
 function wallSegmentsToEdges(segments: AssetDef["wallSegments"], rows: number, cols: number): TileEdges[][] {
   const edges = Array.from({ length: rows }, () => Array.from({ length: cols }, () => ({}) as TileEdges));
   for (const segment of segments ?? []) {
+    const isDoor = segment.door === true;
     if (segment.y1 === segment.y2) {
       const boundary = Math.round(segment.y1);
       const start = Math.round(Math.min(segment.x1, segment.x2));
       const end = Math.max(start + 1, Math.round(Math.max(segment.x1, segment.x2)));
       for (let col = start; col < end; col++) {
-        if (boundary >= 0 && boundary < rows && col >= 0 && col < cols) edges[boundary][col].top = true;
-        if (boundary - 1 >= 0 && boundary - 1 < rows && col >= 0 && col < cols) edges[boundary - 1][col].bottom = true;
+        if (boundary >= 0 && boundary < rows && col >= 0 && col < cols) {
+          edges[boundary][col].top = true;
+          if (isDoor) edges[boundary][col].doorTop = true;
+        }
+        if (boundary - 1 >= 0 && boundary - 1 < rows && col >= 0 && col < cols) {
+          edges[boundary - 1][col].bottom = true;
+          if (isDoor) edges[boundary - 1][col].doorBottom = true;
+        }
       }
     } else {
       const boundary = Math.round(segment.x1);
       const start = Math.round(Math.min(segment.y1, segment.y2));
       const end = Math.max(start + 1, Math.round(Math.max(segment.y1, segment.y2)));
       for (let row = start; row < end; row++) {
-        if (row >= 0 && row < rows && boundary >= 0 && boundary < cols) edges[row][boundary].left = true;
-        if (row >= 0 && row < rows && boundary - 1 >= 0 && boundary - 1 < cols) edges[row][boundary - 1].right = true;
+        if (row >= 0 && row < rows && boundary >= 0 && boundary < cols) {
+          edges[row][boundary].left = true;
+          if (isDoor) edges[row][boundary].doorLeft = true;
+        }
+        if (row >= 0 && row < rows && boundary - 1 >= 0 && boundary - 1 < cols) {
+          edges[row][boundary - 1].right = true;
+          if (isDoor) edges[row][boundary - 1].doorRight = true;
+        }
       }
     }
   }
@@ -244,20 +264,24 @@ function wallSegmentsToEdges(segments: AssetDef["wallSegments"], rows: number, c
 
 function edgesToWallSegments(edges: TileEdges[][]): NonNullable<AssetDef["wallSegments"]> {
   const segments: NonNullable<AssetDef["wallSegments"]> = [];
-  const seen = new Set<string>();
-  const add = (segment: { x1: number; y1: number; x2: number; y2: number }) => {
+  const seen = new Map<string, number>();
+  const add = (segment: { x1: number; y1: number; x2: number; y2: number }, door: boolean) => {
     const key = `${segment.x1},${segment.y1},${segment.x2},${segment.y2}`;
-    if (seen.has(key)) return;
-    seen.add(key);
-    segments.push(segment);
+    const idx = seen.get(key);
+    if (idx !== undefined) {
+      if (door) segments[idx].door = true;
+      return;
+    }
+    seen.set(key, segments.length);
+    segments.push(door ? { ...segment, door: true } : segment);
   };
   for (let row = 0; row < edges.length; row++) {
     for (let col = 0; col < (edges[row]?.length ?? 0); col++) {
       const edge = edges[row][col];
-      if (edge.top) add({ x1: col, y1: row, x2: col + 1, y2: row });
-      if (edge.bottom) add({ x1: col, y1: row + 1, x2: col + 1, y2: row + 1 });
-      if (edge.left) add({ x1: col, y1: row, x2: col, y2: row + 1 });
-      if (edge.right) add({ x1: col + 1, y1: row, x2: col + 1, y2: row + 1 });
+      if (edge.top) add({ x1: col, y1: row, x2: col + 1, y2: row }, !!edge.doorTop);
+      if (edge.bottom) add({ x1: col, y1: row + 1, x2: col + 1, y2: row + 1 }, !!edge.doorBottom);
+      if (edge.left) add({ x1: col, y1: row, x2: col, y2: row + 1 }, !!edge.doorLeft);
+      if (edge.right) add({ x1: col + 1, y1: row, x2: col + 1, y2: row + 1 }, !!edge.doorRight);
     }
   }
   return segments;
@@ -401,15 +425,28 @@ function onWalkTileEnter(r: number, c: number) {
   paintTile(r, c, walkBrush.value);
 }
 
-function onEntranceTileDown(r: number, c: number, e: MouseEvent) {
+function onDoorTileDown(r: number, c: number, e: MouseEvent) {
   const side = detectEdgeSide(e);
-  if (entranceBrush.value === "border" && side) {
+  if (!side) return;
+  if (doorBrush.value === "border") {
     toggleEdgeAt(r, c, side);
     return;
   }
-  gridTiles.value[r][c] = "entrance";
-  clearOuterWallsForTile(r, c);
+  toggleDoorAt(r, c, side);
   checkGridDirty();
+}
+
+function toggleDoorAt(r: number, c: number, side: BorderSide) {
+  const e = gridEdges.value[r]?.[c];
+  if (!e) return;
+  const key = `door${side.charAt(0).toUpperCase() + side.slice(1)}` as keyof TileEdges;
+  if (e[key]) {
+    delete e[key];
+  } else {
+    const wallKey = side as keyof TileEdges;
+    if (!e[wallKey]) e[wallKey] = true;
+    e[key] = true;
+  }
 }
 
 function onInteractSpotTileDown(r: number, c: number) {
@@ -460,11 +497,10 @@ function blockOuterSides() {
     for (let c = 0; c < cols; c++) {
       const e = gridEdges.value[r][c];
       if (!e) continue;
-      const isEntrance = gridTiles.value[r]?.[c] === "entrance";
-      if (r === 0) e.top = !isEntrance;
-      if (r === rows - 1) e.bottom = !isEntrance;
-      if (c === 0) e.left = !isEntrance;
-      if (c === cols - 1) e.right = !isEntrance;
+      if (r === 0) e.top = true;
+      if (r === rows - 1) e.bottom = true;
+      if (c === 0) e.left = true;
+      if (c === cols - 1) e.right = true;
     }
   }
   checkGridDirty();
@@ -485,9 +521,13 @@ function clearAllEdges() {
 }
 
 function clearAllDoors() {
-  for (const row of gridTiles.value) {
-    for (let i = 0; i < row.length; i++) {
-      if (row[i] === "entrance") row[i] = "walkable";
+  for (const row of gridEdges.value) {
+    for (const e of row) {
+      if (!e) continue;
+      delete e.doorTop;
+      delete e.doorRight;
+      delete e.doorBottom;
+      delete e.doorLeft;
     }
   }
   checkGridDirty();
@@ -505,17 +545,15 @@ function walkTileIcon(state: TileState): string {
   return state === "blocked" ? "x" : "";
 }
 
-function entranceTileBg(state: TileState): string {
-  if (state === "entrance") return "color-mix(in srgb, var(--accent-blue) 22%, transparent)";
+function doorTileBg(state: TileState): string {
   if (state === "blocked") return "color-mix(in srgb, var(--bg-primary) 60%, transparent)";
   return "color-mix(in srgb, var(--bg-primary) 80%, transparent)";
 }
-function entranceTileBorder(state: TileState): string {
-  if (state === "entrance") return "1px solid var(--accent-blue)";
+function doorTileBorder(state: TileState): string {
   return "1px solid var(--border-dim)";
 }
-function entranceTileIcon(state: TileState): string {
-  return state === "entrance" ? "->" : "";
+function doorTileIcon(_state: TileState): string {
+  return "";
 }
 
 function interactSpotTileBg(state: TileState): string {
@@ -547,7 +585,7 @@ interface GridConfig {
   disabled?: boolean;
 }
 
-type GridTab = "walk" | "entrance" | "interactspots";
+type GridTab = "walk" | "door" | "interactspots";
 
 const gridConfigs = computed<GridConfig[]>(() => [
   {
@@ -570,17 +608,17 @@ const gridConfigs = computed<GridConfig[]>(() => [
     showColFill: true,
   },
   {
-    key: "entrance",
+    key: "door",
     label: "Doors & Edges",
     disabled: walkthrough.value,
     tools: [
-      { label: "Door", active: entranceBrush.value === "door", onClick: () => (entranceBrush.value = "door") },
-      { label: "Edge", active: entranceBrush.value === "border", onClick: () => (entranceBrush.value = "border") },
+      { label: "Door", active: doorBrush.value === "door", onClick: () => (doorBrush.value = "door") },
+      { label: "Edge", active: doorBrush.value === "border", onClick: () => (doorBrush.value = "border") },
     ],
-    tileBg: entranceTileBg,
-    tileBorder: entranceTileBorder,
-    tileIcon: entranceTileIcon,
-    onTileDown: (r, c, e) => onEntranceTileDown(r, c, e),
+    tileBg: doorTileBg,
+    tileBorder: doorTileBorder,
+    tileIcon: doorTileIcon,
+    onTileDown: (r, c, e) => onDoorTileDown(r, c, e),
     actions: [
       { label: "Outer Walls", onClick: blockOuterSides },
       { label: "Clear Doors", onClick: clearAllDoors },
@@ -613,7 +651,7 @@ async function saveGrid() {
   const a = gridAsset.value;
   if (!a) return;
   const states = gridTiles.value.map((row) => [...row]);
-  const grid = states.map((row) => row.map((t) => t === "walkable" || t === "entrance"));
+  const grid = states.map((row) => row.map((t) => t === "walkable"));
   const wallSegments = edgesToWallSegments(gridEdges.value);
   const interactSpots = gridInteractSpots.value.map((p) => ({ ...p }));
   const interact = normalizeInteractConfig({
@@ -668,8 +706,8 @@ onBeforeUnmount(() => {
         <div class="walkablegrid__legend">
           <span class="walkablegrid__legenditem"><span class="walkablegrid__dot" :style="{ background: 'color-mix(in srgb, var(--accent-green) 30%, transparent)', border: '1px solid var(--accent-green)' }"></span>Walkable</span>
           <span class="walkablegrid__legenditem"><span class="walkablegrid__dot" :style="{ background: 'color-mix(in srgb, var(--accent-red) 30%, transparent)', border: '1px solid var(--accent-red)' }"></span>Blocked</span>
-          <span class="walkablegrid__legenditem"><span class="walkablegrid__dot" :style="{ background: 'color-mix(in srgb, var(--accent-blue) 30%, transparent)', border: '1px solid var(--accent-blue)' }"></span>Entrance</span>
-          <span class="walkablegrid__legenditem"><span class="walkablegrid__dot walkablegrid__dot--edge"></span>Wall edge</span>
+          <span class="walkablegrid__legenditem"><span class="walkablegrid__dot walkablegrid__dot--edge" :style="{ background: 'var(--accent-gold)' }"></span>Wall edge</span>
+          <span class="walkablegrid__legenditem"><span class="walkablegrid__dot walkablegrid__dot--edge" :style="{ background: 'var(--accent-blue)' }"></span>Door (door edge)</span>
         </div>
         <div v-if="activeGridConfig?.key === 'interactspots'" class="form__row form__row--wrap form__row--border">
           <label class="form__row form__row--tight">Capacity <input v-model.number="interactCapacity" type="number" min="0" :placeholder="String(gridInteractSpots.length)" @input="checkGridDirty" /></label>
@@ -697,8 +735,10 @@ onBeforeUnmount(() => {
                 @mousedown.prevent="activeGridConfig.onTileDown(r, c, $event)"
                 @mouseenter="activeGridConfig.onTileEnter?.(r, c)"
               >
-                {{ activeGridConfig.tileIcon(state) }}<span v-if="activeGridConfig.overlay === 'edges' && gridEdges[r]?.[c]?.top" class="walkablegrid__mark walkablegrid__edge--top"></span><span v-if="activeGridConfig.overlay === 'edges' && gridEdges[r]?.[c]?.right" class="walkablegrid__mark walkablegrid__edge--right"></span
-                ><span v-if="activeGridConfig.overlay === 'edges' && gridEdges[r]?.[c]?.bottom" class="walkablegrid__mark walkablegrid__edge--bottom"></span><span v-if="activeGridConfig.overlay === 'edges' && gridEdges[r]?.[c]?.left" class="walkablegrid__mark walkablegrid__edge--left"></span
+                {{ activeGridConfig.tileIcon(state) }}<span v-if="activeGridConfig.overlay === 'edges' && gridEdges[r]?.[c]?.top" class="walkablegrid__mark walkablegrid__edge--top" :class="{ 'walkablegrid__edge--door': gridEdges[r]?.[c]?.doorTop }"></span
+                ><span v-if="activeGridConfig.overlay === 'edges' && gridEdges[r]?.[c]?.right" class="walkablegrid__mark walkablegrid__edge--right" :class="{ 'walkablegrid__edge--door': gridEdges[r]?.[c]?.doorRight }"></span
+                ><span v-if="activeGridConfig.overlay === 'edges' && gridEdges[r]?.[c]?.bottom" class="walkablegrid__mark walkablegrid__edge--bottom" :class="{ 'walkablegrid__edge--door': gridEdges[r]?.[c]?.doorBottom }"></span
+                ><span v-if="activeGridConfig.overlay === 'edges' && gridEdges[r]?.[c]?.left" class="walkablegrid__mark walkablegrid__edge--left" :class="{ 'walkablegrid__edge--door': gridEdges[r]?.[c]?.doorLeft }"></span
                 ><span v-for="a in activeGridConfig.overlay === 'interactspots' ? interactSpotsInTile(r, c) : []" :key="'interactspot_' + a.i" class="walkablegrid__mark walkablegrid__spot" :title="'NPC interactspot IS' + (a.i + 1) + ' (' + gridInteractSpots[a.i].x + ', ' + gridInteractSpots[a.i].y + ')'"></span>
               </button>
             </template>
@@ -908,6 +948,10 @@ onBeforeUnmount(() => {
 .walkablegrid__edge--bottom,
 .walkablegrid__edge--left {
   background: var(--accent-gold);
+}
+
+.walkablegrid__edge--door {
+  background: var(--accent-blue);
 }
 
 .walkablegrid__edge--top {

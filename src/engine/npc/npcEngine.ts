@@ -11,15 +11,6 @@ import type {
 
 const DEFAULT_TICKS_PER_SECOND = 60
 const EPSILON = 0.000001
-const CROSS_FLOOR_COOLDOWN_SECONDS = 30
-const PROGRESS_WATCHDOG_TICKS = 120
-const MAX_REPATH_ATTEMPTS = 4
-const REPATH_COOLDOWN_SECONDS = 2
-const REPATH_COOLDOWN_EXPONENT = 1.5
-const PATH_BUDGET_MIN_PER_TICK = 2
-const PATH_BUDGET_AGENTS_PER_CALL = 100
-const CHOOSE_TARGET_MIN_PER_TICK = 8
-const CHOOSE_TARGET_AGENTS_PER_SLOT = 20
 
 const EXIT_DIRECTIONS: readonly NpcEnginePoint[] = [
 	{ x: 1, y: 0 },
@@ -226,15 +217,15 @@ export class NpcEngine {
 			}
 			if (agent.status === 'interacting') {
 				agent.interactionRemainingTicks--
-			if (agent.interactionRemainingTicks <= 0) {
-				const itemId = agent.reservationItemId ?? undefined
-				const interactSpotId = agent.reservationInteractSpotId ?? undefined
-				this.releaseReservation(agent)
-				releasedInteractions.add(agent.id)
-				this.releasedThisTick.add(agent.id)
-				if (!this.standsOnInteractionSpot(agent) || !this.vacateSpotCell(agent)) agent.status = 'idle'
-				this.emit({ type: 'interaction-end', agentId: agent.id, floorId: agent.floorId, itemId, interactSpotId })
-			}
+				if (agent.interactionRemainingTicks <= 0) {
+					const itemId = agent.reservationItemId ?? undefined
+					const interactSpotId = agent.reservationInteractSpotId ?? undefined
+					this.releaseReservation(agent)
+					releasedInteractions.add(agent.id)
+					this.releasedThisTick.add(agent.id)
+					if (!this.standsOnInteractionSpot(agent) || !this.vacateSpotCell(agent)) agent.status = 'idle'
+					this.emit({ type: 'interaction-end', agentId: agent.id, floorId: agent.floorId, itemId, interactSpotId })
+				}
 				continue
 			}
 
@@ -248,7 +239,7 @@ export class NpcEngine {
 				const lastTick = this.lastChooseTargetTick.get(agent.id) ?? -Infinity
 				const due = this.tickCount - lastTick >= NpcEngine.CHOOSE_TARGET_INTERVAL
 				if (justReleased || due) {
-					if (this.chooseTargetCallsThisTick >= Math.max(CHOOSE_TARGET_MIN_PER_TICK, Math.ceil(this.agents.size / CHOOSE_TARGET_AGENTS_PER_SLOT))) {
+					if (this.chooseTargetCallsThisTick >= Math.max(this.options.chooseTargetMinPerTick, Math.ceil(this.agents.size / this.options.chooseTargetAgentsPerSlot))) {
 						this.lastChooseTargetTick.set(agent.id, this.tickCount - (NpcEngine.CHOOSE_TARGET_INTERVAL - 1))
 						continue
 					}
@@ -389,7 +380,7 @@ export class NpcEngine {
 		}
 
 		const stuckTicks = this.tickCount - (stuckSince ?? this.tickCount)
-		if (stuckTicks >= PROGRESS_WATCHDOG_TICKS) {
+		if (stuckTicks >= this.options.progressWatchdogTicks) {
 			this.forceRepath(agent)
 			return
 		}
@@ -410,8 +401,11 @@ export class NpcEngine {
 
 	private attemptRepath(agent: MutableAgent): void {
 		if (this.pathBudgetExceeded()) return
+		const maxAttempts = this.options.maxRepathAttempts
+		const cooldownSeconds = this.options.repathCooldownSeconds
+		const cooldownExponent = this.options.repathCooldownExponent
 		const attempts = this.repathAttempts.get(agent.id) ?? 0
-		if (attempts >= MAX_REPATH_ATTEMPTS) {
+		if (attempts >= maxAttempts) {
 			this.emit({ type: 'repath-failed', agentId: agent.id, floorId: agent.floorId, itemId: agent.reservationItemId ?? undefined, interactSpotId: agent.reservationInteractSpotId ?? undefined })
 			this.markBlocked(agent)
 			this.releaseReservation(agent)
@@ -419,7 +413,7 @@ export class NpcEngine {
 			agent.pathIndex = 0
 			this.setWaiting(agent)
 			this.repathAttempts.set(agent.id, 0)
-			this.repathCooldownUntil.set(agent.id, this.tickCount + this.ticksPerSecond * REPATH_COOLDOWN_SECONDS * Math.pow(2, MAX_REPATH_ATTEMPTS))
+			this.repathCooldownUntil.set(agent.id, this.tickCount + this.ticksPerSecond * cooldownSeconds * Math.pow(2, maxAttempts))
 			return
 		}
 
@@ -442,7 +436,7 @@ export class NpcEngine {
 			agent.pathIndex = 0
 			this.setWaiting(agent)
 			this.repathAttempts.set(agent.id, attempts + 1)
-			this.repathCooldownUntil.set(agent.id, this.tickCount + this.ticksPerSecond * REPATH_COOLDOWN_SECONDS * Math.pow(REPATH_COOLDOWN_EXPONENT, attempts))
+			this.repathCooldownUntil.set(agent.id, this.tickCount + this.ticksPerSecond * cooldownSeconds * Math.pow(cooldownExponent, attempts))
 			return
 		}
 
@@ -450,7 +444,7 @@ export class NpcEngine {
 		agent.pathIndex = samePoint(agent.path[0], agent) ? 1 : 0
 		this.emit({ type: 'repath', agentId: agent.id, floorId: agent.floorId })
 		this.repathAttempts.set(agent.id, attempts + 1)
-		this.repathCooldownUntil.set(agent.id, this.tickCount + this.ticksPerSecond * REPATH_COOLDOWN_SECONDS * Math.pow(REPATH_COOLDOWN_EXPONENT, attempts))
+		this.repathCooldownUntil.set(agent.id, this.tickCount + this.ticksPerSecond * cooldownSeconds * Math.pow(cooldownExponent, attempts))
 	}
 
 	private forceRepath(agent: MutableAgent): void {
@@ -632,7 +626,7 @@ export class NpcEngine {
 	}
 
 	private pathBudgetExceeded(): boolean {
-		return this.pathCallsThisTick >= Math.max(PATH_BUDGET_MIN_PER_TICK, Math.ceil(this.agents.size / PATH_BUDGET_AGENTS_PER_CALL))
+		return this.pathCallsThisTick >= Math.max(this.options.pathBudgetMinPerTick, Math.ceil(this.agents.size / this.options.pathBudgetAgentsPerCall))
 	}
 
 	private chooseTarget(agent: MutableAgent): void {
@@ -784,7 +778,7 @@ export class NpcEngine {
 			agent.y = destEndpoint.y
 			this.syncCellReservation(agent)
 
-			agent.crossFloorCooldownUntil = this.tickCount + CROSS_FLOOR_COOLDOWN_SECONDS * this.ticksPerSecond
+			agent.crossFloorCooldownUntil = this.tickCount + this.options.crossFloorCooldownSeconds * this.ticksPerSecond
 
 			this.emit({ type: 'floor-transition', agentId: agent.id, floorId: target.transitionToFloorId, fromFloorId, toFloorId: target.transitionToFloorId })
 

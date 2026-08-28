@@ -17,7 +17,7 @@ export interface SvgRoleInfo {
 	attrs?: Record<string, string>
 }
 
-export type TileState = 'walkable' | 'blocked' | 'entrance'
+export type TileState = 'walkable' | 'blocked' | 'door'
 
 export type WalkableGrid = boolean[][]
 
@@ -31,34 +31,102 @@ export interface WallSegment {
 	y1: number
 	x2: number
 	y2: number
+	door?: boolean
+}
+
+const MAX_DATA_STRING_LENGTH = 512
+const MAX_SVG_ATTRIBUTE_LENGTH = 4096
+const MAX_SVG_LENGTH = 250_000
+const MAX_GRID_ROWS = 256
+const MAX_GRID_COLUMNS = 256
+const MAX_WALL_SEGMENTS = 2048
+const MAX_INTERACT_SPOTS = 512
+const MAX_SVG_ROLES = 512
+const MAX_ASSET_DIMENSION = 10_000
+const MAX_PIXEL_DIMENSION = 1_000_000
+const MAX_ASSETS = 1000
+const MAX_FLOORS = 100
+const MAX_OBJECTS_PER_FLOOR = 10_000
+const MAX_NPC_ENTRIES = 1000
+const SAFE_SVG_TAGS = new Set(['svg', 'g', 'path', 'rect', 'circle', 'ellipse', 'line', 'polygon', 'polyline', 'text', 'tspan'])
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return !!value && typeof value === 'object' && !Array.isArray(value)
+}
+
+function hasOwn(record: Record<string, unknown>, key: string): boolean {
+	return Object.prototype.hasOwnProperty.call(record, key)
+}
+
+function normalizeText(value: unknown, maxLength = MAX_DATA_STRING_LENGTH): string | undefined {
+	if (typeof value !== 'string') return undefined
+	const text = value.trim()
+	return text && text.length <= maxLength && !/[\u0000-\u001f\u007f]/.test(text) ? text : undefined
+}
+
+function normalizeIdentifier(value: unknown, maxLength = 128): string | undefined {
+	const identifier = normalizeText(value, maxLength)
+	return identifier && /^[a-z0-9_][a-z0-9._:-]*$/i.test(identifier) ? identifier : undefined
+}
+
+export function normalizeTag(value: unknown): string | undefined {
+	const tag = normalizeText(value, 128)?.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9_-]/g, '')
+	return tag || undefined
+}
+
+function isFiniteNumber(value: unknown): value is number {
+	return typeof value === 'number' && Number.isFinite(value)
+}
+
+export function isSafeSvgMarkup(svg: string): boolean {
+	if (!svg || svg.length > MAX_SVG_LENGTH) return false
+	const tagPattern = /<\s*([a-z][a-z0-9:-]*)\b/gi
+	let tagMatch: RegExpExecArray | null
+	while ((tagMatch = tagPattern.exec(svg)) !== null) {
+		if (!SAFE_SVG_TAGS.has(tagMatch[1].toLowerCase())) return false
+	}
+	return !/<\s*!\s*(?:DOCTYPE|ENTITY)\b/i.test(svg)
+		&& !/\bon[\w:-]+\s*=/i.test(svg)
+		&& !/\bstyle\s*=\s*["'][^"']*(?:expression\s*\(|javascript:|vbscript:|mhtml:|@import|behavior:|binding:|url\s*\()/i.test(svg)
+		&& !/\b(?:href|xlink:href)\s*=\s*["']\s*(?:javascript|data|blob|vbscript|mhtml):/i.test(svg)
+		&& !/\b(?:javascript|vbscript|data|blob|mhtml):/i.test(svg)
 }
 
 export function normalizeWallSegment(value: unknown): WallSegment | undefined {
 	if (!value || typeof value !== 'object') return undefined
 	const record = value as Record<string, unknown>
-	if (![record.x1, record.y1, record.x2, record.y2].every(item => typeof item === 'number' && Number.isFinite(item))) return undefined
+	if (![record.x1, record.y1, record.x2, record.y2].every(item => isFiniteNumber(item) && Math.abs(item) <= MAX_ASSET_DIMENSION)) return undefined
 	const x1 = record.x1 as number
 	const y1 = record.y1 as number
 	const x2 = record.x2 as number
 	const y2 = record.y2 as number
 	if (x1 !== x2 && y1 !== y2) return undefined
 	if (x1 === x2 && y1 === y2) return undefined
-	if (x1 === x2) return y1 <= y2 ? { x1, y1, x2, y2 } : { x1: x2, y1: y2, x2: x1, y2: y1 }
-	return x1 <= x2 ? { x1, y1, x2, y2 } : { x1: x2, y1: y2, x2: x1, y2: y1 }
+	const door = record.door === true
+	const base = (a: number, b: number, c: number, d: number): WallSegment => {
+		const seg: WallSegment = { x1: a, y1: b, x2: c, y2: d }
+		if (door) seg.door = true
+		return seg
+	}
+	if (x1 === x2) return y1 <= y2 ? base(x1, y1, x2, y2) : base(x2, y2, x1, y1)
+	return x1 <= x2 ? base(x1, y1, x2, y2) : base(x2, y2, x1, y1)
 }
 
 export function normalizeWallSegments(value: unknown): WallSegment[] | undefined {
-	if (!Array.isArray(value)) return undefined
-	const seen = new Set<string>()
-	const segments: WallSegment[] = []
+	if (!Array.isArray(value) || value.length > MAX_WALL_SEGMENTS) return undefined
+	const seen = new Map<string, WallSegment>()
 	for (const item of value) {
 		const segment = normalizeWallSegment(item)
 		if (!segment) continue
 		const key = `${segment.x1},${segment.y1},${segment.x2},${segment.y2}`
-		if (seen.has(key)) continue
-		seen.add(key)
-		segments.push(segment)
+		const existing = seen.get(key)
+		if (existing) {
+			if (segment.door) existing.door = true
+			continue
+		}
+		seen.set(key, segment)
 	}
+	const segments = [...seen.values()]
 	return segments.length > 0 ? segments : undefined
 }
 
@@ -92,11 +160,15 @@ export function resolveWallSegmentsForObject(
 }
 
 export function normalizeFloorWalkable(value: unknown): FloorWalkable | undefined {
-	if (!value || typeof value !== 'object') return undefined
-	const record = value as Record<string, unknown>
-	const walkableGrid = normalizeWalkableGrid(record.walkableGrid)
-	const tileStates = normalizeTileStates(record.tileStates)
+	if (!isRecord(value)) return undefined
+	const hasWalkableGrid = hasOwn(value, 'walkableGrid')
+	const hasTileStates = hasOwn(value, 'tileStates')
+	const walkableGrid = normalizeWalkableGrid(value.walkableGrid)
+	const tileStates = normalizeTileStates(value.tileStates)
+	if (hasWalkableGrid && !walkableGrid) return undefined
+	if (hasTileStates && !tileStates) return undefined
 	if (!walkableGrid && !tileStates) return undefined
+	if (walkableGrid && tileStates && (walkableGrid.length !== tileStates.length || walkableGrid.some((row, index) => row.length !== tileStates[index]?.length))) return undefined
 	return {
 		...(walkableGrid ? { walkableGrid } : {}),
 		...(tileStates ? { tileStates } : {}),
@@ -122,8 +194,8 @@ export interface NpcQueueConfig {
 }
 
 export function normalizeNpcQueueConfig(value: unknown): NpcQueueConfig | undefined {
-	if (!value || typeof value !== 'object') return undefined
-	const record = value as Record<string, unknown>
+	if (!isRecord(value)) return undefined
+	const record = value
 	const maxMembers = typeof record.maxMembers === 'number' && Number.isFinite(record.maxMembers)
 		? Math.max(1, Math.min(100, Math.floor(record.maxMembers)))
 		: undefined
@@ -135,7 +207,7 @@ export function normalizeNpcQueueConfig(value: unknown): NpcQueueConfig | undefi
 }
 
 export function normalizeInteractSpots(value: unknown): InteractSpot[] | undefined {
-	if (!Array.isArray(value)) return undefined
+	if (!Array.isArray(value) || value.length > MAX_INTERACT_SPOTS) return undefined
 	const seen = new Set<string>()
 	const points: InteractSpot[] = []
 	for (const point of value) {
@@ -152,7 +224,7 @@ export function normalizeInteractSpots(value: unknown): InteractSpot[] | undefin
 			}
 		}
 		if (x === undefined || y === undefined) continue
-		if (!Number.isFinite(x) || !Number.isFinite(y)) continue
+		if (!Number.isFinite(x) || !Number.isFinite(y) || Math.abs(x) > MAX_PIXEL_DIMENSION || Math.abs(y) > MAX_PIXEL_DIMENSION) continue
 		const key = `${x},${y}`
 		if (seen.has(key)) continue
 		seen.add(key)
@@ -163,14 +235,14 @@ export function normalizeInteractSpots(value: unknown): InteractSpot[] | undefin
 
 
 export function normalizeInteractConfig(value: unknown): InteractConfig | undefined {
-	if (!value || typeof value !== 'object') return undefined
-	const rec = value as Record<string, unknown>
+	if (!isRecord(value)) return undefined
+	const rec = value
 	const result: InteractConfig = {}
 	if (typeof rec.capacity === 'number' && Number.isFinite(rec.capacity) && rec.capacity > 0) {
-		result.capacity = Math.floor(rec.capacity)
+		result.capacity = Math.min(1000, Math.floor(rec.capacity))
 	}
-	const rawMin = typeof rec.durationMin === 'number' && Number.isFinite(rec.durationMin) ? Math.max(0, rec.durationMin) : undefined
-	const rawMax = typeof rec.durationMax === 'number' && Number.isFinite(rec.durationMax) ? Math.max(0, rec.durationMax) : undefined
+	const rawMin = typeof rec.durationMin === 'number' && Number.isFinite(rec.durationMin) ? Math.min(86_400, Math.max(0, rec.durationMin)) : undefined
+	const rawMax = typeof rec.durationMax === 'number' && Number.isFinite(rec.durationMax) ? Math.min(86_400, Math.max(0, rec.durationMax)) : undefined
 	const durationMin = rawMin ?? 1
 	const durationMax = rawMax === undefined ? (rawMin === undefined ? 3 : rawMin) : Math.max(durationMin, rawMax)
 	result.durationMin = durationMin
@@ -187,22 +259,26 @@ export interface CornerRx {
 }
 
 export function normalizeCornerRx(value: unknown): CornerRx | undefined {
-	if (!value || typeof value !== 'object') return undefined
-	const rec = value as Record<string, unknown>
-	const tl = typeof rec.tl === 'number' && Number.isFinite(rec.tl) ? Math.max(0, rec.tl) : 0
-	const tr = typeof rec.tr === 'number' && Number.isFinite(rec.tr) ? Math.max(0, rec.tr) : 0
-	const br = typeof rec.br === 'number' && Number.isFinite(rec.br) ? Math.max(0, rec.br) : 0
-	const bl = typeof rec.bl === 'number' && Number.isFinite(rec.bl) ? Math.max(0, rec.bl) : 0
+	if (!isRecord(value)) return undefined
+	const rec = value
+	const clampRadius = (item: unknown): number => isFiniteNumber(item) ? Math.min(MAX_ASSET_DIMENSION, Math.max(0, item)) : 0
+	const tl = clampRadius(rec.tl)
+	const tr = clampRadius(rec.tr)
+	const br = clampRadius(rec.br)
+	const bl = clampRadius(rec.bl)
 	if (tl === 0 && tr === 0 && br === 0 && bl === 0) return undefined
 	return { tl, tr, br, bl }
 }
 
 
 export function normalizeWalkableGrid(value: unknown): WalkableGrid | undefined {
-	if (!Array.isArray(value) || value.length === 0) return undefined
+	if (!Array.isArray(value) || value.length === 0 || value.length > MAX_GRID_ROWS) return undefined
 	const rows: boolean[][] = []
+	let columnCount = 0
 	for (const row of value) {
-		if (!Array.isArray(row) || row.length === 0) return undefined
+		if (!Array.isArray(row) || row.length === 0 || row.length > MAX_GRID_COLUMNS) return undefined
+		if (columnCount === 0) columnCount = row.length
+		if (row.length !== columnCount) return undefined
 		const cols: boolean[] = []
 		for (const cell of row) {
 			if (typeof cell !== 'boolean') return undefined
@@ -215,13 +291,16 @@ export function normalizeWalkableGrid(value: unknown): WalkableGrid | undefined 
 
 
 export function normalizeTileStates(value: unknown): TileState[][] | undefined {
-	if (!Array.isArray(value) || value.length === 0) return undefined
+	if (!Array.isArray(value) || value.length === 0 || value.length > MAX_GRID_ROWS) return undefined
 	const rows: TileState[][] = []
+	let columnCount = 0
 	for (const row of value) {
-		if (!Array.isArray(row) || row.length === 0) return undefined
+		if (!Array.isArray(row) || row.length === 0 || row.length > MAX_GRID_COLUMNS) return undefined
+		if (columnCount === 0) columnCount = row.length
+		if (row.length !== columnCount) return undefined
 		const cols: TileState[] = []
 		for (const cell of row) {
-			if (cell !== 'walkable' && cell !== 'blocked' && cell !== 'entrance') return undefined
+			if (cell !== 'walkable' && cell !== 'blocked' && cell !== 'door') return undefined
 			cols.push(cell)
 		}
 		rows.push(cols)
@@ -283,7 +362,7 @@ export function rotateGrid90<T>(grid: T[][] | undefined, times: number): T[][] |
 
 export interface ResolvedObjectDef {
 	walkable: boolean
-	entranceRequired: boolean
+	doorRequired: boolean
 	walkableGrid?: boolean[][]
 	tileStates?: TileState[][]
 	wallSegments?: WallSegment[]
@@ -325,7 +404,7 @@ export function resolveObjectDef(
 	size?: ObjectDefinitionSize,
 ): ResolvedObjectDef {
 	const walkable = asset?.walkable ?? false
-	const entranceRequired = asset?.entranceRequired ?? false
+	const doorRequired = asset?.doorRequired ?? false
 	const rotSteps = Math.round(rotation / 90)
 	const walkableGrid = rotateGrid90(normalizeWalkableGrid(asset?.walkableGrid), rotSteps)
 	const tileStates = rotateGrid90(normalizeTileStates(asset?.tileStates), rotSteps)
@@ -339,33 +418,32 @@ export function resolveObjectDef(
 		: interactSpots
 	const interact = normalizeInteractConfig(asset?.interact)
 	const queue = normalizeNpcQueueConfig(asset?.queue)
-	return { walkable, entranceRequired, walkableGrid, tileStates, wallSegments, interactSpots: rotatedInteractSpots, interact, queue }
+	return { walkable, doorRequired, walkableGrid, tileStates, wallSegments, interactSpots: rotatedInteractSpots, interact, queue }
 }
 
 
 export function normalizeObjectPlacement(value: unknown): ObjectPlacement | undefined {
-	if (!value || typeof value !== 'object') return undefined
-	const record = value as Record<string, unknown>
-	if (typeof record.id !== 'string' || !record.id.trim()) return undefined
-	if (typeof record.type !== 'string' || !record.type.trim()) return undefined
-	if (typeof record.x !== 'number' || !Number.isFinite(record.x)) return undefined
-	if (typeof record.y !== 'number' || !Number.isFinite(record.y)) return undefined
+	if (!isRecord(value)) return undefined
+	const record = value
+	const id = normalizeIdentifier(record.id)
+	const type = normalizeIdentifier(record.type)
+	if (!id || !type || !isFiniteNumber(record.x) || !isFiniteNumber(record.y) || Math.abs(record.x) > MAX_PIXEL_DIMENSION || Math.abs(record.y) > MAX_PIXEL_DIMENSION) return undefined
 	const rawRotation = typeof record.rotation === 'number' ? record.rotation : 0
 	const rotation = [0, 90, 180, 270].includes(rawRotation) ? rawRotation as Rotation : 0
 	const placement: ObjectPlacement = {
-		id: record.id,
-		type: record.type,
+		id,
+		type,
 		x: record.x,
 		y: record.y,
 		rotation,
 	}
-	if (typeof record.subId === 'string' && record.subId) placement.subId = record.subId
-	if (typeof record.linkGroupId === 'string' && record.linkGroupId) placement.linkGroupId = record.linkGroupId
+	const linkGroupId = normalizeIdentifier(record.linkGroupId)
+	if (linkGroupId) placement.linkGroupId = linkGroupId
 	if (typeof record.locked === 'boolean') placement.locked = record.locked
 	if (typeof record.isWall === 'boolean') placement.isWall = record.isWall
 	for (const key of ['x1', 'y1', 'x2', 'y2'] as const) {
 		const value = record[key]
-		if (typeof value === 'number' && Number.isFinite(value)) placement[key] = value
+		if (isFiniteNumber(value)) placement[key] = value
 	}
 	const fillColor = typeof record.fillColor === 'string' && isValidColor(record.fillColor.trim()) ? record.fillColor.trim() : undefined
 	if (fillColor) placement.fillColor = fillColor
@@ -379,8 +457,7 @@ export function normalizeAllowedRoleIds(value: unknown): string[] | undefined {
 	const seen = new Set<string>()
 	const ids: string[] = []
 	for (const entry of value) {
-		if (typeof entry !== 'string') continue
-		const trimmed = entry.trim()
+		const trimmed = normalizeIdentifier(entry)
 		if (!trimmed) continue
 		if (seen.has(trimmed)) continue
 		seen.add(trimmed)
@@ -399,7 +476,7 @@ export interface AssetBase {
 	isWall?: boolean
 	wallSegments?: WallSegment[]
 	walkable?: boolean
-	entranceRequired?: boolean
+	doorRequired?: boolean
 	defaultPadding?: number
 	defaultRx?: { tl: number; tr: number; br: number; bl: number }
 	defaultFillColor?: string
@@ -456,6 +533,9 @@ export interface BlueprintDataFile {
 	npcConfig: NpcSimulationConfig
 }
 
+export const BLUEPRINT_DATA_SCHEMA = 'blueprint-data.v2.json'
+export const BLUEPRINT_DATA_VERSION = 2
+
 const SVG_COLOR_VALUE_RE = /^(#(?:[0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\([^)]*\)|hsla?\([^)]*\))$/
 
 export function applySvgColorConvention(svg: string): string {
@@ -472,36 +552,180 @@ export function applySvgColorConvention(svg: string): string {
 	})
 }
 
+function normalizeSvgRoles(value: unknown): SvgRoleInfo[] | undefined {
+	if (!Array.isArray(value) || value.length > MAX_SVG_ROLES) return undefined
+	const roles: SvgRoleInfo[] = []
+	for (const item of value) {
+		if (!isRecord(item) || !['wall', 'door', 'fixture'].includes(item.role as string)) return undefined
+		const tag = normalizeText(item.tag, 64)
+		if (!tag || !/^[a-z][a-z0-9:_-]*$/i.test(tag)) return undefined
+		const roleInfo: SvgRoleInfo = { role: item.role as SvgRole, tag }
+		if (hasOwn(item, 'attrs')) {
+			if (!isRecord(item.attrs)) return undefined
+			const attrs: Record<string, string> = {}
+			const entries = Object.entries(item.attrs)
+			if (entries.length > 64) return undefined
+			for (const [name, attrValue] of entries) {
+				if (!/^[a-z_:][a-z0-9:_.-]*$/i.test(name) || typeof attrValue !== 'string' || attrValue.length > MAX_SVG_ATTRIBUTE_LENGTH) return undefined
+				attrs[name] = attrValue
+			}
+			if (entries.length > 0) roleInfo.attrs = attrs
+		}
+		roles.push(roleInfo)
+	}
+	return roles
+}
+
+function normalizeAssetColor(value: unknown): string | undefined {
+	if (typeof value !== 'string') return undefined
+	const color = value.trim()
+	return color.length <= 32 && isValidColor(color) ? color : undefined
+}
+
 export function normalizeOriginAsset(value: unknown): AssetDef | undefined {
-	if (!value || typeof value !== 'object') return undefined
-	const record = value as Record<string, unknown>
-	if (typeof record.id !== 'string' || !record.id.trim() || typeof record.name !== 'string' || typeof record.w !== 'number' || !Number.isFinite(record.w) || record.w <= 0 || typeof record.h !== 'number' || !Number.isFinite(record.h) || record.h <= 0) return undefined
-	const asset = JSON.parse(JSON.stringify(record)) as AssetDef
-	if (asset.origin !== undefined && !['drawn', 'svg-import', 'flattened'].includes(asset.origin)) delete asset.origin
-	if (record.walkableGrid !== undefined) asset.walkableGrid = normalizeWalkableGrid(record.walkableGrid)
-	if (record.tileStates !== undefined) asset.tileStates = normalizeTileStates(record.tileStates)
-	const wallSegments = normalizeWallSegments(record.wallSegments)
-	if (wallSegments) asset.wallSegments = wallSegments
-	const tags = normalizeTags(record.tags)
-	if (tags !== undefined) asset.tags = tags
-	else delete asset.tags
-	if (record.interactSpots !== undefined) asset.interactSpots = normalizeInteractSpots(record.interactSpots)
-	if (record.interact !== undefined) asset.interact = normalizeInteractConfig(record.interact)
-	if (record.queue !== undefined) asset.queue = normalizeNpcQueueConfig(record.queue)
-	if (asset.svg) asset.svg = applySvgColorConvention(asset.svg)
+	if (!isRecord(value)) return undefined
+	const record = value
+	const id = normalizeIdentifier(record.id)
+	const name = normalizeText(record.name)
+	if (!id || !name || !isFiniteNumber(record.w) || record.w <= 0 || record.w > MAX_ASSET_DIMENSION || !isFiniteNumber(record.h) || record.h <= 0 || record.h > MAX_ASSET_DIMENSION) return undefined
+	const asset: AssetDef = { id, name, w: record.w, h: record.h }
+
+	if (hasOwn(record, 'category')) {
+		if (typeof record.category !== 'string') return undefined
+		const category = normalizeText(record.category)
+		if (category) asset.category = category
+	}
+	if (hasOwn(record, 'custom')) {
+		if (typeof record.custom !== 'boolean') return undefined
+		asset.custom = record.custom
+	}
+	if (hasOwn(record, 'isWall')) {
+		if (typeof record.isWall !== 'boolean') return undefined
+		asset.isWall = record.isWall
+	}
+	if (hasOwn(record, 'wallSegments')) {
+		if (!Array.isArray(record.wallSegments)) return undefined
+		const wallSegments = normalizeWallSegments(record.wallSegments)
+		if (record.wallSegments.length > 0 && !wallSegments) return undefined
+		if (wallSegments) asset.wallSegments = wallSegments
+	}
+	if (hasOwn(record, 'walkable')) {
+		if (typeof record.walkable !== 'boolean') return undefined
+		asset.walkable = record.walkable
+	}
+	if (hasOwn(record, 'doorRequired')) {
+		if (typeof record.doorRequired !== 'boolean') return undefined
+		asset.doorRequired = record.doorRequired
+	}
+	if (hasOwn(record, 'defaultPadding')) {
+		if (!isFiniteNumber(record.defaultPadding) || record.defaultPadding < 0 || record.defaultPadding > MAX_ASSET_DIMENSION) return undefined
+		if (record.defaultPadding > 0) asset.defaultPadding = record.defaultPadding
+	}
+	if (hasOwn(record, 'defaultRx')) {
+		if (!isRecord(record.defaultRx)) return undefined
+		const defaultRx = normalizeCornerRx(record.defaultRx)
+		if (defaultRx) asset.defaultRx = defaultRx
+	}
+	for (const key of ['defaultFillColor', 'defaultStrokeColor'] as const) {
+		if (!hasOwn(record, key)) continue
+		const color = normalizeAssetColor(record[key])
+		if (!color) return undefined
+		asset[key] = color
+	}
+	if (hasOwn(record, 'defaultLabel')) {
+		if (typeof record.defaultLabel !== 'string') return undefined
+		const label = normalizeText(record.defaultLabel)
+		if (label) asset.defaultLabel = label
+	}
+	for (const key of ['defaultRadius', 'defaultLabelPadding'] as const) {
+		if (!hasOwn(record, key)) continue
+		if (!isFiniteNumber(record[key]) || record[key] < 0 || record[key] > MAX_ASSET_DIMENSION) return undefined
+		if (record[key] > 0) asset[key] = record[key]
+	}
+	if (hasOwn(record, 'defaultLocked')) {
+		if (typeof record.defaultLocked !== 'boolean') return undefined
+		asset.defaultLocked = record.defaultLocked
+	}
+	if (hasOwn(record, 'tags')) {
+		const tags = normalizeTags(record.tags)
+		if (!tags) return undefined
+		if (tags.length > 0) asset.tags = tags
+	}
+	if (hasOwn(record, 'origin')) {
+		if (!['drawn', 'svg-import', 'flattened'].includes(record.origin as string)) return undefined
+		asset.origin = record.origin as AssetOrigin
+	}
+	for (const key of ['pxW', 'pxH'] as const) {
+		if (!hasOwn(record, key)) continue
+		if (!isFiniteNumber(record[key]) || record[key] <= 0 || record[key] > MAX_PIXEL_DIMENSION) return undefined
+		asset[key] = record[key]
+	}
+	if (hasOwn(record, 'usePx')) {
+		if (typeof record.usePx !== 'boolean') return undefined
+		asset.usePx = record.usePx
+	}
+	if (hasOwn(record, 'svg')) {
+		if (typeof record.svg !== 'string') return undefined
+		const svg = record.svg.trim()
+		if (svg) {
+			if (!isSafeSvgMarkup(svg)) return undefined
+			asset.svg = applySvgColorConvention(svg)
+		}
+	}
+	if (hasOwn(record, 'svgViewBox')) {
+		if (!isRecord(record.svgViewBox) || !isFiniteNumber(record.svgViewBox.w) || record.svgViewBox.w <= 0 || record.svgViewBox.w > MAX_PIXEL_DIMENSION || !isFiniteNumber(record.svgViewBox.h) || record.svgViewBox.h <= 0 || record.svgViewBox.h > MAX_PIXEL_DIMENSION) return undefined
+		asset.svgViewBox = { w: record.svgViewBox.w, h: record.svgViewBox.h }
+	}
+	if (hasOwn(record, 'svgRoles')) {
+		const svgRoles = normalizeSvgRoles(record.svgRoles)
+		if (!svgRoles) return undefined
+		if (svgRoles.length > 0) asset.svgRoles = svgRoles
+	}
+	if (hasOwn(record, 'walkableGrid')) {
+		const walkableGrid = normalizeWalkableGrid(record.walkableGrid)
+		if (!walkableGrid) return undefined
+		asset.walkableGrid = walkableGrid
+	}
+	if (hasOwn(record, 'tileStates')) {
+		const tileStates = normalizeTileStates(record.tileStates)
+		if (!tileStates) return undefined
+		asset.tileStates = tileStates
+	}
+	if (hasOwn(record, 'interactSpots')) {
+		if (!Array.isArray(record.interactSpots)) return undefined
+		const interactSpots = normalizeInteractSpots(record.interactSpots)
+		if (record.interactSpots.length > 0 && !interactSpots) return undefined
+		if (interactSpots) asset.interactSpots = interactSpots
+	}
+	if (hasOwn(record, 'interact')) {
+		const interact = normalizeInteractConfig(record.interact)
+		if (!interact) return undefined
+		asset.interact = interact
+	}
+	if (hasOwn(record, 'queue')) {
+		const queue = normalizeNpcQueueConfig(record.queue)
+		if (!queue) return undefined
+		asset.queue = queue
+	}
+	if (asset.walkableGrid && asset.tileStates) {
+		if (asset.walkableGrid.length !== asset.tileStates.length || asset.walkableGrid.some((row, index) => row.length !== asset.tileStates?.[index]?.length)) return undefined
+		if (asset.walkableGrid.some((row, rowIndex) => row.some((cell, columnIndex) => cell !== (asset.tileStates?.[rowIndex]?.[columnIndex] === 'walkable' || asset.tileStates?.[rowIndex]?.[columnIndex] === 'door')))) return undefined
+	}
+	if (asset.svg && !asset.svgViewBox) return undefined
 	return asset
 }
 
 export function normalizeOriginAssetFile(value: unknown): OriginAssetFile | undefined {
-	if (!value || typeof value !== 'object') return undefined
-	const record = value as Record<string, unknown>
-	if (!Array.isArray(record.originAssets)) return undefined
-	const assets = new Map<string, AssetDef>()
-	for (const value of record.originAssets) {
-		const asset = normalizeOriginAsset(value)
-		if (asset) assets.set(asset.id, asset)
+	if (!isRecord(value) || !Array.isArray(value.originAssets) || value.originAssets.length > MAX_ASSETS) return undefined
+	const assets: AssetDef[] = []
+	const assetIds = new Set<string>()
+	for (const item of value.originAssets) {
+		const asset = normalizeOriginAsset(item)
+		if (!asset || assetIds.has(asset.id)) return undefined
+		assetIds.add(asset.id)
+		assets.push(asset)
 	}
-	return { $schema: typeof record.$schema === 'string' ? record.$schema : 'origin-assets.v2.json', version: typeof record.version === 'number' ? record.version : 2, originAssets: [...assets.values()] }
+	return { $schema: typeof value.$schema === 'string' ? value.$schema : 'origin-assets.v2.json', version: typeof value.version === 'number' ? value.version : 2, originAssets: assets }
 }
 
 export interface NpcTask {
@@ -547,6 +771,20 @@ export interface NpcSimulationConfig {
 	pool: NpcDeploymentPool[]
 
 	tagTriggerRates?: Record<string, number>
+	crossFloorCooldownSeconds: number
+	progressWatchdogTicks: number
+	maxRepathAttempts: number
+	repathCooldownSeconds: number
+	repathCooldownExponent: number
+	pathBudgetMinPerTick: number
+	pathBudgetAgentsPerCall: number
+	chooseTargetMinPerTick: number
+	chooseTargetAgentsPerSlot: number
+	wanderMemorySize: number
+	wanderSmallMapThreshold: number
+	triggerRatePeriodSeconds: number
+	frameSimBudgetMs: number
+	maxSimulationSteps: number
 }
 
 export interface NpcSimDot {
@@ -580,7 +818,7 @@ export interface ObjectPlacement {
 	y1?: number
 	x2?: number
 	y2?: number
-	subId?: string
+	door?: boolean
 	linkGroupId?: string
 	locked?: boolean
 	fillColor?: string
@@ -610,7 +848,7 @@ export interface ResolvedObject extends ObjectPlacement {
 	label?: string
 	isWall?: boolean
 	walkable: boolean
-	entranceRequired: boolean
+	doorRequired: boolean
 	walkableGrid?: WalkableGrid
 	tileStates?: TileState[][]
 	wallSegments?: WallSegment[]
@@ -631,20 +869,21 @@ export interface NpcSpawnZone {
 
 export function normalizeNpcSpawnZones(value: unknown): NpcSpawnZone[] | undefined {
 	if (value === undefined || value === null) return undefined
-	if (!Array.isArray(value)) return undefined
+	if (!Array.isArray(value) || value.length > MAX_OBJECTS_PER_FLOOR) return undefined
 	const zones: NpcSpawnZone[] = []
 	const seen = new Set<string>()
 	for (const item of value) {
-		if (!item || typeof item !== 'object') continue
-		const record = item as Record<string, unknown>
-		if (typeof record.id !== 'string' || !record.id.trim() || seen.has(record.id)) continue
-		if (typeof record.x !== 'number' || !Number.isFinite(record.x) || typeof record.y !== 'number' || !Number.isFinite(record.y)) continue
-		if (typeof record.w !== 'number' || !Number.isFinite(record.w) || record.w <= 0 || typeof record.h !== 'number' || !Number.isFinite(record.h) || record.h <= 0) continue
+		if (!isRecord(item)) continue
+		const record = item
+		const id = normalizeIdentifier(record.id)
+		if (!id || seen.has(id)) continue
+		if (!isFiniteNumber(record.x) || !isFiniteNumber(record.y) || Math.abs(record.x) > MAX_PIXEL_DIMENSION || Math.abs(record.y) > MAX_PIXEL_DIMENSION) continue
+		if (!isFiniteNumber(record.w) || record.w <= 0 || record.w > MAX_PIXEL_DIMENSION || !isFiniteNumber(record.h) || record.h <= 0 || record.h > MAX_PIXEL_DIMENSION) continue
 		const roleIds = normalizeAllowedRoleIds(record.roleIds)
-		seen.add(record.id)
+		seen.add(id)
 		zones.push({
-			id: record.id.trim(),
-			label: typeof record.label === 'string' && record.label.trim() ? record.label.trim() : record.id.trim(),
+			id,
+			label: normalizeText(record.label) ?? id,
 			x: Math.max(0, record.x),
 			y: Math.max(0, record.y),
 			w: Math.max(1, record.w),
@@ -686,9 +925,9 @@ export interface CanvasFieldSpec {
 }
 
 export const CANVAS_FIELD_SPECS = {
-	width: { kind: 'number', required: true },
-	height: { kind: 'number', required: true },
-	tileSize: { kind: 'number', required: true },
+	width: { kind: 'number', required: true, min: 1, max: 100_000 },
+	height: { kind: 'number', required: true, min: 1, max: 100_000 },
+	tileSize: { kind: 'number', required: true, min: 1, max: 1_000 },
 	bgColor: { kind: 'color' },
 	labelColor: { kind: 'color' },
 	wallColor: { kind: 'color' },
@@ -706,7 +945,7 @@ export function parseCanvasConfig(raw: unknown, strict: boolean): CanvasConfig |
 			continue
 		}
 		let ok = false
-		if (spec.kind === 'number') ok = typeof value === 'number' && Number.isFinite(value) && value > 0
+		if (spec.kind === 'number') ok = typeof value === 'number' && Number.isFinite(value) && (spec.min === undefined || value >= spec.min) && (spec.max === undefined || value <= spec.max)
 		else if (spec.kind === 'color') ok = typeof value === 'string' && isValidColor(value)
 		else if (spec.kind === 'int') ok = typeof value === 'number' && Number.isInteger(value) && (spec.min === undefined || value >= spec.min) && (spec.max === undefined || value <= spec.max)
 		if (!ok) {
@@ -726,6 +965,109 @@ export interface FloorLayoutData {
 	streetWidthTiles?: number
 	streetFloorId?: string
 	npcConfig?: NpcSimulationConfig
+	editorSettings?: EditorSettings
+}
+
+export interface EditorSettings {
+	wallHitTolerancePx: number
+	wallHitToleranceTileRatio: number
+	dragThresholdPx: number
+	cycleThresholdPx: number
+	boxSelectThresholdPx: number
+	interactSpotRadiusPx: number
+	lockIndicatorRadiusPx: number
+	labelFontSizePx: number
+	lockLabelFontSizePx: number
+	interactSpotFontSizePx: number
+	zoneLabelFontSizePx: number
+	emptyStateFontSizePx: number
+	rulerTickFontSizePx: number
+	streetDashRatio: number
+	streetGapRatio: number
+	rulerMinPx: number
+	rulerMaxPx: number
+	rulerBasePx: number
+	wallThicknessRatio: number
+	sidewalkTileRatio: number
+	walkableGridMinTilePx: number
+	walkableGridMaxTilePx: number
+	walkableGridMaxWidthPx: number
+	walkableGridMaxHeightPx: number
+}
+
+export interface EditorFieldSpec {
+	kind: 'number'
+	required?: boolean
+	min?: number
+	max?: number
+}
+
+export const EDITOR_FIELD_SPECS = {
+	wallHitTolerancePx: { kind: 'number', min: 1, max: 100 },
+	wallHitToleranceTileRatio: { kind: 'number', min: 0.01, max: 1 },
+	dragThresholdPx: { kind: 'number', min: 0.5, max: 50 },
+	cycleThresholdPx: { kind: 'number', min: 1, max: 50 },
+	boxSelectThresholdPx: { kind: 'number', min: 1, max: 50 },
+	interactSpotRadiusPx: { kind: 'number', min: 1, max: 20 },
+	lockIndicatorRadiusPx: { kind: 'number', min: 1, max: 20 },
+	labelFontSizePx: { kind: 'number', min: 2, max: 32 },
+	lockLabelFontSizePx: { kind: 'number', min: 1, max: 16 },
+	interactSpotFontSizePx: { kind: 'number', min: 1, max: 16 },
+	zoneLabelFontSizePx: { kind: 'number', min: 2, max: 24 },
+	emptyStateFontSizePx: { kind: 'number', min: 4, max: 64 },
+	rulerTickFontSizePx: { kind: 'number', min: 4, max: 32 },
+	streetDashRatio: { kind: 'number', min: 0.1, max: 2 },
+	streetGapRatio: { kind: 'number', min: 0.05, max: 2 },
+	rulerMinPx: { kind: 'number', min: 4, max: 100 },
+	rulerMaxPx: { kind: 'number', min: 10, max: 200 },
+	rulerBasePx: { kind: 'number', min: 4, max: 100 },
+	wallThicknessRatio: { kind: 'number', min: 0.01, max: 0.5 },
+	sidewalkTileRatio: { kind: 'number', min: 0.1, max: 0.5 },
+	walkableGridMinTilePx: { kind: 'number', min: 4, max: 40 },
+	walkableGridMaxTilePx: { kind: 'number', min: 10, max: 80 },
+	walkableGridMaxWidthPx: { kind: 'number', min: 200, max: 2000 },
+	walkableGridMaxHeightPx: { kind: 'number', min: 200, max: 2000 },
+} as const satisfies Record<keyof EditorSettings, EditorFieldSpec>
+
+export const DEFAULT_EDITOR_SETTINGS: EditorSettings = {
+	wallHitTolerancePx: 6,
+	wallHitToleranceTileRatio: 0.2,
+	dragThresholdPx: 2,
+	cycleThresholdPx: 6,
+	boxSelectThresholdPx: 4,
+	interactSpotRadiusPx: 4,
+	lockIndicatorRadiusPx: 3,
+	labelFontSizePx: 8,
+	lockLabelFontSizePx: 4,
+	interactSpotFontSizePx: 5,
+	zoneLabelFontSizePx: 6,
+	emptyStateFontSizePx: 16,
+	rulerTickFontSizePx: 12,
+	streetDashRatio: 0.4,
+	streetGapRatio: 0.27,
+	rulerMinPx: 16,
+	rulerMaxPx: 32,
+	rulerBasePx: 22,
+	wallThicknessRatio: 0.12,
+	sidewalkTileRatio: 0.25,
+	walkableGridMinTilePx: 14,
+	walkableGridMaxTilePx: 40,
+	walkableGridMaxWidthPx: 900,
+	walkableGridMaxHeightPx: 560,
+}
+
+export function normalizeEditorSettings(value: unknown): EditorSettings {
+	if (!isRecord(value)) return { ...DEFAULT_EDITOR_SETTINGS }
+	const result = { ...DEFAULT_EDITOR_SETTINGS }
+	for (const key of Object.keys(EDITOR_FIELD_SPECS) as (keyof EditorSettings)[]) {
+		const spec = EDITOR_FIELD_SPECS[key]
+		const raw = value[key]
+		if (typeof raw !== 'number' || !Number.isFinite(raw)) continue
+		if (spec.min !== undefined && raw < spec.min) continue
+		if (spec.max !== undefined && raw > spec.max) continue
+		result[key] = raw
+	}
+	return result
 }
 
 
@@ -756,7 +1098,7 @@ export interface SyncedObject {
 	strokeColor?: string
 	label?: string
 	walkable?: boolean
-	entranceRequired?: boolean
+	doorRequired?: boolean
 	walkableGrid?: boolean[][]
 	tileStates?: TileState[][]
 	wallSegments?: WallSegment[]
@@ -808,34 +1150,13 @@ function isValidWallPlacement(object: ObjectPlacement): boolean {
 }
 
 export function validateLayoutData(data: unknown): FloorLayoutData | null {
-	if (!data || typeof data !== 'object') return null
-	const layout = data as FloorLayoutData
-
-	if (typeof layout.version !== 'number' || layout.version < 0) return null
-	const canvas = parseCanvasConfig(layout.canvas, true)
-	if (!canvas) return null
-	Object.assign(layout, { canvas })
-
-	if (!Array.isArray(layout.floors) || layout.floors.length === 0) return null
-
-	for (const floor of layout.floors) {
-		if (!floor.id || typeof floor.id !== 'string') return null
-		if (!floor.name || typeof floor.name !== 'string') return null
-		if (!floor.label || typeof floor.label !== 'string') return null
-		if (!Array.isArray(floor.objects)) return null
-		if (floor.walkable !== undefined && !normalizeFloorWalkable(floor.walkable)) return null
-		if (floor.spawnZones !== undefined && !normalizeNpcSpawnZones(floor.spawnZones)) return null
-		if (floor.allowedRoleIds !== undefined && (!Array.isArray(floor.allowedRoleIds) || floor.allowedRoleIds.some(id => typeof id !== 'string' || !id.trim()))) return null
-		for (const object of floor.objects) {
-			if (!object || typeof object !== 'object') return null
-			if (typeof object.id !== 'string' || typeof object.type !== 'string') return null
-			const placement = normalizeObjectPlacement(object)
-			if (!placement || !isValidWallPlacement(placement)) return null
-		}
-	}
-
-	if (layout.npcConfig !== undefined && !isNpcConfig(layout.npcConfig)) return null
-
+	if (!isRecord(data)) return null
+	const layout = data as unknown as FloorLayoutData
+	const persistedInput = { ...data }
+	delete persistedInput.npcConfig
+	const persisted = normalizePersistedLayoutData(persistedInput)
+	if (!persisted || (layout.npcConfig !== undefined && !isNpcConfig(layout.npcConfig))) return null
+	Object.assign(layout, { canvas: persisted.canvas })
 	return layout
 }
 
@@ -851,76 +1172,77 @@ export function isValidColor(c: string | undefined): boolean {
 	return isHexColor(c)
 }
 
+function isValidTagTriggerRates(value: unknown): boolean {
+	if (value === undefined) return true
+	if (!isRecord(value) || Object.keys(value).length > 256) return false
+	return Object.entries(value).every(([tag, rate]) => !!normalizeTag(tag) && isFiniteNumber(rate) && rate >= 0 && rate <= 100)
+}
+
+function normalizeTagTriggerRates(value: unknown): Record<string, number> | undefined {
+	if (!isRecord(value)) return undefined
+	const rates: Record<string, number> = {}
+	for (const [tag, rate] of Object.entries(value)) {
+		const normalized = normalizeTag(tag)
+		if (normalized && isFiniteNumber(rate) && rate > 0) rates[normalized] = Math.max(0, Math.min(100, Math.floor(rate)))
+	}
+	return Object.keys(rates).length ? rates : undefined
+}
+
 export function isNpcConfig(value: unknown): value is NpcSimulationConfig {
-	if (!value || typeof value !== 'object') return false
-	const c = value as Record<string, unknown>
-	if (typeof c.speed !== 'number' || !isFinite(c.speed)) return false
-	if (typeof c.defaultRoleId !== 'string') return false
-	if (!Array.isArray(c.roles)) return false
-	if (!Array.isArray(c.tasks)) return false
-	if (!Array.isArray(c.pool)) return false
-	if (c.roles.some((r: unknown) => {
-		if (!r || typeof r !== 'object') return true
-		const role = r as Record<string, unknown>
-		if (typeof role.id !== 'string' || typeof role.label !== 'string' || typeof role.color !== 'string') return true
-		if (typeof role.focusChance !== 'number' || role.focusChance < 0 || role.focusChance > 100) return true
-		if (!Array.isArray(role.focusTags) || role.focusTags.some((t: unknown) => typeof t !== 'string')) return true
-		if (!Array.isArray(role.restrictedTags) || role.restrictedTags.some((t: unknown) => typeof t !== 'string')) return true
-		if (!Array.isArray(role.taskIds) || role.taskIds.some((t: unknown) => typeof t !== 'string')) return true
-		return false
-	})) return false
-	if (c.tasks.some((t: unknown) => {
-		if (!t || typeof t !== 'object') return true
-		const task = t as Record<string, unknown>
-		return typeof task.id !== 'string' || typeof task.label !== 'string' || !Array.isArray(task.tags) || task.tags.some((x: unknown) => typeof x !== 'string')
-	})) return false
-	if (c.pool.some((p: unknown) => {
-		if (!p || typeof p !== 'object') return true
-		const pool = p as Record<string, unknown>
-		if (typeof pool.roleId !== 'string' || typeof pool.count !== 'number') return true
-		return pool.floorIds !== undefined && (!Array.isArray(pool.floorIds) || pool.floorIds.some((id: unknown) => typeof id !== 'string'))
-	})) return false
-	if (c.tagTriggerRates !== undefined) {
-		if (typeof c.tagTriggerRates !== 'object' || c.tagTriggerRates === null) return false
-		for (const [tag, rate] of Object.entries(c.tagTriggerRates as Record<string, unknown>)) {
-			if (typeof tag !== 'string' || typeof rate !== 'number' || !isFinite(rate) || rate < 0 || rate > 100) return false
-		}
+	if (!isRecord(value)) return false
+	const c = value
+	if (!isFiniteNumber(c.speed) || c.speed < 0 || c.speed > 1) return false
+	if (typeof c.defaultRoleId !== 'string' || (c.defaultRoleId !== '' && !normalizeIdentifier(c.defaultRoleId))) return false
+	if (!Array.isArray(c.roles) || c.roles.length > MAX_NPC_ENTRIES) return false
+	if (!Array.isArray(c.tasks) || c.tasks.length > MAX_NPC_ENTRIES) return false
+	if (!Array.isArray(c.pool) || c.pool.length > MAX_NPC_ENTRIES) return false
+	if (c.roles.some((role: unknown) => !isValidRole(role))) return false
+	if (c.tasks.some((task: unknown) => !isValidTask(task))) return false
+	if (c.pool.some((pool: unknown) => !isValidPoolEntry(pool))) return false
+	if (!isValidTagTriggerRates(c.tagTriggerRates)) return false
+	const numericFields: Array<keyof typeof c> = ['crossFloorCooldownSeconds', 'progressWatchdogTicks', 'maxRepathAttempts', 'repathCooldownSeconds', 'repathCooldownExponent', 'pathBudgetMinPerTick', 'pathBudgetAgentsPerCall', 'chooseTargetMinPerTick', 'chooseTargetAgentsPerSlot', 'wanderMemorySize', 'wanderSmallMapThreshold', 'triggerRatePeriodSeconds', 'frameSimBudgetMs', 'maxSimulationSteps']
+	for (const field of numericFields) {
+		const v = c[field]
+		if (v !== undefined && !isFiniteNumber(v)) return false
 	}
 	return true
 }
 
 function isValidRole(r: unknown): r is NpcRole {
-	if (!r || typeof r !== 'object') return false
-	const role = r as Record<string, unknown>
-	if (typeof role.id !== 'string' || typeof role.label !== 'string' || typeof role.color !== 'string') return false
-	if (typeof role.focusChance !== 'number' || role.focusChance < 0 || role.focusChance > 100) return false
-	if (!Array.isArray(role.focusTags) || role.focusTags.some((t: unknown) => typeof t !== 'string')) return false
-	if (!Array.isArray(role.restrictedTags) || role.restrictedTags.some((t: unknown) => typeof t !== 'string')) return false
-	if (!Array.isArray(role.taskIds) || role.taskIds.some((t: unknown) => typeof t !== 'string')) return false
+	if (!isRecord(r)) return false
+	const role = r
+	const color = normalizeText(role.color, 32)
+	if (!normalizeIdentifier(role.id) || !normalizeText(role.label) || !color || !isValidColor(color)) return false
+	if (!isFiniteNumber(role.focusChance) || role.focusChance < 0 || role.focusChance > 100) return false
+	if (!Array.isArray(role.focusTags) || !normalizeTags(role.focusTags)) return false
+	if (!Array.isArray(role.restrictedTags) || !normalizeTags(role.restrictedTags)) return false
+	if (!Array.isArray(role.taskIds) || role.taskIds.length > MAX_NPC_ENTRIES || role.taskIds.some((taskId: unknown) => !normalizeIdentifier(taskId))) return false
+	if (role.spawnRule !== undefined) {
+		if (!isRecord(role.spawnRule) || !isFiniteNumber(role.spawnRule.count) || role.spawnRule.count < 0 || role.spawnRule.count > 1000) return false
+		if (role.spawnRule.targetTags !== undefined && (!Array.isArray(role.spawnRule.targetTags) || !normalizeTags(role.spawnRule.targetTags))) return false
+	}
 	return true
 }
 
 function isValidTask(t: unknown): t is NpcTask {
-	if (!t || typeof t !== 'object') return false
-	const task = t as Record<string, unknown>
-	return typeof task.id === 'string' && typeof task.label === 'string'
-		&& Array.isArray(task.tags) && task.tags.every((x: unknown) => typeof x === 'string')
+	if (!isRecord(t)) return false
+	return !!normalizeIdentifier(t.id) && !!normalizeText(t.label)
+		&& Array.isArray(t.tags) && !!normalizeTags(t.tags)
 }
 
 function isValidPoolEntry(p: unknown): p is NpcDeploymentPool {
-	if (!p || typeof p !== 'object') return false
-	const pool = p as Record<string, unknown>
-	if (typeof pool.roleId !== 'string' || typeof pool.count !== 'number') return false
-	return pool.floorIds === undefined
-		|| (Array.isArray(pool.floorIds) && pool.floorIds.every((id: unknown) => typeof id === 'string'))
+	if (!isRecord(p)) return false
+	if (!normalizeIdentifier(p.roleId) || !isFiniteNumber(p.count) || p.count < 0 || p.count > 1000) return false
+	return p.floorIds === undefined
+		|| (Array.isArray(p.floorIds) && p.floorIds.length <= MAX_NPC_ENTRIES && p.floorIds.every((id: unknown) => !!normalizeIdentifier(id)))
 }
 
 export function normalizeNpcConfig(value: unknown): NpcSimulationConfig | undefined {
-	if (!value || typeof value !== 'object') return undefined
-	const c = value as Record<string, unknown>
-	if (typeof c.speed !== 'number' || !isFinite(c.speed)) return undefined
-	if (typeof c.defaultRoleId !== 'string') return undefined
-	if (!Array.isArray(c.roles) || !Array.isArray(c.tasks) || !Array.isArray(c.pool)) return undefined
+	if (!isRecord(value)) return undefined
+	const c = value
+	if (!isFiniteNumber(c.speed) || c.speed < 0 || c.speed > 1) return undefined
+	if (typeof c.defaultRoleId !== 'string' || c.defaultRoleId.length > MAX_DATA_STRING_LENGTH) return undefined
+	if (!Array.isArray(c.roles) || c.roles.length > MAX_NPC_ENTRIES || !Array.isArray(c.tasks) || c.tasks.length > MAX_NPC_ENTRIES || !Array.isArray(c.pool) || c.pool.length > MAX_NPC_ENTRIES) return undefined
 	const rawRoles = c.roles as unknown[]
 	const rawTasks = c.tasks as unknown[]
 	const rawPool = c.pool as unknown[]
@@ -939,17 +1261,18 @@ export function normalizeNpcConfig(value: unknown): NpcSimulationConfig | undefi
 		console.warn(`[BlueprintEditor] NPC config salvage: dropped ${parts.join(', ')} during normalization`)
 	}
 	if (roles.length === 0) return undefined
+	const taskIds = new Set(tasks.map(task => task.id.trim()))
 	const config: NpcSimulationConfig = {
 		speed: Math.max(0.001, Math.min(1, c.speed)),
-		defaultRoleId: c.defaultRoleId,
+		defaultRoleId: c.defaultRoleId.trim(),
 		roles: roles.map(role => {
 			const normalized: NpcRole = {
-				id: role.id,
+				id: role.id.trim(),
 				label: role.label.trim(),
-				color: role.color,
+				color: role.color.trim(),
 				focusTags: normalizeTags(role.focusTags) ?? [],
 				restrictedTags: normalizeTags(role.restrictedTags) ?? [],
-				taskIds: [...new Set(role.taskIds.filter(taskId => tasks.some(task => task.id === taskId)))],
+				taskIds: [...new Set(role.taskIds.map(taskId => taskId.trim()).filter(taskId => taskIds.has(taskId)))],
 				focusChance: Math.max(0, Math.min(100, Math.floor(role.focusChance))),
 			}
 			if (role.spawnRule) {
@@ -961,42 +1284,263 @@ export function normalizeNpcConfig(value: unknown): NpcSimulationConfig | undefi
 			return normalized
 		}),
 		tasks: tasks.map(task => ({
-			id: task.id,
+			id: task.id.trim(),
 			label: task.label.trim(),
 			tags: normalizeTags(task.tags) ?? [],
 		})),
 		pool: pool.map(entry => ({
-			roleId: entry.roleId,
+			roleId: entry.roleId.trim(),
 			count: Math.max(0, Math.min(1000, Math.floor(entry.count))),
 			...(entry.floorIds?.length ? { floorIds: [...new Set(entry.floorIds.map(id => id.trim()).filter(Boolean))] } : {}),
 		})),
+		crossFloorCooldownSeconds: isFiniteNumber(c.crossFloorCooldownSeconds) && c.crossFloorCooldownSeconds > 0 ? c.crossFloorCooldownSeconds : 30,
+		progressWatchdogTicks: isFiniteNumber(c.progressWatchdogTicks) && c.progressWatchdogTicks > 0 ? Math.floor(c.progressWatchdogTicks) : 120,
+		maxRepathAttempts: isFiniteNumber(c.maxRepathAttempts) && c.maxRepathAttempts > 0 ? Math.floor(c.maxRepathAttempts) : 4,
+		repathCooldownSeconds: isFiniteNumber(c.repathCooldownSeconds) && c.repathCooldownSeconds > 0 ? c.repathCooldownSeconds : 2,
+		repathCooldownExponent: isFiniteNumber(c.repathCooldownExponent) && c.repathCooldownExponent > 0 ? c.repathCooldownExponent : 1.5,
+		pathBudgetMinPerTick: isFiniteNumber(c.pathBudgetMinPerTick) && c.pathBudgetMinPerTick > 0 ? Math.floor(c.pathBudgetMinPerTick) : 2,
+		pathBudgetAgentsPerCall: isFiniteNumber(c.pathBudgetAgentsPerCall) && c.pathBudgetAgentsPerCall > 0 ? Math.floor(c.pathBudgetAgentsPerCall) : 100,
+		chooseTargetMinPerTick: isFiniteNumber(c.chooseTargetMinPerTick) && c.chooseTargetMinPerTick > 0 ? Math.floor(c.chooseTargetMinPerTick) : 8,
+		chooseTargetAgentsPerSlot: isFiniteNumber(c.chooseTargetAgentsPerSlot) && c.chooseTargetAgentsPerSlot > 0 ? Math.floor(c.chooseTargetAgentsPerSlot) : 20,
+		wanderMemorySize: isFiniteNumber(c.wanderMemorySize) && c.wanderMemorySize > 0 ? Math.floor(c.wanderMemorySize) : 32,
+		wanderSmallMapThreshold: isFiniteNumber(c.wanderSmallMapThreshold) && c.wanderSmallMapThreshold > 0 ? Math.floor(c.wanderSmallMapThreshold) : 8,
+		triggerRatePeriodSeconds: isFiniteNumber(c.triggerRatePeriodSeconds) && c.triggerRatePeriodSeconds > 0 ? c.triggerRatePeriodSeconds : 60,
+		frameSimBudgetMs: isFiniteNumber(c.frameSimBudgetMs) && c.frameSimBudgetMs > 0 ? c.frameSimBudgetMs : 6,
+		maxSimulationSteps: isFiniteNumber(c.maxSimulationSteps) && c.maxSimulationSteps > 0 ? Math.floor(c.maxSimulationSteps) : 8,
 	}
-	const rates: Record<string, number> = {}
-	if (c.tagTriggerRates && typeof c.tagTriggerRates === 'object') {
-		for (const [tag, rate] of Object.entries(c.tagTriggerRates as Record<string, unknown>)) {
-			const normalized = normalizeTags([tag])?.[0]
-			if (normalized && typeof rate === 'number' && Number.isFinite(rate) && rate > 0) rates[normalized] = Math.max(0, Math.min(100, Math.floor(rate)))
-		}
-	}
-	config.tagTriggerRates = Object.keys(rates).length ? rates : undefined
+	config.tagTriggerRates = normalizeTagTriggerRates(c.tagTriggerRates)
 	if (!config.roles.some(role => role.id === config.defaultRoleId)) config.defaultRoleId = config.roles[0]?.id ?? ''
 	return config
 }
 
 export function normalizeTags(value: unknown): string[] | undefined {
 	if (value === undefined || value === null) return undefined
-	if (!Array.isArray(value)) return undefined
+	if (!Array.isArray(value) || value.length > 256) return undefined
 	if (value.length === 0) return []
 	const seen = new Set<string>()
 	const result: string[] = []
 	for (const tag of value) {
 		if (typeof tag !== 'string') return undefined
-		const id = tag.trim().toLowerCase()
-		if (!id || seen.has(id)) continue
+		if (!tag.trim()) continue
+		const id = normalizeTag(tag)
+		if (!id) return undefined
+		if (seen.has(id)) continue
 		seen.add(id)
 		result.push(id)
 	}
 	return result
+}
+
+export function normalizeTagDefinitions(value: unknown): BlueprintTagDefinition[] | undefined {
+	if (!Array.isArray(value) || value.length > 256) return undefined
+	const tags: BlueprintTagDefinition[] = []
+	const seen = new Set<string>()
+	for (const item of value) {
+		if (!isRecord(item)) return undefined
+		const id = normalizeTag(item.id)
+		const label = normalizeText(item.label)
+		if (!id || !label || seen.has(id)) return undefined
+		seen.add(id)
+		tags.push({ id, label })
+	}
+	return tags
+}
+
+function normalizePersistedSpawnZones(value: unknown): NpcSpawnZone[] | undefined {
+	if (!Array.isArray(value) || value.length > MAX_OBJECTS_PER_FLOOR) return undefined
+	const normalized = normalizeNpcSpawnZones(value)
+	if (!normalized || normalized.length !== value.length) return undefined
+	for (const item of value) {
+		if (!isRecord(item)) return undefined
+		if (hasOwn(item, 'label') && typeof item.label !== 'string') return undefined
+		if (hasOwn(item, 'roleIds')) {
+			if (!Array.isArray(item.roleIds) || item.roleIds.some(roleId => !normalizeIdentifier(roleId))) return undefined
+		}
+	}
+	return normalized
+}
+
+export function normalizePersistedLayoutData(value: unknown): PersistedFloorLayoutData | undefined {
+	if (!isRecord(value) || !isFiniteNumber(value.version) || !Number.isInteger(value.version) || value.version < 0 || value.version > 100) return undefined
+	if (hasOwn(value, 'npcConfig') && value.npcConfig !== undefined) return undefined
+	const canvas = parseCanvasConfig(value.canvas, true)
+	if (!canvas || !Array.isArray(value.floors) || value.floors.length === 0 || value.floors.length > MAX_FLOORS) return undefined
+
+	const floors: PersistedFloorData[] = []
+	const floorIds = new Set<string>()
+	const objectIds = new Set<string>()
+	for (const item of value.floors) {
+		if (!isRecord(item)) return undefined
+		const id = normalizeIdentifier(item.id)
+		const name = normalizeText(item.name)
+		const label = normalizeText(item.label)
+		if (!id || !name || !label || floorIds.has(id) || !Array.isArray(item.objects) || item.objects.length > MAX_OBJECTS_PER_FLOOR) return undefined
+		floorIds.add(id)
+		const objects: ObjectPlacement[] = []
+		for (const objectValue of item.objects) {
+			const placement = normalizeObjectPlacement(objectValue)
+			if (!placement || !isValidWallPlacement(placement) || objectIds.has(placement.id)) return undefined
+			objectIds.add(placement.id)
+			objects.push(placement)
+		}
+		const floor: PersistedFloorData = { id, name, label, objects }
+		if (item.labelColor !== undefined) {
+			const labelColor = normalizeAssetColor(item.labelColor)
+			if (!labelColor) return undefined
+			floor.labelColor = labelColor
+		}
+		if (item.defaultWalkable !== undefined) {
+			if (typeof item.defaultWalkable !== 'boolean') return undefined
+			floor.defaultWalkable = item.defaultWalkable
+		}
+		if (item.walkable !== undefined) {
+			const walkable = normalizeFloorWalkable(item.walkable)
+			if (!walkable) return undefined
+			floor.walkable = walkable
+		}
+		if (item.spawnZones !== undefined) {
+			const spawnZones = normalizePersistedSpawnZones(item.spawnZones)
+			if (!spawnZones) return undefined
+			floor.spawnZones = spawnZones
+		}
+		if (item.allowedRoleIds !== undefined) {
+			if (!Array.isArray(item.allowedRoleIds) || item.allowedRoleIds.length > MAX_NPC_ENTRIES || item.allowedRoleIds.some(roleId => !normalizeIdentifier(roleId))) return undefined
+			const allowedRoleIds = normalizeAllowedRoleIds(item.allowedRoleIds)
+			if (allowedRoleIds?.length) floor.allowedRoleIds = allowedRoleIds
+		}
+		floors.push(floor)
+	}
+
+	const layout: PersistedFloorLayoutData = { version: value.version, canvas, floors }
+	if (hasOwn(value, 'streetWidthTiles')) {
+		if (!isFiniteNumber(value.streetWidthTiles) || !Number.isInteger(value.streetWidthTiles) || value.streetWidthTiles < 5 || value.streetWidthTiles > 20) return undefined
+		layout.streetWidthTiles = value.streetWidthTiles
+	}
+	if (hasOwn(value, 'streetFloorId')) {
+		if (typeof value.streetFloorId !== 'string') return undefined
+		const streetFloorId = value.streetFloorId.trim()
+		if (!streetFloorId || !floorIds.has(streetFloorId)) return undefined
+		layout.streetFloorId = streetFloorId
+	}
+	if (hasOwn(value, 'editorSettings') && value.editorSettings !== undefined) {
+		layout.editorSettings = normalizeEditorSettings(value.editorSettings)
+	}
+	return layout
+}
+
+export interface ProjectSettings {
+	canvas: CanvasConfig
+	editor: EditorSettings
+	npc: NpcSimulationConfig
+	streetWidthTiles: number
+}
+
+export function normalizeProjectSettings(layout: FloorLayoutData): ProjectSettings {
+	return {
+		canvas: layout.canvas,
+		editor: normalizeEditorSettings(layout.editorSettings),
+		npc: normalizeNpcConfig(layout.npcConfig) ?? {
+			speed: 1 / 30,
+			defaultRoleId: '',
+			roles: [],
+			tasks: [],
+			pool: [],
+			crossFloorCooldownSeconds: 30,
+			progressWatchdogTicks: 120,
+			maxRepathAttempts: 4,
+			repathCooldownSeconds: 2,
+			repathCooldownExponent: 1.5,
+			pathBudgetMinPerTick: 2,
+			pathBudgetAgentsPerCall: 100,
+			chooseTargetMinPerTick: 8,
+			chooseTargetAgentsPerSlot: 20,
+			wanderMemorySize: 32,
+			wanderSmallMapThreshold: 8,
+			triggerRatePeriodSeconds: 60,
+			frameSimBudgetMs: 6,
+			maxSimulationSteps: 8,
+		},
+		streetWidthTiles: resolveStreetTiles(layout),
+	}
+}
+
+export function normalizeNpcConfigForPersistence(value: unknown): NpcSimulationConfig | undefined {
+	if (!isRecord(value) || !Array.isArray(value.roles) || !Array.isArray(value.tasks) || !Array.isArray(value.pool)) return undefined
+	if (value.roles.length > MAX_NPC_ENTRIES || value.tasks.length > MAX_NPC_ENTRIES || value.pool.length > MAX_NPC_ENTRIES) return undefined
+	if (typeof value.defaultRoleId !== 'string' || value.defaultRoleId.length > MAX_DATA_STRING_LENGTH) return undefined
+	if (!isValidTagTriggerRates(value.tagTriggerRates)) return undefined
+	if (value.roles.length === 0) {
+		if (value.defaultRoleId.trim() || value.tasks.length > 0 || value.pool.length > 0 || !isFiniteNumber(value.speed) || value.speed < 0 || value.speed > 1) return undefined
+		const tagTriggerRates = normalizeTagTriggerRates(value.tagTriggerRates)
+		return {
+			speed: Math.max(0.001, Math.min(1, value.speed)),
+			defaultRoleId: '',
+			roles: [],
+			tasks: [],
+			pool: [],
+			crossFloorCooldownSeconds: 30,
+			progressWatchdogTicks: 120,
+			maxRepathAttempts: 4,
+			repathCooldownSeconds: 2,
+			repathCooldownExponent: 1.5,
+			pathBudgetMinPerTick: 2,
+			pathBudgetAgentsPerCall: 100,
+			chooseTargetMinPerTick: 8,
+			chooseTargetAgentsPerSlot: 20,
+			wanderMemorySize: 32,
+			wanderSmallMapThreshold: 8,
+			triggerRatePeriodSeconds: 60,
+			frameSimBudgetMs: 6,
+			maxSimulationSteps: 8,
+			...(tagTriggerRates ? { tagTriggerRates } : {}),
+		}
+	}
+	if (!isNpcConfig(value)) return undefined
+	const normalized = normalizeNpcConfig(value)
+	if (!normalized || normalized.roles.length !== value.roles.length || normalized.tasks.length !== value.tasks.length || normalized.pool.length !== value.pool.length) return undefined
+	const roleIds = new Set<string>()
+	for (const role of normalized.roles) {
+		if (roleIds.has(role.id)) return undefined
+		roleIds.add(role.id)
+	}
+	const taskIds = new Set<string>()
+	for (const task of normalized.tasks) {
+		if (taskIds.has(task.id)) return undefined
+		taskIds.add(task.id)
+	}
+	if (!roleIds.has(normalized.defaultRoleId)) return undefined
+	for (let index = 0; index < value.roles.length; index++) {
+		const rawRole = value.roles[index]
+		if (!isRecord(rawRole) || !Array.isArray(rawRole.taskIds)) return undefined
+		const rawTaskIds = rawRole.taskIds.map(taskId => normalizeIdentifier(taskId))
+		if (rawTaskIds.some((taskId): taskId is undefined => !taskId)) return undefined
+		const canonicalTaskIds = rawTaskIds.filter((taskId): taskId is string => !!taskId)
+		if (new Set(canonicalTaskIds).size !== normalized.roles[index].taskIds.length || canonicalTaskIds.some(taskId => !taskIds.has(taskId))) return undefined
+	}
+	for (const entry of normalized.pool) {
+		if (!roleIds.has(entry.roleId)) return undefined
+	}
+	return normalized
+}
+
+export function normalizeBlueprintDataFile(value: unknown): BlueprintDataFile | undefined {
+	if (!isRecord(value) || value.$schema !== BLUEPRINT_DATA_SCHEMA || value.version !== BLUEPRINT_DATA_VERSION) return undefined
+	const tags = normalizeTagDefinitions(value.tags)
+	const layout = normalizePersistedLayoutData(value.layout)
+	const npcConfig = normalizeNpcConfigForPersistence(value.npcConfig)
+	const assetFile = normalizeOriginAssetFile({ originAssets: value.originAssets })
+	if (!tags || !layout || !npcConfig || !assetFile) return undefined
+	const assets = assetFile.originAssets
+	const assetIds = new Set(assets.map(asset => asset.id))
+	const roleIds = new Set(npcConfig.roles.map(role => role.id))
+	for (const floor of layout.floors) {
+		for (const roleId of floor.allowedRoleIds ?? []) if (!roleIds.has(roleId)) return undefined
+		for (const zone of floor.spawnZones ?? []) for (const roleId of zone.roleIds ?? []) if (!roleIds.has(roleId)) return undefined
+		for (const object of floor.objects) {
+			if (object.type !== CANVAS_WALL_OBJECT_TYPE && !assetIds.has(object.type)) return undefined
+		}
+	}
+	return { $schema: BLUEPRINT_DATA_SCHEMA, version: BLUEPRINT_DATA_VERSION, tags, originAssets: assets, layout, npcConfig }
 }
 
 export function validateLayoutIntegrity(layout: FloorLayoutData): string[] {
@@ -1035,37 +1579,4 @@ export function validateLayoutIntegrity(layout: FloorLayoutData): string[] {
 		}
 	}
 	return issues
-}
-
-function isAssetBase(value: unknown): value is AssetBase {
-	if (!value || typeof value !== 'object') return false
-	const a = value as Record<string, unknown>
-	return typeof a.id === 'string'
-		&& typeof a.name === 'string'
-		&& typeof a.w === 'number'
-		&& typeof a.h === 'number'
-}
-
-function isRotation(value: unknown): value is Rotation {
-	return typeof value === 'number' && [0, 90, 180, 270].includes(value)
-}
-
-export function isSimpleAsset(value: unknown): value is AssetDef {
-	if (!isAssetBase(value)) return false
-	const a = value as unknown as Record<string, unknown>
-	if (typeof a.svg === 'string' && a.svg) return false
-	return typeof a.usePx === 'boolean' || a.usePx === undefined
-}
-
-export function isSvgAsset(value: unknown): value is AssetDef {
-	if (!isAssetBase(value)) return false
-	const a = value as unknown as Record<string, unknown>
-	return typeof a.svg === 'string'
-		&& !!a.svgViewBox
-		&& typeof (a.svgViewBox as Record<string, unknown>).w === 'number'
-		&& typeof (a.svgViewBox as Record<string, unknown>).h === 'number'
-}
-
-export function isAssetDef(value: unknown): value is AssetDef {
-	return isSimpleAsset(value) || isSvgAsset(value)
 }

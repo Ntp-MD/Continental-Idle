@@ -76,6 +76,7 @@ export function useCanvasDragDrop(
 		if (!inside) return
 		const p = opts.localPoint(e)
 		if (!p) return
+		if (!opts.store.canPlaceObject(assetId, p.x - ghost.w / 2, p.y - ghost.h / 2)) return
 		opts.store.addObject(assetId, p.x - ghost.w / 2, p.y - ghost.h / 2).catch((err: unknown) => {
 			toast.error(err instanceof Error ? err.message : 'Failed to place object')
 		})

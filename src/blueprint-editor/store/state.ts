@@ -1,10 +1,11 @@
 import { reactive, computed, ref } from 'vue'
-import type { BlueprintTagDefinition, FloorLayoutData, AssetDef, FloorData, EditorMode, SelectionState, Rect, NpcSimulationConfig, WallSegment } from '../types'
+import type { BlueprintTagDefinition, FloorLayoutData, AssetDef, FloorData, EditorMode, SelectionState, Rect, WallSegment } from '../types'
 import { buildAssetMap, parseSvgRoles, buildWalkableGrid } from '../assetUtils'
 import { snap as _snap, clamp as _clamp, buildingArea } from '../geometry'
 import { originAssets, blueprintTagDefinitions, fetchBlueprintDataFromDisk, buildBlueprintData } from './dataLoader'
 import { useToast } from '@/composables/useToast'
 import { loadInitial, migrate } from './migrate'
+import { editorLog } from './storeUtils'
 
 export interface EditorState {
 	layout: FloorLayoutData
@@ -64,7 +65,7 @@ export const state = reactive<EditorState>({
 	wallPaint: false,
 	selectionState: { primary: null, items: [] },
 	selectedAssetId: null,
-	assetRegistry: originAssets.map(asset => JSON.parse(JSON.stringify(asset)) as AssetDef),
+	assetRegistry: originAssets.map(asset => structuredClone(asset)),
 	tagDefinitions: initialBlueprintData.tags.map(tag => ({ ...tag })),
 })
 
@@ -76,13 +77,14 @@ export async function reloadEditorData(): Promise<void> {
 	if (!combined) return
 	const migrated = migrate(combined.layout, combined.originAssets)
 	state.layout = migrated.layout
-	state.layout.npcConfig = JSON.parse(JSON.stringify(combined.npcConfig)) as NpcSimulationConfig
-	state.assetRegistry = combined.originAssets.map(asset => JSON.parse(JSON.stringify(asset)) as AssetDef)
+	state.layout.npcConfig = structuredClone(combined.npcConfig)
+	state.assetRegistry = combined.originAssets.map(asset => structuredClone(asset))
 	state.tagDefinitions = combined.tags.map(tag => ({ ...tag }))
 	for (const asset of state.assetRegistry) initAssetFields(asset)
 	if (!state.layout.floors.some((f: FloorData) => f.id === state.currentFloorId)) {
 		state.currentFloorId = state.layout.floors[0]?.id ?? ''
 	}
+	initLastSavedSnapshot()
 }
 
 export function initAssetFields(asset: AssetDef): void {
@@ -98,15 +100,15 @@ export function initAssetFields(asset: AssetDef): void {
 		if (asset.walkable === undefined) {
 			asset.walkable = false
 		}
-		if (asset.entranceRequired === undefined) {
-			asset.entranceRequired = false
+		if (asset.doorRequired === undefined) {
+			asset.doorRequired = false
 		}
 	} else {
 		if (asset.walkable === undefined) {
 			asset.walkable = false
 		}
-		if (asset.entranceRequired === undefined) {
-			asset.entranceRequired = false
+		if (asset.doorRequired === undefined) {
+			asset.doorRequired = false
 		}
 	}
 }
@@ -115,7 +117,52 @@ if (!state.layout.floors.some((f: FloorData) => f.id === state.currentFloorId)) 
 	state.currentFloorId = state.layout.floors[0]?.id ?? ''
 }
 
-const _assetMap = computed(() => buildAssetMap([...state.assetRegistry]))
+export interface StateSnapshot {
+	layout: FloorLayoutData
+	assetRegistry: AssetDef[]
+	tagDefinitions: BlueprintTagDefinition[]
+}
+
+export function captureStateSnapshot(): StateSnapshot {
+	return {
+		layout: JSON.parse(JSON.stringify(state.layout)),
+		assetRegistry: JSON.parse(JSON.stringify(state.assetRegistry)),
+		tagDefinitions: JSON.parse(JSON.stringify(state.tagDefinitions)),
+	}
+}
+
+export function restoreStateSnapshot(snapshot: StateSnapshot): void {
+	state.layout = snapshot.layout
+	state.assetRegistry = snapshot.assetRegistry
+	state.tagDefinitions = snapshot.tagDefinitions
+	for (const asset of state.assetRegistry) initAssetFields(asset)
+	if (!state.layout.floors.some((f: FloorData) => f.id === state.currentFloorId)) {
+		state.currentFloorId = state.layout.floors[0]?.id ?? ''
+	}
+}
+
+let lastSavedSnapshot: StateSnapshot | null = null
+
+export function initLastSavedSnapshot(): void {
+	lastSavedSnapshot = captureStateSnapshot()
+}
+
+export function updateLastSavedSnapshot(): void {
+	lastSavedSnapshot = captureStateSnapshot()
+}
+
+export function revertToLastSavedSnapshot(): boolean {
+	if (!lastSavedSnapshot) return false
+	try {
+		restoreStateSnapshot(lastSavedSnapshot)
+		return true
+	} catch (error) {
+		editorLog.error('Failed to revert state after save failure', error)
+		return false
+	}
+}
+
+const _assetMap = computed(() => buildAssetMap(state.assetRegistry))
 export function assetMap(): Map<string, AssetDef> {
 	return _assetMap.value
 }
@@ -132,12 +179,4 @@ export function clamp(rect: Rect): Rect {
 	const c = state.layout.canvas
 	const b = buildingArea(c.width, c.height, c.tileSize)
 	return _clamp(rect, b.x + b.w, b.y + b.h, b.x, b.y)
-}
-
-if (import.meta.hot) {
-	import.meta.hot.dispose((data: any) => {
-		data._editorLayout = JSON.stringify(state.layout)
-		data._editorState = { assetRegistry: state.assetRegistry }
-	})
-	import.meta.hot.accept()
 }

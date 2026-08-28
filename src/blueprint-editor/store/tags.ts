@@ -3,10 +3,7 @@ import { useToast } from '@/composables/useToast'
 import { saveBlueprintData } from './persistence'
 import { state } from './state'
 import { buildTagCatalog } from '../tagCatalog'
-
-function normalizeTag(raw: string): string {
-	return raw.trim().toLowerCase().replace(/\s+/g, '-')
-}
+import { normalizeTag } from '../types'
 
 export const tagCatalog = computed(() => buildTagCatalog(state.tagDefinitions, state.assetRegistry, state.layout.npcConfig))
 export const globalTags = computed(() => tagCatalog.value.definitions.map(tag => tag.id).sort((a, b) => a.localeCompare(b)))
@@ -21,6 +18,7 @@ export async function addTag(tag: string): Promise<void> {
 
 export async function removeTag(tag: string): Promise<boolean> {
 	const normalized = normalizeTag(tag)
+	if (!normalized) return false
 	const before = state.tagDefinitions.length
 	state.tagDefinitions = state.tagDefinitions.filter(item => item.id !== normalized)
 	if (state.tagDefinitions.length === before) return false

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch } from "vue";
+import { ref, computed, toRaw, watch } from "vue";
 import { useToast } from "@/composables/useToast";
 import { useAssetsStore } from "../blueprintStore";
 import { state } from "../store/state";
@@ -16,11 +16,8 @@ const store = useAssetsStore();
 if (!state.layout.npcConfig) {
   state.layout.npcConfig = emptyNpcConfig();
 }
-function cloneConfig(value: NpcSimulationConfig): NpcSimulationConfig {
-  return JSON.parse(JSON.stringify(value)) as NpcSimulationConfig;
-}
 
-const draft = ref<NpcSimulationConfig>(cloneConfig(state.layout.npcConfig));
+const draft = ref<NpcSimulationConfig>(structuredClone(toRaw(state.layout.npcConfig)));
 const newSpawnTag = ref<Record<string, string>>({});
 const spawnFloorId = ref("");
 
@@ -40,7 +37,7 @@ watch(
   () => props.open,
   (open) => {
     if (open && state.layout.npcConfig) {
-      draft.value = cloneConfig(state.layout.npcConfig);
+      draft.value = structuredClone(toRaw(state.layout.npcConfig));
     }
   },
 );
@@ -161,9 +158,9 @@ async function onDeploy() {
               <div class="form__row form__row--tight">
                 <label class="label--fixed">Count</label>
                 <div class="form__row form__row--wrap">
-                  <button class="flag--icon" aria-label="Decrease count" @click="setPoolCount(role.id, getPoolCount(role.id) - 1)">-</button>
+                  <button aria-label="Decrease count" @click="setPoolCount(role.id, getPoolCount(role.id) - 1)">-</button>
                   <input :value="getPoolCount(role.id)" type="number" min="0" max="100" aria-label="Role count" @input="setPoolCount(role.id, Number(($event.target as HTMLInputElement).value))" />
-                  <button class="flag--icon" aria-label="Increase count" @click="setPoolCount(role.id, getPoolCount(role.id) + 1)">+</button>
+                  <button aria-label="Increase count" @click="setPoolCount(role.id, getPoolCount(role.id) + 1)">+</button>
                 </div>
               </div>
             </div>

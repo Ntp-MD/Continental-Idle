@@ -48,7 +48,6 @@ export function normalizeObject(
 		x: o.x,
 		y: o.y,
 		rotation: o.rotation,
-		subId: o.subId,
 		linkGroupId: o.linkGroupId,
 		locked: o.locked,
 		isWall: o.isWall,
@@ -92,7 +91,7 @@ export function resolvePlacedObject(
 		isWall: placement.isWall ?? asset.isWall,
 		locked: placement.locked ?? asset.defaultLocked,
 		walkable: definition.walkable,
-		entranceRequired: definition.entranceRequired,
+		doorRequired: definition.doorRequired,
 		walkableGrid: definition.walkableGrid,
 		tileStates: definition.tileStates,
 		wallSegments: definition.wallSegments,
@@ -102,7 +101,9 @@ export function resolvePlacedObject(
 }
 
 export function svgTransform(obj: ObjectData, asset: AssetDef | undefined): string {
-	const vb = asset?.svgViewBox ? asset.svgViewBox : { w: 50, h: 25 }
+	const vb = asset?.svgViewBox
+		? asset.svgViewBox
+		: { w: obj.w, h: obj.h }
 	const rot = obj.rotation || 0
 	if (rot === 0) {
 		return `translate(${obj.x}, ${obj.y}) scale(${obj.w / vb.w}, ${obj.h / vb.h})`

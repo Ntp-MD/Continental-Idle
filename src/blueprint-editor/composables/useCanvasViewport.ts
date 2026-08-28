@@ -11,7 +11,7 @@ export interface ViewportState {
 	zooming: Ref<boolean>
 	svgRef: Ref<SVGSVGElement | null>
 	containerRef: Ref<HTMLElement | null>
-	RULER_SIZE: number
+	RULER_SIZE: ComputedRef<number>
 	fitToScreen: () => void
 	centerView: () => void
 	zoomBy: (factor: number, cx?: number, cy?: number) => void
@@ -26,6 +26,7 @@ export interface ViewportState {
 export function useCanvasViewport(
 	canvasWidth: () => number,
 	canvasHeight: () => number,
+	rulerOpts?: { minPx: () => number; maxPx: () => number; basePx: () => number },
 ): ViewportState {
 	const svgRef = ref<SVGSVGElement | null>(null)
 	const containerRef = ref<HTMLElement | null>(null)
@@ -35,7 +36,10 @@ export function useCanvasViewport(
 	const panY = ref(0)
 	const MIN_ZOOM = 0.1
 	const MAX_ZOOM = 8
-	const RULER_SIZE = 22
+	const rulerMinPx = rulerOpts?.minPx ?? (() => 16)
+	const rulerMaxPx = rulerOpts?.maxPx ?? (() => 32)
+	const rulerBasePx = rulerOpts?.basePx ?? (() => 22)
+	const RULER_SIZE = computed(() => Math.max(rulerMinPx(), Math.min(rulerMaxPx(), Math.round(rulerBasePx() * Math.sqrt(zoom.value)))))
 
 	const viewBox = computed(() => {
 		const w = canvasWidth() / zoom.value
@@ -49,7 +53,7 @@ export function useCanvasViewport(
 
 	function fitToScreen() {
 		if (!containerRef.value) return
-		const pad = 12 + RULER_SIZE
+		const pad = 12 + RULER_SIZE.value
 		const cw = containerRef.value.clientWidth - pad * 2
 		const ch = containerRef.value.clientHeight - pad * 2
 		const fitZoom = Math.min(cw / canvasWidth(), ch / canvasHeight())

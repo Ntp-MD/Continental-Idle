@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { NpcEngine, type NpcEngineQueue, type NpcEngineFloor } from '../src/engine/npc'
+import { NpcEngine, NPC_ENGINE_DEFAULT_OPTIONS, type NpcEngineQueue, type NpcEngineFloor } from '../src/engine/npc'
 import { buildNpcQueues } from '../src/engine/npc/queueBuild'
 import type { AssetDef, FloorData } from '../src/blueprint-editor/types'
 
@@ -26,7 +26,8 @@ const queueAsset: AssetDef = {
 	name: 'Queue Asset',
 	w: 3,
 	h: 4,
-	tileStates: [['walkable', 'walkable', 'blocked'], ['walkable', 'walkable', 'entrance'], ['walkable', 'walkable', 'entrance'], ['walkable', 'walkable', 'blocked']],
+	tileStates: [['walkable', 'walkable', 'blocked'], ['walkable', 'walkable', 'walkable'], ['walkable', 'walkable', 'walkable'], ['walkable', 'walkable', 'blocked']],
+	wallSegments: [{ x1: 3, y1: 1, x2: 3, y2: 3, door: true }],
 	interactSpots: [{ x: 62.5, y: 12.5 }, { x: 62.5, y: 12.5 }],
 }
 const queueFloorData: FloorData = {
@@ -56,6 +57,7 @@ const engine = new NpcEngine({
 	interactionTargets: [target],
 	queues: [queue],
 }, {
+	...NPC_ENGINE_DEFAULT_OPTIONS,
 	ticksPerSecond: 1,
 	random: () => 0,
 	pathfinder: (_floor, from, to) => [{ x: from.x, y: from.y }, { x: to.x, y: to.y }],

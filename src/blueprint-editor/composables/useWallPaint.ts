@@ -122,7 +122,6 @@ export function useWallPaint(opts: {
 		const height = Math.max(1, Math.abs(normalized.y2 - normalized.y1) * t)
 		await opts.commit(current.floorId, {
 			id: makeId('wall'),
-			subId: makeId('wall-sub'),
 			type: CANVAS_WALL_OBJECT_TYPE,
 			x: minX,
 			y: minY,

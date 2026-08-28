@@ -55,7 +55,6 @@ export async function pasteObjects(): Promise<void> {
 		const copy: ObjectData = {
 			...rest,
 			id: newId,
-			subId: genId('sub'),
 			x: rect.x,
 			y: rect.y,
 			w: rect.w,

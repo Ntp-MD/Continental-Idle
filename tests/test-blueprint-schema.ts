@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { applySvgColorConvention, normalizeObjectPlacement, resolveObjectDef, parseCanvasConfig, CANVAS_FIELD_SPECS } from '../src/blueprint-editor/types'
+import { applySvgColorConvention, isSafeSvgMarkup, normalizeBlueprintDataFile, normalizeObjectPlacement, normalizeOriginAsset, normalizeTag, resolveObjectDef, parseCanvasConfig, CANVAS_FIELD_SPECS } from '../src/blueprint-editor/types'
 import { serializeAsset, serializeObject } from '../src/blueprint-editor/assetUtils'
 import { resolvePlacedObject } from '../src/blueprint-editor/geometry'
 import { buildBlueprintData } from '../src/blueprint-editor/store/dataLoader'
@@ -24,6 +24,9 @@ assert.deepEqual(rawPlacement, {
 	y: 50,
 	rotation: 0,
 })
+assert.equal(normalizeTag('Guest Room'), 'guest-room')
+assert.equal(normalizeTag('bad<tag>'), 'badtag')
+assert.equal(normalizeTag('   '), undefined)
 
 const runtimeObject: ObjectData = {
 	...rawPlacement!,
@@ -52,7 +55,7 @@ const runtimeAsset = {
 	h: 1,
 	defaultPadding: 0,
 	defaultRx: { tl: 0, tr: 0, br: 0, bl: 0 },
-	entranceRequired: false,
+	doorRequired: false,
 	tags: [],
 	unknownField: true,
 } as unknown as AssetDef
@@ -73,7 +76,7 @@ const serializedAsset = serializeAsset(runtimeAsset)
 assert.equal('unknownField' in serializedAsset, false)
 assert.equal('defaultPadding' in serializedAsset, false)
 assert.equal('defaultRx' in serializedAsset, false)
-assert.equal('entranceRequired' in serializedAsset, false)
+assert.equal('doorRequired' in serializedAsset, false)
 assert.equal('tags' in serializedAsset, false)
 
 const layout: FloorLayoutData = {
@@ -98,6 +101,50 @@ assert.deepEqual(Object.keys(savedObject).sort(), ['fillColor', 'id', 'rotation'
 assert.equal('w' in savedObject, false)
 assert.equal('interactSpots' in savedObject, false)
 assert.equal('walkableGrid' in savedObject, false)
+
+const normalizedAsset = normalizeOriginAsset({
+	...runtimeAsset,
+	defaultFillColor: '#fff',
+	unknownField: true,
+})
+assert.ok(normalizedAsset)
+assert.equal('unknownField' in normalizedAsset, false)
+
+const normalizedData = normalizeBlueprintDataFile({
+	...saved,
+	originAssets: [{ ...saved.originAssets[0], unknownField: true }],
+	layout: {
+		...saved.layout,
+		floors: [{
+			...saved.layout.floors[0],
+			objects: [{ ...saved.layout.floors[0].objects[0], unknownField: true }],
+		}],
+	},
+})
+assert.ok(normalizedData)
+assert.equal('unknownField' in normalizedData.originAssets[0], false)
+assert.equal('unknownField' in normalizedData.layout.floors[0].objects[0], false)
+const normalizedInvalidOptional = normalizeBlueprintDataFile({
+	...saved,
+	layout: {
+		...saved.layout,
+		floors: [{
+			...saved.layout.floors[0],
+			objects: [{ ...saved.layout.floors[0].objects[0], fillColor: 'not-a-color' }],
+		}],
+	},
+})
+assert.ok(normalizedInvalidOptional)
+assert.equal('fillColor' in normalizedInvalidOptional.layout.floors[0].objects[0], false)
+assert.equal(normalizeOriginAsset({ ...runtimeAsset, walkableGrid: [[true], [true, false]] }), undefined)
+assert.equal(isSafeSvgMarkup('<script>alert(1)</script>'), false)
+assert.equal(isSafeSvgMarkup('<rect fill="#fff"/>'), true)
+assert.equal(normalizeBlueprintDataFile({ ...saved, version: 3 }), undefined)
+assert.equal(normalizeBlueprintDataFile({
+	...saved,
+	originAssets: [{ ...saved.originAssets[0], svg: '<script>alert(1)</script>', svgViewBox: { w: 10, h: 10 } }],
+}), undefined)
+console.log('Blueprint boundary hardening checks passed')
 
 const conv = applySvgColorConvention
 assert.equal(conv('<rect fill="none" stroke="#ff0000"/>'), '<rect fill="var(--obj-fill,none)" stroke="var(--obj-stroke,#ff0000)"/>')

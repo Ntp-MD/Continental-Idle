@@ -97,7 +97,7 @@ function buildSyncedObject(o: ObjectData, assets: ReadonlyMap<string, AssetDef>,
 		rotation: o.rotation,
 		...(o.isWall ? { isWall: true } : {}),
 		walkable: asset?.walkable ?? false,
-		entranceRequired: asset?.entranceRequired ?? false,
+		doorRequired: asset?.doorRequired ?? false,
 	}
 	if (o.fillColor) obj.fillColor = o.fillColor
 	if (o.strokeColor) obj.strokeColor = o.strokeColor

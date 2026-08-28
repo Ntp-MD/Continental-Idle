@@ -1,4 +1,4 @@
-import { ref, shallowRef } from 'vue'
+import { ref, shallowRef, toRaw } from 'vue'
 import {
 	NpcEngine,
 	NPC_ENGINE_DEFAULT_AGENT_CLEARANCE,
@@ -17,8 +17,6 @@ import { isNpcConfig } from '@/blueprint-editor/types'
 import { mergeNpcConfig } from '@/blueprint-editor/store/npcDefault'
 
 const MAX_ROLE_SPAWN_COUNT = 100
-const MAX_SIMULATION_STEPS = 8
-const FRAME_SIM_BUDGET_MS = 6
 
 export interface NpcSimulationCoreHost {
 	getConfig(): NpcSimulationConfig | undefined
@@ -32,10 +30,6 @@ export interface NpcSimulationCoreHost {
 	getManagedTags?(): readonly string[]
 }
 
-function deepClone<T>(value: T): T {
-	return JSON.parse(JSON.stringify(value))
-}
-
 function resolveRole(config: NpcSimulationConfig, roleId: string): NpcRole | undefined {
 	return config.roles.find(role => role.id === roleId)
 		?? config.roles.find(role => role.id === config.defaultRoleId)
@@ -46,7 +40,14 @@ export function useNpcSimulationCore(host: NpcSimulationCoreHost) {
 	const npcs = shallowRef<NpcSimDot[]>([])
 	const isPaused = ref(false)
 	const simSpeed = ref(1)
-	const config = ref<NpcSimulationConfig>({ speed: 1 / 30, defaultRoleId: '', roles: [], tasks: [], pool: [] })
+	const config = ref<NpcSimulationConfig>({
+		speed: 1 / 30, defaultRoleId: '', roles: [], tasks: [], pool: [],
+		crossFloorCooldownSeconds: 30, progressWatchdogTicks: 120, maxRepathAttempts: 4,
+		repathCooldownSeconds: 2, repathCooldownExponent: 1.5, pathBudgetMinPerTick: 2,
+		pathBudgetAgentsPerCall: 100, chooseTargetMinPerTick: 8, chooseTargetAgentsPerSlot: 20,
+		wanderMemorySize: 32, wanderSmallMapThreshold: 8, triggerRatePeriodSeconds: 60,
+		frameSimBudgetMs: 6, maxSimulationSteps: 8,
+	})
 
 	let animationId: number | null = null
 	let engine: NpcEngine | null = null
@@ -199,9 +200,22 @@ export function useNpcSimulationCore(host: NpcSimulationCoreHost) {
 			getManagedTags: host.getManagedTags,
 		})
 
+		const cfg = host.getConfig()
 		engine = new NpcEngine(built.layout, {
 			ticksPerSecond: NPC_ENGINE_TICKS_PER_SECOND,
 			agentClearance: NPC_ENGINE_DEFAULT_AGENT_CLEARANCE,
+			crossFloorCooldownSeconds: cfg?.crossFloorCooldownSeconds ?? 30,
+			progressWatchdogTicks: cfg?.progressWatchdogTicks ?? 120,
+			maxRepathAttempts: cfg?.maxRepathAttempts ?? 4,
+			repathCooldownSeconds: cfg?.repathCooldownSeconds ?? 2,
+			repathCooldownExponent: cfg?.repathCooldownExponent ?? 1.5,
+			pathBudgetMinPerTick: cfg?.pathBudgetMinPerTick ?? 2,
+			pathBudgetAgentsPerCall: cfg?.pathBudgetAgentsPerCall ?? 100,
+			chooseTargetMinPerTick: cfg?.chooseTargetMinPerTick ?? 8,
+			chooseTargetAgentsPerSlot: cfg?.chooseTargetAgentsPerSlot ?? 20,
+			wanderMemorySize: cfg?.wanderMemorySize ?? 32,
+			wanderSmallMapThreshold: cfg?.wanderSmallMapThreshold ?? 8,
+			triggerRatePeriodSeconds: cfg?.triggerRatePeriodSeconds ?? 60,
 			...policy,
 		})
 
@@ -211,10 +225,13 @@ export function useNpcSimulationCore(host: NpcSimulationCoreHost) {
 
 	function frame(): void {
 		if (!isPaused.value && engine) {
-			const desired = Math.max(1, Math.min(MAX_SIMULATION_STEPS, Math.round(simSpeed.value)))
+			const cfg = host.getConfig()
+			const maxSteps = cfg?.maxSimulationSteps ?? 8
+			const budgetMs = cfg?.frameSimBudgetMs ?? 6
+			const desired = Math.max(1, Math.min(maxSteps, Math.round(simSpeed.value)))
 			let steps = desired
 			if (tickCostEma > 0) {
-				steps = Math.max(1, Math.min(desired, Math.floor(FRAME_SIM_BUDGET_MS / tickCostEma)))
+				steps = Math.max(1, Math.min(desired, Math.floor(budgetMs / tickCostEma)))
 			}
 			const t0 = performance.now()
 			engine.tick(steps)
@@ -238,7 +255,7 @@ export function useNpcSimulationCore(host: NpcSimulationCoreHost) {
 	/** Merge raw external config into working config; returns true when applied. */
 	function ingestConfig(raw: NpcSimulationConfig | undefined): boolean {
 		if (!raw || !isNpcConfig(raw)) return false
-		config.value = mergeNpcConfig(deepClone(raw))
+		config.value = mergeNpcConfig(structuredClone(toRaw(raw)))
 		applyConfigSpeedToAgents()
 		return true
 	}
@@ -263,7 +280,7 @@ export function useNpcSimulationCore(host: NpcSimulationCoreHost) {
 			spawnFloorOverride = spawnFloorId ?? null
 			tickCostEma = 0
 			deploymentActive = true
-				viewFloorId = newViewFloorId
+			viewFloorId = newViewFloorId
 			buildEngine(floors, canvas)
 			start()
 		},
@@ -278,7 +295,7 @@ export function useNpcSimulationCore(host: NpcSimulationCoreHost) {
 		},
 		clearDeployment(): void {
 			deploymentActive = false
-			},
+		},
 		reset(): void {
 			stopLoop()
 			engine = null
@@ -287,7 +304,7 @@ export function useNpcSimulationCore(host: NpcSimulationCoreHost) {
 			frameDots.clear()
 			currentCanvas = null
 			viewFloorId = null
-				deploymentActive = false
+			deploymentActive = false
 			spawnFloorOverride = null
 			tickCostEma = 0
 			npcs.value = []

@@ -10,14 +10,13 @@ import {
 import { genId, genAssetId } from './utils'
 import { selectedObject, selectedObjectIds, select as selectEntity, clearSelection, toggleMultiSelect as toggleMultiSelectEntity } from './selection'
 import { getLinkedObjects } from './utils'
-import { saveLayout, saveAssets } from './persistence'
+import { saveBlueprintData, saveLayout } from './persistence'
 
 function canvasWallObject(segment: WallSegment, tileSize: number): ObjectData | null {
 	const normalized = normalizeWallSegment(segment)
 	if (!normalized || tileSize <= 0) return null
 	return {
 		id: genId('wall'),
-		subId: genId('wall-sub'),
 		type: CANVAS_WALL_OBJECT_TYPE,
 		x: Math.min(normalized.x1, normalized.x2) * tileSize,
 		y: Math.min(normalized.y1, normalized.y2) * tileSize,
@@ -29,6 +28,7 @@ function canvasWallObject(segment: WallSegment, tileSize: number): ObjectData | 
 		y1: normalized.y1,
 		x2: normalized.x2,
 		y2: normalized.y2,
+		door: normalized.door,
 	}
 }
 
@@ -46,15 +46,20 @@ export async function beginDrawnObject(name: string, w: number, h: number, x: nu
 	return withStateLock(async () => {
 		const floor = currentFloor.value
 		if (!floor) return null
+		const safeName = name.trim()
+		if (!safeName || safeName.length > 512 || !Number.isFinite(w) || !Number.isFinite(h) || !Number.isFinite(x) || !Number.isFinite(y) || w <= 0 || h <= 0 || w > 10_000 || h > 10_000) {
+			toast.warning('Drawn asset input is invalid')
+			return null
+		}
 		const t = state.layout.canvas.tileSize
-		const asset: AssetDef = { origin: 'drawn', id: genAssetId('custom', name, c => state.assetRegistry.some(a => a.id === c)), name, w: Math.max(1, Math.floor(w)), h: Math.max(1, Math.floor(h)), defaultFillColor: '#ffffff' }
+		const asset: AssetDef = { origin: 'drawn', id: genAssetId('custom', safeName, c => state.assetRegistry.some(a => a.id === c)), name: safeName, w: Math.max(1, Math.floor(w)), h: Math.max(1, Math.floor(h)), defaultFillColor: '#ffffff' }
 		initAssetFields(asset)
 		const rect = clamp({ x: snap(x), y: snap(y), w: asset.w * t, h: asset.h * t })
 		if (objectOverlapsAny(floor.objects, assetMap(), rect)) {
 			toast.warning('Cannot place object - overlaps existing object')
 			return null
 		}
-		const object: ObjectData = { id: genId('obj'), subId: genId('sub'), type: asset.id, rotation: 0, ...rect }
+		const object: ObjectData = { id: genId('obj'), type: asset.id, rotation: 0, ...rect }
 		normalizeObject(object, t, new Map([...assetMap(), [asset.id, asset]]))
 		state.assetRegistry.push(asset)
 		floor.objects.push(object)
@@ -80,7 +85,7 @@ export async function addObject(type: string, x: number, y: number): Promise<Obj
 			return null
 		}
 		const obj: ObjectData = {
-			id: genId('obj'), subId: genId('sub'), type, rotation: 0,
+			id: genId('obj'), type, rotation: 0,
 			x: rect.x, y: rect.y, w: rect.w, h: rect.h,
 		}
 		normalizeObject(obj, t, assetMap())
@@ -100,9 +105,6 @@ export function canPlaceObject(type: string, x: number, y: number): boolean {
 	const w = snap(aw)
 	const h = snap(ah)
 	const rect = clamp({ x: snap(x), y: snap(y), w, h })
-	if (asset.svg) {
-		return !objectOverlapsAny(currentFloor.value?.objects ?? [], assetMap(), rect)
-	}
 	return !objectOverlapsAny(currentFloor.value?.objects ?? [], assetMap(), rect)
 }
 
@@ -326,11 +328,6 @@ interface SelectedWallInput {
 	segment: WallSegment
 }
 
-export async function createLinkedAssetFromSelection(name?: string): Promise<string | null> {
-	const selectedWalls = wallSelection.value.filter(selection => selection.floorId === currentFloor.value?.id)
-	return flattenToSvgAsset(name, selectedWalls)
-}
-
 export async function linkObjects(ids: string[]): Promise<boolean> {
 	const floor = currentFloor.value
 	if (!floor || ids.length < 2) return false
@@ -537,7 +534,6 @@ export async function flattenToSvgAsset(name?: string, walls?: readonly Selected
 
 		const newObj: ObjectData = {
 			id: genId('obj'),
-			subId: genId('sub'),
 			type: assetId,
 			rotation: 0,
 			x: minX,
@@ -555,8 +551,7 @@ export async function flattenToSvgAsset(name?: string, walls?: readonly Selected
 		clearSelection()
 		wallSelection.value = []
 		selectEntity({ type: 'object', id: newObj.id })
-		await saveAssets()
-		await saveLayout()
+		await saveBlueprintData()
 
 		toast.success(selectedSegments.length
 			? `Merged ${objs.length} object${objs.length === 1 ? '' : 's'} + ${selectedSegments.length} wall${selectedSegments.length === 1 ? '' : 's'} into "${flatName}"`

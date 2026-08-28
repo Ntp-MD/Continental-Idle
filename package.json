@@ -25,7 +25,6 @@
     "clear-cache": "node -e \"const fs=require('fs');const p=require('path');const dir=p.join(process.cwd(),'node_modules','.tmp');if(fs.existsSync(dir)){fs.rmSync(dir,{recursive:true,force:true});console.log('[clear-cache] removed node_modules/.tmp')}else{console.log('[clear-cache] nothing to remove')};const vite=p.join(process.cwd(),'node_modules','.vite');if(fs.existsSync(vite)){fs.rmSync(vite,{recursive:true,force:true});console.log('[clear-cache] removed node_modules/.vite')}\"",
     "verify:assets": "node scripts/verify-assets.mjs",
     "guard:data-restore": "node scripts/guard-data-restore.mjs",
-    "build:hotel": "node scripts/build-hotel.mjs",
     "observe:hotel": "tsx scripts/observe-hotel.ts"
   },
   "dependencies": {

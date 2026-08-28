@@ -17,7 +17,7 @@
 - Prefer direct, understandable implementations. Do not introduce services, databases, queues, event buses, generic repositories, facades that only forward calls, or other infrastructure without a demonstrated need.
 - Do not optimize for scale the product does not have (multi-user sync, remote deployment, caching layers) unless scope changes.
 - Preserve user data. Validate cross-references whenever data domains are split or recombined.
-- Compatibility wrappers may exist during migration, but never two independent implementations of the same operation.
+- Never two independent implementations of the same operation.
 
 ## Dead code and cleanup
 

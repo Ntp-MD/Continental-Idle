@@ -35,7 +35,7 @@ const OPTIONAL_FIELDS = [
 	'origin', 'category', 'custom', 'isWall', 'wallSegments',
 	'pxW', 'pxH', 'usePx',
 	'svg', 'svgViewBox', 'svgRoles',
-	'walkable', 'entranceRequired',
+	'walkable', 'doorRequired',
 	'walkableGrid', 'tileStates',
 	'interactSpots', 'interact', 'queue',
 	'defaultPadding', 'defaultRx',
@@ -84,7 +84,7 @@ function validateWalkableGrid(value) {
 
 function validateTileStates(value) {
 	if (!Array.isArray(value)) return 'must be an array'
-	const valid = ['walkable', 'blocked', 'entrance']
+	const valid = ['walkable', 'blocked', 'door']
 	for (let i = 0; i < value.length; i++) {
 		if (!Array.isArray(value[i])) return `row ${i}: must be an array`
 		for (let j = 0; j < value[i].length; j++) {

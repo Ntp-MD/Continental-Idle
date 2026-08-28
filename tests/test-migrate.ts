@@ -46,15 +46,11 @@ const result = migrate(makeLayout(), originAssets)
 assert.ok(result.layout, 'migrate should return a layout')
 assert.equal(result.layout.floors.length, 1, 'should preserve floor count')
 assert.equal(result.layout.floors[0].id, 'floor-1')
-assert.equal(result.layout.npcConfig.roles.length, 1)
-assert.equal(result.layout.npcConfig.roles[0].id, 'role-1')
+assert.equal(result.layout.npcConfig!.roles.length, 1)
+assert.equal(result.layout.npcConfig!.roles[0].id, 'role-1')
 
-const empty = migrate(null, originAssets)
-assert.ok(empty.layout, 'migrate(null) should fall back to saved layout')
-assert.ok(empty.layout.floors.length >= 0)
-
-const nonObject = migrate('not-an-object', originAssets)
-assert.ok(nonObject.layout, 'migrate(non-object) should fall back to saved layout')
+assert.throws(() => migrate(null, originAssets), /Cannot migrate invalid layout data/)
+assert.throws(() => migrate('not-an-object', originAssets), /Cannot migrate invalid layout data/)
 
 const result2 = migrate(makeLayout({ npcConfig: undefined }), originAssets)
 assert.ok(result2.layout.npcConfig, 'missing npcConfig should produce empty config')
@@ -73,8 +69,8 @@ const badNpc = makeLayout({
 	},
 })
 const result3 = migrate(badNpc, originAssets)
-assert.equal(result3.layout.npcConfig.roles.length, 1, 'partial salvage: bad role dropped, good role kept')
-assert.equal(result3.layout.npcConfig.roles[0].id, 'role-1')
+assert.equal(result3.layout.npcConfig!.roles.length, 1, 'partial salvage: bad role dropped, good role kept')
+assert.equal(result3.layout.npcConfig!.roles[0].id, 'role-1')
 
 const allBadNpc = makeLayout({
 	npcConfig: {
@@ -86,7 +82,7 @@ const allBadNpc = makeLayout({
 	},
 })
 const result4 = migrate(allBadNpc, originAssets)
-assert.equal(result4.layout.npcConfig.roles.length, 0, 'all roles invalid -> empty config (not crash)')
+assert.equal(result4.layout.npcConfig!.roles.length, 0, 'all roles invalid -> empty config (not crash)')
 
 const withObject = makeLayout({
 	floors: [makeFloor({
@@ -165,6 +161,6 @@ assert.equal(badSpeed, undefined, 'non-number speed -> undefined')
 const roundTripped = migrate(makeLayout(), originAssets)
 const reMigrated = migrate(JSON.parse(JSON.stringify(roundTripped.layout)), originAssets)
 assert.deepEqual(reMigrated.layout.floors[0].id, roundTripped.layout.floors[0].id, 'round-trip should be stable')
-assert.equal(reMigrated.layout.npcConfig.roles.length, roundTripped.layout.npcConfig.roles.length)
+assert.equal(reMigrated.layout.npcConfig!.roles.length, roundTripped.layout.npcConfig!.roles.length)
 
 console.log('Migration salvage checks passed')

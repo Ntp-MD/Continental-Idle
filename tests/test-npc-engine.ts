@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { NpcEngine, findNpcGridPath, selectBestTarget, WanderMemory, type NpcEngineLayout, type NpcEngineInteractionTarget, type NpcEngineFloor, type NpcEngineAgent } from '../src/engine/npc'
+import { NpcEngine, NPC_ENGINE_DEFAULT_OPTIONS, findNpcGridPath, selectBestTarget, WanderMemory, type NpcEngineLayout, type NpcEngineInteractionTarget, type NpcEngineFloor, type NpcEngineAgent } from '../src/engine/npc'
 import { normalizeAllowedRoleIds } from '../src/blueprint-editor/types'
 import { validatePortalConfiguration, buildAssetMap } from '../src/blueprint-editor/assetUtils'
 import type { AssetDef } from '../src/blueprint-editor/types'
@@ -35,6 +35,7 @@ const layout: NpcEngineLayout = {
 }
 
 const engine = new NpcEngine(layout, {
+	...NPC_ENGINE_DEFAULT_OPTIONS,
 	ticksPerSecond: 1,
 	agentClearance: 0.5,
 	random: () => 0,
@@ -62,6 +63,7 @@ const blockedEngine = new NpcEngine({
 	...layout,
 	interactionTargets: [layout.interactionTargets[0]],
 }, {
+	...NPC_ENGINE_DEFAULT_OPTIONS,
 	ticksPerSecond: 1,
 	random: () => 0,
 	pathfinder: (_floor, from, to) => [{ x: from.x, y: from.y }, { x: to.x, y: to.y }],
@@ -76,6 +78,7 @@ const crowdedTargetEngine = new NpcEngine({
 	...layout,
 	interactionTargets: [layout.interactionTargets[0]],
 }, {
+	...NPC_ENGINE_DEFAULT_OPTIONS,
 	ticksPerSecond: 1,
 	random: () => 0,
 	targetSelector: (_agent, targets) => targets[0] ?? null,
@@ -94,6 +97,7 @@ const blockedWanderEngine = new NpcEngine({
 	floors: layout.floors,
 	interactionTargets: [],
 }, {
+	...NPC_ENGINE_DEFAULT_OPTIONS,
 	ticksPerSecond: 1,
 	random: () => 0,
 	targetSelector: () => null,
@@ -134,6 +138,7 @@ const directPath = (_floor: unknown, from: { x: number; y: number }, to: { x: nu
 	}
 	let selectorSawCrossFloor = false
 	const portalEngine = new NpcEngine(portalLayout, {
+		...NPC_ENGINE_DEFAULT_OPTIONS,
 		ticksPerSecond: 1, agentClearance: 0.5, random: () => 0, pathfinder: directPath,
 		targetSelector: (_agent, targets) => { if (targets.some(t => t.floorId !== 'F1')) selectorSawCrossFloor = true; return targets[0] ?? null },
 		crossFloorSelector: (_agent, candidates) => candidates.find(t => t.floorId === 'F2' && t.itemId === 'desk') ?? null,
@@ -165,6 +170,7 @@ const directPath = (_floor: unknown, from: { x: number; y: number }, to: { x: nu
 		],
 	}
 	const cdEngine = new NpcEngine(portalLayout, {
+		...NPC_ENGINE_DEFAULT_OPTIONS,
 		ticksPerSecond: 1, agentClearance: 0.5, random: () => 0, pathfinder: directPath,
 		targetSelector: (_agent, targets) => targets[0] ?? null,
 		crossFloorSelector: (_agent, candidates) => candidates[0] ?? null,
@@ -200,6 +206,7 @@ const directPath = (_floor: unknown, from: { x: number; y: number }, to: { x: nu
 		],
 	}
 	const loopEngine = new NpcEngine(portalLayout, {
+		...NPC_ENGINE_DEFAULT_OPTIONS,
 		ticksPerSecond: 1, agentClearance: 0.5, random: () => 0, pathfinder: directPath,
 		targetSelector: (_agent, targets) => targets[0] ?? null,
 		crossFloorSelector: (_agent, candidates) => candidates[0] ?? null,
@@ -225,6 +232,7 @@ const directPath = (_floor: unknown, from: { x: number; y: number }, to: { x: nu
 		],
 	}
 	const noRouteEngine = new NpcEngine(noRouteLayout, {
+		...NPC_ENGINE_DEFAULT_OPTIONS,
 		ticksPerSecond: 1, agentClearance: 0.5, random: () => 0, pathfinder: directPath,
 		targetSelector: () => null,
 		wanderSelector: () => ({ x: 9, y: 9 }),
@@ -255,6 +263,7 @@ const directPath = (_floor: unknown, from: { x: number; y: number }, to: { x: nu
 		],
 	}
 	const threeEngine = new NpcEngine(threeFloorLayout, {
+		...NPC_ENGINE_DEFAULT_OPTIONS,
 		ticksPerSecond: 1, agentClearance: 0.5, random: () => 0, pathfinder: directPath,
 		targetSelector: () => null,
 		crossFloorSelector: (_agent, candidates) => candidates.find(t => t.floorId === 'F3') ?? null,
@@ -281,6 +290,7 @@ const directPath = (_floor: unknown, from: { x: number; y: number }, to: { x: nu
 		],
 	}
 	const roleEngine = new NpcEngine(roleLayout, {
+		...NPC_ENGINE_DEFAULT_OPTIONS,
 		ticksPerSecond: 1, agentClearance: 0.5, random: () => 0, pathfinder: directPath,
 		targetSelector: () => null,
 		wanderSelector: () => ({ x: 9, y: 9 }),
@@ -307,6 +317,7 @@ const directPath = (_floor: unknown, from: { x: number; y: number }, to: { x: nu
 		],
 	}
 	const occEngine = new NpcEngine(occLayout, {
+		...NPC_ENGINE_DEFAULT_OPTIONS,
 		ticksPerSecond: 1, agentClearance: 0.5, random: () => 0, pathfinder: directPath,
 		targetSelector: () => null,
 		crossFloorSelector: (_agent, candidates) => candidates[0] ?? null,
@@ -335,6 +346,7 @@ const directPath = (_floor: unknown, from: { x: number; y: number }, to: { x: nu
 	}
 	let portalInSameFloor = false
 	const dupEngine = new NpcEngine(dupLayout, {
+		...NPC_ENGINE_DEFAULT_OPTIONS,
 		ticksPerSecond: 1, agentClearance: 0.5, random: () => 0, pathfinder: directPath,
 		targetSelector: (_agent, targets) => { if (targets.some(t => t.transitionToFloorId)) portalInSameFloor = true; return targets[0] ?? null },
 		crossFloorSelector: () => null,
@@ -461,6 +473,7 @@ function generateRuntimePortalTargets(
 		interactionTargets: [normalTarget, ...portalTargets],
 	}
 	const intEngine = new NpcEngine(engineLayout, {
+		...NPC_ENGINE_DEFAULT_OPTIONS,
 		ticksPerSecond: 1, agentClearance: 0.5, random: () => 0,
 		pathfinder: (_f, from, to) => [{ x: from.x, y: from.y }, { x: to.x, y: to.y }],
 		targetSelector: () => null,
@@ -507,6 +520,7 @@ function generateRuntimePortalTargets(
 
 	const floorOrder = ['G', '1', '2']
 	const int3Engine = new NpcEngine(engineLayout, {
+		...NPC_ENGINE_DEFAULT_OPTIONS,
 		ticksPerSecond: 1, agentClearance: 0.5, random: () => 0,
 		pathfinder: (_f, from, to) => [{ x: from.x, y: from.y }, { x: to.x, y: to.y }],
 		targetSelector: () => null,
@@ -550,6 +564,7 @@ function generateRuntimePortalTargets(
 		],
 	}
 	const roleEngine = new NpcEngine(engineLayout, {
+		...NPC_ENGINE_DEFAULT_OPTIONS,
 		ticksPerSecond: 1, agentClearance: 0.5, random: () => 0,
 		pathfinder: (_f, from, to) => [{ x: from.x, y: from.y }, { x: to.x, y: to.y }],
 		targetSelector: () => null,
@@ -679,7 +694,9 @@ function makeGridFloor(id: string, w: number, h: number, blocked: string[] = [],
 		floorId: 'F1', itemId: 'item1', interactSpotId: 'a0', x: 5, y: 0, tags: [],
 		capacity: 1, durationMinSeconds: 1, durationMaxSeconds: 1,
 	}]
-	const engine = new NpcEngine({ floors: [floor], interactionTargets: targets }, { random: rngSeq(),
+	const engine = new NpcEngine({ floors: [floor], interactionTargets: targets }, {
+		...NPC_ENGINE_DEFAULT_OPTIONS,
+		random: rngSeq(),
 		pathfinder: (f, from, to) => findNpcGridPath(f, from, to),
 		ticksPerSecond: 10,
 	})
@@ -700,7 +717,9 @@ function makeGridFloor(id: string, w: number, h: number, blocked: string[] = [],
 		capacity: 1, durationMinSeconds: 1, durationMaxSeconds: 1,
 	}]
 	let repathCount = 0
-	const engine = new NpcEngine({ floors: [floor], interactionTargets: targets }, { random: rngSeq(),
+	const engine = new NpcEngine({ floors: [floor], interactionTargets: targets }, {
+		...NPC_ENGINE_DEFAULT_OPTIONS,
+		random: rngSeq(),
 		pathfinder: (f, from, to, blocked) => findNpcGridPath(f, from, to, blocked),
 		ticksPerSecond: 10,
 	})
@@ -723,7 +742,9 @@ function makeGridFloor(id: string, w: number, h: number, blocked: string[] = [],
 		floorId: 'F1', itemId: 'item1', interactSpotId: 'a0', x: 4, y: 0, tags: [],
 		capacity: 1, durationMinSeconds: 100, durationMaxSeconds: 100,
 	}]
-	const engine = new NpcEngine({ floors: [floor], interactionTargets: targets }, { random: rngSeq(),
+	const engine = new NpcEngine({ floors: [floor], interactionTargets: targets }, {
+		...NPC_ENGINE_DEFAULT_OPTIONS,
+		random: rngSeq(),
 		pathfinder: (f, from, to) => findNpcGridPath(f, from, to),
 		ticksPerSecond: 10,
 	})
@@ -741,7 +762,9 @@ function makeGridFloor(id: string, w: number, h: number, blocked: string[] = [],
 		floorId: 'F1', itemId: 'item1', interactSpotId: 'a0', x: 9, y: 0, tags: [],
 		capacity: 1, durationMinSeconds: 1, durationMaxSeconds: 1,
 	}]
-	const engine = new NpcEngine({ floors: [floor], interactionTargets: targets }, { random: rngSeq(),
+	const engine = new NpcEngine({ floors: [floor], interactionTargets: targets }, {
+		...NPC_ENGINE_DEFAULT_OPTIONS,
+		random: rngSeq(),
 		pathfinder: (f, from, to) => findNpcGridPath(f, from, to),
 		ticksPerSecond: 10,
 	})
@@ -758,7 +781,9 @@ function makeGridFloor(id: string, w: number, h: number, blocked: string[] = [],
 		floorId: 'F1', itemId: 'item1', interactSpotId: 'a0', x: 3, y: 3, tags: [],
 		capacity: 1, durationMinSeconds: 1, durationMaxSeconds: 1,
 	}]
-	const engine = new NpcEngine({ floors: [floor], interactionTargets: targets }, { random: rngSeq(),
+	const engine = new NpcEngine({ floors: [floor], interactionTargets: targets }, {
+		...NPC_ENGINE_DEFAULT_OPTIONS,
+		random: rngSeq(),
 		pathfinder: (f, from, to) => findNpcGridPath(f, from, to),
 		ticksPerSecond: 10,
 	})

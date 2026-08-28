@@ -29,7 +29,7 @@ Before work that changes data flow, persisted fields, migration, saves, sync, va
 - Store/domain operations own persistence; components must not need a second save for one mutation. Never run parallel saves for one committed action.
 - High-frequency UI changes may draft in memory but flush once at interaction end.
 - User-facing deletes confirm at the UI boundary. Cancelling a draft is not a delete and must not open a second confirmation.
-- Success follows verified persistence only. Failed saves show no success toast; restore last canonical state.
+- Success follows verified persistence only. Failed saves revert the in-memory state to the last successfully saved snapshot and report failure; the editor never shows unsaved mutations after a failed save.
 - Removing an assignment from a form is distinct from deleting the owning entity unless the product defines otherwise.
 - Destructive entity deletes: confirm -> persist -> verify -> report.
 
@@ -70,7 +70,7 @@ Lessons encoded after the washer/double-bed round; follow these when adding or e
 
 - Run the asset verification command: every entry must pass with ZERO warnings (stale removed-typed fields must not be re-added).
 - New ids must be unique across the file; sizes are tile counts (w x h), pixel size = w x h x tileSize unless the pixel-size flag is set.
-- If the asset participates in NPC simulation, decide deliberately: tile states (entrance rows enable queue slots), walkable grid, interact spots (snapped to nearest walkable cell within radius 5), interact durations, queue capacity, tags (portal, role restrictions).
+- If the asset participates in NPC simulation, decide deliberately: tile states (door rows enable queue slots), walkable grid, interact spots (snapped to nearest walkable cell within radius 5), interact durations, queue capacity, tags (portal, role restrictions).
 
 ## Domain engines (preview/runtime)
 

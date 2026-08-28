@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch, inject, onUnmounted } from "vue";
+import { ref, computed, inject, onUnmounted } from "vue";
 import { useAssetsStore } from "../blueprintStore";
 import { useToast } from "@/composables/useToast";
 import { useConfirm } from "@/composables/useConfirm";
@@ -7,8 +7,8 @@ import { useAsyncAction } from "../composables/useAsyncAction";
 import NpcManagerModal from "./NpcManagerModal.vue";
 import FloorModal from "./FloorModal.vue";
 import DeployNpcModal from "./DeployNpcModal.vue";
+import SettingsModal from "./SettingsModal.vue";
 import ModalShell from "./ModalShell.vue";
-import ColorInput from "./ColorInput.vue";
 import { useNpcSimulation } from "../composables/useNpcSimulation";
 
 const store = useAssetsStore();
@@ -118,109 +118,6 @@ function onSwitchMode(mode: "object" | "draw" | "move") {
   store.setMode(mode);
 }
 
-const widthInput = ref(store.state.layout.canvas.width);
-const heightInput = ref(store.state.layout.canvas.height);
-const tileInput = ref(store.state.layout.canvas.tileSize);
-const bgColorInput = ref(store.state.layout.canvas.bgColor);
-const labelColorInput = ref(store.state.layout.canvas.labelColor);
-const wallColorInput = ref(store.state.layout.canvas.wallColor);
-const wallThicknessInput = ref<number | undefined>(store.state.layout.canvas.wallThickness);
-
-watch(
-  () => store.state.layout.canvas,
-  (c) => {
-    widthInput.value = c.width;
-    heightInput.value = c.height;
-    tileInput.value = c.tileSize;
-    bgColorInput.value = c.bgColor;
-    labelColorInput.value = c.labelColor;
-    wallColorInput.value = c.wallColor;
-    wallThicknessInput.value = c.wallThickness;
-  },
-);
-
-async function applyCanvasSize() {
-  const canvas = store.state.layout.canvas;
-  const hasPlacedContent = store.state.layout.floors.some((floor) => floor.objects.length > 0);
-  const changed = widthInput.value !== canvas.width || heightInput.value !== canvas.height || tileInput.value !== canvas.tileSize;
-
-  if (changed && hasPlacedContent) {
-    const confirmed = await confirm({
-      title: "Resize canvas",
-      message: "Changing canvas settings will snap and clamp placed objects to the new grid and bounds. Continue?",
-      confirmLabel: "Continue",
-      cancelLabel: "Cancel",
-      danger: true,
-    });
-    if (!confirmed) return;
-  }
-
-  try {
-    const saved = await run(() => store.resizeCanvas(widthInput.value, heightInput.value, tileInput.value));
-    if (!saved) {
-      toast.error("Failed to resize canvas");
-      return;
-    }
-    toast.info("Canvas resized");
-    showSettings.value = false;
-  } catch {
-    toast.error("Failed to resize canvas");
-  }
-}
-
-async function applyCanvasBgColor(value: string | undefined) {
-  try {
-    await run(() => store.setCanvasBgColor(value));
-  } catch {
-    toast.error("Failed to set canvas background color");
-  }
-}
-
-async function applyLabelColor(value: string | undefined) {
-  try {
-    const saved = await run(() => store.setCanvasLabelColor(value));
-    if (!saved) toast.error("Failed to set label color");
-  } catch {
-    toast.error("Failed to set label color");
-  }
-}
-
-async function applyWallColor(value: string | undefined) {
-  try {
-    const saved = await run(() => store.setWallColor(value));
-    if (!saved) {
-      toast.error("Failed to set wall color");
-      return;
-    }
-    toast.success(value ? `Wall color saved: ${value}` : "Wall color reset to default");
-  } catch {
-    toast.error("Failed to set wall color");
-  }
-}
-
-function onWallColorInvalid(value: string) {
-  toast.error(`"${value}" is not a valid color - use #RRGGBB`);
-}
-
-async function applyWallThickness() {
-  const value = typeof wallThicknessInput.value === "number" && wallThicknessInput.value > 0 ? Math.round(wallThicknessInput.value) : null;
-  try {
-    const saved = await run(() => store.setWallThickness(value));
-    if (!saved) toast.error("Wall thickness must be 1-10");
-  } catch {
-    toast.error("Failed to set wall thickness");
-  }
-}
-
-async function applyStreetFloor(floorId: string | null) {
-  try {
-    const saved = await run(() => store.setStreetFloor(floorId));
-    if (!saved) toast.error("Failed to update street floor");
-  } catch {
-    toast.error("Failed to update street floor");
-  }
-}
-
 function onSyncToGame() {
   if (store.syncToGame()) toast.success("Blueprint synced to game");
 }
@@ -228,7 +125,7 @@ function onSyncToGame() {
 
 <template>
   <div class="editor__toolbar">
-    <button class="flag--ghost flag--icon" @click="showSettings = true" title="Canvas Settings" aria-label="Canvas settings">
+    <button class="flag--ghost" @click="showSettings = true" title="Settings" aria-label="Settings">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <circle cx="12" cy="12" r="3" />
         <path
@@ -284,80 +181,7 @@ function onSyncToGame() {
     <NpcManagerModal :open="showNpcManager" @close="showNpcManager = false" />
     <FloorModal :open="showFloorModal" @close="showFloorModal = false" />
     <DeployNpcModal :open="showDeployModal" @close="showDeployModal = false" @deploy="onConfirmDeploy" />
-
-    <ModalShell :open="showSettings" title="Canvas Settings" max-width="380px" width="min(94vw, 380px)" max-height="calc(100vh - 32px)" @close="showSettings = false">
-      <div class="modal__body settings__body">
-        <div class="form__group">
-          <div class="form__title">Canvas Size</div>
-          <div class="form__row form__row--pair">
-            <div class="form__row">
-              <label for="canvas__width">Width</label>
-              <input id="canvas__width" type="number" v-model.number="widthInput" min="100" step="25" />
-            </div>
-            <div class="form__row">
-              <label for="canvas__height">Height</label>
-              <input id="canvas__height" type="number" v-model.number="heightInput" min="100" step="25" />
-            </div>
-            <div class="form__row">
-              <label for="canvas__tile">Tile</label>
-              <input id="canvas__tile" type="number" v-model.number="tileInput" min="5" step="5" />
-            </div>
-          </div>
-          <button class="flag--active" :disabled="pending" @click="applyCanvasSize" aria-label="Apply canvas size">Apply</button>
-          <div class="form__hint">Changing canvas size will re-snap all objects to the new grid.</div>
-        </div>
-        <div class="form__group">
-          <div class="form__title">Background</div>
-          <div class="form__row">
-            <label for="canvas__bgcolor">Color</label>
-            <ColorInput v-model="bgColorInput" :allow-transparent="true" placeholder="#RRGGBB or transparent" aria-label="Canvas background color" @commit="applyCanvasBgColor" />
-          </div>
-          <div class="form__hint">Hex color or 'transparent'. Leave empty for default.</div>
-        </div>
-        <div class="form__group">
-          <div class="form__title">Labels</div>
-          <div class="form__row">
-            <label for="canvas__labelcolor">Color</label>
-            <ColorInput v-model="labelColorInput" allow-transparent placeholder="#RRGGBB (empty = theme default)" aria-label="Object label color" @commit="applyLabelColor" />
-          </div>
-          <div class="form__hint">One color for every object label on the canvas.</div>
-        </div>
-        <div class="form__group">
-          <div class="form__title">Walls</div>
-          <div class="form__row form__row--pair">
-            <div class="form__row">
-              <label>Color</label>
-              <ColorInput v-model="wallColorInput" placeholder="#RRGGBB (empty = theme green)" aria-label="Wall line color" @commit="applyWallColor" @commit-invalid="onWallColorInvalid" />
-            </div>
-            <div class="form__row">
-              <label for="canvas__wallthickness">Thickness</label>
-              <input id="canvas__wallthickness" type="number" v-model.number="wallThicknessInput" min="1" max="10" step="1" :placeholder="'3'" @change="applyWallThickness" />
-            </div>
-          </div>
-          <div class="form__hint">Line style for painted floor walls and the building boundary.</div>
-        </div>
-        <div class="form__group">
-          <div class="form__title">Street</div>
-          <div class="form__row form__row--pair">
-            <div class="form__row">
-              <label for="canvas__streetfloor">On floor</label>
-              <select id="canvas__streetfloor" :value="store.state.layout.streetFloorId ?? ''" aria-label="Floor that displays the street ring" @change="applyStreetFloor(($event.target as HTMLSelectElement).value || null)">
-                <option value="">None</option>
-                <option v-for="f in store.state.layout.floors" :key="f.id" :value="f.id">{{ f.label }} - {{ f.name }}</option>
-              </select>
-            </div>
-            <div class="form__row">
-              <label for="canvas__streetwidth">Ring</label>
-              <select id="canvas__streetwidth" :value="store.state.layout.streetWidthTiles ?? ''" aria-label="Street ring width in tiles" @change="store.setStreetWidth(Number(($event.target as HTMLSelectElement).value) || null)">
-                <option value="">Default (8 tiles)</option>
-                <option v-for="w in [5, 6, 7, 8, 9, 10, 11, 12]" :key="w" :value="w">{{ w }} tiles</option>
-              </select>
-            </div>
-          </div>
-          <div class="form__hint">Street ring renders on one floor; ring width drives placement boundary, NPC walkable zone and the drawn road.</div>
-        </div>
-      </div>
-    </ModalShell>
+    <SettingsModal :open="showSettings" @close="showSettings = false" />
   </div>
 </template>
 

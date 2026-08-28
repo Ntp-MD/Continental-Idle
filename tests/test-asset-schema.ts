@@ -17,7 +17,7 @@ const sample: AssetDef = {
 	isWall: false,
 	wallSegments: [{ x1: 0, y1: 0, x2: 2, y2: 0 }],
 	walkable: true,
-	entranceRequired: true,
+	doorRequired: true,
 	defaultPadding: 2,
 	defaultRx: { tl: 1, tr: 2, br: 3, bl: 4 },
 	defaultFillColor: '#8a97ab',

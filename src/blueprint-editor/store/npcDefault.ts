@@ -1,3 +1,4 @@
+import { toRaw } from 'vue'
 import type { NpcSimulationConfig } from '../types'
 import { state } from './state'
 import { saveNpcConfig } from './persistence'
@@ -25,13 +26,8 @@ export function mergeNpcConfig(config: NpcSimulationConfig): NpcSimulationConfig
 	}
 }
 
-function deepClone<T>(value: T): T {
-	return JSON.parse(JSON.stringify(value))
-}
-
-
 export function syncNpcConfigToState(config: NpcSimulationConfig): void {
-	state.layout.npcConfig = deepClone(config)
+	state.layout.npcConfig = structuredClone(toRaw(config))
 }
 
 

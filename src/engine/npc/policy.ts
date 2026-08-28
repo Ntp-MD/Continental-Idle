@@ -6,9 +6,7 @@ import { getRoleFocusTags, hasMatchingTag } from './tagMatching'
 import { WanderMemory } from './wanderMemory'
 import type { NpcEngineAgent, NpcEngineFloor, NpcEngineInteractionTarget, NpcEngineOptions, NpcEnginePoint } from './types'
 
-const WANDER_MEMORY_SIZE = 32
-const WANDER_SMALL_MAP_THRESHOLD = 8
-const TRIGGER_RATE_PERIOD_SECONDS = 60
+
 
 export interface NpcPolicyContext {
 	getConfig: () => NpcSimulationConfig
@@ -101,7 +99,12 @@ export function createNpcEnginePolicy(context: NpcPolicyContext): NpcEnginePolic
 	function resolveWanderMemory(agentId: string): WanderMemory {
 		let memory = wanderMemoryByAgent.get(agentId)
 		if (!memory) {
-			memory = new WanderMemory(WANDER_MEMORY_SIZE, WANDER_SMALL_MAP_THRESHOLD, random)
+			const cfg = context.getConfig()
+			memory = new WanderMemory(
+				cfg.wanderMemorySize,
+				cfg.wanderSmallMapThreshold,
+				random,
+			)
 			wanderMemoryByAgent.set(agentId, memory)
 		}
 		return memory
@@ -132,7 +135,7 @@ export function createNpcEnginePolicy(context: NpcPolicyContext): NpcEnginePolic
 
 	function resolveTriggeredTags(tags: readonly string[]): string[] {
 		const triggerRates = context.getConfig().tagTriggerRates ?? {}
-		const ticksPerPeriod = context.ticksPerSecond * TRIGGER_RATE_PERIOD_SECONDS
+		const ticksPerPeriod = context.ticksPerSecond * context.getConfig().triggerRatePeriodSeconds
 		const triggered: string[] = []
 		for (const tag of tags) {
 			const ratePerPeriod = triggerRates[tag] ?? 0

@@ -1,3 +1,4 @@
+import { toRaw } from 'vue'
 import type { FloorData } from '../types'
 import { normalizeAllowedRoleIds, normalizeFloorWalkable, normalizeNpcSpawnZones } from '../types'
 import { state } from './state'
@@ -32,7 +33,7 @@ export async function deleteFloor(id: string): Promise<boolean> {
 export async function duplicateFloor(id: string): Promise<boolean> {
 	const floor = state.layout.floors.find(f => f.id === id)
 	if (!floor) return false
-	const copy: FloorData = JSON.parse(JSON.stringify(floor))
+	const copy: FloorData = structuredClone(toRaw(floor))
 	copy.id = genId('floor')
 	copy.name = `${floor.name} Copy`
 	const idMap = new Map<string, string>()
@@ -41,7 +42,6 @@ export async function duplicateFloor(id: string): Promise<boolean> {
 		const newId = genId('obj')
 		idMap.set(o.id, newId)
 		o.id = newId
-		o.subId = genId('sub')
 		if (o.linkGroupId) {
 			let mappedGroupId = linkGroupMap.get(o.linkGroupId)
 			if (!mappedGroupId) {

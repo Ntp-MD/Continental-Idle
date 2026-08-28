@@ -21,12 +21,14 @@ export function useCanvasSelection(
 		floor: ComputedRef<FloorData | undefined>
 		store: AssetsStore
 		getMode: () => EditorMode
+		zoom: Ref<number>
+		boxSelectThresholdPx: () => number
 		onDrawComplete?: (rect: Rect) => void
 		onBoxSelectStart?: () => void
 		onBoxSelectComplete?: (rect: Rect) => void
 	},
 ): SelectionState {
-	const BOX_SELECT_THRESHOLD = 4
+	const boxSelectThreshold = () => Math.max(1, opts.boxSelectThresholdPx() / opts.zoom.value)
 	const boxSelect = ref<{ startX: number; startY: number; x: number; y: number; w: number; h: number } | null>(null)
 
 	function onCanvasMouseDown(e: MouseEvent) {
@@ -69,7 +71,8 @@ export function useCanvasSelection(
 	function onBoxSelectMouseUp() {
 		window.removeEventListener('mousemove', onBoxSelectMouseMove)
 		window.removeEventListener('mouseup', onBoxSelectMouseUp)
-		if (boxSelect.value && boxSelect.value.w > BOX_SELECT_THRESHOLD && boxSelect.value.h > BOX_SELECT_THRESHOLD) {
+		const threshold = boxSelectThreshold()
+		if (boxSelect.value && boxSelect.value.w > threshold && boxSelect.value.h > threshold) {
 			const rect: Rect = { x: boxSelect.value.x, y: boxSelect.value.y, w: boxSelect.value.w, h: boxSelect.value.h }
 			if (opts.store.state.mode === 'draw') {
 				opts.onDrawComplete?.(rect)

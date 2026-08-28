@@ -100,8 +100,8 @@ async function doUnlink() {
         <span>{{ (assetDef?.walkable ?? false) ? "ON" : "OFF" }}</span>
       </div>
       <div class="form__row">
-        <label>Entrance</label>
-        <span>{{ assetDef?.entranceRequired ?? false }}</span>
+        <label>Door</label>
+        <span>{{ assetDef?.doorRequired ?? false }}</span>
       </div>
       <div>Edit these in the Asset Properties panel.</div>
     </div>

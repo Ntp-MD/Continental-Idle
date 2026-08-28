@@ -1,10 +1,10 @@
-import type { SyncedLayoutPayload } from '../types'
-import { state, toast, isStateLocked, withStateLock, assetMap, reloadEditorData } from './state'
+import type { SyncedLayoutPayload, NpcSimulationConfig, FloorLayoutData } from '../types'
+import { state, toast, isStateLocked, withStateLock, assetMap, updateLastSavedSnapshot, revertToLastSavedSnapshot } from './state'
 import { editorLog } from './utils'
 import { EDITOR_CONFIG } from './migrate'
 import { buildBlueprintData, fetchBlueprintDataFromDisk } from './dataLoader'
 import { validateSettingsCompleteness, buildAssetMap } from '../assetUtils'
-import type { FloorLayoutData, NpcSimulationConfig } from '../types'
+import { normalizeBlueprintDataFile } from '../types'
 import { buildSyncedPayload } from '../syncedPayload'
 
 const MAX_SAVE_RETRIES = 3
@@ -19,12 +19,15 @@ async function saveBlueprintDataLocked(): Promise<boolean> {
 			try {
 				const res = await fetch(EDITOR_CONFIG.blueprintDataEndpoint, {
 					method: 'POST',
-					headers: { 'Content-Type': 'application/json', 'X-Blueprint-Save': '1' },
+					headers: { 'Content-Type': 'application/json', 'X-Blueprint-Client': '1', 'X-Blueprint-Save': '1' },
 					body,
 				})
-				if (!res.ok) throw new Error(`HTTP ${res.status}`)
-				const verified = await res.json() as { ok?: boolean; data?: unknown }
-				if (verified.ok !== true || !verified.data) throw new Error('Persistence verification response was invalid')
+				if (!res.ok || !res.headers.get('content-type')?.toLowerCase().startsWith('application/json')) throw new Error(`HTTP ${res.status}`)
+				const response: unknown = await res.json()
+				if (!response || typeof response !== 'object') throw new Error('Persistence verification response was invalid')
+				const verified = response as Record<string, unknown>
+				if (verified.ok !== true || !normalizeBlueprintDataFile(verified.data)) throw new Error('Persistence verification response was invalid')
+				updateLastSavedSnapshot()
 				return true
 			} catch (error) {
 				editorLog.error(`saveBlueprintData attempt ${attempt}`, error)
@@ -34,11 +37,7 @@ async function saveBlueprintDataLocked(): Promise<boolean> {
 		}
 		return false
 	} catch (error) {
-		try {
-			await reloadEditorData()
-		} catch (reloadError) {
-			editorLog.error('reload after failed save', reloadError)
-		}
+		revertToLastSavedSnapshot()
 		toast.error('Failed to save blueprint data')
 		throw error
 	} finally {

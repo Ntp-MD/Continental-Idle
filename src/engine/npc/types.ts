@@ -133,4 +133,17 @@ export interface NpcEngineOptions {
 		candidates: readonly NpcEngineInteractionTarget[],
 		floors: readonly NpcEngineFloor[],
 	) => NpcEngineInteractionTarget | null
+
+	crossFloorCooldownSeconds: number
+	progressWatchdogTicks: number
+	maxRepathAttempts: number
+	repathCooldownSeconds: number
+	repathCooldownExponent: number
+	pathBudgetMinPerTick: number
+	pathBudgetAgentsPerCall: number
+	chooseTargetMinPerTick: number
+	chooseTargetAgentsPerSlot: number
+	wanderMemorySize: number
+	wanderSmallMapThreshold: number
+	triggerRatePeriodSeconds: number
 }

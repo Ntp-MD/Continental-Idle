@@ -1,5 +1,5 @@
-import type { EditorMode } from '../types'
-import { isValidColor } from '../types'
+import type { EditorMode, EditorSettings } from '../types'
+import { isValidColor, normalizeEditorSettings, EDITOR_FIELD_SPECS } from '../types'
 import { state, clamp, assetMap } from './state'
 import { normalizeObject } from '../geometry'
 import { saveLayout } from './persistence'
@@ -72,5 +72,24 @@ export async function setStreetWidth(tiles: number | null): Promise<boolean> {
 	if (tiles !== null && (!Number.isInteger(tiles) || tiles < 5 || tiles > 20)) return false
 	if (tiles !== null) state.layout.streetWidthTiles = tiles
 	else delete state.layout.streetWidthTiles
+	return saveLayout()
+}
+
+export async function setEditorSettings(patch: Partial<EditorSettings>): Promise<boolean> {
+	const current = normalizeEditorSettings(state.layout.editorSettings)
+	const merged = { ...current, ...patch }
+	for (const key of Object.keys(EDITOR_FIELD_SPECS) as (keyof EditorSettings)[]) {
+		const spec = EDITOR_FIELD_SPECS[key]
+		const v = merged[key]
+		if (typeof v !== 'number' || !Number.isFinite(v)) return false
+		if (spec.min !== undefined && v < spec.min) return false
+		if (spec.max !== undefined && v > spec.max) return false
+	}
+	state.layout.editorSettings = merged
+	return saveLayout()
+}
+
+export async function resetEditorSettings(): Promise<boolean> {
+	delete state.layout.editorSettings
 	return saveLayout()
 }

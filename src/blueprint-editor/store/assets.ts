@@ -1,12 +1,12 @@
 import type { AssetDef, WalkableGrid, TileState } from '../types'
-import { isValidColor, normalizeNpcQueueConfig, normalizeWallSegments, applySvgColorConvention } from '../types'
+import { isSafeSvgMarkup, isValidColor, normalizeOriginAsset, applySvgColorConvention } from '../types'
 import { aabbOverlap } from '../collision'
 import { assetSizeFor, normalizeObject } from '../geometry'
 import {
 	state, toast, clamp, withStateLock, initAssetFields, assetMap,
 } from './state'
 import { genAssetId } from './utils'
-import { saveAssets, saveBlueprintData, saveLayout } from './persistence'
+import { saveAssets, saveBlueprintData } from './persistence'
 
 const FURNITURE_COLOR_MAP: Record<string, string> = {
 	'#f4f8fc': 'var(--text-bright)',
@@ -52,51 +52,33 @@ function convertFurnitureColors(svg: string): string {
 	return result
 }
 
-function sanitizeSvg(svg: string): string {
-	return convertFurnitureColors(
-		svg
-			.replace(/<!--[\s\S]*?-->/g, '')
-			.replace(/<\?[\s\S]*?\?>/g, '')
-			.replace(/<!DOCTYPE[\s\S]*?>/gi, '')
-			.replace(/<!\[CDATA\[[\s\S]*?\]\]>/g, '')
-			.replace(/<style[\s\S]*?<\/style>/gi, '')
-			.replace(/<script[\s\S]*?<\/script>/gi, '')
-			.replace(/<foreignObject[\s\S]*?<\/foreignObject>/gi, '')
-			.replace(/<iframe[\s\S]*?<\/iframe>/gi, '')
-			.replace(/<object[\s\S]*?<\/object>/gi, '')
-			.replace(/<embed[\s\S]*?\/?>/gi, '')
-			.replace(/<use[\s\S]*?\/?>/gi, '')
-			.replace(/<link[\s\S]*?\/?>/gi, '')
-			.replace(/\son\w+\s*=\s*["'][^"']*["']/gi, '')
-			.replace(/javascript:/gi, '')
-			.replace(/\sstyle\s*=\s*["'][^"']*(?:expression\s*\(|javascript:|url\s*\(\s*["']?(?:javascript|data|blob):)[^"']*["']/gi, '')
-	)
-}
-
 export async function addSvgAsset(name: string, w: number, h: number, svgString: string): Promise<AssetDef | null> {
 	return withStateLock(async () => {
-		const safeW = Math.max(1, Math.floor(w))
-		const safeH = Math.max(1, Math.floor(h))
+		const safeName = name.trim()
+		if (!safeName || safeName.length > 512) { toast.warning('Asset name is invalid'); return null }
+		if (!Number.isFinite(w) || !Number.isFinite(h) || w <= 0 || h <= 0 || w > 10_000 || h > 10_000) { toast.warning('Asset dimensions are invalid'); return null }
+		const safeW = Math.floor(w)
+		const safeH = Math.floor(h)
 		const trimmed = svgString.trim()
 		if (!trimmed) { toast.warning('SVG content cannot be empty'); return null }
 		const viewBoxMatch = trimmed.match(/viewBox\s*=\s*["']([^"']+)["']/)
 		if (!viewBoxMatch) { toast.warning('SVG must have a viewBox attribute'); return null }
 		const parts = viewBoxMatch[1].split(/[\s,]+/).map(Number)
-		if (parts.length < 4 || parts.some(isNaN)) { toast.warning('Invalid viewBox format'); return null }
+		if (parts.length !== 4 || parts.some(value => !Number.isFinite(value))) { toast.warning('Invalid viewBox format'); return null }
 		const vbW = parts[2]
 		const vbH = parts[3]
-		if (vbW <= 0 || vbH <= 0) { toast.warning('Invalid viewBox dimensions'); return null }
+		if (vbW <= 0 || vbH <= 0 || vbW > 1_000_000 || vbH > 1_000_000) { toast.warning('Invalid viewBox dimensions'); return null }
 		const innerMatch = trimmed.match(/<svg[^>]*>([\s\S]*)<\/svg>/i)
 		const rawSvg = innerMatch ? innerMatch[1].trim() : trimmed
-		const innerSvg = sanitizeSvg(rawSvg)
-		const themedSvg = applySvgColorConvention(innerSvg)
-		if (!innerSvg || !/<(?:rect|circle|ellipse|line|path|polyline|polygon|g|text|image|use|defs|linearGradient|radialGradient|stop|tspan)\b/i.test(innerSvg)) {
+		const innerSvg = convertFurnitureColors(rawSvg)
+		if (!innerSvg || !isSafeSvgMarkup(innerSvg) || !/<(?:rect|circle|ellipse|line|path|polyline|polygon|g|text|tspan)\b/i.test(innerSvg)) {
 			toast.warning('SVG contains no valid drawable elements after sanitization')
 			return null
 		}
+		const themedSvg = applySvgColorConvention(innerSvg)
 		const asset: AssetDef = {
 			origin: 'svg-import',
-			id: genAssetId('custom', name, c => state.assetRegistry.some(a => a.id === c)), name,
+			id: genAssetId('custom', safeName, c => state.assetRegistry.some(a => a.id === c)), name: safeName,
 			w: safeW, h: safeH,
 			defaultFillColor: '#ffffff',
 			svg: themedSvg,
@@ -109,7 +91,7 @@ export async function addSvgAsset(name: string, w: number, h: number, svgString:
 	})
 }
 
-export async function updateAsset(id: string, patch: Partial<Pick<AssetDef, 'name' | 'defaultPadding' | 'defaultRx' | 'defaultFillColor' | 'defaultStrokeColor' | 'defaultLabel' | 'defaultRadius' | 'defaultLabelPadding' | 'defaultLocked' | 'entranceRequired' | 'tags' | 'interactSpots' | 'interact' | 'queue' | 'wallSegments'>> & { walkable?: boolean; walkableGrid?: WalkableGrid; tileStates?: TileState[][] }): Promise<void> {
+export async function updateAsset(id: string, patch: Partial<Pick<AssetDef, 'name' | 'defaultPadding' | 'defaultRx' | 'defaultFillColor' | 'defaultStrokeColor' | 'defaultLabel' | 'defaultRadius' | 'defaultLabelPadding' | 'defaultLocked' | 'doorRequired' | 'tags' | 'interactSpots' | 'interact' | 'queue' | 'wallSegments'>> & { walkable?: boolean; walkableGrid?: WalkableGrid; tileStates?: TileState[][] }): Promise<void> {
 	return withStateLock(async () => {
 		const asset = state.assetRegistry.find(a => a.id === id)
 		if (!asset) {
@@ -131,31 +113,17 @@ export async function updateAsset(id: string, patch: Partial<Pick<AssetDef, 'nam
 		}
 
 
-		if (patch.name !== undefined) asset.name = patch.name
-		if (patch.defaultPadding !== undefined) asset.defaultPadding = patch.defaultPadding > 0 ? patch.defaultPadding : undefined
-		if (patch.defaultRx !== undefined) {
-			const r = patch.defaultRx
-			asset.defaultRx = (r.tl > 0 || r.tr > 0 || r.br > 0 || r.bl > 0) ? r : undefined
+		const candidateInput: Record<string, unknown> = { ...asset, ...(patch as Record<string, unknown>) }
+		for (const [key, value] of Object.entries(patch as Record<string, unknown>)) {
+			if (value === undefined || (typeof value === 'string' && value === '') || (Array.isArray(value) && value.length === 0 && ['tags', 'wallSegments', 'interactSpots', 'svgRoles'].includes(key))) delete candidateInput[key]
 		}
-		if (patch.defaultFillColor !== undefined) {
-			asset.defaultFillColor = patch.defaultFillColor || undefined
+		const normalizedAsset = normalizeOriginAsset(candidateInput)
+		if (!normalizedAsset) {
+			toast.warning('Asset update contains invalid data')
+			return
 		}
-		if (patch.defaultStrokeColor !== undefined) {
-			asset.defaultStrokeColor = patch.defaultStrokeColor || undefined
-		}
-		if (patch.defaultLabel !== undefined) asset.defaultLabel = patch.defaultLabel || undefined
-		if (patch.defaultRadius !== undefined) asset.defaultRadius = patch.defaultRadius > 0 ? patch.defaultRadius : undefined
-		if (patch.defaultLabelPadding !== undefined) asset.defaultLabelPadding = patch.defaultLabelPadding || undefined
-		if (patch.defaultLocked !== undefined) asset.defaultLocked = patch.defaultLocked
-		if (patch.walkable !== undefined) asset.walkable = patch.walkable
-		if (patch.entranceRequired !== undefined) asset.entranceRequired = patch.entranceRequired
-		if (patch.tags !== undefined) asset.tags = patch.tags.length > 0 ? [...patch.tags] : undefined
-		if (patch.walkableGrid !== undefined) asset.walkableGrid = patch.walkableGrid
-		if (patch.tileStates !== undefined) asset.tileStates = patch.tileStates
-		if (patch.wallSegments !== undefined) asset.wallSegments = normalizeWallSegments(patch.wallSegments)
-		if (patch.interactSpots !== undefined) asset.interactSpots = patch.interactSpots.length > 0 ? patch.interactSpots.map(p => ({ ...p })) : undefined
-		if (patch.interact !== undefined) asset.interact = patch.interact ? { ...patch.interact } : undefined
-		if (patch.queue !== undefined) asset.queue = normalizeNpcQueueConfig(patch.queue)
+		for (const key of Object.keys(asset)) delete (asset as unknown as Record<string, unknown>)[key]
+		Object.assign(asset, normalizedAsset)
 
 		const t = state.layout.canvas.tileSize
 		const assets = assetMap()
@@ -194,8 +162,7 @@ export async function updateAsset(id: string, patch: Partial<Pick<AssetDef, 'nam
 		if (collapsedIds.length > 0) {
 			toast.error(`${collapsedIds.length} object(s) collapsed due to overlap - shown in red`)
 		}
-		await saveAssets()
-		await saveLayout()
+		await saveBlueprintData()
 	}).catch(e => {
 		if (e instanceof Error && e.message === 'Operation in progress') {
 			toast.warning('Operation in progress')

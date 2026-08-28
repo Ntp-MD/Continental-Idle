@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { NpcEngine } from '../src/engine/npc'
+import { NpcEngine, NPC_ENGINE_DEFAULT_OPTIONS } from '../src/engine/npc'
 import { buildNpcEngineLayout } from '../src/engine/npc/layoutBuild'
 import { createNpcEnginePolicy } from '../src/engine/npc/policy'
 import { CANVAS_WALL_OBJECT_TYPE } from '../src/blueprint-editor/types'
@@ -32,7 +32,7 @@ const ASSETS = [
 		origin: 'drawn',
 		walkable: false,
 		tags: ['front-desk', 'back-of-house'],
-		tileStates: [['entrance', 'entrance', 'entrance', 'entrance']],
+		tileStates: [['door', 'door', 'door', 'door']],
 		interactSpots: [{ x: 50, y: -12 }],
 		interact: { capacity: 1, durationMin: 25, durationMax: 35 },
 		queue: { maxMembers: 3, admissionDepth: 4 },
@@ -57,7 +57,7 @@ const ASSETS = [
 		origin: 'drawn',
 		walkable: false,
 		tags: ['bar'],
-		tileStates: [['entrance', 'entrance', 'entrance', 'entrance']],
+		tileStates: [['door', 'door', 'door', 'door']],
 		interactSpots: [{ x: 25, y: -12 }, { x: 75, y: -12 }],
 		interact: { capacity: 2, durationMin: 10, durationMax: 25 },
 		queue: { maxMembers: 3, admissionDepth: 4 },
@@ -70,7 +70,7 @@ const ASSETS = [
 		origin: 'drawn',
 		walkable: false,
 		tags: ['front-desk', 'back-of-house'],
-		tileStates: [['entrance', 'entrance', 'entrance']],
+		tileStates: [['door', 'door', 'door']],
 		interactSpots: [{ x: 37, y: -12 }],
 		interact: { capacity: 1, durationMin: 50, durationMax: 70 },
 		queue: { maxMembers: 3, admissionDepth: 4 },
@@ -207,6 +207,7 @@ engine = new NpcEngine(built.layout, {
 	agentClearance: 0.5,
 	random,
 	...policy,
+	...NPC_ENGINE_DEFAULT_OPTIONS,
 })
 
 for (const spawn of SPAWNS) {

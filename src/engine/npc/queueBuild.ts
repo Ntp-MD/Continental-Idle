@@ -1,5 +1,5 @@
-import type { AssetDef, FloorData, ObjectData } from '../../blueprint-editor/types'
-import { resolveObjectDef, resolveQueueForTarget } from '../../blueprint-editor/types'
+import type { AssetDef, FloorData, ObjectData, WallSegment } from '../../blueprint-editor/types'
+import { resolveObjectDef, resolveQueueForTarget, normalizeWallSegment } from '../../blueprint-editor/types'
 import type { NpcEngineFloor, NpcEngineInteractionTarget, NpcEnginePoint, NpcEngineQueue } from './types'
 
 interface Direction {
@@ -38,6 +38,77 @@ function objectCell(object: ObjectData, row: number, col: number, tileSize: numb
 	return { x: Math.floor(object.x / tileSize) + col, y: Math.floor(object.y / tileSize) + row }
 }
 
+function rotateWallSegmentsGrid(segments: WallSegment[], w: number, h: number, rotSteps: number): WallSegment[] {
+	const steps = ((rotSteps % 4) + 4) % 4
+	if (steps === 0) return segments
+	const result: WallSegment[] = []
+	for (const seg of segments) {
+		let x1 = seg.x1, y1 = seg.y1, x2 = seg.x2, y2 = seg.y2
+		const door = seg.door
+		for (let i = 0; i < steps; i++) {
+			const nx1 = h - 1 - y1
+			const ny1 = x1
+			const nx2 = h - 1 - y2
+			const ny2 = x2
+			x1 = nx1; y1 = ny1; x2 = nx2; y2 = ny2
+			const tmp = w; w = h; h = tmp
+		}
+		const normalized = normalizeWallSegment({ x1, y1, x2, y2, door })
+		if (normalized) result.push(normalized)
+	}
+	return result
+}
+
+function doorCellsForDirection(
+	segments: WallSegment[],
+	direction: Direction,
+	rows: number,
+	cols: number,
+): Array<{ row: number; col: number }> {
+	const cells: Array<{ row: number; col: number }> = []
+	const seen = new Set<string>()
+	for (const seg of segments) {
+		if (direction.dr === -1 && direction.dc === 0 && seg.y1 === seg.y2) {
+			const row = Math.round(seg.y1)
+			if (row !== 0) continue
+			const startCol = Math.round(Math.min(seg.x1, seg.x2))
+			const endCol = Math.round(Math.max(seg.x1, seg.x2))
+			for (let col = startCol; col < endCol; col++) {
+				const k = `0,${col}`
+				if (!seen.has(k)) { seen.add(k); cells.push({ row: 0, col }) }
+			}
+		} else if (direction.dr === 1 && direction.dc === 0 && seg.y1 === seg.y2) {
+			const row = Math.round(seg.y1)
+			if (row !== rows) continue
+			const startCol = Math.round(Math.min(seg.x1, seg.x2))
+			const endCol = Math.round(Math.max(seg.x1, seg.x2))
+			for (let col = startCol; col < endCol; col++) {
+				const k = `${rows - 1},${col}`
+				if (!seen.has(k)) { seen.add(k); cells.push({ row: rows - 1, col }) }
+			}
+		} else if (direction.dr === 0 && direction.dc === -1 && seg.x1 === seg.x2) {
+			const col = Math.round(seg.x1)
+			if (col !== 0) continue
+			const startRow = Math.round(Math.min(seg.y1, seg.y2))
+			const endRow = Math.round(Math.max(seg.y1, seg.y2))
+			for (let row = startRow; row < endRow; row++) {
+				const k = `${row},0`
+				if (!seen.has(k)) { seen.add(k); cells.push({ row, col: 0 }) }
+			}
+		} else if (direction.dr === 0 && direction.dc === 1 && seg.x1 === seg.x2) {
+			const col = Math.round(seg.x1)
+			if (col !== cols) continue
+			const startRow = Math.round(Math.min(seg.y1, seg.y2))
+			const endRow = Math.round(Math.max(seg.y1, seg.y2))
+			for (let row = startRow; row < endRow; row++) {
+				const k = `${row},${cols - 1}`
+				if (!seen.has(k)) { seen.add(k); cells.push({ row, col: cols - 1 }) }
+			}
+		}
+	}
+	return cells
+}
+
 export function buildNpcQueues(
 	floor: NpcEngineFloor,
 	floorData: FloorData,
@@ -50,31 +121,27 @@ export function buildNpcQueues(
 	for (const object of floorData.objects) {
 		const asset = assets.get(object.type)
 		const definition = resolveObjectDef(object.rotation, asset, { w: object.w, h: object.h })
-		const states = definition.tileStates
-		if (!states?.length) continue
+		if (!asset) continue
 		const resolvedQueue = resolveQueueForTarget(definition.queue)
 		const maxQueueSlots = resolvedQueue.maxMembers
 		const admissionDepth = resolvedQueue.admissionDepth
-		const rows = states.length
-		const cols = states[0]?.length ?? 0
-		if (!cols) continue
+		const rows = asset.h
+		const cols = asset.w
+		if (rows <= 0 || cols <= 0) continue
 		const targetKeys = objectTargetKeys(object.id, targets)
 		if (!targetKeys.length) continue
+		const rotSteps = Math.round(object.rotation / 90)
+		const doorSegments = rotateWallSegmentsGrid(
+			asset.wallSegments?.filter(seg => seg.door) ?? [],
+			asset.w, asset.h, rotSteps,
+		)
+		if (!doorSegments.length) continue
 		for (const direction of DIRECTIONS) {
-			const entranceCells: Array<{ row: number; col: number }> = []
-			for (let row = 0; row < rows; row++) {
-				for (let col = 0; col < cols; col++) {
-					if (states[row]?.[col] !== 'entrance') continue
-					if (row === 0 && direction.dr === -1 && direction.dc === 0) entranceCells.push({ row, col })
-					if (row === rows - 1 && direction.dr === 1 && direction.dc === 0) entranceCells.push({ row, col })
-					if (col === 0 && direction.dr === 0 && direction.dc === -1) entranceCells.push({ row, col })
-					if (col === cols - 1 && direction.dr === 0 && direction.dc === 1) entranceCells.push({ row, col })
-				}
-			}
-			if (!entranceCells.length) continue
-			entranceCells.sort((a, b) => (direction.tangent === 'row' ? a.row - b.row : a.col - b.col))
+			const doorCells = doorCellsForDirection(doorSegments, direction, rows, cols)
+			if (!doorCells.length) continue
+			doorCells.sort((a, b) => (direction.tangent === 'row' ? a.row - b.row : a.col - b.col))
 			const groups: Array<Array<{ row: number; col: number }>> = []
-			for (const cell of entranceCells) {
+			for (const cell of doorCells) {
 				const previous = groups[groups.length - 1]?.at(-1)
 				const previousIndex = direction.tangent === 'row' ? previous?.row : previous?.col
 				const currentIndex = direction.tangent === 'row' ? cell.row : cell.col

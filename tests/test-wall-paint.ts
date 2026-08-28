@@ -64,7 +64,6 @@ assert.equal(wallTool.onMouseDown({ button: 0, clientX: 4, clientY: 0 } as Mouse
 emit('mouseup', {} as MouseEvent)
 assert.deepEqual(floor.objects[0], {
 	id: 'wall-1',
-	subId: 'wall-sub-2',
 	type: '__canvas-wall__',
 	x: 0,
 	y: 0,
@@ -105,6 +104,8 @@ const objectSelection = useCanvasSelection({
 	floor: computed(() => floor),
 	store: objectToolStore,
 	getMode: () => 'object',
+	zoom: ref(1),
+	boxSelectThresholdPx: () => 4,
 	onBoxSelectComplete: rect => wallTool.selectInRect(rect),
 })
 objectSelection.onCanvasMouseDown({ button: 0, clientX: 0, clientY: 0 } as MouseEvent)

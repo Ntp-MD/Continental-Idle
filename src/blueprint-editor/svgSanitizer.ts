@@ -1,17 +1,20 @@
-const DANGEROUS_SVG_TAGS = new Set<string>([
-  'script',
-  'foreignObject',
-  'iframe',
-  'embed',
-  'object',
-  'style',
-  'use',
-  'link',
+const ALLOWED_SVG_TAGS = new Set<string>([
+  'svg',
+  'g',
+  'path',
+  'rect',
+  'circle',
+  'ellipse',
+  'line',
+  'polygon',
+  'polyline',
+  'text',
+  'tspan',
 ])
 
 function sanitizeSvgNode(node: Element): boolean {
   const tag = node.tagName.toLowerCase()
-  if (DANGEROUS_SVG_TAGS.has(tag)) return false
+  if (!ALLOWED_SVG_TAGS.has(tag)) return false
 
   for (const attr of Array.from(node.attributes)) {
     const name = attr.name.toLowerCase()

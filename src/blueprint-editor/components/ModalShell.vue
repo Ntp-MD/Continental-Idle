@@ -65,7 +65,7 @@ onUnmounted(() => {
       <div ref="containerRef" class="modal__dialog" :class="{ 'modal__dialog--dragging': isDragging, [dialogClass]: !!dialogClass }" :style="{ maxWidth, width, height, maxHeight, transform: `translate(${pos.x}px, ${pos.y}px)` }" role="dialog" :aria-modal="!floating" :aria-labelledby="titleId">
         <div class="modal__header" @mousedown="onDown">
           <span :id="titleId" class="modal__title">{{ title }}</span>
-          <button class="flag--ghost flag--icon" @click="onClose" aria-label="Close">x</button>
+          <button class="flag--ghost" @click="onClose" aria-label="Close">x</button>
         </div>
         <slot />
       </div>

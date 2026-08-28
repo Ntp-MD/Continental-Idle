@@ -6,7 +6,6 @@ import {
 import {
 	beginDrawnObject, addObject, canPlaceObject, select, toggleMultiSelect, deleteSelected,
 	moveSelectedTo, commitMove, rotateSelected,
-	createLinkedAssetFromSelection,
 	flattenToSvgAsset, replaceCanvasWallSegments,
 	linkObjects, unlinkObject, toggleObjectLock,
 } from './objects'
@@ -19,7 +18,7 @@ import {
 } from './metadata'
 import { saveLayout, saveAssets, saveNpcConfig, saveBlueprintData, syncToGame } from './persistence'
 import { selectedObject, selectedAsset, selectAsset, selectedObjectIds } from './selection'
-import { setMode, setWallPaint, resizeCanvas, setCanvasBgColor, setCanvasLabelColor, setWallColor, setWallThickness, setStreetFloor, setStreetWidth } from './mode'
+import { setMode, setWallPaint, resizeCanvas, setCanvasBgColor, setCanvasLabelColor, setWallColor, setWallThickness, setStreetFloor, setStreetWidth, setEditorSettings, resetEditorSettings } from './mode'
 import { tagCatalog, globalTags, managedTagSet, addTag, removeTag, ensureTag } from './tags'
 export * from '../crud/originAssets'
 export * from '../crud/floorPlan'
@@ -32,7 +31,6 @@ export {
 export {
 	beginDrawnObject, addObject, canPlaceObject, select, toggleMultiSelect, deleteSelected,
 	moveSelectedTo, commitMove, rotateSelected,
-	createLinkedAssetFromSelection,
 	flattenToSvgAsset, replaceCanvasWallSegments,
 	linkObjects, unlinkObject, toggleObjectLock,
 } from './objects'
@@ -46,7 +44,7 @@ export {
 export { saveLayout, saveAssets, saveNpcConfig, saveBlueprintData, syncToGame } from './persistence'
 export { selectedObject, selectedAsset, selectAsset, selectedObjectIds, clearSelection } from './selection'
 export { getLinkedObjects } from './utils'
-export { setMode, setWallPaint, resizeCanvas, setCanvasBgColor, setCanvasLabelColor, setWallColor, setWallThickness, setStreetFloor, setStreetWidth } from './mode'
+export { setMode, setWallPaint, resizeCanvas, setCanvasBgColor, setCanvasLabelColor, setWallColor, setWallThickness, setStreetFloor, setStreetWidth, setEditorSettings, resetEditorSettings } from './mode'
 export { tagCatalog, globalTags, managedTagSet, addTag, removeTag, ensureTag } from './tags'
 export { dragState, startAssetDrag, endAssetDrag, wallSelection, clearWallSelection } from './state'
 
@@ -63,28 +61,16 @@ export function useAssetsStore() {
 		reorderFloors, selectFloor, updateFloor,
 		beginDrawnObject, addObject, canPlaceObject, select, toggleMultiSelect, deleteSelected,
 		moveSelectedTo, commitMove, rotateSelected,
-		createLinkedAssetFromSelection, flattenToSvgAsset, replaceCanvasWallSegments,
+		flattenToSvgAsset, replaceCanvasWallSegments,
 		linkObjects, unlinkObject, toggleObjectLock,
 		addSvgAsset, updateAsset, deleteAsset, duplicateAsset, refreshOriginInstances,
 		updateNpcConfig, syncNpcConfigToState, persistNpcConfigToDisk,
 		copySelected, pasteObjects,
 		saveLayout, saveAssets, saveNpcConfig, saveBlueprintData, syncToGame,
 		selectedObject, selectedAsset, selectAsset, selectedObjectIds,
-		setMode, setWallPaint, resizeCanvas, setCanvasBgColor, setCanvasLabelColor, setWallColor, setWallThickness, setStreetFloor, setStreetWidth,
+		setMode, setWallPaint, resizeCanvas, setCanvasBgColor, setCanvasLabelColor, setWallColor, setWallThickness, setStreetFloor, setStreetWidth, setEditorSettings, resetEditorSettings,
 		tagCatalog, globalTags, managedTagSet, addTag, removeTag, ensureTag,
 	}
 }
 
 export type AssetsStore = ReturnType<typeof useAssetsStore>
-
-if (import.meta.hot) {
-	import.meta.hot.dispose(() => {
-		const hot = import.meta.hot!
-		hot.data._editorState = {
-			currentFloorId: state.currentFloorId,
-			mode: state.mode,
-			selectionState: state.selectionState,
-			selectedAssetId: state.selectedAssetId,
-		}
-	})
-}

@@ -1,6 +1,4 @@
 export const npcSettingsData = {
-  "$schema": "npc-config.v1.json",
-  "version": 1,
   "speed": 0.2,
   "defaultRoleId": "role-guest",
   "roles": [
@@ -9,14 +7,7 @@ export const npcSettingsData = {
       "label": "Guest",
       "color": "#3794ff",
       "focusTags": [
-        "portal",
-        "lounge",
-        "dining",
-        "pool",
-        "spa",
-        "gym",
-        "wellness",
-        "guest-room"
+        "portal"
       ],
       "restrictedTags": [],
       "taskIds": [],

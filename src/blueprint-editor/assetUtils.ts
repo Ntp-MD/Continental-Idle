@@ -1,7 +1,7 @@
 import { isValidColor } from './types'
 import type { AssetDef, FloorData, FloorLayoutData, NpcSimulationConfig, ObjectPlacement, SvgRole, SvgRoleInfo, WalkableGrid, TileState } from './types'
 
-export function findAsset(assets: AssetDef[], type: string): AssetDef | undefined {
+export function findAsset(assets: readonly AssetDef[], type: string): AssetDef | undefined {
 	return assets.find(a => a.id === type)
 }
 
@@ -9,7 +9,7 @@ export function findAssetCached(assetMap: Map<string, AssetDef>, type: string): 
 	return assetMap.get(type)
 }
 
-export function buildAssetMap(assets: AssetDef[]): Map<string, AssetDef> {
+export function buildAssetMap(assets: readonly AssetDef[]): Map<string, AssetDef> {
 	return new Map<string, AssetDef>(
 		assets.map(a => [a.id, a])
 	)
@@ -66,7 +66,7 @@ export function buildWalkableGrid(
 	const rows = Math.max(1, Math.round(h))
 	const cols = Math.max(1, Math.round(w))
 	if (tileStates && tileStates.length === rows && tileStates[0]?.length === cols) {
-		const grid: WalkableGrid = tileStates.map(row => row.map(t => t === 'walkable' || t === 'entrance'))
+		const grid: WalkableGrid = tileStates.map(row => row.map(t => t === 'walkable' || t === 'door'))
 		return { walkableGrid: grid, tileStates }
 	}
 	const hasWall = roles?.some(r => r.role === 'wall') ?? false
@@ -94,7 +94,6 @@ export function serializeObject(obj: ObjectPlacement): ObjectPlacement {
 		y: obj.y,
 		rotation: obj.rotation,
 	}
-	if (obj.subId) out.subId = obj.subId
 	if (obj.linkGroupId) out.linkGroupId = obj.linkGroupId
 
 	if (obj.locked !== undefined) out.locked = obj.locked
@@ -118,7 +117,7 @@ export const ASSET_DEF_FIELD_COVERAGE: Record<keyof AssetDef, true> = {
 	isWall: true,
 	wallSegments: true,
 	walkable: true,
-	entranceRequired: true,
+	doorRequired: true,
 	defaultPadding: true,
 	defaultRx: true,
 	defaultFillColor: true,
@@ -155,7 +154,7 @@ export function serializeAsset(asset: AssetDef): AssetDef {
 	if (asset.isWall !== undefined) out.isWall = asset.isWall
 	if (asset.wallSegments?.length) out.wallSegments = asset.wallSegments.map(segment => ({ ...segment }))
 	if (asset.walkable !== undefined) out.walkable = asset.walkable
-	if (asset.entranceRequired) out.entranceRequired = asset.entranceRequired
+	if (asset.doorRequired) out.doorRequired = asset.doorRequired
 	if (asset.defaultPadding && asset.defaultPadding > 0) out.defaultPadding = asset.defaultPadding
 	if (asset.defaultRx && (asset.defaultRx.tl > 0 || asset.defaultRx.tr > 0 || asset.defaultRx.br > 0 || asset.defaultRx.bl > 0)) out.defaultRx = asset.defaultRx
 	if (asset.defaultFillColor) out.defaultFillColor = asset.defaultFillColor

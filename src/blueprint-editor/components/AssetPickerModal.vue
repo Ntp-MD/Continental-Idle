@@ -121,7 +121,7 @@ function pick(asset: AssetDef) {
     <div class="modal__body picker__body">
       <div class="form__search">
         <input v-model="searchQuery" placeholder="Search assets..." type="text" aria-label="Search assets" />
-        <button v-if="searchQuery" class="flag--ghost flag--icon" @click="searchQuery = ''" aria-label="Clear search" title="Clear search">x</button>
+        <button v-if="searchQuery" class="flag--ghost" @click="searchQuery = ''" aria-label="Clear search" title="Clear search">x</button>
       </div>
       <div class="picker__scroll">
         <div v-if="!filteredAssets.length" class="empty picker__empty">No assets found</div>

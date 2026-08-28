@@ -124,7 +124,7 @@ function onItemClick(assetId: string) {
     <div class="form__group">
       <div class="form__search">
         <input v-model="searchQuery" placeholder="Search assets..." type="text" aria-label="Search assets" />
-        <button v-if="searchQuery" class="flag--ghost flag--icon" @click="searchQuery = ''" aria-label="Clear search" title="Clear search">x</button>
+        <button v-if="searchQuery" class="flag--ghost" @click="searchQuery = ''" aria-label="Clear search" title="Clear search">x</button>
         <button class="flag--ghost" @click="showPicker = true" title="Browse assets in a grid" aria-label="Browse assets">Browse</button>
       </div>
     </div>

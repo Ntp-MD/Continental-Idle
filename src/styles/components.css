@@ -189,11 +189,6 @@
 	background: transparent;
 }
 
-.flag--icon {
-	width: fit-content;
-	height: 100%;
-}
-
 
 /* ── Modal ── */
 .modal__overlay {

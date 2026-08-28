@@ -3,7 +3,7 @@ import { ref, computed, onMounted, onUnmounted, watch, inject } from "vue";
 import { useAssetsStore, dragState, endAssetDrag, wallSelection } from "../blueprintStore";
 import { findAssetCached, svgColorVarStyle } from "../assetUtils";
 import { svgTransform as svgTransformGeo, roundedRectPath, buildingArea } from "../geometry";
-import { CANVAS_WALL_OBJECT_TYPE, resolveStreetTiles, resolveWallSegmentsForObject } from "../types";
+import { CANVAS_WALL_OBJECT_TYPE, resolveStreetTiles, resolveWallSegmentsForObject, normalizeEditorSettings } from "../types";
 import { useConfirm } from "@/composables/useConfirm";
 import { useToast } from "@/composables/useToast";
 import type { ObjectData, EntityRef } from "../types";
@@ -273,7 +273,7 @@ function wallDistance(point: { x: number; y: number }, wall: WallSegment): numbe
 }
 
 function wallAtPoint(point: { x: number; y: number }): WallSelection | null {
-  const tolerance = Math.max(6, canvas.value.tileSize * 0.2);
+  const tolerance = Math.max(editorSettings.value.wallHitTolerancePx / zoom.value, canvas.value.tileSize * editorSettings.value.wallHitToleranceTileRatio);
   let closest: WallSelection | null = null;
   let closestDistance = tolerance;
   for (const wall of wallRuns.value) {
@@ -332,15 +332,22 @@ const modeHint = computed(() => {
 });
 
 const buildingAreaRect = computed(() => buildingArea(canvas.value.width, canvas.value.height, canvas.value.tileSize, streetTotalTiles.value));
-const streetSidewalkWidth = computed(() => 2 * canvas.value.tileSize);
+const editorSettings = computed(() => normalizeEditorSettings(store.state.layout.editorSettings));
+const streetSidewalkTiles = computed(() => Math.max(1, Math.floor(streetTotalTiles.value * editorSettings.value.sidewalkTileRatio)));
+const streetSidewalkWidth = computed(() => streetSidewalkTiles.value * canvas.value.tileSize);
 const streetTotalTiles = computed(() => resolveStreetTiles(store.state.layout));
-const streetRoadWidth = computed(() => Math.max(1, streetTotalTiles.value - 4) * canvas.value.tileSize);
+const streetRoadWidth = computed(() => Math.max(1, streetTotalTiles.value - streetSidewalkTiles.value * 2) * canvas.value.tileSize);
 
 const vp = useCanvasViewport(
   () => canvas.value.width,
   () => canvas.value.height,
+  {
+    minPx: () => editorSettings.value.rulerMinPx,
+    maxPx: () => editorSettings.value.rulerMaxPx,
+    basePx: () => editorSettings.value.rulerBasePx,
+  },
 );
-const { viewBox, zoomPercent, spaceDown, panning, zooming, svgRef, RULER_SIZE, fitToScreen, centerView, zoomBy, onWheel, startPan, onPanMouseDown, onPanMouseMove, onPanMouseUp, localPoint } = vp;
+const { viewBox, zoomPercent, zoom, spaceDown, panning, zooming, svgRef, RULER_SIZE, fitToScreen, centerView, zoomBy, onWheel, startPan, onPanMouseDown, onPanMouseMove, onPanMouseUp, localPoint } = vp;
 
 const wallPaint = useWallPaint({
   disabled: () => store.state.mode === "npc-preview",
@@ -381,9 +388,8 @@ const wallPaint = useWallPaint({
 });
 const wallPaintActive = computed(() => store.state.wallPaint);
 const DEFAULT_WALL_COLOR = "var(--accent-green)";
-const DEFAULT_WALL_THICKNESS = 3;
+const wallThickness = computed(() => canvas.value.wallThickness ?? Math.max(2, Math.round(canvas.value.tileSize * editorSettings.value.wallThicknessRatio)));
 const wallColor = computed(() => canvas.value.wallColor || DEFAULT_WALL_COLOR);
-const wallThickness = computed(() => canvas.value.wallThickness ?? DEFAULT_WALL_THICKNESS);
 const wallPreview = wallPaint.preview;
 const selectedWall = wallPaint.selected;
 watch(
@@ -415,7 +421,7 @@ function onCanvasMouseDownWithWalls(e: MouseEvent) {
         store.select({ type: "object", id: canvasWall.objectId });
         return;
       }
-      const tolerance = Math.max(6, canvas.value.tileSize * 0.2);
+      const tolerance = Math.max(editorSettings.value.wallHitTolerancePx / zoom.value, canvas.value.tileSize * editorSettings.value.wallHitToleranceTileRatio);
       let closestAsset: ObjWallLine | null = null;
       let closestDistance = tolerance;
       for (const line of objWallLines.value) {
@@ -472,6 +478,8 @@ const sel = useCanvasSelection({
   floor,
   store: store,
   getMode: () => store.state.mode,
+  zoom,
+  boxSelectThresholdPx: () => editorSettings.value.boxSelectThresholdPx,
   onDrawComplete,
   onBoxSelectStart: () => wallPaint.clearSelection(),
   onBoxSelectComplete: (rect) => wallPaint.selectInRect(rect),
@@ -530,7 +538,17 @@ const moving = ref<{ type: "object"; id: string; offsetX: number; offsetY: numbe
 let _cycleClickPos: { x: number; y: number } | null = null;
 let _cycleCandidates: EntityRef[] = [];
 let _cycleIndex = 0;
-const CYCLE_THRESHOLD = 6;
+const cycleThreshold = computed(() => Math.max(2, editorSettings.value.cycleThresholdPx / zoom.value));
+const overlayScale = computed(() => 1 / zoom.value);
+const interactSpotRadius = computed(() => Math.max(1, editorSettings.value.interactSpotRadiusPx * overlayScale.value));
+const lockIndicatorRadius = computed(() => Math.max(1, editorSettings.value.lockIndicatorRadiusPx * overlayScale.value));
+const labelFontSize = computed(() => Math.max(2, editorSettings.value.labelFontSizePx * overlayScale.value));
+const lockLabelFontSize = computed(() => Math.max(1, editorSettings.value.lockLabelFontSizePx * overlayScale.value));
+const interactSpotFontSize = computed(() => Math.max(1, editorSettings.value.interactSpotFontSizePx * overlayScale.value));
+const zoneLabelFontSize = computed(() => Math.max(2, editorSettings.value.zoneLabelFontSizePx * overlayScale.value));
+const emptyStateFontSize = computed(() => Math.max(4, editorSettings.value.emptyStateFontSizePx * overlayScale.value));
+const rulerTickFontSize = computed(() => Math.max(4, editorSettings.value.rulerTickFontSizePx * overlayScale.value));
+const streetDashArray = computed(() => `${Math.max(2, canvas.value.tileSize * editorSettings.value.streetDashRatio)} ${Math.max(1, canvas.value.tileSize * editorSettings.value.streetGapRatio)}`);
 
 function hasOuterWall(obj: ObjectData): boolean {
   const asset = findAssetCached(store.assetMap(), obj.type);
@@ -551,7 +569,7 @@ function findEntitiesAtPoint(p: { x: number; y: number }): EntityRef[] {
 }
 
 function tryCycleSelect(p: { x: number; y: number }): EntityRef | null {
-  if (_cycleClickPos && Math.abs(p.x - _cycleClickPos.x) <= CYCLE_THRESHOLD && Math.abs(p.y - _cycleClickPos.y) <= CYCLE_THRESHOLD && _cycleCandidates.length > 1) {
+  if (_cycleClickPos && Math.abs(p.x - _cycleClickPos.x) <= cycleThreshold.value && Math.abs(p.y - _cycleClickPos.y) <= cycleThreshold.value && _cycleCandidates.length > 1) {
     _cycleIndex = (_cycleIndex + 1) % _cycleCandidates.length;
     return _cycleCandidates[_cycleIndex];
   }
@@ -602,7 +620,7 @@ function onMoveMouseMove(e: MouseEvent) {
   if (!moving.value) return;
   const p = localPoint(e);
   if (!p) return;
-  const threshold = 2;
+  const threshold = Math.max(0.5, editorSettings.value.dragThresholdPx / zoom.value);
   if (!_dragHasMoved) {
     if (Math.abs(p.x - moving.value.startX) < threshold && Math.abs(p.y - moving.value.startY) < threshold) return;
     _dragHasMoved = true;
@@ -959,13 +977,13 @@ async function cancelDrawnOrigin() {
 
         <!-- Road lane markings (dashed center lines) -->
         <!-- Top road center line -->
-        <line :x1="streetSidewalkWidth" :y1="streetSidewalkWidth + streetRoadWidth / 2" :x2="canvas.width - streetSidewalkWidth" :y2="streetSidewalkWidth + streetRoadWidth / 2" stroke="var(--street-marking)" stroke-width="1" stroke-dasharray="12 8" opacity="0.5" />
+        <line :x1="streetSidewalkWidth" :y1="streetSidewalkWidth + streetRoadWidth / 2" :x2="canvas.width - streetSidewalkWidth" :y2="streetSidewalkWidth + streetRoadWidth / 2" stroke="var(--street-marking)" stroke-width="1" :stroke-dasharray="streetDashArray" opacity="0.5" />
         <!-- Bottom road center line -->
-        <line :x1="streetSidewalkWidth" :y1="canvas.height - streetSidewalkWidth - streetRoadWidth / 2" :x2="canvas.width - streetSidewalkWidth" :y2="canvas.height - streetSidewalkWidth - streetRoadWidth / 2" stroke="var(--street-marking)" stroke-width="1" stroke-dasharray="12 8" opacity="0.5" />
+        <line :x1="streetSidewalkWidth" :y1="canvas.height - streetSidewalkWidth - streetRoadWidth / 2" :x2="canvas.width - streetSidewalkWidth" :y2="canvas.height - streetSidewalkWidth - streetRoadWidth / 2" stroke="var(--street-marking)" stroke-width="1" :stroke-dasharray="streetDashArray" opacity="0.5" />
         <!-- Left road center line -->
-        <line :x1="streetSidewalkWidth + streetRoadWidth / 2" :y1="streetSidewalkWidth" :x2="streetSidewalkWidth + streetRoadWidth / 2" :y2="canvas.height - streetSidewalkWidth" stroke="var(--street-marking)" stroke-width="1" stroke-dasharray="12 8" opacity="0.5" />
+        <line :x1="streetSidewalkWidth + streetRoadWidth / 2" :y1="streetSidewalkWidth" :x2="streetSidewalkWidth + streetRoadWidth / 2" :y2="canvas.height - streetSidewalkWidth" stroke="var(--street-marking)" stroke-width="1" :stroke-dasharray="streetDashArray" opacity="0.5" />
         <!-- Right road center line -->
-        <line :x1="canvas.width - streetSidewalkWidth - streetRoadWidth / 2" :y1="streetSidewalkWidth" :x2="canvas.width - streetSidewalkWidth - streetRoadWidth / 2" :y2="canvas.height - streetSidewalkWidth" stroke="var(--street-marking)" stroke-width="1" stroke-dasharray="12 8" opacity="0.5" />
+        <line :x1="canvas.width - streetSidewalkWidth - streetRoadWidth / 2" :y1="streetSidewalkWidth" :x2="canvas.width - streetSidewalkWidth - streetRoadWidth / 2" :y2="canvas.height - streetSidewalkWidth" stroke="var(--street-marking)" stroke-width="1" :stroke-dasharray="streetDashArray" opacity="0.5" />
 
         <!-- Building area outline (subtle border separating street from building) -->
         <rect :x="buildingAreaRect.x" :y="buildingAreaRect.y" :width="buildingAreaRect.w" :height="buildingAreaRect.h" fill="none" stroke="var(--border-dim)" stroke-width="1" stroke-dasharray="4 4" opacity="0.6" />
@@ -983,14 +1001,14 @@ async function cancelDrawnOrigin() {
         <!-- Top ruler ticks -->
         <g v-for="tick in rulerXTicks" :key="'rx' + tick.pos">
           <line v-if="tick.major" :x1="tick.pos" :y1="-RULER_SIZE" :x2="tick.pos" :y2="-2" :style="{ stroke: 'var(--text-primary)' }" stroke-width="1" />
-          <text v-if="tick.major" :x="tick.pos + 3" :y="-5" font-size="12" font-weight="100" letter-spacing="1" fill="var(--text-dim)">{{ tick.label }}</text>
+          <text v-if="tick.major" :x="tick.pos + 3" :y="-5" :font-size="rulerTickFontSize" font-weight="100" letter-spacing="1" fill="var(--text-dim)">{{ tick.label }}</text>
           <line v-else :x1="tick.pos" :y1="-RULER_SIZE" :x2="tick.pos" :y2="-RULER_SIZE + 5" :style="{ stroke: 'var(--text-primary)' }" stroke-width="0.5" />
         </g>
 
         <!-- Left ruler ticks -->
         <g v-for="tick in rulerYTicks" :key="'ry' + tick.pos">
           <line v-if="tick.major" :x1="-RULER_SIZE" :y1="tick.pos" :x2="-2" :y2="tick.pos" :style="{ stroke: 'var(--text-primary)' }" stroke-width="1" />
-          <text v-if="tick.major" :x="-5" :y="tick.pos + 3" font-size="12" font-weight="100" letter-spacing="1" fill="var(--text-dim)" transform="rotate(-90)" :transform-origin="`-5 ${tick.pos}`">{{ tick.label }}</text>
+          <text v-if="tick.major" :x="-5" :y="tick.pos + 3" :font-size="rulerTickFontSize" font-weight="100" letter-spacing="1" fill="var(--text-dim)" transform="rotate(-90)" :transform-origin="`-5 ${tick.pos}`">{{ tick.label }}</text>
           <line v-else :x1="-RULER_SIZE" :y1="tick.pos" :x2="-RULER_SIZE + 5" :y2="tick.pos" :style="{ stroke: 'var(--text-primary)' }" stroke-width="0.5" />
         </g>
 
@@ -1006,7 +1024,7 @@ async function cancelDrawnOrigin() {
       </g>
 
       <g v-if="floor && floor.objects.length === 0">
-        <text :x="canvas.width / 2" :y="canvas.height / 2 - 10" text-anchor="middle" font-size="16" class="editor__svg--noevents" :style="{ fill: 'var(--text-primary)' }">Empty floor - drag objects from the palette</text>
+        <text :x="canvas.width / 2" :y="canvas.height / 2 - 10" text-anchor="middle" :font-size="emptyStateFontSize" class="editor__svg--noevents" :style="{ fill: 'var(--text-primary)' }">Empty floor - drag objects from the palette</text>
       </g>
 
       <g v-if="renderWalkableOverlay && floor?.walkable?.tileStates" v-memo="[walkableRuns, renderWalkableOverlay]" class="editor__svg--noevents">
@@ -1061,17 +1079,17 @@ async function cancelDrawnOrigin() {
               </template>
             </template>
             <rect v-if="isObjectSelected(obj.id)" :x="obj.x + (obj.padding ?? 0)" :y="obj.y + (obj.padding ?? 0)" :width="obj.w - (obj.padding ?? 0) * 2" :height="obj.h - (obj.padding ?? 0) * 2" fill="none" :rx="obj.radius ?? 0" class="editor__overlay--selected editor__svg--noevents" />
-            <text v-if="showLabels" :x="obj.x + obj.w / 2" :y="Math.max(obj.y - (obj.labelPadding ?? 0) - 3, 7)" text-anchor="middle" font-size="8" class="editor__svg--noevents" :style="{ fill: objLabelColor() }">
+            <text v-if="showLabels" :x="obj.x + obj.w / 2" :y="Math.max(obj.y - (obj.labelPadding ?? 0) - 3, 7)" text-anchor="middle" :font-size="labelFontSize" class="editor__svg--noevents" :style="{ fill: objLabelColor() }">
               {{ assetLabel(obj.type) }}
             </text>
             <g v-if="obj.linkGroupId" class="editor__svg--noevents">
-              <circle :cx="obj.x + obj.w - 4" :cy="obj.y + 4" r="3" fill="var(--accent-blue)" stroke="var(--bg-primary)" stroke-width="0.5" />
-              <text :x="obj.x + obj.w - 4" :y="obj.y + 5.5" text-anchor="middle" font-size="4" fill="var(--bg-primary)">L</text>
+              <circle :cx="obj.x + obj.w - 4" :cy="obj.y + 4" :r="lockIndicatorRadius" fill="var(--accent-blue)" stroke="var(--bg-primary)" stroke-width="0.5" />
+              <text :x="obj.x + obj.w - 4" :y="obj.y + 5.5" text-anchor="middle" :font-size="lockLabelFontSize" fill="var(--bg-primary)">L</text>
             </g>
             <template v-if="renderInteractSpots && objDef(obj).interactSpots && objDef(obj).interactSpots!.length > 0" v-memo="[obj.id, obj.x, obj.y, renderInteractSpots, objDef(obj).interactSpots]">
               <g v-for="(interactSpot, interactSpotIdx) in objDef(obj).interactSpots" :key="`o-interactspot-${obj.id}-${interactSpotIdx}`" class="editor__svg--noevents">
-                <circle :cx="obj.x + interactSpot.x" :cy="obj.y + interactSpot.y" r="4" fill="var(--accent-green)" stroke="var(--text-bright)" stroke-width="0.8" />
-                <text :x="obj.x + interactSpot.x" :y="obj.y + interactSpot.y - 6" text-anchor="middle" font-size="5" fill="color-mix(in srgb, var(--accent-green) 70%, var(--bg-primary))">IS{{ interactSpotIdx + 1 }}</text>
+                <circle :cx="obj.x + interactSpot.x" :cy="obj.y + interactSpot.y" :r="interactSpotRadius" fill="var(--accent-green)" stroke="var(--text-bright)" stroke-width="0.8" />
+                <text :x="obj.x + interactSpot.x" :y="obj.y + interactSpot.y - 6" text-anchor="middle" :font-size="interactSpotFontSize" fill="color-mix(in srgb, var(--accent-green) 70%, var(--bg-primary))">IS{{ interactSpotIdx + 1 }}</text>
               </g>
             </template>
           </g>
@@ -1080,7 +1098,7 @@ async function cancelDrawnOrigin() {
         <g v-if="renderWalkableOverlay" v-memo="[floor?.spawnZones, renderWalkableOverlay]" class="editor__svg--noevents">
           <g v-for="zone in floor?.spawnZones ?? []" :key="`spawn-zone-${zone.id}`">
             <rect :x="zone.x" :y="zone.y" :width="zone.w" :height="zone.h" fill="color-mix(in srgb, var(--accent-green) 12%, transparent)" stroke="var(--accent-green)" stroke-width="1" stroke-dasharray="5 3" />
-            <text :x="zone.x + 4" :y="zone.y + 10" font-size="6" fill="var(--accent-green)">{{ zone.label }}</text>
+            <text :x="zone.x + 4" :y="zone.y + 10" :font-size="zoneLabelFontSize" fill="var(--accent-green)">{{ zone.label }}</text>
           </g>
         </g>
       </g>
@@ -1133,14 +1151,14 @@ async function cancelDrawnOrigin() {
     </div>
 
     <div class="editor__controls">
-      <button class="flag--ghost flag--icon" @click="zoomBy(1 / 1.25)" title="Zoom Out (-)" aria-label="Zoom out">-</button>
+      <button class="flag--ghost" @click="zoomBy(1 / 1.25)" title="Zoom Out (-)" aria-label="Zoom out">-</button>
       <span class="editor__zoom" aria-label="Zoom level">{{ zoomPercent }}%</span>
-      <button class="flag--ghost flag--icon" @click="zoomBy(1.25)" title="Zoom In (+)" aria-label="Zoom in">+</button>
+      <button class="flag--ghost" @click="zoomBy(1.25)" title="Zoom In (+)" aria-label="Zoom in">+</button>
       <button class="flag--ghost" @click="fitToScreen" title="Fit to Screen (Ctrl+0)" aria-label="Fit to screen">Fit</button>
       <button class="flag--ghost" @click="centerView" title="Center View" aria-label="Center view">Center</button>
       <button class="flag--ghost" :class="{ 'flag--active': showGrid }" @click="toggleGrid" title="Toggle Grid" aria-label="Toggle grid">Grid</button>
       <button class="flag--ghost" :class="{ 'flag--active': showLabels }" @click="toggleLabels" title="Toggle Labels" aria-label="Toggle labels">Labels</button>
-      <button class="flag--ghost" :class="{ 'flag--active': showWalkableOverlay }" @click="toggleWalkableOverlay" title="Toggle Walkable + Entrance" aria-label="Toggle walkable view">Walk</button>
+      <button class="flag--ghost" :class="{ 'flag--active': showWalkableOverlay }" @click="toggleWalkableOverlay" title="Toggle Walkable + Door" aria-label="Toggle walkable view">Walk</button>
       <button class="flag--ghost" :class="{ 'flag--active': showWalls }" @click="toggleWalls" title="Toggle Outer Walls" aria-label="Toggle walls">Wall</button>
       <button class="flag--ghost" :class="{ 'flag--active': showInteractSpots }" @click="toggleInteractSpots" title="Toggle Interact Spots" aria-label="Toggle interact spots">Interact</button>
       <button class="flag--ghost" :class="{ 'flag--active': showObjectHighlights }" @click="toggleObjectHighlights" title="Toggle object highlights" aria-label="Toggle object highlights">Highlight</button>
@@ -1295,7 +1313,7 @@ async function cancelDrawnOrigin() {
   stroke: color-mix(in srgb, var(--accent-green) 20%, transparent);
 }
 
-.editor__tile--entrance {
+.editor__tile--door {
   fill: color-mix(in srgb, var(--accent-blue) 30%, transparent);
   stroke: color-mix(in srgb, var(--accent-green) 20%, transparent);
 }

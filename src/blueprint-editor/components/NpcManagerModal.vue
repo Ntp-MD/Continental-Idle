@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onUnmounted, ref, watch } from "vue";
+import { computed, onUnmounted, ref, toRaw, watch } from "vue";
 import { useAssetsStore } from "../blueprintStore";
 import { useConfirm } from "@/composables/useConfirm";
 import { useToast } from "@/composables/useToast";
@@ -103,12 +103,8 @@ const statusText = computed(() => {
   return "";
 });
 
-function cloneConfig(value: NpcSimulationConfig): NpcSimulationConfig {
-  return JSON.parse(JSON.stringify(value)) as NpcSimulationConfig;
-}
-
 function normalizeConfig(value: NpcSimulationConfig): NpcSimulationConfig {
-  const normalized = normalizeNpcConfig(cloneConfig(value));
+  const normalized = normalizeNpcConfig(structuredClone(toRaw(value)));
   if (!normalized) throw new Error("Invalid NPC configuration");
   for (const role of normalized.roles) role.label = sanitizeString(role.label);
   for (const task of normalized.tasks) task.label = sanitizeString(task.label);
@@ -167,7 +163,7 @@ watch(
   () => props.open,
   (open) => {
     if (open) {
-      draft.value = cloneConfig(store.state.layout.npcConfig ?? emptyNpcConfig());
+      draft.value = structuredClone(toRaw(store.state.layout.npcConfig ?? emptyNpcConfig()));
       view.value = "roles";
       resetSelection();
     }
@@ -389,7 +385,7 @@ onUnmounted(() => {
                 ><small class="npc__sub"><span v-if="role.id === draft.defaultRoleId" class="npc__subbadge">Default</span>{{ roleSummary(role) }}</small></span
               >
               <button v-if="role.id !== draft.defaultRoleId" type="button" class="flag--ghost" title="Set as default role" aria-label="Set as default role" @click.stop="setDefaultRole(role)">Default</button>
-              <button v-if="role.id !== draft.defaultRoleId" type="button" class="flag--danger flag--icon" @click.stop="deleteRole(role)" aria-label="Delete role">x</button>
+              <button v-if="role.id !== draft.defaultRoleId" type="button" class="flag--danger" @click.stop="deleteRole(role)" aria-label="Delete role">x</button>
             </div>
             <div v-if="!roles.length" class="empty npc__empty">No roles yet - click "+ Add Role"</div>
           </div>
@@ -464,7 +460,7 @@ onUnmounted(() => {
             <div class="npc__section npc__section--wide">
               <div class="form__row form__row--between npc__rateshead">
                 <h4 class="form__subtitle">Tag Trigger Rates</h4>
-                <button type="button" class="flag--ghost flag--icon" :aria-expanded="ratesExpanded" @click="ratesExpanded = !ratesExpanded">{{ ratesExpanded ? "Hide" : "Show" }}</button>
+                <button type="button" class="flag--ghost" :aria-expanded="ratesExpanded" @click="ratesExpanded = !ratesExpanded">{{ ratesExpanded ? "Hide" : "Show" }}</button>
               </div>
               <template v-if="ratesExpanded">
                 <div class="form__row form__row--tight">
@@ -498,7 +494,7 @@ onUnmounted(() => {
           <div class="form__col form__col--tight npc__scrolllist">
             <div v-for="tag in filteredTags" :key="tag" class="card__item">
               <span class="npc__tagname">{{ tag }}</span>
-              <button type="button" class="flag--danger flag--icon" @click="removeTag(tag)" aria-label="Delete tag">x</button>
+              <button type="button" class="flag--danger" @click="removeTag(tag)" aria-label="Delete tag">x</button>
             </div>
             <div v-if="!filteredTags.length" class="empty npc__empty">No tags</div>
           </div>
@@ -511,7 +507,7 @@ onUnmounted(() => {
             <div v-for="task in filteredLibTasks" :key="task.id" class="npc__taskcard">
               <div class="form__row form__row--tight">
                 <input v-model="task.label" type="text" aria-label="Task label" @change="updateTask" />
-                <button type="button" class="flag--danger flag--icon" @click="deleteTask(task.id)" aria-label="Delete task">x</button>
+                <button type="button" class="flag--danger" @click="deleteTask(task.id)" aria-label="Delete task">x</button>
               </div>
               <div class="form__row form__row--tight form__row--wrap">
                 <TagChip v-for="tag in task.tags" :key="`${task.id}-${tag}`" :label="tag" removable :class="{ 'flag--warning': !managedTagSet.has(tag) }" @remove="removeTaskTag(task, tag)" />
@@ -551,7 +547,7 @@ onUnmounted(() => {
 .npc__viewswitch .npc__switchbtn,
 .npc__sidebar button,
 .npc__panel button,
-.npc__role .flag--icon {
+.npc__role button {
   flex-shrink: 0;
 }
 
