@@ -11,6 +11,7 @@ import {
 	floorMatchesTargetTags,
 	type NpcCanvasBounds,
 	type NpcWalkableMap,
+	type NpcEngineEvent,
 } from '@/engine/npc'
 import type { AssetDef, FloorData, NpcRole, NpcSimDot, NpcSimulationConfig } from '@/blueprint-editor/types'
 import { isNpcConfig } from '@/blueprint-editor/types'
@@ -38,6 +39,7 @@ function resolveRole(config: NpcSimulationConfig, roleId: string): NpcRole | und
 
 export function useNpcSimulationCore(host: NpcSimulationCoreHost) {
 	const npcs = shallowRef<NpcSimDot[]>([])
+	const doorPassageEvents = shallowRef<NpcEngineEvent[]>([])
 	const isPaused = ref(false)
 	const simSpeed = ref(1)
 	const config = ref<NpcSimulationConfig>({
@@ -237,7 +239,9 @@ export function useNpcSimulationCore(host: NpcSimulationCoreHost) {
 			engine.tick(steps)
 			tickCostEma = tickCostEma === 0 ? (performance.now() - t0) / steps : tickCostEma * 0.85 + ((performance.now() - t0) / steps) * 0.15
 			syncAgents()
-			engine.drainEvents()
+			const events = engine.drainEvents()
+			const doorEvents = events.filter(e => e.type === 'door-passage')
+			doorPassageEvents.value = doorEvents
 		}
 		animationId = requestAnimationFrame(frame)
 	}
@@ -271,6 +275,7 @@ export function useNpcSimulationCore(host: NpcSimulationCoreHost) {
 	return {
 		npcs,
 		frameDots,
+		doorPassageEvents,
 		isPaused,
 		simSpeed,
 		config,
@@ -308,6 +313,7 @@ export function useNpcSimulationCore(host: NpcSimulationCoreHost) {
 			spawnFloorOverride = null
 			tickCostEma = 0
 			npcs.value = []
+			doorPassageEvents.value = []
 		},
 		start,
 		stopLoop,

@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
+import { ref, watch } from "vue";
 import { useAssetsStore } from "../blueprintStore";
 import { useToast } from "@/composables/useToast";
 import { useConfirm } from "@/composables/useConfirm";
 import { useAsyncAction } from "../composables/useAsyncAction";
-import { normalizeEditorSettings, DEFAULT_EDITOR_SETTINGS, EDITOR_FIELD_SPECS } from "../types";
+import { DEFAULT_EDITOR_SETTINGS, EDITOR_FIELD_SPECS } from "../types";
 import type { EditorSettings } from "../types";
+import { useCanvasDefaults } from "../composables/useCanvasDefaults";
 import ModalShell from "./ModalShell.vue";
 import ColorInput from "./ColorInput.vue";
 
@@ -120,7 +121,7 @@ async function applyStreetFloor(floorId: string | null) {
   }
 }
 
-const currentEditor = computed(() => normalizeEditorSettings(store.state.layout.editorSettings));
+const { editorSettings: currentEditor } = useCanvasDefaults();
 const draft = ref<EditorSettings>({ ...DEFAULT_EDITOR_SETTINGS });
 
 watch(
@@ -284,7 +285,7 @@ async function resetEditorAll() {
 </script>
 
 <template>
-  <ModalShell :open="open" title="Settings" max-width="1000px" width="min(94vw, 1000px)" max-height="calc(100vh - 100px)" @close="emit('close')">
+  <ModalShell :open="open" title="Settings" dialog-class="settings__dialog" @close="emit('close')">
     <div class="modal__body settings__body">
       <div class="settings__columns">
         <div class="settings__column">
@@ -294,18 +295,18 @@ async function resetEditorAll() {
             <div class="form__row form__row--pair">
               <div class="form__row">
                 <label for="canvas__width">Width</label>
-                <input id="canvas__width" type="number" v-model.number="widthInput" min="100" step="25" />
+                <input id="canvas__width" v-model.number="widthInput" type="number" min="100" step="25" />
               </div>
               <div class="form__row">
                 <label for="canvas__height">Height</label>
-                <input id="canvas__height" type="number" v-model.number="heightInput" min="100" step="25" />
+                <input id="canvas__height" v-model.number="heightInput" type="number" min="100" step="25" />
               </div>
               <div class="form__row">
                 <label for="canvas__tile">Tile</label>
-                <input id="canvas__tile" type="number" v-model.number="tileInput" min="5" step="5" />
+                <input id="canvas__tile" v-model.number="tileInput" type="number" min="5" step="5" />
               </div>
             </div>
-            <button class="flag--active" :disabled="pending" @click="applyCanvasSize" aria-label="Apply canvas size">Apply</button>
+            <button class="flag--active" :disabled="pending" aria-label="Apply canvas size" @click="applyCanvasSize">Apply</button>
             <div class="form__hint">Changing canvas size will re-snap all objects to the new grid.</div>
           </div>
           <div class="form__group">
@@ -333,7 +334,7 @@ async function resetEditorAll() {
               </div>
               <div class="form__row">
                 <label for="canvas__wallthickness">Thickness</label>
-                <input id="canvas__wallthickness" type="number" v-model.number="wallThicknessInput" min="1" max="10" step="1" :placeholder="'3'" @change="applyWallThickness" />
+                <input id="canvas__wallthickness" v-model.number="wallThicknessInput" type="number" min="1" max="10" step="1" :placeholder="'3'" @change="applyWallThickness" />
               </div>
             </div>
             <div class="form__hint">Line style for painted floor walls and the building boundary. Thickness overrides the Editor ratio.</div>
@@ -367,14 +368,14 @@ async function resetEditorAll() {
             <div class="form__row form__row--pair">
               <div v-for="field in group.fields" :key="field.key" class="form__row">
                 <label :for="`es__${field.key}`">{{ field.label }}</label>
-                <input :id="`es__${field.key}`" type="number" v-model.number="draft[field.key]" :min="fieldRange(field.key).min" :max="fieldRange(field.key).max" :step="field.step" @change="applyEditorField(field.key)" />
+                <input :id="`es__${field.key}`" v-model.number="draft[field.key]" type="number" :min="fieldRange(field.key).min" :max="fieldRange(field.key).max" :step="field.step" @change="applyEditorField(field.key)" />
               </div>
             </div>
             <div class="form__hint">{{ group.hint }}</div>
           </div>
           <div class="form__row form__row--border">
-            <button class="flag--danger" :disabled="pending" @click="resetEditorAll" aria-label="Reset all editor settings to defaults">Reset</button>
-            <button class="flag--active" :disabled="pending || !isEditorDirty()" @click="applyEditorAll" aria-label="Apply all editor settings">Apply All</button>
+            <button class="flag--danger" :disabled="pending" aria-label="Reset all editor settings to defaults" @click="resetEditorAll">Reset</button>
+            <button class="flag--active" :disabled="pending || !isEditorDirty()" aria-label="Apply all editor settings" @click="applyEditorAll">Apply All</button>
           </div>
         </div>
       </div>
@@ -383,6 +384,11 @@ async function resetEditorAll() {
 </template>
 
 <style scoped>
+:deep(.settings__dialog) {
+  width: min(94vw, 1000px);
+  max-width: 1000px;
+  max-height: calc(100vh - 100px);
+}
 .settings__body {
   padding: var(--gap-md);
   overflow-y: auto;

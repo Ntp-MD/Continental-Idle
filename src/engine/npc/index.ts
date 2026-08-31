@@ -8,6 +8,7 @@ export { floorMatchesTargetTags, getObjectTags, getRoleFocusTags, hasMatchingTag
 export { buildNpcQueues } from './queueBuild'
 export {
 	buildBlockedEdges,
+	buildDoorEdges,
 	buildNpcEngineLayout,
 	buildRoleWalkableMap,
 	buildWalkableMap,

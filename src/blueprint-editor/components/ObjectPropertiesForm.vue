@@ -64,7 +64,7 @@ async function doUnlink() {
         <label>Rotation</label>
         <div class="form__row">
           <span>{{ object.rotation }}deg</span>
-          <button @click="rotate" title="Rotate 90deg (R)">Rotate</button>
+          <button title="Rotate 90deg (R)" @click="rotate">Rotate</button>
         </div>
       </div>
     </div>

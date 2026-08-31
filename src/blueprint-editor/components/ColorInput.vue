@@ -106,8 +106,8 @@ function toggleTransparent() {
       <input class="color__native" type="color" :value="nativeValue" :aria-label="ariaLabel" @input="onNativeInput" @change="onNativeChange" />
       <span v-if="isTransparent" class="color__slash" aria-hidden="true" />
     </label>
-    <input class="color__text" :class="{ 'color__text--invalid': isInvalid }" type="text" v-model="textValue" :placeholder="placeholder" :aria-label="ariaLabel" @change="onTextChange" />
-    <button v-if="allowTransparent" type="button" class="color__transparent" :class="{ 'color__transparent--active': isTransparent }" @click="toggleTransparent" title="Toggle transparent" aria-label="Toggle transparent">transparent</button>
+    <input v-model="textValue" class="color__text" :class="{ 'color__text--invalid': isInvalid }" type="text" :placeholder="placeholder" :aria-label="ariaLabel" @change="onTextChange" />
+    <button v-if="allowTransparent" type="button" class="color__transparent" :class="{ 'color__transparent--active': isTransparent }" title="Toggle transparent" aria-label="Toggle transparent" @click="toggleTransparent">transparent</button>
   </div>
 </template>
 

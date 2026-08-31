@@ -38,3 +38,6 @@ timeline of DIRECTION-level decisions only (Problem / Final solution /
 Trade-off / Revisit trigger). Supersedes the former docs/adr/ notes and the
 inline list that used to live here. Routine fixes, refactors and cleanups are
 not recorded there.
+
+
+what i need on this project to make solid and strong code and clean code and efficient and better performance when release launch

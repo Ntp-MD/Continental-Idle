@@ -1,6 +1,7 @@
 import { ref, computed, watch, onUnmounted, type Ref, type ComputedRef } from 'vue'
 import { dragState, endAssetDrag } from '../blueprintStore'
 import { findAssetCached } from '../assetUtils'
+import { assetPixelSize } from '../types'
 import { buildingArea } from '../geometry'
 import { useToast } from '@/composables/useToast'
 import type { FloorData } from '../types'
@@ -35,9 +36,8 @@ export function useCanvasDragDrop(
 		const asset = findAssetCached(opts.store.assetMap(), dragState.assetId)
 		if (!asset) return null
 		const t = opts.tileSize()
-		const aw = opts.store.snap(asset.usePx ? (asset.pxW ?? asset.w * t) : asset.w * t)
-		const ah = opts.store.snap(asset.usePx ? (asset.pxH ?? asset.h * t) : asset.h * t)
-		return { w: aw, h: ah }
+		const { w, h } = assetPixelSize(asset, t)
+		return { w: opts.store.snap(w), h: opts.store.snap(h) }
 	})
 
 	const paletteGhostParts = computed(() => null as null)

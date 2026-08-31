@@ -148,5 +148,19 @@ export const npcSettingsData = {
         "10"
       ]
     }
-  ]
+  ],
+  "crossFloorCooldownSeconds": 30,
+  "progressWatchdogTicks": 120,
+  "maxRepathAttempts": 4,
+  "repathCooldownSeconds": 2,
+  "repathCooldownExponent": 1.5,
+  "pathBudgetMinPerTick": 2,
+  "pathBudgetAgentsPerCall": 100,
+  "chooseTargetMinPerTick": 8,
+  "chooseTargetAgentsPerSlot": 20,
+  "wanderMemorySize": 32,
+  "wanderSmallMapThreshold": 8,
+  "triggerRatePeriodSeconds": 60,
+  "frameSimBudgetMs": 6,
+  "maxSimulationSteps": 8
 }

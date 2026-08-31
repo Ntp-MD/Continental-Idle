@@ -1,4 +1,4 @@
-import { reactive, computed, ref } from 'vue'
+import { reactive, computed, ref, toRaw } from 'vue'
 import type { BlueprintTagDefinition, FloorLayoutData, AssetDef, FloorData, EditorMode, SelectionState, Rect, WallSegment } from '../types'
 import { buildAssetMap, parseSvgRoles, buildWalkableGrid } from '../assetUtils'
 import { snap as _snap, clamp as _clamp, buildingArea } from '../geometry'
@@ -125,9 +125,9 @@ export interface StateSnapshot {
 
 export function captureStateSnapshot(): StateSnapshot {
 	return {
-		layout: JSON.parse(JSON.stringify(state.layout)),
-		assetRegistry: JSON.parse(JSON.stringify(state.assetRegistry)),
-		tagDefinitions: JSON.parse(JSON.stringify(state.tagDefinitions)),
+		layout: structuredClone(toRaw(state.layout)),
+		assetRegistry: structuredClone(toRaw(state.assetRegistry)),
+		tagDefinitions: structuredClone(toRaw(state.tagDefinitions)),
 	}
 }
 

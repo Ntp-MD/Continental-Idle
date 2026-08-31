@@ -2,7 +2,7 @@ import type { AssetDef, BlueprintDataFile, BlueprintTagDefinition, FloorLayoutDa
 import { BLUEPRINT_DATA_SCHEMA, BLUEPRINT_DATA_VERSION, normalizeBlueprintDataFile, normalizeOriginAssetFile, normalizeNpcConfig, normalizePersistedLayoutData, normalizeTagDefinitions } from '../types'
 import { serializeAsset, serializeObject } from '../assetUtils'
 import { EDITOR_CONFIG } from '../editorConfig'
-import { emptyNpcConfig } from './storeUtils'
+import { emptyNpcConfig, editorLog } from './storeUtils'
 import { originAssetsData } from '../data/originAssets.data'
 import { floorPlanData } from '../data/floorPlan.data'
 import { npcSettingsData } from '../data/npcSettings.data'
@@ -52,7 +52,8 @@ export async function fetchBlueprintDataFromDisk(): Promise<BlueprintDataFile | 
 		if (!res.ok || !res.headers.get('content-type')?.toLowerCase().startsWith('application/json')) return null
 		const raw: unknown = await res.json()
 		return normalizeBlueprintDataFile(raw) ?? null
-	} catch {
+	} catch (error) {
+		editorLog.error('fetchBlueprintDataFromDisk', error)
 		return null
 	}
 }

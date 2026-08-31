@@ -43,7 +43,7 @@ function runScenario(name: string, floors: FloorData[], perFloor: number, ticks:
 		roles: [{ id: 'guest', label: 'Guest', color: '#8ecae6', focusTags: ['bathroom'], restrictedTags: [], taskIds: [], focusChance: 30 }],
 		tasks: [], pool: [],
 	} as unknown as NpcSimulationConfig
-	let tickNow = 0
+	const tickNow = 0
 	let engine!: NpcEngine
 	const policy = createNpcEnginePolicy({
 		getConfig: () => config,

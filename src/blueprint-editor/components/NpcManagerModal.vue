@@ -367,7 +367,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <ModalShell :open="open" title="NPC Manager" max-width="1200px" width="min(90vw, 1200px)" height="90vh" max-height="90vh" @close="onClose">
+  <ModalShell :open="open" title="NPC Manager" dialog-class="npc-manager__dialog" @close="onClose">
     <div class="modal__body npc__body">
       <div class="npc__viewswitch">
         <button type="button" class="npc__switchbtn" :class="{ 'flag--active': view === 'roles' }" :aria-pressed="view === 'roles'" @click="view = 'roles'">Role Editor ({{ roles.length }})</button>
@@ -385,7 +385,7 @@ onUnmounted(() => {
                 ><small class="npc__sub"><span v-if="role.id === draft.defaultRoleId" class="npc__subbadge">Default</span>{{ roleSummary(role) }}</small></span
               >
               <button v-if="role.id !== draft.defaultRoleId" type="button" class="flag--ghost" title="Set as default role" aria-label="Set as default role" @click.stop="setDefaultRole(role)">Default</button>
-              <button v-if="role.id !== draft.defaultRoleId" type="button" class="flag--danger" @click.stop="deleteRole(role)" aria-label="Delete role">x</button>
+              <button v-if="role.id !== draft.defaultRoleId" type="button" class="flag--danger" aria-label="Delete role" @click.stop="deleteRole(role)">x</button>
             </div>
             <div v-if="!roles.length" class="empty npc__empty">No roles yet - click "+ Add Role"</div>
           </div>
@@ -403,7 +403,7 @@ onUnmounted(() => {
               </div>
               <div class="form__row">
                 <label class="label--fixed" :for="`npc-role-color-${selectedRole.id}`">Color</label>
-                <ColorInput :model-value="selectedRole.color" @commit="commitRoleColor" placeholder="#RRGGBB" aria-label="Role color" />
+                <ColorInput :model-value="selectedRole.color" placeholder="#RRGGBB" aria-label="Role color" @commit="commitRoleColor" />
               </div>
               <div class="form__row">
                 <label class="label--fixed" :for="`npc-role-chance-${selectedRole.id}`">Focus Chance</label>
@@ -494,7 +494,7 @@ onUnmounted(() => {
           <div class="form__col form__col--tight npc__scrolllist">
             <div v-for="tag in filteredTags" :key="tag" class="card__item">
               <span class="npc__tagname">{{ tag }}</span>
-              <button type="button" class="flag--danger" @click="removeTag(tag)" aria-label="Delete tag">x</button>
+              <button type="button" class="flag--danger" aria-label="Delete tag" @click="removeTag(tag)">x</button>
             </div>
             <div v-if="!filteredTags.length" class="empty npc__empty">No tags</div>
           </div>
@@ -507,7 +507,7 @@ onUnmounted(() => {
             <div v-for="task in filteredLibTasks" :key="task.id" class="npc__taskcard">
               <div class="form__row form__row--tight">
                 <input v-model="task.label" type="text" aria-label="Task label" @change="updateTask" />
-                <button type="button" class="flag--danger" @click="deleteTask(task.id)" aria-label="Delete task">x</button>
+                <button type="button" class="flag--danger" aria-label="Delete task" @click="deleteTask(task.id)">x</button>
               </div>
               <div class="form__row form__row--tight form__row--wrap">
                 <TagChip v-for="tag in task.tags" :key="`${task.id}-${tag}`" :label="tag" removable :class="{ 'flag--warning': !managedTagSet.has(tag) }" @remove="removeTaskTag(task, tag)" />
@@ -532,6 +532,12 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
+:deep(.npc-manager__dialog) {
+  width: min(90vw, 1200px);
+  max-width: 1200px;
+  height: 90vh;
+  max-height: 90vh;
+}
 .npc__body {
   display: flex;
   flex-direction: column;

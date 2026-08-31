@@ -3,6 +3,7 @@ import { fileURLToPath, URL } from 'node:url'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { randomUUID } from 'node:crypto'
 import vue from '@vitejs/plugin-vue'
+import { visualizer } from 'rollup-plugin-visualizer'
 import fs from 'node:fs'
 import path from 'node:path'
 import { BLUEPRINT_DATA_SCHEMA, BLUEPRINT_DATA_VERSION, normalizeBlueprintDataFile } from './src/blueprint-editor/types.js'
@@ -146,12 +147,12 @@ function blueprintDataPlugin() {
 				const code = (error as NodeJS.ErrnoException).code
 				if (code !== 'EPERM' && code !== 'EACCES') throw error
 				if (attempt === MAX_RENAME_RETRIES) {
-					try { fs.copyFileSync(tempPath, filePath); fs.unlinkSync(tempPath); return } catch { throw error }
+					try { fs.copyFileSync(tempPath, filePath); fs.unlinkSync(tempPath); return } catch (e) { throw error ?? e }
 				}
-				try { if (fs.existsSync(filePath)) fs.unlinkSync(filePath) } catch { }
+				try { if (fs.existsSync(filePath)) fs.unlinkSync(filePath) } catch { /* best effort cleanup */ }
 				const delay = RENAME_DELAY_MS * attempt
 				const end = Date.now() + delay
-				while (Date.now() < end) { }
+				while (Date.now() < end) { /* spin wait for rename retry */ }
 			}
 		}
 	}
@@ -169,10 +170,10 @@ function blueprintDataPlugin() {
 			for (const [filePath, tempPath] of tempPaths) renameWithRetry(tempPath, filePath)
 		} catch (error) {
 			for (const [, tempPath] of tempPaths) {
-				try { if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath) } catch { }
+				try { if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath) } catch { /* best effort cleanup */ }
 			}
 			const reason = error instanceof Error ? `${(error as NodeJS.ErrnoException).code ?? 'ERR'}: ${error.message}` : String(error)
-			throw new Error(`Blueprint data write failed: ${reason}`)
+			throw new Error(`Blueprint data write failed: ${reason}`, { cause: error })
 		}
 	}
 	return {
@@ -234,7 +235,11 @@ function blueprintDataPlugin() {
 }
 
 export default defineConfig({
-	plugins: [vue(), blueprintDataPlugin()],
+	plugins: [
+		vue(),
+		blueprintDataPlugin(),
+		visualizer({ filename: 'dist/bundle-report.html', gzipSize: true, brotliSize: true, template: 'treemap' }),
+	],
 	resolve: {
 		alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) },
 	},

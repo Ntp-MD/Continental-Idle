@@ -1,6 +1,6 @@
 import type { ObjectData, AssetDef, Rotation, EntityRef, TileState, WallSegment } from '../types'
-import { CANVAS_WALL_OBJECT_TYPE, applySvgColorConvention, normalizeWallSegment, resolveObjectDef, resolveWallSegmentsForObject } from '../types'
-import { findAssetCached } from '../assetUtils'
+import { CANVAS_WALL_OBJECT_TYPE, applySvgColorConvention, normalizeWallSegment, resolveObjectDef, resolveWallSegmentsForObject, assetPixelSize } from '../types'
+import { findAssetCached, wallSegmentToObjectRect } from '../assetUtils'
 import { buildingArea, normalizeObject } from '../geometry'
 import { aabbOverlap, objectOverlapsAny, recalcCollapsed } from '../collision'
 import {
@@ -15,13 +15,14 @@ import { saveBlueprintData, saveLayout } from './persistence'
 function canvasWallObject(segment: WallSegment, tileSize: number): ObjectData | null {
 	const normalized = normalizeWallSegment(segment)
 	if (!normalized || tileSize <= 0) return null
+	const rect = wallSegmentToObjectRect(normalized, tileSize)
 	return {
 		id: genId('wall'),
 		type: CANVAS_WALL_OBJECT_TYPE,
-		x: Math.min(normalized.x1, normalized.x2) * tileSize,
-		y: Math.min(normalized.y1, normalized.y2) * tileSize,
-		w: Math.max(1, Math.abs(normalized.x2 - normalized.x1) * tileSize),
-		h: Math.max(1, Math.abs(normalized.y2 - normalized.y1) * tileSize),
+		x: rect.x,
+		y: rect.y,
+		w: rect.w,
+		h: rect.h,
 		rotation: 0,
 		isWall: true,
 		x1: normalized.x1,
@@ -74,8 +75,7 @@ export async function addObject(type: string, x: number, y: number): Promise<Obj
 		const asset = findAssetCached(assetMap(), type)
 		if (!floor || !asset) return null
 		const t = state.layout.canvas.tileSize
-		const aw = asset.usePx ? (asset.pxW ?? asset.w * t) : asset.w * t
-		const ah = asset.usePx ? (asset.pxH ?? asset.h * t) : asset.h * t
+		const { w: aw, h: ah } = assetPixelSize(asset, t)
 		const w = snap(aw)
 		const h = snap(ah)
 		const rect = clamp({ x: snap(x), y: snap(y), w, h })
@@ -100,8 +100,7 @@ export function canPlaceObject(type: string, x: number, y: number): boolean {
 	const asset = findAssetCached(assetMap(), type)
 	if (!asset) return false
 	const t = state.layout.canvas.tileSize
-	const aw = asset.usePx ? (asset.pxW ?? asset.w * t) : asset.w * t
-	const ah = asset.usePx ? (asset.pxH ?? asset.h * t) : asset.h * t
+	const { w: aw, h: ah } = assetPixelSize(asset, t)
 	const w = snap(aw)
 	const h = snap(ah)
 	const rect = clamp({ x: snap(x), y: snap(y), w, h })

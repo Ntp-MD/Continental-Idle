@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch, inject } from "vue";
 import { useAssetsStore, dragState, endAssetDrag, wallSelection } from "../blueprintStore";
-import { findAssetCached, svgColorVarStyle } from "../assetUtils";
+import { findAssetCached, svgColorVarStyle, doorPanelsData, type DoorPanel } from "../assetUtils";
 import { svgTransform as svgTransformGeo, roundedRectPath, buildingArea } from "../geometry";
 import { CANVAS_WALL_OBJECT_TYPE, resolveStreetTiles, resolveWallSegmentsForObject, normalizeEditorSettings } from "../types";
 import { useConfirm } from "@/composables/useConfirm";
@@ -11,9 +11,11 @@ import { resolveObjectDef } from "../types";
 import { useCanvasViewport } from "../composables/useCanvasViewport";
 import { useCanvasSelection } from "../composables/useCanvasSelection";
 import { useCanvasDragDrop } from "../composables/useCanvasDragDrop";
+import { useCanvasWallStyle } from "../composables/useCanvasWallStyle";
 import ColorInput from "./ColorInput.vue";
 import ModalShell from "./ModalShell.vue";
 import { useNpcSimulation } from "../composables/useNpcSimulation";
+import { useDoorAnimation } from "../composables/useDoorAnimation";
 import { useWallPaint, type WallSegment, type WallSelection } from "../composables/useWallPaint";
 import { renderSvgInto as renderSvgContent } from "../svgSanitizer";
 
@@ -159,10 +161,13 @@ watch(
     if (mode === "npc-preview") {
       startNpcSimulation();
       startNpcDraw();
+      doorAnimation.start();
     }
     if (previousMode === "npc-preview" && mode !== "npc-preview") {
       stopNpcSimulation();
       stopNpcDraw();
+      doorAnimation.stop();
+      doorAnimation.reset();
     }
   },
 );
@@ -244,7 +249,9 @@ const wallRuns = computed<WallRun[]>(() => {
     .filter((object) => object.isWall && object.type === CANVAS_WALL_OBJECT_TYPE)
     .flatMap((object) => {
       if ([object.x1, object.y1, object.x2, object.y2].some((value) => typeof value !== "number")) return [];
-      return [{ objectId: object.id, x1: object.x1! * t, y1: object.y1! * t, x2: object.x2! * t, y2: object.y2! * t }];
+      const run: WallRun = { objectId: object.id, x1: object.x1! * t, y1: object.y1! * t, x2: object.x2! * t, y2: object.y2! * t };
+      if (object.door) run.door = true;
+      return [run];
     });
 });
 
@@ -262,6 +269,36 @@ const objWallLines = computed<ObjWallLine[]>(() => {
     return resolveWallSegmentsForObject(asset.wallSegments, asset, object, t).map((segment) => ({ ...segment, id: object.id }));
   });
 });
+
+const wallRunsNoDoors = computed(() => wallRuns.value.filter((w) => !w.door));
+const objWallLinesNoDoors = computed(() => objWallLines.value.filter((w) => !w.door));
+
+const doorPanels = computed<DoorPanel[]>(() => {
+  const t = canvas.value.tileSize;
+  const thickness = wallThickness.value;
+  const panels: DoorPanel[] = [];
+  for (const run of wallRuns.value) {
+    if (run.door) panels.push(...doorPanelsData([run], t, thickness));
+  }
+  for (const line of objWallLines.value) {
+    if (line.door) panels.push(...doorPanelsData([line], t, thickness));
+  }
+  return panels;
+});
+
+const doorAnimation = useDoorAnimation({
+  getDoors: () => doorPanels.value,
+  getNpcs: () => {
+    const fid = store.state.currentFloorId;
+    return [...npcSimulation.frameDots.values()].filter(d => d.floorId === fid);
+  },
+  getTileSize: () => canvas.value.tileSize,
+  getDoorPassageEvents: () => npcSimulation.doorPassageEvents.value,
+});
+
+function doorProgress(key: string): number {
+  return doorAnimation.doorStates.value.get(key)?.progress ?? 0;
+}
 
 function wallDistance(point: { x: number; y: number }, wall: WallSegment): number {
   const dx = wall.x2 - wall.x1;
@@ -387,9 +424,7 @@ const wallPaint = useWallPaint({
   },
 });
 const wallPaintActive = computed(() => store.state.wallPaint);
-const DEFAULT_WALL_COLOR = "var(--accent-green)";
-const wallThickness = computed(() => canvas.value.wallThickness ?? Math.max(2, Math.round(canvas.value.tileSize * editorSettings.value.wallThicknessRatio)));
-const wallColor = computed(() => canvas.value.wallColor || DEFAULT_WALL_COLOR);
+const { wallColor, wallThickness } = useCanvasWallStyle();
 const wallPreview = wallPaint.preview;
 const selectedWall = wallPaint.selected;
 watch(
@@ -691,7 +726,9 @@ function saveViewToggles() {
         showNpcGuides: showNpcGuides.value,
       }),
     );
-  } catch {}
+  } catch {
+    toast.error("Failed to save view toggles");
+  }
 }
 
 function toggleGrid() {
@@ -841,6 +878,7 @@ onMounted(() => {
 onUnmounted(() => {
   stopNpcSimulation();
   stopNpcDraw();
+  doorAnimation.stop();
   wallPaint.cancel();
   wallPaint.clearSelection();
   window.removeEventListener("keydown", onKeyDown);
@@ -1031,9 +1069,18 @@ async function cancelDrawnOrigin() {
         <rect v-for="(run, i) in walkableRuns" :key="`floor-walk-run-${i}`" :x="run.x" :y="run.y" :width="run.w" :height="run.h" :class="`editor__tile editor__tile--${run.state}`" />
       </g>
 
-      <g v-if="renderWalls" v-memo="[wallRuns, objWallLines, renderWalls, wallColor, wallThickness, selectedWall]" class="editor__svg--noevents">
-        <line v-for="(run, i) in wallRuns" :key="`floor-wall-run-${i}`" :x1="run.x1" :y1="run.y1" :x2="run.x2" :y2="run.y2" :class="{ 'editor__wall--selected': isWallSelected(run) }" :stroke="isWallSelected(run) ? 'var(--accent-primary)' : wallColor" :stroke-width="isWallSelected(run) ? wallThickness + 3 : wallThickness" :stroke-dasharray="isWallSelected(run) ? '10 5' : undefined" />
-        <line v-for="(line, i) in objWallLines" :key="`obj-wall-${line.id}-${i}`" :x1="line.x1" :y1="line.y1" :x2="line.x2" :y2="line.y2" :stroke="wallColor" :stroke-width="wallThickness" />
+      <g v-if="renderWalls" v-memo="[wallRunsNoDoors, objWallLinesNoDoors, renderWalls, wallColor, wallThickness, selectedWall]" class="editor__svg--noevents">
+        <line v-for="(run, i) in wallRunsNoDoors" :key="`floor-wall-run-${i}`" :x1="run.x1" :y1="run.y1" :x2="run.x2" :y2="run.y2" :class="{ 'editor__wall--selected': isWallSelected(run) }" :stroke="isWallSelected(run) ? 'var(--accent-primary)' : wallColor" :stroke-width="isWallSelected(run) ? wallThickness + 3 : wallThickness" :stroke-dasharray="isWallSelected(run) ? '10 5' : undefined" />
+        <line v-for="(line, i) in objWallLinesNoDoors" :key="`obj-wall-${line.id}-${i}`" :x1="line.x1" :y1="line.y1" :x2="line.x2" :y2="line.y2" :stroke="wallColor" :stroke-width="wallThickness" />
+      </g>
+
+      <g v-if="renderWalls && doorPanels.length" class="editor__svg--noevents">
+        <template v-for="door in doorPanels" :key="`door-${door.key}`">
+          <rect v-if="door.horizontal" :x="door.cx - door.length / 2 - (door.length / 2) * doorProgress(door.key)" :y="door.cy - door.thickness / 2" :width="door.length / 2" :height="door.thickness" class="door__panel" />
+          <rect v-if="door.horizontal" :x="door.cx + (door.length / 2) * doorProgress(door.key)" :y="door.cy - door.thickness / 2" :width="door.length / 2" :height="door.thickness" class="door__panel" />
+          <rect v-if="!door.horizontal" :x="door.cx - door.thickness / 2" :y="door.cy - door.length / 2 - (door.length / 2) * doorProgress(door.key)" :width="door.thickness" :height="door.length / 2" class="door__panel" />
+          <rect v-if="!door.horizontal" :x="door.cx - door.thickness / 2" :y="door.cy + (door.length / 2) * doorProgress(door.key)" :width="door.thickness" :height="door.length / 2" class="door__panel" />
+        </template>
       </g>
 
       <line v-if="wallPreview && !isInteracting" :x1="wallPreview.x1" :y1="wallPreview.y1" :x2="wallPreview.x2" :y2="wallPreview.y2" :stroke="wallColor" :stroke-width="Math.max(2, wallThickness)" stroke-dasharray="6 4" opacity="0.9" class="editor__svg--noevents" />
@@ -1116,14 +1163,14 @@ async function cancelDrawnOrigin() {
     </svg>
     <canvas ref="npcCanvasRef" class="editor__npccanvas"></canvas>
 
-    <div class="editor__title" v-if="floor">
+    <div v-if="floor" class="editor__title">
       <span class="editor__labels" :style="{ color: floor.labelColor || undefined }">{{ floor.label }}</span>
       <span class="editor__name">{{ floor.name }}</span>
     </div>
 
-    <div class="editor__nav" v-if="floor">
+    <div v-if="floor" class="editor__nav">
       <div class="floor__wrap">
-        <button class="floor__trigger" @click.stop="toggleFloorNav" :aria-expanded="floorNavOpen" aria-haspopup="listbox" title="Switch floor" aria-label="Switch floor">
+        <button class="floor__trigger" :aria-expanded="floorNavOpen" aria-haspopup="listbox" title="Switch floor" aria-label="Switch floor" @click.stop="toggleFloorNav">
           <span class="floor__tag" :style="{ color: floor.labelColor || undefined }">{{ floor.label }}</span>
           <span class="floor__text">{{ floor.name }}</span>
           <span class="floor__caret" :class="{ 'floor__caret--rotated': floorNavOpen }"
@@ -1142,7 +1189,7 @@ async function cancelDrawnOrigin() {
     <div class="editor__badge--float" :class="`editor__badge--${store.state.mode.replace('-', '')}`">
       {{ modeLabel }}
     </div>
-    <div class="editor__hint" v-if="modeHint">
+    <div v-if="modeHint" class="editor__hint">
       {{ modeHint }}
     </div>
 
@@ -1151,22 +1198,22 @@ async function cancelDrawnOrigin() {
     </div>
 
     <div class="editor__controls">
-      <button class="flag--ghost" @click="zoomBy(1 / 1.25)" title="Zoom Out (-)" aria-label="Zoom out">-</button>
+      <button class="flag--ghost" title="Zoom Out (-)" aria-label="Zoom out" @click="zoomBy(1 / 1.25)">-</button>
       <span class="editor__zoom" aria-label="Zoom level">{{ zoomPercent }}%</span>
-      <button class="flag--ghost" @click="zoomBy(1.25)" title="Zoom In (+)" aria-label="Zoom in">+</button>
-      <button class="flag--ghost" @click="fitToScreen" title="Fit to Screen (Ctrl+0)" aria-label="Fit to screen">Fit</button>
-      <button class="flag--ghost" @click="centerView" title="Center View" aria-label="Center view">Center</button>
-      <button class="flag--ghost" :class="{ 'flag--active': showGrid }" @click="toggleGrid" title="Toggle Grid" aria-label="Toggle grid">Grid</button>
-      <button class="flag--ghost" :class="{ 'flag--active': showLabels }" @click="toggleLabels" title="Toggle Labels" aria-label="Toggle labels">Labels</button>
-      <button class="flag--ghost" :class="{ 'flag--active': showWalkableOverlay }" @click="toggleWalkableOverlay" title="Toggle Walkable + Door" aria-label="Toggle walkable view">Walk</button>
-      <button class="flag--ghost" :class="{ 'flag--active': showWalls }" @click="toggleWalls" title="Toggle Outer Walls" aria-label="Toggle walls">Wall</button>
-      <button class="flag--ghost" :class="{ 'flag--active': showInteractSpots }" @click="toggleInteractSpots" title="Toggle Interact Spots" aria-label="Toggle interact spots">Interact</button>
-      <button class="flag--ghost" :class="{ 'flag--active': showObjectHighlights }" @click="toggleObjectHighlights" title="Toggle object highlights" aria-label="Toggle object highlights">Highlight</button>
-      <button class="flag--ghost" :class="{ 'flag--active': showBuildingBounds }" @click="toggleBuildingBounds" title="Toggle building area boundary (placement limit against the street)" aria-label="Toggle building bounds">Bounds</button>
-      <button class="flag--ghost" :class="{ 'flag--active': showNpcGuides }" @click="toggleNpcGuides" title="Toggle NPC path guides (only in NPC Preview)" aria-label="Toggle NPC path guides">Guides</button>
+      <button class="flag--ghost" title="Zoom In (+)" aria-label="Zoom in" @click="zoomBy(1.25)">+</button>
+      <button class="flag--ghost" title="Fit to Screen (Ctrl+0)" aria-label="Fit to screen" @click="fitToScreen">Fit</button>
+      <button class="flag--ghost" title="Center View" aria-label="Center view" @click="centerView">Center</button>
+      <button class="flag--ghost" :class="{ 'flag--active': showGrid }" title="Toggle Grid" aria-label="Toggle grid" @click="toggleGrid">Grid</button>
+      <button class="flag--ghost" :class="{ 'flag--active': showLabels }" title="Toggle Labels" aria-label="Toggle labels" @click="toggleLabels">Labels</button>
+      <button class="flag--ghost" :class="{ 'flag--active': showWalkableOverlay }" title="Toggle Walkable + Door" aria-label="Toggle walkable view" @click="toggleWalkableOverlay">Walk</button>
+      <button class="flag--ghost" :class="{ 'flag--active': showWalls }" title="Toggle Outer Walls" aria-label="Toggle walls" @click="toggleWalls">Wall</button>
+      <button class="flag--ghost" :class="{ 'flag--active': showInteractSpots }" title="Toggle Interact Spots" aria-label="Toggle interact spots" @click="toggleInteractSpots">Interact</button>
+      <button class="flag--ghost" :class="{ 'flag--active': showObjectHighlights }" title="Toggle object highlights" aria-label="Toggle object highlights" @click="toggleObjectHighlights">Highlight</button>
+      <button class="flag--ghost" :class="{ 'flag--active': showBuildingBounds }" title="Toggle building area boundary (placement limit against the street)" aria-label="Toggle building bounds" @click="toggleBuildingBounds">Bounds</button>
+      <button class="flag--ghost" :class="{ 'flag--active': showNpcGuides }" title="Toggle NPC path guides (only in NPC Preview)" aria-label="Toggle NPC path guides" @click="toggleNpcGuides">Guides</button>
     </div>
 
-    <ModalShell :open="showSaveOrigin && !!draftObject" title="Save Placed Object as Origin" max-width="360px" width="min(360px, calc(100vw - 32px))" max-height="calc(100vh - 32px)" @close="cancelDrawnOrigin">
+    <ModalShell :open="showSaveOrigin && !!draftObject" title="Save Placed Object as Origin" dialog-class="origin-save__dialog" @close="cancelDrawnOrigin">
       <div class="modal__body">
         <div class="editor__preview" :style="{ width: `${Math.min(draftObject?.w ?? 0, 220)}px`, height: `${Math.min(draftObject?.h ?? 0, 140)}px`, background: originFillColor || 'var(--bg-primary)' }" />
         <input class="input--disabled" :value="`${(draftObject?.w ?? 0) / canvas.tileSize} x ${(draftObject?.h ?? 0) / canvas.tileSize} tiles`" readonly aria-label="Object size" />
@@ -1188,6 +1235,11 @@ async function cancelDrawnOrigin() {
 </template>
 
 <style scoped>
+:deep(.origin-save__dialog) {
+  width: min(360px, calc(100vw - 32px));
+  max-width: 360px;
+  max-height: calc(100vh - 32px);
+}
 .editor__preview {
   align-self: center;
   max-width: 100%;
@@ -1238,6 +1290,12 @@ async function cancelDrawnOrigin() {
 
 .editor__wall--selected {
   stroke-linecap: round;
+}
+
+.door__panel {
+  fill: var(--accent-blue);
+  stroke: color-mix(in srgb, var(--accent-blue) 60%, black);
+  stroke-width: 1;
 }
 
 .editor__canvas--move.editor__canvas--dragging .editor__svg {

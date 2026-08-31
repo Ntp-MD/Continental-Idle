@@ -30,6 +30,7 @@ import {
 } from './types'
 import { assignSyncKey } from './store/storeUtils'
 import { assetSizeFor } from './geometry'
+import { editorLog } from './store/utils'
 
 export function buildSyncedPayload(
 	layout: FloorLayoutData,
@@ -71,7 +72,8 @@ export function buildSyncedPayload(
 			...(normalizedNpcConfig ? { npcConfig: normalizedNpcConfig } : {}),
 			timestamp: Date.now(),
 		}
-	} catch {
+	} catch (error) {
+		editorLog.error('buildSyncedPayload', error)
 		return null
 	}
 }

@@ -2,7 +2,6 @@ import assert from 'node:assert/strict'
 import { migrate } from '../src/blueprint-editor/store/migrate'
 import { normalizeNpcConfig, CANVAS_WALL_OBJECT_TYPE } from '../src/blueprint-editor/types'
 import { originAssets } from '../src/blueprint-editor/store/dataLoader'
-import type { AssetDef, FloorLayoutData } from '../src/blueprint-editor/types'
 
 const validAsset = originAssets[0]
 if (!validAsset) throw new Error('test requires at least one origin asset')

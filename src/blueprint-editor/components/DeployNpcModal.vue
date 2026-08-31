@@ -127,7 +127,7 @@ async function onDeploy() {
 </script>
 
 <template>
-  <ModalShell :open="open" title="Deploy NPCs" max-width="520px" width="50vw" height="auto" max-height="80vh" @close="onClose">
+  <ModalShell :open="open" title="Deploy NPCs" dialog-class="deploy__dialog" @close="onClose">
     <div class="modal__body deploy__body">
       <div class="deploy__section">
         <div class="form__title">Simulation</div>
@@ -181,7 +181,7 @@ async function onDeploy() {
               <div class="form__row form__row--tight form__row--wrap">
                 <div v-for="tag in role.spawnRule?.targetTags ?? []" :key="'st_' + role.id + tag" class="chip">
                   <span>{{ tag }}</span>
-                  <button class="chip__remove" @click="onRemoveSpawnTagFrom(role, tag)" aria-label="Remove tag">x</button>
+                  <button class="chip__remove" aria-label="Remove tag" @click="onRemoveSpawnTagFrom(role, tag)">x</button>
                 </div>
                 <input v-model="newSpawnTag[role.id]" type="text" placeholder="+ tag" class="deploy__addinput" @keydown.enter="onAddSpawnTagFor(role)" />
               </div>
@@ -194,7 +194,7 @@ async function onDeploy() {
         <span class="form__hint">Total: {{ totalNpcCount() }} NPCs</span>
         <div class="form__row">
           <button class="flag--ghost" @click="onClose">Cancel</button>
-          <button class="flag--active" @click="onDeploy" :disabled="totalNpcCount() === 0">Deploy</button>
+          <button class="flag--active" :disabled="totalNpcCount() === 0" @click="onDeploy">Deploy</button>
         </div>
       </div>
     </div>
@@ -202,6 +202,12 @@ async function onDeploy() {
 </template>
 
 <style scoped>
+:deep(.deploy__dialog) {
+  width: 50vw;
+  max-width: 520px;
+  height: auto;
+  max-height: 80vh;
+}
 .deploy__body {
   flex: 1;
   min-height: 0;

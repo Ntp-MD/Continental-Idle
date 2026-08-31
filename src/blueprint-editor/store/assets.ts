@@ -2,6 +2,7 @@ import type { AssetDef, WalkableGrid, TileState } from '../types'
 import { isSafeSvgMarkup, isValidColor, normalizeOriginAsset, applySvgColorConvention } from '../types'
 import { aabbOverlap } from '../collision'
 import { assetSizeFor, normalizeObject } from '../geometry'
+import { parseSvgViewBox } from '../assetUtils'
 import {
 	state, toast, clamp, withStateLock, initAssetFields, assetMap,
 } from './state'
@@ -61,13 +62,10 @@ export async function addSvgAsset(name: string, w: number, h: number, svgString:
 		const safeH = Math.floor(h)
 		const trimmed = svgString.trim()
 		if (!trimmed) { toast.warning('SVG content cannot be empty'); return null }
-		const viewBoxMatch = trimmed.match(/viewBox\s*=\s*["']([^"']+)["']/)
-		if (!viewBoxMatch) { toast.warning('SVG must have a viewBox attribute'); return null }
-		const parts = viewBoxMatch[1].split(/[\s,]+/).map(Number)
-		if (parts.length !== 4 || parts.some(value => !Number.isFinite(value))) { toast.warning('Invalid viewBox format'); return null }
-		const vbW = parts[2]
-		const vbH = parts[3]
-		if (vbW <= 0 || vbH <= 0 || vbW > 1_000_000 || vbH > 1_000_000) { toast.warning('Invalid viewBox dimensions'); return null }
+		const viewBox = parseSvgViewBox(trimmed)
+		if (!viewBox) { toast.warning('SVG must have a valid viewBox attribute'); return null }
+		const vbW = viewBox.w
+		const vbH = viewBox.h
 		const innerMatch = trimmed.match(/<svg[^>]*>([\s\S]*)<\/svg>/i)
 		const rawSvg = innerMatch ? innerMatch[1].trim() : trimmed
 		const innerSvg = convertFurnitureColors(rawSvg)

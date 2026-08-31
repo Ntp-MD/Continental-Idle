@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch } from "vue";
+import { ref, computed, watch, defineAsyncComponent } from "vue";
 import { useAssetsStore } from "../blueprintStore";
 import { useToast } from "@/composables/useToast";
 import { useConfirm } from "@/composables/useConfirm";
@@ -7,7 +7,7 @@ import { sanitizeString } from "../../utils/sanitize";
 import { resolveStreetTiles } from "../types";
 import type { FloorData } from "../types";
 import ModalShell from "./ModalShell.vue";
-import FloorWalkablePanel from "./FloorWalkablePanel.vue";
+const FloorWalkablePanel = defineAsyncComponent(() => import("./FloorWalkablePanel.vue"));
 
 const props = defineProps<{ open: boolean }>();
 const emit = defineEmits<{ (e: "close"): void }>();
@@ -147,7 +147,7 @@ function floorCounts(f: FloorData): string {
 </script>
 
 <template>
-  <ModalShell :open="open" title="Floor Manager" max-width="800px" width="60vw" height="auto" max-height="calc(100vh - 32px)" @close="onClose">
+  <ModalShell :open="open" title="Floor Manager" dialog-class="floor__dialog" @close="onClose">
     <div class="modal__body floor__body">
       <!-- Left pane: Floor list -->
       <div class="form__group floor__pane">
@@ -189,13 +189,13 @@ function floorCounts(f: FloorData): string {
           <div class="form__row">
             <label class="label--fixed">Label</label>
             <input v-if="editingLabel" v-model="editingLabelRaw" aria-label="Edit floor label" @keydown.enter="commitLabel" @blur="commitLabel" />
-            <input v-else class="input--disabled" :value="selectedFloor.label" readonly @dblclick="startEditLabel" aria-label="Floor label" />
+            <input v-else class="input--disabled" :value="selectedFloor.label" readonly aria-label="Floor label" @dblclick="startEditLabel" />
           </div>
 
           <div class="form__row">
             <label class="label--fixed">Name</label>
-            <input v-if="editingName" :value="editingNameRaw" @input="editingNameRaw = sanitizeString(($event.target as HTMLInputElement).value)" aria-label="Edit floor name" @keydown.enter="commitName" @blur="commitName" />
-            <input v-else class="input--disabled" :value="selectedFloor.name" readonly @dblclick="startEditName" title="Double-click to edit" aria-label="Floor name" />
+            <input v-if="editingName" :value="editingNameRaw" aria-label="Edit floor name" @input="editingNameRaw = sanitizeString(($event.target as HTMLInputElement).value)" @keydown.enter="commitName" @blur="commitName" />
+            <input v-else class="input--disabled" :value="selectedFloor.name" readonly title="Double-click to edit" aria-label="Floor name" @dblclick="startEditName" />
           </div>
 
           <div class="form__row">
@@ -240,6 +240,12 @@ function floorCounts(f: FloorData): string {
 </template>
 
 <style scoped>
+:deep(.floor__dialog) {
+  width: 60vw;
+  max-width: 800px;
+  height: auto;
+  max-height: calc(100vh - 32px);
+}
 .floor__body {
   display: grid;
   grid-template-columns: minmax(170px, 0.75fr) minmax(0, 1.25fr);

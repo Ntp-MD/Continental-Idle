@@ -68,6 +68,7 @@ export class NpcEngine {
 	private readonly portalEndpointsByKey = new Map<string, NpcEngineInteractionTarget>()
 	private readonly portalRoutesByPair = new Map<string, NpcEngineInteractionTarget[]>()
 	private readonly walkableCellsByFloor = new Map<string, Set<string>>()
+	private readonly doorEdgesByFloor = new Map<string, Set<string>>()
 	private readonly scratchBlockedCells = new Set<string>()
 	private readonly progressWatchdog = new Map<string, number>()
 	private readonly repathAttempts = new Map<string, number>()
@@ -89,7 +90,17 @@ export class NpcEngine {
 		this.ticksPerSecond = Math.max(1, Math.round(options.ticksPerSecond ?? DEFAULT_TICKS_PER_SECOND))
 		this.agentClearance = Math.max(0, options.agentClearance ?? 0.5)
 		this.random = options.random ?? Math.random
-		for (const floor of layout.floors) this.floorById.set(floor.id, floor)
+		for (const floor of layout.floors) {
+			this.floorById.set(floor.id, floor)
+			if (floor.doorEdges?.length) {
+				const set = new Set<string>()
+				for (const edge of floor.doorEdges) {
+					set.add(`${Math.floor(edge.from.x)},${Math.floor(edge.from.y)}->${Math.floor(edge.to.x)},${Math.floor(edge.to.y)}`)
+					set.add(`${Math.floor(edge.to.x)},${Math.floor(edge.to.y)}->${Math.floor(edge.from.x)},${Math.floor(edge.from.y)}`)
+				}
+				this.doorEdgesByFloor.set(floor.id, set)
+			}
+		}
 		for (const queue of layout.queues ?? []) this.queueByKey.set(queue.key, queue)
 		for (const target of layout.interactionTargets) {
 			this.targetsByKey.set(this.targetKey(target), target)
@@ -354,9 +365,12 @@ export class NpcEngine {
 		const distance = Math.hypot(next.x - agent.x, next.y - agent.y)
 		const stepDistance = Math.max(0, agent.speed) / this.ticksPerSecond
 		if (distance <= stepDistance || distance < EPSILON) {
+			const fromX = Math.floor(agent.x)
+			const fromY = Math.floor(agent.y)
 			agent.x = next.x
 			agent.y = next.y
 			agent.pathIndex++
+			this.checkDoorPassage(agent, fromX, fromY, Math.floor(next.x), Math.floor(next.y))
 			this.syncCellReservation(agent)
 			this.resetProgress(agent)
 			if (agent.pathIndex >= agent.path.length) {
@@ -371,6 +385,20 @@ export class NpcEngine {
 		agent.y += (next.y - agent.y) * ratio
 		this.syncCellReservation(agent)
 		this.resetProgress(agent)
+	}
+
+	private checkDoorPassage(agent: MutableAgent, fromX: number, fromY: number, toX: number, toY: number): void {
+		if (fromX === toX && fromY === toY) return
+		const doorSet = this.doorEdgesByFloor.get(agent.floorId)
+		if (!doorSet) return
+		const key = `${fromX},${fromY}->${toX},${toY}`
+		if (!doorSet.has(key)) return
+		this.emit({
+			type: 'door-passage',
+			agentId: agent.id,
+			floorId: agent.floorId,
+			doorEdge: { from: { x: fromX, y: fromY }, to: { x: toX, y: toY } },
+		})
 	}
 
 	private handleYielded(agent: MutableAgent): void {

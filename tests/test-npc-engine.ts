@@ -904,4 +904,128 @@ function makeTarget(itemId: string, x: number, y: number): NpcEngineInteractionT
 	assert.ok(selected, 'wander: should handle eviction gracefully')
 }
 
+// --- Door passage event tests ---
+
+const doorFloor: NpcEngineFloor = {
+	id: 'F1',
+	width: 6,
+	height: 6,
+	tileSize: 1,
+	walkable: [
+		{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 2, y: 0 }, { x: 3, y: 0 }, { x: 4, y: 0 }, { x: 5, y: 0 },
+		{ x: 0, y: 1 }, { x: 1, y: 1 }, { x: 2, y: 1 }, { x: 3, y: 1 }, { x: 4, y: 1 }, { x: 5, y: 1 },
+		{ x: 0, y: 2 }, { x: 1, y: 2 }, { x: 2, y: 2 }, { x: 3, y: 2 }, { x: 4, y: 2 }, { x: 5, y: 2 },
+		{ x: 0, y: 3 }, { x: 1, y: 3 }, { x: 2, y: 3 }, { x: 3, y: 3 }, { x: 4, y: 3 }, { x: 5, y: 3 },
+		{ x: 0, y: 4 }, { x: 1, y: 4 }, { x: 2, y: 4 }, { x: 3, y: 4 }, { x: 4, y: 4 }, { x: 5, y: 4 },
+		{ x: 0, y: 5 }, { x: 1, y: 5 }, { x: 2, y: 5 }, { x: 3, y: 5 }, { x: 4, y: 5 }, { x: 5, y: 5 },
+	],
+	blockedEdges: [],
+	doorEdges: [
+		{ from: { x: 2, y: 2 }, to: { x: 2, y: 3 } },
+	],
+}
+
+const doorLayout: NpcEngineLayout = {
+	floors: [doorFloor],
+	interactionTargets: [],
+}
+
+const doorPathfinder = (_floor: NpcEngineFloor, from: { x: number; y: number }, to: { x: number; y: number }) => {
+	const path: { x: number; y: number }[] = []
+	let cx = Math.floor(from.x)
+	let cy = Math.floor(from.y)
+	path.push({ x: cx, y: cy })
+	while (cx !== Math.floor(to.x) || cy !== Math.floor(to.y)) {
+		if (cx < to.x) cx++
+		else if (cx > to.x) cx--
+		else if (cy < to.y) cy++
+		else if (cy > to.y) cy--
+		path.push({ x: cx, y: cy })
+	}
+	return path
+}
+
+const doorEngine = new NpcEngine(doorLayout, {
+	...NPC_ENGINE_DEFAULT_OPTIONS,
+	ticksPerSecond: 1,
+	agentClearance: 0.5,
+	random: rngSeq(),
+	pathfinder: doorPathfinder,
+	targetSelector: () => null,
+	wanderSelector: (_agent) => ({ x: 2, y: 5 }),
+})
+
+doorEngine.addAgent({ id: 'door-npc', floorId: 'F1', x: 2, y: 1, targetX: 2, targetY: 5, speed: 1 })
+doorEngine.tick(5)
+const doorEvents1 = doorEngine.drainEvents()
+const passageEvents1 = doorEvents1.filter(e => e.type === 'door-passage')
+assert.ok(passageEvents1.length > 0, 'door-passage event emitted when NPC crosses door edge')
+const passageEvt = passageEvents1[0]
+assert.equal(passageEvt.agentId, 'door-npc', 'door-passage event has correct agentId')
+assert.equal(passageEvt.floorId, 'F1', 'door-passage event has correct floorId')
+assert.ok(passageEvt.doorEdge, 'door-passage event has doorEdge')
+assert.equal(passageEvt.doorEdge!.from.x, 2, 'door edge from.x correct')
+assert.equal(passageEvt.doorEdge!.from.y, 2, 'door edge from.y correct')
+assert.equal(passageEvt.doorEdge!.to.x, 2, 'door edge to.x correct')
+assert.equal(passageEvt.doorEdge!.to.y, 3, 'door edge to.y correct')
+
+doorEngine.tick(10)
+const doorEvents2 = doorEngine.drainEvents()
+const passageEvents2 = doorEvents2.filter(e => e.type === 'door-passage')
+assert.equal(passageEvents2.length, 0, 'no door-passage events when NPC is not crossing a door')
+
+const noDoorFloor: NpcEngineFloor = {
+	id: 'F2',
+	width: 6,
+	height: 6,
+	tileSize: 1,
+	walkable: doorFloor.walkable,
+	blockedEdges: [],
+	doorEdges: [],
+}
+const noDoorLayout: NpcEngineLayout = { floors: [noDoorFloor], interactionTargets: [] }
+const noDoorEngine = new NpcEngine(noDoorLayout, {
+	...NPC_ENGINE_DEFAULT_OPTIONS,
+	ticksPerSecond: 1,
+	agentClearance: 0.5,
+	random: rngSeq(),
+	pathfinder: doorPathfinder,
+	targetSelector: () => null,
+	wanderSelector: (_agent) => ({ x: 5, y: 5 }),
+})
+noDoorEngine.addAgent({ id: 'npc-no-door', floorId: 'F2', x: 0, y: 0, targetX: 5, targetY: 5, speed: 1 })
+noDoorEngine.tick(20)
+const noDoorEvents = noDoorEngine.drainEvents()
+assert.equal(noDoorEvents.filter(e => e.type === 'door-passage').length, 0, 'no door-passage events on floor without doors')
+
+const twoDoorFloor: NpcEngineFloor = {
+	id: 'F3',
+	width: 8,
+	height: 8,
+	tileSize: 1,
+	walkable: Array.from({ length: 8 }, (_, y) => Array.from({ length: 8 }, (_, x) => ({ x, y }))).flat(),
+	blockedEdges: [],
+	doorEdges: [
+		{ from: { x: 5, y: 2 }, to: { x: 5, y: 3 } },
+		{ from: { x: 5, y: 5 }, to: { x: 5, y: 6 } },
+	],
+}
+const twoDoorLayout: NpcEngineLayout = { floors: [twoDoorFloor], interactionTargets: [] }
+const twoDoorEngine = new NpcEngine(twoDoorLayout, {
+	...NPC_ENGINE_DEFAULT_OPTIONS,
+	ticksPerSecond: 1,
+	agentClearance: 0.5,
+	random: rngSeq(),
+	pathfinder: doorPathfinder,
+	targetSelector: () => null,
+	wanderSelector: (_agent) => ({ x: 5, y: 7 }),
+})
+twoDoorEngine.addAgent({ id: 'npc-2door', floorId: 'F3', x: 3, y: 0, targetX: 5, targetY: 7, speed: 1 })
+twoDoorEngine.tick(20)
+const twoDoorEvents = twoDoorEngine.drainEvents()
+const twoDoorPassages = twoDoorEvents.filter(e => e.type === 'door-passage')
+assert.ok(twoDoorPassages.length >= 2, 'multiple door-passage events for multiple doors crossed')
+
+console.log('Door passage event checks passed')
+
 console.log('Shared NPC engine checks passed')

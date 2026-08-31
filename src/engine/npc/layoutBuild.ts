@@ -254,6 +254,45 @@ export function buildBlockedEdges(
 	return edges
 }
 
+function doorBlocksEdge(segment: WallSegment, x: number, y: number, nx: number, ny: number, tileSize: number): boolean {
+	if (!segment.door) return false
+	const epsilon = 1e-6
+	if (segment.y1 === segment.y2 && nx === x && ny === y + 1) {
+		const boundary = Math.round(segment.y1 / tileSize)
+		const start = Math.min(segment.x1, segment.x2) / tileSize
+		const end = Math.max(segment.x1, segment.x2) / tileSize
+		return boundary === ny && x >= start - epsilon && x < end - epsilon
+	}
+	if (segment.x1 === segment.x2 && nx === x + 1 && ny === y) {
+		const boundary = Math.round(segment.x1 / tileSize)
+		const start = Math.min(segment.y1, segment.y2) / tileSize
+		const end = Math.max(segment.y1, segment.y2) / tileSize
+		return boundary === nx && y >= start - epsilon && y < end - epsilon
+	}
+	return false
+}
+
+export function buildDoorEdges(
+	floor: FloorData,
+	map: NpcWalkableMap,
+	getAssetDef?: GetAssetDef,
+): NpcEngineBlockedEdge[] {
+	const wallSegments = wallSegmentsForFloor(floor, map.cellSize, getAssetDef)
+	const edges: NpcEngineBlockedEdge[] = []
+	for (const cell of map.tiles) {
+		const [x, y] = cell.split(',').map(Number)
+		for (const [dx, dy] of [[1, 0], [0, 1]] as const) {
+			const nx = x + dx
+			const ny = y + dy
+			if (!map.tiles.has(tileKey(nx, ny))) continue
+			const isDoor = wallSegments.some(segment => doorBlocksEdge(segment, x, y, nx, ny, map.cellSize))
+			if (!isDoor) continue
+			edges.push({ from: { x, y }, to: { x: nx, y: ny } })
+		}
+	}
+	return edges
+}
+
 function findNearestWalkable(map: NpcWalkableMap, x: number, y: number, radius: number): NpcEnginePoint | null {
 	if (map.tiles.has(tileKey(x, y))) return { x, y }
 	for (let r = 1; r <= radius; r++) {
@@ -426,6 +465,7 @@ export function buildNpcEngineLayout(
 			tileSize: map.cellSize,
 			walkable: toEngineWalkablePoints(map.tiles),
 			blockedEdges: buildBlockedEdges(floor, map, getAssetDef),
+			doorEdges: buildDoorEdges(floor, map, getAssetDef),
 			allowedRoleIds: floor.allowedRoleIds,
 		})
 		for (const object of floor.objects) {

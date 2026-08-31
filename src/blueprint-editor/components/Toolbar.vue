@@ -1,13 +1,14 @@
 <script setup lang="ts">
-import { ref, computed, inject, onUnmounted } from "vue";
+import { ref, computed, inject, onUnmounted, defineAsyncComponent } from "vue";
 import { useAssetsStore } from "../blueprintStore";
 import { useToast } from "@/composables/useToast";
 import { useConfirm } from "@/composables/useConfirm";
 import { useAsyncAction } from "../composables/useAsyncAction";
-import NpcManagerModal from "./NpcManagerModal.vue";
-import FloorModal from "./FloorModal.vue";
-import DeployNpcModal from "./DeployNpcModal.vue";
-import SettingsModal from "./SettingsModal.vue";
+import ErrorBoundary from "@/components/overlays/ErrorBoundary.vue";
+const NpcManagerModal = defineAsyncComponent(() => import("./NpcManagerModal.vue"));
+const FloorModal = defineAsyncComponent(() => import("./FloorModal.vue"));
+const DeployNpcModal = defineAsyncComponent(() => import("./DeployNpcModal.vue"));
+const SettingsModal = defineAsyncComponent(() => import("./SettingsModal.vue"));
 import ModalShell from "./ModalShell.vue";
 import { useNpcSimulation } from "../composables/useNpcSimulation";
 
@@ -69,7 +70,8 @@ const countsByRole = computed(() => {
 });
 
 function onTogglePause() {
-  isPaused.value ? resume() : pause();
+  if (isPaused.value) resume();
+  else pause();
 }
 
 const NPC_STATUS_ORDER = ["walking", "interacting", "queued", "waiting", "idle"] as const;
@@ -125,7 +127,7 @@ function onSyncToGame() {
 
 <template>
   <div class="editor__toolbar">
-    <button class="flag--ghost" @click="showSettings = true" title="Settings" aria-label="Settings">
+    <button class="flag--ghost" title="Settings" aria-label="Settings" @click="showSettings = true">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <circle cx="12" cy="12" r="3" />
         <path
@@ -134,21 +136,21 @@ function onSyncToGame() {
       </svg>
     </button>
 
-    <button :class="{ 'flag--warning': store.state.mode === 'object' && !store.state.wallPaint }" @click="onSwitchMode('object')" aria-label="Switch to object mode">Object</button>
-    <button :class="{ 'flag--warning': store.state.mode === 'draw' && !store.state.wallPaint }" @click="onSwitchMode('draw')" aria-label="Switch to draw mode">Draw Object</button>
-    <button :class="{ 'flag--warning': store.state.mode === 'move' && !store.state.wallPaint }" @click="onSwitchMode('move')" aria-label="Switch to move mode">Move</button>
-    <button :class="{ 'flag--warning': store.state.wallPaint }" :disabled="store.state.mode === 'npc-preview'" @click="store.setWallPaint(!store.state.wallPaint)" title="Draw walls on tile boundaries" aria-label="Toggle draw wall tool">Draw Wall</button>
+    <button :class="{ 'flag--warning': store.state.mode === 'object' && !store.state.wallPaint }" aria-label="Switch to object mode" @click="onSwitchMode('object')">Object</button>
+    <button :class="{ 'flag--warning': store.state.mode === 'draw' && !store.state.wallPaint }" aria-label="Switch to draw mode" @click="onSwitchMode('draw')">Draw Object</button>
+    <button :class="{ 'flag--warning': store.state.mode === 'move' && !store.state.wallPaint }" aria-label="Switch to move mode" @click="onSwitchMode('move')">Move</button>
+    <button :class="{ 'flag--warning': store.state.wallPaint }" :disabled="store.state.mode === 'npc-preview'" title="Draw walls on tile boundaries" aria-label="Toggle draw wall tool" @click="store.setWallPaint(!store.state.wallPaint)">Draw Wall</button>
 
-    <button @click="onNpcManager" title="Configure NPC roles and tags" aria-label="Open NPC manager">NPC Manager</button>
-    <button class="flag--warning" :disabled="pending" @click="onSyncOrigins" title="Re-resolve every placed object from its origin asset and rebuild walkable layout" aria-label="Refresh all placed objects from origins">Refresh Objects</button>
-    <button @click="onFloorManager" title="Manage floors: add, delete, reorder, role restrictions" aria-label="Open floor manager">Floor Manager</button>
-    <button :class="{ 'flag--warning': store.state.mode === 'npc-preview' }" @click="onDeployNpc" title="Deploy NPCs on current floor (configure roles first)">Deploy NPCs</button>
+    <button title="Configure NPC roles and tags" aria-label="Open NPC manager" @click="onNpcManager">NPC Manager</button>
+    <button class="flag--warning" :disabled="pending" title="Re-resolve every placed object from its origin asset and rebuild walkable layout" aria-label="Refresh all placed objects from origins" @click="onSyncOrigins">Refresh Objects</button>
+    <button title="Manage floors: add, delete, reorder, role restrictions" aria-label="Open floor manager" @click="onFloorManager">Floor Manager</button>
+    <button :class="{ 'flag--warning': store.state.mode === 'npc-preview' }" title="Deploy NPCs on current floor (configure roles first)" @click="onDeployNpc">Deploy NPCs</button>
 
-    <button class="flag--success editor__toolbar--spacer" @click="onSyncToGame" title="Apply blueprint layout to the main game" aria-label="Sync blueprint to game">Sync Game</button>
+    <button class="flag--success editor__toolbar--spacer" title="Apply blueprint layout to the main game" aria-label="Sync blueprint to game" @click="onSyncToGame">Sync Game</button>
 
-    <button class="flag--danger" @click="onBack" aria-label="Back to start screen">Back</button>
+    <button class="flag--danger" aria-label="Back to start screen" @click="onBack">Back</button>
 
-    <ModalShell :open="store.state.mode === 'npc-preview'" title="NPC Preview" max-width="340px" width="min(94vw, 340px)" floating @close="onExitDeploy">
+    <ModalShell :open="store.state.mode === 'npc-preview'" title="NPC Preview" dialog-class="npc-preview__dialog" floating @close="onExitDeploy">
       <div class="modal__body npc__body">
         <div class="form__row form__row--between">
           <div class="npc__title">
@@ -169,23 +171,29 @@ function onSyncToGame() {
           </span>
         </div>
         <div class="form__row form__row--border">
-          <button type="button" @click="onTogglePause" :aria-label="isPaused ? 'Resume NPC simulation' : 'Pause NPC simulation'">{{ isPaused ? "Resume" : "Pause" }}</button>
+          <button type="button" :aria-label="isPaused ? 'Resume NPC simulation' : 'Pause NPC simulation'" @click="onTogglePause">{{ isPaused ? "Resume" : "Pause" }}</button>
           <div class="npc__speed" role="group" aria-label="Simulation speed">
             <button v-for="s in [1, 2, 4, 8]" :key="s" type="button" class="npc__speed-option" :class="{ 'npc__speed-option--active': simSpeed === s }" :aria-pressed="simSpeed === s" @click="simSpeed = s">{{ s }}x</button>
           </div>
-          <button type="button" class="flag--danger" @click="onReset" aria-label="Clear all NPCs and exit preview">Clear</button>
+          <button type="button" class="flag--danger" aria-label="Clear all NPCs and exit preview" @click="onReset">Clear</button>
         </div>
       </div>
     </ModalShell>
 
-    <NpcManagerModal :open="showNpcManager" @close="showNpcManager = false" />
-    <FloorModal :open="showFloorModal" @close="showFloorModal = false" />
-    <DeployNpcModal :open="showDeployModal" @close="showDeployModal = false" @deploy="onConfirmDeploy" />
-    <SettingsModal :open="showSettings" @close="showSettings = false" />
+    <ErrorBoundary>
+      <NpcManagerModal :open="showNpcManager" @close="showNpcManager = false" />
+      <FloorModal :open="showFloorModal" @close="showFloorModal = false" />
+      <DeployNpcModal :open="showDeployModal" @close="showDeployModal = false" @deploy="onConfirmDeploy" />
+      <SettingsModal :open="showSettings" @close="showSettings = false" />
+    </ErrorBoundary>
   </div>
 </template>
 
 <style scoped>
+:deep(.npc-preview__dialog) {
+  width: min(94vw, 340px);
+  max-width: 340px;
+}
 .editor__toolbar {
   display: flex;
   align-items: center;

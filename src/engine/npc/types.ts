@@ -13,6 +13,8 @@ export interface NpcEngineFloor {
 
 	blockedEdges?: readonly NpcEngineBlockedEdge[]
 
+	doorEdges?: readonly NpcEngineBlockedEdge[]
+
 	allowedRoleIds?: readonly string[]
 }
 
@@ -87,6 +89,7 @@ export type NpcEngineEventType =
 	| 'repath'
 	| 'repath-failed'
 	| 'floor-transition'
+	| 'door-passage'
 
 export interface NpcEngineEvent {
 	type: NpcEngineEventType
@@ -98,6 +101,8 @@ export interface NpcEngineEvent {
 
 	fromFloorId?: string
 	toFloorId?: string
+
+	doorEdge?: NpcEngineBlockedEdge
 }
 
 export type NpcEnginePathfinder = (

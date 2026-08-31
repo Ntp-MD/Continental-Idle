@@ -1,4 +1,6 @@
 import { isValidColor } from './types'
+import { assetPixelSize } from './types'
+import type { WallSegment } from './types'
 import type { AssetDef, FloorData, FloorLayoutData, NpcSimulationConfig, ObjectPlacement, SvgRole, SvgRoleInfo, WalkableGrid, TileState } from './types'
 
 export function findAsset(assets: readonly AssetDef[], type: string): AssetDef | undefined {
@@ -25,6 +27,179 @@ export function svgColorVarStyle(fill: string | undefined, stroke: string | unde
 
 export function assetSvgVarStyle(asset: AssetDef | undefined): string {
 	return asset ? svgColorVarStyle(asset.defaultFillColor, asset.defaultStrokeColor) : ''
+}
+
+export { assetPixelSize }
+
+export function assetPreviewViewBox(asset: AssetDef, tileSize: number): string {
+	const vb = asset.svgViewBox
+	if (!vb || vb.w === 0 || vb.h === 0) {
+		const { w, h } = assetPixelSize(asset, tileSize)
+		return `0 0 ${w} ${h}`
+	}
+	return `0 0 ${vb.w} ${vb.h}`
+}
+
+export function assetFallbackShapeSvg(asset: AssetDef, tileSize: number): string {
+	const { w, h } = assetPixelSize(asset, tileSize)
+	const rx = Math.max(asset.defaultRx?.tl ?? 0, asset.defaultRx?.tr ?? 0, asset.defaultRx?.br ?? 0, asset.defaultRx?.bl ?? 0)
+	const rawFill = asset.defaultFillColor ?? 'none'
+	const fill = !rawFill || rawFill === 'transparent' ? 'none' : rawFill
+	const stroke = asset.defaultStrokeColor ?? '#6f7680'
+	return `<rect x="1" y="1" width="${Math.max(1, w - 2)}" height="${Math.max(1, h - 2)}" rx="${rx}" fill="${fill}" stroke="${stroke}" stroke-width="1"/>`
+}
+
+export interface DoorPanel {
+	key: string
+	cx: number
+	cy: number
+	length: number
+	thickness: number
+	horizontal: boolean
+}
+
+export function doorPanelsData(
+	segments: readonly WallSegment[],
+	tileSize: number,
+	thickness: number,
+): DoorPanel[] {
+	const t = Math.max(1, thickness)
+	return segments
+		.filter(s => s.door)
+		.map(s => {
+			const x1 = s.x1 * tileSize
+			const y1 = s.y1 * tileSize
+			const x2 = s.x2 * tileSize
+			const y2 = s.y2 * tileSize
+			const horizontal = y1 === y2
+			const length = Math.max(t * 2, Math.abs(horizontal ? x2 - x1 : y2 - y1))
+			return {
+				key: `${x1},${y1},${x2},${y2}`,
+				cx: (x1 + x2) / 2,
+				cy: (y1 + y2) / 2,
+				length,
+				thickness: t,
+				horizontal,
+			}
+		})
+}
+
+export function doorPanelsSvg(
+	segments: readonly WallSegment[],
+	tileSize: number,
+	thickness: number,
+	color: string,
+	progress = 0,
+): string {
+	const panels = doorPanelsData(segments, tileSize, thickness)
+	if (!panels.length) return ''
+	const parts: string[] = []
+	for (const p of panels) {
+		const half = p.length / 2
+		const off = half * progress
+		const halfT = p.thickness / 2
+		if (p.horizontal) {
+			parts.push(`<rect x="${(p.cx - half - off).toFixed(2)}" y="${(p.cy - halfT).toFixed(2)}" width="${half.toFixed(2)}" height="${p.thickness}" fill="${color}" rx="1"/>`)
+			parts.push(`<rect x="${(p.cx + off).toFixed(2)}" y="${(p.cy - halfT).toFixed(2)}" width="${half.toFixed(2)}" height="${p.thickness}" fill="${color}" rx="1"/>`)
+		} else {
+			parts.push(`<rect x="${(p.cx - halfT).toFixed(2)}" y="${(p.cy - half - off).toFixed(2)}" width="${p.thickness}" height="${half.toFixed(2)}" fill="${color}" rx="1"/>`)
+			parts.push(`<rect x="${(p.cx - halfT).toFixed(2)}" y="${(p.cy + off).toFixed(2)}" width="${p.thickness}" height="${half.toFixed(2)}" fill="${color}" rx="1"/>`)
+		}
+	}
+	return `<g class="door-overlay">${parts.join('')}</g>`
+}
+
+export function wallSegmentsOverlaySvg(asset: AssetDef, tileSize: number, color: string, thickness: number, doorColor: string): string {
+	const segments = asset.wallSegments
+	if (!segments?.length || asset.w <= 0 || asset.h <= 0) return ''
+	const { w: sourceW, h: sourceH } = assetPixelSize(asset, tileSize)
+	if (sourceW <= 0 || sourceH <= 0) return ''
+	const scaleX = sourceW / asset.w
+	const scaleY = sourceH / asset.h
+	const sw = Math.max(0.5, thickness)
+	const wallParts: string[] = []
+	const doorSegs: WallSegment[] = []
+	for (const seg of segments) {
+		if (seg.door) { doorSegs.push(seg); continue }
+		const x1 = seg.x1 * scaleX
+		const y1 = seg.y1 * scaleY
+		const x2 = seg.x2 * scaleX
+		const y2 = seg.y2 * scaleY
+		wallParts.push(`<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${color}" stroke-width="${sw}" stroke-linecap="round"/>`)
+	}
+	const scaledDoorSegs = doorSegs.map(s => ({
+		x1: s.x1 * scaleX,
+		y1: s.y1 * scaleY,
+		x2: s.x2 * scaleX,
+		y2: s.y2 * scaleY,
+		door: true as const,
+	}))
+	const doorSvg = doorPanelsSvg(scaledDoorSegs, 1, sw, doorColor, 0)
+	return `<g class="wall-overlay">${wallParts.join('')}${doorSvg}</g>`
+}
+
+export function assetPreviewSvg(asset: AssetDef, tileSize: number, wallColor: string, wallThickness: number, doorColor: string): string {
+	const base = asset.svg?.replace(/var\(--border-dim\)/g, '#fff') ?? assetFallbackShapeSvg(asset, tileSize)
+	return base + wallSegmentsOverlaySvg(asset, tileSize, wallColor, wallThickness, doorColor)
+}
+
+export function wallSegmentToObjectRect(segment: WallSegment, tileSize: number): { x: number; y: number; w: number; h: number } {
+	const x = Math.min(segment.x1, segment.x2) * tileSize
+	const y = Math.min(segment.y1, segment.y2) * tileSize
+	const w = Math.max(1, Math.abs(segment.x2 - segment.x1) * tileSize)
+	const h = Math.max(1, Math.abs(segment.y2 - segment.y1) * tileSize)
+	return { x, y, w, h }
+}
+
+export function parseSvgViewBox(svg: string): { w: number; h: number } | null {
+	const m = svg.match(/viewBox\s*=\s*["']([^"']+)["']/)
+	if (!m) return null
+	const parts = m[1].split(/[\s,]+/).map(Number)
+	if (parts.length !== 4 || parts.some(value => !Number.isFinite(value))) return null
+	const vbW = parts[2]
+	const vbH = parts[3]
+	if (vbW <= 0 || vbH <= 0 || vbW > 1_000_000 || vbH > 1_000_000) return null
+	return { w: vbW, h: vbH }
+}
+
+export const ASSET_ORIGIN_LABELS: Record<string, string> = {
+	drawn: 'Drawn',
+	'svg-import': 'SVG',
+	linked: 'Linked',
+	flattened: 'Flattened',
+}
+
+export function assetSizeLabel(asset: AssetDef): string {
+	if (asset.pxW || asset.pxH) return `${asset.pxW ?? asset.w}x${asset.pxH ?? asset.h}px`
+	return `${asset.w}x${asset.h}`
+}
+
+export function assetOriginLabel(asset: AssetDef): string {
+	return ASSET_ORIGIN_LABELS[asset.origin ?? 'drawn'] ?? asset.origin ?? 'Drawn'
+}
+
+export function assetSettingsIssuesMap(assets: readonly AssetDef[]): Map<string, string[]> {
+	const map = new Map<string, string[]>()
+	for (const asset of assets) {
+		const issues = assetSettingsIssues(asset)
+		if (issues.length > 0) map.set(asset.id, issues)
+	}
+	return map
+}
+
+export function assetIncompleteTitle(issues: Map<string, string[]>, assetId: string): string {
+	const list = issues.get(assetId)
+	return list?.length ? `Incomplete settings: ${list.join(', ')}` : ''
+}
+
+export function placedObjectCounts(floors: readonly FloorData[]): Map<string, number> {
+	const counts = new Map<string, number>()
+	for (const floor of floors) {
+		for (const object of floor.objects) {
+			counts.set(object.type, (counts.get(object.type) ?? 0) + 1)
+		}
+	}
+	return counts
 }
 
 const VALID_ROLES = new Set<SvgRole>(['wall', 'door', 'fixture'])

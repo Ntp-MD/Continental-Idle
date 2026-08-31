@@ -1,71 +1,43 @@
 <script setup lang="ts">
-import { ref, computed, watch } from "vue";
+import { ref, computed, watch, defineAsyncComponent } from "vue";
 import { useAssetsStore, startAssetDrag } from "../blueprintStore";
 import { useToast } from "@/composables/useToast";
 import { useAsyncAction } from "../composables/useAsyncAction";
-import { assetSettingsIssues } from "../assetUtils";
+import { assetSettingsIssuesMap, assetIncompleteTitle, placedObjectCounts as computePlacedObjectCounts, assetSizeLabel, assetOriginLabel as originLabel, parseSvgViewBox } from "../assetUtils";
+import { useCanvasDefaults } from "../composables/useCanvasDefaults";
+import { useDebouncedRef } from "@/composables/useDebounceFn";
+import ErrorBoundary from "@/components/overlays/ErrorBoundary.vue";
 import type { AssetDef } from "../types";
-import AssetPickerModal from "./AssetPickerModal.vue";
+const AssetPickerModal = defineAsyncComponent(() => import("./AssetPickerModal.vue"));
 
 const store = useAssetsStore();
 const { pending, run } = useAsyncAction();
 
 const searchQuery = ref("");
+const debouncedSearch = useDebouncedRef(searchQuery, 150);
 const showPicker = ref(false);
-
-const ORIGIN_LABELS: Record<string, string> = {
-  drawn: "Drawn",
-  "svg-import": "SVG",
-  linked: "Linked",
-  flattened: "Flattened",
-};
-
-function assetSizeLabel(asset: AssetDef): string {
-  if (asset.pxW || asset.pxH) return `${asset.pxW ?? asset.w}x${asset.pxH ?? asset.h}px`;
-  return `${asset.w}x${asset.h}`;
-}
 
 const allAssets = computed(() => [...store.assetMap().values()]);
 
-const incompleteMap = computed(() => {
-  const map = new Map<string, string[]>();
-  for (const asset of allAssets.value) {
-    const issues = assetSettingsIssues(asset);
-    if (issues.length > 0) map.set(asset.id, issues);
-  }
-  return map;
-});
+const incompleteMap = computed(() => assetSettingsIssuesMap(allAssets.value));
 
 const incompleteCount = computed(() => incompleteMap.value.size);
 
 function incompleteTitle(asset: AssetDef): string {
-  const issues = incompleteMap.value.get(asset.id);
-  return issues?.length ? `Incomplete settings: ${issues.join(", ")}` : "";
+  return assetIncompleteTitle(incompleteMap.value, asset.id);
 }
 
-const placedObjectCounts = computed(() => {
-  const counts = new Map<string, number>();
-  for (const floor of store.state.layout.floors) {
-    for (const object of floor.objects) {
-      counts.set(object.type, (counts.get(object.type) ?? 0) + 1);
-    }
-  }
-  return counts;
-});
+const placedCounts = computed(() => computePlacedObjectCounts(store.state.layout.floors));
 
 function placedObjectCount(assetId: string): number {
-  return placedObjectCounts.value.get(assetId) ?? 0;
+  return placedCounts.value.get(assetId) ?? 0;
 }
 
 const filteredAssets = computed(() => {
-  const q = searchQuery.value.trim().toLowerCase();
+  const q = debouncedSearch.value.trim().toLowerCase();
   if (!q) return allAssets.value;
   return allAssets.value.filter((a) => a.name.toLowerCase().includes(q) || a.id.toLowerCase().includes(q));
 });
-
-function originLabel(asset: AssetDef): string {
-  return ORIGIN_LABELS[asset.origin ?? "drawn"] ?? asset.origin ?? "Drawn";
-}
 
 const showSvgForm = ref(false);
 const svgName = ref("");
@@ -73,19 +45,14 @@ const svgW = ref(1);
 const svgH = ref(1);
 const svgContent = ref("");
 
-const canvasTileSize = computed(() => Math.max(1, store.state.layout.canvas.tileSize));
+const { canvasTileSize } = useCanvasDefaults();
 
 watch(svgContent, (val) => {
   if (!val) return;
-  const m = val.match(/viewBox\s*=\s*["']([^"']+)["']/);
-  if (!m) return;
-  const parts = m[1].split(/[\s,]+/).map(Number);
-  if (parts.length < 4 || parts.some(isNaN)) return;
-  const vbW = parts[2];
-  const vbH = parts[3];
-  if (vbW <= 0 || vbH <= 0) return;
-  svgW.value = Math.max(1, Math.round(vbW / canvasTileSize.value));
-  svgH.value = Math.max(1, Math.round(vbH / canvasTileSize.value));
+  const vb = parseSvgViewBox(val);
+  if (!vb) return;
+  svgW.value = Math.max(1, Math.round(vb.w / canvasTileSize.value));
+  svgH.value = Math.max(1, Math.round(vb.h / canvasTileSize.value));
 });
 
 async function submitSvgAsset() {
@@ -124,8 +91,8 @@ function onItemClick(assetId: string) {
     <div class="form__group">
       <div class="form__search">
         <input v-model="searchQuery" placeholder="Search assets..." type="text" aria-label="Search assets" />
-        <button v-if="searchQuery" class="flag--ghost" @click="searchQuery = ''" aria-label="Clear search" title="Clear search">x</button>
-        <button class="flag--ghost" @click="showPicker = true" title="Browse assets in a grid" aria-label="Browse assets">Browse</button>
+        <button v-if="searchQuery" class="flag--ghost" aria-label="Clear search" title="Clear search" @click="searchQuery = ''">x</button>
+        <button class="flag--ghost" title="Browse assets in a grid" aria-label="Browse assets" @click="showPicker = true">Browse</button>
       </div>
     </div>
     <div class="form__group has__scroll">
@@ -134,7 +101,7 @@ function onItemClick(assetId: string) {
         <span v-if="incompleteCount" class="badge badge--warning flag--warning" title="Assets showing the yellow marker have incomplete settings">{{ incompleteCount }} incomplete</span>
       </div>
       <div v-if="!filteredAssets.length" class="empty assets__empty">No assets found</div>
-      <div v-for="asset in filteredAssets" :key="asset.id" class="card__item assets__item" :class="{ 'assets__item--selected': store.state.selectedAssetId === asset.id }" :title="incompleteTitle(asset) || undefined" @mousedown="onAssetMouseDown(asset.id, $event)" @click="onItemClick(asset.id)">
+      <div v-for="asset in filteredAssets" :key="asset.id" v-memo="[asset.id, asset.name, store.state.selectedAssetId, incompleteMap.get(asset.id), placedCounts.get(asset.id)]" class="card__item assets__item" :class="{ 'assets__item--selected': store.state.selectedAssetId === asset.id }" :title="incompleteTitle(asset) || undefined" @mousedown="onAssetMouseDown(asset.id, $event)" @click="onItemClick(asset.id)">
         <span class="assets__tiles">{{ assetSizeLabel(asset) }} - {{ originLabel(asset) }}</span>
         <span class="asset__name">{{ asset.name }}</span>
         <span v-if="incompleteMap.get(asset.id)?.length" class="badge badge--warning flag--warning" title="Incomplete settings">!</span>
@@ -158,7 +125,9 @@ function onItemClick(assetId: string) {
         <button class="flag--active" :disabled="pending" @click="submitSvgAsset">Import SVG</button>
       </div>
     </div>
-    <AssetPickerModal :open="showPicker" @close="showPicker = false" />
+    <ErrorBoundary>
+      <AssetPickerModal :open="showPicker" @close="showPicker = false" />
+    </ErrorBoundary>
   </div>
 </template>
 

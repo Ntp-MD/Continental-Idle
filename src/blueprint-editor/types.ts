@@ -1,3 +1,24 @@
+// ============================================================================
+// types.ts - Blueprint editor type definitions, normalization, and validation
+//
+// Sections:
+//   1. Editor primitives          (EditorMode, Rotation, Rect, SelectionState)
+//   2. SVG & wall types            (SvgRole, WallSegment, color convention)
+//   3. Floor walkable types        (TileState, WalkableGrid, FloorWalkable)
+//   4. Interact & queue types      (InteractSpot, InteractConfig, NpcQueueConfig)
+//   5. Asset types & normalization (AssetBase, AssetDef, normalizeOriginAsset)
+//   6. Object types & resolution   (ObjectPlacement, ObjectData, resolveObjectDef)
+//   7. NPC config types & norms    (NpcRole, NpcSimulationConfig, normalizeNpcConfig)
+//   8. Canvas & editor settings    (CanvasConfig, EditorSettings, field specs)
+//   9. Floor layout types          (FloorData, FloorLayoutData, PersistedFloor*)
+//  10. Synced payload types        (SyncedCanvas, SyncedObject, SyncedLayoutPayload)
+//  11. Blueprint data file         (BlueprintDataFile, normalizeBlueprintDataFile)
+//  12. Project settings & integrity(ProjectSettings, validateLayoutIntegrity)
+//  13. Shared internal helpers     (isRecord, normalizeText, normalizeIdentifier)
+// ============================================================================
+
+// --- Section 1: Editor primitives ---
+
 export type EditorMode = 'object' | 'draw' | 'move' | 'npc-preview'
 export type Rotation = 0 | 90 | 180 | 270
 
@@ -9,6 +30,8 @@ export function resolveStreetTiles(layout: { streetWidthTiles?: number } | null 
 	return typeof v === 'number' && Number.isInteger(v) && v >= 5 && v <= 20 ? v : STREET_TILES
 }
 
+// --- Section 2: SVG & wall types ---
+
 export type SvgRole = 'wall' | 'door' | 'fixture'
 
 export interface SvgRoleInfo {
@@ -16,6 +39,8 @@ export interface SvgRoleInfo {
 	tag: string
 	attrs?: Record<string, string>
 }
+
+// --- Section 3: Floor walkable types ---
 
 export type TileState = 'walkable' | 'blocked' | 'door'
 
@@ -33,6 +58,8 @@ export interface WallSegment {
 	y2: number
 	door?: boolean
 }
+
+// --- Section 13: Shared internal helpers (not exported) ---
 
 const MAX_DATA_STRING_LENGTH = 512
 const MAX_SVG_ATTRIBUTE_LENGTH = 4096
@@ -130,15 +157,22 @@ export function normalizeWallSegments(value: unknown): WallSegment[] | undefined
 	return segments.length > 0 ? segments : undefined
 }
 
+export type AssetPixelSize = Pick<AssetDef, 'w' | 'h' | 'usePx' | 'pxW' | 'pxH'>
+
+export function assetPixelSize(asset: AssetPixelSize, tileSize: number): { w: number; h: number } {
+	const w = asset.usePx ? (asset.pxW ?? asset.w * tileSize) : asset.w * tileSize
+	const h = asset.usePx ? (asset.pxH ?? asset.h * tileSize) : asset.h * tileSize
+	return { w, h }
+}
+
 export function resolveWallSegmentsForObject(
 	segments: readonly WallSegment[] | undefined,
-	asset: Pick<AssetDef, 'w' | 'h' | 'usePx' | 'pxW' | 'pxH'>,
+	asset: AssetPixelSize,
 	object: Pick<ObjectData, 'x' | 'y' | 'w' | 'h' | 'rotation'>,
 	tileSize: number,
 ): WallSegment[] {
 	if (!segments?.length || asset.w <= 0 || asset.h <= 0) return []
-	const sourceW = asset.usePx ? (asset.pxW ?? asset.w * tileSize) : asset.w * tileSize
-	const sourceH = asset.usePx ? (asset.pxH ?? asset.h * tileSize) : asset.h * tileSize
+	const { w: sourceW, h: sourceH } = assetPixelSize(asset, tileSize)
 	if (sourceW <= 0 || sourceH <= 0 || object.w <= 0 || object.h <= 0) return []
 	const rotatedW = object.rotation === 90 || object.rotation === 270 ? sourceH : sourceW
 	const rotatedH = object.rotation === 90 || object.rotation === 270 ? sourceW : sourceH
@@ -155,7 +189,10 @@ export function resolveWallSegmentsForObject(
 	return segments.flatMap(segment => {
 		const a = transformPoint(segment.x1, segment.y1)
 		const b = transformPoint(segment.x2, segment.y2)
-		return normalizeWallSegment({ x1: a.x, y1: a.y, x2: b.x, y2: b.y }) ?? []
+		const normalized = normalizeWallSegment({ x1: a.x, y1: a.y, x2: b.x, y2: b.y })
+		if (!normalized) return []
+		if (segment.door) normalized.door = true
+		return [normalized]
 	})
 }
 
@@ -174,6 +211,8 @@ export function normalizeFloorWalkable(value: unknown): FloorWalkable | undefine
 		...(tileStates ? { tileStates } : {}),
 	}
 }
+
+// --- Section 4: Interact & queue types ---
 
 export interface InteractSpot {
 	x: number
@@ -466,6 +505,8 @@ export function normalizeAllowedRoleIds(value: unknown): string[] | undefined {
 	return ids.length > 0 ? ids : undefined
 }
 
+// --- Section 5: Asset types & normalization ---
+
 export interface AssetBase {
 	id: string
 	name: string
@@ -524,6 +565,8 @@ export interface PersistedFloorLayoutData extends Omit<FloorLayoutData, 'floors'
 	floors: PersistedFloorData[]
 }
 
+// --- Section 11: Blueprint data file ---
+
 export interface BlueprintDataFile {
 	$schema: string
 	version: number
@@ -539,7 +582,7 @@ export const BLUEPRINT_DATA_VERSION = 2
 const SVG_COLOR_VALUE_RE = /^(#(?:[0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\([^)]*\)|hsla?\([^)]*\))$/
 
 export function applySvgColorConvention(svg: string): string {
-	return svg.replace(/\b(fill|stroke)(\s*=\s*)(["\'])([^"\']*)\3/g, (_m, attr: string, sep: string, q: string, value: string) => {
+	return svg.replace(/\b(fill|stroke)(\s*=\s*)(["'])([^"']*)\3/g, (_m, attr: string, sep: string, q: string, value: string) => {
 		const v = value.trim()
 		if (v.startsWith('var(--obj-fill') || v.startsWith('var(--obj-stroke')) return _m
 		if (attr === 'fill') {
@@ -728,6 +771,8 @@ export function normalizeOriginAssetFile(value: unknown): OriginAssetFile | unde
 	return { $schema: typeof value.$schema === 'string' ? value.$schema : 'origin-assets.v2.json', version: typeof value.version === 'number' ? value.version : 2, originAssets: assets }
 }
 
+// --- Section 7: NPC config types & normalization ---
+
 export interface NpcTask {
 	id: string
 	label: string
@@ -893,6 +938,8 @@ export function normalizeNpcSpawnZones(value: unknown): NpcSpawnZone[] | undefin
 	}
 	return zones
 }
+
+// --- Section 9: Floor layout types ---
 
 export interface FloorData {
 	id: string
@@ -1070,6 +1117,8 @@ export function normalizeEditorSettings(value: unknown): EditorSettings {
 	return result
 }
 
+
+// --- Section 10: Synced payload types ---
 
 export interface SyncedCanvas {
 	width: number
@@ -1427,6 +1476,8 @@ export function normalizePersistedLayoutData(value: unknown): PersistedFloorLayo
 	}
 	return layout
 }
+
+// --- Section 12: Project settings & integrity ---
 
 export interface ProjectSettings {
 	canvas: CanvasConfig

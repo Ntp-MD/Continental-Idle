@@ -82,7 +82,7 @@ async function doFlatten() {
           <h3>Flatten to Single Asset</h3>
           <div class="form__row">
             <label>Name</label>
-            <input type="text" v-model="flattenName" placeholder="e.g. Table + Chairs" />
+            <input v-model="flattenName" type="text" placeholder="e.g. Table + Chairs" />
           </div>
           <div v-if="wallCount" class="form__row">
             <span>{{ wallCount }} selected wall{{ wallCount === 1 ? "" : "s" }} will be merged into the asset and removed from the floor grid</span>

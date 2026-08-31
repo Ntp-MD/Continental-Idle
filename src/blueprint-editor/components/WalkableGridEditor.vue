@@ -1,12 +1,13 @@
 <script setup lang="ts">
-import { ref, watch, computed, onMounted, onBeforeUnmount, nextTick } from "vue";
+import { ref, watch, computed, onBeforeUnmount, nextTick } from "vue";
 import { useAssetsStore } from "../blueprintStore";
 import { useToast } from "@/composables/useToast";
 import { useConfirm } from "@/composables/useConfirm";
-import { renderSvgInto } from "../svgSanitizer";
-import { assetSvgVarStyle } from "../assetUtils";
+import { assetSvgVarStyle, assetFallbackShapeSvg, assetPreviewViewBox } from "../assetUtils";
+import { useCanvasDefaults } from "../composables/useCanvasDefaults";
+import { useSvgPreview } from "../composables/useSvgPreview";
 import type { AssetDef, TileState, InteractSpot } from "../types";
-import { normalizeInteractConfig, normalizeNpcQueueConfig, resolveInteractForTarget, normalizeEditorSettings } from "../types";
+import { normalizeInteractConfig, normalizeNpcQueueConfig, resolveInteractForTarget } from "../types";
 
 type TileEdges = { top?: boolean; right?: boolean; bottom?: boolean; left?: boolean; doorTop?: boolean; doorRight?: boolean; doorBottom?: boolean; doorLeft?: boolean };
 
@@ -43,7 +44,7 @@ let syncingWalkthrough = false;
 
 const gridCols = computed(() => gridTiles.value[0]?.length ?? 0);
 
-const canvasTileSize = computed(() => store.state.layout.canvas.tileSize);
+const { canvasTileSize, editorSettings } = useCanvasDefaults();
 
 function gridKey(): string {
   return gridTiles.value.map((row) => row.join(",")).join("|") + "#" + JSON.stringify(gridEdges.value);
@@ -84,7 +85,6 @@ function flushAutoSave() {
   }
 }
 
-const editorSettings = computed(() => normalizeEditorSettings(store.state.layout.editorSettings));
 const tilePx = computed(() => {
   if (!gridAsset.value) return 30;
   const cols = gridAsset.value.w;
@@ -94,45 +94,17 @@ const tilePx = computed(() => {
   return Math.max(editorSettings.value.walkableGridMinTilePx, Math.min(editorSettings.value.walkableGridMaxTilePx, Math.min(maxByWidth, maxByHeight)));
 });
 
-function assetPixelSize(a: AssetDef): { w: number; h: number } {
-  const vb = a.svgViewBox;
-  if (vb && vb.w > 0 && vb.h > 0) return { w: vb.w, h: vb.h };
-  return {
-    w: a.usePx ? (a.pxW ?? a.w * canvasTileSize.value) : a.w * canvasTileSize.value,
-    h: a.usePx ? (a.pxH ?? a.h * canvasTileSize.value) : a.h * canvasTileSize.value,
-  };
-}
-
 const svgPreviewViewBox = computed(() => {
   const a = gridAsset.value;
   if (!a) return "";
-  const px = assetPixelSize(a);
-  return `0 0 ${px.w} ${px.h}`;
+  return assetPreviewViewBox(a, canvasTileSize.value);
 });
 
-function fallbackShapeSvg(a: AssetDef): string {
-  const TILE = canvasTileSize.value;
-  const w = a.usePx ? (a.pxW ?? a.w * TILE) : a.w * TILE;
-  const h = a.usePx ? (a.pxH ?? a.h * TILE) : a.h * TILE;
-  const rx = Math.max(a.defaultRx?.tl ?? 0, a.defaultRx?.tr ?? 0, a.defaultRx?.br ?? 0, a.defaultRx?.bl ?? 0);
-  const rawFill = a.defaultFillColor ?? "none";
-  const fill = !rawFill || rawFill === "transparent" ? "none" : rawFill;
-  const stroke = a.defaultStrokeColor ?? "#6f7680";
-  return `<rect x="1" y="1" width="${Math.max(1, w - 2)}" height="${Math.max(1, h - 2)}" rx="${rx}" fill="${fill}" stroke="${stroke}" stroke-width="1"/>`;
-}
-
-const previewSvg = computed(() => gridAsset.value?.svg?.replace(/var\(--border-dim\)/g, "#fff") ?? (gridAsset.value ? fallbackShapeSvg(gridAsset.value) : ""));
+const previewSvg = computed(() => gridAsset.value?.svg?.replace(/var\(--border-dim\)/g, "#fff") ?? (gridAsset.value ? assetFallbackShapeSvg(gridAsset.value, canvasTileSize.value) : ""));
 const previewVars = computed(() => assetSvgVarStyle(gridAsset.value));
 
-const previewSvgEl = ref<SVGSVGElement | null>(null);
+const { svgEl: previewSvgEl, render: renderPreview } = useSvgPreview(previewSvg);
 
-function renderPreview() {
-  const el = previewSvgEl.value;
-  const svg = previewSvg.value;
-  if (el && svg) renderSvgInto(el, svg);
-}
-
-watch(previewSvg, () => nextTick(renderPreview));
 watch([() => props.active, () => gridAsset.value?.id], ([visible]) => {
   if (visible) nextTick(renderPreview);
 });
@@ -150,10 +122,9 @@ watch(walkthrough, async (v) => {
     await store.updateAsset(gridAsset.value.id, { walkable: v });
   } catch {
     walkthrough.value = !v;
+    useToast().error("Failed to toggle walkthrough mode");
   }
 });
-
-onMounted(renderPreview);
 
 const assetSignature = computed(() => ({
   id: gridAsset.value?.id,
@@ -478,17 +449,6 @@ function fillGridCol(c: number) {
   checkGridDirty();
 }
 
-function clearOuterWallsForTile(r: number, c: number) {
-  const e = gridEdges.value[r]?.[c];
-  if (!e) return;
-  const rows = gridEdges.value.length;
-  const cols = gridEdges.value[0]?.length ?? 0;
-  if (r === 0) e.top = false;
-  if (r === rows - 1) e.bottom = false;
-  if (c === 0) e.left = false;
-  if (c === cols - 1) e.right = false;
-}
-
 function blockOuterSides() {
   if (gridEdges.value.length === 0) return;
   const rows = gridEdges.value.length;
@@ -549,7 +509,7 @@ function doorTileBg(state: TileState): string {
   if (state === "blocked") return "color-mix(in srgb, var(--bg-primary) 60%, transparent)";
   return "color-mix(in srgb, var(--bg-primary) 80%, transparent)";
 }
-function doorTileBorder(state: TileState): string {
+function doorTileBorder(_state: TileState): string {
   return "1px solid var(--border-dim)";
 }
 function doorTileIcon(_state: TileState): string {
@@ -560,8 +520,8 @@ function interactSpotTileBg(state: TileState): string {
   if (state === "blocked") return "color-mix(in srgb, var(--accent-red) 10%, transparent)";
   return "color-mix(in srgb, var(--accent-green) 8%, transparent)";
 }
-function interactSpotTileBorder(state: TileState): string {
-  if (state === "blocked") return "1px solid var(--accent-red)";
+function interactSpotTileBorder(_state: TileState): string {
+  if (_state === "blocked") return "1px solid var(--accent-red)";
   return "1px solid var(--border-dim)";
 }
 function interactSpotTileIcon(_state: TileState): string {
@@ -683,7 +643,7 @@ onBeforeUnmount(() => {
       <span class="form__hint">{{ gridAsset?.name ?? "" }} - {{ gridCols }}x{{ gridTiles.length }} tiles</span>
       <div class="walkablegrid__walkthrough">
         <label>Passable</label>
-        <button :class="{ 'flag--success': walkthrough, 'flag--danger': !walkthrough }" @click="walkthrough = !walkthrough" :title="walkthrough ? 'NPCs can walk through this object' : 'NPCs cannot walk through this object (solid wall)'">
+        <button :class="{ 'flag--success': walkthrough, 'flag--danger': !walkthrough }" :title="walkthrough ? 'NPCs can walk through this object' : 'NPCs cannot walk through this object (solid wall)'" @click="walkthrough = !walkthrough">
           {{ walkthrough ? "ON" : "OFF" }}
         </button>
       </div>

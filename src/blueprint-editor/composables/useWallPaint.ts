@@ -1,6 +1,7 @@
 import { ref, computed, type Ref, type ComputedRef } from 'vue'
 import type { FloorData, WallSegment, ObjectData } from '../types'
 import { CANVAS_WALL_OBJECT_TYPE, normalizeWallSegment } from '../types'
+import { wallSegmentToObjectRect } from '../assetUtils'
 import { genId } from '../store/storeUtils'
 
 export type { WallSegment }
@@ -116,17 +117,14 @@ export function useWallPaint(opts: {
 			: raw
 		const normalized = normalizeWallSegment({ x1: source.x1 / t, y1: source.y1 / t, x2: source.x2 / t, y2: source.y2 / t })
 		if (!normalized) return
-		const minX = Math.min(normalized.x1, normalized.x2) * t
-		const minY = Math.min(normalized.y1, normalized.y2) * t
-		const width = Math.max(1, Math.abs(normalized.x2 - normalized.x1) * t)
-		const height = Math.max(1, Math.abs(normalized.y2 - normalized.y1) * t)
+		const rect = wallSegmentToObjectRect(normalized, t)
 		await opts.commit(current.floorId, {
 			id: makeId('wall'),
 			type: CANVAS_WALL_OBJECT_TYPE,
-			x: minX,
-			y: minY,
-			w: width,
-			h: height,
+			x: rect.x,
+			y: rect.y,
+			w: rect.w,
+			h: rect.h,
 			rotation: 0,
 			isWall: true,
 			x1: normalized.x1,

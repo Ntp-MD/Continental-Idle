@@ -146,6 +146,7 @@ watch(portal, async (v) => {
     await store.updateAsset(props.asset.id, { tags: newTags });
   } catch {
     portal.value = !v;
+    useToast().error("Failed to save portal tag");
   }
 });
 </script>
@@ -188,35 +189,35 @@ watch(portal, async (v) => {
       <div class="form__row form__row--pair">
         <div class="form__row">
           <label>Default Padding</label>
-          <input type="number" min="0" v-model.number="dimFields.defaultPadding" @change="commitField('defaultPadding')" />
+          <input v-model.number="dimFields.defaultPadding" type="number" min="0" @change="commitField('defaultPadding')" />
         </div>
         <div class="form__row">
           <label>Label Padding</label>
-          <input type="number" min="0" v-model.number="dimFields.defaultLabelPadding" @change="commitField('defaultLabelPadding')" />
+          <input v-model.number="dimFields.defaultLabelPadding" type="number" min="0" @change="commitField('defaultLabelPadding')" />
         </div>
       </div>
       <div class="form__row">
         <label>Shape Radius</label>
-        <input type="number" min="0" v-model.number="dimFields.defaultRadius" @change="commitField('defaultRadius')" />
+        <input v-model.number="dimFields.defaultRadius" type="number" min="0" @change="commitField('defaultRadius')" />
       </div>
       <div class="form__row">
         <label>Corner Radius</label>
         <div class="form__row form__row--tight">
           <label class="form__row form__row--tight">
             <span>TL</span>
-            <input type="number" min="0" v-model.number="dimFields.rxTL" @input="onRxInput('rxTL')" />
+            <input v-model.number="dimFields.rxTL" type="number" min="0" @input="onRxInput('rxTL')" />
           </label>
           <label class="form__row form__row--tight">
             <span>TR</span>
-            <input type="number" min="0" v-model.number="dimFields.rxTR" @input="onRxInput('rxTR')" />
+            <input v-model.number="dimFields.rxTR" type="number" min="0" @input="onRxInput('rxTR')" />
           </label>
           <label class="form__row form__row--tight">
             <span>BL</span>
-            <input type="number" min="0" v-model.number="dimFields.rxBL" @input="onRxInput('rxBL')" />
+            <input v-model.number="dimFields.rxBL" type="number" min="0" @input="onRxInput('rxBL')" />
           </label>
           <label class="form__row form__row--tight">
             <span>BR</span>
-            <input type="number" min="0" v-model.number="dimFields.rxBR" @input="onRxInput('rxBR')" />
+            <input v-model.number="dimFields.rxBR" type="number" min="0" @input="onRxInput('rxBR')" />
           </label>
           <button type="button" :class="{ 'flag--active': assetRxSync }" :aria-pressed="assetRxSync" :title="assetRxSync ? 'Sync all corners - ON' : 'Sync all corners - OFF'" @click="assetRxSync = !assetRxSync">
             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -254,7 +255,7 @@ watch(portal, async (v) => {
       <div class="originpanel__title">Behavior</div>
       <div class="form__row">
         <label>Portal</label>
-        <button :class="{ 'flag--success': portal, 'flag--danger': !portal }" :disabled="isNpcDeployed" @click="portal = !portal" :title="isNpcDeployed ? 'Exit NPC preview to change Portal setting' : portal ? 'NPCs can travel to another floor through this object' : 'NPCs cannot use this object for cross-floor travel'">
+        <button :class="{ 'flag--success': portal, 'flag--danger': !portal }" :disabled="isNpcDeployed" :title="isNpcDeployed ? 'Exit NPC preview to change Portal setting' : portal ? 'NPCs can travel to another floor through this object' : 'NPCs cannot use this object for cross-floor travel'" @click="portal = !portal">
           {{ portal ? "ON" : "OFF" }}
         </button>
       </div>

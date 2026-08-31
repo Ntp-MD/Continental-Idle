@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from "vue";
 import { useAssetsStore, startAssetDrag } from "../blueprintStore";
-import { assetSettingsIssues, assetSvgVarStyle } from "../assetUtils";
+import { assetSvgVarStyle, assetPreviewSvg, assetPreviewViewBox, assetSettingsIssuesMap, assetIncompleteTitle, placedObjectCounts as computePlacedObjectCounts, assetSizeLabel, assetOriginLabel as originLabel } from "../assetUtils";
 import { renderSvgInto } from "../svgSanitizer";
+import { useCanvasWallStyle, DOOR_COLOR } from "../composables/useCanvasWallStyle";
+import { useDebouncedRef } from "@/composables/useDebounceFn";
 import type { AssetDef } from "../types";
 import ModalShell from "./ModalShell.vue";
 
@@ -11,83 +13,36 @@ const emit = defineEmits<{ (e: "close"): void }>();
 
 const store = useAssetsStore();
 const searchQuery = ref("");
+const debouncedSearch = useDebouncedRef(searchQuery, 150);
 
-const ORIGIN_LABELS: Record<string, string> = {
-  drawn: "Drawn",
-  "svg-import": "SVG",
-  linked: "Linked",
-  flattened: "Flattened",
-};
-
-const canvasTileSize = computed(() => Math.max(1, store.state.layout.canvas.tileSize));
+const { canvasTileSize, wallColor, wallThickness } = useCanvasWallStyle();
 
 const allAssets = computed(() => [...store.assetMap().values()]);
 
 const filteredAssets = computed(() => {
-  const q = searchQuery.value.trim().toLowerCase();
+  const q = debouncedSearch.value.trim().toLowerCase();
   if (!q) return allAssets.value;
   return allAssets.value.filter((a) => a.name.toLowerCase().includes(q) || a.id.toLowerCase().includes(q));
 });
 
-const incompleteMap = computed(() => {
-  const map = new Map<string, string[]>();
-  for (const asset of allAssets.value) {
-    const issues = assetSettingsIssues(asset);
-    if (issues.length > 0) map.set(asset.id, issues);
-  }
-  return map;
-});
+const incompleteMap = computed(() => assetSettingsIssuesMap(allAssets.value));
 
 function incompleteTitle(asset: AssetDef): string {
-  const issues = incompleteMap.value.get(asset.id);
-  return issues?.length ? `Incomplete settings: ${issues.join(", ")}` : "";
+  return assetIncompleteTitle(incompleteMap.value, asset.id);
 }
 
-const placedObjectCounts = computed(() => {
-  const counts = new Map<string, number>();
-  for (const floor of store.state.layout.floors) {
-    for (const object of floor.objects) {
-      counts.set(object.type, (counts.get(object.type) ?? 0) + 1);
-    }
-  }
-  return counts;
-});
+const placedCounts = computed(() => computePlacedObjectCounts(store.state.layout.floors));
 
 function placedObjectCount(assetId: string): number {
-  return placedObjectCounts.value.get(assetId) ?? 0;
-}
-
-function assetSizeLabel(asset: AssetDef): string {
-  if (asset.pxW || asset.pxH) return `${asset.pxW ?? asset.w}x${asset.pxH ?? asset.h}px`;
-  return `${asset.w}x${asset.h}`;
-}
-
-function originLabel(asset: AssetDef): string {
-  return ORIGIN_LABELS[asset.origin ?? "drawn"] ?? asset.origin ?? "Drawn";
+  return placedCounts.value.get(assetId) ?? 0;
 }
 
 function assetViewBox(asset: AssetDef): string {
-  const vb = asset.svgViewBox;
-  if (!vb || vb.w === 0 || vb.h === 0) {
-    const w = asset.usePx ? (asset.pxW ?? asset.w * canvasTileSize.value) : asset.w * canvasTileSize.value;
-    const h = asset.usePx ? (asset.pxH ?? asset.h * canvasTileSize.value) : asset.h * canvasTileSize.value;
-    return `0 0 ${w} ${h}`;
-  }
-  return `0 0 ${vb.w} ${vb.h}`;
-}
-
-function fallbackShapeSvg(asset: AssetDef): string {
-  const w = asset.usePx ? (asset.pxW ?? asset.w * canvasTileSize.value) : asset.w * canvasTileSize.value;
-  const h = asset.usePx ? (asset.pxH ?? asset.h * canvasTileSize.value) : asset.h * canvasTileSize.value;
-  const rx = Math.max(asset.defaultRx?.tl ?? 0, asset.defaultRx?.tr ?? 0, asset.defaultRx?.br ?? 0, asset.defaultRx?.bl ?? 0);
-  const rawFill = asset.defaultFillColor ?? "none";
-  const fill = !rawFill || rawFill === "transparent" ? "none" : rawFill;
-  const stroke = asset.defaultStrokeColor ?? "#6f7680";
-  return `<rect x="1" y="1" width="${Math.max(1, w - 2)}" height="${Math.max(1, h - 2)}" rx="${rx}" fill="${fill}" stroke="${stroke}" stroke-width="1"/>`;
+  return assetPreviewViewBox(asset, canvasTileSize.value);
 }
 
 function thumbSvg(asset: AssetDef): string {
-  return asset.svg?.replace(/var\(--border-dim\)/g, "#fff") ?? fallbackShapeSvg(asset);
+  return assetPreviewSvg(asset, canvasTileSize.value, wallColor.value, wallThickness.value, DOOR_COLOR);
 }
 
 const thumbEls = new Map<string, SVGSVGElement>();
@@ -117,16 +72,16 @@ function pick(asset: AssetDef) {
 </script>
 
 <template>
-  <ModalShell :open="open" title="Asset Picker" max-width="720px" width="90vw" max-height="80vh" @close="emit('close')">
+  <ModalShell :open="open" title="Asset Picker" dialog-class="picker__dialog" @close="emit('close')">
     <div class="modal__body picker__body">
       <div class="form__search">
         <input v-model="searchQuery" placeholder="Search assets..." type="text" aria-label="Search assets" />
-        <button v-if="searchQuery" class="flag--ghost" @click="searchQuery = ''" aria-label="Clear search" title="Clear search">x</button>
+        <button v-if="searchQuery" class="flag--ghost" aria-label="Clear search" title="Clear search" @click="searchQuery = ''">x</button>
       </div>
       <div class="picker__scroll">
         <div v-if="!filteredAssets.length" class="empty picker__empty">No assets found</div>
         <div v-else class="picker__grid">
-          <div v-for="asset in filteredAssets" :key="asset.id" class="picker__item" :class="{ 'picker__item--selected': store.state.selectedAssetId === asset.id }" role="button" tabindex="0" :title="incompleteTitle(asset) || `${asset.name} (${assetSizeLabel(asset)}) - click, then click the canvas to place`" @click="pick(asset)" @keydown.enter="pick(asset)">
+          <div v-for="asset in filteredAssets" :key="asset.id" v-memo="[asset.id, asset.name, store.state.selectedAssetId, incompleteMap.get(asset.id), placedCounts.get(asset.id)]" class="picker__item" :class="{ 'picker__item--selected': store.state.selectedAssetId === asset.id }" role="button" tabindex="0" :title="incompleteTitle(asset) || `${asset.name} (${assetSizeLabel(asset)}) - click, then click the canvas to place`" @click="pick(asset)" @keydown.enter="pick(asset)">
             <div class="picker__thumb">
               <svg :ref="(el) => setThumbEl(asset.id, el)" :viewBox="assetViewBox(asset)" preserveAspectRatio="xMidYMid meet" :style="assetSvgVarStyle(asset)"></svg>
               <span v-if="incompleteMap.get(asset.id)?.length" class="badge badge--warning flag--warning" title="Incomplete settings">!</span>
@@ -142,6 +97,11 @@ function pick(asset: AssetDef) {
 </template>
 
 <style scoped>
+:deep(.picker__dialog) {
+  width: 90vw;
+  max-width: 720px;
+  max-height: 80vh;
+}
 .picker__body {
   display: flex;
   flex-direction: column;

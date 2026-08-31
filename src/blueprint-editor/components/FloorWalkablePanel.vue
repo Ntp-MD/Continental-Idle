@@ -83,7 +83,7 @@ function applyOuterWall(): void {
 
 function clearAllDoors(): void {
   wallSegments.value = wallSegments.value.map((seg) => {
-    const { door, ...rest } = seg;
+    const { door: _door, ...rest } = seg;
     return rest as WallSegment;
   });
   syncEdgesFromSegments();
@@ -260,7 +260,7 @@ function close(): void {
 </script>
 
 <template>
-  <ModalShell :open="open" title="Walkable Setting" max-width="1000px" width="min(94vw, 1000px)" height="auto" max-height="calc(100vh - 32px)" @close="close">
+  <ModalShell :open="open" title="Walkable Setting" dialog-class="walkable__dialog" @close="close">
     <div class="modal__body">
       <div class="form__row form__row--tight form__row--wrap" role="toolbar" aria-label="Walkable setting tools">
         <button type="button" :class="{ 'flag--warning': activeMode === 'walk' }" @click="setMode('walk')">Wall / Block</button>
@@ -314,6 +314,12 @@ function close(): void {
 </template>
 
 <style scoped>
+:deep(.walkable__dialog) {
+  width: min(94vw, 1000px);
+  max-width: 1000px;
+  height: auto;
+  max-height: calc(100vh - 32px);
+}
 .walk__legend {
   color: var(--text-secondary);
   font-size: var(--font-xs);

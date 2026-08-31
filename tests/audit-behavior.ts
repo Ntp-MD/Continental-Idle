@@ -188,7 +188,7 @@ const SPAWNS: SpawnSpec[] = [
 
 const built = buildNpcEngineLayout(FLOORS, CANVAS, getAssetDef, getAssetTags)
 
-let tickNow = 0
+const tickNow = 0
 let engine!: NpcEngine
 const policy = createNpcEnginePolicy({
 	getConfig: () => CONFIG,

@@ -2,8 +2,10 @@ import assert from 'node:assert/strict'
 import { computed, ref } from 'vue'
 import { useCanvasSelection } from '../src/blueprint-editor/composables/useCanvasSelection'
 import { useWallPaint, type WallSelection } from '../src/blueprint-editor/composables/useWallPaint'
+import { doorPanelsData, doorPanelsSvg } from '../src/blueprint-editor/assetUtils'
+import { resolveWallSegmentsForObject } from '../src/blueprint-editor/types'
 import type { AssetsStore } from '../src/blueprint-editor/store/index'
-import type { FloorData, ObjectData } from '../src/blueprint-editor/types'
+import type { AssetDef, FloorData, ObjectData, WallSegment } from '../src/blueprint-editor/types'
 
 const listeners = new Map<string, Array<(event: MouseEvent) => void>>()
 const windowMock = {
@@ -124,3 +126,70 @@ wallTool.cancel()
 assert.equal(listeners.get('mousemove')?.length ?? 0, 0)
 assert.equal(listeners.get('mouseup')?.length ?? 0, 0)
 console.log('Draw Wall and object-tool multi-select checks passed')
+
+// --- Door panel rendering checks ---
+
+const tileSize = 25
+const thickness = 3
+
+// Horizontal door segment (y1 === y2), 4 tiles wide
+const hSeg: WallSegment = { x1: 0, y1: 5, x2: 4, y2: 5, door: true }
+const hPanels = doorPanelsData([hSeg], tileSize, thickness)
+assert.equal(hPanels.length, 1)
+assert.equal(hPanels[0].horizontal, true)
+assert.equal(hPanels[0].cx, (0 + 4) * tileSize / 2)
+assert.equal(hPanels[0].cy, 5 * tileSize)
+assert.equal(hPanels[0].length, 4 * tileSize)
+assert.equal(hPanels[0].thickness, thickness)
+
+// Vertical door segment (x1 === x2), 3 tiles tall
+const vSeg: WallSegment = { x1: 2, y1: 0, x2: 2, y2: 3, door: true }
+const vPanels = doorPanelsData([vSeg], tileSize, thickness)
+assert.equal(vPanels.length, 1)
+assert.equal(vPanels[0].horizontal, false)
+assert.equal(vPanels[0].cx, 2 * tileSize)
+assert.equal(vPanels[0].cy, (0 + 3) * tileSize / 2)
+assert.equal(vPanels[0].length, 3 * tileSize)
+
+// Non-door segments are filtered out
+const wallOnly: WallSegment = { x1: 0, y1: 0, x2: 5, y2: 0 }
+assert.equal(doorPanelsData([wallOnly], tileSize, thickness).length, 0)
+
+// SVG output at progress=0 (closed): two panels side by side, no offset
+const closedSvg = doorPanelsSvg([hSeg], tileSize, thickness, '#3b82f6', 0)
+assert.ok(closedSvg.includes('<g class="door-overlay">'))
+assert.ok(closedSvg.includes('<rect'))
+// At progress=0, left panel starts at cx - length/2, right panel starts at cx
+const halfLen = (4 * tileSize) / 2
+const cx = (0 + 4) * tileSize / 2
+const fmt = (n: number) => n.toFixed(2)
+assert.ok(closedSvg.includes(`x="${fmt(cx - halfLen)}"`), 'closed left panel at cx - half')
+assert.ok(closedSvg.includes(`x="${fmt(cx)}"`), 'closed right panel at cx')
+
+// SVG output at progress=1 (open): panels offset by half length
+const openSvg = doorPanelsSvg([hSeg], tileSize, thickness, '#3b82f6', 1)
+assert.ok(openSvg.includes(`x="${fmt(cx - halfLen - halfLen)}"`), 'open left panel shifted left by half')
+assert.ok(openSvg.includes(`x="${fmt(cx + halfLen)}"`), 'open right panel shifted right by half')
+
+// Empty segments produce empty SVG
+assert.equal(doorPanelsSvg([], tileSize, thickness, '#fff', 1), '')
+
+// --- Rotated asset door panel checks ---
+// Asset with a door segment, rotated 90deg, should produce valid door panels
+const doorAsset: AssetDef = {
+	id: 'door-asset',
+	name: 'Door Asset',
+	w: 3,
+	h: 2,
+	wallSegments: [{ x1: 0, y1: 1, x2: 3, y2: 1, door: true }],
+}
+const object = { x: 100, y: 200, w: 3 * tileSize, h: 2 * tileSize, rotation: 90 as const }
+const rotatedSegs = resolveWallSegmentsForObject(doorAsset.wallSegments, doorAsset, object, tileSize)
+assert.ok(rotatedSegs.length > 0, 'rotated door segments produced')
+assert.ok(rotatedSegs.every(s => s.door === true), 'door flag preserved after rotation')
+const rotatedPanels = doorPanelsData(rotatedSegs, tileSize, thickness)
+assert.ok(rotatedPanels.length > 0, 'door panels from rotated asset')
+// After 90deg rotation, a horizontal segment (y1===y2) becomes vertical (x1===x2)
+assert.ok(rotatedPanels.every(p => !p.horizontal), 'horizontal door becomes vertical after 90deg rotation')
+
+console.log('Door panel rendering checks passed')

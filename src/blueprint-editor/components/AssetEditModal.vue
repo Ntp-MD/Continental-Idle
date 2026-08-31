@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { ref, watch } from "vue";
+import { ref, watch, defineAsyncComponent } from "vue";
 import type { AssetDef } from "../types";
 import ModalShell from "./ModalShell.vue";
 import OriginSettingPanel from "./OriginSettingPanel.vue";
-import WalkableGridEditor from "./WalkableGridEditor.vue";
+const WalkableGridEditor = defineAsyncComponent(() => import("./WalkableGridEditor.vue"));
 
 const props = defineProps<{ open: boolean; asset?: AssetDef }>();
 const emit = defineEmits<{ (e: "close"): void }>();
@@ -20,7 +20,7 @@ watch(
 </script>
 
 <template>
-  <ModalShell :open="open && !!asset" :title="`Edit Asset - ${asset?.name ?? ''}`" max-width="1000px" width="min(94vw, 1000px)" max-height="calc(100vh - 32px)" @close="emit('close')">
+  <ModalShell :open="open && !!asset" :title="`Edit Asset - ${asset?.name ?? ''}`" dialog-class="assetedit__dialog" @close="emit('close')">
     <div class="modal__body assetedit__body">
       <div class="assetedit__tabs" role="tablist" aria-label="Asset editor sections">
         <button type="button" class="assetedit__tab" :class="{ 'assetedit__tab--active': activeTab === 'general' }" role="tab" :aria-selected="activeTab === 'general'" @click="activeTab = 'general'">General</button>
@@ -33,6 +33,11 @@ watch(
 </template>
 
 <style scoped>
+:deep(.assetedit__dialog) {
+  width: min(94vw, 1000px);
+  max-width: 1000px;
+  max-height: calc(100vh - 32px);
+}
 .assetedit__body {
   min-height: 320px;
 }

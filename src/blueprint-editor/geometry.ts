@@ -1,6 +1,6 @@
 import type { AssetDef, ObjectData, ObjectPlacement, ResolvedObject, Rotation, Rect } from './types'
-import { CANVAS_WALL_OBJECT_TYPE, normalizeWallSegment, resolveObjectDef, STREET_TILES } from './types'
-import { findAsset, findAssetCached } from './assetUtils'
+import { CANVAS_WALL_OBJECT_TYPE, normalizeWallSegment, resolveObjectDef, STREET_TILES, assetPixelSize } from './types'
+import { findAsset, findAssetCached, wallSegmentToObjectRect } from './assetUtils'
 
 export function assetSizeFor(
 	type: string,
@@ -12,10 +12,9 @@ export function assetSizeFor(
 		? findAsset(assetLookup, type)
 		: findAssetCached(assetLookup as Map<string, AssetDef>, type)
 	if (!asset) return null
-	const aw = asset.usePx ? (asset.pxW ?? asset.w * tileSize) : asset.w * tileSize
-	const ah = asset.usePx ? (asset.pxH ?? asset.h * tileSize) : asset.h * tileSize
+	const { w, h } = assetPixelSize(asset, tileSize)
 	const swap = rotation === 90 || rotation === 270
-	return swap ? { w: ah, h: aw } : { w: aw, h: ah }
+	return swap ? { w: h, h: w } : { w, h }
 }
 
 export function normalizeObject(
@@ -30,10 +29,11 @@ export function normalizeObject(
 		o.y1 = segment.y1
 		o.x2 = segment.x2
 		o.y2 = segment.y2
-		o.x = Math.min(segment.x1, segment.x2) * tileSize
-		o.y = Math.min(segment.y1, segment.y2) * tileSize
-		o.w = Math.max(1, Math.abs(segment.x2 - segment.x1) * tileSize)
-		o.h = Math.max(1, Math.abs(segment.y2 - segment.y1) * tileSize)
+		const rect = wallSegmentToObjectRect(segment, tileSize)
+		o.x = rect.x
+		o.y = rect.y
+		o.w = rect.w
+		o.h = rect.h
 		o.rotation = 0
 		return
 	}

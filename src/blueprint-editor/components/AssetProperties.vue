@@ -1,15 +1,17 @@
 <script setup lang="ts">
-import { ref, watch, computed, nextTick, onMounted } from "vue";
+import { ref, watch, computed, nextTick, defineAsyncComponent } from "vue";
 import { useAssetsStore } from "../blueprintStore";
 import { useToast } from "@/composables/useToast";
 import { useConfirm } from "@/composables/useConfirm";
 import { useAsyncAction } from "../composables/useAsyncAction";
 import { useClipboardCopy } from "../composables/useClipboardCopy";
-import { renderSvgInto } from "../svgSanitizer";
-import { assetSvgVarStyle } from "../assetUtils";
+import { assetSvgVarStyle, assetPreviewSvg, assetPreviewViewBox } from "../assetUtils";
+import { useCanvasWallStyle, DOOR_COLOR } from "../composables/useCanvasWallStyle";
+import { useSvgPreview } from "../composables/useSvgPreview";
+import ErrorBoundary from "@/components/overlays/ErrorBoundary.vue";
 import type { AssetDef } from "../types";
 import TagPicker from "./TagPicker.vue";
-import AssetEditModal from "./AssetEditModal.vue";
+const AssetEditModal = defineAsyncComponent(() => import("./AssetEditModal.vue"));
 import { managedTagSet } from "../store/tags";
 
 const props = defineProps<{ asset: AssetDef }>();
@@ -44,46 +46,19 @@ const isSvgAsset = computed(() => !!props.asset.svg);
 const isNpcDeployed = computed(() => store.state.mode === "npc-preview");
 const orphanAssetTags = computed(() => assetTags.value.filter((tag) => !managedTagSet.value.has(tag)));
 
-const previewSvgEl = ref<SVGSVGElement | null>(null);
-const canvasTileSize = computed(() => Math.max(1, store.state.layout.canvas.tileSize));
+const { canvasTileSize, wallColor, wallThickness } = useCanvasWallStyle();
 
-const previewSvgViewBox = computed(() => {
-  const a = props.asset;
-  const vb = a.svgViewBox;
-  if (!vb || vb.w === 0 || vb.h === 0) {
-    const w = a.usePx ? (a.pxW ?? a.w * canvasTileSize.value) : a.w * canvasTileSize.value;
-    const h = a.usePx ? (a.pxH ?? a.h * canvasTileSize.value) : a.h * canvasTileSize.value;
-    return `0 0 ${w} ${h}`;
-  }
-  return `0 0 ${vb.w} ${vb.h}`;
-});
+const previewSvgViewBox = computed(() => assetPreviewViewBox(props.asset, canvasTileSize.value));
 
-function fallbackShapeSvg(a: AssetDef): string {
-  const TILE = canvasTileSize.value;
-  const w = a.usePx ? (a.pxW ?? a.w * TILE) : a.w * TILE;
-  const h = a.usePx ? (a.pxH ?? a.h * TILE) : a.h * TILE;
-  const rx = Math.max(a.defaultRx?.tl ?? 0, a.defaultRx?.tr ?? 0, a.defaultRx?.br ?? 0, a.defaultRx?.bl ?? 0);
-  const rawFill = a.defaultFillColor ?? "none";
-  const fill = !rawFill || rawFill === "transparent" ? "none" : rawFill;
-  const stroke = a.defaultStrokeColor ?? "#6f7680";
-  return `<rect x="1" y="1" width="${Math.max(1, w - 2)}" height="${Math.max(1, h - 2)}" rx="${rx}" fill="${fill}" stroke="${stroke}" stroke-width="1"/>`;
-}
-
-const previewSvg = computed(() => props.asset.svg?.replace(/var\(--border-dim\)/g, "#fff") ?? fallbackShapeSvg(props.asset));
+const previewSvg = computed(() => assetPreviewSvg(props.asset, canvasTileSize.value, wallColor.value, wallThickness.value, DOOR_COLOR));
 const previewVars = computed(() => assetSvgVarStyle(props.asset));
 
-function renderPreview() {
-  const el = previewSvgEl.value;
-  const svg = previewSvg.value;
-  if (el && svg) renderSvgInto(el, svg);
-}
+const { svgEl: previewSvgEl, render: renderPreview } = useSvgPreview(previewSvg);
 
-watch(previewSvg, () => nextTick(renderPreview));
 watch(
   () => props.asset.id,
   () => nextTick(renderPreview),
 );
-onMounted(renderPreview);
 
 const collapsedCount = computed(() => {
   let count = 0;
@@ -162,15 +137,15 @@ async function duplicateAsset() {
 
     <div class="form__row">
       <label>Name</label>
-      <input type="text" v-model="assetFields.name" @change="commitField('name')" />
+      <input v-model="assetFields.name" type="text" @change="commitField('name')" />
     </div>
     <div class="form__row">
       <label>Label</label>
-      <input type="text" v-model="assetFields.defaultLabel" @change="commitField('defaultLabel')" placeholder="Use asset name" />
+      <input v-model="assetFields.defaultLabel" type="text" placeholder="Use asset name" @change="commitField('defaultLabel')" />
     </div>
     <div class="form__row">
       <label>Tags</label>
-      <TagPicker :model-value="assetTags" @update:model-value="saveAssetTags" placeholder="rest, service, target" />
+      <TagPicker :model-value="assetTags" placeholder="rest, service, target" @update:model-value="saveAssetTags" />
     </div>
     <div v-if="orphanAssetTags.length" class="card">Undefined tags: {{ orphanAssetTags.join(", ") }}. Recreate the tag definition or remove these assignments.</div>
     <div class="form__row">
@@ -187,7 +162,9 @@ async function duplicateAsset() {
     </div>
   </div>
 
-  <AssetEditModal :open="showEditor" :asset="asset" @close="showEditor = false" />
+  <ErrorBoundary>
+    <AssetEditModal :open="showEditor" :asset="asset" @close="showEditor = false" />
+  </ErrorBoundary>
 </template>
 
 <style scoped>

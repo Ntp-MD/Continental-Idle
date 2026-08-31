@@ -1,5 +1,5 @@
-import { onUnmounted, watch, type Ref } from 'vue'
-import type { NpcCanvasBounds } from '@/engine/npc'
+import { onUnmounted, watch, type Ref, type ShallowRef } from 'vue'
+import type { NpcCanvasBounds, NpcEngineEvent } from '@/engine/npc'
 import type { AssetDef, FloorData, NpcSimDot, NpcSimulationConfig } from '../types'
 import { useNpcSimulationCore, type NpcSimulationCore } from '@/composables/useNpcSimulationCore'
 
@@ -12,7 +12,21 @@ export function useNpcSimulation(
 	getAssetTags?: (type: string) => string[] | undefined,
 	getAssetDef?: (type: string) => AssetDef | undefined,
 	getManagedTags?: () => readonly string[],
-): { npcs: Ref<NpcSimDot[]>; frameDots: Map<string, NpcSimDot>; deploy: (floorId?: string, spawnFloorId?: string) => void; start: () => void; stop: () => void; pause: () => void; resume: () => void; reset: () => void; refresh: () => void; isPaused: Ref<boolean>; simSpeed: Ref<number>; config: Ref<NpcSimulationConfig> } {
+): {
+	npcs: Ref<NpcSimDot[]>
+	frameDots: Map<string, NpcSimDot>
+	doorPassageEvents: ShallowRef<NpcEngineEvent[]>
+	deploy: (floorId?: string, spawnFloorId?: string) => void
+	start: () => void
+	stop: () => void
+	pause: () => void
+	resume: () => void
+	reset: () => void
+	refresh: () => void
+	isPaused: Ref<boolean>
+	simSpeed: Ref<number>
+	config: Ref<NpcSimulationConfig>
+} {
 	const core: NpcSimulationCore = useNpcSimulationCore({
 		getConfig: () => getConfig?.(),
 		getFloors: () => getAllFloors?.() ?? [],
@@ -46,6 +60,7 @@ export function useNpcSimulation(
 	return {
 		npcs: core.npcs,
 		frameDots: core.frameDots,
+		doorPassageEvents: core.doorPassageEvents,
 		deploy(floorId?: string, spawnFloorId?: string) {
 			const view = floorId ?? getFloor?.()?.id
 			const floors = getAllFloors?.() ?? []

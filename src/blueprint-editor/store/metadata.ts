@@ -51,7 +51,7 @@ export async function pasteObjects(): Promise<void> {
 			continue
 		}
 		newIds.push(newId)
-		const { locked, collapsed, linkGroupId, ...rest } = c
+		const { locked: _locked, collapsed: _collapsed, linkGroupId: _linkGroupId, ...rest } = c
 		const copy: ObjectData = {
 			...rest,
 			id: newId,
