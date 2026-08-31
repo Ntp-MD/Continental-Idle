@@ -411,7 +411,7 @@ export async function flattenToSvgAsset(name?: string, walls?: readonly Selected
 		const objs = ids.map(id => floor.objects.find(o => o.id === id)).filter((object): object is ObjectData => !!object && object.type !== CANVAS_WALL_OBJECT_TYPE)
 		const selectedSegments = [
 			...wallObjs.flatMap(object => [object.x1, object.y1, object.x2, object.y2].every((value): value is number => typeof value === 'number')
-				? [{ x1: object.x1! * state.layout.canvas.tileSize, y1: object.y1! * state.layout.canvas.tileSize, x2: object.x2! * state.layout.canvas.tileSize, y2: object.y2! * state.layout.canvas.tileSize }]
+				? [{ x1: object.x1! * state.layout.canvas.tileSize, y1: object.y1! * state.layout.canvas.tileSize, x2: object.x2! * state.layout.canvas.tileSize, y2: object.y2! * state.layout.canvas.tileSize, door: object.door === true }]
 				: []),
 			...selectedWalls.filter(selection => !wallObjs.some(object => object.id === selection.objectId)).map(selection => selection.segment),
 		]
@@ -525,6 +525,7 @@ export async function flattenToSvgAsset(name?: string, walls?: readonly Selected
 				y1: (segment.y1 - minY) / t,
 				x2: (segment.x2 - minX) / t,
 				y2: (segment.y2 - minY) / t,
+				door: segment.door === true,
 			}))
 		}
 

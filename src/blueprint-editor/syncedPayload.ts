@@ -16,6 +16,7 @@ import type {
 	SyncedObject,
 } from './types'
 import {
+	CANVAS_WALL_OBJECT_TYPE,
 	normalizeAllowedRoleIds,
 	normalizeFloorWalkable,
 	normalizeInteractConfig,
@@ -113,6 +114,7 @@ function buildSyncedObject(o: ObjectData, assets: ReadonlyMap<string, AssetDef>,
 		obj.x2 = o.x2
 		obj.y2 = o.y2
 	}
+	if (o.door === true && o.isWall && o.type === CANVAS_WALL_OBJECT_TYPE) obj.door = true
 	if (interactSpots?.length) obj.interactSpots = interactSpots
 	if (interact) obj.interact = interact
 	if (queue) obj.queue = queue

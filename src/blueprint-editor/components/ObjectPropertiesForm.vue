@@ -1,49 +1,54 @@
 <script setup lang="ts">
-import { computed } from "vue";
-import { useAssetsStore } from "../blueprintStore";
-import { useToast } from "@/composables/useToast";
-import { useConfirm } from "@/composables/useConfirm";
-import { useClipboardCopy } from "../composables/useClipboardCopy";
-import { CANVAS_WALL_OBJECT_TYPE } from "../types";
-import type { ObjectData, AssetDef } from "../types";
+import { computed } from 'vue'
+import { useAssetsStore } from '../blueprintStore'
+import { useToast } from '@/composables/useToast'
+import { useConfirm } from '@/composables/useConfirm'
+import { useClipboardCopy } from '../composables/useClipboardCopy'
+import { CANVAS_WALL_OBJECT_TYPE } from '../types'
+import type { ObjectData, AssetDef } from '../types'
 
-const props = defineProps<{ object: ObjectData }>();
-const store = useAssetsStore();
-const { confirm } = useConfirm();
-const { copyId } = useClipboardCopy();
+const props = defineProps<{ object: ObjectData }>()
+const store = useAssetsStore()
+const { confirm } = useConfirm()
+const { copyId } = useClipboardCopy()
 
-const assetDef = computed<AssetDef | undefined>(() => store.assetMap().get(props.object.type));
-const isCanvasWall = computed(() => props.object.isWall && props.object.type === CANVAS_WALL_OBJECT_TYPE);
+const assetDef = computed<AssetDef | undefined>(() => store.assetMap().get(props.object.type))
+const isCanvasWall = computed(() => props.object.isWall && props.object.type === CANVAS_WALL_OBJECT_TYPE)
 
 async function rotate() {
-  await store.rotateSelected();
+  await store.rotateSelected()
 }
 
 async function remove() {
   const confirmed = await confirm({
-    title: "Delete object",
+    title: 'Delete object',
     message: `Delete object "${props.object.id}"? This action cannot be undone.`,
-    confirmLabel: "Delete",
-    cancelLabel: "Cancel",
+    confirmLabel: 'Delete',
+    cancelLabel: 'Cancel',
     danger: true,
-  });
-  if (!confirmed) return;
-  await store.deleteSelected();
+  })
+  if (!confirmed) return
+  await store.deleteSelected()
 }
 
 async function doUnlink() {
-  await store.unlinkObject(props.object.id);
-  useToast().info("Object unlinked");
+  await store.unlinkObject(props.object.id)
+  useToast().info('Object unlinked')
+}
+
+function deselect() {
+  store.select(null)
+  store.selectAsset(null)
 }
 </script>
 
 <template>
-  <div class="form__group">
-    <div class="form__group">
+  <div class="form__col">
+    <div class="form__col">
       <h3>Object</h3>
       <div class="form__row">
         <label>ID</label>
-        <div class="form__row">
+        <div class="form__group">
           <input type="text" :value="object.id" disabled class="input--disabled" title="Object ID" />
           <button @click="copyId(object.id)">Copy</button>
         </div>
@@ -62,14 +67,14 @@ async function doUnlink() {
       </div>
       <div v-else class="form__row">
         <label>Rotation</label>
-        <div class="form__row">
+        <div class="form__group">
           <span>{{ object.rotation }}deg</span>
           <button title="Rotate 90deg (R)" @click="rotate">Rotate</button>
         </div>
       </div>
     </div>
 
-    <div class="form__group">
+    <div class="form__col">
       <h3>Origin Asset</h3>
       <div class="form__row">
         <label>Name</label>
@@ -77,7 +82,7 @@ async function doUnlink() {
       </div>
       <div class="form__row">
         <label>Placed Label</label>
-        <span>{{ assetDef?.defaultLabel ?? assetDef?.name ?? "-" }}</span>
+        <span>{{ assetDef?.defaultLabel ?? assetDef?.name ?? '-' }}</span>
       </div>
       <div class="form__row">
         <label>Size</label>
@@ -85,11 +90,11 @@ async function doUnlink() {
       </div>
       <div class="form__row">
         <label>Fill Color</label>
-        <span>{{ object.fillColor ?? assetDef?.defaultFillColor ?? "-" }}</span>
+        <span>{{ object.fillColor ?? assetDef?.defaultFillColor ?? '-' }}</span>
       </div>
       <div class="form__row">
         <label>Stroke Color</label>
-        <span>{{ object.strokeColor ?? assetDef?.defaultStrokeColor ?? "-" }}</span>
+        <span>{{ object.strokeColor ?? assetDef?.defaultStrokeColor ?? '-' }}</span>
       </div>
       <div class="form__row">
         <label>Label Color</label>
@@ -97,7 +102,7 @@ async function doUnlink() {
       </div>
       <div class="form__row">
         <label>Passable</label>
-        <span>{{ (assetDef?.walkable ?? false) ? "ON" : "OFF" }}</span>
+        <span>{{ (assetDef?.walkable ?? false) ? 'ON' : 'OFF' }}</span>
       </div>
       <div class="form__row">
         <label>Door</label>
@@ -110,14 +115,7 @@ async function doUnlink() {
       <button v-if="object.linkGroupId" @click="doUnlink">Unlink</button>
     </div>
     <div class="form__row">
-      <button
-        @click="
-          store.select(null);
-          store.selectAsset(null);
-        "
-      >
-        Deselect
-      </button>
+      <button @click="deselect">Deselect</button>
       <button class="flag--danger" @click="remove">Delete</button>
     </div>
   </div>

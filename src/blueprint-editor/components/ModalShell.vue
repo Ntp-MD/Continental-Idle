@@ -1,73 +1,88 @@
 <script setup lang="ts">
-import { computed, ref, watch, onUnmounted } from "vue";
-import { useFocusTrap } from "../../composables/useFocusTrap";
-import { useDraggable } from "../composables/useDraggable";
+import { computed, ref, watch, onUnmounted } from 'vue'
+import { useFocusTrap } from '../../composables/useFocusTrap'
+import { useDraggable } from '../composables/useDraggable'
 
 const props = withDefaults(
   defineProps<{
-    open: boolean;
-    title: string;
-    dialogClass?: string;
-    maxWidth?: string;
-    width?: string;
-    height?: string;
-    maxHeight?: string;
-    floating?: boolean;
+    open: boolean
+    title: string
+    maxWidth?: string
+    width?: string
+    height?: string
+    maxHeight?: string
+    floating?: boolean
+    bodyClass?: string
   }>(),
   {
-    dialogClass: "",
     maxWidth: undefined,
     width: undefined,
     height: undefined,
     maxHeight: undefined,
     floating: false,
+    bodyClass: undefined,
   },
-);
+)
 
-const emit = defineEmits<{ (e: "close"): void }>();
+const emit = defineEmits<{ (e: 'close'): void }>()
 
-const containerRef = ref<HTMLElement>();
-const isOpen = computed(() => props.open);
-useFocusTrap(isOpen, containerRef);
+const containerRef = ref<HTMLElement>()
+const isOpen = computed(() => props.open)
+useFocusTrap(isOpen, containerRef)
 
-const { pos, isDragging, onDown, reset } = useDraggable(containerRef);
+const { pos, isDragging, onDown, reset } = useDraggable(containerRef)
 
-const titleId = computed(() => `modal-shell-title-${Math.random().toString(36).slice(2, 9)}`);
+const titleId = computed(() => `modal-shell-title-${Math.random().toString(36).slice(2, 9)}`)
 
 function onClose() {
-  emit("close");
+  emit('close')
 }
 
 function onEscape(e: KeyboardEvent) {
-  if (e.key === "Escape") {
-    e.stopPropagation();
-    onClose();
+  if (e.key === 'Escape') {
+    e.stopPropagation()
+    onClose()
   }
 }
 
 watch(isOpen, (open) => {
   if (open) {
-    reset();
-    window.addEventListener("keydown", onEscape, true);
+    reset()
+    window.addEventListener('keydown', onEscape, true)
   } else {
-    window.removeEventListener("keydown", onEscape, true);
+    window.removeEventListener('keydown', onEscape, true)
   }
-});
+})
 
 onUnmounted(() => {
-  window.removeEventListener("keydown", onEscape, true);
-});
+  window.removeEventListener('keydown', onEscape, true)
+})
 </script>
 
 <template>
   <Teleport to="body">
-    <div v-if="open" class="modal__overlay" :class="{ 'modal__overlay--floating': floating }" @click.self="!floating && onClose()">
-      <div ref="containerRef" class="modal__dialog" :class="{ 'modal__dialog--dragging': isDragging, [dialogClass]: !!dialogClass }" :style="{ maxWidth, width, height, maxHeight, transform: `translate(${pos.x}px, ${pos.y}px)` }" role="dialog" :aria-modal="!floating" :aria-labelledby="titleId">
+    <div
+      v-if="open"
+      class="modal__overlay"
+      :class="{ 'modal__overlay--floating': floating }"
+      @click.self="!floating && onClose()"
+    >
+      <div
+        ref="containerRef"
+        class="modal"
+        :class="{ 'modal--dragging': isDragging }"
+        :style="{ maxWidth, width, height, maxHeight, transform: `translate(${pos.x}px, ${pos.y}px)` }"
+        role="dialog"
+        :aria-modal="!floating"
+        :aria-labelledby="titleId"
+      >
         <div class="modal__header" @mousedown="onDown">
           <span :id="titleId" class="modal__title">{{ title }}</span>
-          <button class="flag--ghost" aria-label="Close" @click="onClose">x</button>
+          <button class="modal__close" aria-label="Close" @click="onClose">x</button>
         </div>
-        <slot />
+        <div class="modal__body" :class="bodyClass">
+          <slot />
+        </div>
       </div>
     </div>
   </Teleport>

@@ -23,7 +23,7 @@ export function normalizeObject(
 	assetLookup: AssetDef[] | Map<string, AssetDef>,
 ): void {
 	if (o.isWall && o.type === CANVAS_WALL_OBJECT_TYPE) {
-		const segment = normalizeWallSegment({ x1: o.x1, y1: o.y1, x2: o.x2, y2: o.y2 })
+		const segment = normalizeWallSegment({ x1: o.x1, y1: o.y1, x2: o.x2, y2: o.y2, door: o.door })
 		if (!segment) return
 		o.x1 = segment.x1
 		o.y1 = segment.y1
@@ -35,6 +35,7 @@ export function normalizeObject(
 		o.w = rect.w
 		o.h = rect.h
 		o.rotation = 0
+		o.door = segment.door === true
 		return
 	}
 	o.x = Math.round(o.x / tileSize) * tileSize

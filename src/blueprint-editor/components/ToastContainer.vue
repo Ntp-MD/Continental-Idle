@@ -20,7 +20,7 @@ const classMap: Record<string, string> = {
 
 <template>
   <Teleport to="body">
-    <div class="toast__container" aria-live="polite">
+    <div class="toasts" aria-live="polite">
       <div v-for="t in toasts" :key="t.id" class="toast" :class="classMap[t.type]">
         <span class="toast__icon">{{ icons[t.type] }}</span>
         <span class="toast__msg">{{ t.message }}</span>

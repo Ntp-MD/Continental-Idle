@@ -16,6 +16,7 @@ import {
 import type { AssetDef, FloorData, NpcRole, NpcSimDot, NpcSimulationConfig } from '@/blueprint-editor/types'
 import { isNpcConfig } from '@/blueprint-editor/types'
 import { mergeNpcConfig } from '@/blueprint-editor/store/npcDefault'
+import { editorLog } from '@/blueprint-editor/store/storeUtils'
 
 const MAX_ROLE_SPAWN_COUNT = 100
 
@@ -132,22 +133,25 @@ export function useNpcSimulationCore(host: NpcSimulationCoreHost) {
 		npcs.value = []
 		const occupiedSpawnKeys = new Set<string>()
 		let spawnCursor = 0
+		const skipped = new Map<string, number>()
+		const skip = (reason: string, count: number) => { skipped.set(reason, (skipped.get(reason) ?? 0) + count) }
+		let spawned = 0
 
 		for (const entry of config.value.pool) {
-			const role = resolveRole(config.value, entry.roleId)
-			if (!role) continue
 			const count = Math.max(0, Math.min(MAX_ROLE_SPAWN_COUNT, Math.floor(entry.count || 0)))
+			const role = resolveRole(config.value, entry.roleId)
+			if (!role) { skip('unknown-role', count * floors.length); continue }
 			for (const floor of floors) {
-				if (spawnFloorOverride && floor.id !== spawnFloorOverride) continue
+				if (spawnFloorOverride && floor.id !== spawnFloorOverride) { skip('floor-override', count); continue }
 				const allowedFloorIds = entry.floorIds ?? []
-				if (allowedFloorIds.length > 0 && !allowedFloorIds.includes(floor.id)) continue
-				if (!isRoleAllowedOnFloor(role.id, floor.id)) continue
-				if (!floorMatchesTargetTags(floor, role.spawnRule?.targetTags ?? [], getAssetTagsSafe())) continue
+				if (allowedFloorIds.length > 0 && !allowedFloorIds.includes(floor.id)) { skip('floor-id-filter', count); continue }
+				if (!isRoleAllowedOnFloor(role.id, floor.id)) { skip('role-floor-restriction', count); continue }
+				if (!floorMatchesTargetTags(floor, role.spawnRule?.targetTags ?? [], getAssetTagsSafe())) { skip('target-tags', count); continue }
 				const map = floorMaps.get(floor.id)
-				if (!map) continue
+				if (!map) { skip('no-floor-map', count); continue }
 				const roleMap = buildRoleWalkableMap(map, floor, role, getAssetTagsSafe())
 				const keys = [...filterNpcSpawnTiles(roleMap, floor, role.id)]
-				if (!keys.length) continue
+				if (!keys.length) { skip('no-spawn-cells', count); continue }
 				const centerX = canvas.w / 2 / map.cellSize
 				const centerY = canvas.h / 2 / map.cellSize
 				keys.sort((a, b) => {
@@ -163,16 +167,21 @@ export function useNpcSimulationCore(host: NpcSimulationCoreHost) {
 						spawnIndex = (spawnIndex + 1) % keys.length
 						attempts++
 					}
-					if (attempts >= keys.length) break
+					if (attempts >= keys.length) { skip('occupied-cells', count - i); break }
 					const spawnKey = keys[spawnIndex]
 					occupiedSpawnKeys.add(`${floor.id}:${spawnKey}`)
 					const [x, y] = spawnKey.split(',').map(Number)
 					const id = `${host.idPrefix}${nextId++}`
 					const speed = Math.max(0.01, config.value.speed || 1 / 30) + (Math.random() - 0.5) * 0.02
 					engine.addAgent({ id, roleId: role.id, floorId: floor.id, x, y, targetX: x, targetY: y, speed: speed * NPC_ENGINE_TICKS_PER_SECOND / map.cellSize })
+					spawned++
 				}
 				spawnCursor = (spawnCursor + count) % keys.length
 			}
+		}
+		const attempted = spawned + [...skipped.values()].reduce((a, b) => a + b, 0)
+		if (attempted > 0 || skipped.size > 0) {
+			editorLog.info('NpcSpawn', { attempted, spawned, skipped: Object.fromEntries(skipped) })
 		}
 	}
 

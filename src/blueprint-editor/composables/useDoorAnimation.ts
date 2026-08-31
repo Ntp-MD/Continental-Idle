@@ -56,6 +56,7 @@ export function useDoorAnimation(host: DoorAnimationHost) {
 
 		const passageEvents = host.getDoorPassageEvents?.()
 		if (passageEvents && passageEvents.length) {
+			let maxTick = lastConsumedEventTick
 			for (const evt of passageEvents) {
 				if (evt.type !== 'door-passage' || evt.tick <= lastConsumedEventTick) continue
 				if (!evt.doorEdge) continue
@@ -65,8 +66,9 @@ export function useDoorAnimation(host: DoorAnimationHost) {
 				if (!state) { state = { progress: 0, target: 0, lastNearby: 0 }; states.set(panel.key, state) }
 				state.target = 1
 				state.lastNearby = now
-				lastConsumedEventTick = evt.tick
+				maxTick = Math.max(maxTick, evt.tick)
 			}
+			lastConsumedEventTick = maxTick
 		}
 
 		for (const door of doors) {

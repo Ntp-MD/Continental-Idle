@@ -1,5 +1,5 @@
 import { isValidColor } from './types'
-import { assetPixelSize } from './types'
+import { assetPixelSize, CANVAS_WALL_OBJECT_TYPE } from './types'
 import type { WallSegment } from './types'
 import type { AssetDef, FloorData, FloorLayoutData, NpcSimulationConfig, ObjectPlacement, SvgRole, SvgRoleInfo, WalkableGrid, TileState } from './types'
 
@@ -273,6 +273,7 @@ export function serializeObject(obj: ObjectPlacement): ObjectPlacement {
 
 	if (obj.locked !== undefined) out.locked = obj.locked
 	if (obj.isWall !== undefined) out.isWall = obj.isWall
+	if (obj.door === true && obj.isWall && obj.type === CANVAS_WALL_OBJECT_TYPE) out.door = true
 	for (const key of ['x1', 'y1', 'x2', 'y2'] as const) {
 		const value = obj[key]
 		if (typeof value === 'number' && Number.isFinite(value)) out[key] = value

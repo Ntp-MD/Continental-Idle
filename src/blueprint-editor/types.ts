@@ -75,7 +75,7 @@ const MAX_ASSETS = 1000
 const MAX_FLOORS = 100
 const MAX_OBJECTS_PER_FLOOR = 10_000
 const MAX_NPC_ENTRIES = 1000
-const SAFE_SVG_TAGS = new Set(['svg', 'g', 'path', 'rect', 'circle', 'ellipse', 'line', 'polygon', 'polyline', 'text', 'tspan'])
+export const SAFE_SVG_TAGS = new Set(['svg', 'g', 'path', 'rect', 'circle', 'ellipse', 'line', 'polygon', 'polyline', 'text', 'tspan'])
 
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return !!value && typeof value === 'object' && !Array.isArray(value)
@@ -480,6 +480,7 @@ export function normalizeObjectPlacement(value: unknown): ObjectPlacement | unde
 	if (linkGroupId) placement.linkGroupId = linkGroupId
 	if (typeof record.locked === 'boolean') placement.locked = record.locked
 	if (typeof record.isWall === 'boolean') placement.isWall = record.isWall
+	if (record.door === true && placement.isWall && type === CANVAS_WALL_OBJECT_TYPE) placement.door = true
 	for (const key of ['x1', 'y1', 'x2', 'y2'] as const) {
 		const value = record[key]
 		if (isFiniteNumber(value)) placement[key] = value
@@ -1139,6 +1140,7 @@ export interface SyncedObject {
 	h: number
 	rotation: Rotation
 	isWall?: boolean
+	door?: boolean
 	x1?: number
 	y1?: number
 	x2?: number
@@ -1218,7 +1220,7 @@ export function isHexColor(c: string | undefined): c is string {
 export function isValidColor(c: string | undefined): boolean {
 	if (!c) return true
 	if (c === 'transparent') return true
-	return isHexColor(c)
+	return SVG_COLOR_VALUE_RE.test(c)
 }
 
 function isValidTagTriggerRates(value: unknown): boolean {
