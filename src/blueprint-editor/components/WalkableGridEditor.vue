@@ -6,21 +6,10 @@ import { useConfirm } from '@/composables/useConfirm'
 import { assetSvgVarStyle, assetFallbackShapeSvg, assetPreviewViewBox } from '../assetUtils'
 import { useCanvasDefaults } from '../composables/useCanvasDefaults'
 import { useSvgPreview } from '../composables/useSvgPreview'
+import { useDirtyBaseline } from '../composables/useDirtyBaseline'
+import { wallSegmentsToEdges, edgesToWallSegments, type TileEdges, type BorderSide } from '../gridEditing'
 import type { AssetDef, TileState, InteractSpot } from '../types'
 import { normalizeInteractConfig, normalizeNpcQueueConfig, resolveInteractForTarget } from '../types'
-
-type TileEdges = {
-  top?: boolean
-  right?: boolean
-  bottom?: boolean
-  left?: boolean
-  doorTop?: boolean
-  doorRight?: boolean
-  doorBottom?: boolean
-  doorLeft?: boolean
-}
-
-type BorderSide = 'top' | 'right' | 'bottom' | 'left'
 
 export type GridTab = 'walk' | 'door' | 'interactspots'
 
@@ -29,18 +18,11 @@ const props = defineProps<{ asset?: AssetDef; active: boolean; activeTab?: GridT
 const store = useAssetsStore()
 const confirm = useConfirm().confirm
 
-const gridAsset = computed(() => props.asset)
-
 const gridTiles = ref<TileState[][]>([])
 const gridEdges = ref<TileEdges[][]>([])
 const walkBrush = ref<TileState>('walkable')
 const doorBrush = ref<'door' | 'border'>('door')
 const isDraggingGrid = ref(false)
-const gridDirty = ref(false)
-const savedGridKey = ref('')
-const savedInteractSpotsKey = ref('')
-const savedInteractKey = ref('')
-const savedQueueKey = ref('')
 const previousGridAssetId = ref<string | null>(null)
 const isRestoring = ref(false)
 
@@ -57,34 +39,20 @@ const gridCols = computed(() => gridTiles.value[0]?.length ?? 0)
 
 const { canvasTileSize, editorSettings } = useCanvasDefaults()
 
-function gridKey(): string {
-  return gridTiles.value.map((row) => row.join(',')).join('|') + '#' + JSON.stringify(gridEdges.value)
-}
+const { dirty: gridDirty, saveBaseline: saveGridBaseline } = useDirtyBaseline(() => ({
+  grid: gridTiles.value,
+  edges: gridEdges.value,
+  interactSpots: gridInteractSpots.value,
+  capacity: interactCapacity.value,
+  durationMin: interactDurationMin.value,
+  durationMax: interactDurationMax.value,
+  maxMembers: queueMaxMembers.value,
+  admissionDepth: queueAdmissionDepth.value,
+}))
 
-function interactSpotsKey(): string {
-  return JSON.stringify(gridInteractSpots.value)
-}
-
-function interactKey(): string {
-  return JSON.stringify({
-    capacity: interactCapacity.value,
-    durationMin: interactDurationMin.value,
-    durationMax: interactDurationMax.value,
-  })
-}
-
-function queueKey(): string {
-  return JSON.stringify({ maxMembers: queueMaxMembers.value, admissionDepth: queueAdmissionDepth.value })
-}
-
-function checkGridDirty() {
-  gridDirty.value =
-    gridKey() !== savedGridKey.value ||
-    interactSpotsKey() !== savedInteractSpotsKey.value ||
-    interactKey() !== savedInteractKey.value ||
-    queueKey() !== savedQueueKey.value
-  if (gridDirty.value) scheduleAutoSave()
-}
+watch(gridDirty, (dirty) => {
+  if (dirty) scheduleAutoSave()
+})
 
 let autoSaveTimer: number | null = null
 const AUTO_SAVE_DELAY_MS = 300
@@ -105,9 +73,9 @@ function flushAutoSave() {
 }
 
 const tilePx = computed(() => {
-  if (!gridAsset.value) return 30
-  const cols = gridAsset.value.w
-  const rows = gridAsset.value.h
+  if (!props.asset) return 30
+  const cols = props.asset.w
+  const rows = props.asset.h
   const maxByWidth = Math.floor(editorSettings.value.walkableGridMaxWidthPx / Math.max(1, cols))
   const maxByHeight = Math.floor(editorSettings.value.walkableGridMaxHeightPx / Math.max(1, rows))
   return Math.max(
@@ -117,21 +85,22 @@ const tilePx = computed(() => {
 })
 
 const svgPreviewViewBox = computed(() => {
-  const a = gridAsset.value
+  const a = props.asset
   if (!a) return ''
   return assetPreviewViewBox(a, canvasTileSize.value)
 })
 
 const previewSvg = computed(
   () =>
-    gridAsset.value?.svg?.replace(/var\(--border-dim\)/g, '#fff') ??
-    (gridAsset.value ? assetFallbackShapeSvg(gridAsset.value, canvasTileSize.value) : ''),
+    props.asset?.svg?.replace(/var\(--border-dim\)/g, '#fff') ??
+    (props.asset ? assetFallbackShapeSvg(props.asset, canvasTileSize.value) : ''),
 )
-const previewVars = computed(() => assetSvgVarStyle(gridAsset.value))
+const previewVars = computed(() => assetSvgVarStyle(props.asset))
 
-const { svgEl: previewSvgEl, render: renderPreview } = useSvgPreview(previewSvg)
+const previewSvgEl = ref<SVGSVGElement | null>(null)
+const { render: renderPreview } = useSvgPreview(previewSvg, previewSvgEl)
 
-watch([() => props.active, () => gridAsset.value?.id], ([visible]) => {
+watch([() => props.active, () => props.asset?.id], ([visible]) => {
   if (visible) nextTick(renderPreview)
 })
 
@@ -143,9 +112,9 @@ watch(
 )
 
 watch(walkthrough, async (v) => {
-  if (syncingWalkthrough || !gridAsset.value) return
+  if (syncingWalkthrough || !props.asset) return
   try {
-    await store.updateAsset(gridAsset.value.id, { walkable: v })
+    await store.updateAsset(props.asset.id, { walkable: v })
   } catch {
     walkthrough.value = !v
     useToast().error('Failed to toggle walkthrough mode')
@@ -153,13 +122,13 @@ watch(walkthrough, async (v) => {
 })
 
 const assetSignature = computed(() => ({
-  id: gridAsset.value?.id,
-  w: gridAsset.value?.w,
-  h: gridAsset.value?.h,
-  tileStates: gridAsset.value?.tileStates,
-  wallSegments: gridAsset.value?.wallSegments,
-  interactSpots: gridAsset.value?.interactSpots,
-  interact: gridAsset.value?.interact,
+  id: props.asset?.id,
+  w: props.asset?.w,
+  h: props.asset?.h,
+  tileStates: props.asset?.tileStates,
+  wallSegments: props.asset?.wallSegments,
+  interactSpots: props.asset?.interactSpots,
+  interact: props.asset?.interact,
 }))
 
 watch(
@@ -187,104 +156,32 @@ watch(
       }
     }
 
-    if (gridAsset.value) {
-      initGridTiles(gridAsset.value)
-      gridInteractSpots.value = gridAsset.value.interactSpots
-        ? gridAsset.value.interactSpots.map((p) => ({ ...p }))
-        : []
-      const resolved = resolveInteractForTarget(gridAsset.value.interact, gridInteractSpots.value.length)
+    if (props.asset) {
+      initGridTiles(props.asset)
+      gridInteractSpots.value = props.asset.interactSpots ? props.asset.interactSpots.map((p) => ({ ...p })) : []
+      const resolved = resolveInteractForTarget(props.asset.interact, gridInteractSpots.value.length)
       interactCapacity.value = resolved.capacity
       interactDurationMin.value = resolved.durationMinSeconds
       interactDurationMax.value = resolved.durationMaxSeconds
-      queueMaxMembers.value = gridAsset.value.queue?.maxMembers ?? 3
-      queueAdmissionDepth.value = gridAsset.value.queue?.admissionDepth ?? 4
+      queueMaxMembers.value = props.asset.queue?.maxMembers ?? 3
+      queueAdmissionDepth.value = props.asset.queue?.admissionDepth ?? 4
       syncingWalkthrough = true
-      walkthrough.value = gridAsset.value.walkable ?? false
+      walkthrough.value = props.asset.walkable ?? false
       nextTick(() => {
         syncingWalkthrough = false
       })
-      savedGridKey.value = gridKey()
-      savedInteractSpotsKey.value = interactSpotsKey()
-      savedInteractKey.value = interactKey()
-      savedQueueKey.value = queueKey()
-      gridDirty.value = false
-      previousGridAssetId.value = gridAsset.value.id
+      saveGridBaseline()
+      previousGridAssetId.value = props.asset.id
     } else {
       gridTiles.value = []
       gridEdges.value = []
       gridInteractSpots.value = []
-      savedGridKey.value = ''
-      savedInteractSpotsKey.value = ''
-      savedInteractKey.value = ''
-      savedQueueKey.value = ''
-      gridDirty.value = false
+      saveGridBaseline()
       previousGridAssetId.value = null
     }
   },
   { immediate: true },
 )
-
-function wallSegmentsToEdges(segments: AssetDef['wallSegments'], rows: number, cols: number): TileEdges[][] {
-  const edges = Array.from({ length: rows }, () => Array.from({ length: cols }, () => ({}) as TileEdges))
-  for (const segment of segments ?? []) {
-    const isDoor = segment.door === true
-    if (segment.y1 === segment.y2) {
-      const boundary = Math.round(segment.y1)
-      const start = Math.round(Math.min(segment.x1, segment.x2))
-      const end = Math.max(start + 1, Math.round(Math.max(segment.x1, segment.x2)))
-      for (let col = start; col < end; col++) {
-        if (boundary >= 0 && boundary < rows && col >= 0 && col < cols) {
-          edges[boundary][col].top = true
-          if (isDoor) edges[boundary][col].doorTop = true
-        }
-        if (boundary - 1 >= 0 && boundary - 1 < rows && col >= 0 && col < cols) {
-          edges[boundary - 1][col].bottom = true
-          if (isDoor) edges[boundary - 1][col].doorBottom = true
-        }
-      }
-    } else {
-      const boundary = Math.round(segment.x1)
-      const start = Math.round(Math.min(segment.y1, segment.y2))
-      const end = Math.max(start + 1, Math.round(Math.max(segment.y1, segment.y2)))
-      for (let row = start; row < end; row++) {
-        if (row >= 0 && row < rows && boundary >= 0 && boundary < cols) {
-          edges[row][boundary].left = true
-          if (isDoor) edges[row][boundary].doorLeft = true
-        }
-        if (row >= 0 && row < rows && boundary - 1 >= 0 && boundary - 1 < cols) {
-          edges[row][boundary - 1].right = true
-          if (isDoor) edges[row][boundary - 1].doorRight = true
-        }
-      }
-    }
-  }
-  return edges
-}
-
-function edgesToWallSegments(edges: TileEdges[][]): NonNullable<AssetDef['wallSegments']> {
-  const segments: NonNullable<AssetDef['wallSegments']> = []
-  const seen = new Map<string, number>()
-  const add = (segment: { x1: number; y1: number; x2: number; y2: number }, door: boolean) => {
-    const key = `${segment.x1},${segment.y1},${segment.x2},${segment.y2}`
-    const idx = seen.get(key)
-    if (idx !== undefined) {
-      if (door) segments[idx].door = true
-      return
-    }
-    seen.set(key, segments.length)
-    segments.push(door ? { ...segment, door: true } : segment)
-  }
-  for (let row = 0; row < edges.length; row++) {
-    for (let col = 0; col < (edges[row]?.length ?? 0); col++) {
-      const edge = edges[row][col]
-      if (edge.top) add({ x1: col, y1: row, x2: col + 1, y2: row }, !!edge.doorTop)
-      if (edge.bottom) add({ x1: col, y1: row + 1, x2: col + 1, y2: row + 1 }, !!edge.doorBottom)
-      if (edge.left) add({ x1: col, y1: row, x2: col, y2: row + 1 }, !!edge.doorLeft)
-      if (edge.right) add({ x1: col + 1, y1: row, x2: col + 1, y2: row + 1 }, !!edge.doorRight)
-    }
-  }
-  return segments
-}
 
 function initGridTiles(a: AssetDef) {
   const rows = Math.max(1, a.h)
@@ -328,7 +225,6 @@ function paintTile(r: number, c: number, brush: TileState) {
   if (!gridTiles.value[r]) return
   gridTiles.value[r][c] = brush
   if (brush === 'blocked') removeInteractSpotsOnTile(r, c)
-  checkGridDirty()
 }
 
 function computeInteractSpotPx(r: number, c: number): [number, number] {
@@ -370,26 +266,28 @@ function toggleInteractSpotAt(r: number, c: number) {
   const idx = interactSpotIndexAtPx(x, y)
   if (idx >= 0) gridInteractSpots.value.splice(idx, 1)
   else gridInteractSpots.value.push({ x, y })
-  checkGridDirty()
 }
 
 function clearAllInteractSpots() {
   gridInteractSpots.value = []
-  checkGridDirty()
 }
 
 function fillAllInteractSpots() {
-  const spots: InteractSpot[] = []
+  const existing = new Set(gridInteractSpots.value.map((spot) => `${spot.x},${spot.y}`))
+  const spots: InteractSpot[] = [...gridInteractSpots.value]
   for (let r = 0; r < gridTiles.value.length; r++) {
     for (let c = 0; c < gridTiles.value[r].length; c++) {
       if (gridTiles.value[r][c] === 'walkable') {
         const [x, y] = computeInteractSpotPx(r, c)
-        if (interactSpotIndexAtPx(x, y) < 0) spots.push({ x, y })
+        const key = `${x},${y}`
+        if (!existing.has(key)) {
+          spots.push({ x, y })
+          existing.add(key)
+        }
       }
     }
   }
   gridInteractSpots.value = spots
-  checkGridDirty()
 }
 
 function detectEdgeSide(e: MouseEvent): BorderSide | null {
@@ -415,7 +313,6 @@ function toggleEdgeAt(r: number, c: number, side: BorderSide) {
   const e = gridEdges.value[r]?.[c]
   if (!e) return
   e[side] = !e[side]
-  checkGridDirty()
 }
 
 function onWalkTileDown(r: number, c: number) {
@@ -436,7 +333,6 @@ function onDoorTileDown(r: number, c: number, e: MouseEvent) {
     return
   }
   toggleDoorAt(r, c, side)
-  checkGridDirty()
 }
 
 function toggleDoorAt(r: number, c: number, side: BorderSide) {
@@ -456,6 +352,13 @@ function onInteractSpotTileDown(r: number, c: number) {
   toggleInteractSpotAt(r, c)
 }
 
+function onTileActivate(r: number, c: number, e: MouseEvent) {
+  if (e.detail > 0) return
+  const key = activeGridConfig.value.key
+  if (key === 'walk') paintTile(r, c, walkBrush.value)
+  else if (key === 'interactspots') toggleInteractSpotAt(r, c)
+}
+
 function onDragEnd() {
   isDraggingGrid.value = false
 }
@@ -465,20 +368,17 @@ function fillAllTiles(state: TileState) {
     for (let i = 0; i < row.length; i++) row[i] = state
   }
   if (state === 'blocked') removeInteractSpotsOnBlockedTiles()
-  checkGridDirty()
 }
 
 function fillGridRow(r: number) {
   if (!gridTiles.value[r]) return
   for (let i = 0; i < gridTiles.value[r].length; i++) gridTiles.value[r][i] = walkBrush.value
-  checkGridDirty()
 }
 
 function fillGridCol(c: number) {
   for (let r = 0; r < gridTiles.value.length; r++) {
     if (gridTiles.value[r]) gridTiles.value[r][c] = walkBrush.value
   }
-  checkGridDirty()
 }
 
 function blockOuterSides() {
@@ -495,7 +395,18 @@ function blockOuterSides() {
       if (c === cols - 1) e.right = true
     }
   }
-  checkGridDirty()
+}
+
+async function fillAllTilesBlocked() {
+  const confirmed = await confirm({
+    title: 'Block all tiles',
+    message: 'Set every tile to blocked? Interact spots on blocked tiles will be removed.',
+    confirmLabel: 'Block All',
+    cancelLabel: 'Cancel',
+    danger: true,
+  })
+  if (!confirmed) return
+  fillAllTiles('blocked')
 }
 
 function clearAllEdges() {
@@ -509,7 +420,18 @@ function clearAllEdges() {
       }
     }
   }
-  checkGridDirty()
+}
+
+async function clearAllEdgesConfirmed() {
+  const confirmed = await confirm({
+    title: 'Clear edges',
+    message: 'Remove all wall edges on this grid? This cannot be undone.',
+    confirmLabel: 'Clear',
+    cancelLabel: 'Cancel',
+    danger: true,
+  })
+  if (!confirmed) return
+  clearAllEdges()
 }
 
 function clearAllDoors() {
@@ -522,7 +444,6 @@ function clearAllDoors() {
       delete e.doorLeft
     }
   }
-  checkGridDirty()
 }
 
 function walkTileBg(state: TileState): string {
@@ -592,7 +513,7 @@ const gridConfigs = computed<GridConfig[]>(() => [
     onTileEnter: (r, c) => onWalkTileEnter(r, c),
     actions: [
       { label: 'All Walk', onClick: () => fillAllTiles('walkable') },
-      { label: 'All Block', onClick: () => fillAllTiles('blocked') },
+      { label: 'All Block', onClick: () => void fillAllTilesBlocked() },
     ],
     overlay: 'none',
     showColFill: true,
@@ -612,7 +533,7 @@ const gridConfigs = computed<GridConfig[]>(() => [
     actions: [
       { label: 'Outer Walls', onClick: blockOuterSides },
       { label: 'Clear Doors', onClick: clearAllDoors },
-      { label: 'Clear Edges', onClick: clearAllEdges },
+      { label: 'Clear Edges', onClick: () => void clearAllEdgesConfirmed() },
     ],
     overlay: 'edges',
     showColFill: false,
@@ -640,7 +561,7 @@ const activeGridConfig = computed(
 )
 
 async function saveGrid() {
-  const a = gridAsset.value
+  const a = props.asset
   if (!a) return
   const states = gridTiles.value.map((row) => [...row])
   const grid = states.map((row) => row.map((t) => t === 'walkable'))
@@ -664,11 +585,7 @@ async function saveGrid() {
     interact,
     queue,
   })
-  savedGridKey.value = gridKey()
-  savedInteractSpotsKey.value = interactSpotsKey()
-  savedInteractKey.value = interactKey()
-  savedQueueKey.value = queueKey()
-  gridDirty.value = false
+  saveGridBaseline()
   useToast().success('Walkable grid saved')
 }
 
@@ -679,14 +596,14 @@ onBeforeUnmount(() => {
 
 <template>
   <div
-    class="modal__body"
+    class="form__col"
     :style="{ '--tile-size': tilePx + 'px' }"
     @mouseup="onDragEnd"
     @mouseleave="onDragEnd"
     @wheel.stop
   >
     <div class="form__row">
-      <span class="form__hint">{{ gridAsset?.name ?? '' }} - {{ gridCols }}x{{ gridTiles.length }} tiles</span>
+      <span class="form__hint">{{ asset?.name ?? '' }} - {{ gridCols }}x{{ gridTiles.length }} tiles</span>
       <div class="walkablegrid__passable">
         <label>Passable</label>
         <button
@@ -720,38 +637,17 @@ onBeforeUnmount(() => {
         </div>
         <div class="walkablegrid__legend">
           <span class="walkablegrid__item"
-            ><span
-              class="walkablegrid__dot"
-              :style="{
-                background: 'color-mix(in srgb, var(--accent-green) 30%, transparent)',
-                border: '1px solid var(--accent-green)',
-              }"
-            ></span
-            >Walkable</span
+            ><span class="walkablegrid__dot walkablegrid__dot--walkable"></span>Walkable</span
           >
           <span class="walkablegrid__item"
-            ><span
-              class="walkablegrid__dot"
-              :style="{
-                background: 'color-mix(in srgb, var(--accent-red) 30%, transparent)',
-                border: '1px solid var(--accent-red)',
-              }"
-            ></span
-            >Blocked</span
+            ><span class="walkablegrid__dot walkablegrid__dot--blocked"></span>Blocked</span
           >
           <span class="walkablegrid__item"
-            ><span
-              class="walkablegrid__dot walkablegrid__dot--edge"
-              :style="{ background: 'var(--accent-gold)' }"
-            ></span
-            >Wall edge</span
+            ><span class="walkablegrid__dot walkablegrid__dot--edge"></span>Wall edge</span
           >
           <span class="walkablegrid__item"
-            ><span
-              class="walkablegrid__dot walkablegrid__dot--edge"
-              :style="{ background: 'var(--accent-blue)' }"
-            ></span
-            >Door (door edge)</span
+            ><span class="walkablegrid__dot walkablegrid__dot--edge walkablegrid__dot--door"></span>Door (door
+            edge)</span
           >
         </div>
         <div v-if="activeGridConfig?.key === 'interactspots'" class="form__row form__row--border">
@@ -759,22 +655,22 @@ onBeforeUnmount(() => {
             >Capacity
             <input
               v-model.number="interactCapacity"
+              class="size--fit"
               type="number"
               min="0"
               :placeholder="String(gridInteractSpots.length)"
-              @input="checkGridDirty"
           /></label>
           <label class="form__group"
-            >Min <input v-model.number="interactDurationMin" type="number" min="0" step="0.1" @input="checkGridDirty"
+            >Min <input v-model.number="interactDurationMin" class="size--fit" type="number" min="0" step="0.1"
           /></label>
           <label class="form__group"
-            >Max <input v-model.number="interactDurationMax" type="number" min="0" step="0.1" @input="checkGridDirty"
+            >Max <input v-model.number="interactDurationMax" class="size--fit" type="number" min="0" step="0.1"
           /></label>
           <label class="form__group"
-            >Queue <input v-model.number="queueMaxMembers" type="number" min="1" max="100" @input="checkGridDirty"
+            >Queue <input v-model.number="queueMaxMembers" class="size--fit" type="number" min="1" max="100"
           /></label>
           <label class="form__group"
-            >Admit <input v-model.number="queueAdmissionDepth" type="number" min="1" max="20" @input="checkGridDirty"
+            >Admit <input v-model.number="queueAdmissionDepth" class="size--fit" type="number" min="1" max="20"
           /></label>
           <span class="form__hint"
             >Capacity 0 = one NPC per interactspot. Duration is random between Min and Max seconds.</span
@@ -789,15 +685,23 @@ onBeforeUnmount(() => {
               v-for="c in gridCols"
               :key="'col' + c"
               class="walkablegrid__col"
+              role="button"
+              tabindex="0"
+              :aria-label="'Fill column ' + c"
               :title="activeGridConfig.showColFill ? 'Fill column ' + c : undefined"
               @click="activeGridConfig.showColFill && fillGridCol(c - 1)"
+              @keydown.enter.prevent="activeGridConfig.showColFill && fillGridCol(c - 1)"
               >{{ c }}</span
             >
             <template v-for="(row, r) in gridTiles" :key="'row' + r">
               <span
                 class="walkablegrid__row"
+                role="button"
+                tabindex="0"
+                :aria-label="'Fill row ' + (r + 1)"
                 :title="activeGridConfig.showColFill ? 'Fill row ' + (r + 1) : undefined"
                 @click="activeGridConfig.showColFill && fillGridRow(r)"
+                @keydown.enter.prevent="activeGridConfig.showColFill && fillGridRow(r)"
                 >{{ r + 1 }}</span
               >
               <button
@@ -808,6 +712,7 @@ onBeforeUnmount(() => {
                 :style="{ background: activeGridConfig.tileBg(state), border: activeGridConfig.tileBorder(state) }"
                 :aria-label="activeGridConfig.key + ' grid ' + state + ' tile, row ' + (r + 1) + ' column ' + (c + 1)"
                 @mousedown.prevent="activeGridConfig.onTileDown(r, c, $event)"
+                @click="onTileActivate(r, c, $event)"
                 @mouseenter="activeGridConfig.onTileEnter?.(r, c)"
               >
                 {{ activeGridConfig.tileIcon(state)
@@ -872,3 +777,215 @@ onBeforeUnmount(() => {
     </div>
   </div>
 </template>
+<style scoped>
+.walkablegrid__layout {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--gap-sm);
+  align-items: flex-start;
+}
+
+.walkablegrid__layout > .walkablegrid__layer,
+.walkablegrid__editor {
+  border: 1px solid var(--border-dim);
+  padding: var(--gap-sm);
+}
+
+.walkablegrid__editor {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 240px;
+  max-width: 320px;
+  gap: var(--gap-sm);
+  min-width: 0;
+}
+
+.walkablegrid__layer {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 320px;
+  min-width: 0;
+  gap: var(--gap-md);
+  user-select: none;
+  align-items: stretch;
+}
+
+.walkablegrid__label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--gap-sm);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--text-dim);
+}
+
+.walkablegrid__grid {
+  display: grid;
+  grid-template-columns: 1fr repeat(var(--cols, 1), 1fr);
+  place-content: center;
+  gap: 0;
+  flex: 1;
+  flex-shrink: 0;
+  width: fit-content;
+  margin: auto;
+}
+
+.walkablegrid__grid::before {
+  content: '';
+  width: var(--tile-size, 40px);
+  height: var(--tile-size, 40px);
+}
+
+.walkablegrid__preview {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 300px;
+  padding: var(--gap-sm);
+  border: 1px solid var(--border-dim);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.walkablegrid__legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--gap-sm);
+  color: var(--text-secondary);
+}
+
+.walkablegrid__item {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--gap-xxs);
+}
+
+.walkablegrid__dot {
+  width: 12px;
+  height: 12px;
+  border-radius: var(--radius-sm);
+}
+
+.walkablegrid__dot--walkable {
+  background: color-mix(in srgb, var(--accent-green) 30%, transparent);
+  border: 1px solid var(--accent-green);
+}
+
+.walkablegrid__dot--blocked {
+  background: color-mix(in srgb, var(--accent-red) 30%, transparent);
+  border: 1px solid var(--accent-red);
+}
+
+.walkablegrid__dot--edge {
+  background: linear-gradient(to top, var(--accent-gold) 0 3px, transparent 3px);
+}
+
+.walkablegrid__dot--door {
+  background: linear-gradient(to top, var(--accent-blue) 0 3px, transparent 3px);
+}
+
+.walkablegrid__fill {
+  width: 100%;
+  height: 100%;
+}
+
+.walkablegrid__passable {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-xs);
+}
+
+.walkablegrid__col,
+.walkablegrid__row,
+.walkablegrid__tile {
+  width: var(--tile-size, 40px);
+  height: var(--tile-size, 40px);
+}
+
+.walkablegrid__col,
+.walkablegrid__row {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.7;
+  cursor: pointer;
+}
+
+.walkablegrid__tile {
+  position: relative;
+  display: grid;
+  place-content: center;
+  place-items: center;
+  padding: 0;
+}
+
+.walkablegrid__tile:hover,
+.walkablegrid__tile:active {
+  border-color: inherit;
+  color: inherit;
+  background: inherit;
+}
+
+.walkablegrid__spot {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: calc(var(--tile-size, 32px) * 0.5);
+  height: calc(var(--tile-size, 32px) * 0.5);
+  border-radius: 50%;
+  background: var(--accent-blue);
+  outline: 1px solid var(--text-bright);
+  z-index: var(--z-layer-1, 1);
+}
+
+.walkablegrid__mark {
+  position: absolute;
+  pointer-events: none;
+}
+
+.walkablegrid__edge--top,
+.walkablegrid__edge--right,
+.walkablegrid__edge--bottom,
+.walkablegrid__edge--left {
+  background: var(--accent-gold);
+}
+
+.walkablegrid__edge--door {
+  background: var(--accent-blue);
+}
+
+.walkablegrid__edge--top {
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+}
+
+.walkablegrid__edge--right {
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 2px;
+}
+
+.walkablegrid__edge--bottom {
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+}
+
+.walkablegrid__edge--left {
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: 2px;
+}
+
+.walkablegrid__tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--gap-xs);
+}
+</style>

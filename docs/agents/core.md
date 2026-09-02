@@ -39,5 +39,36 @@ Trade-off / Revisit trigger). Supersedes the former docs/adr/ notes and the
 inline list that used to live here. Routine fixes, refactors and cleanups are
 not recorded there.
 
+## Editor patterns (canonical)
+
+These are the settled patterns for `src/blueprint-editor/`. Reuse them; do not
+introduce a second way to do the same thing.
+
+- Modals: wrap in `ModalShell` with `:open` / `@close`. Load heavy or rarely
+  opened modals with `defineAsyncComponent`.
+- Tabs: shared `.tabs__bar` / `.tabs__tab` classes with `role="tablist"`
+  semantics; the tab bar stays fixed while only the panel content scrolls.
+- UI showcase: every UI primitive and wrapper component must appear in
+  `src/dev/UiShowcase.vue` (open via `/?showcase=1` or the toolbar button).
+  No UI component may exist outside the showcase. When adding or changing a
+  UI component, update the showcase in the same change.
+- Confirmation: use the injected `confirm()` dialog, never `window.confirm`.
+- User feedback: `useToast` for user-visible messages, `editorLog` for console
+  diagnostics. Never `alert` / `console.log` for user-facing state.
+- Unsaved-changes tracking: `useDirtyBaseline` - one baseline snapshot plus a
+  `dirty` computed. Do not hand-roll `dirty = ref(false)` flags set at every
+  mutation site, and do not stringify state into keys for comparison.
+- Concurrency: store-level mutations use `withStateLock`; UI pending state uses
+  `useAsyncAction`. One guard per layer - do not add extra boolean flags that
+  duplicate what the layer guard already does.
+- Walkable-grid domain logic (tile states, wall segments <-> edges, door
+  detection) lives in `gridEditing.ts` as pure functions. Components compose
+  it; they do not re-implement the math inline.
+- Store access: components import from `blueprintStore` (`useAssetsStore` and
+  friends). Do not import store internals from `./store/*` directly, and do not
+  create pass-through facade files.
+- Declarative schemas: canvas/editor settings are parsed via
+  `CANVAS_FIELD_SPECS` / `EDITOR_FIELD_SPECS`. Never enumerate their keys by
+  hand elsewhere.
 
 what i need on this project to make solid and strong code and clean code and efficient and better performance when release launch

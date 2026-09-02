@@ -1,21 +1,13 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { useAssetsStore } from '../blueprintStore'
+import { useConfirm } from '@/composables/useConfirm'
 import { STREET_TILES, type FloorData, type TileState, type WallSegment } from '../types'
+import { segmentHasDoor, wallSegmentsToEdges, type TileEdges, type BorderSide } from '../gridEditing'
+import { useDirtyBaseline } from '../composables/useDirtyBaseline'
 import ModalShell from './ModalShell.vue'
 
 type WalkableMode = 'walk' | 'door'
-type BorderSide = 'top' | 'right' | 'bottom' | 'left'
-type TileEdges = {
-  top?: boolean
-  right?: boolean
-  bottom?: boolean
-  left?: boolean
-  doorTop?: boolean
-  doorRight?: boolean
-  doorBottom?: boolean
-  doorLeft?: boolean
-}
 
 const props = defineProps<{
   streetTiles?: number
@@ -25,12 +17,17 @@ const props = defineProps<{
 const emit = defineEmits<{ (event: 'close'): void }>()
 
 const store = useAssetsStore()
+const confirm = useConfirm().confirm
 const activeMode = ref<WalkableMode>('walk')
 const walkBrush = ref<TileState>('walkable')
 const tileStates = ref<TileState[][]>([])
 const wallSegments = ref<WallSegment[]>([])
 const gridEdges = ref<TileEdges[][]>([])
-const dirty = ref(false)
+const { dirty, saveBaseline } = useDirtyBaseline(() => ({
+  tileStates: tileStates.value,
+  wallSegments: wallSegments.value,
+  gridEdges: gridEdges.value,
+}))
 
 function wallKey(segment: WallSegment): string {
   return `${segment.x1},${segment.y1},${segment.x2},${segment.y2}`
@@ -74,7 +71,6 @@ function toggleDoorAt(row: number, col: number, side: BorderSide): void {
     if (!e[wallKey]) e[wallKey] = true
     e[doorKey] = true
   }
-  dirty.value = true
 }
 
 function applyOuterWall(): void {
@@ -87,7 +83,6 @@ function applyOuterWall(): void {
     }
   }
   syncEdgesFromSegments()
-  dirty.value = true
 }
 
 function clearAllDoors(): void {
@@ -96,13 +91,19 @@ function clearAllDoors(): void {
     return rest as WallSegment
   })
   syncEdgesFromSegments()
-  dirty.value = true
 }
 
-function clearAllEdges(): void {
+async function clearAllEdges(): Promise<void> {
+  const confirmed = await confirm({
+    title: 'Clear walls',
+    message: 'Remove all wall segments on this floor? This cannot be undone.',
+    confirmLabel: 'Clear',
+    cancelLabel: 'Cancel',
+    danger: true,
+  })
+  if (!confirmed) return
   wallSegments.value = []
   gridEdges.value = []
-  dirty.value = true
 }
 
 const tileSize = computed(() => Math.max(1, Math.round(store.state.layout.canvas.tileSize)))
@@ -131,42 +132,7 @@ function createTileStates(floor?: FloorData): TileState[][] {
 }
 
 function syncEdgesFromSegments(): void {
-  const edges: TileEdges[][] = Array.from({ length: rows.value }, () =>
-    Array.from({ length: cols.value }, () => ({}) as TileEdges),
-  )
-  for (const segment of wallSegments.value) {
-    const isDoor = segment.door === true
-    if (segment.y1 === segment.y2) {
-      const boundary = Math.round(segment.y1)
-      const start = Math.round(Math.min(segment.x1, segment.x2))
-      const end = Math.max(start + 1, Math.round(Math.max(segment.x1, segment.x2)))
-      for (let col = start; col < end; col++) {
-        if (boundary >= 0 && boundary < rows.value && col >= 0 && col < cols.value) {
-          edges[boundary][col].top = true
-          if (isDoor) edges[boundary][col].doorTop = true
-        }
-        if (boundary - 1 >= 0 && boundary - 1 < rows.value && col >= 0 && col < cols.value) {
-          edges[boundary - 1][col].bottom = true
-          if (isDoor) edges[boundary - 1][col].doorBottom = true
-        }
-      }
-    } else {
-      const boundary = Math.round(segment.x1)
-      const start = Math.round(Math.min(segment.y1, segment.y2))
-      const end = Math.max(start + 1, Math.round(Math.max(segment.y1, segment.y2)))
-      for (let row = start; row < end; row++) {
-        if (row >= 0 && row < rows.value && boundary >= 0 && boundary < cols.value) {
-          edges[row][boundary].left = true
-          if (isDoor) edges[row][boundary].doorLeft = true
-        }
-        if (row >= 0 && row < rows.value && boundary - 1 >= 0 && boundary - 1 < cols.value) {
-          edges[row][boundary - 1].right = true
-          if (isDoor) edges[row][boundary - 1].doorRight = true
-        }
-      }
-    }
-  }
-  gridEdges.value = edges
+  gridEdges.value = wallSegmentsToEdges(wallSegments.value, rows.value, cols.value)
 }
 
 function resetDraft(): void {
@@ -182,7 +148,7 @@ function resetDraft(): void {
       return seg
     })
   syncEdgesFromSegments()
-  dirty.value = false
+  saveBaseline()
 }
 
 watch(
@@ -206,7 +172,11 @@ function updateTile(row: number, col: number, e: MouseEvent): void {
     return
   }
   tileStates.value[row][col] = walkBrush.value
-  dirty.value = true
+}
+
+function activateTile(row: number, col: number): void {
+  if (activeMode.value === 'door') return
+  tileStates.value[row][col] = walkBrush.value
 }
 
 function setMode(mode: WalkableMode): void {
@@ -228,38 +198,26 @@ async function saveWalkable(): Promise<void> {
   }
   const walkableGrid = states.map((row) => row.map((state) => state === 'walkable'))
   const segmentsWithDoor = wallSegments.value.map((seg) => {
-    const edges = gridEdges.value
-    const normalized = seg
-    let hasDoor = false
-    if (normalized.y1 === normalized.y2) {
-      const boundary = Math.round(normalized.y1)
-      const start = Math.round(Math.min(normalized.x1, normalized.x2))
-      const end = Math.round(Math.max(normalized.x1, normalized.x2))
-      for (let col = start; col < end; col++) {
-        if (edges[boundary]?.[col]?.doorTop) hasDoor = true
-        if (edges[boundary - 1]?.[col]?.doorBottom) hasDoor = true
-      }
-    } else {
-      const boundary = Math.round(normalized.x1)
-      const start = Math.round(Math.min(normalized.y1, normalized.y2))
-      const end = Math.round(Math.max(normalized.y1, normalized.y2))
-      for (let row = start; row < end; row++) {
-        if (edges[row]?.[boundary]?.doorLeft) hasDoor = true
-        if (edges[row]?.[boundary - 1]?.doorRight) hasDoor = true
-      }
-    }
-    const result: WallSegment = { x1: normalized.x1, y1: normalized.y1, x2: normalized.x2, y2: normalized.y2 }
-    if (hasDoor) result.door = true
+    const result: WallSegment = { x1: seg.x1, y1: seg.y1, x2: seg.x2, y2: seg.y2 }
+    if (segmentHasDoor(seg, gridEdges.value)) result.door = true
     return result
   })
   const saved = await store.updateFloor(props.floor.id, {
     walkable: { walkableGrid, tileStates: states },
   })
   if (saved) await store.replaceCanvasWallSegments(props.floor.id, segmentsWithDoor)
-  dirty.value = !saved
+  if (saved) saveBaseline()
 }
 
-function resetWalkable(): void {
+async function resetWalkable(): Promise<void> {
+  const confirmed = await confirm({
+    title: 'Reset walkable grid',
+    message: 'Reset the whole grid and remove all walls? This cannot be undone.',
+    confirmLabel: 'Reset',
+    cancelLabel: 'Cancel',
+    danger: true,
+  })
+  if (!confirmed) return
   const fallback: TileState = props.floor?.defaultWalkable === false ? 'blocked' : 'walkable'
   tileStates.value = Array.from({ length: rows.value }, (_, row) =>
     Array.from({ length: cols.value }, (_, col) => {
@@ -273,7 +231,6 @@ function resetWalkable(): void {
   )
   wallSegments.value = []
   gridEdges.value = []
-  dirty.value = true
 }
 
 function close(): void {
@@ -282,15 +239,7 @@ function close(): void {
 </script>
 
 <template>
-  <ModalShell
-    :open="open"
-    title="Walkable Setting"
-    width="min(94vw, 1000px)"
-    max-width="1000px"
-    height="auto"
-    max-height="calc(100vh - 32px)"
-    @close="close"
-  >
+  <ModalShell :open="open" modal-id="modal-walkable-setting" title="Walkable Setting" @close="close">
     <div class="form__row" role="toolbar" aria-label="Walkable setting tools">
       <button type="button" :class="{ 'flag--warning': activeMode === 'walk' }" @click="setMode('walk')">
         Wall / Block
@@ -335,6 +284,7 @@ function close(): void {
           :class="`walk__cell--${tileState(buildingStartRow + rowIndex - 1, buildingStartCol + colIndex - 1)}`"
           :aria-label="`Row ${rowIndex}, column ${colIndex}, ${tileState(buildingStartRow + rowIndex - 1, buildingStartCol + colIndex - 1)}`"
           @mousedown.prevent="updateTile(buildingStartRow + rowIndex - 1, buildingStartCol + colIndex - 1, $event)"
+          @click="activateTile(buildingStartRow + rowIndex - 1, buildingStartCol + colIndex - 1)"
         >
           <span
             v-if="gridEdges[buildingStartRow + rowIndex - 1]?.[buildingStartCol + colIndex - 1]?.top"
@@ -372,17 +322,109 @@ function close(): void {
       </template>
     </div>
 
-    <div class="modal__actions">
-      <input
-        class="input--disabled"
-        :value="dirty ? 'Unsaved walkable changes' : 'Walkable saved'"
-        readonly
-        aria-label="Walkable status"
-      />
+    <template #footer>
+      <span class="form__hint">{{ dirty ? 'Unsaved walkable changes' : 'Walkable saved' }}</span>
       <div class="form__row">
         <button type="button" class="flag--ghost" @click="resetWalkable">Reset to floor default</button>
         <button type="button" class="flag--success" :disabled="!dirty" @click="saveWalkable">Save Walkable</button>
       </div>
-    </div>
+    </template>
   </ModalShell>
 </template>
+<style scoped>
+.walk__legend {
+  color: var(--text-secondary);
+}
+
+.walk__legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--gap-xs);
+}
+
+.walk__swatch--walkable,
+.walk__cell--walkable {
+  background: color-mix(in srgb, var(--accent-green) 35%, var(--bg-primary));
+}
+
+.walk__swatch--blocked,
+.walk__cell--blocked {
+  background: var(--bg-primary);
+}
+
+.walk__swatch--wall {
+  border-color: var(--accent-gold);
+  border-style: solid;
+  border-width: 2px;
+}
+
+.walk__swatch--door {
+  border-color: var(--accent-blue);
+  border-style: solid;
+  border-width: 2px;
+}
+
+.walk__grid {
+  display: grid;
+  grid-template-columns: repeat(var(--walk-cols), minmax(0, 1fr));
+  width: min(100%, 900px);
+  aspect-ratio: var(--walk-cols) / auto;
+  border: 1px solid var(--border-dim);
+  background: var(--bg-primary);
+  margin: 0 auto;
+}
+
+.walk__cell {
+  position: relative;
+  min-width: 0;
+  aspect-ratio: 1;
+  padding: 0;
+  border-radius: 0;
+  cursor: crosshair;
+}
+
+.walk__edge {
+  position: absolute;
+  pointer-events: none;
+  background: var(--accent-gold);
+}
+
+.walk__edge--door {
+  background: var(--accent-blue);
+}
+
+.walk__edge--top {
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+}
+
+.walk__edge--right {
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 2px;
+}
+
+.walk__edge--bottom {
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+}
+
+.walk__edge--left {
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: 2px;
+}
+</style>
+
+<style>
+#modal-walkable-setting {
+  width: min(94vw, 1000px);
+  max-height: calc(100vh - 32px);
+}
+</style>

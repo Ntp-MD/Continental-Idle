@@ -1,50 +1,30 @@
 <script setup lang="ts">
-import { computed, nextTick, ref, watch } from 'vue'
+import { nextTick, watch } from 'vue'
 import { useAssetsStore, startAssetDrag } from '../blueprintStore'
 import {
   assetSvgVarStyle,
   assetPreviewSvg,
   assetPreviewViewBox,
-  assetSettingsIssuesMap,
-  assetIncompleteTitle,
-  placedObjectCounts as computePlacedObjectCounts,
   assetSizeLabel,
   assetOriginLabel as originLabel,
+  placedCountTitle,
 } from '../assetUtils'
 import { renderSvgInto } from '../svgSanitizer'
 import { useCanvasWallStyle, DOOR_COLOR } from '../composables/useCanvasWallStyle'
-import { useDebouncedRef } from '@/composables/useDebounceFn'
+import { useAssetListState } from '../composables/useAssetListState'
 import type { AssetDef } from '../types'
 import ModalShell from './ModalShell.vue'
+import SearchInput from './SearchInput.vue'
 
 const props = defineProps<{ open: boolean }>()
 const emit = defineEmits<{ (e: 'close'): void }>()
 
 const store = useAssetsStore()
-const searchQuery = ref('')
-const debouncedSearch = useDebouncedRef(searchQuery, 150)
+
+const { searchQuery, incompleteMap, incompleteTitle, placedCounts, placedObjectCount, filteredAssets } =
+  useAssetListState()
 
 const { canvasTileSize, wallColor, wallThickness } = useCanvasWallStyle()
-
-const allAssets = computed(() => [...store.assetMap().values()])
-
-const filteredAssets = computed(() => {
-  const q = debouncedSearch.value.trim().toLowerCase()
-  if (!q) return allAssets.value
-  return allAssets.value.filter((a) => a.name.toLowerCase().includes(q) || a.id.toLowerCase().includes(q))
-})
-
-const incompleteMap = computed(() => assetSettingsIssuesMap(allAssets.value))
-
-function incompleteTitle(asset: AssetDef): string {
-  return assetIncompleteTitle(incompleteMap.value, asset.id)
-}
-
-const placedCounts = computed(() => computePlacedObjectCounts(store.state.layout.floors))
-
-function placedObjectCount(assetId: string): number {
-  return placedCounts.value.get(assetId) ?? 0
-}
 
 function assetViewBox(asset: AssetDef): string {
   return assetPreviewViewBox(asset, canvasTileSize.value)
@@ -81,29 +61,10 @@ function pick(asset: AssetDef) {
 </script>
 
 <template>
-  <ModalShell
-    :open="open"
-    title="Asset Picker"
-    width="90vw"
-    max-width="720px"
-    max-height="80vh"
-    body-class="form__col"
-    @close="emit('close')"
-  >
-    <div class="form__search">
-      <input v-model="searchQuery" placeholder="Search assets..." type="text" aria-label="Search assets" />
-      <button
-        v-if="searchQuery"
-        class="flag--ghost"
-        aria-label="Clear search"
-        title="Clear search"
-        @click="searchQuery = ''"
-      >
-        x
-      </button>
-    </div>
+  <ModalShell :open="open" modal-id="modal-asset-picker" title="Asset Picker" @close="emit('close')">
+    <SearchInput v-model="searchQuery" placeholder="Search assets..." label="Search assets" />
     <div class="picker__scroll">
-      <div v-if="!filteredAssets.length" class="empty empty--pad">No assets found</div>
+      <div v-if="!filteredAssets.length" class="empty">No assets found</div>
       <div v-else class="picker__grid">
         <div
           v-for="asset in filteredAssets"
@@ -116,7 +77,6 @@ function pick(asset: AssetDef) {
             placedCounts.get(asset.id),
           ]"
           class="picker__item"
-          :class="{ 'picker__item--selected': store.state.selectedAssetId === asset.id }"
           role="button"
           tabindex="0"
           :title="
@@ -125,26 +85,24 @@ function pick(asset: AssetDef) {
           @click="pick(asset)"
           @keydown.enter="pick(asset)"
         >
-          <div class="picker__thumb">
-            <svg
-              :ref="(el) => setThumbEl(asset.id, el)"
-              :viewBox="assetViewBox(asset)"
-              preserveAspectRatio="xMidYMid meet"
-              :style="assetSvgVarStyle(asset)"
-            ></svg>
-            <span
-              v-if="incompleteMap.get(asset.id)?.length"
-              class="badge badge--warning flag--warning"
-              title="Incomplete settings"
-              >!</span
-            >
-            <span
-              class="badge badge--count"
-              :class="{ 'badge--placed': placedObjectCount(asset.id) > 0 }"
-              :title="`${placedObjectCount(asset.id)} placed object${placedObjectCount(asset.id) === 1 ? '' : 's'}`"
-              >{{ placedObjectCount(asset.id) }}</span
-            >
-          </div>
+          <svg
+            :ref="(el) => setThumbEl(asset.id, el)"
+            class="picker__thumb"
+            :viewBox="assetViewBox(asset)"
+            preserveAspectRatio="xMidYMid meet"
+            :style="assetSvgVarStyle(asset)"
+          ></svg>
+          <span
+            v-if="incompleteMap.get(asset.id)?.length"
+            class="badge flag--warning picker__badge"
+            title="Incomplete settings"
+            >!</span
+          >
+          <span
+            class="badge picker__badge picker__badge--count"
+            :title="placedCountTitle(placedObjectCount(asset.id))"
+            >{{ placedObjectCount(asset.id) }}</span
+          >
           <span>{{ asset.name }}</span>
           <span class="picker__meta truncate">{{ assetSizeLabel(asset) }} - {{ originLabel(asset) }}</span>
         </div>
@@ -152,3 +110,63 @@ function pick(asset: AssetDef) {
     </div>
   </ModalShell>
 </template>
+
+<style>
+#modal-asset-picker {
+  width: min(94vw, 720px);
+  max-height: calc(100vh - 32px);
+}
+
+.picker__scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.picker__grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--gap-sm);
+}
+
+.picker__item {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 150px;
+  max-width: 200px;
+  min-width: 0;
+  gap: var(--gap-xxs);
+  padding: var(--gap-xs);
+  cursor: pointer;
+}
+
+.picker__item:hover {
+  background: var(--bg-primary);
+}
+
+svg.picker__thumb {
+  width: 100%;
+  aspect-ratio: 1;
+  border: 1px solid var(--border-dim);
+  border-radius: var(--radius-xs);
+  background: var(--bg-primary);
+  overflow: hidden;
+}
+
+.picker__badge {
+  position: absolute;
+  top: var(--gap-xs);
+  right: var(--gap-xs);
+}
+
+.picker__badge--count {
+  top: auto;
+  bottom: var(--gap-xs);
+}
+
+.picker__meta {
+  opacity: 0.7;
+  text-align: center;
+}
+</style>

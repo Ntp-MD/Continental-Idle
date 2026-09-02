@@ -1,9 +1,9 @@
 import type { ObjectData } from '../types'
 import { objectOverlapsAny, recalcCollapsed } from '../collision'
 import { state, toast, snap, clamp, assetMap, currentFloor } from './state'
-import { genId } from './utils'
+import { genId } from './storeUtils'
 import { selectedObjectIds } from './selection'
-import { saveLayout } from './persistence'
+import { saveBlueprintData } from './persistence'
 
 let clipboard: ObjectData[] | null = null
 
@@ -89,6 +89,6 @@ export async function pasteObjects(): Promise<void> {
 		state.selectionState = { primary: { type: 'object', id: newIds[0] }, items: [{ type: 'object', id: newIds[0] }] }
 	}
 	recalcCollapsed(floor, assetMap())
-	await saveLayout()
+	await saveBlueprintData()
 	toast.success(`Pasted ${newIds.length} object(s)`)
 }

@@ -15,8 +15,7 @@ import {
 } from '@/engine/npc'
 import type { AssetDef, FloorData, NpcRole, NpcSimDot, NpcSimulationConfig } from '@/blueprint-editor/types'
 import { isNpcConfig } from '@/blueprint-editor/types'
-import { mergeNpcConfig } from '@/blueprint-editor/store/npcDefault'
-import { editorLog } from '@/blueprint-editor/store/storeUtils'
+import { mergeNpcConfig, editorLog } from '@/blueprint-editor/blueprintStore'
 
 const MAX_ROLE_SPAWN_COUNT = 100
 

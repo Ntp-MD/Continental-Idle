@@ -7,7 +7,7 @@ import { useToast } from '@/composables/useToast'
 import { loadInitial, migrate } from './migrate'
 import { editorLog } from './storeUtils'
 
-export interface EditorState {
+interface EditorState {
 	layout: FloorLayoutData
 	currentFloorId: string
 	mode: EditorMode
@@ -117,13 +117,13 @@ if (!state.layout.floors.some((f: FloorData) => f.id === state.currentFloorId)) 
 	state.currentFloorId = state.layout.floors[0]?.id ?? ''
 }
 
-export interface StateSnapshot {
+interface StateSnapshot {
 	layout: FloorLayoutData
 	assetRegistry: AssetDef[]
 	tagDefinitions: BlueprintTagDefinition[]
 }
 
-export function captureStateSnapshot(): StateSnapshot {
+function captureStateSnapshot(): StateSnapshot {
 	return {
 		layout: structuredClone(toRaw(state.layout)),
 		assetRegistry: structuredClone(toRaw(state.assetRegistry)),
@@ -131,7 +131,7 @@ export function captureStateSnapshot(): StateSnapshot {
 	}
 }
 
-export function restoreStateSnapshot(snapshot: StateSnapshot): void {
+function restoreStateSnapshot(snapshot: StateSnapshot): void {
 	state.layout = snapshot.layout
 	state.assetRegistry = snapshot.assetRegistry
 	state.tagDefinitions = snapshot.tagDefinitions

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { ref, watch, computed } from 'vue'
 import { useAssetsStore } from '../blueprintStore'
 import { useToast } from '@/composables/useToast'
 import { useConfirm } from '@/composables/useConfirm'
@@ -142,83 +142,110 @@ interface FieldDef {
   label: string
   step: number
 }
+interface EditorGroup {
+  title: string
+  hint: string
+  fields: FieldDef[]
+}
 
-const editorGroups: { title: string; hint: string; fields: FieldDef[] }[] = [
-  {
-    title: 'Hit Testing',
-    hint: 'Tolerances for clicking walls, dragging objects, cycling overlapping items, and box selection.',
-    fields: [
-      { key: 'wallHitTolerancePx', label: 'Wall hit px', step: 1 },
-      { key: 'wallHitToleranceTileRatio', label: 'Wall hit tile ratio', step: 0.01 },
-      { key: 'dragThresholdPx', label: 'Drag threshold px', step: 0.5 },
-      { key: 'cycleThresholdPx', label: 'Cycle threshold px', step: 0.5 },
-      { key: 'boxSelectThresholdPx', label: 'Box select px', step: 0.5 },
-    ],
-  },
-  {
-    title: 'Overlay Sizes',
-    hint: 'Radius of interact spot dots and lock indicator circles.',
-    fields: [
-      { key: 'interactSpotRadiusPx', label: 'Interact spot radius', step: 0.5 },
-      { key: 'lockIndicatorRadiusPx', label: 'Lock indicator radius', step: 0.5 },
-    ],
-  },
-  {
-    title: 'Font Sizes',
-    hint: 'Text sizes for labels, indicators, zone labels, empty state, and ruler ticks. Scaled by 1/zoom at render time.',
-    fields: [
-      { key: 'labelFontSizePx', label: 'Object label', step: 0.5 },
-      { key: 'lockLabelFontSizePx', label: 'Lock label', step: 0.5 },
-      { key: 'interactSpotFontSizePx', label: 'Interact spot label', step: 0.5 },
-      { key: 'zoneLabelFontSizePx', label: 'Zone label', step: 0.5 },
-      { key: 'emptyStateFontSizePx', label: 'Empty state', step: 1 },
-      { key: 'rulerTickFontSizePx', label: 'Ruler tick', step: 0.5 },
-    ],
-  },
-  {
-    title: 'Street',
-    hint: 'Dash/gap ratios relative to tileSize, and sidewalk width as a fraction of street ring tiles.',
-    fields: [
-      { key: 'streetDashRatio', label: 'Dash ratio', step: 0.01 },
-      { key: 'streetGapRatio', label: 'Gap ratio', step: 0.01 },
-      { key: 'sidewalkTileRatio', label: 'Sidewalk tile ratio', step: 0.01 },
-    ],
-  },
-  {
-    title: 'Ruler',
-    hint: 'Ruler bar size clamps relative to zoom (sqrt scaling).',
-    fields: [
-      { key: 'rulerMinPx', label: 'Min px', step: 1 },
-      { key: 'rulerMaxPx', label: 'Max px', step: 1 },
-      { key: 'rulerBasePx', label: 'Base px', step: 1 },
-    ],
-  },
-  {
-    title: 'Wall',
-    hint: 'Wall thickness as a fraction of tileSize (used when canvas.wallThickness is not set).',
-    fields: [{ key: 'wallThicknessRatio', label: 'Thickness ratio', step: 0.01 }],
-  },
-  {
-    title: 'Walkable Grid Editor',
-    hint: 'Tile size constraints for the WalkableGridEditor modal display.',
-    fields: [
-      { key: 'walkableGridMinTilePx', label: 'Min tile px', step: 1 },
-      { key: 'walkableGridMaxTilePx', label: 'Max tile px', step: 1 },
-      { key: 'walkableGridMaxWidthPx', label: 'Max width px', step: 10 },
-      { key: 'walkableGridMaxHeightPx', label: 'Max height px', step: 10 },
-    ],
-  },
+type SettingsTab = 'canvas' | 'interaction' | 'display' | 'scene' | 'grid'
+const activeTab = ref<SettingsTab>('canvas')
+const settingsTabs: { key: SettingsTab; label: string }[] = [
+  { key: 'canvas', label: 'Canvas' },
+  { key: 'interaction', label: 'Interaction' },
+  { key: 'display', label: 'Display' },
+  { key: 'scene', label: 'Scene' },
+  { key: 'grid', label: 'Grid Editor' },
 ]
+const editorTabs = settingsTabs.filter((t) => t.key !== 'canvas') as {
+  key: Exclude<SettingsTab, 'canvas'>
+  label: string
+}[]
+
+const editorGroupsByTab: Record<Exclude<SettingsTab, 'canvas'>, EditorGroup[]> = {
+  interaction: [
+    {
+      title: 'Hit Testing',
+      hint: 'Tolerances for clicking walls, dragging objects, cycling overlapping items, and box selection.',
+      fields: [
+        { key: 'wallHitTolerancePx', label: 'Wall hit px', step: 1 },
+        { key: 'wallHitToleranceTileRatio', label: 'Wall hit tile ratio', step: 0.01 },
+        { key: 'dragThresholdPx', label: 'Drag threshold px', step: 0.5 },
+        { key: 'cycleThresholdPx', label: 'Cycle threshold px', step: 0.5 },
+        { key: 'boxSelectThresholdPx', label: 'Box select px', step: 0.5 },
+      ],
+    },
+  ],
+  display: [
+    {
+      title: 'Overlay Sizes',
+      hint: 'Radius of interact spot dots and lock indicator circles.',
+      fields: [
+        { key: 'interactSpotRadiusPx', label: 'Interact spot radius', step: 0.5 },
+        { key: 'lockIndicatorRadiusPx', label: 'Lock indicator radius', step: 0.5 },
+      ],
+    },
+    {
+      title: 'Font Sizes',
+      hint: 'Text sizes for labels, indicators, zone labels, empty state, and ruler ticks. Scaled by 1/zoom at render time.',
+      fields: [
+        { key: 'labelFontSizePx', label: 'Object label', step: 0.5 },
+        { key: 'lockLabelFontSizePx', label: 'Lock label', step: 0.5 },
+        { key: 'interactSpotFontSizePx', label: 'Interact spot label', step: 0.5 },
+        { key: 'zoneLabelFontSizePx', label: 'Zone label', step: 0.5 },
+        { key: 'emptyStateFontSizePx', label: 'Empty state', step: 1 },
+        { key: 'rulerTickFontSizePx', label: 'Ruler tick', step: 0.5 },
+      ],
+    },
+  ],
+  scene: [
+    {
+      title: 'Street',
+      hint: 'Dash/gap ratios relative to tileSize, and sidewalk width as a fraction of street ring tiles.',
+      fields: [
+        { key: 'streetDashRatio', label: 'Dash ratio', step: 0.01 },
+        { key: 'streetGapRatio', label: 'Gap ratio', step: 0.01 },
+        { key: 'sidewalkTileRatio', label: 'Sidewalk tile ratio', step: 0.01 },
+      ],
+    },
+    {
+      title: 'Ruler',
+      hint: 'Ruler bar size clamps relative to zoom (sqrt scaling).',
+      fields: [
+        { key: 'rulerMinPx', label: 'Min px', step: 1 },
+        { key: 'rulerMaxPx', label: 'Max px', step: 1 },
+        { key: 'rulerBasePx', label: 'Base px', step: 1 },
+      ],
+    },
+    {
+      title: 'Wall',
+      hint: 'Wall thickness as a fraction of tileSize (used when canvas.wallThickness is not set).',
+      fields: [{ key: 'wallThicknessRatio', label: 'Thickness ratio', step: 0.01 }],
+    },
+  ],
+  grid: [
+    {
+      title: 'Walkable Grid Editor',
+      hint: 'Tile size constraints for the WalkableGridEditor modal display.',
+      fields: [
+        { key: 'walkableGridMinTilePx', label: 'Min tile px', step: 1 },
+        { key: 'walkableGridMaxTilePx', label: 'Max tile px', step: 1 },
+        { key: 'walkableGridMaxWidthPx', label: 'Max width px', step: 10 },
+        { key: 'walkableGridMaxHeightPx', label: 'Max height px', step: 10 },
+      ],
+    },
+  ],
+}
 
 function fieldRange(key: FieldKey) {
   const spec = EDITOR_FIELD_SPECS[key]
   return { min: spec.min, max: spec.max }
 }
 
-function isEditorDirty(): boolean {
+const isEditorDirty = computed(() => {
   const c = currentEditor.value
   return (Object.keys(c) as FieldKey[]).some((k) => draft.value[k] !== c[k])
-}
+})
 
 async function applyEditorField(key: FieldKey) {
   const range = fieldRange(key)
@@ -289,41 +316,62 @@ async function resetEditorAll() {
 </script>
 
 <template>
-  <ModalShell
-    :open="open"
-    title="Settings"
-    width="min(94vw, 1000px)"
-    max-width="1000px"
-    max-height="calc(100vh - 100px)"
-    @close="emit('close')"
-  >
-    <div class="form__grid">
-      <div class="form__col">
-        <div class="form__header">Canvas</div>
-        <div class="form__col">
-          <div class="form__title">Canvas Size</div>
-          <div class="form__row">
-            <div class="form__field">
-              <label for="canvas__width">Width</label>
-              <input id="canvas__width" v-model.number="widthInput" type="number" min="100" step="25" />
-            </div>
-            <div class="form__field">
-              <label for="canvas__height">Height</label>
-              <input id="canvas__height" v-model.number="heightInput" type="number" min="100" step="25" />
-            </div>
-            <div class="form__field">
-              <label for="canvas__tile">Tile</label>
-              <input id="canvas__tile" v-model.number="tileInput" type="number" min="5" step="5" />
-            </div>
+  <ModalShell :open="open" modal-id="modal-settings" title="Settings" @close="emit('close')">
+    <div class="tabs__bar" role="tablist" aria-label="Settings categories">
+      <button
+        v-for="t in settingsTabs"
+        :id="`settings__tab--${t.key}`"
+        :key="t.key"
+        type="button"
+        role="tab"
+        class="tabs__tab"
+        :class="{ 'flag--active': activeTab === t.key }"
+        :aria-selected="activeTab === t.key"
+        :aria-controls="`settings__panel--${t.key}`"
+        @click="activeTab = t.key"
+      >
+        {{ t.label }}
+      </button>
+    </div>
+
+    <div
+      v-show="activeTab === 'canvas'"
+      id="settings__panel--canvas"
+      class="settings__panel form__col"
+      role="tabpanel"
+      aria-labelledby="settings__tab--canvas"
+    >
+      <div class="form__group">
+        <div class="form__title">Canvas Size</div>
+        <div class="form__row">
+          <div class="form__field">
+            <label for="canvas__width">Width</label>
+            <input id="canvas__width" v-model.number="widthInput" type="number" min="100" step="25" />
           </div>
-          <button class="flag--active" :disabled="pending" aria-label="Apply canvas size" @click="applyCanvasSize">
+          <div class="form__field">
+            <label for="canvas__height">Height</label>
+            <input id="canvas__height" v-model.number="heightInput" type="number" min="100" step="25" />
+          </div>
+          <div class="form__field">
+            <label for="canvas__tile">Tile</label>
+            <input id="canvas__tile" v-model.number="tileInput" type="number" min="5" step="5" />
+          </div>
+          <button
+            class="flag--active size--fit"
+            :disabled="pending"
+            aria-label="Apply canvas size"
+            @click="applyCanvasSize"
+          >
             Apply
           </button>
-          <div class="form__hint">Changing canvas size will re-snap all objects to the new grid.</div>
         </div>
+        <div class="form__hint">Changing canvas size will re-snap all objects to the new grid.</div>
+      </div>
+
+      <div class="form__row">
         <div class="form__col">
           <div class="form__title">Background</div>
-          <div class="form__row">
+          <div class="form__field">
             <label for="canvas__bgcolor">Color</label>
             <ColorInput
               v-model="bgColorInput"
@@ -337,7 +385,7 @@ async function resetEditorAll() {
         </div>
         <div class="form__col">
           <div class="form__title">Labels</div>
-          <div class="form__row">
+          <div class="form__field">
             <label for="canvas__labelcolor">Color</label>
             <ColorInput
               v-model="labelColorInput"
@@ -351,111 +399,127 @@ async function resetEditorAll() {
         </div>
         <div class="form__col">
           <div class="form__title">Walls</div>
-          <div class="form__row">
-            <div class="form__field">
-              <label>Color</label>
-              <ColorInput
-                v-model="wallColorInput"
-                placeholder="#RRGGBB (empty = theme green)"
-                aria-label="Wall line color"
-                @commit="applyWallColor"
-                @commit-invalid="onWallColorInvalid"
-              />
-            </div>
-            <div class="form__field">
-              <label for="canvas__wallthickness">Thickness</label>
-              <input
-                id="canvas__wallthickness"
-                v-model.number="wallThicknessInput"
-                type="number"
-                min="1"
-                max="10"
-                step="1"
-                :placeholder="'3'"
-                @change="applyWallThickness"
-              />
-            </div>
-          </div>
-          <div class="form__hint">
-            Line style for painted floor walls and the building boundary. Thickness overrides the Editor ratio.
-          </div>
-        </div>
-        <div class="form__col">
-          <div class="form__title">Street</div>
-          <div class="form__row">
-            <div class="form__field">
-              <label for="canvas__streetfloor">On floor</label>
-              <select
-                id="canvas__streetfloor"
-                :value="store.state.layout.streetFloorId ?? ''"
-                aria-label="Floor that displays the street ring"
-                @change="applyStreetFloor(($event.target as HTMLSelectElement).value || null)"
-              >
-                <option value="">None</option>
-                <option v-for="f in store.state.layout.floors" :key="f.id" :value="f.id">
-                  {{ f.label }} - {{ f.name }}
-                </option>
-              </select>
-            </div>
-            <div class="form__field">
-              <label for="canvas__streetwidth">Ring</label>
-              <select
-                id="canvas__streetwidth"
-                :value="store.state.layout.streetWidthTiles ?? ''"
-                aria-label="Street ring width in tiles"
-                @change="store.setStreetWidth(Number(($event.target as HTMLSelectElement).value) || null)"
-              >
-                <option value="">Default (8 tiles)</option>
-                <option v-for="w in [5, 6, 7, 8, 9, 10, 11, 12]" :key="w" :value="w">{{ w }} tiles</option>
-              </select>
-            </div>
-          </div>
-          <div class="form__hint">
-            Street ring renders on one floor; ring width drives placement boundary, NPC walkable zone and the drawn
-            road.
+          <div class="form__field">
+            <label>Color</label>
+            <ColorInput
+              v-model="wallColorInput"
+              placeholder="#RRGGBB (empty = theme green)"
+              aria-label="Wall line color"
+              @commit="applyWallColor"
+              @commit-invalid="onWallColorInvalid"
+            />
           </div>
         </div>
       </div>
 
-      <div class="form__col">
-        <div class="form__header">Editor</div>
-        <div v-for="group in editorGroups" :key="group.title" class="form__col">
-          <div class="form__title">{{ group.title }}</div>
-          <div class="form__row">
-            <div v-for="field in group.fields" :key="field.key" class="form__field">
-              <label :for="`es__${field.key}`">{{ field.label }}</label>
-              <input
-                :id="`es__${field.key}`"
-                v-model.number="draft[field.key]"
-                type="number"
-                :min="fieldRange(field.key).min"
-                :max="fieldRange(field.key).max"
-                :step="field.step"
-                @change="applyEditorField(field.key)"
-              />
-            </div>
-          </div>
-          <div class="form__hint">{{ group.hint }}</div>
-        </div>
-        <div class="modal__actions modal__actions--border">
-          <button
-            class="flag--danger"
-            :disabled="pending"
-            aria-label="Reset all editor settings to defaults"
-            @click="resetEditorAll"
-          >
-            Reset
-          </button>
-          <button
-            class="flag--active"
-            :disabled="pending || !isEditorDirty()"
-            aria-label="Apply all editor settings"
-            @click="applyEditorAll"
-          >
-            Apply All
-          </button>
-        </div>
+      <div class="form__field">
+        <label for="canvas__wallthickness">Thickness</label>
+        <input
+          id="canvas__wallthickness"
+          v-model.number="wallThicknessInput"
+          type="number"
+          min="1"
+          max="10"
+          step="1"
+          :placeholder="'3'"
+          @change="applyWallThickness"
+        />
+      </div>
+      <div class="form__hint">
+        Line style for painted floor walls and the building boundary. Thickness overrides the Editor ratio.
+      </div>
+      <div class="form__title">Street</div>
+      <div class="form__field">
+        <label for="canvas__streetfloor">On floor</label>
+        <select
+          id="canvas__streetfloor"
+          :value="store.state.layout.streetFloorId ?? ''"
+          aria-label="Floor that displays the street ring"
+          @change="applyStreetFloor(($event.target as HTMLSelectElement).value || null)"
+        >
+          <option value="">None</option>
+          <option v-for="f in store.state.layout.floors" :key="f.id" :value="f.id">{{ f.label }} - {{ f.name }}</option>
+        </select>
+      </div>
+      <div class="form__field">
+        <label for="canvas__streetwidth">Ring</label>
+        <select
+          id="canvas__streetwidth"
+          :value="store.state.layout.streetWidthTiles ?? ''"
+          aria-label="Street ring width in tiles"
+          @change="store.setStreetWidth(Number(($event.target as HTMLSelectElement).value) || null)"
+        >
+          <option value="">Default (8 tiles)</option>
+          <option v-for="w in [5, 6, 7, 8, 9, 10, 11, 12]" :key="w" :value="w">{{ w }} tiles</option>
+        </select>
+      </div>
+      <div class="form__hint">
+        Street ring renders on one floor; ring width drives placement boundary, NPC walkable zone and the drawn road.
       </div>
     </div>
+
+    <div
+      v-for="t in editorTabs"
+      v-show="activeTab === t.key"
+      :id="`settings__panel--${t.key}`"
+      :key="t.key"
+      class="settings__panel form__col"
+      role="tabpanel"
+      :aria-labelledby="`settings__tab--${t.key}`"
+    >
+      <template v-for="group in editorGroupsByTab[t.key]" :key="group.title">
+        <div class="form__title">{{ group.title }}</div>
+        <div v-for="field in group.fields" :key="field.key" class="form__field">
+          <label :for="`es__${field.key}`">{{ field.label }}</label>
+          <input
+            :id="`es__${field.key}`"
+            v-model.number="draft[field.key]"
+            type="number"
+            :min="fieldRange(field.key).min"
+            :max="fieldRange(field.key).max"
+            :step="field.step"
+            @change="applyEditorField(field.key)"
+          />
+        </div>
+        <div class="form__hint">{{ group.hint }}</div>
+      </template>
+    </div>
+    <template #footer>
+      <button
+        class="flag--danger"
+        :disabled="pending"
+        aria-label="Reset all editor settings to defaults"
+        @click="resetEditorAll"
+      >
+        Reset
+      </button>
+      <button
+        class="flag--active"
+        :disabled="pending || !isEditorDirty"
+        aria-label="Apply all editor settings"
+        @click="applyEditorAll"
+      >
+        Apply All
+      </button>
+    </template>
   </ModalShell>
 </template>
+
+<style scoped>
+.settings__panel {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+</style>
+
+<style>
+#modal-settings {
+  width: min(94vw, 720px);
+  max-height: calc(100vh - 32px);
+}
+
+#modal-settings .modal__body {
+  overflow: hidden;
+}
+</style>

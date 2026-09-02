@@ -1,42 +1,53 @@
 <script setup lang="ts">
-import { provide, onMounted, ref } from "vue";
-import Toolbar from "./components/Toolbar.vue";
-import AssetToolbar from "./components/AssetToolbar.vue";
-import EditorCanvas from "./components/EditorCanvas.vue";
-import PropertiesPanel from "./components/PropertiesPanel.vue";
-import ToastContainer from "./components/ToastContainer.vue";
-import ConfirmDialog from "@/components/overlays/ConfirmDialog.vue";
-import { useAssetsStore } from "./blueprintStore";
-import { useNpcSimulation } from "./composables/useNpcSimulation";
-import { reloadEditorData } from "./store/state";
-import { resolveStreetTiles } from "./types";
+import { provide, onMounted, ref } from 'vue'
+import Toolbar from './components/Toolbar.vue'
+import AssetToolbar from './components/AssetToolbar.vue'
+import EditorCanvas from './components/EditorCanvas.vue'
+import PropertiesPanel from './components/PropertiesPanel.vue'
+import ToastContainer from './components/ToastContainer.vue'
+import ConfirmDialog from '@/components/overlays/ConfirmDialog.vue'
+import { useAssetsStore } from './blueprintStore'
+import { useNpcSimulation } from './composables/useNpcSimulation'
+import { resolveStreetTiles } from './types'
 
-const emit = defineEmits<{ close: [] }>();
+const emit = defineEmits<{ close: [] }>()
 
 function onClose() {
-  emit("close");
+  emit('close')
 }
 
-const store = useAssetsStore();
-const ready = ref(false);
+const store = useAssetsStore()
+const ready = ref(false)
+const loadError = ref('')
 
 onMounted(async () => {
-  await reloadEditorData();
-  ready.value = true;
-});
+  try {
+    await store.reloadEditorData()
+  } catch (err) {
+    loadError.value = err instanceof Error ? err.message : String(err)
+    return
+  }
+  ready.value = true
+})
 
-const npcSimulation = useNpcSimulation(
-  () => store.state.layout.npcConfig,
-  () => store.currentFloor.value,
-  () => ({ w: store.state.layout.canvas.width, h: store.state.layout.canvas.height, tileSize: store.state.layout.canvas.tileSize, streetTiles: resolveStreetTiles(store.state.layout), streetFloorId: store.state.layout.streetFloorId }),
-  (id: string) => store.state.layout.floors.find((f) => f.id === id),
-  () => store.state.layout.floors,
-  (id: string) => store.assetMap().get(id)?.tags,
-  (id: string) => store.assetMap().get(id),
-  () => store.globalTags.value,
-);
+const npcSimulation = useNpcSimulation({
+  getConfig: () => store.state.layout.npcConfig,
+  getFloor: () => store.currentFloor.value,
+  getCanvas: () => ({
+    w: store.state.layout.canvas.width,
+    h: store.state.layout.canvas.height,
+    tileSize: store.state.layout.canvas.tileSize,
+    streetTiles: resolveStreetTiles(store.state.layout),
+    streetFloorId: store.state.layout.streetFloorId,
+  }),
+  getFloorById: (id: string) => store.state.layout.floors.find((f) => f.id === id),
+  getAllFloors: () => store.state.layout.floors,
+  getAssetTags: (id: string) => store.assetMap().get(id)?.tags,
+  getAssetDef: (id: string) => store.assetMap().get(id),
+  getManagedTags: () => store.globalTags.value,
+})
 
-provide("npcSimulation", npcSimulation);
+provide('npcSimulation', npcSimulation)
 </script>
 
 <template>
@@ -51,7 +62,8 @@ provide("npcSimulation", npcSimulation);
       <ToastContainer />
       <ConfirmDialog />
     </template>
-    <div v-else class="editor--loading">Loading editor...</div>
+    <div v-else-if="loadError" class="editor--loading" role="alert">Failed to load editor: {{ loadError }}</div>
+    <div v-else class="editor--loading" role="status">Loading editor...</div>
   </div>
 </template>
 
@@ -59,7 +71,7 @@ provide("npcSimulation", npcSimulation);
 .editor__app {
   position: fixed;
   inset: 0;
-  z-index: 1000;
+  z-index: var(--z-layer-app);
   display: flex;
   flex-direction: column;
   background: var(--bg-primary);
@@ -72,7 +84,6 @@ provide("npcSimulation", npcSimulation);
   justify-content: center;
   flex: 1;
   color: var(--text-secondary);
-  font-size: var(--font-md);
 }
 
 .editor__main {

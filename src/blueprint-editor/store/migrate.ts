@@ -7,8 +7,7 @@ import { EDITOR_CONFIG } from '../editorConfig'
 import { originAssets, buildSavedLayout } from './dataLoader'
 import { editorLog, genId, emptyNpcConfig } from './storeUtils'
 
-export { EDITOR_CONFIG }
-export const LAYOUT_VERSION = EDITOR_CONFIG.layoutVersion
+const LAYOUT_VERSION = EDITOR_CONFIG.layoutVersion
 
 export function migrate(data: unknown, availableAssets: readonly AssetDef[] = originAssets): { layout: FloorLayoutData } {
 	if (!data || typeof data !== 'object' || Array.isArray(data)) throw new Error('Cannot migrate invalid layout data')

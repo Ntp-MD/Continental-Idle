@@ -7,6 +7,7 @@ const props = withDefaults(
   defineProps<{
     open: boolean
     title: string
+    modalId?: string
     maxWidth?: string
     width?: string
     height?: string
@@ -15,6 +16,7 @@ const props = withDefaults(
     bodyClass?: string
   }>(),
   {
+    modalId: undefined,
     maxWidth: undefined,
     width: undefined,
     height: undefined,
@@ -68,6 +70,7 @@ onUnmounted(() => {
       @click.self="!floating && onClose()"
     >
       <div
+        :id="modalId"
         ref="containerRef"
         class="modal"
         :class="{ 'modal--dragging': isDragging }"

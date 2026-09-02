@@ -2,8 +2,10 @@
 import { ref, watch, computed, nextTick } from 'vue'
 import { useAssetsStore } from '../blueprintStore'
 import { useToast } from '@/composables/useToast'
+import { useDebouncedCallback } from '@/composables/useDebounceFn'
 import type { AssetDef } from '../types'
 import { isHexColor, isValidColor, normalizeCornerRx } from '../types'
+import { assetIsSvg } from '../assetUtils'
 import ColorInput from './ColorInput.vue'
 
 const props = defineProps<{ asset: AssetDef }>()
@@ -75,8 +77,8 @@ watch(
   { immediate: true },
 )
 
-const isSvgAsset = computed(() => !!props.asset.svg)
-const isNpcDeployed = computed(() => store.state.mode === 'npc-preview')
+const isSvgAsset = computed(() => assetIsSvg(props.asset))
+const isNpcDeployed = store.isNpcPreview
 
 async function commitField(
   field: 'defaultPadding' | 'defaultRadius' | 'defaultLabelPadding' | 'defaultFillColor' | 'defaultStrokeColor',
@@ -116,6 +118,10 @@ async function commitRx() {
   await store.updateAsset(props.asset.id, { defaultRx: normalized })
 }
 
+const commitRxDebounced = useDebouncedCallback(() => {
+  void commitRx()
+}, 300)
+
 async function onRxInput(corner: 'rxTL' | 'rxTR' | 'rxBR' | 'rxBL') {
   if (assetRxSync.value) {
     const val = dimFields.value[corner]
@@ -124,7 +130,7 @@ async function onRxInput(corner: 'rxTL' | 'rxTR' | 'rxBR' | 'rxBL') {
     dimFields.value.rxBR = val
     dimFields.value.rxBL = val
   }
-  await commitRx()
+  commitRxDebounced()
 }
 
 async function clearAssetFillColor() {
@@ -159,180 +165,180 @@ watch(portal, async (v) => {
 </script>
 
 <template>
-  <div class="modal__body">
-    <div class="form__col">
-      <div class="form__title">Dimensions</div>
-      <div v-if="!isSvgAsset" class="form__row">
-        <label>Unit Mode</label>
-        <div class="form__group">
-          <button :class="{ 'flag--warning': !dimFields.usePx }" disabled>Tiles</button>
-          <button :class="{ 'flag--warning': dimFields.usePx }" disabled>Pixels</button>
-        </div>
-      </div>
-      <template v-if="!dimFields.usePx">
-        <div class="form__row">
-          <div class="form__field">
-            <label>Width</label>
-            <input type="number" min="1" :value="dimFields.w" disabled readonly />
-          </div>
-          <div class="form__field">
-            <label>Height</label>
-            <input type="number" min="1" :value="dimFields.h" disabled readonly />
-          </div>
-        </div>
-      </template>
-      <template v-else>
-        <div class="form__row">
-          <div class="form__field">
-            <label>Width (px)</label>
-            <input type="number" min="1" :value="dimFields.pxW" disabled readonly />
-          </div>
-          <div class="form__field">
-            <label>Height (px)</label>
-            <input type="number" min="1" :value="dimFields.pxH" disabled readonly />
-          </div>
-        </div>
-      </template>
-      <div class="form__row">
-        <div class="form__field">
-          <label>Default Padding</label>
-          <input
-            v-model.number="dimFields.defaultPadding"
-            type="number"
-            min="0"
-            @change="commitField('defaultPadding')"
-          />
-        </div>
-        <div class="form__field">
-          <label>Label Padding</label>
-          <input
-            v-model.number="dimFields.defaultLabelPadding"
-            type="number"
-            min="0"
-            @change="commitField('defaultLabelPadding')"
-          />
-        </div>
-      </div>
-      <div class="form__row">
-        <label>Shape Radius</label>
-        <input v-model.number="dimFields.defaultRadius" type="number" min="0" @change="commitField('defaultRadius')" />
-      </div>
-      <div class="form__row">
-        <label>Corner Radius</label>
-        <div class="form__group">
-          <label class="form__group">
-            <span>TL</span>
-            <input v-model.number="dimFields.rxTL" type="number" min="0" @input="onRxInput('rxTL')" />
-          </label>
-          <label class="form__group">
-            <span>TR</span>
-            <input v-model.number="dimFields.rxTR" type="number" min="0" @input="onRxInput('rxTR')" />
-          </label>
-          <label class="form__group">
-            <span>BL</span>
-            <input v-model.number="dimFields.rxBL" type="number" min="0" @input="onRxInput('rxBL')" />
-          </label>
-          <label class="form__group">
-            <span>BR</span>
-            <input v-model.number="dimFields.rxBR" type="number" min="0" @input="onRxInput('rxBR')" />
-          </label>
-          <button
-            type="button"
-            :class="{ 'flag--active': assetRxSync }"
-            :aria-pressed="assetRxSync"
-            :title="assetRxSync ? 'Sync all corners - ON' : 'Sync all corners - OFF'"
-            @click="assetRxSync = !assetRxSync"
-          >
-            <svg
-              viewBox="0 0 24 24"
-              width="16"
-              height="16"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              aria-hidden="true"
-            >
-              <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
-              <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
-            </svg>
-          </button>
-        </div>
+  <div class="form__col">
+    <div class="form__title">Dimensions</div>
+    <div v-if="!isSvgAsset" class="form__row">
+      <label>Unit Mode</label>
+      <div class="form__group">
+        <button :class="{ 'flag--warning': !dimFields.usePx }" disabled>Tiles</button>
+        <button :class="{ 'flag--warning': dimFields.usePx }" disabled>Pixels</button>
       </div>
     </div>
-    <div class="form__col">
-      <div class="form__title">Appearance</div>
+    <template v-if="!dimFields.usePx">
       <div class="form__row">
-        <label>Fill Color</label>
-        <div class="form__group">
-          <ColorInput
-            v-model="dimFields.defaultFillColor"
-            :allow-transparent="true"
-            placeholder="#RRGGBB (empty = wireframe)"
-            aria-label="Asset fill color"
-            @commit="commitField('defaultFillColor')"
-          />
-          <button type="button" @click="clearAssetFillColor">Reset</button>
-          <button
-            type="button"
-            :class="{ 'flag--active': assetColorSync }"
-            :aria-pressed="assetColorSync"
-            :title="assetColorSync ? 'Outline follows Fill - ON' : 'Outline follows Fill - OFF'"
-            @click="assetColorSync = !assetColorSync"
-          >
-            <svg
-              viewBox="0 0 24 24"
-              width="16"
-              height="16"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              aria-hidden="true"
-            >
-              <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
-              <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
-            </svg>
-          </button>
+        <div class="form__field">
+          <label>Width</label>
+          <input type="number" min="1" :value="dimFields.w" disabled readonly />
+        </div>
+        <div class="form__field">
+          <label>Height</label>
+          <input type="number" min="1" :value="dimFields.h" disabled readonly />
         </div>
       </div>
+    </template>
+    <template v-else>
       <div class="form__row">
-        <label>Outline Color</label>
-        <div class="form__group">
-          <ColorInput
-            v-model="dimFields.defaultStrokeColor"
-            allow-transparent
-            placeholder="#RRGGBB (empty = auto from fill)"
-            aria-label="Asset outline color"
-            @commit="commitField('defaultStrokeColor')"
-          />
-          <button type="button" @click="clearAssetStrokeColor">Reset</button>
+        <div class="form__field">
+          <label>Width (px)</label>
+          <input type="number" min="1" :value="dimFields.pxW" disabled readonly />
         </div>
+        <div class="form__field">
+          <label>Height (px)</label>
+          <input type="number" min="1" :value="dimFields.pxH" disabled readonly />
+        </div>
+      </div>
+    </template>
+    <div class="form__row">
+      <div class="form__field">
+        <label>Default Padding</label>
+        <input
+          v-model.number="dimFields.defaultPadding"
+          type="number"
+          min="0"
+          @change="commitField('defaultPadding')"
+        />
+      </div>
+      <div class="form__field">
+        <label>Label Padding</label>
+        <input
+          v-model.number="dimFields.defaultLabelPadding"
+          type="number"
+          min="0"
+          @change="commitField('defaultLabelPadding')"
+        />
       </div>
     </div>
-    <div class="form__col">
-      <div class="form__title">Behavior</div>
-      <div class="form__row">
-        <label>Portal</label>
+    <div class="form__row">
+      <label>Shape Radius</label>
+      <input v-model.number="dimFields.defaultRadius" type="number" min="0" @change="commitField('defaultRadius')" />
+    </div>
+    <div class="form__row">
+      <label>Corner Radius</label>
+      <div class="form__group">
+        <label class="form__group">
+          <span>TL</span>
+          <input v-model.number="dimFields.rxTL" class="size--fit" type="number" min="0" @input="onRxInput('rxTL')" />
+        </label>
+        <label class="form__group">
+          <span>TR</span>
+          <input v-model.number="dimFields.rxTR" class="size--fit" type="number" min="0" @input="onRxInput('rxTR')" />
+        </label>
+        <label class="form__group">
+          <span>BL</span>
+          <input v-model.number="dimFields.rxBL" class="size--fit" type="number" min="0" @input="onRxInput('rxBL')" />
+        </label>
+        <label class="form__group">
+          <span>BR</span>
+          <input v-model.number="dimFields.rxBR" class="size--fit" type="number" min="0" @input="onRxInput('rxBR')" />
+        </label>
         <button
-          :class="{ 'flag--success': portal, 'flag--danger': !portal }"
-          :disabled="isNpcDeployed"
-          :title="
-            isNpcDeployed
-              ? 'Exit NPC preview to change Portal setting'
-              : portal
-                ? 'NPCs can travel to another floor through this object'
-                : 'NPCs cannot use this object for cross-floor travel'
-          "
-          @click="portal = !portal"
+          type="button"
+          :class="{ 'flag--active': assetRxSync }"
+          :aria-pressed="assetRxSync"
+          :aria-label="assetRxSync ? 'Sync all corners - ON' : 'Sync all corners - OFF'"
+          :title="assetRxSync ? 'Sync all corners - ON' : 'Sync all corners - OFF'"
+          @click="assetRxSync = !assetRxSync"
         >
-          {{ portal ? 'ON' : 'OFF' }}
+          <svg
+            viewBox="0 0 24 24"
+            width="16"
+            height="16"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+            <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+          </svg>
         </button>
       </div>
-      <div class="form__hint">Portal objects let NPCs travel between floors (e.g. elevators, stairs).</div>
     </div>
+  </div>
+  <div class="form__col">
+    <div class="form__title">Appearance</div>
+    <div class="form__row">
+      <label>Fill Color</label>
+      <div class="form__group">
+        <ColorInput
+          v-model="dimFields.defaultFillColor"
+          :allow-transparent="true"
+          placeholder="#RRGGBB (empty = wireframe)"
+          aria-label="Asset fill color"
+          @commit="commitField('defaultFillColor')"
+        />
+        <button type="button" @click="clearAssetFillColor">Reset</button>
+        <button
+          type="button"
+          :class="{ 'flag--active': assetColorSync }"
+          :aria-pressed="assetColorSync"
+          :aria-label="assetColorSync ? 'Outline follows Fill - ON' : 'Outline follows Fill - OFF'"
+          :title="assetColorSync ? 'Outline follows Fill - ON' : 'Outline follows Fill - OFF'"
+          @click="assetColorSync = !assetColorSync"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            width="16"
+            height="16"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+            <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+          </svg>
+        </button>
+      </div>
+    </div>
+    <div class="form__row">
+      <label>Outline Color</label>
+      <div class="form__group">
+        <ColorInput
+          v-model="dimFields.defaultStrokeColor"
+          allow-transparent
+          placeholder="#RRGGBB (empty = auto from fill)"
+          aria-label="Asset outline color"
+          @commit="commitField('defaultStrokeColor')"
+        />
+        <button type="button" @click="clearAssetStrokeColor">Reset</button>
+      </div>
+    </div>
+  </div>
+  <div class="form__col">
+    <div class="form__title">Behavior</div>
+    <div class="form__row">
+      <label>Portal</label>
+      <button
+        :class="{ 'flag--success': portal, 'flag--danger': !portal }"
+        :disabled="isNpcDeployed"
+        :title="
+          isNpcDeployed
+            ? 'Exit NPC preview to change Portal setting'
+            : portal
+              ? 'NPCs can travel to another floor through this object'
+              : 'NPCs cannot use this object for cross-floor travel'
+        "
+        @click="portal = !portal"
+      >
+        {{ portal ? 'ON' : 'OFF' }}
+      </button>
+    </div>
+    <div class="form__hint">Portal objects let NPCs travel between floors (e.g. elevators, stairs).</div>
   </div>
 </template>
 

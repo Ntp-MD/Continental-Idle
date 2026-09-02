@@ -105,7 +105,10 @@ export const npcSettingsData = {
   "pool": [
     {
       "roleId": "role-guest",
-      "count": 16
+      "count": 16,
+      "floorIds": [
+        "floor-6be566f0cf"
+      ]
     },
     {
       "roleId": "role-receptionist",

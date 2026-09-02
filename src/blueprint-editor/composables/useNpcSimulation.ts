@@ -3,16 +3,18 @@ import type { NpcCanvasBounds, NpcEngineEvent } from '@/engine/npc'
 import type { AssetDef, FloorData, NpcSimDot, NpcSimulationConfig } from '../types'
 import { useNpcSimulationCore, type NpcSimulationCore } from '@/composables/useNpcSimulationCore'
 
-export function useNpcSimulation(
-	getConfig?: () => NpcSimulationConfig | undefined,
-	getFloor?: () => FloorData | undefined,
-	getCanvas?: () => NpcCanvasBounds,
-	getFloorById?: (id: string) => FloorData | undefined,
-	getAllFloors?: () => FloorData[],
-	getAssetTags?: (type: string) => string[] | undefined,
-	getAssetDef?: (type: string) => AssetDef | undefined,
-	getManagedTags?: () => readonly string[],
-): {
+export interface NpcSimulationSources {
+	getConfig?: () => NpcSimulationConfig | undefined
+	getFloor?: () => FloorData | undefined
+	getCanvas?: () => NpcCanvasBounds
+	getFloorById?: (id: string) => FloorData | undefined
+	getAllFloors?: () => FloorData[]
+	getAssetTags?: (type: string) => string[] | undefined
+	getAssetDef?: (type: string) => AssetDef | undefined
+	getManagedTags?: () => readonly string[]
+}
+
+export function useNpcSimulation(sources: NpcSimulationSources = {}): {
 	npcs: Ref<NpcSimDot[]>
 	frameDots: Map<string, NpcSimDot>
 	doorPassageEvents: ShallowRef<NpcEngineEvent[]>
@@ -28,31 +30,31 @@ export function useNpcSimulation(
 	config: Ref<NpcSimulationConfig>
 } {
 	const core: NpcSimulationCore = useNpcSimulationCore({
-		getConfig: () => getConfig?.(),
-		getFloors: () => getAllFloors?.() ?? [],
-		getCanvas: () => getCanvas?.() ?? { w: 1600, h: 1000, tileSize: 25 },
-		getViewFloorId: () => getFloor?.()?.id ?? null,
+		getConfig: () => sources.getConfig?.(),
+		getFloors: () => sources.getAllFloors?.() ?? [],
+		getCanvas: () => sources.getCanvas?.() ?? { w: 1600, h: 1000, tileSize: 25 },
+		getViewFloorId: () => sources.getFloor?.()?.id ?? null,
 		idPrefix: 'npc-sim-',
-		getAssetDef,
-		getAssetTags,
-		getManagedTags,
+		getAssetDef: sources.getAssetDef,
+		getAssetTags: sources.getAssetTags,
+		getManagedTags: sources.getManagedTags,
 	})
 
-	core.ingestConfig(getConfig?.())
+	core.ingestConfig(sources.getConfig?.())
 	onUnmounted(core.stopLoop)
 
-	watch(() => getConfig?.(), raw => core.ingestConfig(raw), { deep: true })
+	watch(() => sources.getConfig?.(), raw => core.ingestConfig(raw), { deep: true })
 
-	watch(() => getFloor?.()?.id, floorId => {
+	watch(() => sources.getFloor?.()?.id, floorId => {
 		if (!floorId) return
 		core.setViewFloorId(floorId)
 	})
 
-	watch(() => getFloor?.(), floor => {
+	watch(() => sources.getFloor?.(), floor => {
 		if (floor && floor.id === core.getViewFloorId()) core.refresh()
 	}, { deep: true })
 
-	watch(() => getCanvas?.(), () => {
+	watch(() => sources.getCanvas?.(), () => {
 		if (!core.isDeploymentActive()) return
 		core.refresh()
 	})
@@ -62,10 +64,10 @@ export function useNpcSimulation(
 		frameDots: core.frameDots,
 		doorPassageEvents: core.doorPassageEvents,
 		deploy(floorId?: string, spawnFloorId?: string) {
-			const view = floorId ?? getFloor?.()?.id
-			const floors = getAllFloors?.() ?? []
-			const canvas = getCanvas?.()
-			const target = view && getFloorById ? getFloorById(view) : getFloor?.()
+			const view = floorId ?? sources.getFloor?.()?.id
+			const floors = sources.getAllFloors?.() ?? []
+			const canvas = sources.getCanvas?.()
+			const target = view && sources.getFloorById ? sources.getFloorById(view) : sources.getFloor?.()
 			if (!canvas || !target || !floors.length) return
 			core.deploy(floors, canvas, view ?? target.id, spawnFloorId)
 		},

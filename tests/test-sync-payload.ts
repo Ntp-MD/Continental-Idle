@@ -1,13 +1,13 @@
 import assert from 'node:assert/strict'
 import { buildSyncedPayload } from '../src/blueprint-editor/syncedPayload'
 import { buildAssetMap } from '../src/blueprint-editor/assetUtils'
+import { emptyNpcConfig } from '../src/blueprint-editor/store/storeUtils'
 import type { AssetDef, FloorLayoutData, NpcSimulationConfig } from '../src/blueprint-editor/types'
 
 const NPC_CONFIG: NpcSimulationConfig = {
-	speed: 0.2,
+	...emptyNpcConfig(),
 	defaultRoleId: 'staff',
 	roles: [{ id: 'staff', label: 'Staff', color: '#ffffff', focusTags: [], restrictedTags: [], taskIds: [], focusChance: 100 }],
-	tasks: [],
 	pool: [{ roleId: 'staff', count: 3 }],
 }
 

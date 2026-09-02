@@ -4,13 +4,14 @@ import { useAssetsStore } from '../blueprintStore'
 import { useConfirm } from '@/composables/useConfirm'
 import { useToast } from '@/composables/useToast'
 import { isHexColor, normalizeNpcConfig } from '../types'
-import { managedTagSet } from '../store/tags'
-import { genId, emptyNpcConfig } from '../store/utils'
+import { genId, emptyNpcConfig, taskMatchesQuery } from '../blueprintStore'
 import { sanitizeString } from '../../utils/sanitize'
 import type { NpcRole, NpcSimulationConfig, NpcTask } from '../types'
 import ModalShell from './ModalShell.vue'
-import ColorInput from './ColorInput.vue'
-import TagChip from './TagChip.vue'
+import NpcRoleList from './NpcRoleList.vue'
+import NpcRoleDetail from './NpcRoleDetail.vue'
+import NpcTaskCard from './NpcTaskCard.vue'
+import SearchInput from './SearchInput.vue'
 
 const props = defineProps<{ open: boolean }>()
 const emit = defineEmits<{ (e: 'close'): void }>()
@@ -21,19 +22,12 @@ const toast = useToast()
 const view = ref<'roles' | 'library'>('roles')
 const selectedRoleId = ref('')
 const tagSearch = ref('')
-const taskFilter = ref('')
 const libTaskFilter = ref('')
 const newTag = ref('')
-const newFocusTag = ref('')
-const newRestrictedTag = ref('')
-const newTaskTags = ref<Record<string, string>>({})
 const pending = ref(false)
 const saveState = ref<'' | 'saved' | 'unsaved'>('')
 let saveStateTimer: number | null = null
 let rateTimer: number | null = null
-const ratesExpanded = ref(false)
-const rateSearch = ref('')
-const rateScopeAll = ref(false)
 
 function markSaved() {
   saveState.value = 'saved'
@@ -49,57 +43,13 @@ const filteredTags = computed(() => {
   return query ? tags.value.filter((tag) => tag.includes(query)) : tags.value
 })
 const selectedRole = computed<NpcRole | undefined>(() => roles.value.find((role) => role.id === selectedRoleId.value))
-const availableFocusTags = computed(() => tags.value.filter((tag) => !selectedRole.value?.focusTags.includes(tag)))
-const availableRestrictedTags = computed(() =>
-  tags.value.filter((tag) => !selectedRole.value?.restrictedTags.includes(tag)),
-)
 const invalidRole = computed(() => roles.value.find((role) => !role.label.trim() || !isHexColor(role.color)))
-
-function taskMatchesQuery(task: NpcTask, query: string): boolean {
-  return task.label.toLowerCase().includes(query) || task.tags.some((tag) => tag.toLowerCase().includes(query))
-}
-
-const filteredAssignTasks = computed(() => {
-  if (!selectedRole.value) return []
-  const query = taskFilter.value.trim().toLowerCase()
-  if (!query) return draft.value.tasks
-  return draft.value.tasks.filter((task) => taskMatchesQuery(task, query))
-})
 
 const filteredLibTasks = computed(() => {
   const query = libTaskFilter.value.trim().toLowerCase()
   if (!query) return draft.value.tasks
   return draft.value.tasks.filter((task) => taskMatchesQuery(task, query))
 })
-
-const selectedRoleTagScope = computed<string[]>(() => {
-  const role = selectedRole.value
-  if (!role) return []
-  const set = new Set<string>([...role.focusTags, ...role.restrictedTags])
-  for (const tag of role.spawnRule?.targetTags ?? []) set.add(tag)
-  for (const id of role.taskIds) {
-    const task = draft.value.tasks.find((item) => item.id === id)
-    for (const tag of task?.tags ?? []) set.add(tag)
-  }
-  return [...set]
-})
-
-const rateRows = computed<string[]>(() => {
-  const base = rateScopeAll.value
-    ? [...tags.value]
-    : [...new Set([...selectedRoleTagScope.value, ...Object.keys(draft.value.tagTriggerRates ?? {})])].filter(
-        (tag) => managedTagSet.value.has(tag) || (draft.value.tagTriggerRates?.[tag] ?? 0) > 0,
-      )
-  const query = rateSearch.value.trim().toLowerCase()
-  const list = query ? base.filter((tag) => tag.toLowerCase().includes(query)) : base
-  return list.sort((a, b) => a.localeCompare(b))
-})
-
-const configuredRateCount = computed(() => Object.keys(draft.value.tagTriggerRates ?? {}).length)
-
-const roleRateCount = computed(
-  () => selectedRoleTagScope.value.filter((tag) => (draft.value.tagTriggerRates?.[tag] ?? 0) > 0).length,
-)
 
 const missingDefault = computed(
   () => roles.value.length > 0 && !roles.value.some((role) => role.id === draft.value.defaultRoleId),
@@ -239,12 +189,33 @@ async function updateRole() {
   await persistConfig()
 }
 
-function roleSummary(role: NpcRole): string {
-  return `${role.focusTags.length} focus - ${role.taskIds.length} tasks`
+async function renameRole(value: string) {
+  if (!selectedRole.value) return
+  selectedRole.value.label = value
+  await updateRole()
 }
 
+async function setRoleChance(value: number) {
+  if (!selectedRole.value) return
+  selectedRole.value.focusChance = value
+  await updateRole()
+}
+
+async function renameTask(task: NpcTask, value: string) {
+  task.label = value
+  await updateTask()
+}
+
+const taskUsageMap = computed(() => {
+  const map = new Map<string, number>()
+  for (const role of roles.value) {
+    for (const taskId of role.taskIds) map.set(taskId, (map.get(taskId) ?? 0) + 1)
+  }
+  return map
+})
+
 function taskUsage(taskId: string): number {
-  return roles.value.filter((role) => role.taskIds.includes(taskId)).length
+  return taskUsageMap.value.get(taskId) ?? 0
 }
 
 async function addTask() {
@@ -279,8 +250,8 @@ async function updateTask() {
   await persistConfig()
 }
 
-async function addTaskTag(task: NpcTask) {
-  const input = (newTaskTags.value[task.id] ?? '').trim()
+async function addTaskTag(task: NpcTask, value: string) {
+  const input = value.trim()
   if (!input) return
   for (const part of input
     .split(',')
@@ -288,7 +259,6 @@ async function addTaskTag(task: NpcTask) {
     .filter(Boolean)) {
     if (!task.tags.includes(part)) task.tags.push(part)
   }
-  newTaskTags.value[task.id] = ''
   await store.ensureTag(task.tags[task.tags.length - 1])
   await updateTask()
 }
@@ -340,15 +310,13 @@ async function removeTag(tag: string) {
   }
 }
 
-async function addRoleTag(kind: 'focus' | 'restricted', tag?: string) {
+async function addRoleTag(kind: 'focus' | 'restricted', tag: string) {
   if (!selectedRole.value) return
-  const input = kind === 'focus' ? newFocusTag : newRestrictedTag
-  const value = (tag ?? input.value).trim()
+  const value = tag.trim()
   if (!value) return
   const target = kind === 'focus' ? selectedRole.value.focusTags : selectedRole.value.restrictedTags
   if (!target.includes(value)) target.push(value)
   await store.ensureTag(value)
-  if (!tag) input.value = ''
   await persistConfig()
 }
 
@@ -357,10 +325,6 @@ async function removeRoleTag(kind: 'focus' | 'restricted', tag: string) {
   if (kind === 'focus') selectedRole.value.focusTags = selectedRole.value.focusTags.filter((item) => item !== tag)
   else selectedRole.value.restrictedTags = selectedRole.value.restrictedTags.filter((item) => item !== tag)
   await persistConfig()
-}
-
-function triggerRate(tag: string): number {
-  return draft.value.tagTriggerRates?.[tag] ?? 0
 }
 
 function setTriggerRate(tag: string, rate: number) {
@@ -383,16 +347,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <ModalShell
-    :open="open"
-    title="NPC Manager"
-    width="min(90vw, 1200px)"
-    max-width="1200px"
-    height="90vh"
-    max-height="90vh"
-    body-class="form__col"
-    @close="onClose"
-  >
+  <ModalShell :open="open" modal-id="modal-npc-manager" title="NPC Manager" @close="onClose">
     <div class="form__row npc__viewswitch">
       <button
         type="button"
@@ -412,290 +367,159 @@ onUnmounted(() => {
       </button>
     </div>
 
-    <div v-if="view === 'roles'" class="form__col npc__editor">
-      <aside class="form__col npc__sidebar">
-        <h3 class="form__title">Roles</h3>
-        <div class="form__col form__col--scroll">
-          <div
-            v-for="role in roles"
-            :key="role.id"
-            class="card__item npc__role"
-            :class="{ 'npc__role--active': selectedRoleId === role.id }"
-            role="button"
-            tabindex="0"
-            @click="selectedRoleId = role.id"
-            @keydown.self.enter.prevent="selectedRoleId = role.id"
-            @keydown.self.space.prevent="selectedRoleId = role.id"
-          >
-            <span class="swatch swatch--round" :style="{ background: role.color }" />
-            <span class="npc__text"
-              ><strong class="truncate">{{ role.label }}</strong
-              ><small class="npc__sub"
-                ><span v-if="role.id === draft.defaultRoleId" class="npc__subbadge">Default</span
-                >{{ roleSummary(role) }}</small
-              ></span
-            >
-            <button
-              v-if="role.id !== draft.defaultRoleId"
-              type="button"
-              class="flag--ghost"
-              title="Set as default role"
-              aria-label="Set as default role"
-              @click.stop="setDefaultRole(role)"
-            >
-              Default
-            </button>
-            <button
-              v-if="role.id !== draft.defaultRoleId"
-              type="button"
-              class="flag--danger"
-              aria-label="Delete role"
-              @click.stop="deleteRole(role)"
-            >
-              x
-            </button>
-          </div>
-          <div v-if="!roles.length" class="empty">No roles yet - click "+ Add Role"</div>
-        </div>
-        <button type="button" class="flag--active" :disabled="pending" @click="addRole">+ Add Role</button>
-      </aside>
-
-      <section v-if="selectedRole" class="form__col form__col--scroll npc__detail">
-        <h3 class="form__title">Editing: {{ selectedRole.label }}</h3>
-        <div class="form__grid">
-          <div class="form__col">
-            <h4 class="form__subtitle">Basics</h4>
-            <div class="form__row">
-              <label :for="`npc-role-label-${selectedRole.id}`">Label</label>
-              <input
-                :id="`npc-role-label-${selectedRole.id}`"
-                v-model="selectedRole.label"
-                type="text"
-                @change="updateRole"
-              />
-            </div>
-            <div class="form__row">
-              <label :for="`npc-role-color-${selectedRole.id}`">Color</label>
-              <ColorInput
-                :model-value="selectedRole.color"
-                placeholder="#RRGGBB"
-                aria-label="Role color"
-                @commit="commitRoleColor"
-              />
-            </div>
-            <div class="form__row">
-              <label :for="`npc-role-chance-${selectedRole.id}`">Focus Chance</label>
-              <input
-                :id="`npc-role-chance-${selectedRole.id}`"
-                v-model.number="selectedRole.focusChance"
-                type="range"
-                min="0"
-                max="100"
-                @change="updateRole"
-              />
-              <span class="form__hint npc__rate">{{ selectedRole.focusChance }}%</span>
-            </div>
-          </div>
-
-          <div class="form__col">
-            <h4 class="form__subtitle">Focus Tags</h4>
-            <p class="npc__hinttext">Where this NPC prefers to go. Empty = wanders anywhere.</p>
-            <div class="form__row">
-              <TagChip
-                v-for="tag in selectedRole.focusTags"
-                :key="`focus-${tag}`"
-                :label="tag"
-                variant="focus"
-                removable
-                :class="{ 'flag--warning': !managedTagSet.has(tag) }"
-                @remove="removeRoleTag('focus', tag)"
-              />
-              <span v-if="!selectedRole.focusTags.length" class="empty">None - NPC wanders</span>
-            </div>
-            <div class="form__row">
-              <input v-model="newFocusTag" type="text" placeholder="tag name" @keydown.enter="addRoleTag('focus')" />
-              <button type="button" @click="addRoleTag('focus')">Add</button>
-            </div>
-            <div v-if="availableFocusTags.length" class="npc__suggest">
-              <button
-                v-for="tag in availableFocusTags.slice(0, 8)"
-                :key="`fsug-${tag}`"
-                type="button"
-                class="npc__suggestion"
-                @click="addRoleTag('focus', tag)"
-              >
-                + {{ tag }}
-              </button>
-            </div>
-          </div>
-
-          <div class="form__col">
-            <h4 class="form__subtitle">Restricted Tags</h4>
-            <p class="npc__hinttext">Places this NPC avoids.</p>
-            <div class="form__row">
-              <TagChip
-                v-for="tag in selectedRole.restrictedTags"
-                :key="`restricted-${tag}`"
-                :label="tag"
-                variant="restricted"
-                removable
-                :class="{ 'flag--warning': !managedTagSet.has(tag) }"
-                @remove="removeRoleTag('restricted', tag)"
-              />
-              <span v-if="!selectedRole.restrictedTags.length" class="empty">No restrictions</span>
-            </div>
-            <div class="form__row">
-              <input
-                v-model="newRestrictedTag"
-                type="text"
-                placeholder="tag name"
-                @keydown.enter="addRoleTag('restricted')"
-              />
-              <button type="button" @click="addRoleTag('restricted')">Add</button>
-            </div>
-            <div v-if="availableRestrictedTags.length" class="npc__suggest">
-              <button
-                v-for="tag in availableRestrictedTags.slice(0, 8)"
-                :key="`rsug-${tag}`"
-                type="button"
-                class="npc__suggestion"
-                @click="addRoleTag('restricted', tag)"
-              >
-                + {{ tag }}
-              </button>
-            </div>
-          </div>
-
-          <div class="form__col">
-            <h4 class="form__subtitle">Assigned Tasks</h4>
-            <input v-model="taskFilter" type="search" placeholder="Search tasks..." />
-            <div class="form__col npc__scroll">
-              <label v-for="task in filteredAssignTasks" :key="task.id" class="card__item npc__pickrow">
-                <input
-                  type="checkbox"
-                  :checked="selectedRole.taskIds.includes(task.id)"
-                  :aria-label="`Assign task ${task.label}`"
-                  @change="toggleTaskAssignment(task.id)"
-                />
-                <span class="npc__tagname truncate">{{ task.label }}</span>
-                <small class="npc__picktags truncate">{{ task.tags.join(', ') }}</small>
-              </label>
-              <div v-if="!filteredAssignTasks.length" class="empty">
-                {{ draft.tasks.length ? 'No matching tasks' : 'No tasks yet - create them under Tags & Tasks' }}
-              </div>
-            </div>
-          </div>
-
-          <div class="form__col">
-            <div class="form__row">
-              <h4 class="form__subtitle">Tag Trigger Rates</h4>
-              <button
-                type="button"
-                class="flag--ghost"
-                :aria-expanded="ratesExpanded"
-                @click="ratesExpanded = !ratesExpanded"
-              >
-                {{ ratesExpanded ? 'Hide' : 'Show' }}
-              </button>
-            </div>
-            <template v-if="ratesExpanded">
-              <div class="form__row">
-                <input v-model="rateSearch" type="search" placeholder="Search tags..." />
-                <label class="npc__scope"><input v-model="rateScopeAll" type="checkbox" /> All tags</label>
-              </div>
-              <div v-for="tag in rateRows" :key="`rate-${tag}`" class="form__row">
-                <label class="npc__tagname truncate" :for="`npc-rate-${tag}`">{{ tag }}</label>
-                <input
-                  :id="`npc-rate-${tag}`"
-                  class="npc__rate"
-                  type="number"
-                  min="0"
-                  max="100"
-                  step="1"
-                  :value="triggerRate(tag)"
-                  @change="setTriggerRate(tag, +($event.target as HTMLInputElement).value)"
-                />
-                <span class="form__hint">%/min</span>
-              </div>
-              <div v-if="!rateRows.length" class="empty">No tags match</div>
-            </template>
-            <div v-else class="empty">
-              {{ roleRateCount }} configured for this role / {{ configuredRateCount }} total
-            </div>
-          </div>
-        </div>
-      </section>
-      <section v-else class="form__col form__col--scroll npc__detail">
-        <div class="empty empty--center">Select a role on the left to edit it</div>
+    <div v-if="view === 'roles'" class="npc__editor">
+      <NpcRoleList
+        :roles="roles"
+        :default-role-id="draft.defaultRoleId"
+        :selected-id="selectedRoleId"
+        :pending="pending"
+        @select="selectedRoleId = $event"
+        @set-default="setDefaultRole"
+        @remove="deleteRole"
+        @add="addRole"
+      />
+      <NpcRoleDetail
+        v-if="selectedRole"
+        :key="selectedRole.id"
+        :role="selectedRole"
+        :tasks="draft.tasks"
+        :all-tags="tags"
+        :trigger-rates="draft.tagTriggerRates"
+        @update="updateRole"
+        @rename="renameRole"
+        @chance="setRoleChance"
+        @commit-color="commitRoleColor"
+        @add-tag="addRoleTag"
+        @remove-tag="removeRoleTag"
+        @toggle-task="toggleTaskAssignment"
+        @set-rate="setTriggerRate"
+      />
+      <section v-else class="npc__detail">
+        <div class="empty">Select a role on the left to edit it</div>
       </section>
     </div>
 
     <div v-else class="form__col npc__library">
       <section class="form__col npc__panel">
         <h3 class="form__title">Tags</h3>
-        <input v-model="tagSearch" type="search" placeholder="Search tags..." />
+        <SearchInput v-model="tagSearch" placeholder="Search tags..." label="Search tags" />
         <div class="form__row npc__add">
-          <input v-model="newTag" type="text" placeholder="New tag" @keydown.enter="addTag" />
+          <input
+            v-model="newTag"
+            class="size--stretch"
+            type="text"
+            placeholder="New tag"
+            aria-label="New tag"
+            @keydown.enter="addTag"
+          />
           <button type="button" class="flag--active" @click="addTag">Add</button>
         </div>
-        <div class="form__col form__col--scroll">
-          <div v-for="tag in filteredTags" :key="tag" class="card__item">
-            <span class="npc__tagname truncate">{{ tag }}</span>
-            <button type="button" class="flag--danger" aria-label="Delete tag" @click="removeTag(tag)">x</button>
-          </div>
-          <div v-if="!filteredTags.length" class="empty">No tags</div>
+        <div v-for="tag in filteredTags" :key="tag" class="card__item">
+          <span class="npc__tagname truncate">{{ tag }}</span>
+          <button type="button" class="flag--danger" aria-label="Delete tag" @click="removeTag(tag)">x</button>
         </div>
+        <div v-if="!filteredTags.length" class="empty">No tags</div>
       </section>
 
       <section class="form__col npc__panel">
         <h3 class="form__title">Tasks</h3>
-        <input v-model="libTaskFilter" type="search" placeholder="Search tasks..." />
-        <div class="form__col form__col--scroll">
-          <div v-for="task in filteredLibTasks" :key="task.id" class="form__col npc__taskcard">
-            <div class="form__row">
-              <input v-model="task.label" type="text" aria-label="Task label" @change="updateTask" />
-              <button type="button" class="flag--danger" aria-label="Delete task" @click="deleteTask(task.id)">
-                x
-              </button>
-            </div>
-            <div class="form__row">
-              <TagChip
-                v-for="tag in task.tags"
-                :key="`${task.id}-${tag}`"
-                :label="tag"
-                removable
-                :class="{ 'flag--warning': !managedTagSet.has(tag) }"
-                @remove="removeTaskTag(task, tag)"
-              />
-              <span v-if="!task.tags.length" class="empty">No tags</span>
-            </div>
-            <div class="form__row">
-              <input
-                :value="newTaskTags[task.id] ?? ''"
-                type="text"
-                placeholder="add tag"
-                aria-label="Add task tag"
-                @keydown.enter.prevent="addTaskTag(task)"
-                @change="addTaskTag(task)"
-              />
-              <small class="npc__usagenote">used by {{ taskUsage(task.id) }} role(s)</small>
-            </div>
-          </div>
-          <div v-if="!filteredLibTasks.length" class="empty">No tasks yet - click "+ Add Task"</div>
-        </div>
-        <button type="button" class="flag--active" :disabled="pending" @click="addTask">+ Add Task</button>
+        <SearchInput v-model="libTaskFilter" placeholder="Search tasks..." label="Search tasks" />
+        <NpcTaskCard
+          v-for="task in filteredLibTasks"
+          :key="task.id"
+          :task="task"
+          :usage-count="taskUsage(task.id)"
+          @update="updateTask"
+          @rename="(value) => renameTask(task, value)"
+          @remove="deleteTask(task.id)"
+          @remove-tag="(tag) => removeTaskTag(task, tag)"
+          @add-tag="(value) => addTaskTag(task, value)"
+        />
+        <div v-if="!filteredLibTasks.length" class="empty">No tasks yet - click "+ Add Task"</div>
+        <button type="button" class="flag--active size--fill" :disabled="pending" @click="addTask">+ Add Task</button>
       </section>
     </div>
 
-    <div
-      class="npc__status"
-      :class="
-        statusText &&
-        (invalidRole || missingDefault || saveState === 'unsaved' ? 'npc__status--unsaved' : 'npc__status--saved')
-      "
-      aria-live="polite"
-    >
+    <div class="npc__status" aria-live="polite">
       <span v-if="statusText">{{ statusText }}</span>
     </div>
   </ModalShell>
 </template>
+<style scoped>
+.npc__viewswitch button,
+.npc__library button {
+  white-space: nowrap;
+}
+
+.npc__viewswitch button,
+.npc__panel button {
+  flex-shrink: 0;
+}
+
+.npc__viewswitch button {
+  background: transparent;
+}
+
+.npc__viewswitch {
+  padding: var(--gap-sm) var(--gap-md);
+  flex-shrink: 0;
+}
+
+.npc__editor {
+  display: flex;
+  flex-wrap: wrap;
+}
+
+.npc__editor > .npc__sidebar {
+  flex: 1 1 220px;
+  max-width: 340px;
+}
+
+.npc__editor > .npc__detail {
+  flex: 1 1 320px;
+}
+
+.npc__detail,
+.npc__panel {
+  min-width: 0;
+  padding: var(--gap-md);
+}
+
+.npc__panel {
+  overflow: hidden;
+}
+
+.npc__tagname {
+  flex: 1;
+  min-width: 0;
+}
+
+.npc__library {
+  flex-wrap: wrap;
+}
+
+.npc__library > .npc__panel {
+  flex: 1 1 280px;
+}
+
+.npc__add {
+  flex-shrink: 0;
+}
+
+.npc__status {
+  min-height: 24px;
+  border-top: 1px solid var(--border-dim);
+  padding: var(--gap-xs) var(--gap-md);
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+</style>
+
+<style>
+#modal-npc-manager {
+  width: min(90vw, 1200px);
+  height: 90vh;
+  max-height: calc(100vh - 32px);
+}
+</style>

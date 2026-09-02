@@ -5,14 +5,14 @@ import { useToast } from '@/composables/useToast'
 import { useConfirm } from '@/composables/useConfirm'
 import { useAsyncAction } from '../composables/useAsyncAction'
 import { useClipboardCopy } from '../composables/useClipboardCopy'
-import { assetSvgVarStyle, assetPreviewSvg, assetPreviewViewBox } from '../assetUtils'
+import { assetSvgVarStyle, assetPreviewSvg, assetPreviewViewBox, assetIsSvg } from '../assetUtils'
 import { useCanvasWallStyle, DOOR_COLOR } from '../composables/useCanvasWallStyle'
 import { useSvgPreview } from '../composables/useSvgPreview'
 import ErrorBoundary from '@/components/overlays/ErrorBoundary.vue'
 import type { AssetDef } from '../types'
 import TagPicker from './TagPicker.vue'
 const AssetEditModal = defineAsyncComponent(() => import('./AssetEditModal.vue'))
-import { managedTagSet } from '../store/tags'
+import { managedTagSet } from '../blueprintStore'
 
 const props = defineProps<{ asset: AssetDef }>()
 const store = useAssetsStore()
@@ -26,7 +26,6 @@ const assetFields = ref<{ name: string; defaultLabel: string }>({
 })
 const assetTags = ref<string[]>([])
 const showEditor = ref(false)
-const portal = ref(props.asset.tags?.includes('portal') ?? false)
 
 watch(
   () => props.asset,
@@ -36,14 +35,13 @@ watch(
       defaultLabel: a.defaultLabel ?? '',
     }
     assetTags.value = a.tags ? [...a.tags] : []
-    portal.value = a.tags?.includes('portal') ?? false
     showEditor.value = false
   },
   { immediate: true },
 )
 
-const isSvgAsset = computed(() => !!props.asset.svg)
-const isNpcDeployed = computed(() => store.state.mode === 'npc-preview')
+const isSvgAsset = computed(() => assetIsSvg(props.asset))
+const isNpcDeployed = store.isNpcPreview
 const orphanAssetTags = computed(() => assetTags.value.filter((tag) => !managedTagSet.value.has(tag)))
 
 const { canvasTileSize, wallColor, wallThickness } = useCanvasWallStyle()
@@ -55,7 +53,8 @@ const previewSvg = computed(() =>
 )
 const previewVars = computed(() => assetSvgVarStyle(props.asset))
 
-const { svgEl: previewSvgEl, render: renderPreview } = useSvgPreview(previewSvg)
+const previewSvgEl = ref<SVGSVGElement | null>(null)
+const { render: renderPreview } = useSvgPreview(previewSvg, previewSvgEl)
 
 watch(
   () => props.asset.id,
@@ -87,7 +86,6 @@ async function saveAssetTags(tags: string[]) {
     return
   }
   assetTags.value = tags
-  portal.value = tags.includes('portal')
   await store.updateAsset(props.asset.id, { tags })
 }
 
@@ -138,21 +136,22 @@ async function duplicateAsset() {
     </div>
     <div class="form__row">
       <label>ID</label>
-      <div class="form__group">
-        <input type="text" :value="asset.id" disabled class="input--disabled" title="Asset ID" />
+      <div class="form__group size--stretch">
+        <input type="text" :value="asset.id" disabled title="Asset ID" />
         <button @click="copyId(asset.id)">Copy</button>
       </div>
     </div>
 
     <div class="form__row">
       <label>Name</label>
-      <input v-model="assetFields.name" type="text" @change="commitField('name')" />
+      <input v-model="assetFields.name" type="text" aria-label="Asset name" @change="commitField('name')" />
     </div>
     <div class="form__row">
       <label>Label</label>
       <input
         v-model="assetFields.defaultLabel"
         type="text"
+        aria-label="Asset label"
         placeholder="Use asset name"
         @change="commitField('defaultLabel')"
       />
@@ -198,7 +197,6 @@ async function duplicateAsset() {
 }
 
 .preview__svg svg {
-  display: block;
   overflow: hidden;
 }
 </style>

@@ -29,9 +29,8 @@ import {
 	normalizeWalkableGrid,
 	resolveStreetTiles,
 } from './types'
-import { assignSyncKey } from './store/storeUtils'
+import { assignSyncKey, editorLog } from './store/storeUtils'
 import { assetSizeFor } from './geometry'
-import { editorLog } from './store/utils'
 
 export function buildSyncedPayload(
 	layout: FloorLayoutData,

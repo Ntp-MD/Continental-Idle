@@ -14,7 +14,16 @@ Structure: **Universal Rules** apply to every web project. **Project Specifics**
 7. **Sync floor keys contract.** Game floors are keyed `G` + numeric (legacy `F<n>` labels honored); unmapped labels auto-index by floor order via `assignSyncKey`, collisions get `_N` suffixes. Never silently drop a floor that fails mapping — surface the error.
 8. **Report honestly.** Unrelated pre-existing failures are listed separately, never hidden or fixed silently inside unrelated changes.
 9. **Scope discipline.** Prefer direct implementations; no new infrastructure without demonstrated need; delete dead code in the same change that removes its last reference; never commit unless explicitly asked.
-10. **Record the why.** High-impact, DIRECTION-level decisions get an entry in [`docs/timeline-decision.md`](docs/timeline-decision.md) (Problem / Final solution / Trade-off / Revisit trigger) written while context is fresh - it is the project's single decision history (supersedes the former docs/adr/). Routine fixes, refactors, and cleanups do NOT get entries; only choices that constrain future work do.
+10. **Complexity checks.** Run these conditions when adding or reviewing structure; if a condition fires, fix it in the same change:
+
+- A facade/re-export file earns its place only with 2+ direct consumers importing IT (not through a barrel). Otherwise inline the re-export into the consumer or barrel and delete the file.
+- One concern = one source of truth. If two variables/computeds/props represent the same value, delete the mirror and read from the origin.
+- A function that only forwards its arguments, or an alias with zero logic (`x = computed(() => props.x)`), gets inlined.
+- An export with 0 consumers repo-wide gets deleted or un-exported (unless it is part of an exported signature - then the type stays exported).
+- A file mixing 3+ distinct responsibilities (e.g. render loop + keyboard dispatcher + persistence UI) gets split at those boundaries before growing further; do not add new responsibilities to it.
+- Meta-config driving a small fixed set (an interface + factory for 2-3 known variants) is over-abstraction: write the variants directly.
+
+11. **Record the why.** High-impact, DIRECTION-level decisions get an entry in [`docs/timeline-decision.md`](docs/timeline-decision.md) (Problem / Final solution / Trade-off / Revisit trigger) written while context is fresh - it is the project's single decision history (supersedes the former docs/adr/). Routine fixes, refactors, and cleanups do NOT get entries; only choices that constrain future work do.
 
 ## Project Specifics
 

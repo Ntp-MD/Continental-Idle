@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { useAssetsStore } from '../blueprintStore'
+import { useConfirm } from '@/composables/useConfirm'
 import ObjectPropertiesForm from './ObjectPropertiesForm.vue'
 import AssetProperties from './AssetProperties.vue'
 
 const store = useAssetsStore()
+const confirm = useConfirm().confirm
 
 const object = computed(() => store.selectedObject())
 const asset = computed(() => store.selectedAsset.value)
@@ -32,6 +34,13 @@ async function doLink() {
 async function doUnlink() {
   const linked = selectedItems.value.find((o) => o.linkGroupId)
   if (!linked) return
+  const confirmed = await confirm({
+    title: 'Unlink objects',
+    message: 'Break the link group? The objects will move independently afterwards.',
+    confirmLabel: 'Unlink',
+    cancelLabel: 'Cancel',
+  })
+  if (!confirmed) return
   await store.unlinkObject(linked.id)
 }
 
@@ -39,6 +48,14 @@ async function doFlatten() {
   const ids = store.state.selectionState.items.filter((i) => i.type === 'object').map((i) => i.id)
   const walls = store.wallSelection.value.filter((w) => w.floorId === store.currentFloor.value?.id)
   if (ids.length + walls.length < 2) return
+  const confirmed = await confirm({
+    title: 'Flatten selection',
+    message: 'Merge the selected objects and walls into a single SVG asset? This cannot be undone.',
+    confirmLabel: 'Flatten',
+    cancelLabel: 'Cancel',
+    danger: true,
+  })
+  if (!confirmed) return
   const id = await store.flattenToSvgAsset(flattenName.value || undefined, walls)
   if (id) {
     flattenName.value = ''
@@ -48,7 +65,7 @@ async function doFlatten() {
 </script>
 
 <template>
-  <div class="form__panel">
+  <div class="sidebar__panel">
     <div class="form__header">
       <span>Properties</span>
       <span>{{ store.currentFloor.value?.label ?? '-' }} - {{ store.currentFloor.value?.name ?? '' }}</span>
@@ -77,7 +94,7 @@ async function doFlatten() {
           <div class="form__row">
             <ul class="multi-select__list">
               <li v-for="obj in selectedItems" :key="obj.id" class="multi-select__item">
-                <span class="multi-select__id">{{ obj.id }}</span>
+                <span class="multi-select__id truncate">{{ obj.id }}</span>
                 <span class="multi-select__pos">x:{{ obj.x }} y:{{ obj.y }}</span>
               </li>
             </ul>
@@ -99,7 +116,7 @@ async function doFlatten() {
               from the floor grid</span
             >
           </div>
-          <button class="flag--success" @click="doFlatten">Flatten to SVG Asset</button>
+          <button class="flag--success size--fill" @click="doFlatten">Flatten to SVG Asset</button>
         </div>
       </div>
 
@@ -134,20 +151,10 @@ async function doFlatten() {
   gap: var(--gap-sm);
   padding: var(--gap-xs) var(--gap-sm);
   border: 1px solid var(--border-dim);
-  font-size: var(--font-sm);
-}
-
-.multi-select__id {
-  font-family: var(--font-mono, monospace);
-  color: var(--text-primary);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .multi-select__pos {
   color: var(--text-secondary);
   flex-shrink: 0;
-  font-size: var(--font-xs);
 }
 </style>

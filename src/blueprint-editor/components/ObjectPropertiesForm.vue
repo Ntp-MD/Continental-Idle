@@ -48,8 +48,8 @@ function deselect() {
       <h3>Object</h3>
       <div class="form__row">
         <label>ID</label>
-        <div class="form__group">
-          <input type="text" :value="object.id" disabled class="input--disabled" title="Object ID" />
+        <div class="form__group size--stretch">
+          <input type="text" :value="object.id" disabled title="Object ID" />
           <button @click="copyId(object.id)">Copy</button>
         </div>
       </div>

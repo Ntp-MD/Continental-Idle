@@ -1,4 +1,5 @@
-import { state, currentFloor, snap, assetMap, dragState, wallSelection, clearWallSelection } from './state'
+import { computed } from 'vue'
+import { state, currentFloor, snap, assetMap, dragState, wallSelection, clearWallSelection, reloadEditorData } from './state'
 import {
 	addFloor, deleteFloor, duplicateFloor, renameFloor,
 	reorderFloors, selectFloor, updateFloor,
@@ -16,13 +17,10 @@ import { updateNpcConfig, syncNpcConfigToState, persistNpcConfigToDisk } from '.
 import {
 	copySelected, pasteObjects,
 } from './metadata'
-import { saveLayout, saveAssets, saveNpcConfig, saveBlueprintData, syncToGame } from './persistence'
+import { saveBlueprintData, syncToGame } from './persistence'
 import { selectedObject, selectedAsset, selectAsset, selectedObjectIds } from './selection'
 import { setMode, setWallPaint, resizeCanvas, setCanvasBgColor, setCanvasLabelColor, setWallColor, setWallThickness, setStreetFloor, setStreetWidth, setEditorSettings, resetEditorSettings } from './mode'
 import { tagCatalog, globalTags, managedTagSet, addTag, removeTag, ensureTag } from './tags'
-export * from '../crud/originAssets'
-export * from '../crud/floorPlan'
-export * from '../crud/tagManager'
 
 export {
 	addFloor, deleteFloor, duplicateFloor, renameFloor,
@@ -41,16 +39,21 @@ export { updateNpcConfig, syncNpcConfigToState, persistNpcConfigToDisk } from '.
 export {
 	copySelected, pasteObjects,
 } from './metadata'
-export { saveLayout, saveAssets, saveNpcConfig, saveBlueprintData, syncToGame } from './persistence'
+export { saveBlueprintData, syncToGame } from './persistence'
+export { reloadEditorData } from './state'
 export { selectedObject, selectedAsset, selectAsset, selectedObjectIds, clearSelection } from './selection'
-export { getLinkedObjects } from './utils'
+export { getLinkedObjects } from './objects'
 export { setMode, setWallPaint, resizeCanvas, setCanvasBgColor, setCanvasLabelColor, setWallColor, setWallThickness, setStreetFloor, setStreetWidth, setEditorSettings, resetEditorSettings } from './mode'
 export { tagCatalog, globalTags, managedTagSet, addTag, removeTag, ensureTag } from './tags'
 export { dragState, startAssetDrag, endAssetDrag, wallSelection, clearWallSelection } from './state'
 
+export const isNpcPreview = computed(() => state.mode === 'npc-preview')
+
 export function useAssetsStore() {
 	return {
 		state,
+		isNpcPreview,
+		reloadEditorData,
 		currentFloor,
 		snap,
 		assetMap,
@@ -66,7 +69,7 @@ export function useAssetsStore() {
 		addSvgAsset, updateAsset, deleteAsset, duplicateAsset, refreshOriginInstances,
 		updateNpcConfig, syncNpcConfigToState, persistNpcConfigToDisk,
 		copySelected, pasteObjects,
-		saveLayout, saveAssets, saveNpcConfig, saveBlueprintData, syncToGame,
+		saveBlueprintData, syncToGame,
 		selectedObject, selectedAsset, selectAsset, selectedObjectIds,
 		setMode, setWallPaint, resizeCanvas, setCanvasBgColor, setCanvasLabelColor, setWallColor, setWallThickness, setStreetFloor, setStreetWidth, setEditorSettings, resetEditorSettings,
 		tagCatalog, globalTags, managedTagSet, addTag, removeTag, ensureTag,

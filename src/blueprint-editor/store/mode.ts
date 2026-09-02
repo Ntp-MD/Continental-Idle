@@ -2,7 +2,7 @@ import type { EditorMode, EditorSettings } from '../types'
 import { isValidColor, normalizeEditorSettings, EDITOR_FIELD_SPECS } from '../types'
 import { state, clamp, assetMap } from './state'
 import { normalizeObject } from '../geometry'
-import { saveLayout } from './persistence'
+import { saveBlueprintData } from './persistence'
 
 export function setMode(mode: EditorMode) {
 	state.mode = mode
@@ -30,49 +30,49 @@ export async function resizeCanvas(width: number, height: number, tileSize: numb
 			o.h = snapped.h
 		}
 	}
-	return saveLayout()
+	return saveBlueprintData()
 }
 
 export async function setCanvasBgColor(bgColor: string | undefined): Promise<boolean> {
 	if (bgColor !== undefined && !isValidColor(bgColor)) return false
 	if (bgColor) state.layout.canvas.bgColor = bgColor
 	else delete state.layout.canvas.bgColor
-	return saveLayout()
+	return saveBlueprintData()
 }
 
 export async function setCanvasLabelColor(labelColor: string | undefined): Promise<boolean> {
 	if (labelColor !== undefined && !isValidColor(labelColor)) return false
 	if (labelColor) state.layout.canvas.labelColor = labelColor
 	else delete state.layout.canvas.labelColor
-	return saveLayout()
+	return saveBlueprintData()
 }
 
 export async function setWallColor(wallColor: string | undefined): Promise<boolean> {
 	if (wallColor !== undefined && !isValidColor(wallColor)) return false
 	if (wallColor) state.layout.canvas.wallColor = wallColor
 	else delete state.layout.canvas.wallColor
-	return saveLayout()
+	return saveBlueprintData()
 }
 
 export async function setWallThickness(thickness: number | null): Promise<boolean> {
 	if (thickness !== null && (!Number.isInteger(thickness) || thickness < 1 || thickness > 10)) return false
 	if (thickness !== null) state.layout.canvas.wallThickness = thickness
 	else delete state.layout.canvas.wallThickness
-	return saveLayout()
+	return saveBlueprintData()
 }
 
 export async function setStreetFloor(floorId: string | null): Promise<boolean> {
 	if (floorId !== null && !state.layout.floors.some(f => f.id === floorId)) return false
 	if (floorId) state.layout.streetFloorId = floorId
 	else delete state.layout.streetFloorId
-	return saveLayout()
+	return saveBlueprintData()
 }
 
 export async function setStreetWidth(tiles: number | null): Promise<boolean> {
 	if (tiles !== null && (!Number.isInteger(tiles) || tiles < 5 || tiles > 20)) return false
 	if (tiles !== null) state.layout.streetWidthTiles = tiles
 	else delete state.layout.streetWidthTiles
-	return saveLayout()
+	return saveBlueprintData()
 }
 
 export async function setEditorSettings(patch: Partial<EditorSettings>): Promise<boolean> {
@@ -86,10 +86,10 @@ export async function setEditorSettings(patch: Partial<EditorSettings>): Promise
 		if (spec.max !== undefined && v > spec.max) return false
 	}
 	state.layout.editorSettings = merged
-	return saveLayout()
+	return saveBlueprintData()
 }
 
 export async function resetEditorSettings(): Promise<boolean> {
 	delete state.layout.editorSettings
-	return saveLayout()
+	return saveBlueprintData()
 }

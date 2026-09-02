@@ -7,10 +7,15 @@ import {
 	state, toast, snap, clamp, assetMap, wallSelection,
 	currentFloor, withStateLock, initAssetFields,
 } from './state'
-import { genId, genAssetId } from './utils'
+import { genId, genAssetId } from './storeUtils'
 import { selectedObject, selectedObjectIds, select as selectEntity, clearSelection, toggleMultiSelect as toggleMultiSelectEntity } from './selection'
-import { getLinkedObjects } from './utils'
-import { saveBlueprintData, saveLayout } from './persistence'
+import { saveBlueprintData } from './persistence'
+
+export function getLinkedObjects(obj: ObjectData): ObjectData[] {
+	const floor = currentFloor.value
+	if (!floor || !obj.linkGroupId) return []
+	return floor.objects.filter(o => o.id !== obj.id && o.linkGroupId === obj.linkGroupId)
+}
 
 function canvasWallObject(segment: WallSegment, tileSize: number): ObjectData | null {
 	const normalized = normalizeWallSegment(segment)
@@ -40,7 +45,7 @@ export async function replaceCanvasWallSegments(floorId: string, segments: reado
 	const walls = segments.map(segment => canvasWallObject(segment, tileSize)).filter((wall): wall is ObjectData => !!wall)
 	floor.objects = [...floor.objects.filter(object => object.type !== CANVAS_WALL_OBJECT_TYPE), ...walls]
 	recalcCollapsed(floor, assetMap())
-	return saveLayout()
+	return saveBlueprintData()
 }
 
 export async function beginDrawnObject(name: string, w: number, h: number, x: number, y: number): Promise<{ asset: AssetDef; object: ObjectData } | null> {
@@ -91,7 +96,7 @@ export async function addObject(type: string, x: number, y: number): Promise<Obj
 		normalizeObject(obj, t, assetMap())
 		floor.objects.push(obj)
 		state.selectionState = { primary: { type: 'object', id: obj.id }, items: [{ type: 'object', id: obj.id }] }
-		await saveLayout()
+		await saveBlueprintData()
 		return obj
 	})
 }
@@ -143,7 +148,7 @@ export async function deleteSelected(): Promise<void> {
 			}
 			clearSelection()
 			recalcCollapsed(floor, assetMap())
-			const saved = await saveLayout()
+			const saved = await saveBlueprintData()
 			if (saved) toast.success(`${ids.length} object${ids.length === 1 ? '' : 's'} deleted`)
 			return
 		}
@@ -165,7 +170,7 @@ export async function deleteSelected(): Promise<void> {
 		}
 		clearSelection()
 		recalcCollapsed(floor, assetMap())
-		const saved = await saveLayout()
+		const saved = await saveBlueprintData()
 		if (saved) toast.success('Object deleted')
 	})
 }
@@ -272,7 +277,7 @@ export async function commitMove(): Promise<void> {
 		}
 	}
 	recalcCollapsed(floor, assetMap())
-	await saveLayout()
+	await saveBlueprintData()
 }
 
 export async function rotateSelected(): Promise<void> {
@@ -307,7 +312,7 @@ export async function rotateSelected(): Promise<void> {
 
 		const cf = currentFloor.value
 		if (cf) recalcCollapsed(cf, assetMap())
-		const saved = await saveLayout()
+		const saved = await saveBlueprintData()
 		if (saved) {
 			const def = resolveObjectDef(o.rotation, findAssetCached(assetMap(), o.type), { w: o.w, h: o.h })
 			const hasWalkData = !!def.walkableGrid && def.walkableGrid.some(row => row.some(cell => !cell))
@@ -356,7 +361,7 @@ export async function linkObjects(ids: string[]): Promise<boolean> {
 			obj.linkGroupId = linkGroupId
 		}
 	}
-	const saved = await saveLayout()
+	const saved = await saveBlueprintData()
 	if (!saved) return false
 	toast.success(`Linked ${allGroupIds.length} objects`)
 	return true
@@ -376,7 +381,7 @@ export async function unlinkObject(id: string): Promise<boolean> {
 	for (const member of floor.objects) {
 		if (member.linkGroupId === groupId) delete member.linkGroupId
 	}
-	const saved = await saveLayout()
+	const saved = await saveBlueprintData()
 	if (!saved) return false
 	toast.success('Unlinked object')
 	return true
@@ -388,7 +393,7 @@ export async function toggleObjectLock(id: string): Promise<void> {
 	const o = floor.objects.find(o => o.id === id)
 	if (!o) return
 	o.locked = !o.locked
-	const saved = await saveLayout()
+	const saved = await saveBlueprintData()
 	if (saved) toast.info(o.locked ? 'Object locked' : 'Object unlocked')
 }
 

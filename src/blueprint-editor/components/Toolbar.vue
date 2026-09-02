@@ -42,6 +42,12 @@ function onDeployNpc() {
   showDeployModal.value = true
 }
 
+function onOpenShowcase() {
+  const url = new URL(window.location.href)
+  url.searchParams.set('showcase', '1')
+  window.location.assign(url)
+}
+
 function onConfirmDeploy(spawnFloorId?: string) {
   showDeployModal.value = false
   store.setMode('npc-preview')
@@ -200,6 +206,15 @@ function onSyncToGame() {
       Floor Manager
     </button>
     <button
+      class="flag--ghost"
+      title="Open UI showcase (all primitives and components)"
+      aria-label="Open UI showcase"
+      @click="onOpenShowcase"
+    >
+      UI Showcase
+    </button>
+
+    <button
       :class="{ 'flag--warning': store.state.mode === 'npc-preview' }"
       title="Deploy NPCs on current floor (configure roles first)"
       @click="onDeployNpc"
@@ -231,7 +246,7 @@ function onSyncToGame() {
           <strong>{{ currentFloorLabel }}</strong>
           <span>{{ total }} NPC{{ total === 1 ? '' : 's' }}</span>
         </div>
-        <span class="npc__statusbadge" :class="{ 'npc__statusbadge--paused': isPaused }" role="status">{{
+        <span class="badge" :class="isPaused ? 'flag--warning' : 'flag--success'" role="status">{{
           isPaused ? 'Paused' : 'Running'
         }}</span>
         <div class="npc__roles">

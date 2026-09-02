@@ -1,7 +1,7 @@
 import { toRaw } from 'vue'
 import type { NpcSimulationConfig } from '../types'
 import { state } from './state'
-import { saveNpcConfig } from './persistence'
+import { saveBlueprintData } from './persistence'
 
 export function mergeNpcConfig(config: NpcSimulationConfig): NpcSimulationConfig {
 	const roleIds = new Set(config.roles.map(role => role.id))
@@ -32,7 +32,7 @@ export function syncNpcConfigToState(config: NpcSimulationConfig): void {
 
 
 export async function persistNpcConfigToDisk(): Promise<void> {
-	const saved = await saveNpcConfig()
+	const saved = await saveBlueprintData()
 	if (!saved) throw new Error('NPC configuration was not saved')
 }
 

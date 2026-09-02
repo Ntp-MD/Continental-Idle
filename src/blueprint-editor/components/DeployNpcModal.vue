@@ -1,11 +1,10 @@
 <script setup lang="ts">
-import { ref, computed, toRaw, watch } from 'vue'
+import { ref, computed, toRaw, watch, onUnmounted } from 'vue'
 import { useToast } from '@/composables/useToast'
-import { useAssetsStore } from '../blueprintStore'
-import { state } from '../store/state'
+import { useAssetsStore, state, emptyNpcConfig } from '../blueprintStore'
 import { normalizeNpcConfig, type NpcSimulationConfig, type NpcRole, type NpcSpawnRule } from '../types'
-import { emptyNpcConfig } from '../store/utils'
 import ModalShell from './ModalShell.vue'
+import TagChip from './TagChip.vue'
 
 const props = defineProps<{ open: boolean }>()
 const emit = defineEmits<{ (e: 'close'): void; (e: 'deploy', spawnFloorId: string): void }>()
@@ -32,6 +31,13 @@ function schedulePersist(): void {
     if (normalized) void store.updateNpcConfig(normalized)
   }, 400)
 }
+
+onUnmounted(() => {
+  if (persistTimer) {
+    window.clearTimeout(persistTimer)
+    persistTimer = null
+  }
+})
 
 watch(
   () => props.open,
@@ -94,9 +100,7 @@ function onRemoveSpawnTagFrom(role: NpcRole, tag: string) {
   schedulePersist()
 }
 
-function totalNpcCount(): number {
-  return draft.value.pool.reduce((sum, p) => sum + p.count, 0)
-}
+const totalNpcCount = computed(() => draft.value.pool.reduce((sum, p) => sum + p.count, 0))
 
 async function persistDraft(): Promise<void> {
   const normalized = normalizeNpcConfig(draft.value)
@@ -113,7 +117,7 @@ async function onClose() {
 }
 
 async function onDeploy() {
-  if (totalNpcCount() === 0) {
+  if (totalNpcCount.value === 0) {
     toast.warning('Set at least one NPC count before deploying')
     return
   }
@@ -127,20 +131,11 @@ async function onDeploy() {
 </script>
 
 <template>
-  <ModalShell
-    :open="open"
-    title="Deploy NPCs"
-    width="50vw"
-    max-width="520px"
-    height="auto"
-    max-height="80vh"
-    body-class="form__col"
-    @close="onClose"
-  >
-    <div class="form__col modal__panel modal__panel--dense">
-      <div class="form__title">Simulation</div>
-      <div class="form__row">
-        <label for="deploy-npc-speed">NPC Speed</label>
+  <ModalShell :open="open" modal-id="modal-deploy-npc" title="Deploy NPCs" @close="onClose">
+    <section class="form__col">
+      <h3 class="form__title">Simulation</h3>
+      <label class="form__row" for="deploy-npc-speed">
+        <span>Speed</span>
         <input
           id="deploy-npc-speed"
           v-model.number="draft.speed"
@@ -150,95 +145,130 @@ async function onDeploy() {
           step="0.01"
           @change="schedulePersist"
         />
-        <span>{{ draft.speed.toFixed(2) }}</span>
-      </div>
-      <div class="form__row">
-        <label for="deploy-spawn-floor">Spawn floor</label>
+        <output>{{ draft.speed.toFixed(2) }}</output>
+      </label>
+      <label class="form__row" for="deploy-spawn-floor">
+        <span>Spawn floor</span>
         <select id="deploy-spawn-floor" v-model="spawnFloorId">
           <option value="">All floors (per-role filters below)</option>
           <option v-for="floor in floors" :key="`deploy-floor-${floor.id}`" :value="floor.id">
             {{ floor.label }} - {{ floor.name }}
           </option>
         </select>
-      </div>
-      <div class="form__hint">
+      </label>
+      <p class="form__hint">
         Spawn floor forces every NPC onto one floor; "All floors" uses each role's floor checks below.
-      </div>
-    </div>
+      </p>
+    </section>
 
-    <div v-if="roles.length === 0" class="empty empty--center">
-      No roles configured. Open NPC Manager to create roles first.
-    </div>
+    <div v-if="roles.length === 0" class="empty">No roles configured. Open NPC Manager to create roles first.</div>
 
-    <div v-else class="form__col form__col--scroll">
-      <div class="form__title">Roles</div>
-      <div v-for="role in roles" :key="role.id" class="form__col modal__panel">
+    <section v-else class="form__col">
+      <h3 class="form__title">Roles</h3>
+      <article v-for="role in roles" :key="role.id" class="form__col deploy__role">
         <div class="form__row">
           <span class="swatch" :style="{ background: role.color }" />
-          <input class="input--disabled" :value="role.label" readonly aria-label="Role name" />
-          <div class="form__group">
-            <div class="form__field">
-              <label>Count</label>
-              <div class="form__group">
-                <button aria-label="Decrease count" @click="setPoolCount(role.id, getPoolCount(role.id) - 1)">-</button>
-                <input
-                  :value="getPoolCount(role.id)"
-                  type="number"
-                  min="0"
-                  max="100"
-                  aria-label="Role count"
-                  @input="setPoolCount(role.id, Number(($event.target as HTMLInputElement).value))"
-                />
-                <button aria-label="Increase count" @click="setPoolCount(role.id, getPoolCount(role.id) + 1)">+</button>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div class="form__row">
-          <span class="form__title">Spawn floors</span>
-          <label
-            v-for="floor in floors"
-            :key="`spawn-floor-${role.id}-${floor.id}`"
-            class="form__group deploy__floorcheck"
+          <strong class="deploy__name">{{ role.label }}</strong>
+          <button
+            class="deploy__step"
+            aria-label="Decrease count"
+            @click="setPoolCount(role.id, getPoolCount(role.id) - 1)"
           >
-            <input
-              type="checkbox"
-              :checked="getPoolFloorIds(role.id).includes(floor.id)"
-              @change="togglePoolFloor(role.id, floor.id)"
-            />
-            <span>{{ floor.label }}</span>
-          </label>
-          <span v-if="!getPoolFloorIds(role.id).length" class="form__hint">All floors</span>
+            -
+          </button>
+          <input
+            :id="`deploy-role-count-${role.id}`"
+            class="deploy__count"
+            :value="getPoolCount(role.id)"
+            type="number"
+            min="0"
+            max="100"
+            :aria-label="`Count for ${role.label}`"
+            @input="setPoolCount(role.id, Number(($event.target as HTMLInputElement).value))"
+          />
+          <button
+            class="deploy__step"
+            aria-label="Increase count"
+            @click="setPoolCount(role.id, getPoolCount(role.id) + 1)"
+          >
+            +
+          </button>
         </div>
 
-        <div class="form__row">
-          <div class="form__col deploy__taggroup">
-            <span class="form__title">Target tags</span>
-            <div class="form__group">
-              <div v-for="tag in role.spawnRule?.targetTags ?? []" :key="'st_' + role.id + tag" class="chip">
-                <span>{{ tag }}</span>
-                <button class="chip__remove" aria-label="Remove tag" @click="onRemoveSpawnTagFrom(role, tag)">x</button>
-              </div>
+        <template v-if="getPoolCount(role.id) > 0">
+          <template v-if="!spawnFloorId">
+            <h3 class="form__title">Spawn floors</h3>
+            <label
+              v-for="floor in floors"
+              :key="`spawn-floor-${role.id}-${floor.id}`"
+              class="chip"
+              :class="{ 'flag--active': getPoolFloorIds(role.id).includes(floor.id) }"
+            >
               <input
-                v-model="newSpawnTag[role.id]"
-                type="text"
-                placeholder="+ tag"
-                class="deploy__newtag"
-                @keydown.enter="onAddSpawnTagFor(role)"
+                type="checkbox"
+                :checked="getPoolFloorIds(role.id).includes(floor.id)"
+                @change="togglePoolFloor(role.id, floor.id)"
               />
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
+              <span>{{ floor.label }}</span>
+            </label>
+            <p v-if="!getPoolFloorIds(role.id).length" class="form__hint">All floors</p>
+          </template>
 
-    <div class="modal__actions modal__actions--border">
-      <span class="form__hint">Total: {{ totalNpcCount() }} NPCs</span>
+          <h3 class="form__title">Target tags</h3>
+          <div class="form__group">
+            <TagChip
+              v-for="tag in role.spawnRule?.targetTags ?? []"
+              :key="'st_' + role.id + tag"
+              :label="tag"
+              removable
+              @remove="onRemoveSpawnTagFrom(role, tag)"
+            />
+            <input
+              v-model="newSpawnTag[role.id]"
+              type="text"
+              placeholder="+ tag"
+              aria-label="Add target tag"
+              @keydown.enter="onAddSpawnTagFor(role)"
+            />
+          </div>
+        </template>
+      </article>
+    </section>
+
+    <template #footer>
+      <span class="form__hint">Total: {{ totalNpcCount }} NPCs</span>
       <div class="form__row">
         <button class="flag--ghost" @click="onClose">Cancel</button>
-        <button class="flag--active" :disabled="totalNpcCount() === 0" @click="onDeploy">Deploy</button>
+        <button class="flag--active" :disabled="totalNpcCount === 0" @click="onDeploy">Deploy</button>
       </div>
-    </div>
+    </template>
   </ModalShell>
 </template>
+
+<style scoped>
+.deploy__role {
+  border-top: 1px solid var(--border-dim);
+  padding-top: var(--gap-sm);
+}
+
+.deploy__role:first-of-type {
+  border-top: none;
+  padding-top: 0;
+}
+
+.deploy__name {
+  flex: 1;
+  min-width: 0;
+}
+
+.deploy__count {
+  text-align: center;
+}
+</style>
+
+<style>
+#modal-deploy-npc {
+  width: min(94vw, 520px);
+  max-height: calc(100vh - 32px);
+}
+</style>

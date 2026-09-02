@@ -1,13 +1,6 @@
-/* ═══════════════════════════════════════════════
-   Base — Element selectors & global resets
-   Order: Reset → Root → Body → Form Elements →
-         Interactive States → Scrollbar → Selection
-   ═══════════════════════════════════════════════ */
-
 @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&display=swap');
 
 
-/* -- Reset -- */
 * {
 	margin: 0;
 	padding: 0;
@@ -15,7 +8,6 @@
 }
 
 
-/* -- Normalize -- */
 html {
 	-webkit-tap-highlight-color: transparent;
 	text-size-adjust: 100%;
@@ -34,6 +26,31 @@ h6 {
 	font-size: inherit;
 	font-weight: inherit;
 	line-height: inherit;
+}
+
+h1 {
+	font-size: var(--font-xl);
+}
+
+h2 {
+	font-size: var(--font-lg);
+}
+
+h3 {
+	font-size: var(--font-md);
+}
+
+h4 {
+	font-size: var(--font-sm);
+}
+
+h5,
+h6 {
+	font-size: var(--font-xs);
+}
+
+p {
+	font-size: var(--font-sm);
 }
 
 ul,
@@ -56,7 +73,6 @@ a {
 }
 
 
-/* ── Root ── */
 #app {
 	width: 100vw;
 	height: 100vh;
@@ -66,12 +82,11 @@ a {
 }
 
 
-/* ── Body ── */
 body {
 	font-family: var(--font-mono);
 	background: var(--bg-primary);
 	overflow: auto;
-	font-size: calc(12px * var(--font-scale));
+	font-size: var(--font-sm);
 	letter-spacing: 0.3px;
 	line-height: 1.5;
 	-webkit-font-smoothing: antialiased;
@@ -80,16 +95,14 @@ body {
 }
 
 
-/* ── Button ── */
 button {
-	font-family: var(--font-mono);
+	font-family: inherit;
 	cursor: pointer;
 	border: 1px solid var(--border-dim);
 	background: var(--bg-primary);
 	padding: var(--gap-sm) var(--gap-md);
 	text-transform: uppercase;
 	letter-spacing: 0.8px;
-	font-size: var(--font-xs);
 	font-weight: 500;
 	border-radius: var(--radius-sm);
 	transition: all var(--duration-fast) var(--ease-out);
@@ -99,6 +112,8 @@ button {
 	gap: var(--gap-xs);
 	line-height: 1;
 	color: var(--text-primary);
+	font-size: var(--font-xs);
+	min-height: 35px;
 }
 
 button:hover {
@@ -122,26 +137,27 @@ button:disabled:hover {
 }
 
 
-/* ── Input / Select / Textarea ── */
 input,
 select,
 textarea {
-	font-family: var(--font-mono);
+	font-family: inherit;
 	background: var(--bg-primary);
 	border: 1px solid var(--border-dim);
 	color: var(--text-primary);
 	padding: var(--gap-sm) var(--gap-sm);
-	font-size: var(--font-sm);
 	border-radius: var(--radius-sm);
 	transition: border-color var(--duration-fast) var(--ease-out);
-	box-sizing: border-box;
-	width: 100%;
+	min-height: 35px;
 }
 
-input:hover,
-select:hover,
-textarea:hover {
-	border-color: var(--border-dim);
+input {
+	field-sizing: content;
+	min-width: 10ch;
+}
+
+select,
+textarea {
+	width: 100%;
 }
 
 input:focus,
@@ -189,15 +205,9 @@ input[type="range"] {
 	cursor: pointer;
 }
 
-input[type="checkbox"]:hover,
-input[type="radio"]:hover,
-input[type="range"]:hover {
-	border: 0;
-}
-
 option,
 optgroup {
-	font-family: var(--font-mono);
+	font-family: inherit;
 	background: var(--bg-secondary);
 	color: var(--text-primary);
 }
@@ -214,7 +224,6 @@ textarea {
 }
 
 
-/* ── Label ── */
 label {
 	font-size: var(--font-xs);
 	color: var(--text-secondary);
@@ -224,15 +233,12 @@ label {
 }
 
 
-/* ── Focus Ring (buttons keep an outline ring; inputs use their own border) ── */
 button:focus-visible {
 	outline: 2px solid var(--accent-primary);
 	outline-offset: 2px;
-	border-radius: var(--radius-sm);
 }
 
 
-/* ── Scrollbar ── */
 ::-webkit-scrollbar {
 	width: 5px;
 }
@@ -251,7 +257,6 @@ button:focus-visible {
 }
 
 
-/* ── Selection ── */
 ::selection {
 	background: color-mix(in srgb, var(--accent-primary) 40%, transparent);
 	color: var(--text-bright);

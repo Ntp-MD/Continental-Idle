@@ -1,4 +1,4 @@
-import type { NpcSimulationConfig } from '../types'
+import type { NpcSimulationConfig, NpcTask } from '../types'
 
 export function genId(prefix: string): string {
 	const arr = new Uint8Array(5)
@@ -7,11 +7,35 @@ export function genId(prefix: string): string {
 	return `${prefix}-${suffix}`
 }
 
-export function emptyNpcConfig(): NpcSimulationConfig {
-	return { speed: 0.2, defaultRoleId: '', roles: [], tasks: [], pool: [] }
+export function taskMatchesQuery(task: NpcTask, query: string): boolean {
+	return task.label.toLowerCase().includes(query) || task.tags.some((tag) => tag.toLowerCase().includes(query))
 }
 
-export function assetSlug(name: string): string {
+export function emptyNpcConfig(): NpcSimulationConfig {
+	return {
+		speed: 0.2,
+		defaultRoleId: '',
+		roles: [],
+		tasks: [],
+		pool: [],
+		crossFloorCooldownSeconds: 30,
+		progressWatchdogTicks: 120,
+		maxRepathAttempts: 4,
+		repathCooldownSeconds: 2,
+		repathCooldownExponent: 1.5,
+		pathBudgetMinPerTick: 2,
+		pathBudgetAgentsPerCall: 100,
+		chooseTargetMinPerTick: 8,
+		chooseTargetAgentsPerSlot: 20,
+		wanderMemorySize: 32,
+		wanderSmallMapThreshold: 8,
+		triggerRatePeriodSeconds: 60,
+		frameSimBudgetMs: 6,
+		maxSimulationSteps: 8,
+	}
+}
+
+function assetSlug(name: string): string {
 	const slug = name.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
 	return slug || 'asset'
 }
@@ -45,7 +69,7 @@ export function assignSyncKey(label: string, index: number, usedKeys: Set<string
 	return `${base}_${n}`
 }
 
-export function editorFloorLabelToFloorId(label: string): string | null {
+function editorFloorLabelToFloorId(label: string): string | null {
 	if (label === 'G') return 'G'
 	const match = label.match(/^F(\d+)$/)
 	if (match) {

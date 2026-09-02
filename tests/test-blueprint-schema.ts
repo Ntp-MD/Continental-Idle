@@ -3,6 +3,7 @@ import { applySvgColorConvention, isSafeSvgMarkup, normalizeBlueprintDataFile, n
 import { serializeAsset, serializeObject } from '../src/blueprint-editor/assetUtils'
 import { resolvePlacedObject } from '../src/blueprint-editor/geometry'
 import { buildBlueprintData } from '../src/blueprint-editor/store/dataLoader'
+import { emptyNpcConfig } from '../src/blueprint-editor/store/storeUtils'
 import type { AssetDef, CanvasConfig, FloorLayoutData, ObjectData } from '../src/blueprint-editor/types'
 
 const rawPlacement = normalizeObjectPlacement({
@@ -90,11 +91,7 @@ const layout: FloorLayoutData = {
 	}],
 }
 const saved = buildBlueprintData(layout, [runtimeAsset], {
-	speed: 0.2,
-	defaultRoleId: '',
-	roles: [],
-	tasks: [],
-	pool: [],
+	...emptyNpcConfig(),
 }, [])
 const savedObject = saved.layout.floors[0].objects[0]
 assert.deepEqual(Object.keys(savedObject).sort(), ['fillColor', 'id', 'rotation', 'strokeColor', 'type', 'x', 'y'])
@@ -203,11 +200,7 @@ const wallSaved = buildBlueprintData({
 	...layout,
 	floors: [{ ...layout.floors[0], objects: [wallObject] }],
 }, [], {
-	speed: 0.2,
-	defaultRoleId: '',
-	roles: [],
-	tasks: [],
-	pool: [],
+	...emptyNpcConfig(),
 }, [])
 assert.deepEqual(wallSaved.layout.floors[0].objects[0], serializedWall)
 

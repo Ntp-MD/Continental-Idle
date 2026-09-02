@@ -2,7 +2,7 @@ import { ref, computed, type Ref, type ComputedRef } from 'vue'
 import type { FloorData, WallSegment, ObjectData } from '../types'
 import { CANVAS_WALL_OBJECT_TYPE, normalizeWallSegment } from '../types'
 import { wallSegmentToObjectRect } from '../assetUtils'
-import { genId } from '../store/storeUtils'
+import { genId } from '../blueprintStore'
 
 export type { WallSegment }
 

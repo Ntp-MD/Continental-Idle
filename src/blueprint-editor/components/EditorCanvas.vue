@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, watch, inject } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch, inject, type Ref } from 'vue'
 import { useAssetsStore, dragState, endAssetDrag, wallSelection } from '../blueprintStore'
 import { findAssetCached, svgColorVarStyle, doorPanelsData, type DoorPanel } from '../assetUtils'
 import { svgTransform as svgTransformGeo, roundedRectPath, buildingArea } from '../geometry'
@@ -67,6 +67,15 @@ const { start: startNpcSimulation, stop: stopNpcSimulation } = npcSimulation
 const npcCanvasRef = ref<HTMLCanvasElement | null>(null)
 let npcDrawRaf: number | null = null
 
+const npcThemeColors = { accent: '#4cc9f0', guide: '#3a86ff', green: '#2ec4b6' }
+
+function readNpcThemeColors(): void {
+  const style = getComputedStyle(document.documentElement)
+  npcThemeColors.accent = style.getPropertyValue('--accent-primary').trim() || '#4cc9f0'
+  npcThemeColors.guide = style.getPropertyValue('--accent-blue').trim() || '#3a86ff'
+  npcThemeColors.green = style.getPropertyValue('--accent-green').trim() || '#2ec4b6'
+}
+
 function drawNpcFrame() {
   npcDrawRaf = requestAnimationFrame(drawNpcFrame)
   const canvas = npcCanvasRef.value
@@ -93,10 +102,9 @@ function drawNpcFrame() {
   ctx.clearRect(0, 0, sRect.width, sRect.height)
   const ctm = svg.getScreenCTM()
   if (!ctm) return
-  const style = getComputedStyle(document.documentElement)
-  const colAccent = style.getPropertyValue('--accent-primary').trim() || '#4cc9f0'
-  const colGuide = style.getPropertyValue('--accent-blue').trim() || '#3a86ff'
-  const colGreen = style.getPropertyValue('--accent-green').trim() || '#2ec4b6'
+  const colAccent = npcThemeColors.accent
+  const colGuide = npcThemeColors.guide
+  const colGreen = npcThemeColors.green
   const colRing = 'rgba(255,255,255,0.8)'
   const fid = store.state.currentFloorId
   for (const dot of npcSimulation.frameDots.values()) {
@@ -144,6 +152,7 @@ function drawNpcFrame() {
 }
 
 function startNpcDraw() {
+  readNpcThemeColors()
   if (npcDrawRaf === null) npcDrawRaf = requestAnimationFrame(drawNpcFrame)
 }
 
@@ -192,6 +201,35 @@ const showWalls = ref(savedToggles.showWalls ?? false)
 const showObjectHighlights = ref(savedToggles.showObjectHighlights ?? false)
 const showBuildingBounds = ref(savedToggles.showBuildingBounds ?? true)
 const showNpcGuides = ref(savedToggles.showNpcGuides ?? true)
+const showGrid = ref(savedToggles.showGrid ?? true)
+const showLabels = ref(savedToggles.showLabels ?? true)
+const viewToggles: Record<string, Ref<boolean>> = {
+  showGrid,
+  showLabels,
+  showWalkableOverlay,
+  showInteractSpots,
+  showWalls,
+  showObjectHighlights,
+  showBuildingBounds,
+  showNpcGuides,
+}
+
+function saveViewToggles() {
+  try {
+    const payload: Record<string, boolean> = {}
+    for (const [key, item] of Object.entries(viewToggles)) payload[key] = item.value
+    localStorage.setItem(VIEW_TOGGLE_KEY, JSON.stringify(payload))
+  } catch {
+    toast.error('Failed to save view toggles')
+  }
+}
+
+function toggleView(key: string) {
+  const item = viewToggles[key]
+  if (!item) return
+  item.value = !item.value
+  saveViewToggles()
+}
 
 const isInteracting = computed(() => !!panning.value || !!moving.value || zooming.value)
 const renderWalkableOverlay = computed(() => showWalkableOverlay.value && !isInteracting.value)
@@ -366,7 +404,7 @@ function wallsInRect(rect: { x: number; y: number; w: number; h: number }): Wall
 }
 
 const modeLabel = computed(() => {
-  if (wallPaintActive.value) return 'Draw Wall Mode'
+  if (store.state.wallPaint) return 'Draw Wall Mode'
   const labels: Record<string, string> = {
     object: 'Object',
     draw: 'Draw Object',
@@ -376,8 +414,14 @@ const modeLabel = computed(() => {
   return (labels[store.state.mode] ?? store.state.mode) + ' Mode'
 })
 
+const modeBadgeClass = computed(() => {
+  if (store.state.mode === 'move') return 'flag--success'
+  if (store.state.mode === 'draw') return ''
+  return 'flag--active'
+})
+
 const modeHint = computed(() => {
-  if (wallPaintActive.value)
+  if (store.state.wallPaint)
     return 'Draw Wall: click or drag boundaries - Object tool drag empty space selects walls - Delete removes selection - Escape exits'
   const hints: Record<string, string> = {
     object: 'Drag an asset from the palette onto the canvas - drag empty space to select objects and walls',
@@ -448,7 +492,7 @@ const wallPaint = useWallPaint({
         return
       }
       target.objects.push(wall)
-      const saved = await store.saveLayout()
+      const saved = await store.saveBlueprintData()
       if (saved) toast.success('Wall saved')
       else toast.error('Failed to save wall')
     } catch {
@@ -466,10 +510,9 @@ const wallPaint = useWallPaint({
       return
     }
     target.objects = target.objects.filter((object) => !removable.has(object.id))
-    await store.saveLayout()
+    await store.saveBlueprintData()
   },
 })
-const wallPaintActive = computed(() => store.state.wallPaint)
 const { wallColor, wallThickness } = useCanvasWallStyle()
 const wallPreview = wallPaint.preview
 const selectedWall = wallPaint.selected
@@ -524,7 +567,7 @@ function onCanvasMouseDownWithWalls(e: MouseEvent) {
   onCanvasMouseDown(e)
 }
 function onCanvasContextMenu(e: MouseEvent) {
-  if (wallPaintActive.value) e.preventDefault()
+  if (store.state.wallPaint) e.preventDefault()
 }
 
 const draftAssetId = ref<string | null>(null)
@@ -588,8 +631,6 @@ const {
   onWindowMouseUpForDrag,
 } = dd
 
-const showGrid = ref(savedToggles.showGrid ?? true)
-const showLabels = ref(savedToggles.showLabels ?? true)
 const selectedRotation = computed<number | null>(() => {
   if (store.state.selectionState.primary?.type !== 'object') return null
   return store.selectedObject()?.rotation ?? null
@@ -707,7 +748,7 @@ function tryCycleSelect(p: { x: number; y: number }): EntityRef | null {
 }
 
 function onObjectMouseDown(e: MouseEvent, id: string) {
-  if (wallPaintActive.value) return
+  if (store.state.wallPaint) return
   wallPaint.clearSelection()
   if (e.button === 1 || spaceDown.value) return
   e.stopPropagation()
@@ -803,70 +844,13 @@ function onContainerMouseMove(e: MouseEvent) {
   }
 }
 
-function saveViewToggles() {
-  try {
-    localStorage.setItem(
-      VIEW_TOGGLE_KEY,
-      JSON.stringify({
-        showGrid: showGrid.value,
-        showLabels: showLabels.value,
-        showWalkableOverlay: showWalkableOverlay.value,
-        showInteractSpots: showInteractSpots.value,
-        showWalls: showWalls.value,
-        showObjectHighlights: showObjectHighlights.value,
-        showBuildingBounds: showBuildingBounds.value,
-        showNpcGuides: showNpcGuides.value,
-      }),
-    )
-  } catch {
-    toast.error('Failed to save view toggles')
-  }
-}
-
-function toggleGrid() {
-  showGrid.value = !showGrid.value
-  saveViewToggles()
-}
-
-function toggleLabels() {
-  showLabels.value = !showLabels.value
-  saveViewToggles()
-}
-
-function toggleWalkableOverlay() {
-  showWalkableOverlay.value = !showWalkableOverlay.value
-  saveViewToggles()
-}
-
-function toggleInteractSpots() {
-  showInteractSpots.value = !showInteractSpots.value
-  saveViewToggles()
-}
-
-function toggleWalls() {
-  showWalls.value = !showWalls.value
-  saveViewToggles()
-}
-
-function toggleObjectHighlights() {
-  showObjectHighlights.value = !showObjectHighlights.value
-  saveViewToggles()
-}
-
-function toggleBuildingBounds() {
-  showBuildingBounds.value = !showBuildingBounds.value
-  saveViewToggles()
-}
-
-function toggleNpcGuides() {
-  showNpcGuides.value = !showNpcGuides.value
-  saveViewToggles()
-}
-
 async function onKeyDown(e: KeyboardEvent) {
-  const tag = (e.target as HTMLElement)?.tagName
+  const target = e.target as HTMLElement | null
+  const tag = target?.tagName
   if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return
+  if (target?.closest('[aria-modal="true"]')) return
   if (e.code === 'Space') {
+    if (tag === 'BUTTON') return
     e.preventDefault()
     spaceDown.value = true
     return
@@ -921,7 +905,7 @@ async function onKeyDown(e: KeyboardEvent) {
       }
     }
   } else if (e.key === 'Escape') {
-    if (wallPaintActive.value) {
+    if (store.state.wallPaint) {
       wallPaint.cancel()
       wallPaint.clearSelection()
       store.setWallPaint(false)
@@ -1086,7 +1070,7 @@ async function cancelDrawnOrigin() {
       'editor__canvas--dragging': !!panning,
       'editor__canvas--draw': store.state.mode === 'draw',
       'editor__canvas--move': store.state.mode === 'move',
-      'editor__canvas--wallpaint': wallPaintActive,
+      'editor__canvas--wallpaint': store.state.wallPaint,
     }"
     @wheel="onWheel"
     @mousedown="onPanMouseDown"
@@ -1109,13 +1093,13 @@ async function cancelDrawnOrigin() {
           <path
             :d="`M ${canvas.tileSize} 0 L 0 0 0 ${canvas.tileSize}`"
             fill="none"
-            :style="{ stroke: 'var(--border-dim)' }"
+            stroke="var(--border-dim)"
             stroke-width="0.5"
           />
         </pattern>
       </defs>
 
-      <rect :width="canvas.width" :height="canvas.height" :style="{ fill: canvas.bgColor || 'var(--bg-secondary)' }" />
+      <rect :width="canvas.width" :height="canvas.height" :fill="canvas.bgColor || 'var(--bg-secondary)'" />
 
       <!-- Street border: sidewalk + road + lane markings (8 tiles on all sides) -->
       <g v-if="showStreet" class="editor__svg--noevents">
@@ -1235,7 +1219,8 @@ async function cancelDrawnOrigin() {
           :y="-RULER_SIZE"
           :width="canvas.width + RULER_SIZE"
           :height="RULER_SIZE"
-          :style="{ fill: 'var(--bg-secondary)', stroke: 'var(--border-dim)' }"
+          fill="var(--bg-secondary)"
+          stroke="var(--border-dim)"
           stroke-width="0.5"
         />
         <!-- Left ruler background -->
@@ -1244,7 +1229,8 @@ async function cancelDrawnOrigin() {
           :y="0"
           :width="RULER_SIZE"
           :height="canvas.height"
-          :style="{ fill: 'var(--bg-secondary)', stroke: 'var(--border-dim)' }"
+          fill="var(--bg-secondary)"
+          stroke="var(--border-dim)"
           stroke-width="0.5"
         />
         <!-- Corner square -->
@@ -1253,7 +1239,8 @@ async function cancelDrawnOrigin() {
           :y="-RULER_SIZE"
           :width="RULER_SIZE"
           :height="RULER_SIZE"
-          :style="{ fill: 'var(--bg-primary)', stroke: 'var(--border-dim)' }"
+          fill="var(--bg-primary)"
+          stroke="var(--border-dim)"
           stroke-width="0.5"
         />
 
@@ -1265,7 +1252,7 @@ async function cancelDrawnOrigin() {
             :y1="-RULER_SIZE"
             :x2="tick.pos"
             :y2="-2"
-            :style="{ stroke: 'var(--text-primary)' }"
+            stroke="var(--text-primary)"
             stroke-width="1"
           />
           <text
@@ -1285,7 +1272,7 @@ async function cancelDrawnOrigin() {
             :y1="-RULER_SIZE"
             :x2="tick.pos"
             :y2="-RULER_SIZE + 5"
-            :style="{ stroke: 'var(--text-primary)' }"
+            stroke="var(--text-primary)"
             stroke-width="0.5"
           />
         </g>
@@ -1298,7 +1285,7 @@ async function cancelDrawnOrigin() {
             :y1="tick.pos"
             :x2="-2"
             :y2="tick.pos"
-            :style="{ stroke: 'var(--text-primary)' }"
+            stroke="var(--text-primary)"
             stroke-width="1"
           />
           <text
@@ -1320,28 +1307,28 @@ async function cancelDrawnOrigin() {
             :y1="tick.pos"
             :x2="-RULER_SIZE + 5"
             :y2="tick.pos"
-            :style="{ stroke: 'var(--text-primary)' }"
+            stroke="var(--text-primary)"
             stroke-width="0.5"
           />
         </g>
 
         <!-- Canvas edge guide lines (extend into rulers) -->
-        <line :x1="0" :y1="-RULER_SIZE" :x2="0" :y2="0" :style="{ stroke: 'var(--accent-green)' }" stroke-width="1.5" />
+        <line :x1="0" :y1="-RULER_SIZE" :x2="0" :y2="0" stroke="var(--accent-green)" stroke-width="1.5" />
         <line
           :x1="canvas.width"
           :y1="-RULER_SIZE"
           :x2="canvas.width"
           :y2="0"
-          :style="{ stroke: 'var(--accent-green)' }"
+          stroke="var(--accent-green)"
           stroke-width="1.5"
         />
-        <line :x1="-RULER_SIZE" :y1="0" :x2="0" :y2="0" :style="{ stroke: 'var(--accent-green)' }" stroke-width="1.5" />
+        <line :x1="-RULER_SIZE" :y1="0" :x2="0" :y2="0" stroke="var(--accent-green)" stroke-width="1.5" />
         <line
           :x1="-RULER_SIZE"
           :y1="canvas.height"
           :x2="0"
           :y2="canvas.height"
-          :style="{ stroke: 'var(--accent-green)' }"
+          stroke="var(--accent-green)"
           stroke-width="1.5"
         />
 
@@ -1352,7 +1339,7 @@ async function cancelDrawnOrigin() {
           :y1="-RULER_SIZE"
           :x2="rulerMouseX"
           :y2="0"
-          :style="{ stroke: 'var(--accent-primary)' }"
+          stroke="var(--accent-primary)"
           stroke-width="1"
         />
         <line
@@ -1361,7 +1348,7 @@ async function cancelDrawnOrigin() {
           :y1="rulerMouseY"
           :x2="0"
           :y2="rulerMouseY"
-          :style="{ stroke: 'var(--accent-primary)' }"
+          stroke="var(--accent-primary)"
           stroke-width="1"
         />
       </g>
@@ -1373,7 +1360,7 @@ async function cancelDrawnOrigin() {
           text-anchor="middle"
           :font-size="emptyStateFontSize"
           class="editor__svg--noevents"
-          :style="{ fill: 'var(--text-primary)' }"
+          fill="var(--text-primary)"
         >
           Empty floor - drag objects from the palette
         </text>
@@ -1548,7 +1535,8 @@ async function cancelDrawnOrigin() {
                 'editor__object--linked': !!obj.linkGroupId,
                 'editor__object--locked': obj.locked,
               }"
-              :style="{ stroke: 'var(--text-primary)', cursor: moving?.id === obj.id ? 'grabbing' : 'move' }"
+              stroke="var(--text-primary)"
+              :style="{ cursor: moving?.id === obj.id ? 'grabbing' : 'move' }"
             />
             <rect
               v-else
@@ -1565,7 +1553,8 @@ async function cancelDrawnOrigin() {
                 'editor__object--linked': !!obj.linkGroupId,
                 'editor__object--locked': obj.locked,
               }"
-              :style="{ stroke: 'var(--text-primary)', cursor: moving?.id === obj.id ? 'grabbing' : 'move' }"
+              stroke="var(--text-primary)"
+              :style="{ cursor: moving?.id === obj.id ? 'grabbing' : 'move' }"
             />
             <rect
               v-if="renderObjectHighlights"
@@ -1610,7 +1599,7 @@ async function cancelDrawnOrigin() {
               text-anchor="middle"
               :font-size="labelFontSize"
               class="editor__svg--noevents"
-              :style="{ fill: objLabelColor() }"
+              :fill="objLabelColor()"
             >
               {{ assetLabel(obj.type) }}
             </text>
@@ -1687,13 +1676,7 @@ async function cancelDrawnOrigin() {
         </g>
       </g>
 
-      <rect
-        :width="canvas.width"
-        :height="canvas.height"
-        fill="none"
-        :style="{ stroke: 'var(--border-dim)' }"
-        stroke-width="2"
-      />
+      <rect :width="canvas.width" :height="canvas.height" fill="none" stroke="var(--border-dim)" stroke-width="2" />
 
       <rect
         v-if="boxSelect && boxSelect.w > 4"
@@ -1702,7 +1685,8 @@ async function cancelDrawnOrigin() {
         :width="boxSelect.w"
         :height="boxSelect.h"
         class="editor__svg--noevents"
-        :style="{ fill: 'color-mix(in srgb, var(--accent-primary) 15%, transparent)', stroke: 'var(--accent-primary)' }"
+        fill="color-mix(in srgb, var(--accent-primary) 15%, transparent)"
+        stroke="var(--accent-primary)"
         stroke-width="1.5"
         stroke-dasharray="4 3"
       />
@@ -1715,7 +1699,8 @@ async function cancelDrawnOrigin() {
           :y="p.y"
           :width="p.w"
           :height="p.h"
-          :style="{ fill: 'color-mix(in srgb, var(--accent-blue) 15%, transparent)', stroke: 'var(--accent-blue)' }"
+          fill="color-mix(in srgb, var(--accent-blue) 15%, transparent)"
+          stroke="var(--accent-blue)"
           stroke-width="1.5"
           stroke-dasharray="4 3"
         />
@@ -1726,12 +1711,12 @@ async function cancelDrawnOrigin() {
           :y="paletteGhostRect.y"
           :width="paletteGhostRect.w"
           :height="paletteGhostRect.h"
-          :style="{
-            fill: paletteValid
+          :fill="
+            paletteValid
               ? 'color-mix(in srgb, var(--accent-green) 35%, transparent)'
-              : 'color-mix(in srgb, var(--accent-red) 35%, transparent)',
-            stroke: paletteValid ? 'var(--accent-green)' : 'var(--accent-red)',
-          }"
+              : 'color-mix(in srgb, var(--accent-red) 35%, transparent)'
+          "
+          :stroke="paletteValid ? 'var(--accent-green)' : 'var(--accent-red)'"
           stroke-width="1.5"
         />
       </g>
@@ -1765,7 +1750,7 @@ async function cancelDrawnOrigin() {
             v-for="f in floors"
             :key="f.id"
             class="floornav__item"
-            :class="{ 'floornav__item--active': f.id === store.state.currentFloorId }"
+            :class="{ 'flag--active': f.id === store.state.currentFloorId }"
             role="option"
             :aria-selected="f.id === store.state.currentFloorId"
             @click="selectFloorNav(f.id)"
@@ -1777,7 +1762,7 @@ async function cancelDrawnOrigin() {
       </div>
     </div>
 
-    <div class="editor__badge--float" :class="`editor__badge--${store.state.mode.replace('-', '')}`">
+    <div class="editor__badge--float" :class="modeBadgeClass">
       {{ modeLabel }}
     </div>
     <div v-if="modeHint" class="editor__hint">
@@ -1802,7 +1787,7 @@ async function cancelDrawnOrigin() {
         :class="{ 'flag--active': showGrid }"
         title="Toggle Grid"
         aria-label="Toggle grid"
-        @click="toggleGrid"
+        @click="toggleView('showGrid')"
       >
         Grid
       </button>
@@ -1811,7 +1796,7 @@ async function cancelDrawnOrigin() {
         :class="{ 'flag--active': showLabels }"
         title="Toggle Labels"
         aria-label="Toggle labels"
-        @click="toggleLabels"
+        @click="toggleView('showLabels')"
       >
         Labels
       </button>
@@ -1820,7 +1805,7 @@ async function cancelDrawnOrigin() {
         :class="{ 'flag--active': showWalkableOverlay }"
         title="Toggle Walkable + Door"
         aria-label="Toggle walkable view"
-        @click="toggleWalkableOverlay"
+        @click="toggleView('showWalkableOverlay')"
       >
         Walk
       </button>
@@ -1829,7 +1814,7 @@ async function cancelDrawnOrigin() {
         :class="{ 'flag--active': showWalls }"
         title="Toggle Outer Walls"
         aria-label="Toggle walls"
-        @click="toggleWalls"
+        @click="toggleView('showWalls')"
       >
         Wall
       </button>
@@ -1838,7 +1823,7 @@ async function cancelDrawnOrigin() {
         :class="{ 'flag--active': showInteractSpots }"
         title="Toggle Interact Spots"
         aria-label="Toggle interact spots"
-        @click="toggleInteractSpots"
+        @click="toggleView('showInteractSpots')"
       >
         Interact
       </button>
@@ -1847,7 +1832,7 @@ async function cancelDrawnOrigin() {
         :class="{ 'flag--active': showObjectHighlights }"
         title="Toggle object highlights"
         aria-label="Toggle object highlights"
-        @click="toggleObjectHighlights"
+        @click="toggleView('showObjectHighlights')"
       >
         Highlight
       </button>
@@ -1856,7 +1841,7 @@ async function cancelDrawnOrigin() {
         :class="{ 'flag--active': showBuildingBounds }"
         title="Toggle building area boundary (placement limit against the street)"
         aria-label="Toggle building bounds"
-        @click="toggleBuildingBounds"
+        @click="toggleView('showBuildingBounds')"
       >
         Bounds
       </button>
@@ -1865,7 +1850,7 @@ async function cancelDrawnOrigin() {
         :class="{ 'flag--active': showNpcGuides }"
         title="Toggle NPC path guides (only in NPC Preview)"
         aria-label="Toggle NPC path guides"
-        @click="toggleNpcGuides"
+        @click="toggleView('showNpcGuides')"
       >
         Guides
       </button>
@@ -1873,10 +1858,8 @@ async function cancelDrawnOrigin() {
 
     <ModalShell
       :open="showSaveOrigin && !!draftObject"
+      modal-id="modal-save-origin"
       title="Save Placed Object as Origin"
-      width="min(360px, calc(100vw - 32px))"
-      max-width="360px"
-      max-height="calc(100vh - 32px)"
       @close="cancelDrawnOrigin"
     >
       <div
@@ -1888,7 +1871,6 @@ async function cancelDrawnOrigin() {
         }"
       />
       <input
-        class="input--disabled"
         :value="`${(draftObject?.w ?? 0) / canvas.tileSize} x ${(draftObject?.h ?? 0) / canvas.tileSize} tiles`"
         readonly
         aria-label="Object size"
@@ -1906,12 +1888,12 @@ async function cancelDrawnOrigin() {
           aria-label="Origin fill color"
         />
       </label>
-      <div class="modal__actions">
+      <template #footer>
         <button class="flag--ghost" type="button" @click="cancelDrawnOrigin">Cancel</button>
         <button class="flag--success" type="button" :disabled="!originName.trim()" @click="saveDrawnOrigin">
           Save as Origin
         </button>
-      </div>
+      </template>
     </ModalShell>
   </div>
 </template>
@@ -1931,7 +1913,8 @@ async function cancelDrawnOrigin() {
 }
 
 .editor__canvas--panning,
-.editor__canvas--panning .editor__svg {
+.editor__canvas--panning .editor__svg,
+.editor__canvas--move .editor__svg {
   cursor: grab;
 }
 
@@ -1944,10 +1927,6 @@ async function cancelDrawnOrigin() {
   cursor: crosshair;
 }
 
-.editor__canvas--move .editor__svg {
-  cursor: grab;
-}
-
 .editor__canvas--wallpaint .editor__svg {
   cursor: crosshair;
 }
@@ -1958,16 +1937,11 @@ async function cancelDrawnOrigin() {
 
 .door__panel {
   fill: var(--accent-blue);
-  stroke: color-mix(in srgb, var(--accent-blue) 60%, black);
+  stroke: color-mix(in srgb, var(--accent-blue) 60%, var(--bg-primary));
   stroke-width: 1;
 }
 
-.editor__canvas--move.editor__canvas--dragging .editor__svg {
-  cursor: grabbing;
-}
-
 .editor__svg {
-  display: block;
   background: var(--bg-primary);
 }
 
@@ -1985,7 +1959,7 @@ async function cancelDrawnOrigin() {
   pointer-events: all;
 }
 
-.editor__svg:focus {
+.editor__svg:focus-visible {
   outline: 2px solid var(--accent-primary);
 }
 
@@ -2070,7 +2044,6 @@ async function cancelDrawnOrigin() {
   background: var(--bg-primary);
   border: 1px solid var(--border-dim);
   border-radius: var(--radius-sm);
-  font-size: var(--font-xs);
   text-transform: capitalize;
   z-index: var(--z-layer-2);
 }
@@ -2080,27 +2053,11 @@ async function cancelDrawnOrigin() {
   color: var(--accent-primary);
 }
 
-.editor__badge--object {
-  border-color: var(--accent-blue);
-  color: var(--accent-blue);
-}
-
-.editor__badge--move {
-  border-color: var(--accent-green);
-  color: var(--accent-green);
-}
-
-.editor__badge--npcpreview {
-  border-color: var(--accent-blue);
-  color: var(--accent-blue);
-}
-
 .editor__hint {
   position: absolute;
   top: 44px;
   left: 50%;
   transform: translateX(-50%);
-  font-size: var(--font-xs);
   color: var(--text-dim);
   background: var(--bg-primary);
   padding: var(--gap-xs) var(--gap-sm);
@@ -2119,7 +2076,6 @@ async function cancelDrawnOrigin() {
   background: var(--bg-primary);
   border: 1px solid var(--border-dim);
   border-radius: var(--radius-sm);
-  font-size: var(--font-xs);
   z-index: var(--z-layer-2);
   height: fit-content;
 }
@@ -2128,10 +2084,6 @@ async function cancelDrawnOrigin() {
   display: inline-flex;
   align-items: center;
   gap: var(--gap-xs);
-}
-
-.editor__name {
-  font-weight: 600;
 }
 
 .editor__nav {
@@ -2156,7 +2108,6 @@ async function cancelDrawnOrigin() {
   background: var(--bg-primary);
   border: 1px solid var(--border-dim);
   border-radius: var(--radius-sm);
-  font-size: var(--font-xs);
   z-index: var(--z-layer-1);
   height: fit-content;
   color: var(--text-dim);
@@ -2180,7 +2131,6 @@ async function cancelDrawnOrigin() {
 .editor__zoom {
   min-width: 30px;
   text-align: center;
-  font-size: var(--font-xs);
   font-variant-numeric: tabular-nums;
 }
 
@@ -2191,37 +2141,16 @@ async function cancelDrawnOrigin() {
 }
 
 .floornav__trigger {
-  display: flex;
-  align-items: center;
-  gap: var(--gap-xs);
-  padding: 0 var(--gap-xs);
-  background: transparent;
-  border: none;
-  border-radius: var(--radius-xs);
-  cursor: pointer;
   flex-shrink: 0;
 }
 
-.floornav__trigger:hover {
-  color: var(--accent-primary);
-}
-
 .floornav__tag {
-  font-size: var(--font-xs);
   opacity: 0.7;
-  font-weight: 700;
   color: var(--accent-primary);
-}
-
-.floornav__text {
-  font-weight: 600;
-  font-size: var(--font-sm);
 }
 
 .floornav__caret {
-  font-size: var(--font-xs);
   opacity: 0.7;
-  color: var(--text-primary);
   transition: transform var(--duration-fast) ease-out;
 }
 
@@ -2246,35 +2175,36 @@ async function cancelDrawnOrigin() {
 }
 
 .floornav__item {
-  display: flex;
-  align-items: center;
-  gap: var(--gap-sm);
-  padding: var(--gap-xs) var(--gap-sm);
-  background: transparent;
-  border: none;
-  border-radius: var(--radius-xs);
-  cursor: pointer;
-  text-align: left;
   width: 100%;
-}
-
-.floornav__item:hover {
-  background: var(--bg-secondary);
-}
-
-.floornav__item--active {
-  background: color-mix(in srgb, var(--accent-primary) 12%, transparent);
+  text-align: left;
 }
 
 .floornav__label {
-  font-size: var(--font-xs);
-  font-weight: 700;
   opacity: 0.8;
   flex-shrink: 0;
 }
 
-.floornav__name {
-  font-weight: 600;
-  font-size: var(--font-sm);
+.editor__preview {
+  align-self: center;
+  max-width: 100%;
+  border: 1px solid var(--accent-primary);
+  background-image:
+    linear-gradient(45deg, var(--bg-tertiary) 25%, transparent 25%),
+    linear-gradient(-45deg, var(--bg-tertiary) 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, var(--bg-tertiary) 75%),
+    linear-gradient(-45deg, transparent 75%, var(--bg-tertiary) 75%);
+  background-size: 8px 8px;
+  background-position:
+    0 0,
+    0 4px,
+    4px -4px,
+    -4px 0;
+}
+</style>
+
+<style>
+#modal-save-origin {
+  width: min(94vw, 360px);
+  max-height: calc(100vh - 32px);
 }
 </style>

@@ -169,6 +169,10 @@ export const ASSET_ORIGIN_LABELS: Record<string, string> = {
 	flattened: 'Flattened',
 }
 
+export function assetIsSvg(asset: AssetDef | undefined | null): boolean {
+	return !!asset?.svg
+}
+
 export function assetSizeLabel(asset: AssetDef): string {
 	if (asset.pxW || asset.pxH) return `${asset.pxW ?? asset.w}x${asset.pxH ?? asset.h}px`
 	return `${asset.w}x${asset.h}`
@@ -200,6 +204,10 @@ export function placedObjectCounts(floors: readonly FloorData[]): Map<string, nu
 		}
 	}
 	return counts
+}
+
+export function placedCountTitle(count: number): string {
+	return `${count} placed object${count === 1 ? '' : 's'}`
 }
 
 const VALID_ROLES = new Set<SvgRole>(['wall', 'door', 'fixture'])

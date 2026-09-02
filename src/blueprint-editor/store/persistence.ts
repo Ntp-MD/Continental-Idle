@@ -1,9 +1,8 @@
-import type { SyncedLayoutPayload, NpcSimulationConfig, FloorLayoutData } from '../types'
 import { state, toast, isStateLocked, withStateLock, assetMap, updateLastSavedSnapshot, revertToLastSavedSnapshot } from './state'
-import { editorLog } from './utils'
-import { EDITOR_CONFIG } from './migrate'
-import { buildBlueprintData, fetchBlueprintDataFromDisk } from './dataLoader'
-import { validateSettingsCompleteness, buildAssetMap } from '../assetUtils'
+import { editorLog } from './storeUtils'
+import { EDITOR_CONFIG } from '../editorConfig'
+import { buildBlueprintData } from './dataLoader'
+import { validateSettingsCompleteness } from '../assetUtils'
 import { normalizeBlueprintDataFile } from '../types'
 import { buildSyncedPayload } from '../syncedPayload'
 
@@ -50,18 +49,6 @@ export async function saveBlueprintData(): Promise<boolean> {
 	return withStateLock(saveBlueprintDataLocked)
 }
 
-export async function saveLayout(): Promise<boolean> {
-	return saveBlueprintData()
-}
-
-export async function saveAssets(): Promise<void> {
-	await saveBlueprintData()
-}
-
-export async function saveNpcConfig(): Promise<boolean> {
-	return saveBlueprintData()
-}
-
 export function syncToGame(): boolean {
 	try {
 		const payload = buildSyncedPayload(state.layout, assetMap(), state.layout.npcConfig)
@@ -84,10 +71,3 @@ export function syncToGame(): boolean {
 	}
 }
 
-export async function loadPersistedSyncPayload(): Promise<SyncedLayoutPayload | null> {
-	const data = await fetchBlueprintDataFromDisk()
-	if (!data) return null
-	const assets = buildAssetMap(data.originAssets)
-	const npcConfig: NpcSimulationConfig | undefined = data.npcConfig ?? undefined
-	return buildSyncedPayload(data.layout as FloorLayoutData, assets, npcConfig)
-}

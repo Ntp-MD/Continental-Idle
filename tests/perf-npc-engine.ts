@@ -1,4 +1,4 @@
-import { NpcEngine, findNpcGridPath, type NpcEngineFloor, type NpcEngineInteractionTarget, type NpcEngineLayout, type NpcEnginePoint } from '../src/engine/npc'
+import { NpcEngine, NPC_ENGINE_DEFAULT_OPTIONS, findNpcGridPath, type NpcEngineFloor, type NpcEngineInteractionTarget, type NpcEngineLayout, type NpcEnginePoint } from '../src/engine/npc'
 
 function mulberry32(seed: number): () => number {
 	return () => {
@@ -52,6 +52,7 @@ function buildEngine(agentCount: number): NpcEngine {
 		interactionTargets: buildTargets('F1', 20),
 	}
 	const engine = new NpcEngine(layout, {
+		...NPC_ENGINE_DEFAULT_OPTIONS,
 		ticksPerSecond: 60,
 		agentClearance: 0.5,
 		random,

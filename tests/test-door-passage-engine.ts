@@ -421,7 +421,7 @@ console.log('Phase 11: PASS')
 console.log('--- Phase 12: matchDoorPanel mapping ---')
 
 // Replicate matchDoorPanel logic from useDoorAnimation
-function matchDoorPanel(panels: readonly ReturnType<typeof doorPanelsData>[number], edgeFromX: number, edgeFromY: number, edgeToX: number, edgeToY: number, tileSize: number) {
+function matchDoorPanel(panels: ReturnType<typeof doorPanelsData>, edgeFromX: number, edgeFromY: number, edgeToX: number, edgeToY: number, tileSize: number) {
 	const midPx = ((edgeFromX + edgeToX) / 2) * tileSize
 	const midPy = ((edgeFromY + edgeToY) / 2) * tileSize
 	const halfTile = tileSize / 2

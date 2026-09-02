@@ -2,8 +2,8 @@ import { toRaw } from 'vue'
 import type { FloorData } from '../types'
 import { normalizeAllowedRoleIds, normalizeFloorWalkable, normalizeNpcSpawnZones } from '../types'
 import { state } from './state'
-import { genId } from './utils'
-import { saveLayout } from './persistence'
+import { genId } from './storeUtils'
+import { saveBlueprintData } from './persistence'
 
 export async function addFloor(): Promise<FloorData | null> {
 	const existing = new Set(state.layout.floors.map(f => f.label))
@@ -11,7 +11,7 @@ export async function addFloor(): Promise<FloorData | null> {
 	while (existing.has(`F${n}`)) n++
 	const floor: FloorData = { id: genId('floor'), name: `Floor ${n}`, label: `F${n}`, objects: [], defaultWalkable: true }
 	state.layout.floors.push(floor)
-	const saved = await saveLayout()
+	const saved = await saveBlueprintData()
 	return saved ? floor : null
 }
 
@@ -27,7 +27,7 @@ export async function deleteFloor(id: string): Promise<boolean> {
 		delete state.layout.streetFloorId
 	}
 	state.selectionState = { primary: null, items: [] }
-	return saveLayout()
+	return saveBlueprintData()
 }
 
 export async function duplicateFloor(id: string): Promise<boolean> {
@@ -53,14 +53,14 @@ export async function duplicateFloor(id: string): Promise<boolean> {
 	}
 	const idx = state.layout.floors.findIndex(f => f.id === id)
 	state.layout.floors.splice(idx + 1, 0, copy)
-	return saveLayout()
+	return saveBlueprintData()
 }
 
 export async function renameFloor(id: string, name: string): Promise<boolean> {
 	const floor = state.layout.floors.find(f => f.id === id)
 	if (!floor) return false
 	floor.name = name
-	return saveLayout()
+	return saveBlueprintData()
 }
 
 export async function reorderFloors(fromIndex: number, toIndex: number): Promise<boolean> {
@@ -70,7 +70,7 @@ export async function reorderFloors(fromIndex: number, toIndex: number): Promise
 	const floors = state.layout.floors
 	const [moved] = floors.splice(fromIndex, 1)
 	floors.splice(toIndex, 0, moved)
-	return saveLayout()
+	return saveBlueprintData()
 }
 
 export function selectFloor(id: string) {
@@ -103,5 +103,5 @@ export async function updateFloor(
 	}
 	if (patch.name !== undefined) floor.name = patch.name
 	if (patch.label !== undefined) floor.label = patch.label
-	return saveLayout()
+	return saveBlueprintData()
 }

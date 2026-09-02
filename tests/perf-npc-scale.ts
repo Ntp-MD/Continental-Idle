@@ -1,7 +1,7 @@
 ﻿import { floorPlanData } from '../src/blueprint-editor/data/floorPlan.data'
 import { originAssets } from '../src/blueprint-editor/store/dataLoader'
 import { buildNpcEngineLayout } from '../src/engine/npc/layoutBuild'
-import { NpcEngine, findNpcGridPath } from '../src/engine/npc'
+import { NpcEngine, NPC_ENGINE_DEFAULT_OPTIONS, findNpcGridPath } from '../src/engine/npc'
 import { createNpcEnginePolicy } from '../src/engine/npc/policy'
 import { normalizeObject } from '../src/blueprint-editor/geometry'
 import type { FloorData, NpcSimulationConfig, AssetDef, ObjectData } from '../src/blueprint-editor/types'
@@ -43,7 +43,7 @@ function runScenario(name: string, floors: FloorData[], perFloor: number, ticks:
 		roles: [{ id: 'guest', label: 'Guest', color: '#8ecae6', focusTags: ['bathroom'], restrictedTags: [], taskIds: [], focusChance: 30 }],
 		tasks: [], pool: [],
 	} as unknown as NpcSimulationConfig
-	const tickNow = 0
+	let tickNow = 0
 	let engine!: NpcEngine
 	const policy = createNpcEnginePolicy({
 		getConfig: () => config,
@@ -68,6 +68,7 @@ function runScenario(name: string, floors: FloorData[], perFloor: number, ticks:
 		}
 	}
 	engine = new NpcEngine(built.layout, {
+		...NPC_ENGINE_DEFAULT_OPTIONS,
 		ticksPerSecond: 60,
 		agentClearance: 0.5,
 		random,

@@ -6,8 +6,8 @@ import { parseSvgViewBox } from '../assetUtils'
 import {
 	state, toast, clamp, withStateLock, initAssetFields, assetMap,
 } from './state'
-import { genAssetId } from './utils'
-import { saveAssets, saveBlueprintData } from './persistence'
+import { genAssetId } from './storeUtils'
+import { saveBlueprintData } from './persistence'
 
 const FURNITURE_COLOR_MAP: Record<string, string> = {
 	'#f4f8fc': 'var(--text-bright)',
@@ -84,7 +84,7 @@ export async function addSvgAsset(name: string, w: number, h: number, svgString:
 		}
 		initAssetFields(asset)
 		state.assetRegistry.push(asset)
-		await saveAssets()
+		await saveBlueprintData()
 		return asset
 	})
 }
@@ -217,7 +217,7 @@ export async function duplicateAsset(id: string): Promise<AssetDef | null> {
 		if (source.tags) copy.tags = [...source.tags]
 		if (!copy.defaultFillColor) copy.defaultFillColor = '#ffffff'
 		state.assetRegistry.push(copy)
-		await saveAssets()
+		await saveBlueprintData()
 		toast.success(`Duplicated "${source.name}" -> "${copy.name}"`)
 		return copy
 	})
@@ -236,6 +236,6 @@ export async function deleteAsset(id: string): Promise<boolean> {
 	}
 	state.assetRegistry.splice(idx, 1)
 	if (state.selectedAssetId === id) state.selectedAssetId = null
-	await saveAssets()
+	await saveBlueprintData()
 	return true
 }
