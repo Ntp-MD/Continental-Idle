@@ -64,7 +64,6 @@ video,
 canvas {
 	display: block;
 	max-width: 100%;
-	vertical-align: middle;
 }
 
 a {
@@ -147,12 +146,10 @@ textarea {
 	padding: var(--gap-sm) var(--gap-sm);
 	border-radius: var(--radius-sm);
 	transition: border-color var(--duration-fast) var(--ease-out);
-	min-height: 35px;
 }
 
 input {
 	field-sizing: content;
-	min-width: 10ch;
 }
 
 select,

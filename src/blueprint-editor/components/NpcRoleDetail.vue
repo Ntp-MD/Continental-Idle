@@ -78,7 +78,7 @@ function submitRoleTag(kind: 'focus' | 'restricted') {
   <section class="form__col npc__detail">
     <h3 class="form__title">Editing: {{ role.label }}</h3>
     <div class="form__grid">
-      <div class="form__col">
+      <div class="form__group">
         <h4 class="form__title">Basics</h4>
         <div class="form__row">
           <label :for="`npc-role-label-${role.id}`">Label</label>
@@ -112,7 +112,7 @@ function submitRoleTag(kind: 'focus' | 'restricted') {
         </div>
       </div>
 
-      <div class="form__col">
+      <div class="form__group">
         <h4 class="form__title">Focus Tags</h4>
         <p class="npc__hinttext">Where this NPC prefers to go. Empty = wanders anywhere.</p>
         <div class="form__row">
@@ -144,7 +144,7 @@ function submitRoleTag(kind: 'focus' | 'restricted') {
         </div>
       </div>
 
-      <div class="form__col">
+      <div class="form__group">
         <h4 class="form__title">Restricted Tags</h4>
         <p class="npc__hinttext">Places this NPC avoids.</p>
         <div class="form__row">
@@ -181,7 +181,7 @@ function submitRoleTag(kind: 'focus' | 'restricted') {
         </div>
       </div>
 
-      <div class="form__col npc__scroll">
+      <div class="form__group npc__scroll">
         <h4 class="form__title">Assigned Tasks</h4>
         <SearchInput v-model="taskFilter" placeholder="Search tasks..." label="Search assigned tasks" />
         <label v-for="task in filteredAssignTasks" :key="task.id" class="card__item npc__pickrow">
@@ -199,7 +199,7 @@ function submitRoleTag(kind: 'focus' | 'restricted') {
         </div>
       </div>
 
-      <div class="form__col">
+      <div class="form__group">
         <div class="form__row">
           <h4 class="form__title">Tag Trigger Rates</h4>
           <button

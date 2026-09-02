@@ -166,7 +166,7 @@ const editorGroupsByTab: Record<Exclude<SettingsTab, 'canvas'>, EditorGroup[]> =
   interaction: [
     {
       title: 'Hit Testing',
-      hint: 'Tolerances for clicking walls, dragging objects, cycling overlapping items, and box selection.',
+      hint: 'Tolerances for hit, drag, cycle and box select.',
       fields: [
         { key: 'wallHitTolerancePx', label: 'Wall hit px', step: 1 },
         { key: 'wallHitToleranceTileRatio', label: 'Wall hit tile ratio', step: 0.01 },
@@ -179,7 +179,7 @@ const editorGroupsByTab: Record<Exclude<SettingsTab, 'canvas'>, EditorGroup[]> =
   display: [
     {
       title: 'Overlay Sizes',
-      hint: 'Radius of interact spot dots and lock indicator circles.',
+      hint: 'Radius of spot dots and lock indicators.',
       fields: [
         { key: 'interactSpotRadiusPx', label: 'Interact spot radius', step: 0.5 },
         { key: 'lockIndicatorRadiusPx', label: 'Lock indicator radius', step: 0.5 },
@@ -187,7 +187,7 @@ const editorGroupsByTab: Record<Exclude<SettingsTab, 'canvas'>, EditorGroup[]> =
     },
     {
       title: 'Font Sizes',
-      hint: 'Text sizes for labels, indicators, zone labels, empty state, and ruler ticks. Scaled by 1/zoom at render time.',
+      hint: 'Text sizes in px, scaled by 1/zoom.',
       fields: [
         { key: 'labelFontSizePx', label: 'Object label', step: 0.5 },
         { key: 'lockLabelFontSizePx', label: 'Lock label', step: 0.5 },
@@ -201,32 +201,28 @@ const editorGroupsByTab: Record<Exclude<SettingsTab, 'canvas'>, EditorGroup[]> =
   scene: [
     {
       title: 'Street',
-      hint: 'Dash/gap ratios relative to tileSize, and sidewalk width as a fraction of street ring tiles.',
+      hint: 'Dash/gap ratios of tileSize; sidewalk and wall thickness fractions.',
       fields: [
         { key: 'streetDashRatio', label: 'Dash ratio', step: 0.01 },
         { key: 'streetGapRatio', label: 'Gap ratio', step: 0.01 },
         { key: 'sidewalkTileRatio', label: 'Sidewalk tile ratio', step: 0.01 },
+        { key: 'wallThicknessRatio', label: 'Thickness ratio', step: 0.01 },
       ],
     },
     {
       title: 'Ruler',
-      hint: 'Ruler bar size clamps relative to zoom (sqrt scaling).',
+      hint: 'Bar size clamps relative to zoom (sqrt scaling).',
       fields: [
         { key: 'rulerMinPx', label: 'Min px', step: 1 },
         { key: 'rulerMaxPx', label: 'Max px', step: 1 },
         { key: 'rulerBasePx', label: 'Base px', step: 1 },
       ],
     },
-    {
-      title: 'Wall',
-      hint: 'Wall thickness as a fraction of tileSize (used when canvas.wallThickness is not set).',
-      fields: [{ key: 'wallThicknessRatio', label: 'Thickness ratio', step: 0.01 }],
-    },
   ],
   grid: [
     {
       title: 'Walkable Grid Editor',
-      hint: 'Tile size constraints for the WalkableGridEditor modal display.',
+      hint: 'Tile size constraints for the grid modal.',
       fields: [
         { key: 'walkableGridMinTilePx', label: 'Min tile px', step: 1 },
         { key: 'walkableGridMaxTilePx', label: 'Max tile px', step: 1 },
@@ -365,11 +361,11 @@ async function resetEditorAll() {
             Apply
           </button>
         </div>
-        <div class="form__hint">Changing canvas size will re-snap all objects to the new grid.</div>
+        <div class="form__hint">Re-snaps all objects to the new grid.</div>
       </div>
 
       <div class="form__row">
-        <div class="form__col">
+        <div class="form__group">
           <div class="form__title">Background</div>
           <div class="form__field">
             <label for="canvas__bgcolor">Color</label>
@@ -381,9 +377,9 @@ async function resetEditorAll() {
               @commit="applyCanvasBgColor"
             />
           </div>
-          <div class="form__hint">Hex color or 'transparent'. Leave empty for default.</div>
+          <div class="form__hint">Hex or 'transparent'.</div>
         </div>
-        <div class="form__col">
+        <div class="form__group">
           <div class="form__title">Labels</div>
           <div class="form__field">
             <label for="canvas__labelcolor">Color</label>
@@ -395,9 +391,11 @@ async function resetEditorAll() {
               @commit="applyLabelColor"
             />
           </div>
-          <div class="form__hint">One color for every object label on the canvas.</div>
+          <div class="form__hint">Color for all object labels.</div>
         </div>
-        <div class="form__col">
+      </div>
+      <div class="form__row">
+        <div class="form__group">
           <div class="form__title">Walls</div>
           <div class="form__field">
             <label>Color</label>
@@ -409,52 +407,53 @@ async function resetEditorAll() {
               @commit-invalid="onWallColorInvalid"
             />
           </div>
+          <div class="form__field">
+            <label for="canvas__wallthickness">Thickness</label>
+            <input
+              id="canvas__wallthickness"
+              v-model.number="wallThicknessInput"
+              type="number"
+              min="1"
+              max="10"
+              step="1"
+              :placeholder="'3'"
+              @change="applyWallThickness"
+            />
+          </div>
+          <div class="form__hint">For painted walls and building boundary.</div>
         </div>
-      </div>
-
-      <div class="form__field">
-        <label for="canvas__wallthickness">Thickness</label>
-        <input
-          id="canvas__wallthickness"
-          v-model.number="wallThicknessInput"
-          type="number"
-          min="1"
-          max="10"
-          step="1"
-          :placeholder="'3'"
-          @change="applyWallThickness"
-        />
-      </div>
-      <div class="form__hint">
-        Line style for painted floor walls and the building boundary. Thickness overrides the Editor ratio.
-      </div>
-      <div class="form__title">Street</div>
-      <div class="form__field">
-        <label for="canvas__streetfloor">On floor</label>
-        <select
-          id="canvas__streetfloor"
-          :value="store.state.layout.streetFloorId ?? ''"
-          aria-label="Floor that displays the street ring"
-          @change="applyStreetFloor(($event.target as HTMLSelectElement).value || null)"
-        >
-          <option value="">None</option>
-          <option v-for="f in store.state.layout.floors" :key="f.id" :value="f.id">{{ f.label }} - {{ f.name }}</option>
-        </select>
-      </div>
-      <div class="form__field">
-        <label for="canvas__streetwidth">Ring</label>
-        <select
-          id="canvas__streetwidth"
-          :value="store.state.layout.streetWidthTiles ?? ''"
-          aria-label="Street ring width in tiles"
-          @change="store.setStreetWidth(Number(($event.target as HTMLSelectElement).value) || null)"
-        >
-          <option value="">Default (8 tiles)</option>
-          <option v-for="w in [5, 6, 7, 8, 9, 10, 11, 12]" :key="w" :value="w">{{ w }} tiles</option>
-        </select>
-      </div>
-      <div class="form__hint">
-        Street ring renders on one floor; ring width drives placement boundary, NPC walkable zone and the drawn road.
+        <div class="form__group">
+          <div class="form__title">Street</div>
+          <div class="form__row">
+            <div class="form__field">
+              <label for="canvas__streetfloor">On floor</label>
+              <select
+                id="canvas__streetfloor"
+                :value="store.state.layout.streetFloorId ?? ''"
+                aria-label="Floor that displays the street ring"
+                @change="applyStreetFloor(($event.target as HTMLSelectElement).value || null)"
+              >
+                <option value="">None</option>
+                <option v-for="f in store.state.layout.floors" :key="f.id" :value="f.id">
+                  {{ f.label }} - {{ f.name }}
+                </option>
+              </select>
+            </div>
+            <div class="form__field">
+              <label for="canvas__streetwidth">Ring</label>
+              <select
+                id="canvas__streetwidth"
+                :value="store.state.layout.streetWidthTiles ?? ''"
+                aria-label="Street ring width in tiles"
+                @change="store.setStreetWidth(Number(($event.target as HTMLSelectElement).value) || null)"
+              >
+                <option value="">Default (8 tiles)</option>
+                <option v-for="w in [5, 6, 7, 8, 9, 10, 11, 12]" :key="w" :value="w">{{ w }} tiles</option>
+              </select>
+            </div>
+          </div>
+          <div class="form__hint">Ring width drives placement boundary and NPC walkable zone.</div>
+        </div>
       </div>
     </div>
 
@@ -468,20 +467,22 @@ async function resetEditorAll() {
       :aria-labelledby="`settings__tab--${t.key}`"
     >
       <template v-for="group in editorGroupsByTab[t.key]" :key="group.title">
-        <div class="form__title">{{ group.title }}</div>
-        <div v-for="field in group.fields" :key="field.key" class="form__field">
-          <label :for="`es__${field.key}`">{{ field.label }}</label>
-          <input
-            :id="`es__${field.key}`"
-            v-model.number="draft[field.key]"
-            type="number"
-            :min="fieldRange(field.key).min"
-            :max="fieldRange(field.key).max"
-            :step="field.step"
-            @change="applyEditorField(field.key)"
-          />
+        <div class="form__group">
+          <div class="form__title">{{ group.title }}</div>
+          <div v-for="field in group.fields" :key="field.key" class="form__field">
+            <label :for="`es__${field.key}`">{{ field.label }}</label>
+            <input
+              :id="`es__${field.key}`"
+              v-model.number="draft[field.key]"
+              type="number"
+              :min="fieldRange(field.key).min"
+              :max="fieldRange(field.key).max"
+              :step="field.step"
+              @change="applyEditorField(field.key)"
+            />
+          </div>
+          <div class="form__hint">{{ group.hint }}</div>
         </div>
-        <div class="form__hint">{{ group.hint }}</div>
       </template>
     </div>
     <template #footer>

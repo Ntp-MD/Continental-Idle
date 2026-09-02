@@ -2019,18 +2019,6 @@ async function cancelDrawnOrigin() {
   stroke: color-mix(in srgb, var(--accent-green) 20%, transparent);
 }
 
-.editor__tile--obj-walkable {
-  fill: color-mix(in srgb, var(--accent-green) 20%, transparent);
-  stroke: color-mix(in srgb, var(--accent-gold) 15%, transparent);
-  stroke-width: 0.5;
-}
-
-.editor__tile--obj-blocked {
-  fill: color-mix(in srgb, var(--accent-red) 20%, transparent);
-  stroke: color-mix(in srgb, var(--accent-gold) 15%, transparent);
-  stroke-width: 0.5;
-}
-
 .editor__ruler--passive {
   pointer-events: none;
 }
@@ -2046,11 +2034,6 @@ async function cancelDrawnOrigin() {
   border-radius: var(--radius-sm);
   text-transform: capitalize;
   z-index: var(--z-layer-2);
-}
-
-.editor__badge--draw {
-  border-color: var(--accent-primary);
-  color: var(--accent-primary);
 }
 
 .editor__hint {

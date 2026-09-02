@@ -399,9 +399,9 @@ onUnmounted(() => {
       </section>
     </div>
 
-    <div v-else class="form__col npc__library">
-      <section class="form__col npc__panel">
-        <h3 class="form__title">Tags</h3>
+    <div v-else class="form__row npc__library">
+      <section class="form__group npc__panel">
+        <div class="form__title">Tags</div>
         <SearchInput v-model="tagSearch" placeholder="Search tags..." label="Search tags" />
         <div class="form__row npc__add">
           <input
@@ -421,8 +421,8 @@ onUnmounted(() => {
         <div v-if="!filteredTags.length" class="empty">No tags</div>
       </section>
 
-      <section class="form__col npc__panel">
-        <h3 class="form__title">Tasks</h3>
+      <section class="form__group npc__panel">
+        <div class="form__title">Tasks</div>
         <SearchInput v-model="libTaskFilter" placeholder="Search tasks..." label="Search tasks" />
         <NpcTaskCard
           v-for="task in filteredLibTasks"

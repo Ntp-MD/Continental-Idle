@@ -177,72 +177,77 @@ function floorCounts(f: FloorData): string {
       <!-- Right pane: Detail editor -->
       <div class="form__col floor__body">
         <template v-if="selectedFloor">
-          <div class="form__title floor__heading">
-            <span>Floor Details</span>
-            <button type="button" class="flag--warning" @click="showWalkable = true">Edit Walkable</button>
+          <div class="form__group">
+            <div class="form__title floor__heading">
+              <span>Details</span>
+              <button type="button" class="flag--warning" @click="showWalkable = true">Edit Walkable</button>
+            </div>
+            <div class="form__row">
+              <label>Label</label>
+              <input
+                v-if="editingLabel"
+                v-model="editingLabelRaw"
+                aria-label="Edit floor label"
+                @keydown.enter="commitLabel"
+                @blur="commitLabel"
+              />
+              <input v-else :value="selectedFloor.label" readonly aria-label="Floor label" @dblclick="startEditLabel" />
+            </div>
+            <div class="form__row">
+              <label>Name</label>
+              <input
+                v-if="editingName"
+                :value="editingNameRaw"
+                aria-label="Edit floor name"
+                @input="editingNameRaw = sanitizeString(($event.target as HTMLInputElement).value)"
+                @keydown.enter="commitName"
+                @blur="commitName"
+              />
+              <input
+                v-else
+                :value="selectedFloor.name"
+                readonly
+                title="Double-click to edit"
+                aria-label="Floor name"
+                @dblclick="startEditName"
+              />
+            </div>
+            <div class="form__row">
+              <label>Stats</label>
+              <span class="form__hint">{{ floorCounts(selectedFloor) }}</span>
+            </div>
           </div>
 
-          <div class="form__row">
-            <label>Label</label>
-            <input
-              v-if="editingLabel"
-              v-model="editingLabelRaw"
-              aria-label="Edit floor label"
-              @keydown.enter="commitLabel"
-              @blur="commitLabel"
-            />
-            <input v-else :value="selectedFloor.label" readonly aria-label="Floor label" @dblclick="startEditLabel" />
+          <div class="form__group">
+            <div class="form__title">Walkability</div>
+            <label class="form__field floor__check">
+              <input type="checkbox" :checked="selectedFloor.defaultWalkable ?? true" @change="toggleWalkable" />
+              <span>Empty areas are walkable</span>
+            </label>
           </div>
 
-          <div class="form__row">
-            <label>Name</label>
-            <input
-              v-if="editingName"
-              :value="editingNameRaw"
-              aria-label="Edit floor name"
-              @input="editingNameRaw = sanitizeString(($event.target as HTMLInputElement).value)"
-              @keydown.enter="commitName"
-              @blur="commitName"
-            />
-            <input
-              v-else
-              :value="selectedFloor.name"
-              readonly
-              title="Double-click to edit"
-              aria-label="Floor name"
-              @dblclick="startEditName"
-            />
+          <div class="form__group">
+            <div class="form__title">Allowed Roles</div>
+            <div class="form__row">
+              <span v-if="!selectedFloor.allowedRoleIds?.length" class="form__hint">All roles allowed</span>
+              <button v-else class="flag--ghost" @click="clearRoles">Clear (allow all)</button>
+            </div>
+            <div class="form__row">
+              <label
+                v-for="role in availableRoles"
+                :key="role.id"
+                class="chip floor__role"
+                :class="{ 'flag--active': isRoleAllowed(role.id) }"
+              >
+                <input type="checkbox" :checked="isRoleAllowed(role.id)" @change="toggleRole(role.id)" />
+                <span class="swatch" :style="{ background: role.color }" />
+                <span>{{ role.label }}</span>
+              </label>
+            </div>
+            <span v-if="!availableRoles.length" class="form__hint"
+              >No roles configured - open Role Manager to add roles</span
+            >
           </div>
-
-          <label class="form__title">Default Walkable</label>
-          <label class="form__field floor__check">
-            <input type="checkbox" :checked="selectedFloor.defaultWalkable ?? true" @change="toggleWalkable" />
-            <span>Empty areas are walkable</span>
-          </label>
-
-          <div class="form__row">
-            <label>Stats</label>
-            <span class="form__hint">{{ floorCounts(selectedFloor) }}</span>
-          </div>
-
-          <div class="form__title floor__heading">Allowed Roles</div>
-          <div class="form__row">
-            <span v-if="!selectedFloor.allowedRoleIds?.length" class="form__hint">All roles allowed</span>
-            <button v-else class="flag--ghost" @click="clearRoles">Clear (allow all)</button>
-          </div>
-          <label
-            v-for="role in availableRoles"
-            :key="role.id"
-            class="chip floor__role"
-            :class="{ 'flag--active': isRoleAllowed(role.id) }"
-          >
-            <input type="checkbox" :checked="isRoleAllowed(role.id)" @change="toggleRole(role.id)" />
-            <span class="swatch" :style="{ background: role.color }" />
-            <span>{{ role.label }}</span>
-          </label>
-          <span v-if="!availableRoles.length" class="form__hint"
-            >No roles configured - open Role Manager to add roles</span
-          >
         </template>
         <div v-else class="empty">Select a floor to edit</div>
       </div>

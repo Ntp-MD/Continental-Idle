@@ -9,7 +9,7 @@
 
 .form__row {
 	display: flex;
-	align-items: start;
+	align-items: center;
 	gap: var(--gap-sm);
 }
 
@@ -26,6 +26,7 @@
 	gap: var(--gap-sm);
 	border-bottom: 1px solid var(--border-dim);
 	padding-bottom: var(--gap-sm);
+	flex: 1;
 }
 
 
@@ -190,7 +191,7 @@
 }
 
 .chip {
-	display: inline-flex;
+	display: flex;
 	align-items: center;
 	gap: var(--gap-xs);
 	padding: var(--gap-xs) var(--gap-sm);
