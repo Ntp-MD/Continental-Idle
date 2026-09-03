@@ -2,8 +2,8 @@ import { computed } from 'vue'
 import { useToast } from '@/composables/useToast'
 import { saveBlueprintData } from './persistence'
 import { state } from './state'
-import { buildTagCatalog } from '../tagCatalog'
-import { normalizeTag } from '../types'
+import { buildTagCatalog } from '../assets/tagCatalog'
+import { normalizeTag } from '../domain/types'
 
 export const tagCatalog = computed(() => buildTagCatalog(state.tagDefinitions, state.assetRegistry, state.layout.npcConfig))
 export const globalTags = computed(() => tagCatalog.value.definitions.map(tag => tag.id).sort((a, b) => a.localeCompare(b)))

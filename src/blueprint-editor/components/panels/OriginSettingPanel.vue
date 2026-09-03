@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import { ref, watch, computed, nextTick } from 'vue'
-import { useAssetsStore } from '../blueprintStore'
+import { useAssetsStore } from '../../blueprintStore'
 import { useToast } from '@/composables/useToast'
 import { useDebouncedCallback } from '@/composables/useDebounceFn'
-import type { AssetDef } from '../types'
-import { isHexColor, isValidColor, normalizeCornerRx } from '../types'
-import { assetIsSvg } from '../assetUtils'
-import ColorInput from './ColorInput.vue'
+import type { AssetDef } from '../../domain/types'
+import { isHexColor, isValidColor, normalizeCornerRx } from '../../domain/types'
+import { assetIsSvg } from '../../assets/assetUtils'
+import ColorInput from '../inputs/ColorInput.vue'
 
 const props = defineProps<{ asset: AssetDef }>()
 const store = useAssetsStore()
@@ -224,7 +224,7 @@ watch(portal, async (v) => {
     </div>
     <div class="form__row">
       <label>Corner Radius</label>
-      <div class="form__group">
+      <div class="form__row form__row--wrap">
         <label class="form__group">
           <span>TL</span>
           <input v-model.number="dimFields.rxTL" class="size--fit" type="number" min="0" @input="onRxInput('rxTL')" />

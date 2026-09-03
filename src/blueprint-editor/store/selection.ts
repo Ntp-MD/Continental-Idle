@@ -1,6 +1,6 @@
 import { computed } from 'vue'
-import type { ObjectData, EntityRef } from '../types'
-import { findAssetCached } from '../assetUtils'
+import type { ObjectData, EntityRef } from '../domain/types'
+import { findAssetCached } from '../assets/assetUtils'
 import { state, currentFloor, assetMap } from './state'
 
 export function selectAsset(id: string | null) {

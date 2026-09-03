@@ -1,18 +1,18 @@
 <script setup lang="ts">
 import { ref, watch, computed, nextTick, defineAsyncComponent } from 'vue'
-import { useAssetsStore } from '../blueprintStore'
+import { useAssetsStore } from '../../blueprintStore'
 import { useToast } from '@/composables/useToast'
 import { useConfirm } from '@/composables/useConfirm'
-import { useAsyncAction } from '../composables/useAsyncAction'
-import { useClipboardCopy } from '../composables/useClipboardCopy'
-import { assetSvgVarStyle, assetPreviewSvg, assetPreviewViewBox, assetIsSvg } from '../assetUtils'
-import { useCanvasWallStyle, DOOR_COLOR } from '../composables/useCanvasWallStyle'
-import { useSvgPreview } from '../composables/useSvgPreview'
+import { useAsyncAction } from '../../composables/useAsyncAction'
+import { useClipboardCopy } from '../../composables/useClipboardCopy'
+import { assetSvgVarStyle, assetPreviewSvg, assetPreviewViewBox, assetIsSvg } from '../../assets/assetUtils'
+import { useCanvasWallStyle, DOOR_COLOR } from '../../composables/useCanvasWallStyle'
+import { useSvgPreview } from '../../composables/useSvgPreview'
 import ErrorBoundary from '@/components/overlays/ErrorBoundary.vue'
-import type { AssetDef } from '../types'
-import TagPicker from './TagPicker.vue'
-const AssetEditModal = defineAsyncComponent(() => import('./AssetEditModal.vue'))
-import { managedTagSet } from '../blueprintStore'
+import type { AssetDef } from '../../domain/types'
+import TagPicker from '../inputs/TagPicker.vue'
+const AssetEditModal = defineAsyncComponent(() => import('../modals/AssetEditModal.vue'))
+import { managedTagSet } from '../../blueprintStore'
 
 const props = defineProps<{ asset: AssetDef }>()
 const store = useAssetsStore()
@@ -136,7 +136,7 @@ async function duplicateAsset() {
     </div>
     <div class="form__row">
       <label>ID</label>
-      <div class="form__group size--stretch">
+      <div class="form__group form__enter">
         <input type="text" :value="asset.id" disabled title="Asset ID" />
         <button @click="copyId(asset.id)">Copy</button>
       </div>

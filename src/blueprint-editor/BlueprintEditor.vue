@@ -1,20 +1,14 @@
 <script setup lang="ts">
 import { provide, onMounted, ref } from 'vue'
-import Toolbar from './components/Toolbar.vue'
-import AssetToolbar from './components/AssetToolbar.vue'
-import EditorCanvas from './components/EditorCanvas.vue'
-import PropertiesPanel from './components/PropertiesPanel.vue'
-import ToastContainer from './components/ToastContainer.vue'
+import Toolbar from './components/shell/Toolbar.vue'
+import AssetToolbar from './components/canvas/AssetToolbar.vue'
+import EditorCanvas from './components/canvas/EditorCanvas.vue'
+import PropertiesPanel from './components/panels/PropertiesPanel.vue'
+import ToastContainer from './components/shell/ToastContainer.vue'
 import ConfirmDialog from '@/components/overlays/ConfirmDialog.vue'
 import { useAssetsStore } from './blueprintStore'
 import { useNpcSimulation } from './composables/useNpcSimulation'
-import { resolveStreetTiles } from './types'
-
-const emit = defineEmits<{ close: [] }>()
-
-function onClose() {
-  emit('close')
-}
+import { resolveStreetTiles } from './domain/types'
 
 const store = useAssetsStore()
 const ready = ref(false)
@@ -53,7 +47,7 @@ provide('npcSimulation', npcSimulation)
 <template>
   <div class="editor__app">
     <template v-if="ready">
-      <Toolbar @close="onClose" />
+      <Toolbar />
       <div class="editor__main">
         <AssetToolbar />
         <EditorCanvas />
@@ -90,5 +84,13 @@ provide('npcSimulation', npcSimulation)
   flex: 1;
   display: flex;
   min-height: 0;
+}
+
+.editor__main > :first-child {
+  border-right: 1px solid var(--border-dim);
+}
+
+.editor__main > :last-child {
+  border-left: 1px solid var(--border-dim);
 }
 </style>

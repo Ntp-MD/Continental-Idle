@@ -1,4 +1,4 @@
-import type { FloorData, NpcRole, NpcSimulationConfig } from '../../blueprint-editor/types'
+import type { FloorData, NpcRole, NpcSimulationConfig } from '../../blueprint-editor/domain/types'
 import { buildRoleWalkableMap, interactionTargetKey, tileKey, toEngineWalkablePoints, type GetAssetTags, type NpcWalkableMap } from './layoutBuild'
 import { findNpcGridPath } from './pathfinding'
 import { selectBestTarget } from './targetScoring'

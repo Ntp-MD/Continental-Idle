@@ -123,6 +123,9 @@ routine fixes, refactors and minor cleanups do NOT belong here.
 - Revisit trigger: floors return to code-generated authoring; then fold the wall conventions into `build-hotel.mjs` itself.
 - Superseded: see entry 17 (2026-08-28). `build-hotel.mjs` was removed;
   hand-authored floors are the only authoring path.
+- Note (2026-09-03): `docs/agents/floor-authoring.md` was never created; the
+  wall/floor conventions live in `docs/agents/data.md`. The `build:hotel`
+  references above are historical.
 
 ### 12. Room conversion was retired in favor of origin composition
 

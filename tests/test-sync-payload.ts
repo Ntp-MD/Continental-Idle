@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict'
 import { buildSyncedPayload } from '../src/blueprint-editor/syncedPayload'
-import { buildAssetMap } from '../src/blueprint-editor/assetUtils'
+import { buildAssetMap } from '../src/blueprint-editor/assets/assetUtils'
 import { emptyNpcConfig } from '../src/blueprint-editor/store/storeUtils'
-import type { AssetDef, FloorLayoutData, NpcSimulationConfig } from '../src/blueprint-editor/types'
+import type { AssetDef, FloorLayoutData, NpcSimulationConfig } from '../src/blueprint-editor/domain/types'
 
 const NPC_CONFIG: NpcSimulationConfig = {
 	...emptyNpcConfig(),

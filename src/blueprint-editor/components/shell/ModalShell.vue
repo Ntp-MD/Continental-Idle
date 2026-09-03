@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { computed, ref, watch, onUnmounted } from 'vue'
-import { useFocusTrap } from '../../composables/useFocusTrap'
-import { useDraggable } from '../composables/useDraggable'
+import { computed, ref, useId, watch, onUnmounted } from 'vue'
+import { useFocusTrap } from '../../../composables/useFocusTrap'
+import { useDraggable } from '../../composables/useDraggable'
 
 const props = withDefaults(
   defineProps<{
@@ -34,7 +34,7 @@ useFocusTrap(isOpen, containerRef)
 
 const { pos, isDragging, onDown, reset } = useDraggable(containerRef)
 
-const titleId = computed(() => `modal-shell-title-${Math.random().toString(36).slice(2, 9)}`)
+const titleId = useId()
 
 function onClose() {
   emit('close')
@@ -66,7 +66,6 @@ onUnmounted(() => {
     <div
       v-if="open"
       class="modal__overlay"
-      :class="{ 'modal__overlay--floating': floating }"
       @click.self="!floating && onClose()"
     >
       <div
@@ -80,13 +79,23 @@ onUnmounted(() => {
         :aria-labelledby="titleId"
       >
         <div class="modal__header" @mousedown="onDown">
-          <span :id="titleId" class="modal__title">{{ title }}</span>
+          <span :id="titleId">{{ title }}</span>
           <button class="modal__close" aria-label="Close" @click="onClose">x</button>
         </div>
         <div class="modal__body" :class="bodyClass">
           <slot />
         </div>
+        <div v-if="$slots.footer" class="modal__footer">
+          <slot name="footer" />
+        </div>
       </div>
     </div>
   </Teleport>
 </template>
+
+<style scoped>
+.modal--dragging,
+.modal--dragging .modal__header {
+  cursor: grabbing;
+}
+</style>

@@ -6,8 +6,8 @@ import vue from '@vitejs/plugin-vue'
 import { visualizer } from 'rollup-plugin-visualizer'
 import fs from 'node:fs'
 import path from 'node:path'
-import { BLUEPRINT_DATA_SCHEMA, BLUEPRINT_DATA_VERSION, normalizeBlueprintDataFile } from './src/blueprint-editor/types.js'
-import type { BlueprintDataFile } from './src/blueprint-editor/types.js'
+import { BLUEPRINT_DATA_SCHEMA, BLUEPRINT_DATA_VERSION, normalizeBlueprintDataFile } from './src/blueprint-editor/domain/types.js'
+import type { BlueprintDataFile } from './src/blueprint-editor/domain/types.js'
 
 function isLocalhostOrigin(value: string | undefined): boolean {
 	if (!value) return true

@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { ref } from 'vue'
-import type { NpcTask } from '../types'
-import { managedTagSet } from '../blueprintStore'
-import TagChip from './TagChip.vue'
+import type { NpcTask } from '../../domain/types'
+import { managedTagSet } from '../../blueprintStore'
+import TagChip from '../inputs/TagChip.vue'
 
 defineProps<{
   task: NpcTask
@@ -38,7 +38,7 @@ function submitTag() {
       />
       <button type="button" class="flag--danger" aria-label="Delete task" @click="emit('remove')">x</button>
     </div>
-    <div class="form__row">
+    <div class="form__row form__row--wrap">
       <TagChip
         v-for="tag in task.tags"
         :key="`${task.id}-${tag}`"

@@ -1,4 +1,4 @@
-import type { NpcSimulationConfig, NpcTask } from '../types'
+import type { NpcSimulationConfig, NpcTask } from '../domain/types'
 
 export function genId(prefix: string): string {
 	const arr = new Uint8Array(5)

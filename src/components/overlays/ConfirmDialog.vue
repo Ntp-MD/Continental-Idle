@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { useConfirm } from '@/composables/useConfirm'
-import ModalShell from '../../blueprint-editor/components/ModalShell.vue'
+import ModalShell from '../../blueprint-editor/components/shell/ModalShell.vue'
 
 const { pending, resolve } = useConfirm()
 
@@ -36,8 +36,8 @@ function onConfirm() {
         @keydown.enter.stop.prevent="submitPrompt"
         @keydown.escape.stop.prevent="onCancel"
       />
-      <div class="form__row confirmdialog__actions">
-        <button class="flag--ghost size--stretch" @click="onCancel">{{ pending.cancelLabel }}</button>
+      <div class="form__row">
+        <button class="size--stretch" @click="onCancel">{{ pending.cancelLabel }}</button>
         <button
           class="size--stretch"
           :data-autofocus="isPrompt ? undefined : true"

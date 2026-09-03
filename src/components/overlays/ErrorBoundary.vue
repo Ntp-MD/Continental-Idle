@@ -21,7 +21,7 @@ function doReload() {
       <h1 class="errorboundary__title">Something went wrong</h1>
       <p class="errorboundary__message">{{ errorMessage }}</p>
       <p class="errorboundary__hint">Try reloading the page.</p>
-      <button class="flag--ghost" @click="doReload">Reload Page</button>
+      <button @click="doReload">Reload Page</button>
     </div>
   </div>
   <slot v-else />

@@ -1,5 +1,5 @@
-import type { AssetDef, FloorData, ObjectData, WallSegment } from '../../blueprint-editor/types'
-import { resolveObjectDef, resolveQueueForTarget, normalizeWallSegment } from '../../blueprint-editor/types'
+import type { AssetDef, FloorData, ObjectData, WallSegment } from '../../blueprint-editor/domain/types'
+import { resolveObjectDef, resolveQueueForTarget, normalizeWallSegment } from '../../blueprint-editor/domain/types'
 import type { NpcEngineFloor, NpcEngineInteractionTarget, NpcEnginePoint, NpcEngineQueue } from './types'
 
 interface Direction {

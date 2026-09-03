@@ -1,6 +1,6 @@
 import { toRaw } from 'vue'
-import type { FloorData } from '../types'
-import { normalizeAllowedRoleIds, normalizeFloorWalkable, normalizeNpcSpawnZones } from '../types'
+import type { FloorData } from '../domain/types'
+import { normalizeAllowedRoleIds, normalizeFloorWalkable, normalizeNpcSpawnZones } from '../domain/types'
 import { state } from './state'
 import { genId } from './storeUtils'
 import { saveBlueprintData } from './persistence'

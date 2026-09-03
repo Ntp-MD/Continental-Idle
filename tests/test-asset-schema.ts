@@ -1,12 +1,12 @@
 import assert from 'node:assert/strict'
-import { ASSET_DEF_FIELD_COVERAGE, serializeAsset } from '../src/blueprint-editor/assetUtils'
-import { normalizeOriginAsset } from '../src/blueprint-editor/types'
-import type { AssetDef } from '../src/blueprint-editor/types'
+import { ASSET_DEF_FIELD_COVERAGE, serializeAsset } from '../src/blueprint-editor/assets/assetUtils'
+import { normalizeOriginAsset } from '../src/blueprint-editor/domain/types'
+import type { AssetDef } from '../src/blueprint-editor/domain/types'
 
 // Sample fixture must populate EVERY AssetDef field (see ASSET_DEF_FIELD_COVERAGE).
 // When adding a field to AssetDef (types.ts): add it to ASSET_DEF_FIELD_COVERAGE
 // (typecheck fails otherwise), then extend this fixture + serializeAsset + the
-// updateAsset patch union in store/objects.ts / store/assets.ts.
+// updateAsset patch union in src/blueprint-editor/store/assets.ts.
 const sample: AssetDef = {
 	id: 'sample-1',
 	name: 'Sample',

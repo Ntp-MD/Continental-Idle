@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { migrate } from '../src/blueprint-editor/store/migrate'
-import { normalizeNpcConfig, CANVAS_WALL_OBJECT_TYPE } from '../src/blueprint-editor/types'
+import { normalizeNpcConfig, CANVAS_WALL_OBJECT_TYPE } from '../src/blueprint-editor/domain/types'
 import { originAssets } from '../src/blueprint-editor/store/dataLoader'
 
 const validAsset = originAssets[0]

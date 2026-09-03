@@ -1,21 +1,20 @@
 <script setup lang="ts">
 import { ref, computed, inject, onUnmounted, defineAsyncComponent } from 'vue'
-import { useAssetsStore } from '../blueprintStore'
+import { useAssetsStore } from '../../blueprintStore'
 import { useToast } from '@/composables/useToast'
 import { useConfirm } from '@/composables/useConfirm'
-import { useAsyncAction } from '../composables/useAsyncAction'
+import { useAsyncAction } from '../../composables/useAsyncAction'
 import ErrorBoundary from '@/components/overlays/ErrorBoundary.vue'
-const NpcManagerModal = defineAsyncComponent(() => import('./NpcManagerModal.vue'))
-const FloorModal = defineAsyncComponent(() => import('./FloorModal.vue'))
-const DeployNpcModal = defineAsyncComponent(() => import('./DeployNpcModal.vue'))
-const SettingsModal = defineAsyncComponent(() => import('./SettingsModal.vue'))
+const NpcManagerModal = defineAsyncComponent(() => import('../modals/NpcManagerModal.vue'))
+const FloorModal = defineAsyncComponent(() => import('../modals/FloorModal.vue'))
+const DeployNpcModal = defineAsyncComponent(() => import('../modals/DeployNpcModal.vue'))
+const SettingsModal = defineAsyncComponent(() => import('../modals/SettingsModal.vue'))
 import ModalShell from './ModalShell.vue'
-import { useNpcSimulation } from '../composables/useNpcSimulation'
+import { useNpcSimulation } from '../../composables/useNpcSimulation'
 
 const store = useAssetsStore()
 const toast = useToast()
 const confirm = useConfirm().confirm
-const emit = defineEmits<{ close: [] }>()
 const { pending, run } = useAsyncAction()
 const npcSimulation = inject('npcSimulation') as ReturnType<typeof useNpcSimulation>
 const { npcs, isPaused, pause, resume, reset, stop, simSpeed } = npcSimulation
@@ -121,10 +120,6 @@ function onExitDeploy() {
   stop()
   store.setMode('move')
 }
-function onBack() {
-  if (store.state.mode === 'npc-preview') stop()
-  emit('close')
-}
 function onSwitchMode(mode: 'object' | 'draw' | 'move') {
   if (store.state.mode === 'npc-preview') stop()
   store.setMode(mode)
@@ -132,12 +127,13 @@ function onSwitchMode(mode: 'object' | 'draw' | 'move') {
 
 function onSyncToGame() {
   if (store.syncToGame()) toast.success('Blueprint synced to game')
+  else toast.error('Blueprint sync failed')
 }
 </script>
 
 <template>
   <div class="editor__toolbar">
-    <button class="flag--ghost" title="Settings" aria-label="Settings" @click="showSettings = true">
+    <button title="Settings" aria-label="Settings" @click="showSettings = true">
       <svg
         width="16"
         height="16"
@@ -156,28 +152,28 @@ function onSyncToGame() {
     </button>
 
     <button
-      :class="{ 'flag--warning': store.state.mode === 'object' && !store.state.wallPaint }"
+      :class="{ 'flag--active': store.state.mode === 'object' && !store.state.wallPaint }"
       aria-label="Switch to object mode"
       @click="onSwitchMode('object')"
     >
       Object
     </button>
     <button
-      :class="{ 'flag--warning': store.state.mode === 'draw' && !store.state.wallPaint }"
+      :class="{ 'flag--active': store.state.mode === 'draw' && !store.state.wallPaint }"
       aria-label="Switch to draw mode"
       @click="onSwitchMode('draw')"
     >
       Draw Object
     </button>
     <button
-      :class="{ 'flag--warning': store.state.mode === 'move' && !store.state.wallPaint }"
+      :class="{ 'flag--active': store.state.mode === 'move' && !store.state.wallPaint }"
       aria-label="Switch to move mode"
       @click="onSwitchMode('move')"
     >
       Move
     </button>
     <button
-      :class="{ 'flag--warning': store.state.wallPaint }"
+      :class="{ 'flag--active': store.state.wallPaint }"
       :disabled="store.state.mode === 'npc-preview'"
       title="Draw walls on tile boundaries"
       aria-label="Toggle draw wall tool"
@@ -190,7 +186,6 @@ function onSyncToGame() {
       NPC Manager
     </button>
     <button
-      class="flag--warning"
       :disabled="pending"
       title="Re-resolve every placed object from its origin asset and rebuild walkable layout"
       aria-label="Refresh all placed objects from origins"
@@ -206,7 +201,6 @@ function onSyncToGame() {
       Floor Manager
     </button>
     <button
-      class="flag--ghost"
       title="Open UI showcase (all primitives and components)"
       aria-label="Open UI showcase"
       @click="onOpenShowcase"
@@ -215,7 +209,7 @@ function onSyncToGame() {
     </button>
 
     <button
-      :class="{ 'flag--warning': store.state.mode === 'npc-preview' }"
+      :class="{ 'flag--active': store.state.mode === 'npc-preview' }"
       title="Deploy NPCs on current floor (configure roles first)"
       @click="onDeployNpc"
     >
@@ -231,10 +225,9 @@ function onSyncToGame() {
       Sync Game
     </button>
 
-    <button class="flag--danger" aria-label="Back to start screen" @click="onBack">Back</button>
-
     <ModalShell
       :open="store.state.mode === 'npc-preview'"
+      modal-id="modal-npc-preview"
       title="NPC Preview"
       width="min(94vw, 340px)"
       max-width="340px"
@@ -242,55 +235,49 @@ function onSyncToGame() {
       @close="onExitDeploy"
     >
       <div class="form__row">
-        <div class="npc__title">
+        <div class="form__col">
           <strong>{{ currentFloorLabel }}</strong>
           <span>{{ total }} NPC{{ total === 1 ? '' : 's' }}</span>
         </div>
         <span class="badge" :class="isPaused ? 'flag--warning' : 'flag--success'" role="status">{{
           isPaused ? 'Paused' : 'Running'
         }}</span>
-        <div class="npc__roles">
+        <div class="form__row form__row--wrap">
           <span v-for="[type, count] in countsByRole" :key="type" class="npc__role">
             <span>{{ type }}</span>
             <b>{{ count }}</b>
           </span>
         </div>
       </div>
-      <div v-if="total > 0" class="npc__stats">
-        <span
-          v-for="s in statusCounts"
-          :key="s.key"
-          class="npc__stat"
-          :class="s.key === 'idle' ? undefined : `npc__stat--${s.key}`"
-        >
-          {{ s.label }} <b>{{ s.count }}</b>
-        </span>
+      <div v-if="total > 0" class="form__row form__row--wrap">
+        <span v-for="s in statusCounts" :key="s.key" class="form__hint"> {{ s.label }} <b>{{ s.count }}</b> </span>
       </div>
-      <div class="modal__actions modal__actions--border">
-        <button
-          type="button"
-          :aria-label="isPaused ? 'Resume NPC simulation' : 'Pause NPC simulation'"
-          @click="onTogglePause"
-        >
-          {{ isPaused ? 'Resume' : 'Pause' }}
-        </button>
-        <div class="npc__speed" role="group" aria-label="Simulation speed">
+      <template #footer>
+        <div class="form__row form__row--wrap">
           <button
-            v-for="s in [1, 2, 4, 8]"
-            :key="s"
             type="button"
-            class="npc__speed-option"
-            :class="{ 'npc__speed-option--active': simSpeed === s }"
-            :aria-pressed="simSpeed === s"
-            @click="simSpeed = s"
+            :aria-label="isPaused ? 'Resume NPC simulation' : 'Pause NPC simulation'"
+            @click="onTogglePause"
           >
-            {{ s }}x
+            {{ isPaused ? 'Resume' : 'Pause' }}
+          </button>
+          <div class="form__row" role="group" aria-label="Simulation speed">
+            <button
+              v-for="s in [1, 2, 4, 8]"
+              :key="s"
+              type="button"
+              :class="{ 'flag--active': simSpeed === s }"
+              :aria-pressed="simSpeed === s"
+              @click="simSpeed = s"
+            >
+              {{ s }}x
+            </button>
+          </div>
+          <button type="button" class="flag--danger" aria-label="Clear all NPCs and exit preview" @click="onReset">
+            Clear
           </button>
         </div>
-        <button type="button" class="flag--danger" aria-label="Clear all NPCs and exit preview" @click="onReset">
-          Clear
-        </button>
-      </div>
+      </template>
     </ModalShell>
 
     <ErrorBoundary>
@@ -319,5 +306,19 @@ function onSyncToGame() {
 
 .editor__toolbar--spacer {
   margin-left: auto;
+}
+
+.npc__role {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--gap-xs);
+  padding: var(--gap-xxs) var(--gap-xs);
+  background: var(--bg-primary);
+  border: 1px solid var(--border-dim);
+  border-radius: var(--radius-sm);
+}
+
+.npc__role b {
+  color: var(--accent-blue);
 }
 </style>

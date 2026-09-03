@@ -1,6 +1,6 @@
 import type { AssetDef, ObjectData, ObjectPlacement, ResolvedObject, Rotation, Rect } from './types'
 import { CANVAS_WALL_OBJECT_TYPE, normalizeWallSegment, resolveObjectDef, STREET_TILES, assetPixelSize } from './types'
-import { findAsset, findAssetCached, wallSegmentToObjectRect } from './assetUtils'
+import { findAsset, findAssetCached, wallSegmentToObjectRect } from '../assets/assetUtils'
 
 export function assetSizeFor(
 	type: string,

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
-import { isHexColor } from '../types'
+import { isHexColor } from '../../domain/types'
 
 const props = withDefaults(
   defineProps<{

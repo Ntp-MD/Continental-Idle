@@ -56,7 +56,7 @@ Lessons encoded after the washer/double-bed round; follow these when adding or e
 
 ### SVG art rules
 
-- Body shapes use the theme convention: fill and stroke reference the asset fill/stroke theme variables with a fallback to the canonical default. Detail lines reference the asset outline theme variable. Never hardcode decorative colors inside asset art.
+- Body shapes use the theme convention: fill and stroke reference the asset fill/stroke theme variables with a fallback to the canonical default. Detail lines reference the dim text theme variable (`--text-dim`). Never hardcode decorative colors inside asset art.
 - Every surface that renders an asset SVG must set the fill/stroke theme variables first via the asset color style helpers - raw attribute fallbacks alone render white-on-white. This applies to previews, palette thumbnails, and the game view, not just the editor canvas.
 - The SVG is the whole visual. Editor canvas, game view, and palette preview all render the SVG alone - there is no backing plate behind placed objects. If art needs a base shape, draw it inside the SVG.
 - Placed objects resolve colors live from their origin asset; they never carry editable color copies.

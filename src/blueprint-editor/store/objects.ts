@@ -1,8 +1,8 @@
-import type { ObjectData, AssetDef, Rotation, EntityRef, TileState, WallSegment } from '../types'
-import { CANVAS_WALL_OBJECT_TYPE, applySvgColorConvention, normalizeWallSegment, resolveObjectDef, resolveWallSegmentsForObject, assetPixelSize } from '../types'
-import { findAssetCached, wallSegmentToObjectRect } from '../assetUtils'
-import { buildingArea, normalizeObject } from '../geometry'
-import { aabbOverlap, objectOverlapsAny, recalcCollapsed } from '../collision'
+import type { ObjectData, AssetDef, Rotation, EntityRef, TileState, WallSegment } from '../domain/types'
+import { CANVAS_WALL_OBJECT_TYPE, applySvgColorConvention, normalizeWallSegment, resolveObjectDef, resolveWallSegmentsForObject, assetPixelSize } from '../domain/types'
+import { findAssetCached, wallSegmentToObjectRect } from '../assets/assetUtils'
+import { buildingArea, normalizeObject } from '../domain/geometry'
+import { aabbOverlap, objectOverlapsAny, recalcCollapsed } from '../domain/collision'
 import {
 	state, toast, snap, clamp, assetMap, wallSelection,
 	currentFloor, withStateLock, initAssetFields,
@@ -488,7 +488,7 @@ export async function flattenToSvgAsset(name?: string, walls?: readonly Selected
 				partIndex++
 			} else {
 				const fill = obj.fillColor || asset?.defaultFillColor || 'var(--text-bright)'
-				const stroke = obj.strokeColor || asset?.defaultStrokeColor || 'var(--asset-outline)'
+				const stroke = obj.strokeColor || asset?.defaultStrokeColor || 'var(--text-dim)'
 				const rx = obj.rx
 				let body: string
 				if (rx) {

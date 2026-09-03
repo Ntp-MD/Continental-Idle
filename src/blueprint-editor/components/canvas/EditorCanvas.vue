@@ -1,28 +1,28 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch, inject, type Ref } from 'vue'
-import { useAssetsStore, dragState, endAssetDrag, wallSelection } from '../blueprintStore'
-import { findAssetCached, svgColorVarStyle, doorPanelsData, type DoorPanel } from '../assetUtils'
-import { svgTransform as svgTransformGeo, roundedRectPath, buildingArea } from '../geometry'
+import { useAssetsStore, dragState, endAssetDrag, wallSelection } from '../../blueprintStore'
+import { findAssetCached, svgColorVarStyle, doorPanelsData, type DoorPanel } from '../../assets/assetUtils'
+import { svgTransform as svgTransformGeo, roundedRectPath, buildingArea } from '../../domain/geometry'
 import {
   CANVAS_WALL_OBJECT_TYPE,
   resolveStreetTiles,
   resolveWallSegmentsForObject,
   normalizeEditorSettings,
-} from '../types'
+} from '../../domain/types'
 import { useConfirm } from '@/composables/useConfirm'
 import { useToast } from '@/composables/useToast'
-import type { ObjectData, EntityRef } from '../types'
-import { resolveObjectDef } from '../types'
-import { useCanvasViewport } from '../composables/useCanvasViewport'
-import { useCanvasSelection } from '../composables/useCanvasSelection'
-import { useCanvasDragDrop } from '../composables/useCanvasDragDrop'
-import { useCanvasWallStyle } from '../composables/useCanvasWallStyle'
-import ColorInput from './ColorInput.vue'
-import ModalShell from './ModalShell.vue'
-import { useNpcSimulation } from '../composables/useNpcSimulation'
-import { useDoorAnimation } from '../composables/useDoorAnimation'
-import { useWallPaint, type WallSegment, type WallSelection } from '../composables/useWallPaint'
-import { renderSvgInto as renderSvgContent } from '../svgSanitizer'
+import type { ObjectData, EntityRef } from '../../domain/types'
+import { resolveObjectDef } from '../../domain/types'
+import { useCanvasViewport } from '../../composables/useCanvasViewport'
+import { useCanvasSelection } from '../../composables/useCanvasSelection'
+import { useCanvasDragDrop } from '../../composables/useCanvasDragDrop'
+import { useCanvasWallStyle } from '../../composables/useCanvasWallStyle'
+import ColorInput from '../inputs/ColorInput.vue'
+import ModalShell from '../shell/ModalShell.vue'
+import { useNpcSimulation } from '../../composables/useNpcSimulation'
+import { useDoorAnimation } from '../../composables/useDoorAnimation'
+import { useWallPaint, type WallSegment, type WallSelection } from '../../composables/useWallPaint'
+import { renderSvgInto as renderSvgContent } from '../../assets/svgSanitizer'
 
 const vSvgContent = {
   mounted(el: Element, binding: { value: string }) {
@@ -1725,7 +1725,7 @@ async function cancelDrawnOrigin() {
 
     <div v-if="floor" class="editor__title">
       <span class="editor__labels" :style="{ color: floor.labelColor || undefined }">{{ floor.label }}</span>
-      <span class="editor__name">{{ floor.name }}</span>
+      <span>{{ floor.name }}</span>
     </div>
 
     <div v-if="floor" class="editor__nav">
@@ -1739,7 +1739,7 @@ async function cancelDrawnOrigin() {
           @click.stop="toggleFloorNav"
         >
           <span class="floornav__tag" :style="{ color: floor.labelColor || undefined }">{{ floor.label }}</span>
-          <span class="floornav__text">{{ floor.name }}</span>
+          <span class="truncate">{{ floor.name }}</span>
           <span class="floornav__caret" :class="{ 'floornav__caret--rotated': floorNavOpen }"
             ><svg viewBox="0 0 10 6" width="8" height="5" aria-hidden="true">
               <path d="M0 0l5 6 5-6z" fill="currentColor" /></svg
@@ -1756,7 +1756,7 @@ async function cancelDrawnOrigin() {
             @click="selectFloorNav(f.id)"
           >
             <span class="floornav__label" :style="{ color: f.labelColor || undefined }">{{ f.label }}</span>
-            <span class="floornav__name truncate">{{ f.name }}</span>
+            <span class="form__name truncate">{{ f.name }}</span>
           </button>
         </div>
       </div>
@@ -1775,15 +1775,14 @@ async function cancelDrawnOrigin() {
     </div>
 
     <div class="editor__controls">
-      <button class="flag--ghost" title="Zoom Out (-)" aria-label="Zoom out" @click="zoomBy(1 / 1.25)">-</button>
+      <button title="Zoom Out (-)" aria-label="Zoom out" @click="zoomBy(1 / 1.25)">-</button>
       <span class="editor__zoom" aria-label="Zoom level">{{ zoomPercent }}%</span>
-      <button class="flag--ghost" title="Zoom In (+)" aria-label="Zoom in" @click="zoomBy(1.25)">+</button>
-      <button class="flag--ghost" title="Fit to Screen (Ctrl+0)" aria-label="Fit to screen" @click="fitToScreen">
+      <button title="Zoom In (+)" aria-label="Zoom in" @click="zoomBy(1.25)">+</button>
+      <button title="Fit to Screen (Ctrl+0)" aria-label="Fit to screen" @click="fitToScreen">
         Fit
       </button>
-      <button class="flag--ghost" title="Center View" aria-label="Center view" @click="centerView">Center</button>
+      <button title="Center View" aria-label="Center view" @click="centerView">Center</button>
       <button
-        class="flag--ghost"
         :class="{ 'flag--active': showGrid }"
         title="Toggle Grid"
         aria-label="Toggle grid"
@@ -1792,7 +1791,6 @@ async function cancelDrawnOrigin() {
         Grid
       </button>
       <button
-        class="flag--ghost"
         :class="{ 'flag--active': showLabels }"
         title="Toggle Labels"
         aria-label="Toggle labels"
@@ -1801,7 +1799,6 @@ async function cancelDrawnOrigin() {
         Labels
       </button>
       <button
-        class="flag--ghost"
         :class="{ 'flag--active': showWalkableOverlay }"
         title="Toggle Walkable + Door"
         aria-label="Toggle walkable view"
@@ -1810,7 +1807,6 @@ async function cancelDrawnOrigin() {
         Walk
       </button>
       <button
-        class="flag--ghost"
         :class="{ 'flag--active': showWalls }"
         title="Toggle Outer Walls"
         aria-label="Toggle walls"
@@ -1819,7 +1815,6 @@ async function cancelDrawnOrigin() {
         Wall
       </button>
       <button
-        class="flag--ghost"
         :class="{ 'flag--active': showInteractSpots }"
         title="Toggle Interact Spots"
         aria-label="Toggle interact spots"
@@ -1828,7 +1823,6 @@ async function cancelDrawnOrigin() {
         Interact
       </button>
       <button
-        class="flag--ghost"
         :class="{ 'flag--active': showObjectHighlights }"
         title="Toggle object highlights"
         aria-label="Toggle object highlights"
@@ -1837,7 +1831,6 @@ async function cancelDrawnOrigin() {
         Highlight
       </button>
       <button
-        class="flag--ghost"
         :class="{ 'flag--active': showBuildingBounds }"
         title="Toggle building area boundary (placement limit against the street)"
         aria-label="Toggle building bounds"
@@ -1846,7 +1839,6 @@ async function cancelDrawnOrigin() {
         Bounds
       </button>
       <button
-        class="flag--ghost"
         :class="{ 'flag--active': showNpcGuides }"
         title="Toggle NPC path guides (only in NPC Preview)"
         aria-label="Toggle NPC path guides"
@@ -1877,7 +1869,7 @@ async function cancelDrawnOrigin() {
       />
       <label class="form__row">
         <span>Name</span>
-        <input v-model="originName" type="text" placeholder="Object name" autofocus />
+        <input v-model="originName" type="text" placeholder="Object name" data-autofocus />
       </label>
       <label class="form__row">
         <span>Fill Color</span>
@@ -1889,7 +1881,7 @@ async function cancelDrawnOrigin() {
         />
       </label>
       <template #footer>
-        <button class="flag--ghost" type="button" @click="cancelDrawnOrigin">Cancel</button>
+        <button type="button" @click="cancelDrawnOrigin">Cancel</button>
         <button class="flag--success" type="button" :disabled="!originName.trim()" @click="saveDrawnOrigin">
           Save as Origin
         </button>
@@ -2103,12 +2095,15 @@ async function cancelDrawnOrigin() {
   right: var(--gap-md);
   display: flex;
   align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
   gap: var(--gap-xs);
   padding: var(--gap-xs);
   background: var(--bg-primary);
   border: 1px solid var(--border-dim);
   border-radius: var(--radius-sm);
   z-index: var(--z-layer-2);
+  max-width: calc(100% - var(--gap-md) * 2);
 }
 
 .editor__zoom {
@@ -2134,7 +2129,7 @@ async function cancelDrawnOrigin() {
 
 .floornav__caret {
   opacity: 0.7;
-  transition: transform var(--duration-fast) ease-out;
+  transition: transform var(--duration-fast) var(--ease-out);
 }
 
 .floornav__caret--rotated {

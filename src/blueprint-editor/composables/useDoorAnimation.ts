@@ -1,6 +1,6 @@
 import { shallowRef, onUnmounted } from 'vue'
-import type { DoorPanel } from '../assetUtils'
-import type { NpcSimDot } from '../types'
+import type { DoorPanel } from '../assets/assetUtils'
+import type { NpcSimDot } from '../domain/types'
 import type { NpcEngineEvent } from '@/engine/npc'
 
 export interface DoorAnimState {

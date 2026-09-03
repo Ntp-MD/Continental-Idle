@@ -1,5 +1,5 @@
 import { computed } from 'vue'
-import { normalizeEditorSettings } from '../types'
+import { normalizeEditorSettings } from '../domain/types'
 import { useAssetsStore } from '../blueprintStore'
 
 export function useCanvasDefaults() {

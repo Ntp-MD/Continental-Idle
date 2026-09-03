@@ -8,7 +8,12 @@ Framework-agnostic by intent; adapt selectors/scoping to the stack (Vue scoped s
 - `__` only between block and element; `--` only before a state/variant.
 - No triple `__`, no hyphen-simulated compounds, no structural elements as block modifiers.
 - Quote state keys containing `--` in template bindings.
-- Use the shortest valid form.
+- Use the shortest valid form: one short word when the scope is clear, no prefix the file already provides, no repeated parent concept, state words move into `--modifier`.
+
+## Naming copy
+
+- UI labels use player vocabulary, never schema names: "Shape Radius" not "Label Radius", "Passable" not "Walkthrough". Test: read the label to someone who never saw the code - if they cannot guess what it changes, rename it.
+- Code identifiers may keep implementation names; only visible copy follows this rule.
 
 ## File placement by scope
 
@@ -39,6 +44,7 @@ Framework-agnostic by intent; adapt selectors/scoping to the stack (Vue scoped s
 - Every selector must have a matching class in the same component's template/generated markup/binding.
 - Every template class must have a matching definition somewhere.
 - An element selector that already covers an element does not need an empty helper class.
+- When the last reference to a class is removed, remove its definition in the same change. Never retain a class "for future use".
 
 ## Theme tokens
 
@@ -55,29 +61,11 @@ Framework-agnostic by intent; adapt selectors/scoping to the stack (Vue scoped s
 
 A class is a candidate for shared/global scope only when all hold:
 
-1. Real usage count >= 2 distinct call sites in the same change.
+1. Real usage count >= 3 distinct call sites in the same change.
 2. The five role dimensions match across every call site: semantic role, interaction, accessibility, responsive behavior, scope.
 3. No existing class already covers the role; if one does, extend it with a modifier carrying only the delta.
 4. The name describes a role, not an appearance (value/shape/color). Appearance-only intents belong to a token or utility, not a component class.
 5. A token cannot replace it: if the only varying value is a color/spacing/dimension already in theme variables, use the variable; if the value appears in 3+ places, add a token first.
-
-Merge and split rules:
-
-- Same role across files -> merge into one shared class. Different block prefixes are not a reason to keep duplicates.
-- Same declarations but different role -> coincidental match; keep separate, do not merge.
-- Same role differing only by layout delta (gap/padding) -> base class plus modifier.
-- Same role differing by semantic delta (alignment/interactivity) -> keep separate classes.
-- A class extending a base with zero delta is dead code; remove it and use the base alone.
-
-Neutral structural blocks:
-
-- Prefer one neutral structural block per generic role reused across contexts over one block per container.
-- Component-specific classes are for content/behavior owned by one component, not structural roles already covered by a neutral block.
-
-Removal discipline:
-
-- When the last reference to a class is removed, remove its definition in the same change.
-- Never retain a class "for future use"; absence of references is the definition of done.
 
 ## Inheritance-aware declarations
 
@@ -112,7 +100,7 @@ the last, delete the earlier ones.
 ## Sizing and control defaults
 
 - Inputs size to their value by default (`field-sizing: content` plus a
-  `min-width: 4ch` floor). Never cap an input with `max-width` - the value
+  `min-width: 5ch` floor). Never cap an input with `max-width` - the value
   and placeholder define the plausible width themselves.
 - `select` and `textarea` fill their row (`width: 100%`).
 - Sizing is explicit per element through utilities: `size--fit` (shrink to
@@ -127,15 +115,16 @@ the last, delete the earlier ones.
   on the item). Never create a block-specific state modifier (e.g.
   `--selected`) for UI controls. Block-specific `--state` classes are allowed
   only for domain rendering internals (canvas drawing, grid tile states).
-- Tabs use the shared `.tabs__bar` / `.tabs__tab` / `.tabs__tab--active`
+- Tabs use the shared `.tabs__bar` / `.tabs__tab`
   classes (`.tabs--sidebar` for vertical) with `role="tablist"` semantics.
+  Tab selection uses `flag--active`, like every other UI control.
   Do not create per-component tab classes. Keep the tab bar fixed and scroll
   only the panel content.
 
 ## Layer precedence and duplicate approval
 
 Layers, base first: `reset.css` (element base, always wins) -> `components.css`
-(shared semantic classes) -> scoped component styles.
+(shared semantic classes) -> `layout.css` (app-shell layout: sidebar, panels) -> scoped component styles.
 
 - `reset.css` owns the base values for every element type. `components.css`
   and scoped styles must not re-declare a property + value that `reset.css`
@@ -163,7 +152,7 @@ After touching markup, styles, or classes, verify project-wide:
 3. No shared class redefined inside scoped styles.
 4. Every class sits in the file matching its usage scope.
 5. No stale reference to anything removed.
-6. Every shared class has >= 2 real call sites and a verifiable counterpart in template/markup/binding.
+6. Every shared class has >= 3 real call sites and a verifiable counterpart in template/markup/binding.
 7. No zero-delta extending class remains.
 8. No pair of classes shares a role without being merged, and no pair with differing roles is merged.
 9. No declaration re-asserts a value already provided by inheritance or a lower-specificity rule, except the keep-cases listed under Inheritance-aware declarations.

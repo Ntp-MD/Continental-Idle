@@ -33,7 +33,7 @@
 
 ## Decisions (ADR)
 
-Moved to [docs/timeline-decision.md](../timeline-decision.md): chronological
+Moved to [timeline-decision.md](timeline-decision.md): chronological
 timeline of DIRECTION-level decisions only (Problem / Final solution /
 Trade-off / Revisit trigger). Supersedes the former docs/adr/ notes and the
 inline list that used to live here. Routine fixes, refactors and cleanups are
@@ -70,5 +70,3 @@ introduce a second way to do the same thing.
 - Declarative schemas: canvas/editor settings are parsed via
   `CANVAS_FIELD_SPECS` / `EDITOR_FIELD_SPECS`. Never enumerate their keys by
   hand elsewhere.
-
-what i need on this project to make solid and strong code and clean code and efficient and better performance when release launch

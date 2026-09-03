@@ -14,7 +14,7 @@ import type {
 	SyncedFloor,
 	SyncedLayoutPayload,
 	SyncedObject,
-} from './types'
+} from './domain/types'
 import {
 	CANVAS_WALL_OBJECT_TYPE,
 	normalizeAllowedRoleIds,
@@ -28,9 +28,9 @@ import {
 	normalizeWallSegments,
 	normalizeWalkableGrid,
 	resolveStreetTiles,
-} from './types'
+} from './domain/types'
 import { assignSyncKey, editorLog } from './store/storeUtils'
-import { assetSizeFor } from './geometry'
+import { assetSizeFor } from './domain/geometry'
 
 export function buildSyncedPayload(
 	layout: FloorLayoutData,

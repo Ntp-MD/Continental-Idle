@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { useAssetsStore } from '../blueprintStore'
+import { useAssetsStore } from '../../blueprintStore'
 import { useConfirm } from '@/composables/useConfirm'
-import { STREET_TILES, type FloorData, type TileState, type WallSegment } from '../types'
-import { segmentHasDoor, wallSegmentsToEdges, type TileEdges, type BorderSide } from '../gridEditing'
-import { useDirtyBaseline } from '../composables/useDirtyBaseline'
-import ModalShell from './ModalShell.vue'
+import { STREET_TILES, type FloorData, type TileState, type WallSegment } from '../../domain/types'
+import { segmentHasDoor, wallSegmentsToEdges, type TileEdges, type BorderSide } from '../../domain/gridEditing'
+import { useDirtyBaseline } from '../../composables/useDirtyBaseline'
+import ModalShell from '../shell/ModalShell.vue'
 
 type WalkableMode = 'walk' | 'door'
 
@@ -240,7 +240,7 @@ function close(): void {
 
 <template>
   <ModalShell :open="open" modal-id="modal-walkable-setting" title="Walkable Setting" @close="close">
-    <div class="form__row" role="toolbar" aria-label="Walkable setting tools">
+    <div class="form__row form__row--wrap" role="toolbar" aria-label="Walkable setting tools">
       <button type="button" :class="{ 'flag--warning': activeMode === 'walk' }" @click="setMode('walk')">
         Wall / Block
       </button>
@@ -262,7 +262,7 @@ function close(): void {
       </template>
     </div>
 
-    <div class="form__row walk__legend" aria-label="Walkable legend">
+    <div class="form__row form__row--wrap walk__legend" aria-label="Walkable legend">
       <span><i class="swatch walk__swatch--walkable" />Walkable</span>
       <span><i class="swatch walk__swatch--blocked" />Blocked</span>
       <span><i class="swatch walk__swatch--wall" />Wall edge</span>
@@ -325,7 +325,7 @@ function close(): void {
     <template #footer>
       <span class="form__hint">{{ dirty ? 'Unsaved walkable changes' : 'Walkable saved' }}</span>
       <div class="form__row">
-        <button type="button" class="flag--ghost" @click="resetWalkable">Reset to floor default</button>
+        <button type="button" @click="resetWalkable">Reset to floor default</button>
         <button type="button" class="flag--success" :disabled="!dirty" @click="saveWalkable">Save Walkable</button>
       </div>
     </template>

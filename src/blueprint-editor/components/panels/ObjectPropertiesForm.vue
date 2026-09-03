@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { useAssetsStore } from '../blueprintStore'
+import { useAssetsStore } from '../../blueprintStore'
 import { useToast } from '@/composables/useToast'
 import { useConfirm } from '@/composables/useConfirm'
-import { useClipboardCopy } from '../composables/useClipboardCopy'
-import { CANVAS_WALL_OBJECT_TYPE } from '../types'
-import type { ObjectData, AssetDef } from '../types'
+import { useClipboardCopy } from '../../composables/useClipboardCopy'
+import { CANVAS_WALL_OBJECT_TYPE } from '../../domain/types'
+import type { ObjectData, AssetDef } from '../../domain/types'
 
 const props = defineProps<{ object: ObjectData }>()
 const store = useAssetsStore()
@@ -48,7 +48,7 @@ function deselect() {
       <h3>Object</h3>
       <div class="form__row">
         <label>ID</label>
-        <div class="form__group size--stretch">
+        <div class="form__group form__enter size--stretch">
           <input type="text" :value="object.id" disabled title="Object ID" />
           <button @click="copyId(object.id)">Copy</button>
         </div>

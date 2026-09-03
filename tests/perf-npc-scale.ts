@@ -3,8 +3,8 @@ import { originAssets } from '../src/blueprint-editor/store/dataLoader'
 import { buildNpcEngineLayout } from '../src/engine/npc/layoutBuild'
 import { NpcEngine, NPC_ENGINE_DEFAULT_OPTIONS, findNpcGridPath } from '../src/engine/npc'
 import { createNpcEnginePolicy } from '../src/engine/npc/policy'
-import { normalizeObject } from '../src/blueprint-editor/geometry'
-import type { FloorData, NpcSimulationConfig, AssetDef, ObjectData } from '../src/blueprint-editor/types'
+import { normalizeObject } from '../src/blueprint-editor/domain/geometry'
+import type { FloorData, NpcSimulationConfig, AssetDef, ObjectData } from '../src/blueprint-editor/domain/types'
 
 const TILE = 25
 const assetMap = new Map<string, AssetDef>(originAssets.map(a => [a.id, a]))

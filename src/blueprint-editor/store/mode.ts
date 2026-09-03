@@ -1,7 +1,7 @@
-import type { EditorMode, EditorSettings } from '../types'
-import { isValidColor, normalizeEditorSettings, EDITOR_FIELD_SPECS } from '../types'
+import type { EditorMode, EditorSettings } from '../domain/types'
+import { isValidColor, normalizeEditorSettings, EDITOR_FIELD_SPECS } from '../domain/types'
 import { state, clamp, assetMap } from './state'
-import { normalizeObject } from '../geometry'
+import { normalizeObject } from '../domain/geometry'
 import { saveBlueprintData } from './persistence'
 
 export function setMode(mode: EditorMode) {

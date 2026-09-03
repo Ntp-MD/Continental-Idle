@@ -1,5 +1,5 @@
 import { ref, watch, nextTick, onMounted, type Ref } from 'vue'
-import { renderSvgInto } from '../svgSanitizer'
+import { renderSvgInto } from '../assets/svgSanitizer'
 
 export function useSvgPreview(
 	svgSource: Ref<string>,

@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import { ref, computed, watch, defineAsyncComponent } from 'vue'
-import { useAssetsStore } from '../blueprintStore'
+import { useAssetsStore } from '../../blueprintStore'
 import { useToast } from '@/composables/useToast'
 import { useConfirm } from '@/composables/useConfirm'
-import { sanitizeString } from '../../utils/sanitize'
-import { resolveStreetTiles } from '../types'
-import type { FloorData } from '../types'
-import ModalShell from './ModalShell.vue'
+import { sanitizeString } from '../../../utils/sanitize'
+import { resolveStreetTiles } from '../../domain/types'
+import type { FloorData } from '../../domain/types'
+import ModalShell from '../shell/ModalShell.vue'
 const FloorWalkablePanel = defineAsyncComponent(() => import('./FloorWalkablePanel.vue'))
 
 const props = defineProps<{ open: boolean }>()
@@ -150,7 +150,7 @@ function floorCounts(f: FloorData): string {
 
 <template>
   <ModalShell :open="open" modal-id="modal-floor-manager" title="Floor Manager" @close="onClose">
-    <div class="form__grid">
+    <div class="form__split">
       <!-- Left pane: Floor list -->
       <div class="form__col floor__body">
         <div class="form__title floor__heading">
@@ -168,7 +168,7 @@ function floorCounts(f: FloorData): string {
           @click="selectFloor(f.id)"
         >
           <span class="floor__label" :style="{ color: f.labelColor || undefined }">{{ f.label }}</span>
-          <span class="floor__name truncate">{{ f.name }}</span>
+          <span class="form__name truncate">{{ f.name }}</span>
           <span class="floor__count">{{ floorCounts(f) }}</span>
           <span v-if="f.id === store.state.currentFloorId" class="badge">ACTIVE</span>
         </div>
@@ -191,7 +191,14 @@ function floorCounts(f: FloorData): string {
                 @keydown.enter="commitLabel"
                 @blur="commitLabel"
               />
-              <input v-else :value="selectedFloor.label" readonly aria-label="Floor label" @dblclick="startEditLabel" />
+              <input
+                v-else
+                :value="selectedFloor.label"
+                readonly
+                title="Double-click to edit"
+                aria-label="Floor label"
+                @dblclick="startEditLabel"
+              />
             </div>
             <div class="form__row">
               <label>Name</label>
@@ -230,13 +237,13 @@ function floorCounts(f: FloorData): string {
             <div class="form__title">Allowed Roles</div>
             <div class="form__row">
               <span v-if="!selectedFloor.allowedRoleIds?.length" class="form__hint">All roles allowed</span>
-              <button v-else class="flag--ghost" @click="clearRoles">Clear (allow all)</button>
+              <button v-else @click="clearRoles">Clear (allow all)</button>
             </div>
-            <div class="form__row">
+            <div class="form__row form__row--wrap">
               <label
                 v-for="role in availableRoles"
                 :key="role.id"
-                class="chip floor__role"
+                class="card__item floor__role"
                 :class="{ 'flag--active': isRoleAllowed(role.id) }"
               >
                 <input type="checkbox" :checked="isRoleAllowed(role.id)" @change="toggleRole(role.id)" />
@@ -253,7 +260,7 @@ function floorCounts(f: FloorData): string {
       </div>
     </div>
     <template v-if="selectedFloor" #footer>
-      <button class="flag--ghost" @click="onDuplicate(selectedFloor.id)">Duplicate</button>
+      <button @click="onDuplicate(selectedFloor.id)">Duplicate</button>
       <button class="flag--danger" :disabled="floors.length <= 1" @click="onDelete(selectedFloor.id)">Delete</button>
     </template>
   </ModalShell>
@@ -285,10 +292,6 @@ function floorCounts(f: FloorData): string {
   min-width: fit-content;
 }
 
-.floor__name {
-  flex: 1;
-}
-
 .floor__count {
   color: var(--text-dim);
   white-space: nowrap;
@@ -299,12 +302,11 @@ function floorCounts(f: FloorData): string {
 }
 
 .floor__role {
-  cursor: pointer;
   flex-shrink: 0;
 }
 
 .floor__role:hover {
-  background: var(--bg-primary);
+  border-color: var(--accent-primary);
 }
 </style>
 
@@ -314,13 +316,7 @@ function floorCounts(f: FloorData): string {
   max-height: calc(100vh - 32px);
 }
 
-#modal-floor-manager .form__grid {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--gap-md);
-}
-
-#modal-floor-manager .form__grid > .floor__body {
+#modal-floor-manager .form__split > .floor__body {
   flex: 1 1 260px;
   min-width: 0;
 }

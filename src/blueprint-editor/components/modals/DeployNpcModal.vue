@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { ref, computed, toRaw, watch, onUnmounted } from 'vue'
 import { useToast } from '@/composables/useToast'
-import { useAssetsStore, state, emptyNpcConfig } from '../blueprintStore'
-import { normalizeNpcConfig, type NpcSimulationConfig, type NpcRole, type NpcSpawnRule } from '../types'
-import ModalShell from './ModalShell.vue'
-import TagChip from './TagChip.vue'
+import { useAssetsStore, state, emptyNpcConfig } from '../../blueprintStore'
+import { normalizeNpcConfig, type NpcSimulationConfig, type NpcRole, type NpcSpawnRule } from '../../domain/types'
+import ModalShell from '../shell/ModalShell.vue'
+import TagChip from '../inputs/TagChip.vue'
 
 const props = defineProps<{ open: boolean }>()
 const emit = defineEmits<{ (e: 'close'): void; (e: 'deploy', spawnFloorId: string): void }>()
@@ -165,22 +165,20 @@ async function onDeploy() {
 
     <div v-if="roles.length === 0" class="empty">No roles configured. Open NPC Manager to create roles first.</div>
 
-    <div v-else class="deploy__layout">
+    <div v-else class="form__split">
       <aside class="form__col deploy__sidebar">
         <div class="form__title">Roles</div>
         <div
           v-for="role in roles"
           :key="role.id"
-          class="deploy__row"
+          class="card__item"
           :class="{ 'flag--active': selectedRole?.id === role.id }"
-          role="button"
-          tabindex="0"
+          :aria-pressed="selectedRole?.id === role.id"
           @click="selectedRoleId = role.id"
-          @keydown.self.enter.prevent="selectedRoleId = role.id"
-          @keydown.self.space.prevent="selectedRoleId = role.id"
+          @focusin="selectedRoleId = role.id"
         >
           <span class="swatch" :style="{ background: role.color }" />
-          <strong class="deploy__name">{{ role.label }}</strong>
+          <strong class="form__name">{{ role.label }}</strong>
           <button
             class="deploy__step"
             aria-label="Decrease count"
@@ -190,7 +188,6 @@ async function onDeploy() {
           </button>
           <input
             :id="`deploy-role-count-${role.id}`"
-            class="deploy__count"
             :value="getPoolCount(role.id)"
             type="number"
             min="0"
@@ -216,11 +213,11 @@ async function onDeploy() {
           <div class="form__group">
             <div class="form__title">Spawn Floors</div>
             <template v-if="!spawnFloorId">
-              <div class="form__row">
+              <div class="form__row form__row--wrap">
                 <label
                   v-for="floor in floors"
                   :key="`spawn-floor-${selectedRole.id}-${floor.id}`"
-                  class="chip"
+                  class="card__item"
                   :class="{ 'flag--active': getPoolFloorIds(selectedRole.id).includes(floor.id) }"
                 >
                   <input
@@ -237,7 +234,7 @@ async function onDeploy() {
           </div>
           <div class="form__group">
             <div class="form__title">Target Tags</div>
-            <div class="form__row">
+            <div class="form__row form__row--wrap">
               <TagChip
                 v-for="tag in selectedRole.spawnRule?.targetTags ?? []"
                 :key="'st_' + selectedRole.id + tag"
@@ -263,7 +260,7 @@ async function onDeploy() {
     <template #footer>
       <span class="form__hint">Total: {{ totalNpcCount }} NPCs</span>
       <div class="form__row">
-        <button class="flag--ghost" @click="onClose">Cancel</button>
+        <button @click="onClose">Cancel</button>
         <button class="flag--active" :disabled="totalNpcCount === 0" @click="onDeploy">Deploy</button>
       </div>
     </template>
@@ -271,45 +268,25 @@ async function onDeploy() {
 </template>
 
 <style scoped>
-.deploy__layout {
-  display: flex;
-  flex-wrap: wrap;
-}
-
 .deploy__sidebar {
   flex: 1 1 240px;
   max-width: 360px;
   min-width: 0;
 }
 
-.deploy__row {
-  display: flex;
-  align-items: center;
-  gap: var(--gap-xs);
-  padding: var(--gap-xs) var(--gap-sm);
-  cursor: pointer;
-  border: 1px solid var(--border-dim);
-  border-radius: var(--radius-sm);
+.deploy__sidebar .card__item:hover {
+  border-color: var(--accent-primary);
 }
 
-.deploy__row:hover,
-.deploy__row.flag--active {
-  background: var(--bg-primary);
-  border-color: var(--accent-primary);
+.deploy__step {
+  width: 28px;
+  min-height: 28px;
+  padding: 0;
 }
 
 .deploy__detail {
   flex: 1 1 320px;
   min-width: 0;
-}
-
-.deploy__name {
-  flex: 1;
-  min-width: 0;
-}
-
-.deploy__count {
-  text-align: center;
 }
 </style>
 

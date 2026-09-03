@@ -1,14 +1,14 @@
 <script setup lang="ts">
 import { ref, watch, computed } from 'vue'
-import { useAssetsStore } from '../blueprintStore'
+import { useAssetsStore } from '../../blueprintStore'
 import { useToast } from '@/composables/useToast'
 import { useConfirm } from '@/composables/useConfirm'
-import { useAsyncAction } from '../composables/useAsyncAction'
-import { DEFAULT_EDITOR_SETTINGS, EDITOR_FIELD_SPECS } from '../types'
-import type { EditorSettings } from '../types'
-import { useCanvasDefaults } from '../composables/useCanvasDefaults'
-import ModalShell from './ModalShell.vue'
-import ColorInput from './ColorInput.vue'
+import { useAsyncAction } from '../../composables/useAsyncAction'
+import { DEFAULT_EDITOR_SETTINGS, EDITOR_FIELD_SPECS } from '../../domain/types'
+import type { EditorSettings } from '../../domain/types'
+import { useCanvasDefaults } from '../../composables/useCanvasDefaults'
+import ModalShell from '../shell/ModalShell.vue'
+import ColorInput from '../inputs/ColorInput.vue'
 
 const props = defineProps<{ open: boolean }>()
 const emit = defineEmits<{ (e: 'close'): void }>()
@@ -485,7 +485,7 @@ async function resetEditorAll() {
         </div>
       </template>
     </div>
-    <template #footer>
+    <template v-if="activeTab !== 'canvas'" #footer>
       <button
         class="flag--danger"
         :disabled="pending"

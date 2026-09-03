@@ -1,17 +1,17 @@
 <script setup lang="ts">
 import { computed, onUnmounted, ref, toRaw, watch } from 'vue'
-import { useAssetsStore } from '../blueprintStore'
+import { useAssetsStore } from '../../blueprintStore'
 import { useConfirm } from '@/composables/useConfirm'
 import { useToast } from '@/composables/useToast'
-import { isHexColor, normalizeNpcConfig } from '../types'
-import { genId, emptyNpcConfig, taskMatchesQuery } from '../blueprintStore'
-import { sanitizeString } from '../../utils/sanitize'
-import type { NpcRole, NpcSimulationConfig, NpcTask } from '../types'
-import ModalShell from './ModalShell.vue'
+import { isHexColor, normalizeNpcConfig } from '../../domain/types'
+import { genId, emptyNpcConfig, taskMatchesQuery } from '../../blueprintStore'
+import { sanitizeString } from '../../../utils/sanitize'
+import type { NpcRole, NpcSimulationConfig, NpcTask } from '../../domain/types'
+import ModalShell from '../shell/ModalShell.vue'
 import NpcRoleList from './NpcRoleList.vue'
 import NpcRoleDetail from './NpcRoleDetail.vue'
 import NpcTaskCard from './NpcTaskCard.vue'
-import SearchInput from './SearchInput.vue'
+import SearchInput from '../inputs/SearchInput.vue'
 
 const props = defineProps<{ open: boolean }>()
 const emit = defineEmits<{ (e: 'close'): void }>()
@@ -134,9 +134,10 @@ watch(
   },
 )
 
-function randomColor(): string {
-  const letters = '89ABCDEF'
-  return `#${Array.from({ length: 6 }, () => letters[Math.floor(Math.random() * letters.length)]).join('')}`
+function colorForId(id: string): string {
+  let h = 0
+  for (const c of id) h = (h * 31 + c.charCodeAt(0)) >>> 0
+  return `hsl(${h % 360}, 60%, 55%)`
 }
 
 async function addRole() {
@@ -144,7 +145,7 @@ async function addRole() {
   draft.value.roles.push({
     id,
     label: 'New Role',
-    color: randomColor(),
+    color: colorForId(id),
     focusTags: [],
     restrictedTags: [],
     taskIds: [],
@@ -367,7 +368,7 @@ onUnmounted(() => {
       </button>
     </div>
 
-    <div v-if="view === 'roles'" class="npc__editor">
+    <div v-if="view === 'roles'" class="form__split">
       <NpcRoleList
         :roles="roles"
         :default-role-id="draft.defaultRoleId"
@@ -399,7 +400,7 @@ onUnmounted(() => {
       </section>
     </div>
 
-    <div v-else class="form__row npc__library">
+    <div v-else class="form__row form__row--wrap">
       <section class="form__group npc__panel">
         <div class="form__title">Tags</div>
         <SearchInput v-model="tagSearch" placeholder="Search tags..." label="Search tags" />
@@ -415,7 +416,7 @@ onUnmounted(() => {
           <button type="button" class="flag--active" @click="addTag">Add</button>
         </div>
         <div v-for="tag in filteredTags" :key="tag" class="card__item">
-          <span class="npc__tagname truncate">{{ tag }}</span>
+          <span class="form__name truncate">{{ tag }}</span>
           <button type="button" class="flag--danger" aria-label="Delete tag" @click="removeTag(tag)">x</button>
         </div>
         <div v-if="!filteredTags.length" class="empty">No tags</div>
@@ -446,8 +447,7 @@ onUnmounted(() => {
   </ModalShell>
 </template>
 <style scoped>
-.npc__viewswitch button,
-.npc__library button {
+.npc__viewswitch button {
   white-space: nowrap;
 }
 
@@ -465,17 +465,12 @@ onUnmounted(() => {
   flex-shrink: 0;
 }
 
-.npc__editor {
-  display: flex;
-  flex-wrap: wrap;
-}
-
-.npc__editor > .npc__sidebar {
+.form__split > .npc__sidebar {
   flex: 1 1 220px;
   max-width: 340px;
 }
 
-.npc__editor > .npc__detail {
+.form__split > .npc__detail {
   flex: 1 1 320px;
 }
 
@@ -485,20 +480,7 @@ onUnmounted(() => {
   padding: var(--gap-md);
 }
 
-.npc__panel {
-  overflow: hidden;
-}
-
-.npc__tagname {
-  flex: 1;
-  min-width: 0;
-}
-
-.npc__library {
-  flex-wrap: wrap;
-}
-
-.npc__library > .npc__panel {
+.form__row--wrap > .npc__panel {
   flex: 1 1 280px;
 }
 

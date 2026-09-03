@@ -1,4 +1,4 @@
-import type { FloorData, NpcRole, NpcSimulationConfig, ObjectData } from '../../blueprint-editor/types'
+import type { FloorData, NpcRole, NpcSimulationConfig, ObjectData } from '../../blueprint-editor/domain/types'
 
 export function hasMatchingTag(tags: readonly string[] | undefined, targetTags: readonly string[]): boolean {
 	if (!tags || targetTags.length === 0) return false

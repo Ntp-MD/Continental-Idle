@@ -2,8 +2,8 @@ import assert from 'node:assert/strict'
 import { NpcEngine, NPC_ENGINE_DEFAULT_OPTIONS } from '../src/engine/npc'
 import { buildNpcEngineLayout } from '../src/engine/npc/layoutBuild'
 import { createNpcEnginePolicy } from '../src/engine/npc/policy'
-import { CANVAS_WALL_OBJECT_TYPE } from '../src/blueprint-editor/types'
-import type { AssetDef, FloorData, NpcSimulationConfig, ObjectData } from '../src/blueprint-editor/types'
+import { CANVAS_WALL_OBJECT_TYPE } from '../src/blueprint-editor/domain/types'
+import type { AssetDef, FloorData, NpcSimulationConfig, ObjectData } from '../src/blueprint-editor/domain/types'
 
 const TILE = 25
 const CANVAS = { w: 1600, h: 1000, tileSize: TILE }

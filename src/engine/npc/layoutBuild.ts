@@ -1,5 +1,5 @@
-import type { AssetDef, FloorData, NpcRole, ObjectData, ResolvedObjectDef, WallSegment } from '../../blueprint-editor/types'
-import { CANVAS_WALL_OBJECT_TYPE, resolveInteractForTarget, resolveObjectDef, resolveWallSegmentsForObject, STREET_TILES } from '../../blueprint-editor/types'
+import type { AssetDef, FloorData, NpcRole, ObjectData, ResolvedObjectDef, WallSegment } from '../../blueprint-editor/domain/types'
+import { CANVAS_WALL_OBJECT_TYPE, resolveInteractForTarget, resolveObjectDef, resolveWallSegmentsForObject, STREET_TILES } from '../../blueprint-editor/domain/types'
 import { buildNpcQueues } from './queueBuild'
 import { getObjectTags, hasMatchingTag } from './tagMatching'
 import type { NpcEngineBlockedEdge, NpcEngineFloor, NpcEngineInteractionTarget, NpcEngineLayout, NpcEnginePoint } from './types'

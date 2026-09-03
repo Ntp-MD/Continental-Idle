@@ -1,4 +1,4 @@
-import type { AssetDef, BlueprintTagDefinition, NpcSimulationConfig } from './types'
+import type { AssetDef, BlueprintTagDefinition, NpcSimulationConfig } from '../domain/types'
 
 export interface TagUsage {
 	assets: string[]

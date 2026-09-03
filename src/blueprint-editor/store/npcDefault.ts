@@ -1,5 +1,5 @@
 import { toRaw } from 'vue'
-import type { NpcSimulationConfig } from '../types'
+import type { NpcSimulationConfig } from '../domain/types'
 import { state } from './state'
 import { saveBlueprintData } from './persistence'
 

@@ -1,15 +1,15 @@
 <script setup lang="ts">
 import { ref, watch, computed, onBeforeUnmount, nextTick } from 'vue'
-import { useAssetsStore } from '../blueprintStore'
+import { useAssetsStore } from '../../blueprintStore'
 import { useToast } from '@/composables/useToast'
 import { useConfirm } from '@/composables/useConfirm'
-import { assetSvgVarStyle, assetFallbackShapeSvg, assetPreviewViewBox } from '../assetUtils'
-import { useCanvasDefaults } from '../composables/useCanvasDefaults'
-import { useSvgPreview } from '../composables/useSvgPreview'
-import { useDirtyBaseline } from '../composables/useDirtyBaseline'
-import { wallSegmentsToEdges, edgesToWallSegments, type TileEdges, type BorderSide } from '../gridEditing'
-import type { AssetDef, TileState, InteractSpot } from '../types'
-import { normalizeInteractConfig, normalizeNpcQueueConfig, resolveInteractForTarget } from '../types'
+import { assetSvgVarStyle, assetFallbackShapeSvg, assetPreviewViewBox } from '../../assets/assetUtils'
+import { useCanvasDefaults } from '../../composables/useCanvasDefaults'
+import { useSvgPreview } from '../../composables/useSvgPreview'
+import { useDirtyBaseline } from '../../composables/useDirtyBaseline'
+import { wallSegmentsToEdges, edgesToWallSegments, type TileEdges, type BorderSide } from '../../domain/gridEditing'
+import type { AssetDef, TileState, InteractSpot } from '../../domain/types'
+import { normalizeInteractConfig, normalizeNpcQueueConfig, resolveInteractForTarget } from '../../domain/types'
 
 export type GridTab = 'walk' | 'door' | 'interactspots'
 

@@ -29,16 +29,16 @@ const variantClass = computed(() => {
 </script>
 
 <template>
-  <div class="chip" :class="variantClass">
-    <span class="chip__label"
+  <div class="card__item" :class="variantClass">
+    <span class="card__item--label"
       ><slot>{{ label }}</slot></span
     >
-    <button v-if="removable" type="button" class="chip__remove" aria-label="Remove tag" @click="emit('remove')">x</button>
+    <button v-if="removable" type="button" class="card__item--remove" aria-label="Remove tag" @click="emit('remove')">x</button>
   </div>
 </template>
 
 <style scoped>
-.chip__label {
+.card__item--label {
   min-width: 0;
 }
 </style>

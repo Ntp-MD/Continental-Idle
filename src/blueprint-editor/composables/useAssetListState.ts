@@ -1,8 +1,8 @@
 import { computed, ref } from 'vue'
 import { useAssetsStore } from '../blueprintStore'
-import { assetIncompleteTitle, assetSettingsIssuesMap, placedObjectCounts } from '../assetUtils'
+import { assetIncompleteTitle, assetSettingsIssuesMap, placedObjectCounts } from '../assets/assetUtils'
 import { useDebouncedRef } from '@/composables/useDebounceFn'
-import type { AssetDef } from '../types'
+import type { AssetDef } from '../domain/types'
 
 export function useAssetListState() {
   const store = useAssetsStore()

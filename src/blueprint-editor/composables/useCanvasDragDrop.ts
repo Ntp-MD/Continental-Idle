@@ -1,10 +1,10 @@
 import { ref, computed, watch, onUnmounted, type Ref, type ComputedRef } from 'vue'
 import { dragState, endAssetDrag } from '../blueprintStore'
-import { findAssetCached } from '../assetUtils'
-import { assetPixelSize } from '../types'
-import { buildingArea } from '../geometry'
+import { findAssetCached } from '../assets/assetUtils'
+import { assetPixelSize } from '../domain/types'
+import { buildingArea } from '../domain/geometry'
 import { useToast } from '@/composables/useToast'
-import type { FloorData } from '../types'
+import type { FloorData } from '../domain/types'
 import type { AssetsStore } from '../store/index'
 
 export interface DragDropState {

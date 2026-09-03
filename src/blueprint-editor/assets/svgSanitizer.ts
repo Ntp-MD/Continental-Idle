@@ -1,5 +1,5 @@
-import { SAFE_SVG_TAGS } from './types'
-import { editorLog } from './store/storeUtils'
+import { SAFE_SVG_TAGS } from '../domain/types'
+import { editorLog } from '../store/storeUtils'
 
 function sanitizeSvgNode(node: Element): boolean {
 	const tag = node.tagName.toLowerCase()

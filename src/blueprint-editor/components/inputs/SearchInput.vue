@@ -17,7 +17,7 @@ function clear() {
 </script>
 
 <template>
-  <div class="form__search">
+  <div class="form__enter">
     <input
       :value="props.modelValue"
       class="size--fill"
@@ -26,7 +26,7 @@ function clear() {
       :aria-label="label"
       @input="onInput"
     />
-    <button v-if="modelValue" type="button" class="flag--ghost" aria-label="Clear search" title="Clear search" @click="clear">
+    <button v-if="modelValue" type="button" aria-label="Clear search" title="Clear search" @click="clear">
       x
     </button>
     <slot />

@@ -1,6 +1,6 @@
 import { onUnmounted, watch, type Ref, type ShallowRef } from 'vue'
 import type { NpcCanvasBounds, NpcEngineEvent } from '@/engine/npc'
-import type { AssetDef, FloorData, NpcSimDot, NpcSimulationConfig } from '../types'
+import type { AssetDef, FloorData, NpcSimDot, NpcSimulationConfig } from '../domain/types'
 import { useNpcSimulationCore, type NpcSimulationCore } from '@/composables/useNpcSimulationCore'
 
 export interface NpcSimulationSources {

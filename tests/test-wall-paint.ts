@@ -2,10 +2,10 @@ import assert from 'node:assert/strict'
 import { computed, ref } from 'vue'
 import { useCanvasSelection } from '../src/blueprint-editor/composables/useCanvasSelection'
 import { useWallPaint, type WallSelection } from '../src/blueprint-editor/composables/useWallPaint'
-import { doorPanelsData, doorPanelsSvg } from '../src/blueprint-editor/assetUtils'
-import { resolveWallSegmentsForObject } from '../src/blueprint-editor/types'
+import { doorPanelsData, doorPanelsSvg } from '../src/blueprint-editor/assets/assetUtils'
+import { resolveWallSegmentsForObject } from '../src/blueprint-editor/domain/types'
 import type { AssetsStore } from '../src/blueprint-editor/store/index'
-import type { AssetDef, FloorData, ObjectData, WallSegment } from '../src/blueprint-editor/types'
+import type { AssetDef, FloorData, ObjectData, WallSegment } from '../src/blueprint-editor/domain/types'
 
 const listeners = new Map<string, Array<(event: MouseEvent) => void>>()
 const windowMock = {

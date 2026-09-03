@@ -1,7 +1,7 @@
-import { isValidColor } from './types'
-import { assetPixelSize, CANVAS_WALL_OBJECT_TYPE } from './types'
-import type { WallSegment } from './types'
-import type { AssetDef, FloorData, FloorLayoutData, NpcSimulationConfig, ObjectPlacement, SvgRole, SvgRoleInfo, WalkableGrid, TileState } from './types'
+import { isValidColor } from '../domain/types'
+import { assetPixelSize, CANVAS_WALL_OBJECT_TYPE } from '../domain/types'
+import type { WallSegment } from '../domain/types'
+import type { AssetDef, FloorData, FloorLayoutData, NpcSimulationConfig, ObjectPlacement, SvgRole, SvgRoleInfo, WalkableGrid, TileState } from '../domain/types'
 
 export function findAsset(assets: readonly AssetDef[], type: string): AssetDef | undefined {
 	return assets.find(a => a.id === type)

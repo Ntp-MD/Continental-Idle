@@ -11,9 +11,9 @@ import {
 	type NpcEngineEvent,
 	type NpcCanvasBounds,
 } from '../src/engine/npc'
-import type { FloorData, AssetDef, WallSegment, ObjectData } from '../src/blueprint-editor/types'
-import { CANVAS_WALL_OBJECT_TYPE, resolveWallSegmentsForObject } from '../src/blueprint-editor/types'
-import { doorPanelsData } from '../src/blueprint-editor/assetUtils'
+import type { FloorData, AssetDef, WallSegment, ObjectData } from '../src/blueprint-editor/domain/types'
+import { CANVAS_WALL_OBJECT_TYPE, resolveWallSegmentsForObject } from '../src/blueprint-editor/domain/types'
+import { doorPanelsData } from '../src/blueprint-editor/assets/assetUtils'
 
 // ============================================================================
 // Helpers

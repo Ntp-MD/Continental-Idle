@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import type { NpcRole, NpcTask } from '../types'
-import { managedTagSet, taskMatchesQuery } from '../blueprintStore'
-import ColorInput from './ColorInput.vue'
-import TagChip from './TagChip.vue'
-import SearchInput from './SearchInput.vue'
+import type { NpcRole, NpcTask } from '../../domain/types'
+import { managedTagSet, taskMatchesQuery } from '../../blueprintStore'
+import ColorInput from '../inputs/ColorInput.vue'
+import TagChip from '../inputs/TagChip.vue'
+import SearchInput from '../inputs/SearchInput.vue'
 
 const props = defineProps<{
   role: NpcRole
@@ -108,14 +108,14 @@ function submitRoleTag(kind: 'focus' | 'restricted') {
             max="100"
             @change="emit('chance', +($event.target as HTMLInputElement).value)"
           />
-          <span class="form__hint npc__rate">{{ role.focusChance }}%</span>
+          <span class="form__hint">{{ role.focusChance }}%</span>
         </div>
       </div>
 
       <div class="form__group">
         <h4 class="form__title">Focus Tags</h4>
         <p class="npc__hinttext">Where this NPC prefers to go. Empty = wanders anywhere.</p>
-        <div class="form__row">
+        <div class="form__row form__row--wrap">
           <TagChip
             v-for="tag in role.focusTags"
             :key="`focus-${tag}`"
@@ -131,12 +131,12 @@ function submitRoleTag(kind: 'focus' | 'restricted') {
           <input v-model="newFocusTag" type="text" placeholder="tag name" @keydown.enter="submitRoleTag('focus')" />
           <button type="button" @click="submitRoleTag('focus')">Add</button>
         </div>
-        <div v-if="availableFocusTags.length" class="npc__suggest">
+        <div v-if="availableFocusTags.length" class="form__row form__row--wrap">
           <button
             v-for="tag in availableFocusTags.slice(0, 8)"
             :key="`fsug-${tag}`"
             type="button"
-            class="npc__suggestion"
+            class="card__item"
             @click="emit('add-tag', 'focus', tag)"
           >
             + {{ tag }}
@@ -147,7 +147,7 @@ function submitRoleTag(kind: 'focus' | 'restricted') {
       <div class="form__group">
         <h4 class="form__title">Restricted Tags</h4>
         <p class="npc__hinttext">Places this NPC avoids.</p>
-        <div class="form__row">
+        <div class="form__row form__row--wrap">
           <TagChip
             v-for="tag in role.restrictedTags"
             :key="`restricted-${tag}`"
@@ -168,12 +168,12 @@ function submitRoleTag(kind: 'focus' | 'restricted') {
           />
           <button type="button" @click="submitRoleTag('restricted')">Add</button>
         </div>
-        <div v-if="availableRestrictedTags.length" class="npc__suggest">
+        <div v-if="availableRestrictedTags.length" class="form__row form__row--wrap">
           <button
             v-for="tag in availableRestrictedTags.slice(0, 8)"
             :key="`rsug-${tag}`"
             type="button"
-            class="npc__suggestion"
+            class="card__item"
             @click="emit('add-tag', 'restricted', tag)"
           >
             + {{ tag }}
@@ -191,7 +191,7 @@ function submitRoleTag(kind: 'focus' | 'restricted') {
             :aria-label="`Assign task ${task.label}`"
             @change="emit('toggle-task', task.id)"
           />
-          <span class="npc__tagname truncate">{{ task.label }}</span>
+          <span class="form__name truncate">{{ task.label }}</span>
           <small class="npc__picktags truncate">{{ task.tags.join(', ') }}</small>
         </label>
         <div v-if="!filteredAssignTasks.length" class="empty">
@@ -204,7 +204,6 @@ function submitRoleTag(kind: 'focus' | 'restricted') {
           <h4 class="form__title">Tag Trigger Rates</h4>
           <button
             type="button"
-            class="flag--ghost"
             :aria-expanded="ratesExpanded"
             @click="ratesExpanded = !ratesExpanded"
           >
@@ -219,12 +218,11 @@ function submitRoleTag(kind: 'focus' | 'restricted') {
               placeholder="Search tags..."
               label="Search rate tags"
             />
-            <label class="npc__scope"><input v-model="rateScopeAll" type="checkbox" /> All tags</label>
+            <label class="form__field"><input v-model="rateScopeAll" type="checkbox" /> All tags</label>
           </div>
           <label v-for="tag in rateRows" :key="`rate-${tag}`" class="form__row">
-            <span class="npc__tagname truncate">{{ tag }}</span>
+            <span class="form__name truncate">{{ tag }}</span>
             <input
-              class="npc__rate"
               type="number"
               min="0"
               max="100"
@@ -254,12 +252,6 @@ function submitRoleTag(kind: 'focus' | 'restricted') {
   opacity: 0.8;
 }
 
-.npc__suggest {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--gap-xs);
-}
-
 .npc__scroll {
   max-height: 200px;
   overflow-y: auto;
@@ -275,21 +267,9 @@ function submitRoleTag(kind: 'focus' | 'restricted') {
   max-width: 40%;
 }
 
-.npc__tagname {
-  flex: 1;
-  min-width: 0;
-}
-
 .npc__ratesearch {
   flex: 1;
   min-width: 0;
 }
 
-.npc__scope {
-  display: flex;
-  align-items: center;
-  gap: var(--gap-xs);
-  white-space: nowrap;
-  cursor: pointer;
-}
 </style>

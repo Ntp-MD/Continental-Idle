@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { nextTick, watch } from 'vue'
-import { useAssetsStore, startAssetDrag } from '../blueprintStore'
+import { useAssetsStore, startAssetDrag } from '../../blueprintStore'
 import {
   assetSvgVarStyle,
   assetPreviewSvg,
@@ -8,13 +8,13 @@ import {
   assetSizeLabel,
   assetOriginLabel as originLabel,
   placedCountTitle,
-} from '../assetUtils'
-import { renderSvgInto } from '../svgSanitizer'
-import { useCanvasWallStyle, DOOR_COLOR } from '../composables/useCanvasWallStyle'
-import { useAssetListState } from '../composables/useAssetListState'
-import type { AssetDef } from '../types'
-import ModalShell from './ModalShell.vue'
-import SearchInput from './SearchInput.vue'
+} from '../../assets/assetUtils'
+import { renderSvgInto } from '../../assets/svgSanitizer'
+import { useCanvasWallStyle, DOOR_COLOR } from '../../composables/useCanvasWallStyle'
+import { useAssetListState } from '../../composables/useAssetListState'
+import type { AssetDef } from '../../domain/types'
+import ModalShell from '../shell/ModalShell.vue'
+import SearchInput from '../inputs/SearchInput.vue'
 
 const props = defineProps<{ open: boolean }>()
 const emit = defineEmits<{ (e: 'close'): void }>()
@@ -77,13 +77,16 @@ function pick(asset: AssetDef) {
             placedCounts.get(asset.id),
           ]"
           class="picker__item"
+          :class="{ 'flag--active': store.state.selectedAssetId === asset.id }"
           role="button"
           tabindex="0"
+          :aria-pressed="store.state.selectedAssetId === asset.id"
           :title="
             incompleteTitle(asset) || `${asset.name} (${assetSizeLabel(asset)}) - click, then click the canvas to place`
           "
           @click="pick(asset)"
           @keydown.enter="pick(asset)"
+          @keydown.space.prevent="pick(asset)"
         >
           <svg
             :ref="(el) => setThumbEl(asset.id, el)"

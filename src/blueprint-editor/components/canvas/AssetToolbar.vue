@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import { computed, ref, defineAsyncComponent } from 'vue'
-import { useAssetsStore, startAssetDrag } from '../blueprintStore'
-import { assetSizeLabel, assetOriginLabel as originLabel, placedCountTitle } from '../assetUtils'
-import { useAssetListState } from '../composables/useAssetListState'
-import SearchInput from './SearchInput.vue'
+import { useAssetsStore, startAssetDrag } from '../../blueprintStore'
+import { assetSizeLabel, assetOriginLabel as originLabel, placedCountTitle } from '../../assets/assetUtils'
+import { useAssetListState } from '../../composables/useAssetListState'
+import SearchInput from '../inputs/SearchInput.vue'
 import ErrorBoundary from '@/components/overlays/ErrorBoundary.vue'
-const AssetPickerModal = defineAsyncComponent(() => import('./AssetPickerModal.vue'))
+const AssetPickerModal = defineAsyncComponent(() => import('../modals/AssetPickerModal.vue'))
 
 const store = useAssetsStore()
 
@@ -34,7 +34,6 @@ function onItemClick(assetId: string) {
     <div class="form__col">
       <SearchInput v-model="searchQuery" placeholder="Search assets..." label="Search assets">
         <button
-          class="flag--ghost"
           title="Browse assets in a grid"
           aria-label="Browse assets"
           @click="showPicker = true"
@@ -67,14 +66,16 @@ function onItemClick(assetId: string) {
         class="card__item assets__item"
         role="button"
         tabindex="0"
+        :aria-pressed="store.state.selectedAssetId === asset.id"
         :class="{ 'flag--active': store.state.selectedAssetId === asset.id }"
         :title="incompleteTitle(asset) || undefined"
         @mousedown="onAssetMouseDown(asset.id, $event)"
         @click="onItemClick(asset.id)"
         @keydown.enter.prevent="onItemClick(asset.id)"
+        @keydown.space.prevent="onItemClick(asset.id)"
       >
         <span class="assets__tiles">{{ assetSizeLabel(asset) }} - {{ originLabel(asset) }}</span>
-        <span class="assets__name size--stretch">{{ asset.name }}</span>
+        <span class="size--stretch">{{ asset.name }}</span>
         <span v-if="incompleteMap.get(asset.id)?.length" class="badge flag--warning" title="Incomplete settings"
           >!</span
         >
@@ -100,8 +101,8 @@ function onItemClick(assetId: string) {
 
 .assets__item {
   transition:
-    background var(--duration-fast) ease-out,
-    border-color var(--duration-fast) ease-out;
+    background var(--duration-fast) var(--ease-out),
+    border-color var(--duration-fast) var(--ease-out);
 }
 
 .assets__item:hover {

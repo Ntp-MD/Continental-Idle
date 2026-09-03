@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { NpcEngine, NPC_ENGINE_DEFAULT_OPTIONS, type NpcEngineQueue, type NpcEngineFloor } from '../src/engine/npc'
 import { buildNpcQueues } from '../src/engine/npc/queueBuild'
-import type { AssetDef, FloorData } from '../src/blueprint-editor/types'
+import type { AssetDef, FloorData } from '../src/blueprint-editor/domain/types'
 
 const target = {
 	floorId: 'F1',

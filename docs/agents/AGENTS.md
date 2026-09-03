@@ -1,6 +1,6 @@
 # AGENTS
 
-Instructions for AI agents in this repo. Detail docs in `docs/agents/` — read the matching file before touching an area: `core.md` / `css.md` / `data.md`. Decision history in `docs/agents/timeline-decision.md` (direction-level only).
+Instructions for AI agents in this repo. Companion docs in `docs/agents/` (read the matching file before touching an area: core / css / data). Decision history in `docs/timeline-decision.md` (direction-level only).
 
 ## Verify
 

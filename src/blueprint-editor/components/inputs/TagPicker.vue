@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { useAssetsStore } from '../blueprintStore'
+import { useAssetsStore } from '../../blueprintStore'
 
 const props = withDefaults(
   defineProps<{
@@ -74,9 +74,9 @@ async function onDropdownClick(tag: string) {
 <template>
   <div class="picker">
     <div class="picker__field" @click="showDropdown = true">
-      <span v-for="tag in modelValue" :key="tag" class="chip flag--success">
+      <span v-for="tag in modelValue" :key="tag" class="card__item flag--success">
         {{ tag }}
-        <button type="button" class="chip__remove" :aria-label="`Remove tag ${tag}`" @click.stop="removeTag(tag)">
+        <button type="button" class="card__item--remove" :aria-label="`Remove tag ${tag}`" @click.stop="removeTag(tag)">
           x
         </button>
       </span>

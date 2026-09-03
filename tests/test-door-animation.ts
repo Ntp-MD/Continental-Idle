@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { doorPanelsData, doorPanelsSvg, wallSegmentsOverlaySvg, assetPreviewSvg } from '../src/blueprint-editor/assetUtils'
+import { doorPanelsData, doorPanelsSvg, wallSegmentsOverlaySvg, assetPreviewSvg } from '../src/blueprint-editor/assets/assetUtils'
 import {
 	normalizeWallSegment,
 	normalizeWallSegments,
@@ -9,7 +9,7 @@ import {
 	type AssetDef,
 	type Rotation,
 	type NpcSimDot,
-} from '../src/blueprint-editor/types'
+} from '../src/blueprint-editor/domain/types'
 import { useDoorAnimation, type DoorAnimState } from '../src/blueprint-editor/composables/useDoorAnimation'
 import { effectScope, ref, shallowRef } from 'vue'
 

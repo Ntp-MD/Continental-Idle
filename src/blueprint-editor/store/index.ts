@@ -13,7 +13,7 @@ import {
 import {
 	addSvgAsset, updateAsset, deleteAsset, duplicateAsset, refreshOriginInstances,
 } from './assets'
-import { updateNpcConfig, syncNpcConfigToState, persistNpcConfigToDisk } from './npcDefault'
+import { updateNpcConfig } from './npcDefault'
 import {
 	copySelected, pasteObjects,
 } from './metadata'
@@ -35,14 +35,13 @@ export {
 export {
 	addSvgAsset, updateAsset, deleteAsset, duplicateAsset, refreshOriginInstances,
 } from './assets'
-export { updateNpcConfig, syncNpcConfigToState, persistNpcConfigToDisk } from './npcDefault'
+export { updateNpcConfig } from './npcDefault'
 export {
 	copySelected, pasteObjects,
 } from './metadata'
 export { saveBlueprintData, syncToGame } from './persistence'
 export { reloadEditorData } from './state'
-export { selectedObject, selectedAsset, selectAsset, selectedObjectIds, clearSelection } from './selection'
-export { getLinkedObjects } from './objects'
+export { selectedObject, selectedAsset, selectAsset, selectedObjectIds } from './selection'
 export { setMode, setWallPaint, resizeCanvas, setCanvasBgColor, setCanvasLabelColor, setWallColor, setWallThickness, setStreetFloor, setStreetWidth, setEditorSettings, resetEditorSettings } from './mode'
 export { tagCatalog, globalTags, managedTagSet, addTag, removeTag, ensureTag } from './tags'
 export { dragState, startAssetDrag, endAssetDrag, wallSelection, clearWallSelection } from './state'
@@ -67,7 +66,7 @@ export function useAssetsStore() {
 		flattenToSvgAsset, replaceCanvasWallSegments,
 		linkObjects, unlinkObject, toggleObjectLock,
 		addSvgAsset, updateAsset, deleteAsset, duplicateAsset, refreshOriginInstances,
-		updateNpcConfig, syncNpcConfigToState, persistNpcConfigToDisk,
+		updateNpcConfig,
 		copySelected, pasteObjects,
 		saveBlueprintData, syncToGame,
 		selectedObject, selectedAsset, selectAsset, selectedObjectIds,

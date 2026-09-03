@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { useAssetsStore } from '../blueprintStore'
+import { useAssetsStore } from '../../blueprintStore'
 import { useConfirm } from '@/composables/useConfirm'
 import ObjectPropertiesForm from './ObjectPropertiesForm.vue'
 import AssetProperties from './AssetProperties.vue'
@@ -94,7 +94,7 @@ async function doFlatten() {
           <div class="form__row">
             <ul class="multi-select__list">
               <li v-for="obj in selectedItems" :key="obj.id" class="multi-select__item">
-                <span class="multi-select__id truncate">{{ obj.id }}</span>
+                <span class="truncate">{{ obj.id }}</span>
                 <span class="multi-select__pos">x:{{ obj.x }} y:{{ obj.y }}</span>
               </li>
             </ul>

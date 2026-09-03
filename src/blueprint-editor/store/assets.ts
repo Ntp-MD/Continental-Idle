@@ -1,8 +1,8 @@
-import type { AssetDef, WalkableGrid, TileState } from '../types'
-import { isSafeSvgMarkup, isValidColor, normalizeOriginAsset, applySvgColorConvention } from '../types'
-import { aabbOverlap } from '../collision'
-import { assetSizeFor, normalizeObject } from '../geometry'
-import { parseSvgViewBox } from '../assetUtils'
+import type { AssetDef, WalkableGrid, TileState } from '../domain/types'
+import { isSafeSvgMarkup, isValidColor, normalizeOriginAsset, applySvgColorConvention } from '../domain/types'
+import { aabbOverlap } from '../domain/collision'
+import { assetSizeFor, normalizeObject } from '../domain/geometry'
+import { parseSvgViewBox } from '../assets/assetUtils'
 import {
 	state, toast, clamp, withStateLock, initAssetFields, assetMap,
 } from './state'

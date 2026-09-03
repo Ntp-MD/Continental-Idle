@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { NpcRole } from '../types'
+import type { NpcRole } from '../../domain/types'
 
 defineProps<{
   roles: NpcRole[]
@@ -26,9 +26,11 @@ function roleSummary(role: NpcRole): string {
     <div
       v-for="role in roles"
       :key="role.id"
-      class="npc__row"
+      class="card__item"
+      :class="{ 'flag--active': role.id === selectedId }"
       role="button"
       tabindex="0"
+      :aria-pressed="role.id === selectedId"
       @click="emit('select', role.id)"
       @keydown.self.enter.prevent="emit('select', role.id)"
       @keydown.self.space.prevent="emit('select', role.id)"
@@ -44,7 +46,6 @@ function roleSummary(role: NpcRole): string {
       <button
         v-if="role.id !== defaultRoleId"
         type="button"
-        class="flag--ghost"
         title="Set as default role"
         aria-label="Set as default role"
         @click.stop="emit('set-default', role)"
@@ -73,18 +74,8 @@ function roleSummary(role: NpcRole): string {
   border-right: 1px solid var(--border-dim);
 }
 
-.npc__row {
-  display: flex;
-  align-items: center;
-  gap: var(--gap-xs);
-  padding: var(--gap-xs) var(--gap-sm);
-  cursor: pointer;
-  border: 1px solid var(--border-dim);
-  border-radius: var(--radius-sm);
-}
-
-.npc__row:hover {
-  background: var(--bg-primary);
+.npc__sidebar .card__item:hover {
+  border-color: var(--accent-primary);
 }
 
 .npc__text {

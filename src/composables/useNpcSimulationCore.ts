@@ -13,8 +13,8 @@ import {
 	type NpcWalkableMap,
 	type NpcEngineEvent,
 } from '@/engine/npc'
-import type { AssetDef, FloorData, NpcRole, NpcSimDot, NpcSimulationConfig } from '@/blueprint-editor/types'
-import { isNpcConfig } from '@/blueprint-editor/types'
+import type { AssetDef, FloorData, NpcRole, NpcSimDot, NpcSimulationConfig } from '@/blueprint-editor/domain/types'
+import { isNpcConfig } from '@/blueprint-editor/domain/types'
 import { mergeNpcConfig, editorLog } from '@/blueprint-editor/blueprintStore'
 
 const MAX_ROLE_SPAWN_COUNT = 100

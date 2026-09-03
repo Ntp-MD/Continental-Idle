@@ -1,8 +1,8 @@
 import { ref, type Ref, type ComputedRef } from 'vue'
-import { CANVAS_WALL_OBJECT_TYPE } from '../types'
-import type { Rect, ObjectData, FloorData, EditorMode } from '../types'
+import { CANVAS_WALL_OBJECT_TYPE } from '../domain/types'
+import type { Rect, ObjectData, FloorData, EditorMode } from '../domain/types'
 import type { AssetsStore } from '../store/index'
-import { aabbOverlap } from '../collision'
+import { aabbOverlap } from '../domain/collision'
 
 export interface SelectionState {
 	boxSelect: Ref<{ startX: number; startY: number; x: number; y: number; w: number; h: number } | null>

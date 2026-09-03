@@ -3,22 +3,22 @@ import { computed, onMounted, ref, defineAsyncComponent } from 'vue'
 import { useToast } from '@/composables/useToast'
 import { useConfirm } from '@/composables/useConfirm'
 import { useAssetsStore } from '@/blueprint-editor/blueprintStore'
-import ModalShell from '@/blueprint-editor/components/ModalShell.vue'
-import ColorInput from '@/blueprint-editor/components/ColorInput.vue'
-import TagChip from '@/blueprint-editor/components/TagChip.vue'
-import TagPicker from '@/blueprint-editor/components/TagPicker.vue'
-import SearchInput from '@/blueprint-editor/components/SearchInput.vue'
-import ToastContainer from '@/blueprint-editor/components/ToastContainer.vue'
+import ModalShell from '@/blueprint-editor/components/shell/ModalShell.vue'
+import ColorInput from '@/blueprint-editor/components/inputs/ColorInput.vue'
+import TagChip from '@/blueprint-editor/components/inputs/TagChip.vue'
+import TagPicker from '@/blueprint-editor/components/inputs/TagPicker.vue'
+import SearchInput from '@/blueprint-editor/components/inputs/SearchInput.vue'
+import ToastContainer from '@/blueprint-editor/components/shell/ToastContainer.vue'
 import ConfirmDialog from '@/components/overlays/ConfirmDialog.vue'
 import ErrorBoundary from '@/components/overlays/ErrorBoundary.vue'
 
-const AssetPickerModal = defineAsyncComponent(() => import('@/blueprint-editor/components/AssetPickerModal.vue'))
-const AssetEditModal = defineAsyncComponent(() => import('@/blueprint-editor/components/AssetEditModal.vue'))
-const FloorModal = defineAsyncComponent(() => import('@/blueprint-editor/components/FloorModal.vue'))
-const NpcManagerModal = defineAsyncComponent(() => import('@/blueprint-editor/components/NpcManagerModal.vue'))
-const DeployNpcModal = defineAsyncComponent(() => import('@/blueprint-editor/components/DeployNpcModal.vue'))
-const SettingsModal = defineAsyncComponent(() => import('@/blueprint-editor/components/SettingsModal.vue'))
-const ImportSvgModal = defineAsyncComponent(() => import('@/blueprint-editor/components/ImportSvgModal.vue'))
+const AssetPickerModal = defineAsyncComponent(() => import('@/blueprint-editor/components/modals/AssetPickerModal.vue'))
+const AssetEditModal = defineAsyncComponent(() => import('@/blueprint-editor/components/modals/AssetEditModal.vue'))
+const FloorModal = defineAsyncComponent(() => import('@/blueprint-editor/components/modals/FloorModal.vue'))
+const NpcManagerModal = defineAsyncComponent(() => import('@/blueprint-editor/components/modals/NpcManagerModal.vue'))
+const DeployNpcModal = defineAsyncComponent(() => import('@/blueprint-editor/components/modals/DeployNpcModal.vue'))
+const SettingsModal = defineAsyncComponent(() => import('@/blueprint-editor/components/modals/SettingsModal.vue'))
+const ImportSvgModal = defineAsyncComponent(() => import('@/blueprint-editor/components/modals/ImportSvgModal.vue'))
 
 const store = useAssetsStore()
 const storeReady = ref(false)
@@ -52,6 +52,24 @@ const colorValue = ref('#3794ff')
 const toggles = ref({ grid: true, labels: false })
 const selectedCard = ref('a')
 const pickerTags = ref<string[]>(['portal'])
+const themeTokens = [
+  '--bg-primary',
+  '--bg-secondary',
+  '--bg-tertiary',
+  '--text-primary',
+  '--text-secondary',
+  '--text-dim',
+  '--text-bright',
+  '--border-dim',
+  '--accent-primary',
+  '--accent-blue',
+  '--accent-green',
+  '--accent-gold',
+  '--accent-red',
+  '--street-sidewalk',
+  '--street-road',
+  '--street-marking',
+]
 const boomArmed = ref(false)
 const boom = computed(() => {
   if (boomArmed.value) throw new Error('demo render error caught by ErrorBoundary')
@@ -78,7 +96,7 @@ function backToEditor() {
     <header class="showcase__header">
       <h1>UI Showcase</h1>
       <p>Every primitive and wrapper used in this project - real classes, real components.</p>
-      <button class="flag--ghost" @click="backToEditor">Back to editor</button>
+      <button @click="backToEditor">Back to editor</button>
     </header>
 
     <section class="showcase__section">
@@ -89,7 +107,6 @@ function backToEditor() {
         <button class="flag--success">flag--success</button>
         <button class="flag--danger">flag--danger</button>
         <button class="flag--warning">flag--warning</button>
-        <button class="flag--ghost">flag--ghost</button>
         <button class="flag--dashed">flag--dashed</button>
         <button disabled>Disabled</button>
       </div>
@@ -122,8 +139,10 @@ function backToEditor() {
           <textarea rows="3" placeholder="textarea"></textarea>
         </div>
         <div class="form__row">
-          <label class="form__group"><input type="checkbox" checked /> Checkbox</label>
-          <label class="form__group"><input type="radio" name="r" /> Radio</label>
+          <label class="form__group"><input type="checkbox" checked /> Checkbox on</label>
+          <label class="form__group"><input type="checkbox" /> Checkbox off</label>
+          <label class="form__group"><input type="radio" name="r" checked /> Radio on</label>
+          <label class="form__group"><input type="radio" name="r" /> Radio off</label>
           <label class="form__group"><input type="range" /> Range</label>
         </div>
         <div class="form__field">
@@ -131,8 +150,8 @@ function backToEditor() {
           <ColorInput v-model="colorValue" allow-transparent />
         </div>
         <div class="form__field">
-          <label>Search + button (28px aligned)</label>
-          <div class="form__search">
+          <label>form__enter (input + button)</label>
+          <div class="form__enter">
             <input v-model="searchText" class="size--fill" type="text" placeholder="search" />
             <button>Clear</button>
           </div>
@@ -155,8 +174,29 @@ function backToEditor() {
           <div class="form__field"><label>form__grid cell A</label><input type="text" /></div>
           <div class="form__field"><label>form__grid cell B</label><input type="text" /></div>
         </div>
+        <div class="form__group">
+          <label>form__group label</label>
+          <input type="text" value="group content" />
+        </div>
+        <div class="form__group form__enter">
+          <input type="text" value="copyable-id" disabled title="Copy ID" />
+          <button>Copy</button>
+        </div>
         <div class="form__row">
           <span class="form__hint">form__hint inside form__row</span>
+        </div>
+        <div class="form__row form__row--wrap">
+          <span class="card__item">wrap A</span>
+          <span class="card__item">wrap B</span>
+          <span class="card__item">wrap C</span>
+          <span class="form__hint">form__row--wrap</span>
+        </div>
+        <div class="form__row">
+          <span class="form__name truncate">form__name - flexible truncated label</span><span class="badge">3</span>
+        </div>
+        <div class="form__split">
+          <div class="card size--stretch">form__split A</div>
+          <div class="card size--stretch">form__split B</div>
         </div>
         <div class="form__row--border">
           <span class="form__hint">form__row--border</span>
@@ -166,10 +206,37 @@ function backToEditor() {
     </section>
 
     <section class="showcase__section">
-      <h2>Chips / Cards / Badge / Swatch</h2>
+      <h2>Theme tokens</h2>
+      <div class="form__row form__row--wrap">
+        <span v-for="t in themeTokens" :key="t" class="form__field">
+          <span class="swatch" :style="{ background: `var(${t})` }" />
+          <span class="form__hint">{{ t }}</span>
+        </span>
+      </div>
+    </section>
+
+    <section class="showcase__section">
+      <h2>Keyboard shortcuts</h2>
+      <div class="form__col">
+        <div class="form__field"><span class="badge">Del</span><span class="form__hint">Delete selection (confirms)</span></div>
+        <div class="form__field"><span class="badge">R</span><span class="form__hint">Rotate selected object</span></div>
+        <div class="form__field"><span class="badge">Arrows</span><span class="form__hint">Nudge 1 tile (Shift: 10)</span></div>
+        <div class="form__field"><span class="badge">Space</span><span class="form__hint">Pan canvas</span></div>
+        <div class="form__field"><span class="badge">Esc</span><span class="form__hint">Cancel draw/drag, deselect</span></div>
+        <div class="form__field"><span class="badge">Ctrl+L</span><span class="form__hint">Link objects / Shift: unlink</span></div>
+        <div class="form__field"><span class="badge">Ctrl+C/V</span><span class="form__hint">Copy / paste objects</span></div>
+        <div class="form__field"><span class="badge">L</span><span class="form__hint">Toggle object lock</span></div>
+        <div class="form__field"><span class="badge">Ctrl+0</span><span class="form__hint">Fit to screen (+/- zoom)</span></div>
+      </div>
+    </section>
+
+    <section class="showcase__section">
+      <h2>Cards / Badge / Swatch</h2>
       <div class="form__row">
-        <span class="chip">chip <button class="chip__remove" aria-label="Remove">x</button></span>
-        <span class="chip flag--active">chip flag--active</span>
+        <span class="card__item"
+          >card__item <button class="card__item--remove" aria-label="Remove">x</button></span
+        >
+        <span class="card__item flag--active">card__item flag--active</span>
         <span class="badge">badge</span>
         <span class="badge flag--success">badge flag--success</span>
         <span class="swatch" />
@@ -185,10 +252,20 @@ function backToEditor() {
         </div>
       </div>
       <div class="form__row">
-        <span class="chip" :class="{ 'flag--active': selectedCard === 'a' }" role="button" @click="selectedCard = 'a'">
+        <span
+          class="card__item"
+          :class="{ 'flag--active': selectedCard === 'a' }"
+          role="button"
+          @click="selectedCard = 'a'"
+        >
           selectable A
         </span>
-        <span class="chip" :class="{ 'flag--active': selectedCard === 'b' }" role="button" @click="selectedCard = 'b'">
+        <span
+          class="card__item"
+          :class="{ 'flag--active': selectedCard === 'b' }"
+          role="button"
+          @click="selectedCard = 'b'"
+        >
           selectable B
         </span>
       </div>
@@ -285,7 +362,7 @@ function backToEditor() {
         </div>
       </div>
       <template #footer>
-        <button class="flag--ghost" @click="showModal = false">Cancel</button>
+        <button @click="showModal = false">Cancel</button>
         <button class="flag--active" @click="showModal = false">Apply</button>
       </template>
     </ModalShell>

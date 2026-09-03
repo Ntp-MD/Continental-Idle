@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
-import { useAssetsStore } from '../blueprintStore'
+import { useAssetsStore } from '../../blueprintStore'
 import { useToast } from '@/composables/useToast'
-import { useAsyncAction } from '../composables/useAsyncAction'
-import { useCanvasDefaults } from '../composables/useCanvasDefaults'
-import { parseSvgViewBox } from '../assetUtils'
+import { useAsyncAction } from '../../composables/useAsyncAction'
+import { useCanvasDefaults } from '../../composables/useCanvasDefaults'
+import { parseSvgViewBox } from '../../assets/assetUtils'
 import { useDebouncedCallback } from '@/composables/useDebounceFn'
-import ModalShell from './ModalShell.vue'
+import ModalShell from '../shell/ModalShell.vue'
 
 const props = defineProps<{ open: boolean }>()
 const emit = defineEmits<{ (event: 'close'): void }>()
@@ -63,7 +63,16 @@ async function submit() {
 <template>
   <ModalShell :open="open" modal-id="modal-import-svg" title="Import SVG Asset" @close="emit('close')">
     <div class="form__col">
-      <input v-model="svgName" class="size--fill" placeholder="Asset name" aria-label="SVG asset name" />
+      <div class="form__field">
+        <label for="importsvg__name">Asset name</label>
+        <input
+          id="importsvg__name"
+          v-model="svgName"
+          class="size--fill"
+          placeholder="Asset name"
+          aria-label="SVG asset name"
+        />
+      </div>
       <div class="form__row">
         <input
           class="size--fit"

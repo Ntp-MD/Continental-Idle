@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict'
-import { applySvgColorConvention, isSafeSvgMarkup, normalizeBlueprintDataFile, normalizeObjectPlacement, normalizeOriginAsset, normalizeTag, resolveObjectDef, parseCanvasConfig, CANVAS_FIELD_SPECS } from '../src/blueprint-editor/types'
-import { serializeAsset, serializeObject } from '../src/blueprint-editor/assetUtils'
-import { resolvePlacedObject } from '../src/blueprint-editor/geometry'
+import { applySvgColorConvention, isSafeSvgMarkup, normalizeBlueprintDataFile, normalizeObjectPlacement, normalizeOriginAsset, normalizeTag, resolveObjectDef, parseCanvasConfig, CANVAS_FIELD_SPECS } from '../src/blueprint-editor/domain/types'
+import { serializeAsset, serializeObject } from '../src/blueprint-editor/assets/assetUtils'
+import { resolvePlacedObject } from '../src/blueprint-editor/domain/geometry'
 import { buildBlueprintData } from '../src/blueprint-editor/store/dataLoader'
 import { emptyNpcConfig } from '../src/blueprint-editor/store/storeUtils'
-import type { AssetDef, CanvasConfig, FloorLayoutData, ObjectData } from '../src/blueprint-editor/types'
+import type { AssetDef, CanvasConfig, FloorLayoutData, ObjectData } from '../src/blueprint-editor/domain/types'
 
 const rawPlacement = normalizeObjectPlacement({
 	id: 'obj-test',
