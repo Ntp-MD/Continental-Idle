@@ -166,21 +166,21 @@ watch(portal, async (v) => {
 
 <template>
   <div class="form__col">
-    <div class="form__title">Dimensions</div>
+    <div>Dimensions</div>
     <div v-if="!isSvgAsset" class="form__row">
       <label>Unit Mode</label>
-      <div class="form__group">
+      <div class="form__col">
         <button :class="{ 'flag--warning': !dimFields.usePx }" disabled>Tiles</button>
         <button :class="{ 'flag--warning': dimFields.usePx }" disabled>Pixels</button>
       </div>
     </div>
     <template v-if="!dimFields.usePx">
       <div class="form__row">
-        <div class="form__field">
+        <div class="form__row">
           <label>Width</label>
           <input type="number" min="1" :value="dimFields.w" disabled readonly />
         </div>
-        <div class="form__field">
+        <div class="form__row">
           <label>Height</label>
           <input type="number" min="1" :value="dimFields.h" disabled readonly />
         </div>
@@ -188,18 +188,18 @@ watch(portal, async (v) => {
     </template>
     <template v-else>
       <div class="form__row">
-        <div class="form__field">
+        <div class="form__row">
           <label>Width (px)</label>
           <input type="number" min="1" :value="dimFields.pxW" disabled readonly />
         </div>
-        <div class="form__field">
+        <div class="form__row">
           <label>Height (px)</label>
           <input type="number" min="1" :value="dimFields.pxH" disabled readonly />
         </div>
       </div>
     </template>
     <div class="form__row">
-      <div class="form__field">
+      <div class="form__row">
         <label>Default Padding</label>
         <input
           v-model.number="dimFields.defaultPadding"
@@ -208,7 +208,7 @@ watch(portal, async (v) => {
           @change="commitField('defaultPadding')"
         />
       </div>
-      <div class="form__field">
+      <div class="form__row">
         <label>Label Padding</label>
         <input
           v-model.number="dimFields.defaultLabelPadding"
@@ -224,20 +224,20 @@ watch(portal, async (v) => {
     </div>
     <div class="form__row">
       <label>Corner Radius</label>
-      <div class="form__row form__row--wrap">
-        <label class="form__group">
+      <div class="form__row form--wrap">
+        <label class="form__col">
           <span>TL</span>
           <input v-model.number="dimFields.rxTL" class="size--fit" type="number" min="0" @input="onRxInput('rxTL')" />
         </label>
-        <label class="form__group">
+        <label class="form__col">
           <span>TR</span>
           <input v-model.number="dimFields.rxTR" class="size--fit" type="number" min="0" @input="onRxInput('rxTR')" />
         </label>
-        <label class="form__group">
+        <label class="form__col">
           <span>BL</span>
           <input v-model.number="dimFields.rxBL" class="size--fit" type="number" min="0" @input="onRxInput('rxBL')" />
         </label>
-        <label class="form__group">
+        <label class="form__col">
           <span>BR</span>
           <input v-model.number="dimFields.rxBR" class="size--fit" type="number" min="0" @input="onRxInput('rxBR')" />
         </label>
@@ -268,46 +268,45 @@ watch(portal, async (v) => {
     </div>
   </div>
   <div class="form__col">
-    <div class="form__title">Appearance</div>
+    <div>Appearance</div>
     <div class="form__row">
       <label>Fill Color</label>
-      <div class="form__group">
-        <ColorInput
-          v-model="dimFields.defaultFillColor"
-          :allow-transparent="true"
-          placeholder="#RRGGBB (empty = wireframe)"
-          aria-label="Asset fill color"
-          @commit="commitField('defaultFillColor')"
-        />
-        <button type="button" @click="clearAssetFillColor">Reset</button>
-        <button
-          type="button"
-          :class="{ 'flag--active': assetColorSync }"
-          :aria-pressed="assetColorSync"
-          :aria-label="assetColorSync ? 'Outline follows Fill - ON' : 'Outline follows Fill - OFF'"
-          :title="assetColorSync ? 'Outline follows Fill - ON' : 'Outline follows Fill - OFF'"
-          @click="assetColorSync = !assetColorSync"
+
+      <ColorInput
+        v-model="dimFields.defaultFillColor"
+        :allow-transparent="true"
+        placeholder="#RRGGBB (empty = wireframe)"
+        aria-label="Asset fill color"
+        @commit="commitField('defaultFillColor')"
+      />
+      <button type="button" @click="clearAssetFillColor">Reset</button>
+      <button
+        type="button"
+        :class="{ 'flag--active': assetColorSync }"
+        :aria-pressed="assetColorSync"
+        :aria-label="assetColorSync ? 'Outline follows Fill - ON' : 'Outline follows Fill - OFF'"
+        :title="assetColorSync ? 'Outline follows Fill - ON' : 'Outline follows Fill - OFF'"
+        @click="assetColorSync = !assetColorSync"
+      >
+        <svg
+          viewBox="0 0 24 24"
+          width="16"
+          height="16"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          aria-hidden="true"
         >
-          <svg
-            viewBox="0 0 24 24"
-            width="16"
-            height="16"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            aria-hidden="true"
-          >
-            <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
-            <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
-          </svg>
-        </button>
-      </div>
+          <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+          <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+        </svg>
+      </button>
     </div>
     <div class="form__row">
       <label>Outline Color</label>
-      <div class="form__group">
+      <div class="form__col">
         <ColorInput
           v-model="dimFields.defaultStrokeColor"
           allow-transparent
@@ -320,7 +319,7 @@ watch(portal, async (v) => {
     </div>
   </div>
   <div class="form__col">
-    <div class="form__title">Behavior</div>
+    <div>Behavior</div>
     <div class="form__row">
       <label>Portal</label>
       <button

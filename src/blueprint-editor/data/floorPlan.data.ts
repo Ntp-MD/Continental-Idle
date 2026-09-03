@@ -13,7 +13,16 @@ export const floorPlanData = {
       "id": "floor-6be566f0cf",
       "name": "Floor 1",
       "label": "F1",
-      "objects": [],
+      "objects": [
+        {
+          "id": "obj-fa41c29666",
+          "type": "custom-table-stove",
+          "x": 300,
+          "y": 600,
+          "rotation": 0,
+          "isWall": false
+        }
+      ],
       "defaultWalkable": true
     }
   ],

@@ -30,7 +30,7 @@ Do NOT run `verify` / `test` matrices unless explicitly asked. Never run `test:n
 ## Data & schemas
 
 - The FOUR `src/blueprint-editor/data/` modules (`floorPlan`, `originAssets`, `npcSettings`, `tagManager`) are the only persisted store (dev middleware, no JSON snapshot). Never restore them via `git checkout` (guarded by `guard:data-restore`).
-- SVG v2 convention: shapes reference `var(--obj-stroke)` / `var(--obj-fill)`; detail lines `--text-dim`. Full authoring checklist in `docs/agents/data.md` — read it before adding/editing an origin asset.
+- SVG v2 convention: shapes reference `var(--obj-stroke)` / `var(--obj-fill)`; detail lines `--text-secondary`. Full authoring checklist in `docs/agents/data.md` — read it before adding/editing an origin asset.
 - **AssetDef field change** (`src/blueprint-editor/domain/types.ts`): in the SAME change — (1) `ASSET_DEF_FIELD_COVERAGE` (`src/blueprint-editor/assets/assetUtils.ts`), (2) `sample` fixture (`tests/test-asset-schema.ts`), (3) `serializeAsset` whitelist, (4) `updateAsset` patch union (`src/blueprint-editor/store/assets.ts`), (5) `components/panels/OriginSettingPanel.vue` / `components/panels/AssetProperties.vue` wiring if user-editable.
 - **CanvasConfig field change** (`src/blueprint-editor/domain/types.ts`): (1) `CANVAS_FIELD_SPECS` entry, (2) Canvas Settings row (`src/blueprint-editor/components/shell/Toolbar.vue`) + setter (`src/blueprint-editor/store/mode.ts`) if user-editable, (3) `SyncedCanvas` + `syncedPayload.ts` mirror if the game needs it (never for editor-only fields), (4) round-trip cases in `tests/test-blueprint-schema.ts`.
 - Engine tests: seeded RNG in every `NpcEngine` options object, never `Math.random` defaults.

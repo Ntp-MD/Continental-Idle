@@ -242,18 +242,18 @@ function onSyncToGame() {
         <span class="badge" :class="isPaused ? 'flag--warning' : 'flag--success'" role="status">{{
           isPaused ? 'Paused' : 'Running'
         }}</span>
-        <div class="form__row form__row--wrap">
+        <div class="form__row form--wrap">
           <span v-for="[type, count] in countsByRole" :key="type" class="npc__role">
             <span>{{ type }}</span>
             <b>{{ count }}</b>
           </span>
         </div>
       </div>
-      <div v-if="total > 0" class="form__row form__row--wrap">
+      <div v-if="total > 0" class="form__row form--wrap">
         <span v-for="s in statusCounts" :key="s.key" class="form__hint"> {{ s.label }} <b>{{ s.count }}</b> </span>
       </div>
       <template #footer>
-        <div class="form__row form__row--wrap">
+        <div class="form__row form--wrap">
           <button
             type="button"
             :aria-label="isPaused ? 'Resume NPC simulation' : 'Pause NPC simulation'"

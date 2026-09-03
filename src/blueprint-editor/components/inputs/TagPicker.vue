@@ -142,7 +142,7 @@ async function onDropdownClick(tag: string) {
 
 .picker__dropdown--empty {
   padding: var(--gap-xs) var(--gap-sm);
-  color: var(--text-dim);
+  color: var(--text-secondary);
 }
 
 .picker__option {

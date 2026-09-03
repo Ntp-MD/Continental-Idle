@@ -998,7 +998,7 @@ function objFillColor(obj: ObjectData): string {
   if (obj.fillColor) return obj.fillColor
   const a = findAssetCached(store.assetMap(), obj.type)
   if (a?.svg) return a.defaultFillColor ?? 'transparent'
-  return a?.defaultFillColor ?? 'var(--text-bright)'
+  return a?.defaultFillColor ?? 'var(--text-primary)'
 }
 
 function objLabelColor(): string {
@@ -1262,7 +1262,7 @@ async function cancelDrawnOrigin() {
             :font-size="rulerTickFontSize"
             font-weight="100"
             letter-spacing="1"
-            fill="var(--text-dim)"
+            fill="var(--text-secondary)"
           >
             {{ tick.label }}
           </text>
@@ -1295,7 +1295,7 @@ async function cancelDrawnOrigin() {
             :font-size="rulerTickFontSize"
             font-weight="100"
             letter-spacing="1"
-            fill="var(--text-dim)"
+            fill="var(--text-secondary)"
             transform="rotate(-90)"
             :transform-origin="`-5 ${tick.pos}`"
           >
@@ -1636,7 +1636,7 @@ async function cancelDrawnOrigin() {
                   :cy="obj.y + interactSpot.y"
                   :r="interactSpotRadius"
                   fill="var(--accent-green)"
-                  stroke="var(--text-bright)"
+                  stroke="var(--text-primary)"
                   stroke-width="0.8"
                 />
                 <text
@@ -1756,7 +1756,7 @@ async function cancelDrawnOrigin() {
             @click="selectFloorNav(f.id)"
           >
             <span class="floornav__label" :style="{ color: f.labelColor || undefined }">{{ f.label }}</span>
-            <span class="form__name truncate">{{ f.name }}</span>
+            <span class="size--stretch truncate">{{ f.name }}</span>
           </button>
         </div>
       </div>
@@ -2033,7 +2033,7 @@ async function cancelDrawnOrigin() {
   top: 44px;
   left: 50%;
   transform: translateX(-50%);
-  color: var(--text-dim);
+  color: var(--text-secondary);
   background: var(--bg-primary);
   padding: var(--gap-xs) var(--gap-sm);
   border-radius: var(--radius-xs);
@@ -2085,7 +2085,7 @@ async function cancelDrawnOrigin() {
   border-radius: var(--radius-sm);
   z-index: var(--z-layer-1);
   height: fit-content;
-  color: var(--text-dim);
+  color: var(--text-secondary);
   font-variant-numeric: tabular-nums;
 }
 

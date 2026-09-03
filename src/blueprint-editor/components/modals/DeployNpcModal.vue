@@ -134,8 +134,8 @@ async function onDeploy() {
 
 <template>
   <ModalShell :open="open" modal-id="modal-deploy-npc" title="Deploy NPCs" @close="onClose">
-    <div class="form__group">
-      <div class="form__title">Simulation</div>
+    <div class="form__col form--section">
+      <div>Simulation</div>
       <label class="form__row" for="deploy-npc-speed">
         <span>Speed</span>
         <input
@@ -165,85 +165,89 @@ async function onDeploy() {
 
     <div v-if="roles.length === 0" class="empty">No roles configured. Open NPC Manager to create roles first.</div>
 
-    <div v-else class="form__split">
+    <div v-else class="form__row form--start form--wrap">
       <aside class="form__col deploy__sidebar">
-        <div class="form__title">Roles</div>
-        <div
-          v-for="role in roles"
-          :key="role.id"
-          class="card__item"
-          :class="{ 'flag--active': selectedRole?.id === role.id }"
-          :aria-pressed="selectedRole?.id === role.id"
-          @click="selectedRoleId = role.id"
-          @focusin="selectedRoleId = role.id"
-        >
-          <span class="swatch" :style="{ background: role.color }" />
-          <strong class="form__name">{{ role.label }}</strong>
-          <button
-            class="deploy__step"
-            aria-label="Decrease count"
-            @click.stop="setPoolCount(role.id, getPoolCount(role.id) - 1)"
+        <div>Roles</div>
+        <ul class="form__col">
+          <li
+            v-for="role in roles"
+            :key="role.id"
+            class="card__item"
+            :class="{ 'flag--active': selectedRole?.id === role.id }"
+            :aria-pressed="selectedRole?.id === role.id"
+            @click="selectedRoleId = role.id"
+            @focusin="selectedRoleId = role.id"
           >
-            -
-          </button>
-          <input
-            :id="`deploy-role-count-${role.id}`"
-            :value="getPoolCount(role.id)"
-            type="number"
-            min="0"
-            max="100"
-            :aria-label="`Count for ${role.label}`"
-            @click.stop
-            @input="setPoolCount(role.id, Number(($event.target as HTMLInputElement).value))"
-          />
-          <button
-            class="deploy__step"
-            aria-label="Increase count"
-            @click.stop="setPoolCount(role.id, getPoolCount(role.id) + 1)"
-          >
-            +
-          </button>
-        </div>
-        <span v-if="!roles.length" class="empty">No roles</span>
+            <span class="swatch" :style="{ background: role.color }" />
+            <strong class="size--stretch">{{ role.label }}</strong>
+            <button
+              class="deploy__step"
+              aria-label="Decrease count"
+              @click.stop="setPoolCount(role.id, getPoolCount(role.id) - 1)"
+            >
+              -
+            </button>
+            <input
+              :id="`deploy-role-count-${role.id}`"
+              :value="getPoolCount(role.id)"
+              type="number"
+              min="0"
+              max="100"
+              :aria-label="`Count for ${role.label}`"
+              @click.stop
+              @input="setPoolCount(role.id, Number(($event.target as HTMLInputElement).value))"
+            />
+            <button
+              class="deploy__step"
+              aria-label="Increase count"
+              @click.stop="setPoolCount(role.id, getPoolCount(role.id) + 1)"
+            >
+              +
+            </button>
+          </li>
+        </ul>
       </aside>
 
       <section v-if="selectedRole" class="form__col deploy__detail">
-        <h3 class="form__title">Spawn Rule: {{ selectedRole.label }}</h3>
+        <h3>Spawn Rule: {{ selectedRole.label }}</h3>
         <template v-if="getPoolCount(selectedRole.id) > 0">
-          <div class="form__group">
-            <div class="form__title">Spawn Floors</div>
+          <div class="form__col form--section">
+            <div>Spawn Floors</div>
             <template v-if="!spawnFloorId">
-              <div class="form__row form__row--wrap">
-                <label
+              <ul class="form__row form--wrap">
+                <li
                   v-for="floor in floors"
                   :key="`spawn-floor-${selectedRole.id}-${floor.id}`"
-                  class="card__item"
-                  :class="{ 'flag--active': getPoolFloorIds(selectedRole.id).includes(floor.id) }"
                 >
-                  <input
-                    type="checkbox"
-                    :checked="getPoolFloorIds(selectedRole.id).includes(floor.id)"
-                    @change="togglePoolFloor(selectedRole.id, floor.id)"
-                  />
-                  <span>{{ floor.label }}</span>
-                </label>
-              </div>
+                  <label
+                    class="card__item"
+                    :class="{ 'flag--active': getPoolFloorIds(selectedRole.id).includes(floor.id) }"
+                  >
+                    <input
+                      type="checkbox"
+                      :checked="getPoolFloorIds(selectedRole.id).includes(floor.id)"
+                      @change="togglePoolFloor(selectedRole.id, floor.id)"
+                    />
+                    <span>{{ floor.label }}</span>
+                  </label>
+                </li>
+              </ul>
               <p v-if="!getPoolFloorIds(selectedRole.id).length" class="form__hint">All floors</p>
             </template>
             <p v-else class="form__hint">Spawn floor is forced in Simulation above.</p>
           </div>
-          <div class="form__group">
-            <div class="form__title">Target Tags</div>
-            <div class="form__row form__row--wrap">
-              <TagChip
-                v-for="tag in selectedRole.spawnRule?.targetTags ?? []"
-                :key="'st_' + selectedRole.id + tag"
-                :label="tag"
-                removable
-                @remove="onRemoveSpawnTagFrom(selectedRole, tag)"
-              />
-              <span v-if="!selectedRole.spawnRule?.targetTags?.length" class="empty">No target tags</span>
-            </div>
+          <div class="form__col form--section">
+            <div>Target Tags</div>
+            <ul v-if="selectedRole.spawnRule?.targetTags?.length" class="form__row form--wrap">
+              <li v-for="tag in selectedRole.spawnRule?.targetTags ?? []" :key="'st_' + selectedRole.id + tag">
+                <TagChip
+                  :label="tag"
+                  removable
+                  @remove="onRemoveSpawnTagFrom(selectedRole, tag)"
+                />
+              </li>
+            </ul>
+            <span v-else class="empty">No target tags</span>
             <input
               v-model="newSpawnTag[selectedRole.id]"
               type="text"

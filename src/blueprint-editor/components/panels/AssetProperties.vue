@@ -136,8 +136,8 @@ async function duplicateAsset() {
     </div>
     <div class="form__row">
       <label>ID</label>
-      <div class="form__group form__enter">
-        <input type="text" :value="asset.id" disabled title="Asset ID" />
+      <div class="form__row size--stretch">
+        <input class="size--fill" type="text" :value="asset.id" disabled title="Asset ID" />
         <button @click="copyId(asset.id)">Copy</button>
       </div>
     </div>
@@ -189,7 +189,7 @@ async function duplicateAsset() {
   justify-content: center;
   width: auto;
   aspect-ratio: 1;
-  height: auto;
+  height: 150px;
   border: 1px solid var(--border-dim);
   border-radius: var(--radius-sm);
   background: var(--bg-primary);

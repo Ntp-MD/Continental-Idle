@@ -76,10 +76,10 @@ function submitRoleTag(kind: 'focus' | 'restricted') {
 
 <template>
   <section class="form__col npc__detail">
-    <h3 class="form__title">Editing: {{ role.label }}</h3>
-    <div class="form__grid">
-      <div class="form__group">
-        <h4 class="form__title">Basics</h4>
+    <h3>Editing: {{ role.label }}</h3>
+    <div class="form__col">
+      <div class="form__col form--section">
+        <h4>Basics</h4>
         <div class="form__row">
           <label :for="`npc-role-label-${role.id}`">Label</label>
           <input
@@ -112,53 +112,53 @@ function submitRoleTag(kind: 'focus' | 'restricted') {
         </div>
       </div>
 
-      <div class="form__group">
-        <h4 class="form__title">Focus Tags</h4>
-        <p class="npc__hinttext">Where this NPC prefers to go. Empty = wanders anywhere.</p>
-        <div class="form__row form__row--wrap">
-          <TagChip
-            v-for="tag in role.focusTags"
-            :key="`focus-${tag}`"
-            :label="tag"
-            variant="focus"
-            removable
-            :class="{ 'flag--warning': !managedTagSet.has(tag) }"
-            @remove="emit('remove-tag', 'focus', tag)"
-          />
-          <span v-if="!role.focusTags.length" class="empty">None - NPC wanders</span>
-        </div>
+      <div class="form__col form--section">
+        <h4>Focus Tags</h4>
+        <p class="npc__hint">Where this NPC prefers to go. Empty = wanders anywhere.</p>
+        <ul v-if="role.focusTags.length" class="form__row form--wrap">
+          <li v-for="tag in role.focusTags" :key="`focus-${tag}`">
+            <TagChip
+              :label="tag"
+              variant="focus"
+              removable
+              :class="{ 'flag--warning': !managedTagSet.has(tag) }"
+              @remove="emit('remove-tag', 'focus', tag)"
+            />
+          </li>
+        </ul>
+        <span v-else class="empty">None - NPC wanders</span>
         <div class="form__row">
           <input v-model="newFocusTag" type="text" placeholder="tag name" @keydown.enter="submitRoleTag('focus')" />
           <button type="button" @click="submitRoleTag('focus')">Add</button>
         </div>
-        <div v-if="availableFocusTags.length" class="form__row form__row--wrap">
-          <button
-            v-for="tag in availableFocusTags.slice(0, 8)"
-            :key="`fsug-${tag}`"
-            type="button"
-            class="card__item"
-            @click="emit('add-tag', 'focus', tag)"
-          >
-            + {{ tag }}
-          </button>
-        </div>
+        <ul v-if="availableFocusTags.length" class="form__row form--wrap">
+          <li v-for="tag in availableFocusTags.slice(0, 8)" :key="`fsug-${tag}`">
+            <button
+              type="button"
+              class="card__item"
+              @click="emit('add-tag', 'focus', tag)"
+            >
+              + {{ tag }}
+            </button>
+          </li>
+        </ul>
       </div>
 
-      <div class="form__group">
-        <h4 class="form__title">Restricted Tags</h4>
-        <p class="npc__hinttext">Places this NPC avoids.</p>
-        <div class="form__row form__row--wrap">
-          <TagChip
-            v-for="tag in role.restrictedTags"
-            :key="`restricted-${tag}`"
-            :label="tag"
-            variant="restricted"
-            removable
-            :class="{ 'flag--warning': !managedTagSet.has(tag) }"
-            @remove="emit('remove-tag', 'restricted', tag)"
-          />
-          <span v-if="!role.restrictedTags.length" class="empty">No restrictions</span>
-        </div>
+      <div class="form__col form--section">
+        <h4>Restricted Tags</h4>
+        <p class="npc__hint">Places this NPC avoids.</p>
+        <ul v-if="role.restrictedTags.length" class="form__row form--wrap">
+          <li v-for="tag in role.restrictedTags" :key="`restricted-${tag}`">
+            <TagChip
+              :label="tag"
+              variant="restricted"
+              removable
+              :class="{ 'flag--warning': !managedTagSet.has(tag) }"
+              @remove="emit('remove-tag', 'restricted', tag)"
+            />
+          </li>
+        </ul>
+        <span v-else class="empty">No restrictions</span>
         <div class="form__row">
           <input
             v-model="newRestrictedTag"
@@ -168,40 +168,44 @@ function submitRoleTag(kind: 'focus' | 'restricted') {
           />
           <button type="button" @click="submitRoleTag('restricted')">Add</button>
         </div>
-        <div v-if="availableRestrictedTags.length" class="form__row form__row--wrap">
-          <button
-            v-for="tag in availableRestrictedTags.slice(0, 8)"
-            :key="`rsug-${tag}`"
-            type="button"
-            class="card__item"
-            @click="emit('add-tag', 'restricted', tag)"
-          >
-            + {{ tag }}
-          </button>
-        </div>
+        <ul v-if="availableRestrictedTags.length" class="form__row form--wrap">
+          <li v-for="tag in availableRestrictedTags.slice(0, 8)" :key="`rsug-${tag}`">
+            <button
+              type="button"
+              class="card__item"
+              @click="emit('add-tag', 'restricted', tag)"
+            >
+              + {{ tag }}
+            </button>
+          </li>
+        </ul>
       </div>
 
-      <div class="form__group npc__scroll">
-        <h4 class="form__title">Assigned Tasks</h4>
+      <div class="form__col form--section npc__scroll">
+        <h4>Assigned Tasks</h4>
         <SearchInput v-model="taskFilter" placeholder="Search tasks..." label="Search assigned tasks" />
-        <label v-for="task in filteredAssignTasks" :key="task.id" class="card__item npc__pickrow">
-          <input
-            type="checkbox"
-            :checked="role.taskIds.includes(task.id)"
-            :aria-label="`Assign task ${task.label}`"
-            @change="emit('toggle-task', task.id)"
-          />
-          <span class="form__name truncate">{{ task.label }}</span>
-          <small class="npc__picktags truncate">{{ task.tags.join(', ') }}</small>
-        </label>
-        <div v-if="!filteredAssignTasks.length" class="empty">
+        <ul v-if="filteredAssignTasks.length" class="form__col">
+          <li v-for="task in filteredAssignTasks" :key="task.id">
+            <label class="card__item npc__pick">
+              <input
+                type="checkbox"
+                :checked="role.taskIds.includes(task.id)"
+                :aria-label="`Assign task ${task.label}`"
+                @change="emit('toggle-task', task.id)"
+              />
+              <span class="size--stretch truncate">{{ task.label }}</span>
+              <small class="npc__tags truncate">{{ task.tags.join(', ') }}</small>
+            </label>
+          </li>
+        </ul>
+        <div v-else class="empty">
           {{ tasks.length ? 'No matching tasks' : 'No tasks yet - create them under Tags & Tasks' }}
         </div>
       </div>
 
-      <div class="form__group">
+      <div class="form__col form--section">
         <div class="form__row">
-          <h4 class="form__title">Tag Trigger Rates</h4>
+          <h4>Tag Trigger Rates</h4>
           <button
             type="button"
             :aria-expanded="ratesExpanded"
@@ -214,14 +218,14 @@ function submitRoleTag(kind: 'focus' | 'restricted') {
           <div class="form__row">
             <SearchInput
               v-model="rateSearch"
-              class="npc__ratesearch"
+              class="npc__search"
               placeholder="Search tags..."
               label="Search rate tags"
             />
-            <label class="form__field"><input v-model="rateScopeAll" type="checkbox" /> All tags</label>
+            <label class="form__row"><input v-model="rateScopeAll" type="checkbox" /> All tags</label>
           </div>
           <label v-for="tag in rateRows" :key="`rate-${tag}`" class="form__row">
-            <span class="form__name truncate">{{ tag }}</span>
+            <span class="size--stretch truncate">{{ tag }}</span>
             <input
               type="number"
               min="0"
@@ -242,12 +246,7 @@ function submitRoleTag(kind: 'focus' | 'restricted') {
 </template>
 
 <style scoped>
-.npc__detail {
-  min-width: 0;
-  padding: var(--gap-md);
-}
-
-.npc__hinttext {
+.npc__hint {
   color: var(--text-secondary);
   opacity: 0.8;
 }
@@ -258,16 +257,16 @@ function submitRoleTag(kind: 'focus' | 'restricted') {
   padding-right: var(--gap-xs);
 }
 
-.npc__pickrow {
+.npc__pick {
   flex-shrink: 0;
 }
 
-.npc__picktags {
-  color: var(--text-dim);
+.npc__tags {
+  color: var(--text-secondary);
   max-width: 40%;
 }
 
-.npc__ratesearch {
+.npc__search {
   flex: 1;
   min-width: 0;
 }

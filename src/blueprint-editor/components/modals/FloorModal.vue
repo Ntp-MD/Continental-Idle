@@ -150,35 +150,37 @@ function floorCounts(f: FloorData): string {
 
 <template>
   <ModalShell :open="open" modal-id="modal-floor-manager" title="Floor Manager" @close="onClose">
-    <div class="form__split">
+    <div class="form__row form--start">
       <!-- Left pane: Floor list -->
-      <div class="form__col floor__body">
-        <div class="form__title floor__heading">
+      <div class="form__col floor__body right--border">
+        <div class="floor__heading">
           <span>Floors ({{ floors.length }})</span>
           <button class="flag--dashed" @click="onAdd">+ Add</button>
         </div>
-        <div
-          v-for="(f, index) in floors"
-          :key="f.id"
-          class="card__item floor__item"
-          draggable="true"
-          @dragstart="onDragStart(index)"
-          @dragover.prevent
-          @drop="onDrop(index)"
-          @click="selectFloor(f.id)"
-        >
-          <span class="floor__label" :style="{ color: f.labelColor || undefined }">{{ f.label }}</span>
-          <span class="form__name truncate">{{ f.name }}</span>
-          <span class="floor__count">{{ floorCounts(f) }}</span>
-          <span v-if="f.id === store.state.currentFloorId" class="badge">ACTIVE</span>
-        </div>
+        <ul class="form__col">
+          <li
+            v-for="(f, index) in floors"
+            :key="f.id"
+            class="card__item floor__item"
+            draggable="true"
+            @dragstart="onDragStart(index)"
+            @dragover.prevent
+            @drop="onDrop(index)"
+            @click="selectFloor(f.id)"
+          >
+            <span class="floor__label" :style="{ color: f.labelColor || undefined }">{{ f.label }}</span>
+            <span class="size--stretch truncate">{{ f.name }}</span>
+            <span class="floor__count">{{ floorCounts(f) }}</span>
+            <span v-if="f.id === store.state.currentFloorId" class="badge">ACTIVE</span>
+          </li>
+        </ul>
       </div>
 
       <!-- Right pane: Detail editor -->
       <div class="form__col floor__body">
         <template v-if="selectedFloor">
-          <div class="form__group">
-            <div class="form__title floor__heading">
+          <div class="form__col form--section">
+            <div class="floor__heading">
               <span>Details</span>
               <button type="button" class="flag--warning" @click="showWalkable = true">Edit Walkable</button>
             </div>
@@ -221,37 +223,34 @@ function floorCounts(f: FloorData): string {
             </div>
             <div class="form__row">
               <label>Stats</label>
-              <span class="form__hint">{{ floorCounts(selectedFloor) }}</span>
+              <span class="floor__count">{{ floorCounts(selectedFloor) }}</span>
             </div>
           </div>
 
-          <div class="form__group">
-            <div class="form__title">Walkability</div>
-            <label class="form__field floor__check">
+          <div class="form__col form--section">
+            <div>Walkability</div>
+            <label class="form__row floor__check">
               <input type="checkbox" :checked="selectedFloor.defaultWalkable ?? true" @change="toggleWalkable" />
               <span>Empty areas are walkable</span>
             </label>
           </div>
 
-          <div class="form__group">
-            <div class="form__title">Allowed Roles</div>
+          <div class="form__col form--section">
+            <div>Allowed Roles</div>
             <div class="form__row">
-              <span v-if="!selectedFloor.allowedRoleIds?.length" class="form__hint">All roles allowed</span>
+              <span v-if="!selectedFloor.allowedRoleIds?.length" class="empty">All roles allowed</span>
               <button v-else @click="clearRoles">Clear (allow all)</button>
             </div>
-            <div class="form__row form__row--wrap">
-              <label
-                v-for="role in availableRoles"
-                :key="role.id"
-                class="card__item floor__role"
-                :class="{ 'flag--active': isRoleAllowed(role.id) }"
-              >
-                <input type="checkbox" :checked="isRoleAllowed(role.id)" @change="toggleRole(role.id)" />
-                <span class="swatch" :style="{ background: role.color }" />
-                <span>{{ role.label }}</span>
-              </label>
-            </div>
-            <span v-if="!availableRoles.length" class="form__hint"
+            <ul class="form__row form--wrap">
+              <li v-for="role in availableRoles" :key="role.id" class="floor__role">
+                <label class="card__item" :class="{ 'flag--active': isRoleAllowed(role.id) }">
+                  <input type="checkbox" :checked="isRoleAllowed(role.id)" @change="toggleRole(role.id)" />
+                  <span class="swatch" :style="{ background: role.color }" />
+                  <span>{{ role.label }}</span>
+                </label>
+              </li>
+            </ul>
+            <span v-if="!availableRoles.length" class="empty"
               >No roles configured - open Role Manager to add roles</span
             >
           </div>
@@ -293,7 +292,7 @@ function floorCounts(f: FloorData): string {
 }
 
 .floor__count {
-  color: var(--text-dim);
+  color: var(--text-secondary);
   white-space: nowrap;
 }
 
@@ -316,8 +315,8 @@ function floorCounts(f: FloorData): string {
   max-height: calc(100vh - 32px);
 }
 
-#modal-floor-manager .form__split > .floor__body {
+#modal-floor-manager .form__row > .floor__body {
   flex: 1 1 260px;
-  min-width: 0;
+  height: stretch;
 }
 </style>

@@ -116,5 +116,3 @@ export function useDoorAnimation(host: DoorAnimationHost) {
 		reset,
 	}
 }
-
-export type DoorAnimation = ReturnType<typeof useDoorAnimation>

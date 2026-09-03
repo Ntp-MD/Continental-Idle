@@ -337,18 +337,18 @@ async function resetEditorAll() {
       role="tabpanel"
       aria-labelledby="settings__tab--canvas"
     >
-      <div class="form__group">
-        <div class="form__title">Canvas Size</div>
-        <div class="form__row">
-          <div class="form__field">
+      <div class="form__col form--section">
+        <div>Canvas Size</div>
+        <div class="form__row form--wrap">
+          <div class="form__row">
             <label for="canvas__width">Width</label>
             <input id="canvas__width" v-model.number="widthInput" type="number" min="100" step="25" />
           </div>
-          <div class="form__field">
+          <div class="form__row">
             <label for="canvas__height">Height</label>
             <input id="canvas__height" v-model.number="heightInput" type="number" min="100" step="25" />
           </div>
-          <div class="form__field">
+          <div class="form__row">
             <label for="canvas__tile">Tile</label>
             <input id="canvas__tile" v-model.number="tileInput" type="number" min="5" step="5" />
           </div>
@@ -364,96 +364,93 @@ async function resetEditorAll() {
         <div class="form__hint">Re-snaps all objects to the new grid.</div>
       </div>
 
-      <div class="form__row">
-        <div class="form__group">
-          <div class="form__title">Background</div>
-          <div class="form__field">
-            <label for="canvas__bgcolor">Color</label>
-            <ColorInput
-              v-model="bgColorInput"
-              :allow-transparent="true"
-              placeholder="#RRGGBB or transparent"
-              aria-label="Canvas background color"
-              @commit="applyCanvasBgColor"
-            />
-          </div>
-          <div class="form__hint">Hex or 'transparent'.</div>
+      <div class="form__col form--section">
+        <div>Background</div>
+        <div class="form__row">
+          <label for="canvas__bgcolor">Color</label>
+          <ColorInput
+            v-model="bgColorInput"
+            :allow-transparent="true"
+            placeholder="#RRGGBB or transparent"
+            aria-label="Canvas background color"
+            @commit="applyCanvasBgColor"
+          />
         </div>
-        <div class="form__group">
-          <div class="form__title">Labels</div>
-          <div class="form__field">
-            <label for="canvas__labelcolor">Color</label>
-            <ColorInput
-              v-model="labelColorInput"
-              allow-transparent
-              placeholder="#RRGGBB (empty = theme default)"
-              aria-label="Object label color"
-              @commit="applyLabelColor"
-            />
-          </div>
-          <div class="form__hint">Color for all object labels.</div>
-        </div>
+        <div class="form__hint">Hex or 'transparent'.</div>
       </div>
-      <div class="form__row">
-        <div class="form__group">
-          <div class="form__title">Walls</div>
-          <div class="form__field">
-            <label>Color</label>
-            <ColorInput
-              v-model="wallColorInput"
-              placeholder="#RRGGBB (empty = theme green)"
-              aria-label="Wall line color"
-              @commit="applyWallColor"
-              @commit-invalid="onWallColorInvalid"
-            />
-          </div>
-          <div class="form__field">
-            <label for="canvas__wallthickness">Thickness</label>
-            <input
-              id="canvas__wallthickness"
-              v-model.number="wallThicknessInput"
-              type="number"
-              min="1"
-              max="10"
-              step="1"
-              :placeholder="'3'"
-              @change="applyWallThickness"
-            />
-          </div>
-          <div class="form__hint">For painted walls and building boundary.</div>
+
+      <div class="form__col form--section">
+        <div>Labels</div>
+        <div class="form__row">
+          <label for="canvas__labelcolor">Color</label>
+          <ColorInput
+            v-model="labelColorInput"
+            allow-transparent
+            placeholder="#RRGGBB (empty = theme default)"
+            aria-label="Object label color"
+            @commit="applyLabelColor"
+          />
         </div>
-        <div class="form__group">
-          <div class="form__title">Street</div>
-          <div class="form__row">
-            <div class="form__field">
-              <label for="canvas__streetfloor">On floor</label>
-              <select
-                id="canvas__streetfloor"
-                :value="store.state.layout.streetFloorId ?? ''"
-                aria-label="Floor that displays the street ring"
-                @change="applyStreetFloor(($event.target as HTMLSelectElement).value || null)"
-              >
-                <option value="">None</option>
-                <option v-for="f in store.state.layout.floors" :key="f.id" :value="f.id">
-                  {{ f.label }} - {{ f.name }}
-                </option>
-              </select>
-            </div>
-            <div class="form__field">
-              <label for="canvas__streetwidth">Ring</label>
-              <select
-                id="canvas__streetwidth"
-                :value="store.state.layout.streetWidthTiles ?? ''"
-                aria-label="Street ring width in tiles"
-                @change="store.setStreetWidth(Number(($event.target as HTMLSelectElement).value) || null)"
-              >
-                <option value="">Default (8 tiles)</option>
-                <option v-for="w in [5, 6, 7, 8, 9, 10, 11, 12]" :key="w" :value="w">{{ w }} tiles</option>
-              </select>
-            </div>
-          </div>
-          <div class="form__hint">Ring width drives placement boundary and NPC walkable zone.</div>
+        <div class="form__hint">Color for all object labels.</div>
+      </div>
+
+      <div class="form__col form--section">
+        <div>Walls</div>
+        <div class="form__row">
+          <label>Color</label>
+          <ColorInput
+            v-model="wallColorInput"
+            placeholder="#RRGGBB (empty = theme green)"
+            aria-label="Wall line color"
+            @commit="applyWallColor"
+            @commit-invalid="onWallColorInvalid"
+          />
         </div>
+        <div class="form__row">
+          <label for="canvas__wallthickness">Thickness</label>
+          <input
+            id="canvas__wallthickness"
+            v-model.number="wallThicknessInput"
+            type="number"
+            min="1"
+            max="10"
+            step="1"
+            :placeholder="'3'"
+            @change="applyWallThickness"
+          />
+        </div>
+        <div class="form__hint">For painted walls and building boundary.</div>
+      </div>
+
+      <div class="form__col form--section">
+        <div>Street</div>
+        <div class="form__row">
+          <label for="canvas__streetfloor">On floor</label>
+          <select
+            id="canvas__streetfloor"
+            :value="store.state.layout.streetFloorId ?? ''"
+            aria-label="Floor that displays the street ring"
+            @change="applyStreetFloor(($event.target as HTMLSelectElement).value || null)"
+          >
+            <option value="">None</option>
+            <option v-for="f in store.state.layout.floors" :key="f.id" :value="f.id">
+              {{ f.label }} - {{ f.name }}
+            </option>
+          </select>
+        </div>
+        <div class="form__row">
+          <label for="canvas__streetwidth">Ring</label>
+          <select
+            id="canvas__streetwidth"
+            :value="store.state.layout.streetWidthTiles ?? ''"
+            aria-label="Street ring width in tiles"
+            @change="store.setStreetWidth(Number(($event.target as HTMLSelectElement).value) || null)"
+          >
+            <option value="">Default (8 tiles)</option>
+            <option v-for="w in [5, 6, 7, 8, 9, 10, 11, 12]" :key="w" :value="w">{{ w }} tiles</option>
+          </select>
+        </div>
+        <div class="form__hint">Ring width drives placement boundary and NPC walkable zone.</div>
       </div>
     </div>
 
@@ -467,9 +464,9 @@ async function resetEditorAll() {
       :aria-labelledby="`settings__tab--${t.key}`"
     >
       <template v-for="group in editorGroupsByTab[t.key]" :key="group.title">
-        <div class="form__group">
-          <div class="form__title">{{ group.title }}</div>
-          <div v-for="field in group.fields" :key="field.key" class="form__field">
+        <div class="form__col form--section">
+          <div>{{ group.title }}</div>
+          <div v-for="field in group.fields" :key="field.key" class="form__row">
             <label :for="`es__${field.key}`">{{ field.label }}</label>
             <input
               :id="`es__${field.key}`"

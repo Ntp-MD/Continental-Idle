@@ -1,13 +1,10 @@
 :root {
-	--bg-primary: #0e1012;
+	--bg-primary: #0d1012;
 	--bg-secondary: #000;
 	--bg-tertiary: #0c0e10;
-	--bg-primary-hover: color-mix(in srgb, var(--bg-primary) 85%, var(--bg-secondary));
 
-	--text-primary: #e6edf3;
-	--text-secondary: #7d8590;
-	--text-dim: #6e7681;
-	--text-bright: #ffffff;
+	--text-primary: #9da1a7;
+	--text-secondary: #6e7681;
 
 	--border-dim: #30363d;
 

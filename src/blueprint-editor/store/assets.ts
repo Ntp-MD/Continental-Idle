@@ -10,8 +10,8 @@ import { genAssetId } from './storeUtils'
 import { saveBlueprintData } from './persistence'
 
 const FURNITURE_COLOR_MAP: Record<string, string> = {
-	'#f4f8fc': 'var(--text-bright)',
-	'#e8f0fa': 'var(--text-bright)',
+	'#f4f8fc': 'var(--text-primary)',
+	'#e8f0fa': 'var(--text-primary)',
 	'#1a3a5c': 'var(--border-dim)',
 	'#7c93ab': 'var(--border-dim)',
 	'#c7d6e8': 'var(--border-dim)',

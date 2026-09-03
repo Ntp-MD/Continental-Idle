@@ -60,7 +60,7 @@ function doReload() {
 }
 
 .errorboundary__hint {
-  color: var(--text-dim);
+  color: var(--text-secondary);
   margin-bottom: var(--gap-md);
 }
 </style>

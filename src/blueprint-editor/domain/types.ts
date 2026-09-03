@@ -13,7 +13,7 @@
 //   9. Floor layout types          (FloorData, FloorLayoutData, PersistedFloor*)
 //  10. Synced payload types        (SyncedCanvas, SyncedObject, SyncedLayoutPayload)
 //  11. Blueprint data file         (BlueprintDataFile, normalizeBlueprintDataFile)
-//  12. Project settings & integrity(ProjectSettings, validateLayoutIntegrity)
+//  12. Layout integrity & persistence (normalizeNpcConfigForPersistence, validateLayoutIntegrity)
 //  13. Shared internal helpers     (isRecord, normalizeText, normalizeIdentifier)
 // ============================================================================
 
@@ -1479,43 +1479,7 @@ export function normalizePersistedLayoutData(value: unknown): PersistedFloorLayo
 	return layout
 }
 
-// --- Section 12: Project settings & integrity ---
-
-export interface ProjectSettings {
-	canvas: CanvasConfig
-	editor: EditorSettings
-	npc: NpcSimulationConfig
-	streetWidthTiles: number
-}
-
-export function normalizeProjectSettings(layout: FloorLayoutData): ProjectSettings {
-	return {
-		canvas: layout.canvas,
-		editor: normalizeEditorSettings(layout.editorSettings),
-		npc: normalizeNpcConfig(layout.npcConfig) ?? {
-			speed: 1 / 30,
-			defaultRoleId: '',
-			roles: [],
-			tasks: [],
-			pool: [],
-			crossFloorCooldownSeconds: 30,
-			progressWatchdogTicks: 120,
-			maxRepathAttempts: 4,
-			repathCooldownSeconds: 2,
-			repathCooldownExponent: 1.5,
-			pathBudgetMinPerTick: 2,
-			pathBudgetAgentsPerCall: 100,
-			chooseTargetMinPerTick: 8,
-			chooseTargetAgentsPerSlot: 20,
-			wanderMemorySize: 32,
-			wanderSmallMapThreshold: 8,
-			triggerRatePeriodSeconds: 60,
-			frameSimBudgetMs: 6,
-			maxSimulationSteps: 8,
-		},
-		streetWidthTiles: resolveStreetTiles(layout),
-	}
-}
+// --- Section 12: Layout integrity & persistence ---
 
 export function normalizeNpcConfigForPersistence(value: unknown): NpcSimulationConfig | undefined {
 	if (!isRecord(value) || !Array.isArray(value.roles) || !Array.isArray(value.tasks) || !Array.isArray(value.pool)) return undefined

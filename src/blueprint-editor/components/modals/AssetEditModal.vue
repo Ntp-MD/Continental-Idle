@@ -34,37 +34,37 @@ watch(
     :title="`Edit Asset - ${asset?.name ?? ''}`"
     @close="emit('close')"
   >
-    <div class="tabs--sidebar assetedit__layout">
+    <div class="tabs--sidebar edit__layout">
       <div class="tabs__bar" role="tablist" aria-label="Asset editor sections">
         <button
           v-for="t in tabs"
-          :id="`assetedit__tab--${t.key}`"
+          :id="`edit__tab--${t.key}`"
           :key="t.key"
           type="button"
           class="tabs__tab"
           :class="{ 'flag--active': activeTab === t.key }"
           role="tab"
           :aria-selected="activeTab === t.key"
-          :aria-controls="`assetedit__panel--${t.key}`"
+          :aria-controls="`edit__panel--${t.key}`"
           @click="activeTab = t.key"
         >
           {{ t.label }}
         </button>
       </div>
-      <div class="assetedit__content">
+      <div class="edit__content form__col size--stretch">
         <div
           v-if="open && activeTab === 'general' && asset"
-          :id="`assetedit__panel--general`"
+          :id="`edit__panel--general`"
           role="tabpanel"
-          aria-labelledby="assetedit__tab--general"
+          aria-labelledby="edit__tab--general"
         >
           <OriginSettingPanel :key="asset.id" :asset="asset" />
         </div>
         <div
           v-if="open && activeTab !== 'general' && asset"
-          :id="`assetedit__panel--${activeTab}`"
+          :id="`edit__panel--${activeTab}`"
           role="tabpanel"
-          :aria-labelledby="`assetedit__tab--${activeTab}`"
+          :aria-labelledby="`edit__tab--${activeTab}`"
         >
           <WalkableGridEditor :key="asset.id" :asset="asset" :active="open" :active-tab="activeTab" />
         </div>
@@ -74,24 +74,20 @@ watch(
 </template>
 
 <style scoped>
-.assetedit__layout {
+.edit__layout {
   flex: 1;
   min-height: 0;
   display: flex;
   gap: var(--gap-md);
 }
 
-.assetedit__content {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--gap-sm);
+.edit__content {
   overflow-y: auto;
 }
 
 #modal-asset-edit {
   width: min(94vw, 1000px);
+  height: min(80vh, 720px);
   max-height: calc(100vh - 32px);
 }
 

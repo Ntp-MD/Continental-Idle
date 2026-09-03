@@ -240,7 +240,7 @@ function close(): void {
 
 <template>
   <ModalShell :open="open" modal-id="modal-walkable-setting" title="Walkable Setting" @close="close">
-    <div class="form__row form__row--wrap" role="toolbar" aria-label="Walkable setting tools">
+    <div class="form__row form--wrap" role="toolbar" aria-label="Walkable setting tools">
       <button type="button" :class="{ 'flag--warning': activeMode === 'walk' }" @click="setMode('walk')">
         Wall / Block
       </button>
@@ -262,7 +262,7 @@ function close(): void {
       </template>
     </div>
 
-    <div class="form__row form__row--wrap walk__legend" aria-label="Walkable legend">
+    <div class="form__row form--wrap walk__legend" aria-label="Walkable legend">
       <span><i class="swatch walk__swatch--walkable" />Walkable</span>
       <span><i class="swatch walk__swatch--blocked" />Blocked</span>
       <span><i class="swatch walk__swatch--wall" />Wall edge</span>

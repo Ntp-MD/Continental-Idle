@@ -17,7 +17,7 @@ function clear() {
 </script>
 
 <template>
-  <div class="form__enter">
+  <div class="form__row">
     <input
       :value="props.modelValue"
       class="size--fill"

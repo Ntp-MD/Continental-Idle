@@ -651,7 +651,7 @@ onBeforeUnmount(() => {
           >
         </div>
         <div v-if="activeGridConfig?.key === 'interactspots'" class="form__row form__row--border">
-          <label class="form__group"
+          <label class="form__col"
             >Capacity
             <input
               v-model.number="interactCapacity"
@@ -660,16 +660,16 @@ onBeforeUnmount(() => {
               min="0"
               :placeholder="String(gridInteractSpots.length)"
           /></label>
-          <label class="form__group"
+          <label class="form__col"
             >Min <input v-model.number="interactDurationMin" class="size--fit" type="number" min="0" step="0.1"
           /></label>
-          <label class="form__group"
+          <label class="form__col"
             >Max <input v-model.number="interactDurationMax" class="size--fit" type="number" min="0" step="0.1"
           /></label>
-          <label class="form__group"
+          <label class="form__col"
             >Queue <input v-model.number="queueMaxMembers" class="size--fit" type="number" min="1" max="100"
           /></label>
-          <label class="form__group"
+          <label class="form__col"
             >Admit <input v-model.number="queueAdmissionDepth" class="size--fit" type="number" min="1" max="20"
           /></label>
           <span class="form__hint"
@@ -780,34 +780,25 @@ onBeforeUnmount(() => {
 <style scoped>
 .walkablegrid__layout {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
   gap: var(--gap-sm);
   align-items: flex-start;
 }
 
 .walkablegrid__layout > .walkablegrid__layer,
 .walkablegrid__editor {
-  border: 1px solid var(--border-dim);
-  padding: var(--gap-sm);
-}
-
-.walkablegrid__editor {
   display: flex;
   flex-direction: column;
-  flex: 1 1 240px;
-  max-width: 320px;
-  gap: var(--gap-sm);
-  min-width: 0;
+  border: 1px solid var(--border-dim);
+  padding: var(--gap-sm);
+  width: 100%;
 }
 
 .walkablegrid__layer {
   display: flex;
   flex-direction: column;
-  flex: 1 1 320px;
-  min-width: 0;
   gap: var(--gap-md);
   user-select: none;
-  align-items: stretch;
 }
 
 .walkablegrid__label {
@@ -817,7 +808,7 @@ onBeforeUnmount(() => {
   gap: var(--gap-sm);
   text-transform: uppercase;
   letter-spacing: 0.4px;
-  color: var(--text-dim);
+  color: var(--text-secondary);
 }
 
 .walkablegrid__grid {
@@ -841,7 +832,7 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  height: 300px;
+  height: 120px;
   padding: var(--gap-sm);
   border: 1px solid var(--border-dim);
   border-radius: var(--radius-sm);
@@ -853,6 +844,7 @@ onBeforeUnmount(() => {
   flex-wrap: wrap;
   gap: var(--gap-sm);
   color: var(--text-secondary);
+  padding-bottom: var(--gap-sm);
 }
 
 .walkablegrid__item {
@@ -935,7 +927,7 @@ onBeforeUnmount(() => {
   height: calc(var(--tile-size, 32px) * 0.5);
   border-radius: 50%;
   background: var(--accent-blue);
-  outline: 1px solid var(--text-bright);
+  outline: 1px solid var(--text-primary);
   z-index: var(--z-layer-1, 1);
 }
 

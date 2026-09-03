@@ -116,11 +116,11 @@ button {
 
 button:hover {
 	border-color: var(--accent-primary);
-	background: var(--bg-primary-hover);
+	background: var(--bg-secondary);
 }
 
 button:active {
-	background: var(--bg-primary-hover);
+	background: var(--bg-secondary);
 }
 
 button:disabled {
@@ -354,11 +354,11 @@ button:focus-visible {
 }
 
 ::-webkit-scrollbar-thumb:hover {
-	background: var(--text-dim);
+	background: var(--text-secondary);
 }
 
 
 ::selection {
 	background: color-mix(in srgb, var(--accent-primary) 40%, transparent);
-	color: var(--text-bright);
+	color: var(--text-primary);
 }

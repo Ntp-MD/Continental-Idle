@@ -349,9 +349,10 @@ onUnmounted(() => {
 
 <template>
   <ModalShell :open="open" modal-id="modal-npc-manager" title="NPC Manager" @close="onClose">
-    <div class="form__row npc__viewswitch">
+    <div class="tabs__bar">
       <button
         type="button"
+        class="tabs__tab"
         :class="{ 'flag--active': view === 'roles' }"
         :aria-pressed="view === 'roles'"
         @click="view = 'roles'"
@@ -360,6 +361,7 @@ onUnmounted(() => {
       </button>
       <button
         type="button"
+        class="tabs__tab"
         :class="{ 'flag--active': view === 'library' }"
         :aria-pressed="view === 'library'"
         @click="view = 'library'"
@@ -368,7 +370,7 @@ onUnmounted(() => {
       </button>
     </div>
 
-    <div v-if="view === 'roles'" class="form__split">
+    <div v-if="view === 'roles'" class="form__row form--start form--wrap">
       <NpcRoleList
         :roles="roles"
         :default-role-id="draft.defaultRoleId"
@@ -400,9 +402,9 @@ onUnmounted(() => {
       </section>
     </div>
 
-    <div v-else class="form__row form__row--wrap">
-      <section class="form__group npc__panel">
-        <div class="form__title">Tags</div>
+    <div v-else class="form__row form--start form--wrap">
+      <section class="form__col npc__panel">
+        <div>Tags</div>
         <SearchInput v-model="tagSearch" placeholder="Search tags..." label="Search tags" />
         <div class="form__row npc__add">
           <input
@@ -415,28 +417,32 @@ onUnmounted(() => {
           />
           <button type="button" class="flag--active" @click="addTag">Add</button>
         </div>
-        <div v-for="tag in filteredTags" :key="tag" class="card__item">
-          <span class="form__name truncate">{{ tag }}</span>
-          <button type="button" class="flag--danger" aria-label="Delete tag" @click="removeTag(tag)">x</button>
-        </div>
-        <div v-if="!filteredTags.length" class="empty">No tags</div>
+        <ul v-if="filteredTags.length" class="form__col">
+          <li v-for="tag in filteredTags" :key="tag" class="card__item">
+            <span class="size--stretch truncate">{{ tag }}</span>
+            <button type="button" class="flag--danger" aria-label="Delete tag" @click="removeTag(tag)">x</button>
+          </li>
+        </ul>
+        <div v-else class="empty">No tags</div>
       </section>
 
-      <section class="form__group npc__panel">
-        <div class="form__title">Tasks</div>
+      <section class="form__col npc__panel">
+        <div>Tasks</div>
         <SearchInput v-model="libTaskFilter" placeholder="Search tasks..." label="Search tasks" />
-        <NpcTaskCard
-          v-for="task in filteredLibTasks"
-          :key="task.id"
-          :task="task"
-          :usage-count="taskUsage(task.id)"
-          @update="updateTask"
-          @rename="(value) => renameTask(task, value)"
-          @remove="deleteTask(task.id)"
-          @remove-tag="(tag) => removeTaskTag(task, tag)"
-          @add-tag="(value) => addTaskTag(task, value)"
-        />
-        <div v-if="!filteredLibTasks.length" class="empty">No tasks yet - click "+ Add Task"</div>
+        <ul v-if="filteredLibTasks.length" class="form__col">
+          <li v-for="task in filteredLibTasks" :key="task.id">
+            <NpcTaskCard
+              :task="task"
+              :usage-count="taskUsage(task.id)"
+              @update="updateTask"
+              @rename="(value) => renameTask(task, value)"
+              @remove="deleteTask(task.id)"
+              @remove-tag="(tag) => removeTaskTag(task, tag)"
+              @add-tag="(value) => addTaskTag(task, value)"
+            />
+          </li>
+        </ul>
+        <div v-else class="empty">No tasks yet - click "+ Add Task"</div>
         <button type="button" class="flag--active size--fill" :disabled="pending" @click="addTask">+ Add Task</button>
       </section>
     </div>
@@ -447,30 +453,16 @@ onUnmounted(() => {
   </ModalShell>
 </template>
 <style scoped>
-.npc__viewswitch button {
-  white-space: nowrap;
-}
-
-.npc__viewswitch button,
 .npc__panel button {
   flex-shrink: 0;
 }
 
-.npc__viewswitch button {
-  background: transparent;
-}
-
-.npc__viewswitch {
-  padding: var(--gap-sm) var(--gap-md);
-  flex-shrink: 0;
-}
-
-.form__split > .npc__sidebar {
+.form__row > .npc__sidebar {
   flex: 1 1 220px;
   max-width: 340px;
 }
 
-.form__split > .npc__detail {
+.form__row > .npc__detail {
   flex: 1 1 320px;
 }
 
@@ -480,7 +472,7 @@ onUnmounted(() => {
   padding: var(--gap-md);
 }
 
-.form__row--wrap > .npc__panel {
+.form__row > .npc__panel {
   flex: 1 1 280px;
 }
 

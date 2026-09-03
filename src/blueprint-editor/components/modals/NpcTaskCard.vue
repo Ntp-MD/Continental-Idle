@@ -28,7 +28,7 @@ function submitTag() {
 </script>
 
 <template>
-  <article class="form__col npc__taskcard">
+  <article class="form__col npc__card">
     <div class="form__row">
       <input
         :value="task.label"
@@ -38,17 +38,17 @@ function submitTag() {
       />
       <button type="button" class="flag--danger" aria-label="Delete task" @click="emit('remove')">x</button>
     </div>
-    <div class="form__row form__row--wrap">
-      <TagChip
-        v-for="tag in task.tags"
-        :key="`${task.id}-${tag}`"
-        :label="tag"
-        removable
-        :class="{ 'flag--warning': !managedTagSet.has(tag) }"
-        @remove="emit('remove-tag', tag)"
-      />
-      <span v-if="!task.tags.length" class="empty">No tags</span>
-    </div>
+    <ul v-if="task.tags.length" class="form__row form--wrap">
+      <li v-for="tag in task.tags" :key="`${task.id}-${tag}`">
+        <TagChip
+          :label="tag"
+          removable
+          :class="{ 'flag--warning': !managedTagSet.has(tag) }"
+          @remove="emit('remove-tag', tag)"
+        />
+      </li>
+    </ul>
+    <span v-else class="empty">No tags</span>
     <div class="form__row">
       <input
         v-model="newTagInput"
@@ -58,18 +58,18 @@ function submitTag() {
         @keydown.enter.prevent="submitTag"
         @change="submitTag"
       />
-      <small class="npc__usagenote">used by {{ usageCount }} role(s)</small>
+      <small class="npc__usage">used by {{ usageCount }} role(s)</small>
     </div>
   </article>
 </template>
 
 <style scoped>
-.npc__taskcard {
+.npc__card {
   flex-shrink: 0;
 }
 
-.npc__usagenote {
-  color: var(--text-dim);
+.npc__usage {
+  color: var(--text-secondary);
   white-space: nowrap;
   align-self: center;
 }

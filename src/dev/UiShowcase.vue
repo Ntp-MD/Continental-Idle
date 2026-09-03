@@ -58,8 +58,6 @@ const themeTokens = [
   '--bg-tertiary',
   '--text-primary',
   '--text-secondary',
-  '--text-dim',
-  '--text-bright',
   '--border-dim',
   '--accent-primary',
   '--accent-blue',
@@ -119,44 +117,44 @@ function backToEditor() {
     <section class="showcase__section">
       <h2>Inputs</h2>
       <div class="form__col">
-        <div class="form__field">
+        <div class="form__row">
           <label>Text</label>
           <input v-model="searchText" type="text" placeholder="field-sizing: content" />
         </div>
-        <div class="form__field">
+        <div class="form__row">
           <label>Number</label>
           <input type="number" min="0" max="100" :value="42" />
         </div>
-        <div class="form__field">
+        <div class="form__row">
           <label>Select</label>
           <select>
             <option>Option A</option>
             <option>Option B</option>
           </select>
         </div>
-        <div class="form__field">
+        <div class="form__row">
           <label>Textarea</label>
           <textarea rows="3" placeholder="textarea"></textarea>
         </div>
         <div class="form__row">
-          <label class="form__group"><input type="checkbox" checked /> Checkbox on</label>
-          <label class="form__group"><input type="checkbox" /> Checkbox off</label>
-          <label class="form__group"><input type="radio" name="r" checked /> Radio on</label>
-          <label class="form__group"><input type="radio" name="r" /> Radio off</label>
-          <label class="form__group"><input type="range" /> Range</label>
+          <label class="form__col"><input type="checkbox" checked /> Checkbox on</label>
+          <label class="form__col"><input type="checkbox" /> Checkbox off</label>
+          <label class="form__col"><input type="radio" name="r" checked /> Radio on</label>
+          <label class="form__col"><input type="radio" name="r" /> Radio off</label>
+          <label class="form__col"><input type="range" /> Range</label>
         </div>
-        <div class="form__field">
+        <div class="form__row">
           <label>ColorInput</label>
           <ColorInput v-model="colorValue" allow-transparent />
         </div>
-        <div class="form__field">
-          <label>form__enter (input + button)</label>
-          <div class="form__enter">
+        <div class="form__row">
+          <label>form__row (input + button)</label>
+          <div class="form__row">
             <input v-model="searchText" class="size--fill" type="text" placeholder="search" />
             <button>Clear</button>
           </div>
         </div>
-        <div class="form__field">
+        <div class="form__row">
           <label>SearchInput (debounce consumer, clear + slot button)</label>
           <SearchInput v-model="searchText" placeholder="Search assets..." label="Search">
             <button>Go</button>
@@ -169,34 +167,33 @@ function backToEditor() {
       <h2>Form structure</h2>
       <div class="form__col">
         <div class="form__header">form__header</div>
-        <div class="form__title">form__title</div>
-        <div class="form__grid">
-          <div class="form__field"><label>form__grid cell A</label><input type="text" /></div>
-          <div class="form__field"><label>form__grid cell B</label><input type="text" /></div>
+        <div class="form__col">
+          <div class="form__row"><label>form__col cell A</label><input type="text" /></div>
+          <div class="form__row"><label>form__col cell B</label><input type="text" /></div>
         </div>
-        <div class="form__group">
-          <label>form__group label</label>
+        <div class="form__col form--section">
+          <label>form--section label</label>
           <input type="text" value="group content" />
         </div>
-        <div class="form__group form__enter">
-          <input type="text" value="copyable-id" disabled title="Copy ID" />
+        <div class="form__row size--stretch">
+          <input class="size--fill" type="text" value="copyable-id" disabled title="Copy ID" />
           <button>Copy</button>
         </div>
         <div class="form__row">
           <span class="form__hint">form__hint inside form__row</span>
         </div>
-        <div class="form__row form__row--wrap">
+        <div class="form__row form--wrap">
           <span class="card__item">wrap A</span>
           <span class="card__item">wrap B</span>
           <span class="card__item">wrap C</span>
-          <span class="form__hint">form__row--wrap</span>
+          <span class="form__hint">form--wrap</span>
         </div>
         <div class="form__row">
-          <span class="form__name truncate">form__name - flexible truncated label</span><span class="badge">3</span>
+          <span class="size--stretch truncate">size--stretch - flexible truncated label</span><span class="badge">3</span>
         </div>
-        <div class="form__split">
-          <div class="card size--stretch">form__split A</div>
-          <div class="card size--stretch">form__split B</div>
+        <div class="form__row form--wrap">
+          <div class="card size--stretch">form--wrap A</div>
+          <div class="card size--stretch">form--wrap B</div>
         </div>
         <div class="form__row--border">
           <span class="form__hint">form__row--border</span>
@@ -207,8 +204,8 @@ function backToEditor() {
 
     <section class="showcase__section">
       <h2>Theme tokens</h2>
-      <div class="form__row form__row--wrap">
-        <span v-for="t in themeTokens" :key="t" class="form__field">
+      <div class="form__row form--wrap">
+        <span v-for="t in themeTokens" :key="t" class="form__row">
           <span class="swatch" :style="{ background: `var(${t})` }" />
           <span class="form__hint">{{ t }}</span>
         </span>
@@ -218,15 +215,15 @@ function backToEditor() {
     <section class="showcase__section">
       <h2>Keyboard shortcuts</h2>
       <div class="form__col">
-        <div class="form__field"><span class="badge">Del</span><span class="form__hint">Delete selection (confirms)</span></div>
-        <div class="form__field"><span class="badge">R</span><span class="form__hint">Rotate selected object</span></div>
-        <div class="form__field"><span class="badge">Arrows</span><span class="form__hint">Nudge 1 tile (Shift: 10)</span></div>
-        <div class="form__field"><span class="badge">Space</span><span class="form__hint">Pan canvas</span></div>
-        <div class="form__field"><span class="badge">Esc</span><span class="form__hint">Cancel draw/drag, deselect</span></div>
-        <div class="form__field"><span class="badge">Ctrl+L</span><span class="form__hint">Link objects / Shift: unlink</span></div>
-        <div class="form__field"><span class="badge">Ctrl+C/V</span><span class="form__hint">Copy / paste objects</span></div>
-        <div class="form__field"><span class="badge">L</span><span class="form__hint">Toggle object lock</span></div>
-        <div class="form__field"><span class="badge">Ctrl+0</span><span class="form__hint">Fit to screen (+/- zoom)</span></div>
+        <div class="form__row"><span class="badge">Del</span><span class="form__hint">Delete selection (confirms)</span></div>
+        <div class="form__row"><span class="badge">R</span><span class="form__hint">Rotate selected object</span></div>
+        <div class="form__row"><span class="badge">Arrows</span><span class="form__hint">Nudge 1 tile (Shift: 10)</span></div>
+        <div class="form__row"><span class="badge">Space</span><span class="form__hint">Pan canvas</span></div>
+        <div class="form__row"><span class="badge">Esc</span><span class="form__hint">Cancel draw/drag, deselect</span></div>
+        <div class="form__row"><span class="badge">Ctrl+L</span><span class="form__hint">Link objects / Shift: unlink</span></div>
+        <div class="form__row"><span class="badge">Ctrl+C/V</span><span class="form__hint">Copy / paste objects</span></div>
+        <div class="form__row"><span class="badge">L</span><span class="form__hint">Toggle object lock</span></div>
+        <div class="form__row"><span class="badge">Ctrl+0</span><span class="form__hint">Fit to screen (+/- zoom)</span></div>
       </div>
     </section>
 
@@ -303,7 +300,7 @@ function backToEditor() {
         <TagChip label="seat" variant="focus" />
         <TagChip label="locked" variant="restricted" removable />
       </div>
-      <div class="form__field">
+      <div class="form__row">
         <label>TagPicker</label>
         <TagPicker v-model="pickerTags" />
       </div>
@@ -356,7 +353,7 @@ function backToEditor() {
     <ModalShell :open="showModal" modal-id="showcase-modal" title="ModalShell sample" @close="showModal = false">
       <div class="form__col">
         <div class="form__hint">modal__header / modal__body / modal__footer from ModalShell</div>
-        <div class="form__field">
+        <div class="form__row">
           <label>Inside body</label>
           <input type="text" value="input inside modal" />
         </div>

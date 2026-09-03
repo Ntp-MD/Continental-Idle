@@ -48,8 +48,8 @@ function deselect() {
       <h3>Object</h3>
       <div class="form__row">
         <label>ID</label>
-        <div class="form__group form__enter size--stretch">
-          <input type="text" :value="object.id" disabled title="Object ID" />
+        <div class="form__row size--stretch">
+          <input class="size--fill" type="text" :value="object.id" disabled title="Object ID" />
           <button @click="copyId(object.id)">Copy</button>
         </div>
       </div>
@@ -67,7 +67,7 @@ function deselect() {
       </div>
       <div v-else class="form__row">
         <label>Rotation</label>
-        <div class="form__group">
+        <div class="form__col">
           <span>{{ object.rotation }}deg</span>
           <button title="Rotate 90deg (R)" @click="rotate">Rotate</button>
         </div>

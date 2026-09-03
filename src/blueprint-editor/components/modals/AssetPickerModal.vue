@@ -65,8 +65,8 @@ function pick(asset: AssetDef) {
     <SearchInput v-model="searchQuery" placeholder="Search assets..." label="Search assets" />
     <div class="picker__scroll">
       <div v-if="!filteredAssets.length" class="empty">No assets found</div>
-      <div v-else class="picker__grid">
-        <div
+      <ul v-else class="picker__grid">
+        <li
           v-for="asset in filteredAssets"
           :key="asset.id"
           v-memo="[
@@ -108,13 +108,13 @@ function pick(asset: AssetDef) {
           >
           <span>{{ asset.name }}</span>
           <span class="picker__meta truncate">{{ assetSizeLabel(asset) }} - {{ originLabel(asset) }}</span>
-        </div>
-      </div>
+        </li>
+      </ul>
     </div>
   </ModalShell>
 </template>
 
-<style>
+<style scoped>
 #modal-asset-picker {
   width: min(94vw, 720px);
   max-height: calc(100vh - 32px);

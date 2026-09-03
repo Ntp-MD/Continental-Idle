@@ -63,7 +63,7 @@ async function submit() {
 <template>
   <ModalShell :open="open" modal-id="modal-import-svg" title="Import SVG Asset" @close="emit('close')">
     <div class="form__col">
-      <div class="form__field">
+      <div class="form__row">
         <label for="importsvg__name">Asset name</label>
         <input
           id="importsvg__name"

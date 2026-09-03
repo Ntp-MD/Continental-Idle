@@ -487,8 +487,8 @@ export async function flattenToSvgAsset(name?: string, walls?: readonly Selected
 				svgParts.push(`<g transform="${transform}">${namespaceSvgIds(asset.svg, `${assetId}-p${partIndex}`)}</g>`)
 				partIndex++
 			} else {
-				const fill = obj.fillColor || asset?.defaultFillColor || 'var(--text-bright)'
-				const stroke = obj.strokeColor || asset?.defaultStrokeColor || 'var(--text-dim)'
+				const fill = obj.fillColor || asset?.defaultFillColor || 'var(--text-primary)'
+				const stroke = obj.strokeColor || asset?.defaultStrokeColor || 'var(--text-secondary)'
 				const rx = obj.rx
 				let body: string
 				if (rx) {
