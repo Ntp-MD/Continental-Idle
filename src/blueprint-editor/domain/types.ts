@@ -105,6 +105,11 @@ function isFiniteNumber(value: unknown): value is number {
 	return typeof value === 'number' && Number.isFinite(value)
 }
 
+export function clampInt(value: number, min: number, max: number): number {
+	if (Number.isNaN(value)) return min
+	return Math.max(min, Math.min(max, Math.floor(value)))
+}
+
 export function isSafeSvgMarkup(svg: string): boolean {
 	if (!svg || svg.length > MAX_SVG_LENGTH) return false
 	const tagPattern = /<\s*([a-z][a-z0-9:-]*)\b/gi
@@ -1234,7 +1239,7 @@ function normalizeTagTriggerRates(value: unknown): Record<string, number> | unde
 	const rates: Record<string, number> = {}
 	for (const [tag, rate] of Object.entries(value)) {
 		const normalized = normalizeTag(tag)
-		if (normalized && isFiniteNumber(rate) && rate > 0) rates[normalized] = Math.max(0, Math.min(100, Math.floor(rate)))
+		if (normalized && isFiniteNumber(rate) && rate > 0) rates[normalized] = clampInt(rate, 0, 100)
 	}
 	return Object.keys(rates).length ? rates : undefined
 }
@@ -1324,12 +1329,12 @@ export function normalizeNpcConfig(value: unknown): NpcSimulationConfig | undefi
 				focusTags: normalizeTags(role.focusTags) ?? [],
 				restrictedTags: normalizeTags(role.restrictedTags) ?? [],
 				taskIds: [...new Set(role.taskIds.map(taskId => taskId.trim()).filter(taskId => taskIds.has(taskId)))],
-				focusChance: Math.max(0, Math.min(100, Math.floor(role.focusChance))),
+				focusChance: clampInt(role.focusChance, 0, 100),
 			}
 			if (role.spawnRule) {
 				normalized.spawnRule = {
 					targetTags: normalizeTags(role.spawnRule.targetTags) ?? [],
-					count: Math.max(0, Math.min(1000, Math.floor(role.spawnRule.count))),
+					count: clampInt(role.spawnRule.count, 0, 1000),
 				}
 			}
 			return normalized
@@ -1341,7 +1346,7 @@ export function normalizeNpcConfig(value: unknown): NpcSimulationConfig | undefi
 		})),
 		pool: pool.map(entry => ({
 			roleId: entry.roleId.trim(),
-			count: Math.max(0, Math.min(1000, Math.floor(entry.count))),
+			count: clampInt(entry.count, 0, 1000),
 			...(entry.floorIds?.length ? { floorIds: [...new Set(entry.floorIds.map(id => id.trim()).filter(Boolean))] } : {}),
 		})),
 		crossFloorCooldownSeconds: isFiniteNumber(c.crossFloorCooldownSeconds) && c.crossFloorCooldownSeconds > 0 ? c.crossFloorCooldownSeconds : 30,

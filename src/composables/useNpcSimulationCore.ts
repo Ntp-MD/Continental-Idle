@@ -1,4 +1,4 @@
-import { ref, shallowRef, toRaw } from 'vue'
+import { ref, shallowRef } from 'vue'
 import {
 	NpcEngine,
 	NPC_ENGINE_DEFAULT_AGENT_CLEARANCE,
@@ -14,8 +14,8 @@ import {
 	type NpcEngineEvent,
 } from '@/engine/npc'
 import type { AssetDef, FloorData, NpcRole, NpcSimDot, NpcSimulationConfig } from '@/blueprint-editor/domain/types'
-import { isNpcConfig } from '@/blueprint-editor/domain/types'
-import { mergeNpcConfig, editorLog } from '@/blueprint-editor/blueprintStore'
+import { isNpcConfig, clampInt } from '@/blueprint-editor/domain/types'
+import { mergeNpcConfig, editorLog, cloneDeepRaw } from '@/blueprint-editor/blueprintStore'
 
 const MAX_ROLE_SPAWN_COUNT = 100
 
@@ -26,6 +26,7 @@ export interface NpcSimulationCoreHost {
 	getViewFloorId(): string | null
 	idPrefix: string
 	syncIntervalMs?: number
+	random?: () => number
 	getAssetDef?(type: string): AssetDef | undefined
 	getAssetTags?(type: string): string[] | undefined
 	getManagedTags?(): readonly string[]
@@ -129,6 +130,7 @@ export function useNpcSimulationCore(host: NpcSimulationCoreHost) {
 
 	function spawnAgents(floors: readonly FloorData[], canvas: NpcCanvasBounds): void {
 		if (!engine) return
+		const rand = host.random ?? Math.random
 		npcs.value = []
 		const occupiedSpawnKeys = new Set<string>()
 		let spawnCursor = 0
@@ -137,7 +139,7 @@ export function useNpcSimulationCore(host: NpcSimulationCoreHost) {
 		let spawned = 0
 
 		for (const entry of config.value.pool) {
-			const count = Math.max(0, Math.min(MAX_ROLE_SPAWN_COUNT, Math.floor(entry.count || 0)))
+			const count = clampInt(entry.count || 0, 0, MAX_ROLE_SPAWN_COUNT)
 			const role = resolveRole(config.value, entry.roleId)
 			if (!role) { skip('unknown-role', count * floors.length); continue }
 			for (const floor of floors) {
@@ -153,12 +155,15 @@ export function useNpcSimulationCore(host: NpcSimulationCoreHost) {
 				if (!keys.length) { skip('no-spawn-cells', count); continue }
 				const centerX = canvas.w / 2 / map.cellSize
 				const centerY = canvas.h / 2 / map.cellSize
-				keys.sort((a, b) => {
-					const [ax, ay] = a.split(',').map(Number)
-					const [bx, by] = b.split(',').map(Number)
-					return Math.hypot(ax - centerX, ay - centerY) - Math.hypot(bx - centerX, by - centerY)
+				const keyPts = keys.map(k => {
+					const sep = k.indexOf(',')
+					const x = Number(k.slice(0, sep))
+					const y = Number(k.slice(sep + 1))
+					return { k, d: Math.hypot(x - centerX, y - centerY) }
 				})
-				const spawnOffset = Math.floor(Math.random() * Math.max(1, keys.length))
+				keyPts.sort((a, b) => a.d - b.d)
+				for (let i = 0; i < keys.length; i++) keys[i] = keyPts[i].k
+				const spawnOffset = Math.floor(rand() * Math.max(1, keys.length))
 				for (let i = 0; i < count; i++) {
 					let spawnIndex = (spawnCursor + spawnOffset + i) % keys.length
 					let attempts = 0
@@ -171,7 +176,7 @@ export function useNpcSimulationCore(host: NpcSimulationCoreHost) {
 					occupiedSpawnKeys.add(`${floor.id}:${spawnKey}`)
 					const [x, y] = spawnKey.split(',').map(Number)
 					const id = `${host.idPrefix}${nextId++}`
-					const speed = Math.max(0.01, config.value.speed || 1 / 30) + (Math.random() - 0.5) * 0.02
+					const speed = Math.max(0.01, config.value.speed || 1 / 30) + (rand() - 0.5) * 0.02
 					engine.addAgent({ id, roleId: role.id, floorId: floor.id, x, y, targetX: x, targetY: y, speed: speed * NPC_ENGINE_TICKS_PER_SECOND / map.cellSize })
 					spawned++
 				}
@@ -208,12 +213,14 @@ export function useNpcSimulationCore(host: NpcSimulationCoreHost) {
 			listAgents: () => engine?.listAgents() ?? [],
 			getAssetTags: getAssetTagsSafe(),
 			getManagedTags: host.getManagedTags,
+			random: host.random,
 		})
 
 		const cfg = host.getConfig()
 		engine = new NpcEngine(built.layout, {
 			ticksPerSecond: NPC_ENGINE_TICKS_PER_SECOND,
 			agentClearance: NPC_ENGINE_DEFAULT_AGENT_CLEARANCE,
+			random: host.random,
 			crossFloorCooldownSeconds: cfg?.crossFloorCooldownSeconds ?? 30,
 			progressWatchdogTicks: cfg?.progressWatchdogTicks ?? 120,
 			maxRepathAttempts: cfg?.maxRepathAttempts ?? 4,
@@ -248,8 +255,12 @@ export function useNpcSimulationCore(host: NpcSimulationCoreHost) {
 			tickCostEma = tickCostEma === 0 ? (performance.now() - t0) / steps : tickCostEma * 0.85 + ((performance.now() - t0) / steps) * 0.15
 			syncAgents()
 			const events = engine.drainEvents()
-			const doorEvents = events.filter(e => e.type === 'door-passage')
-			doorPassageEvents.value = doorEvents
+			if (events.length > 0) {
+				const doorEvents = events.filter(e => e.type === 'door-passage')
+				if (doorEvents.length > 0 || doorPassageEvents.value.length > 0) doorPassageEvents.value = doorEvents
+			} else if (doorPassageEvents.value.length > 0) {
+				doorPassageEvents.value = []
+			}
 		}
 		animationId = requestAnimationFrame(frame)
 	}
@@ -267,7 +278,7 @@ export function useNpcSimulationCore(host: NpcSimulationCoreHost) {
 	/** Merge raw external config into working config; returns true when applied. */
 	function ingestConfig(raw: NpcSimulationConfig | undefined): boolean {
 		if (!raw || !isNpcConfig(raw)) return false
-		config.value = mergeNpcConfig(structuredClone(toRaw(raw)))
+		config.value = mergeNpcConfig(cloneDeepRaw(raw))
 		applyConfigSpeedToAgents()
 		return true
 	}
@@ -290,6 +301,7 @@ export function useNpcSimulationCore(host: NpcSimulationCoreHost) {
 		ingestConfig,
 		deploy(floors: readonly FloorData[], canvas: NpcCanvasBounds, newViewFloorId: string, spawnFloorId?: string): void {
 			stopLoop()
+			ingestConfig(host.getConfig())
 			spawnFloorOverride = spawnFloorId ?? null
 			tickCostEma = 0
 			deploymentActive = true
@@ -299,6 +311,7 @@ export function useNpcSimulationCore(host: NpcSimulationCoreHost) {
 		},
 		refresh(): void {
 			if (!deploymentActive || !currentCanvas) return
+			ingestConfig(host.getConfig())
 			const floors = host.getFloors()
 			if (floors.length) buildEngine(floors, currentCanvas)
 		},

@@ -1,11 +1,11 @@
 <script setup lang="ts">
-import { ref, watch, computed, onBeforeUnmount, nextTick } from 'vue'
+import { ref, watch, computed, nextTick } from 'vue'
 import { useAssetsStore } from '../../blueprintStore'
 import { useToast } from '@/composables/useToast'
+import { useDebouncedCallback } from '@/composables/useDebounceFn'
 import { useConfirm } from '@/composables/useConfirm'
-import { assetSvgVarStyle, assetFallbackShapeSvg, assetPreviewViewBox } from '../../assets/assetUtils'
+import { useAssetPreview } from '../../composables/useAssetPreview'
 import { useCanvasDefaults } from '../../composables/useCanvasDefaults'
-import { useSvgPreview } from '../../composables/useSvgPreview'
 import { useDirtyBaseline } from '../../composables/useDirtyBaseline'
 import { wallSegmentsToEdges, edgesToWallSegments, type TileEdges, type BorderSide } from '../../domain/gridEditing'
 import type { AssetDef, TileState, InteractSpot } from '../../domain/types'
@@ -54,23 +54,9 @@ watch(gridDirty, (dirty) => {
   if (dirty) scheduleAutoSave()
 })
 
-let autoSaveTimer: number | null = null
-const AUTO_SAVE_DELAY_MS = 300
-
-function scheduleAutoSave() {
-  if (autoSaveTimer !== null) window.clearTimeout(autoSaveTimer)
-  autoSaveTimer = window.setTimeout(() => {
-    autoSaveTimer = null
-    void saveGrid()
-  }, AUTO_SAVE_DELAY_MS)
-}
-
-function flushAutoSave() {
-  if (autoSaveTimer !== null) {
-    window.clearTimeout(autoSaveTimer)
-    autoSaveTimer = null
-  }
-}
+const scheduleAutoSave = useDebouncedCallback(() => {
+  void saveGrid()
+}, 300)
 
 const tilePx = computed(() => {
   if (!props.asset) return 30
@@ -84,30 +70,15 @@ const tilePx = computed(() => {
   )
 })
 
-const svgPreviewViewBox = computed(() => {
-  const a = props.asset
-  if (!a) return ''
-  return assetPreviewViewBox(a, canvasTileSize.value)
-})
-
-const previewSvg = computed(
-  () =>
-    props.asset?.svg?.replace(/var\(--border-dim\)/g, '#fff') ??
-    (props.asset ? assetFallbackShapeSvg(props.asset, canvasTileSize.value) : ''),
-)
-const previewVars = computed(() => assetSvgVarStyle(props.asset))
-
-const previewSvgEl = ref<SVGSVGElement | null>(null)
-const { render: renderPreview } = useSvgPreview(previewSvg, previewSvgEl)
-
-watch([() => props.active, () => props.asset?.id], ([visible]) => {
-  if (visible) nextTick(renderPreview)
+const { viewBox: svgPreviewViewBox, vars: previewVars, setEl: setPreviewEl } = useAssetPreview({
+  asset: () => props.asset ?? undefined,
+  isActive: () => props.active,
 })
 
 watch(
   () => props.active,
   (visible) => {
-    if (!visible) flushAutoSave()
+    if (!visible) scheduleAutoSave.cancel()
   },
 )
 
@@ -141,7 +112,7 @@ watch(
 
     const sameId = newSig.id === oldSig?.id
     if (!sameId && gridDirty.value && previousGridAssetId.value) {
-      flushAutoSave()
+      scheduleAutoSave.cancel()
       const confirmed = await confirm({
         title: 'Discard changes?',
         message: 'You have unsaved walkable grid changes. Discard them?',
@@ -238,23 +209,31 @@ function interactSpotIndexAtPx(x: number, y: number): number {
   return gridInteractSpots.value.findIndex((interactSpot) => interactSpot.x === x && interactSpot.y === y)
 }
 
-function interactSpotsInTile(r: number, c: number): { x: number; y: number; i: number }[] {
+const EMPTY_SPOTS: { x: number; y: number; i: number }[] = []
+
+const spotsByTile = computed(() => {
   const t = canvasTileSize.value
   const scale = tilePx.value / t
   const rows = gridTiles.value.length
   const cols = gridCols.value
-  const found: { x: number; y: number; i: number }[] = []
+  const map = new Map<string, { x: number; y: number; i: number }[]>()
   for (let i = 0; i < gridInteractSpots.value.length; i++) {
     const { x: ax, y: ay } = gridInteractSpots.value[i]
     let ac = Math.floor(ax / t)
     let ar = Math.floor(ay / t)
     if (ac >= cols) ac = cols - 1
     if (ar >= rows) ar = rows - 1
-    if (ac === c && ar === r) {
-      found.push({ x: (ax - c * t) * scale, y: (ay - r * t) * scale, i })
-    }
+    const key = `${ar}:${ac}`
+    const entry = { x: (ax - ac * t) * scale, y: (ay - ar * t) * scale, i }
+    const list = map.get(key)
+    if (list) list.push(entry)
+    else map.set(key, [entry])
   }
-  return found
+  return map
+})
+
+function interactSpotsInTile(r: number, c: number): { x: number; y: number; i: number }[] {
+  return spotsByTile.value.get(`${r}:${c}`) ?? EMPTY_SPOTS
 }
 
 function toggleInteractSpotAt(r: number, c: number) {
@@ -588,10 +567,6 @@ async function saveGrid() {
   saveGridBaseline()
   useToast().success('Walkable grid saved')
 }
-
-onBeforeUnmount(() => {
-  flushAutoSave()
-})
 </script>
 
 <template>
@@ -622,7 +597,7 @@ onBeforeUnmount(() => {
         <div class="walkablegrid__label">Real Visual</div>
         <div class="walkablegrid__preview">
           <svg
-            ref="previewSvgEl"
+            :ref="setPreviewEl"
             :viewBox="svgPreviewViewBox"
             preserveAspectRatio="xMidYMid meet"
             class="walkablegrid__fill"

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, watch, computed } from 'vue'
 import { useAssetsStore } from '../../blueprintStore'
-import { useToast } from '@/composables/useToast'
+import { useToast, reportSaved } from '@/composables/useToast'
 import { useConfirm } from '@/composables/useConfirm'
 import { useAsyncAction } from '../../composables/useAsyncAction'
 import { DEFAULT_EDITOR_SETTINGS, EDITOR_FIELD_SPECS } from '../../domain/types'
@@ -59,11 +59,7 @@ async function applyCanvasSize() {
   }
   try {
     const saved = await run(() => store.resizeCanvas(widthInput.value, heightInput.value, tileInput.value))
-    if (!saved) {
-      toast.error('Failed to resize canvas')
-      return
-    }
-    toast.info('Canvas resized')
+    if (!reportSaved(!!saved, 'Canvas resized', 'Failed to resize canvas')) return
   } catch {
     toast.error('Failed to resize canvas')
   }
@@ -89,11 +85,7 @@ async function applyLabelColor(value: string | undefined) {
 async function applyWallColor(value: string | undefined) {
   try {
     const saved = await run(() => store.setWallColor(value))
-    if (!saved) {
-      toast.error('Failed to set wall color')
-      return
-    }
-    toast.success(value ? `Wall color saved: ${value}` : 'Wall color reset to default')
+    if (!reportSaved(!!saved, value ? `Wall color saved: ${value}` : 'Wall color reset to default', 'Failed to set wall color')) return
   } catch {
     toast.error('Failed to set wall color')
   }
@@ -503,7 +495,7 @@ async function resetEditorAll() {
   </ModalShell>
 </template>
 
-<style scoped>
+<style>
 .settings__panel {
   flex: 1;
   min-height: 0;

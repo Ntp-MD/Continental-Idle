@@ -73,4 +73,28 @@ describe('useDebouncedCallback', () => {
       expect(fn).toHaveBeenCalledWith('c')
     })
   })
+
+  it('cancel drops the pending call', () => {
+    scope.run(() => {
+      const fn = vi.fn()
+      const debounced = useDebouncedCallback(fn, 100)
+      debounced('a')
+      debounced.cancel()
+      vi.advanceTimersByTime(100)
+      expect(fn).not.toHaveBeenCalled()
+    })
+  })
+
+  it('cancel allows new calls afterwards', () => {
+    scope.run(() => {
+      const fn = vi.fn()
+      const debounced = useDebouncedCallback(fn, 100)
+      debounced('a')
+      debounced.cancel()
+      debounced('b')
+      vi.advanceTimersByTime(100)
+      expect(fn).toHaveBeenCalledTimes(1)
+      expect(fn).toHaveBeenCalledWith('b')
+    })
+  })
 })

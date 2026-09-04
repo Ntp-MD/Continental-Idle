@@ -331,7 +331,7 @@ function close(): void {
     </template>
   </ModalShell>
 </template>
-<style scoped>
+<style>
 .walk__legend {
   color: var(--text-secondary);
 }

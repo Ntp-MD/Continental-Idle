@@ -11,6 +11,7 @@ const props = defineProps<{
   tasks: NpcTask[]
   allTags: string[]
   triggerRates: Record<string, number> | undefined
+  isDefault: boolean
 }>()
 
 const emit = defineEmits<{
@@ -22,6 +23,7 @@ const emit = defineEmits<{
   (e: 'remove-tag', kind: 'focus' | 'restricted', tag: string): void
   (e: 'toggle-task', taskId: string): void
   (e: 'set-rate', tag: string, rate: number): void
+  (e: 'remove'): void
 }>()
 
 const newFocusTag = ref('')
@@ -76,7 +78,17 @@ function submitRoleTag(kind: 'focus' | 'restricted') {
 
 <template>
   <section class="form__col npc__detail">
-    <h3>Editing: {{ role.label }}</h3>
+    <div class="form__row">
+      <h3 class="size--stretch">Editing: {{ role.label }}</h3>
+      <button
+        type="button"
+        class="flag--danger"
+        :title="isDefault ? 'Delete this role - another role will become Default' : 'Delete this role'"
+        @click="emit('remove')"
+      >
+        Delete
+      </button>
+    </div>
     <div class="form__col">
       <div class="form__col form--section">
         <h4>Basics</h4>
@@ -245,7 +257,7 @@ function submitRoleTag(kind: 'focus' | 'restricted') {
   </section>
 </template>
 
-<style scoped>
+<style>
 .npc__hint {
   color: var(--text-secondary);
   opacity: 0.8;

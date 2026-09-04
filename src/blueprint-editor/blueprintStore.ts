@@ -5,5 +5,5 @@ export {
 	managedTagSet,
 } from './store/index'
 export { state } from './store/state'
-export { genId, emptyNpcConfig, taskMatchesQuery, editorLog } from './store/storeUtils'
+export { genId, emptyNpcConfig, taskMatchesQuery, editorLog, cloneDeepRaw } from './store/storeUtils'
 export { mergeNpcConfig } from './store/npcDefault'

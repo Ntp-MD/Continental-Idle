@@ -63,7 +63,7 @@ function submitTag() {
   </article>
 </template>
 
-<style scoped>
+<style>
 .npc__card {
   flex-shrink: 0;
 }

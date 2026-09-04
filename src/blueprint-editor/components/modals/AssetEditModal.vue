@@ -73,7 +73,7 @@ watch(
   </ModalShell>
 </template>
 
-<style scoped>
+<style>
 .edit__layout {
   flex: 1;
   min-height: 0;

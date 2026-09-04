@@ -14,6 +14,36 @@ export interface NpcSimulationSources {
 	getManagedTags?: () => readonly string[]
 }
 
+const tileStateIds = new WeakMap<object, number>()
+let nextTileStateId = 1
+
+function tileStatesId(ts: object): number {
+	let id = tileStateIds.get(ts)
+	if (!id) { id = nextTileStateId++; tileStateIds.set(ts, id) }
+	return id
+}
+
+export function floorSignature(floor: FloorData | undefined): string {
+	if (!floor) return ''
+	const parts: (string | number)[] = [floor.id, floor.objects.length, floor.defaultWalkable ? 1 : 0]
+	for (const o of floor.objects) {
+		parts.push(o.id, o.type, o.isWall ? 1 : 0, o.door ? 1 : 0)
+	}
+	parts.push(JSON.stringify(floor.allowedRoleIds ?? null), JSON.stringify(floor.spawnZones ?? null))
+	const ts = floor.walkable?.tileStates
+	if (ts) {
+		let blocked = 0
+		for (let r = 0; r < ts.length; r++) {
+			const row = ts[r]
+			for (let c = 0; c < row.length; c++) if (row[c] !== 'walkable') blocked += r * 131 + c + 1
+		}
+		parts.push(ts.length, ts[0]?.length ?? 0, tileStatesId(ts), blocked)
+	} else {
+		parts.push(0)
+	}
+	return parts.join('|')
+}
+
 export function useNpcSimulation(sources: NpcSimulationSources = {}): {
 	npcs: Ref<NpcSimDot[]>
 	frameDots: Map<string, NpcSimDot>
@@ -43,15 +73,20 @@ export function useNpcSimulation(sources: NpcSimulationSources = {}): {
 	core.ingestConfig(sources.getConfig?.())
 	onUnmounted(core.stopLoop)
 
-	watch(() => sources.getConfig?.(), raw => core.ingestConfig(raw), { deep: true })
+	let lastFloorSig = ''
 
 	watch(() => sources.getFloor?.()?.id, floorId => {
 		if (!floorId) return
+		lastFloorSig = ''
 		core.setViewFloorId(floorId)
 	})
 
 	watch(() => sources.getFloor?.(), floor => {
-		if (floor && floor.id === core.getViewFloorId()) core.refresh()
+		if (!floor || floor.id !== core.getViewFloorId()) return
+		const sig = floorSignature(floor)
+		if (sig === lastFloorSig) return
+		lastFloorSig = sig
+		core.refresh()
 	}, { deep: true })
 
 	watch(() => sources.getCanvas?.(), () => {

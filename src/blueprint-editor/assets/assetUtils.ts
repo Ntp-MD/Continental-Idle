@@ -347,18 +347,18 @@ export function serializeAsset(asset: AssetDef): AssetDef {
 	if (asset.defaultRadius && asset.defaultRadius > 0) out.defaultRadius = asset.defaultRadius
 	if (asset.defaultLabelPadding) out.defaultLabelPadding = asset.defaultLabelPadding
 	if (asset.defaultLocked) out.defaultLocked = asset.defaultLocked
-	if (asset.tags?.length) out.tags = asset.tags
+	if (asset.tags?.length) out.tags = [...asset.tags]
 	if (asset.pxW !== undefined) out.pxW = asset.pxW
 	if (asset.pxH !== undefined) out.pxH = asset.pxH
 	if (asset.usePx) out.usePx = asset.usePx
 	if (asset.svg) out.svg = asset.svg
-	if (asset.svgViewBox) out.svgViewBox = asset.svgViewBox
-	if (asset.svgRoles?.length) out.svgRoles = asset.svgRoles
-	if (asset.walkableGrid) out.walkableGrid = asset.walkableGrid
-	if (asset.tileStates) out.tileStates = asset.tileStates
-	if (asset.interactSpots?.length) out.interactSpots = asset.interactSpots
-	if (asset.interact) out.interact = asset.interact
-	if (asset.queue) out.queue = asset.queue
+	if (asset.svgViewBox) out.svgViewBox = { ...asset.svgViewBox }
+	if (asset.svgRoles?.length) out.svgRoles = [...asset.svgRoles]
+	if (asset.walkableGrid) out.walkableGrid = asset.walkableGrid.map(row => [...row])
+	if (asset.tileStates) out.tileStates = asset.tileStates.map(row => [...row])
+	if (asset.interactSpots?.length) out.interactSpots = asset.interactSpots.map(p => ({ ...p }))
+	if (asset.interact) out.interact = { ...asset.interact }
+	if (asset.queue) out.queue = { ...asset.queue }
 	return out
 }
 

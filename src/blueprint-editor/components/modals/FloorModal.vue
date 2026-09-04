@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, defineAsyncComponent } from 'vue'
 import { useAssetsStore } from '../../blueprintStore'
-import { useToast } from '@/composables/useToast'
+import { useToast, reportSaved } from '@/composables/useToast'
 import { useConfirm } from '@/composables/useConfirm'
 import { sanitizeString } from '../../../utils/sanitize'
 import { resolveStreetTiles } from '../../domain/types'
@@ -30,6 +30,8 @@ const availableRoles = computed(() => store.state.layout.npcConfig?.roles ?? [])
 const selectedFloor = computed<FloorData | undefined>(
   () => floors.value.find((f) => f.id === selectedFloorId.value) ?? floors.value[0],
 )
+
+const streetTiles = computed(() => resolveStreetTiles(store.state.layout))
 
 watch(
   () => props.open,
@@ -61,8 +63,7 @@ async function commitName() {
   if (!selectedFloor.value) return
   const name = editingNameRaw.value.trim() || 'Unnamed'
   const saved = await store.renameFloor(selectedFloor.value.id, name)
-  if (!saved) return toast.error('Failed to rename floor')
-  toast.info('Floor renamed')
+  if (!reportSaved(saved, 'Floor renamed', 'Failed to rename floor')) return
   editingName.value = false
 }
 
@@ -81,14 +82,12 @@ async function commitLabel() {
 
 async function onAdd() {
   const floor = await store.addFloor()
-  if (floor) toast.success('Floor added')
-  else toast.error('Failed to add floor')
+  reportSaved(!!floor, 'Floor added', 'Failed to add floor')
 }
 
 async function onDuplicate(id: string) {
   const duplicated = await store.duplicateFloor(id)
-  if (duplicated) toast.success('Floor duplicated')
-  else toast.error('Failed to duplicate floor')
+  reportSaved(!!duplicated, 'Floor duplicated', 'Failed to duplicate floor')
 }
 
 async function onDelete(id: string) {
@@ -102,12 +101,8 @@ async function onDelete(id: string) {
   })
   if (!ok) return
   const deleted = await store.deleteFloor(id)
-  if (!deleted) {
-    toast.error('Failed to delete floor')
-    return
-  }
+  if (!reportSaved(deleted, 'Floor deleted', 'Failed to delete floor')) return
   if (selectedFloorId.value === id) selectedFloorId.value = floors.value[0]?.id ?? null
-  toast.success('Floor deleted')
 }
 
 function onDragStart(index: number) {
@@ -117,8 +112,7 @@ async function onDrop(index: number) {
   if (floorDragIndex.value === null) return
   const saved = await store.reorderFloors(floorDragIndex.value, index)
   floorDragIndex.value = null
-  if (saved) toast.info('Floors reordered')
-  else toast.error('Failed to reorder floors')
+  reportSaved(!!saved, 'Floors reordered', 'Failed to reorder floors')
 }
 
 async function toggleWalkable(e: Event) {
@@ -162,6 +156,7 @@ function floorCounts(f: FloorData): string {
             v-for="(f, index) in floors"
             :key="f.id"
             class="card__item floor__item"
+            :class="{ 'flag--active': selectedFloor?.id === f.id }"
             draggable="true"
             @dragstart="onDragStart(index)"
             @dragover.prevent
@@ -172,6 +167,24 @@ function floorCounts(f: FloorData): string {
             <span class="size--stretch truncate">{{ f.name }}</span>
             <span class="floor__count">{{ floorCounts(f) }}</span>
             <span v-if="f.id === store.state.currentFloorId" class="badge">ACTIVE</span>
+            <button
+              type="button"
+              title="Duplicate floor"
+              :aria-label="`Duplicate floor ${f.name}`"
+              @click.stop="onDuplicate(f.id)"
+            >
+              Duplicate
+            </button>
+            <button
+              type="button"
+              class="flag--danger"
+              title="Delete floor"
+              :aria-label="`Delete floor ${f.name}`"
+              :disabled="floors.length <= 1"
+              @click.stop="onDelete(f.id)"
+            >
+              x
+            </button>
           </li>
         </ul>
       </div>
@@ -266,12 +279,12 @@ function floorCounts(f: FloorData): string {
   <FloorWalkablePanel
     :open="showWalkable"
     :floor="selectedFloor"
-    :street-tiles="resolveStreetTiles(store.state.layout)"
+    :street-tiles="streetTiles"
     @close="showWalkable = false"
   />
 </template>
 
-<style scoped>
+<style>
 .floor__body {
   min-width: 0;
   overflow: hidden;

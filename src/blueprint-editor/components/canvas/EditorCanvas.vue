@@ -1,18 +1,16 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch, inject, type Ref } from 'vue'
 import { useAssetsStore, dragState, endAssetDrag, wallSelection } from '../../blueprintStore'
-import { findAssetCached, svgColorVarStyle, doorPanelsData, type DoorPanel } from '../../assets/assetUtils'
+import { svgColorVarStyle } from '../../assets/assetUtils'
 import { svgTransform as svgTransformGeo, roundedRectPath, buildingArea } from '../../domain/geometry'
 import {
   CANVAS_WALL_OBJECT_TYPE,
   resolveStreetTiles,
-  resolveWallSegmentsForObject,
   normalizeEditorSettings,
 } from '../../domain/types'
 import { useConfirm } from '@/composables/useConfirm'
 import { useToast } from '@/composables/useToast'
-import type { ObjectData, EntityRef } from '../../domain/types'
-import { resolveObjectDef } from '../../domain/types'
+import type { ObjectData, EntityRef, AssetDef } from '../../domain/types'
 import { useCanvasViewport } from '../../composables/useCanvasViewport'
 import { useCanvasSelection } from '../../composables/useCanvasSelection'
 import { useCanvasDragDrop } from '../../composables/useCanvasDragDrop'
@@ -22,6 +20,8 @@ import ModalShell from '../shell/ModalShell.vue'
 import { useNpcSimulation } from '../../composables/useNpcSimulation'
 import { useDoorAnimation } from '../../composables/useDoorAnimation'
 import { useWallPaint, type WallSegment, type WallSelection } from '../../composables/useWallPaint'
+import { useNpcOverlayDraw } from '../../composables/useNpcOverlayDraw'
+import { useCanvasRuns, type WallRun, type ObjWallLine } from '../../composables/useCanvasRuns'
 import { renderSvgInto as renderSvgContent } from '../../assets/svgSanitizer'
 
 const vSvgContent = {
@@ -65,109 +65,6 @@ const npcSimulation = inject('npcSimulation') as ReturnType<typeof useNpcSimulat
 const { start: startNpcSimulation, stop: stopNpcSimulation } = npcSimulation
 
 const npcCanvasRef = ref<HTMLCanvasElement | null>(null)
-let npcDrawRaf: number | null = null
-
-const npcThemeColors = { accent: '#4cc9f0', guide: '#3a86ff', green: '#2ec4b6' }
-
-function readNpcThemeColors(): void {
-  const style = getComputedStyle(document.documentElement)
-  npcThemeColors.accent = style.getPropertyValue('--accent-primary').trim() || '#4cc9f0'
-  npcThemeColors.guide = style.getPropertyValue('--accent-blue').trim() || '#3a86ff'
-  npcThemeColors.green = style.getPropertyValue('--accent-green').trim() || '#2ec4b6'
-}
-
-function drawNpcFrame() {
-  npcDrawRaf = requestAnimationFrame(drawNpcFrame)
-  const canvas = npcCanvasRef.value
-  const svg = vp.svgRef.value
-  if (!canvas || !svg) return
-  const sRect = svg.getBoundingClientRect()
-  const host = canvas.parentElement
-  if (!host) return
-  const hRect = host.getBoundingClientRect()
-  canvas.style.left = `${sRect.left - hRect.left}px`
-  canvas.style.top = `${sRect.top - hRect.top}px`
-  canvas.style.width = `${sRect.width}px`
-  canvas.style.height = `${sRect.height}px`
-  const dpr = window.devicePixelRatio || 1
-  const targetW = Math.round(sRect.width * dpr)
-  const targetH = Math.round(sRect.height * dpr)
-  if (canvas.width !== targetW || canvas.height !== targetH) {
-    canvas.width = targetW
-    canvas.height = targetH
-  }
-  const ctx = canvas.getContext('2d')
-  if (!ctx) return
-  ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
-  ctx.clearRect(0, 0, sRect.width, sRect.height)
-  const ctm = svg.getScreenCTM()
-  if (!ctm) return
-  const colAccent = npcThemeColors.accent
-  const colGuide = npcThemeColors.guide
-  const colGreen = npcThemeColors.green
-  const colRing = 'rgba(255,255,255,0.8)'
-  const fid = store.state.currentFloorId
-  for (const dot of npcSimulation.frameDots.values()) {
-    if (dot.floorId !== fid) continue
-    const p = new DOMPoint(dot.x, dot.y).matrixTransform(ctm)
-    const sx = p.x - sRect.left
-    const sy = p.y - sRect.top
-    if (sx < -8 || sy < -8 || sx > sRect.width + 8 || sy > sRect.height + 8) continue
-    if (showNpcGuides.value && dot.status === 'walking') {
-      if (dot.path.length > 1) {
-        ctx.beginPath()
-        ctx.setLineDash([4, 3])
-        ctx.moveTo(sx, sy)
-        for (let i = dot.pathIdx; i < dot.path.length; i++) {
-          const pt = new DOMPoint(dot.path[i][0], dot.path[i][1]).matrixTransform(ctm)
-          ctx.lineTo(pt.x - sRect.left, pt.y - sRect.top)
-        }
-        ctx.strokeStyle = colGuide
-        ctx.lineWidth = 1
-        ctx.globalAlpha = 0.7
-        ctx.stroke()
-        ctx.setLineDash([])
-        ctx.globalAlpha = 1
-      }
-      const tp = new DOMPoint(dot.targetX, dot.targetY).matrixTransform(ctm)
-      const tx = tp.x - sRect.left
-      const ty = tp.y - sRect.top
-      ctx.strokeStyle = colAccent
-      ctx.lineWidth = 1
-      ctx.beginPath()
-      ctx.moveTo(tx - 3, ty)
-      ctx.lineTo(tx + 3, ty)
-      ctx.moveTo(tx, ty - 3)
-      ctx.lineTo(tx, ty + 3)
-      ctx.stroke()
-    }
-    ctx.beginPath()
-    ctx.arc(sx, sy, 4, 0, Math.PI * 2)
-    ctx.fillStyle = dot.color
-    ctx.fill()
-    ctx.lineWidth = 1
-    ctx.strokeStyle = dot.status === 'interacting' ? colGreen : colRing
-    ctx.stroke()
-  }
-}
-
-function startNpcDraw() {
-  readNpcThemeColors()
-  if (npcDrawRaf === null) npcDrawRaf = requestAnimationFrame(drawNpcFrame)
-}
-
-function stopNpcDraw() {
-  if (npcDrawRaf !== null) {
-    cancelAnimationFrame(npcDrawRaf)
-    npcDrawRaf = null
-  }
-  const canvas = npcCanvasRef.value
-  const ctx = canvas?.getContext('2d')
-  if (canvas && ctx) {
-    ctx.setTransform(1, 0, 0, 1, 0, 0)
-    ctx.clearRect(0, 0, canvas.width, canvas.height)
-  }
-}
 
 watch(
   () => store.state.mode,
@@ -245,114 +142,6 @@ const selectedObjectIds = computed(() => {
   }
   return ids
 })
-
-const objDefMap = computed(() => {
-  const map = new Map<string, ReturnType<typeof resolveObjectDef>>()
-  const assetMap = store.assetMap()
-  for (const obj of floor.value?.objects ?? []) {
-    map.set(obj.id, resolveObjectDef(obj.rotation, findAssetCached(assetMap, obj.type), { w: obj.w, h: obj.h }))
-  }
-  return map
-})
-
-interface TileRun {
-  x: number
-  y: number
-  w: number
-  h: number
-  state: string
-}
-const walkableRuns = computed<TileRun[]>(() => {
-  const tileStates = floor.value?.walkable?.tileStates
-  if (!tileStates) return []
-  const t = canvas.value.tileSize
-  const runs: TileRun[] = []
-  for (let r = 0; r < tileStates.length; r++) {
-    const row = tileStates[r]
-    let c = 0
-    while (c < row.length) {
-      const state = row[c]
-      let endC = c + 1
-      while (endC < row.length && row[endC] === state) endC++
-      runs.push({ x: c * t, y: r * t, w: (endC - c) * t, h: t, state })
-      c = endC
-    }
-  }
-  return runs
-})
-
-interface WallRun extends WallSegment {
-  objectId: string
-}
-const wallRuns = computed<WallRun[]>(() => {
-  const fl = floor.value
-  if (!fl) return []
-  const t = canvas.value.tileSize
-  return fl.objects
-    .filter((object) => object.isWall && object.type === CANVAS_WALL_OBJECT_TYPE)
-    .flatMap((object) => {
-      if ([object.x1, object.y1, object.x2, object.y2].some((value) => typeof value !== 'number')) return []
-      const run: WallRun = {
-        objectId: object.id,
-        x1: object.x1! * t,
-        y1: object.y1! * t,
-        x2: object.x2! * t,
-        y2: object.y2! * t,
-      }
-      if (object.door) run.door = true
-      return [run]
-    })
-})
-
-interface ObjWallLine extends WallSegment {
-  id: string
-}
-const objWallLines = computed<ObjWallLine[]>(() => {
-  const fl = floor.value
-  if (!fl) return []
-  const assets = store.assetMap()
-  const t = canvas.value.tileSize
-  return fl.objects.flatMap((object) => {
-    const asset = assets.get(object.type)
-    if (!asset?.wallSegments?.length) return []
-    return resolveWallSegmentsForObject(asset.wallSegments, asset, object, t).map((segment) => ({
-      ...segment,
-      id: object.id,
-    }))
-  })
-})
-
-const wallRunsNoDoors = computed(() => wallRuns.value.filter((w) => !w.door))
-const objWallLinesNoDoors = computed(() => objWallLines.value.filter((w) => !w.door))
-
-const doorPanels = computed<DoorPanel[]>(() => {
-  const thickness = wallThickness.value
-  const panels: DoorPanel[] = []
-  for (const run of wallRuns.value) {
-    if (run.door) panels.push(...doorPanelsData([run], 1, thickness))
-  }
-  for (const line of objWallLines.value) {
-    if (line.door) panels.push(...doorPanelsData([line], 1, thickness))
-  }
-  return panels
-})
-
-const doorAnimation = useDoorAnimation({
-  getDoors: () => doorPanels.value,
-  getNpcs: () => {
-    const fid = store.state.currentFloorId
-    return [...npcSimulation.frameDots.values()].filter((d) => d.floorId === fid)
-  },
-  getTileSize: () => canvas.value.tileSize,
-  getDoorPassageEvents: () => {
-    const fid = store.state.currentFloorId
-    return npcSimulation.doorPassageEvents.value.filter((e) => e.floorId === fid)
-  },
-})
-
-function doorProgress(key: string): number {
-  return doorAnimation.doorStates.value.get(key)?.progress ?? 0
-}
 
 function wallDistance(point: { x: number; y: number }, wall: WallSegment): number {
   const dx = wall.x2 - wall.x1
@@ -473,6 +262,45 @@ const {
   onPanMouseUp,
   localPoint,
 } = vp
+
+const { startNpcDraw, stopNpcDraw } = useNpcOverlayDraw({
+  frameDots: npcSimulation.frameDots,
+  floorId: () => store.state.currentFloorId,
+  guides: showNpcGuides,
+  svg: vp.svgRef,
+  canvas: npcCanvasRef,
+  viewBox,
+  rulerSize: RULER_SIZE,
+})
+
+const { walkableRuns, wallRuns, objWallLines, wallRunsNoDoors, objWallLinesNoDoors, doorPanels, objDef, objAssetMap } = useCanvasRuns({
+  floor,
+  tileSize: () => canvas.value.tileSize,
+  assetMap: () => store.assetMap(),
+})
+
+const EMPTY_DOOR_NPCS: never[] = []
+const EMPTY_DOOR_EVENTS: never[] = []
+
+const doorAnimation = useDoorAnimation({
+  getDoors: () => doorPanels.value,
+  getNpcs: () => {
+    if (npcSimulation.frameDots.size === 0) return EMPTY_DOOR_NPCS
+    const fid = store.state.currentFloorId
+    return [...npcSimulation.frameDots.values()].filter((d) => d.floorId === fid)
+  },
+  getTileSize: () => canvas.value.tileSize,
+  getDoorPassageEvents: () => {
+    const events = npcSimulation.doorPassageEvents.value
+    if (events.length === 0) return EMPTY_DOOR_EVENTS
+    const fid = store.state.currentFloorId
+    return events.filter((e) => e.floorId === fid)
+  },
+})
+
+function doorProgress(key: string): number {
+  return doorAnimation.doorStates.value.get(key)?.progress ?? 0
+}
 
 const wallPaint = useWallPaint({
   disabled: () => store.state.mode === 'npc-preview',
@@ -696,8 +524,7 @@ const streetDashArray = computed(
     `${Math.max(2, canvas.value.tileSize * editorSettings.value.streetDashRatio)} ${Math.max(1, canvas.value.tileSize * editorSettings.value.streetGapRatio)}`,
 )
 
-function hasOuterWall(obj: ObjectData): boolean {
-  const asset = findAssetCached(store.assetMap(), obj.type)
+function hasOuterWall(asset: AssetDef | undefined): boolean {
   if (!asset?.wallSegments?.length) return false
   return asset.wallSegments.some(
     (segment) =>
@@ -982,45 +809,34 @@ function escapeSvgText(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 }
 
-function assetLabel(type: string): string {
-  const asset = findAssetCached(store.assetMap(), type)
+function assetLabel(type: string, asset: AssetDef | undefined): string {
   return escapeSvgText(asset?.defaultLabel ?? asset?.name ?? type)
 }
 
-function objDef(obj: ObjectData) {
-  return (
-    objDefMap.value.get(obj.id) ??
-    resolveObjectDef(obj.rotation, findAssetCached(store.assetMap(), obj.type), { w: obj.w, h: obj.h })
-  )
-}
-
-function objFillColor(obj: ObjectData): string {
+function objFillColor(obj: ObjectData, asset: AssetDef | undefined): string {
   if (obj.fillColor) return obj.fillColor
-  const a = findAssetCached(store.assetMap(), obj.type)
-  if (a?.svg) return a.defaultFillColor ?? 'transparent'
-  return a?.defaultFillColor ?? 'var(--text-primary)'
+  if (asset?.svg) return asset.defaultFillColor ?? 'transparent'
+  return asset?.defaultFillColor ?? 'var(--text-primary)'
 }
 
 function objLabelColor(): string {
   return canvas.value.labelColor || 'var(--text-primary)'
 }
 
-function objIsWall(obj: ObjectData): boolean {
-  return obj.isWall === true || (findAssetCached(store.assetMap(), obj.type)?.isWall ?? false)
+function objIsWall(obj: ObjectData, asset: AssetDef | undefined): boolean {
+  return obj.isWall === true || (asset?.isWall ?? false)
 }
 
-function assetSvg(type: string): string | undefined {
-  return findAssetCached(store.assetMap(), type)?.svg
+function assetSvg(asset: AssetDef | undefined): string | undefined {
+  return asset?.svg
 }
 
-function svgTransform(obj: ObjectData): string {
-  const asset = findAssetCached(store.assetMap(), obj.type)
+function svgTransform(obj: ObjectData, asset: AssetDef | undefined): string {
   return svgTransformGeo(obj, asset)
 }
 
-function svgColorVars(obj: ObjectData): string {
-  const a = findAssetCached(store.assetMap(), obj.type)
-  return svgColorVarStyle(obj.fillColor ?? a?.defaultFillColor, obj.strokeColor ?? a?.defaultStrokeColor)
+function svgColorVars(obj: ObjectData, asset: AssetDef | undefined): string {
+  return svgColorVarStyle(obj.fillColor ?? asset?.defaultFillColor, obj.strokeColor ?? asset?.defaultStrokeColor)
 }
 
 function isObjectSelected(id: string): boolean {
@@ -1493,18 +1309,18 @@ async function cancelDrawnOrigin() {
               fill="transparent"
               class="editor__svg--passall"
             />
-            <template v-if="assetSvg(obj.type)">
+            <template v-if="assetSvg(objAssetMap.get(obj.id))">
               <g
-                v-svg-content="assetSvg(obj.type)"
-                :transform="svgTransform(obj)"
+                v-svg-content="assetSvg(objAssetMap.get(obj.id))"
+                :transform="svgTransform(obj, objAssetMap.get(obj.id))"
                 :data-obj-id="obj.id"
                 :class="{
                   'editor__object--collapsed': obj.collapsed,
                   'editor__object--dragging': moving?.id === obj.id,
                   'editor__object--locked': obj.locked,
-                  'editor__object--nowall': !hasOuterWall(obj),
+                  'editor__object--nowall': !hasOuterWall(objAssetMap.get(obj.id)),
                 }"
-                :style="`cursor:${moving?.id === obj.id ? 'grabbing' : 'move'};${svgColorVars(obj)}`"
+                :style="`cursor:${moving?.id === obj.id ? 'grabbing' : 'move'};${svgColorVars(obj, objAssetMap.get(obj.id))}`"
               />
             </template>
             <path
@@ -1526,9 +1342,9 @@ async function cancelDrawnOrigin() {
                   obj.rx,
                 )!
               "
-              :fill="objFillColor(obj)"
-              :stroke-width="objIsWall(obj) ? 2 : 1"
-              :stroke-dasharray="objIsWall(obj) ? '6 3' : undefined"
+              :fill="objFillColor(obj, objAssetMap.get(obj.id))"
+              :stroke-width="objIsWall(obj, objAssetMap.get(obj.id)) ? 2 : 1"
+              :stroke-dasharray="objIsWall(obj, objAssetMap.get(obj.id)) ? '6 3' : undefined"
               :class="{
                 'editor__object--collapsed': obj.collapsed,
                 'editor__object--dragging': moving?.id === obj.id,
@@ -1544,7 +1360,7 @@ async function cancelDrawnOrigin() {
               :y="obj.y + (obj.padding ?? 0)"
               :width="obj.w - (obj.padding ?? 0) * 2"
               :height="obj.h - (obj.padding ?? 0) * 2"
-              :fill="objFillColor(obj)"
+              :fill="objFillColor(obj, objAssetMap.get(obj.id))"
               stroke-width="1"
               :rx="obj.radius ?? 0"
               :class="{
@@ -1601,7 +1417,7 @@ async function cancelDrawnOrigin() {
               class="editor__svg--noevents"
               :fill="objLabelColor()"
             >
-              {{ assetLabel(obj.type) }}
+              {{ assetLabel(obj.type, objAssetMap.get(obj.id)) }}
             </text>
             <g v-if="obj.linkGroupId" class="editor__svg--noevents">
               <circle

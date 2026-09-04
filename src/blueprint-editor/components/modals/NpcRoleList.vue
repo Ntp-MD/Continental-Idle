@@ -54,7 +54,6 @@ function roleSummary(role: NpcRole): string {
           Default
         </button>
         <button
-          v-if="role.id !== defaultRoleId"
           type="button"
           class="flag--danger"
           aria-label="Delete role"
@@ -69,7 +68,7 @@ function roleSummary(role: NpcRole): string {
   </aside>
 </template>
 
-<style scoped>
+<style>
 .npc__sidebar {
   min-width: 0;
   padding: var(--gap-md);

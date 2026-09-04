@@ -35,18 +35,26 @@ function thumbSvg(asset: AssetDef): string {
 }
 
 const thumbEls = new Map<string, SVGSVGElement>()
+const thumbHtml = new Map<string, string>()
 
 function setThumbEl(id: string, el: unknown) {
   const svg = el as SVGSVGElement | null
   if (svg) thumbEls.set(id, svg)
-  else thumbEls.delete(id)
+  else {
+    thumbEls.delete(id)
+    thumbHtml.delete(id)
+  }
 }
 
 function renderThumbs() {
   if (!props.open) return
   for (const asset of filteredAssets.value) {
     const el = thumbEls.get(asset.id)
-    if (el) renderSvgInto(el, thumbSvg(asset))
+    if (!el) continue
+    const html = thumbSvg(asset)
+    if (thumbHtml.get(asset.id) === html) continue
+    thumbHtml.set(asset.id, html)
+    renderSvgInto(el, html)
   }
 }
 
@@ -114,7 +122,7 @@ function pick(asset: AssetDef) {
   </ModalShell>
 </template>
 
-<style scoped>
+<style>
 #modal-asset-picker {
   width: min(94vw, 720px);
   max-height: calc(100vh - 32px);
@@ -127,8 +135,8 @@ function pick(asset: AssetDef) {
 }
 
 .picker__grid {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
   gap: var(--gap-sm);
 }
 
@@ -136,8 +144,7 @@ function pick(asset: AssetDef) {
   position: relative;
   display: flex;
   flex-direction: column;
-  flex: 1 1 150px;
-  max-width: 200px;
+  max-width: 100px;
   min-width: 0;
   gap: var(--gap-xxs);
   padding: var(--gap-xs);

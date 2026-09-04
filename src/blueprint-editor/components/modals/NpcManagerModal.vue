@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { computed, onUnmounted, ref, toRaw, watch } from 'vue'
+import { computed, onUnmounted, ref, watch } from 'vue'
 import { useAssetsStore } from '../../blueprintStore'
 import { useConfirm } from '@/composables/useConfirm'
-import { useToast } from '@/composables/useToast'
-import { isHexColor, normalizeNpcConfig } from '../../domain/types'
-import { genId, emptyNpcConfig, taskMatchesQuery } from '../../blueprintStore'
+import { useToast, reportSaved } from '@/composables/useToast'
+import { isHexColor, normalizeNpcConfig, clampInt } from '../../domain/types'
+import { genId, emptyNpcConfig, taskMatchesQuery, cloneDeepRaw } from '../../blueprintStore'
+import { useDebouncedCallback } from '@/composables/useDebounceFn'
 import { sanitizeString } from '../../../utils/sanitize'
 import type { NpcRole, NpcSimulationConfig, NpcTask } from '../../domain/types'
 import ModalShell from '../shell/ModalShell.vue'
@@ -27,7 +28,6 @@ const newTag = ref('')
 const pending = ref(false)
 const saveState = ref<'' | 'saved' | 'unsaved'>('')
 let saveStateTimer: number | null = null
-let rateTimer: number | null = null
 
 function markSaved() {
   saveState.value = 'saved'
@@ -65,7 +65,7 @@ const statusText = computed(() => {
 })
 
 function normalizeConfig(value: NpcSimulationConfig): NpcSimulationConfig {
-  const normalized = normalizeNpcConfig(structuredClone(toRaw(value)))
+  const normalized = normalizeNpcConfig(cloneDeepRaw(value))
   if (!normalized) throw new Error('Invalid NPC configuration')
   for (const role of normalized.roles) role.label = sanitizeString(role.label)
   for (const task of normalized.tasks) task.label = sanitizeString(task.label)
@@ -80,7 +80,7 @@ function isPersistable(value: NpcSimulationConfig): boolean {
 }
 
 async function persistConfig(showToast = false): Promise<boolean> {
-  flushRatePersist()
+  queuePersist.cancel()
   const normalized = normalizeConfig(draft.value)
   if (!isPersistable(normalized)) {
     saveState.value = 'unsaved'
@@ -104,20 +104,9 @@ async function persistConfig(showToast = false): Promise<boolean> {
   }
 }
 
-function flushRatePersist() {
-  if (rateTimer) {
-    window.clearTimeout(rateTimer)
-    rateTimer = null
-  }
-}
-
-function queuePersist() {
-  flushRatePersist()
-  rateTimer = window.setTimeout(() => {
-    rateTimer = null
-    void persistConfig()
-  }, 400)
-}
+const queuePersist = useDebouncedCallback(() => {
+  void persistConfig()
+}, 400)
 
 function resetSelection() {
   selectedRoleId.value = draft.value.roles[0]?.id ?? ''
@@ -127,17 +116,28 @@ watch(
   () => props.open,
   (open) => {
     if (open) {
-      draft.value = structuredClone(toRaw(store.state.layout.npcConfig ?? emptyNpcConfig()))
+      draft.value = cloneDeepRaw(store.state.layout.npcConfig ?? emptyNpcConfig())
       view.value = 'roles'
       resetSelection()
     }
   },
+  { immediate: true },
 )
+
+function hslToHex(h: number, s: number, l: number): string {
+  s /= 100
+  l /= 100
+  const k = (n: number) => (n + h / 30) % 12
+  const a = s * Math.min(l, 1 - l)
+  const f = (n: number) => l - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1)))
+  const to = (x: number) => Math.round(255 * x).toString(16).padStart(2, '0')
+  return `#${to(f(0))}${to(f(8))}${to(f(4))}`
+}
 
 function colorForId(id: string): string {
   let h = 0
   for (const c of id) h = (h * 31 + c.charCodeAt(0)) >>> 0
-  return `hsl(${h % 360}, 60%, 55%)`
+  return hslToHex(h % 360, 60, 55)
 }
 
 async function addRole() {
@@ -159,26 +159,47 @@ async function addRole() {
 }
 
 async function deleteRole(role: NpcRole) {
-  if (role.id === draft.value.defaultRoleId) {
-    toast.warning('Default role cannot be deleted')
+  const isDefault = role.id === draft.value.defaultRoleId
+  const others = draft.value.roles.filter((item) => item.id !== role.id)
+  if (others.length === 0) {
+    toast.warning('At least one role is required - cannot delete the last role')
     return
   }
   if (
     !(await confirm({
       title: 'Delete role',
-      message: `Delete role "${role.label}"? Its deployment count and behavior settings will also be removed.`,
+      message: isDefault
+        ? `Delete role "${role.label}"? "${others[0].label}" will become the default role.`
+        : `Delete role "${role.label}"? Its deployment count and behavior settings will also be removed.`,
       confirmLabel: 'Delete',
       cancelLabel: 'Cancel',
       danger: true,
     }))
   )
     return
-  draft.value.roles = draft.value.roles.filter((item) => item.id !== role.id)
+  draft.value.roles = others
   draft.value.pool = draft.value.pool.filter((entry) => entry.roleId !== role.id)
+  if (isDefault) draft.value.defaultRoleId = others[0].id
   if (selectedRoleId.value === role.id) resetSelection()
+  removeRoleFromFloors(role.id)
   const ok = await persistConfig()
-  if (ok) toast.success(`Role "${role.label}" deleted`)
-  else toast.error('Failed to delete role - changes not saved')
+  reportSaved(ok, `Role "${role.label}" deleted`, 'Failed to delete role - changes not saved')
+}
+
+function removeRoleFromFloors(roleId: string) {
+  for (const floor of store.state.layout.floors) {
+    if (floor.allowedRoleIds?.includes(roleId)) {
+      const next = floor.allowedRoleIds.filter((id) => id !== roleId)
+      if (next.length) floor.allowedRoleIds = next
+      else delete floor.allowedRoleIds
+    }
+    if (floor.spawnZones?.some((zone) => zone.roleIds?.includes(roleId))) {
+      floor.spawnZones = floor.spawnZones.map((zone) => {
+        const roleIds = zone.roleIds?.filter((id) => id !== roleId)
+        return roleIds?.length ? { ...zone, roleIds } : { ...zone, roleIds: undefined }
+      })
+    }
+  }
 }
 
 async function setDefaultRole(role: NpcRole) {
@@ -187,7 +208,7 @@ async function setDefaultRole(role: NpcRole) {
 }
 
 async function updateRole() {
-  await persistConfig()
+  queuePersist()
 }
 
 async function renameRole(value: string) {
@@ -248,7 +269,7 @@ async function deleteTask(taskId: string) {
 }
 
 async function updateTask() {
-  await persistConfig()
+  queuePersist()
 }
 
 async function addTaskTag(task: NpcTask, value: string) {
@@ -303,9 +324,7 @@ async function removeTag(tag: string) {
   )
     return
   try {
-    const deleted = await store.removeTag(tag)
-    if (deleted) toast.success(`Tag "${tag}" deleted`)
-    else toast.error('Failed to delete tag - changes not saved')
+    reportSaved(await store.removeTag(tag), `Tag "${tag}" deleted`, 'Failed to delete tag - changes not saved')
   } catch {
     toast.error('Failed to delete tag - changes not saved')
   }
@@ -318,18 +337,18 @@ async function addRoleTag(kind: 'focus' | 'restricted', tag: string) {
   const target = kind === 'focus' ? selectedRole.value.focusTags : selectedRole.value.restrictedTags
   if (!target.includes(value)) target.push(value)
   await store.ensureTag(value)
-  await persistConfig()
+  queuePersist()
 }
 
 async function removeRoleTag(kind: 'focus' | 'restricted', tag: string) {
   if (!selectedRole.value) return
   if (kind === 'focus') selectedRole.value.focusTags = selectedRole.value.focusTags.filter((item) => item !== tag)
   else selectedRole.value.restrictedTags = selectedRole.value.restrictedTags.filter((item) => item !== tag)
-  await persistConfig()
+  queuePersist()
 }
 
 function setTriggerRate(tag: string, rate: number) {
-  const safeRate = Math.max(0, Math.min(100, Math.floor(rate || 0)))
+  const safeRate = clampInt(rate || 0, 0, 100)
   if (!draft.value.tagTriggerRates) draft.value.tagTriggerRates = {}
   if (safeRate === 0) delete draft.value.tagTriggerRates[tag]
   else draft.value.tagTriggerRates[tag] = safeRate
@@ -337,18 +356,25 @@ function setTriggerRate(tag: string, rate: number) {
 }
 
 function onClose() {
-  flushRatePersist()
+  queuePersist.cancel()
   void persistConfig(true).then(() => emit('close'))
 }
 
 onUnmounted(() => {
-  flushRatePersist()
   if (saveStateTimer) window.clearTimeout(saveStateTimer)
 })
 </script>
 
 <template>
   <ModalShell :open="open" modal-id="modal-npc-manager" title="NPC Manager" @close="onClose">
+    <template #header>
+      <span
+        class="npc__status-text truncate"
+        :class="{ 'npc__status-text--invalid': invalidRole || missingDefault }"
+        aria-live="polite"
+        >{{ statusText }}</span
+      >
+    </template>
     <div class="tabs__bar">
       <button
         type="button"
@@ -388,6 +414,7 @@ onUnmounted(() => {
         :tasks="draft.tasks"
         :all-tags="tags"
         :trigger-rates="draft.tagTriggerRates"
+        :is-default="selectedRole.id === draft.defaultRoleId"
         @update="updateRole"
         @rename="renameRole"
         @chance="setRoleChance"
@@ -396,6 +423,7 @@ onUnmounted(() => {
         @remove-tag="removeRoleTag"
         @toggle-task="toggleTaskAssignment"
         @set-rate="setTriggerRate"
+        @remove="deleteRole(selectedRole)"
       />
       <section v-else class="npc__detail">
         <div class="empty">Select a role on the left to edit it</div>
@@ -446,13 +474,9 @@ onUnmounted(() => {
         <button type="button" class="flag--active size--fill" :disabled="pending" @click="addTask">+ Add Task</button>
       </section>
     </div>
-
-    <div class="npc__status" aria-live="polite">
-      <span v-if="statusText">{{ statusText }}</span>
-    </div>
   </ModalShell>
 </template>
-<style scoped>
+<style>
 .npc__panel button {
   flex-shrink: 0;
 }
@@ -480,17 +504,15 @@ onUnmounted(() => {
   flex-shrink: 0;
 }
 
-.npc__status {
-  min-height: 24px;
-  border-top: 1px solid var(--border-dim);
-  padding: var(--gap-xs) var(--gap-md);
-  display: flex;
-  align-items: center;
-  flex-shrink: 0;
+.npc__status-text {
+  color: var(--text-secondary);
+  margin-right: auto;
 }
-</style>
 
-<style>
+.npc__status-text--invalid {
+  color: var(--accent-gold);
+}
+
 #modal-npc-manager {
   width: min(90vw, 1200px);
   height: 90vh;

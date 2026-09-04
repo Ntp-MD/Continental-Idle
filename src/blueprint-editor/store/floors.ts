@@ -1,8 +1,7 @@
-import { toRaw } from 'vue'
 import type { FloorData } from '../domain/types'
 import { normalizeAllowedRoleIds, normalizeFloorWalkable, normalizeNpcSpawnZones } from '../domain/types'
 import { state } from './state'
-import { genId } from './storeUtils'
+import { genId, cloneDeepRaw } from './storeUtils'
 import { saveBlueprintData } from './persistence'
 
 export async function addFloor(): Promise<FloorData | null> {
@@ -33,7 +32,7 @@ export async function deleteFloor(id: string): Promise<boolean> {
 export async function duplicateFloor(id: string): Promise<boolean> {
 	const floor = state.layout.floors.find(f => f.id === id)
 	if (!floor) return false
-	const copy: FloorData = structuredClone(toRaw(floor))
+	const copy: FloorData = cloneDeepRaw(floor)
 	copy.id = genId('floor')
 	copy.name = `${floor.name} Copy`
 	const idMap = new Map<string, string>()

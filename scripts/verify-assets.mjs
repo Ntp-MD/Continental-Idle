@@ -7,6 +7,7 @@
  * - Fields present in data but no longer on the type (stale data after removal)
  * - Fields required by the type but missing from data (incomplete migration)
  * - Shape mismatches (e.g. interactSpots entries as [x,y] tuples instead of {x,y})
+ * - Tags used by assets or NPC roles/tasks but missing from tagManager.data.ts (registration warnings)
  *
  * Run via: npm run verify:assets
  *
@@ -202,13 +203,94 @@ for (const asset of raw) {
 		}
 	}
 
-	// origin must be valid
-	if (asset.origin !== undefined) {
-		const validOrigins = ['drawn', 'svg-import', 'flattened']
-		if (!validOrigins.includes(asset.origin)) {
-			error(id, `origin: invalid value "${asset.origin}" — must be one of ${validOrigins.join(', ')}`)
-		}
-	}
+  // origin must be valid
+  if (asset.origin !== undefined) {
+    const validOrigins = ['drawn', 'svg-import', 'flattened']
+    if (!validOrigins.includes(asset.origin)) {
+      error(id, `origin: invalid value "${asset.origin}" — must be one of ${validOrigins.join(', ')}`)
+    }
+  }
+}
+
+// --- Tag registration check: tagManager.data.ts is the source of truth ---
+function normalizeTagValue(value) {
+  if (typeof value !== 'string') return undefined
+  const text = value.trim().toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9_-]/g, '')
+  return text || undefined
+}
+
+function readDefinedTagIds() {
+  const tagPath = path.join(root, 'src', 'blueprint-editor', 'data', 'tagManager.data.ts')
+  const source = fs.readFileSync(tagPath, 'utf8').replace(/^\uFEFF/, '')
+  const ids = new Set()
+  const pattern = /["']?id["']?\s*:\s*"([^"]+)"/g
+  let match
+  while ((match = pattern.exec(source)) !== null) {
+    const normalized = normalizeTagValue(match[1])
+    if (normalized) ids.add(normalized)
+  }
+  return ids
+}
+
+function collectNpcTagUsage() {
+  const npcPath = path.join(root, 'src', 'blueprint-editor', 'data', 'npcSettings.data.ts')
+  const source = fs.readFileSync(npcPath, 'utf8').replace(/^\uFEFF/, '')
+  const prefix = 'export const npcSettingsData ='
+  if (!source.trimStart().startsWith(prefix)) throw new Error('npcSettings.data.ts has an invalid export')
+  const config = JSON.parse(source.trimStart().slice(prefix.length).trim().replace(/;\s*$/, ''))
+  const usage = new Map()
+  const add = (tag, user) => {
+    const normalized = normalizeTagValue(tag)
+    if (!normalized) return
+    if (!usage.has(normalized)) usage.set(normalized, [])
+    const users = usage.get(normalized)
+    if (!users.includes(user)) users.push(user)
+  }
+  for (const role of config.roles ?? []) {
+    for (const tag of role.focusTags ?? []) add(tag, `role:${role.id}`)
+    for (const tag of role.restrictedTags ?? []) add(tag, `role:${role.id}`)
+    for (const tag of role.spawnRule?.targetTags ?? []) add(tag, `role:${role.id}`)
+  }
+  for (const task of config.tasks ?? []) {
+    for (const tag of task.tags ?? []) add(tag, `task:${task.id}`)
+  }
+  return usage
+}
+
+{
+  const usage = new Map()
+  const addUser = (tag, user) => {
+    const normalized = normalizeTagValue(tag)
+    if (!normalized) return
+    if (!usage.has(normalized)) usage.set(normalized, [])
+    const users = usage.get(normalized)
+    if (!users.includes(user)) users.push(user)
+  }
+  for (const asset of raw) {
+    if (!Array.isArray(asset.tags)) continue
+    for (const tag of asset.tags) addUser(tag, `asset:${asset.id ?? '<no-id>'}`)
+  }
+  let defined
+  try {
+    defined = readDefinedTagIds()
+  } catch (e) {
+    error('tags', `cannot read tagManager.data.ts: ${e.message}`)
+    defined = new Set()
+  }
+  let npcUsage
+  try {
+    npcUsage = collectNpcTagUsage()
+  } catch (e) {
+    error('tags', `cannot read npcSettings.data.ts: ${e.message}`)
+    npcUsage = new Map()
+  }
+  for (const [tag, users] of npcUsage) {
+    for (const user of users) addUser(tag, user)
+  }
+  const unregistered = [...usage.keys()].filter(tag => !defined.has(tag)).sort()
+  for (const tag of unregistered) {
+    warn('tags', `tag "${tag}" used by [${usage.get(tag).join(', ')}] but missing from tagManager.data.ts - add a definition or remove the references`)
+  }
 }
 
 // ─── Summary ───

@@ -1,11 +1,11 @@
-import { reactive, computed, ref, toRaw } from 'vue'
+import { reactive, computed, ref } from 'vue'
 import type { BlueprintTagDefinition, FloorLayoutData, AssetDef, FloorData, EditorMode, SelectionState, Rect, WallSegment } from '../domain/types'
 import { buildAssetMap, parseSvgRoles, buildWalkableGrid } from '../assets/assetUtils'
 import { snap as _snap, clamp as _clamp, buildingArea } from '../domain/geometry'
 import { originAssets, blueprintTagDefinitions, fetchBlueprintDataFromDisk, buildBlueprintData } from './dataLoader'
 import { useToast } from '@/composables/useToast'
 import { loadInitial, migrate } from './migrate'
-import { editorLog } from './storeUtils'
+import { editorLog, cloneDeepRaw } from './storeUtils'
 
 interface EditorState {
 	layout: FloorLayoutData
@@ -125,9 +125,9 @@ interface StateSnapshot {
 
 function captureStateSnapshot(): StateSnapshot {
 	return {
-		layout: structuredClone(toRaw(state.layout)),
-		assetRegistry: structuredClone(toRaw(state.assetRegistry)),
-		tagDefinitions: structuredClone(toRaw(state.tagDefinitions)),
+		layout: cloneDeepRaw(state.layout),
+		assetRegistry: cloneDeepRaw(state.assetRegistry),
+		tagDefinitions: cloneDeepRaw(state.tagDefinitions),
 	}
 }
 

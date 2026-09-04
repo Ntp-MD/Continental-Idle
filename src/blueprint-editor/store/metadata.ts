@@ -1,5 +1,5 @@
 import type { ObjectData } from '../domain/types'
-import { objectOverlapsAny, recalcCollapsed } from '../domain/collision'
+import { objectOverlapsAny, recalcCollapsed, unionRects } from '../domain/collision'
 import { state, toast, snap, clamp, assetMap, currentFloor } from './state'
 import { genId } from './storeUtils'
 import { selectedObjectIds } from './selection'
@@ -12,8 +12,9 @@ export function copySelected() {
 	if (!floor) return
 	const objIds = selectedObjectIds()
 	if (objIds.length > 0) {
+		const objIdSet = new Set(objIds)
 		clipboard = floor.objects
-			.filter(o => objIds.includes(o.id) && !o.isWall)
+			.filter(o => objIdSet.has(o.id) && !o.isWall)
 			.map(o => ({ ...o }))
 		if (clipboard.length === 0) {
 			toast.warning('Canvas wall objects cannot be copied')
@@ -70,10 +71,11 @@ export async function pasteObjects(): Promise<void> {
 		floor.objects.push(copy)
 	}
 	const pastedGroups = new Map<string, string>()
+	const pastedSet = new Set(newIds)
 	for (const c of clipboard) {
 		if (!c.linkGroupId) continue
 		const newId = idMap.get(c.id)
-		if (!newId || !newIds.includes(newId)) continue
+		if (!newId || !pastedSet.has(newId)) continue
 		const sourceGroup = c.linkGroupId
 		let groupId = pastedGroups.get(sourceGroup)
 		if (!groupId) {
@@ -88,7 +90,7 @@ export async function pasteObjects(): Promise<void> {
 	} else {
 		state.selectionState = { primary: { type: 'object', id: newIds[0] }, items: [{ type: 'object', id: newIds[0] }] }
 	}
-	recalcCollapsed(floor, assetMap())
+	recalcCollapsed(floor, assetMap(), unionRects(pendingCopies) ?? undefined)
 	await saveBlueprintData()
 	toast.success(`Pasted ${newIds.length} object(s)`)
 }

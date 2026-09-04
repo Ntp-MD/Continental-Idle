@@ -84,6 +84,7 @@
 
 .modal__header {
 	display: flex;
+	gap: var(--gap-sm);
 	flex-shrink: 0;
 	align-items: center;
 	justify-content: space-between;
@@ -190,11 +191,16 @@
 	color: var(--accent-green);
 }
 
-.flag--danger,
+.flag--danger {
+	border-color: var(--accent-red);
+	color: var(--accent-red);
+}
+
 .flag--danger:hover,
 .flag--danger:active {
 	border-color: var(--accent-red);
-	color: var(--accent-red);
+	background: var(--accent-red);
+	color: #fff;
 }
 
 .flag--warning,

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { NpcEngine, NPC_ENGINE_DEFAULT_OPTIONS, findNpcGridPath, selectBestTarget, WanderMemory, type NpcEngineLayout, type NpcEngineInteractionTarget, type NpcEngineFloor, type NpcEngineAgent } from '../src/engine/npc'
+import { NpcEngine, NPC_ENGINE_DEFAULT_OPTIONS, findNpcGridPath, selectBestTarget, WanderMemory, type NpcEngineLayout, type NpcEngineInteractionTarget, type NpcEngineFloor, type NpcEngineAgent, type NpcEngineOptions } from '../src/engine/npc'
 import { normalizeAllowedRoleIds } from '../src/blueprint-editor/domain/types'
 import { validatePortalConfiguration, buildAssetMap } from '../src/blueprint-editor/assets/assetUtils'
 import type { AssetDef } from '../src/blueprint-editor/domain/types'
@@ -123,13 +123,35 @@ function makePortalPair(srcFloor: string, destFloor: string, srcObjId: string, d
 
 const directPath = (_floor: unknown, from: { x: number; y: number }, to: { x: number; y: number }) => [{ x: from.x, y: from.y }, { x: to.x, y: to.y }]
 
+function tenByTenFloors(...ids: string[]): NpcEngineFloor[] {
+	return ids.map(id => ({ id, width: 10, height: 10, tileSize: 1, walkable: [] }))
+}
+
+function testEngine(layout: NpcEngineLayout, overrides: Partial<NpcEngineOptions> = {}): NpcEngine {
+	return new NpcEngine(layout, {
+		...NPC_ENGINE_DEFAULT_OPTIONS,
+		ticksPerSecond: 1,
+		agentClearance: 0.5,
+		random: () => 0,
+		pathfinder: directPath,
+		...overrides,
+	})
+}
+
+function makeWalkable(w: number, h: number): Set<string> {
+	const set = new Set<string>()
+	for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) set.add(`${x},${y}`)
+	return set
+}
+
+const elevator = makeElevatorAsset()
+
 
 {
 	const portals = makePortalPair('F1', 'F2', 'p1', 'p2', [5, 5], [8, 8])
 	const portalLayout: NpcEngineLayout = {
 		floors: [
-			{ id: 'F1', width: 10, height: 10, tileSize: 1, walkable: [] },
-			{ id: 'F2', width: 10, height: 10, tileSize: 1, walkable: [] },
+			...tenByTenFloors('F1', 'F2'),
 		],
 		interactionTargets: [
 			{ floorId: 'F2', itemId: 'desk', interactSpotId: 'a1', x: 1, y: 1, tags: ['service'], capacity: 2, durationMinSeconds: 2, durationMaxSeconds: 2 },
@@ -137,9 +159,7 @@ const directPath = (_floor: unknown, from: { x: number; y: number }, to: { x: nu
 		],
 	}
 	let selectorSawCrossFloor = false
-	const portalEngine = new NpcEngine(portalLayout, {
-		...NPC_ENGINE_DEFAULT_OPTIONS,
-		ticksPerSecond: 1, agentClearance: 0.5, random: () => 0, pathfinder: directPath,
+	const portalEngine = testEngine(portalLayout, {
 		targetSelector: (_agent, targets) => { if (targets.some(t => t.floorId !== 'F1')) selectorSawCrossFloor = true; return targets[0] ?? null },
 		crossFloorSelector: (_agent, candidates) => candidates.find(t => t.floorId === 'F2' && t.itemId === 'desk') ?? null,
 	})
@@ -160,8 +180,7 @@ const directPath = (_floor: unknown, from: { x: number; y: number }, to: { x: nu
 	const portals = makePortalPair('F1', 'F2', 'p1', 'p2', [5, 5], [8, 8])
 	const portalLayout: NpcEngineLayout = {
 		floors: [
-			{ id: 'F1', width: 10, height: 10, tileSize: 1, walkable: [] },
-			{ id: 'F2', width: 10, height: 10, tileSize: 1, walkable: [] },
+			...tenByTenFloors('F1', 'F2'),
 		],
 		interactionTargets: [
 			{ floorId: 'F1', itemId: 'desk1', interactSpotId: 'a1', x: 1, y: 1, tags: ['service'], capacity: 1, durationMinSeconds: 100, durationMaxSeconds: 100 },
@@ -169,9 +188,7 @@ const directPath = (_floor: unknown, from: { x: number; y: number }, to: { x: nu
 			...portals,
 		],
 	}
-	const cdEngine = new NpcEngine(portalLayout, {
-		...NPC_ENGINE_DEFAULT_OPTIONS,
-		ticksPerSecond: 1, agentClearance: 0.5, random: () => 0, pathfinder: directPath,
+	const cdEngine = testEngine(portalLayout, {
 		targetSelector: (_agent, targets) => targets[0] ?? null,
 		crossFloorSelector: (_agent, candidates) => candidates[0] ?? null,
 	})
@@ -197,17 +214,14 @@ const directPath = (_floor: unknown, from: { x: number; y: number }, to: { x: nu
 	const portals = makePortalPair('F1', 'F2', 'p1', 'p2', [5, 5], [8, 8])
 	const portalLayout: NpcEngineLayout = {
 		floors: [
-			{ id: 'F1', width: 10, height: 10, tileSize: 1, walkable: [] },
-			{ id: 'F2', width: 10, height: 10, tileSize: 1, walkable: [] },
+			...tenByTenFloors('F1', 'F2'),
 		],
 		interactionTargets: [
 			{ floorId: 'F2', itemId: 'desk', interactSpotId: 'a1', x: 1, y: 1, tags: ['service'], capacity: 1, durationMinSeconds: 1, durationMaxSeconds: 1 },
 			...portals,
 		],
 	}
-	const loopEngine = new NpcEngine(portalLayout, {
-		...NPC_ENGINE_DEFAULT_OPTIONS,
-		ticksPerSecond: 1, agentClearance: 0.5, random: () => 0, pathfinder: directPath,
+	const loopEngine = testEngine(portalLayout, {
 		targetSelector: (_agent, targets) => targets[0] ?? null,
 		crossFloorSelector: (_agent, candidates) => candidates[0] ?? null,
 	})
@@ -224,16 +238,13 @@ const directPath = (_floor: unknown, from: { x: number; y: number }, to: { x: nu
 {
 	const noRouteLayout: NpcEngineLayout = {
 		floors: [
-			{ id: 'F1', width: 10, height: 10, tileSize: 1, walkable: [] },
-			{ id: 'F2', width: 10, height: 10, tileSize: 1, walkable: [] },
+			...tenByTenFloors('F1', 'F2'),
 		],
 		interactionTargets: [
 			{ floorId: 'F2', itemId: 'desk', interactSpotId: 'a1', x: 1, y: 1, tags: ['service'], capacity: 1, durationMinSeconds: 1, durationMaxSeconds: 1 },
 		],
 	}
-	const noRouteEngine = new NpcEngine(noRouteLayout, {
-		...NPC_ENGINE_DEFAULT_OPTIONS,
-		ticksPerSecond: 1, agentClearance: 0.5, random: () => 0, pathfinder: directPath,
+	const noRouteEngine = testEngine(noRouteLayout, {
 		targetSelector: () => null,
 		wanderSelector: () => ({ x: 9, y: 9 }),
 		crossFloorSelector: (_agent, candidates) => candidates[0] ?? null,
@@ -252,8 +263,7 @@ const directPath = (_floor: unknown, from: { x: number; y: number }, to: { x: nu
 	const p23 = makePortalPair('F2', 'F3', 'p2', 'p3', [8, 8], [3, 3])
 	const threeFloorLayout: NpcEngineLayout = {
 		floors: [
-			{ id: 'F1', width: 10, height: 10, tileSize: 1, walkable: [] },
-			{ id: 'F2', width: 10, height: 10, tileSize: 1, walkable: [] },
+			...tenByTenFloors('F1', 'F2'),
 			{ id: 'F3', width: 10, height: 10, tileSize: 1, walkable: [] },
 		],
 		interactionTargets: [
@@ -262,9 +272,7 @@ const directPath = (_floor: unknown, from: { x: number; y: number }, to: { x: nu
 			...p12, ...p13, ...p23,
 		],
 	}
-	const threeEngine = new NpcEngine(threeFloorLayout, {
-		...NPC_ENGINE_DEFAULT_OPTIONS,
-		ticksPerSecond: 1, agentClearance: 0.5, random: () => 0, pathfinder: directPath,
+	const threeEngine = testEngine(threeFloorLayout, {
 		targetSelector: () => null,
 		crossFloorSelector: (_agent, candidates) => candidates.find(t => t.floorId === 'F3') ?? null,
 	})
@@ -289,9 +297,7 @@ const directPath = (_floor: unknown, from: { x: number; y: number }, to: { x: nu
 			...portals,
 		],
 	}
-	const roleEngine = new NpcEngine(roleLayout, {
-		...NPC_ENGINE_DEFAULT_OPTIONS,
-		ticksPerSecond: 1, agentClearance: 0.5, random: () => 0, pathfinder: directPath,
+	const roleEngine = testEngine(roleLayout, {
 		targetSelector: () => null,
 		wanderSelector: () => ({ x: 9, y: 9 }),
 		crossFloorSelector: (_agent, candidates) => candidates[0] ?? null,
@@ -308,17 +314,14 @@ const directPath = (_floor: unknown, from: { x: number; y: number }, to: { x: nu
 	const portals = makePortalPair('F1', 'F2', 'p1', 'p2', [5, 5], [8, 8])
 	const occLayout: NpcEngineLayout = {
 		floors: [
-			{ id: 'F1', width: 10, height: 10, tileSize: 1, walkable: [] },
-			{ id: 'F2', width: 10, height: 10, tileSize: 1, walkable: [] },
+			...tenByTenFloors('F1', 'F2'),
 		],
 		interactionTargets: [
 			{ floorId: 'F2', itemId: 'desk', interactSpotId: 'a1', x: 1, y: 1, tags: ['service'], capacity: 1, durationMinSeconds: 100, durationMaxSeconds: 100 },
 			...portals,
 		],
 	}
-	const occEngine = new NpcEngine(occLayout, {
-		...NPC_ENGINE_DEFAULT_OPTIONS,
-		ticksPerSecond: 1, agentClearance: 0.5, random: () => 0, pathfinder: directPath,
+	const occEngine = testEngine(occLayout, {
 		targetSelector: () => null,
 		crossFloorSelector: (_agent, candidates) => candidates[0] ?? null,
 	})
@@ -336,8 +339,7 @@ const directPath = (_floor: unknown, from: { x: number; y: number }, to: { x: nu
 	const portals = makePortalPair('F1', 'F2', 'p1', 'p2', [5, 5], [8, 8])
 	const dupLayout: NpcEngineLayout = {
 		floors: [
-			{ id: 'F1', width: 10, height: 10, tileSize: 1, walkable: [] },
-			{ id: 'F2', width: 10, height: 10, tileSize: 1, walkable: [] },
+			...tenByTenFloors('F1', 'F2'),
 		],
 		interactionTargets: [
 			{ floorId: 'F1', itemId: 'desk1', interactSpotId: 'a1', x: 1, y: 1, tags: ['service'], capacity: 1, durationMinSeconds: 1, durationMaxSeconds: 1 },
@@ -345,9 +347,7 @@ const directPath = (_floor: unknown, from: { x: number; y: number }, to: { x: nu
 		],
 	}
 	let portalInSameFloor = false
-	const dupEngine = new NpcEngine(dupLayout, {
-		...NPC_ENGINE_DEFAULT_OPTIONS,
-		ticksPerSecond: 1, agentClearance: 0.5, random: () => 0, pathfinder: directPath,
+	const dupEngine = testEngine(dupLayout, {
 		targetSelector: (_agent, targets) => { if (targets.some(t => t.transitionToFloorId)) portalInSameFloor = true; return targets[0] ?? null },
 		crossFloorSelector: () => null,
 	})
@@ -367,7 +367,6 @@ const directPath = (_floor: unknown, from: { x: number; y: number }, to: { x: nu
 
 {
 
-	const elevator = makeElevatorAsset()
 	const assetMap = buildAssetMap([elevator])
 	assert.ok(elevator.tags?.includes('portal'), 'elevator asset should have portal tag')
 	assert.equal(elevator.interactSpots?.length, 9, 'elevator asset should have 9 interactSpots')
@@ -447,15 +446,8 @@ function generateRuntimePortalTargets(
 
 
 {
-	const elevator = makeElevatorAsset()
 	assert.ok(elevator.interactSpots?.length === 9, 'elevator must have 9 interactspots for integration test')
 	const tileSize = 25
-
-	const makeWalkable = (w: number, h: number) => {
-		const set = new Set<string>()
-		for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) set.add(`${x},${y}`)
-		return set
-	}
 	const floorDefs = [
 		{ id: 'G', walkable: makeWalkable(10, 10), portalObjects: [{ id: 'elev-g', x: 100, y: 100, interactSpots: elevator.interactSpots! }] },
 		{ id: '1', walkable: makeWalkable(10, 10), portalObjects: [{ id: 'elev-1', x: 200, y: 200, interactSpots: elevator.interactSpots! }] },
@@ -472,10 +464,7 @@ function generateRuntimePortalTargets(
 		],
 		interactionTargets: [normalTarget, ...portalTargets],
 	}
-	const intEngine = new NpcEngine(engineLayout, {
-		...NPC_ENGINE_DEFAULT_OPTIONS,
-		ticksPerSecond: 1, agentClearance: 0.5, random: () => 0,
-		pathfinder: (_f, from, to) => [{ x: from.x, y: from.y }, { x: to.x, y: to.y }],
+	const intEngine = testEngine(engineLayout, {
 		targetSelector: () => null,
 		crossFloorSelector: (_agent, candidates) => candidates.find(t => t.floorId === '1' && t.itemId === 'desk') ?? null,
 	})
@@ -489,13 +478,7 @@ function generateRuntimePortalTargets(
 
 
 {
-	const elevator = makeElevatorAsset()
 	const tileSize = 25
-	const makeWalkable = (w: number, h: number) => {
-		const set = new Set<string>()
-		for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) set.add(`${x},${y}`)
-		return set
-	}
 	const floorDefs = [
 		{ id: 'G', walkable: makeWalkable(10, 10), portalObjects: [{ id: 'elev-g', x: 100, y: 100, interactSpots: elevator.interactSpots! }] },
 		{ id: '1', walkable: makeWalkable(10, 10), portalObjects: [{ id: 'elev-1', x: 200, y: 200, interactSpots: elevator.interactSpots! }] },
@@ -519,10 +502,7 @@ function generateRuntimePortalTargets(
 	}
 
 	const floorOrder = ['G', '1', '2']
-	const int3Engine = new NpcEngine(engineLayout, {
-		...NPC_ENGINE_DEFAULT_OPTIONS,
-		ticksPerSecond: 1, agentClearance: 0.5, random: () => 0,
-		pathfinder: (_f, from, to) => [{ x: from.x, y: from.y }, { x: to.x, y: to.y }],
+	const int3Engine = testEngine(engineLayout, {
 		targetSelector: () => null,
 		crossFloorSelector: (_agent, candidates, _floors) => {
 			const currentIdx = floorOrder.indexOf('G')
@@ -541,13 +521,7 @@ function generateRuntimePortalTargets(
 
 
 {
-	const elevator = makeElevatorAsset()
 	const tileSize = 25
-	const makeWalkable = (w: number, h: number) => {
-		const set = new Set<string>()
-		for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) set.add(`${x},${y}`)
-		return set
-	}
 	const floorDefs = [
 		{ id: 'G', walkable: makeWalkable(10, 10), portalObjects: [{ id: 'elev-g', x: 100, y: 100, interactSpots: elevator.interactSpots! }] },
 		{ id: '1', walkable: makeWalkable(10, 10), portalObjects: [{ id: 'elev-1', x: 200, y: 200, interactSpots: elevator.interactSpots! }] },
@@ -563,10 +537,7 @@ function generateRuntimePortalTargets(
 			...portalTargets,
 		],
 	}
-	const roleEngine = new NpcEngine(engineLayout, {
-		...NPC_ENGINE_DEFAULT_OPTIONS,
-		ticksPerSecond: 1, agentClearance: 0.5, random: () => 0,
-		pathfinder: (_f, from, to) => [{ x: from.x, y: from.y }, { x: to.x, y: to.y }],
+	const roleEngine = testEngine(engineLayout, {
 		targetSelector: () => null,
 		wanderSelector: () => ({ x: 9, y: 9 }),
 		crossFloorSelector: (_agent, candidates) => candidates[0] ?? null,
@@ -579,7 +550,6 @@ function generateRuntimePortalTargets(
 
 
 {
-	const elevator = makeElevatorAsset()
 	const tileSize = 25
 
 	const expectedCells = [
@@ -599,14 +569,16 @@ function generateRuntimePortalTargets(
 
 // ─── 8-direction pathfinding tests ───
 
-function makeGridFloor(id: string, w: number, h: number, blocked: string[] = [], edges: { from: [number, number]; to: [number, number] }[] = []): NpcEngineFloor {
+function makeGridFloor(id: string, w: number, h: number, blocked: string[] = [], edges: { from: [number, number]; to: [number, number] }[] = [], doorEdges: { from: [number, number]; to: [number, number] }[] = []): NpcEngineFloor {
 	const walkable: { x: number; y: number }[] = []
 	for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
 		if (!blocked.includes(`${x},${y}`)) walkable.push({ x, y })
 	}
+	const toEdge = (e: { from: [number, number]; to: [number, number] }) => ({ from: { x: e.from[0], y: e.from[1] }, to: { x: e.to[0], y: e.to[1] } })
 	return {
 		id, width: w, height: h, tileSize: 1, walkable,
-		blockedEdges: edges.map(e => ({ from: { x: e.from[0], y: e.from[1] }, to: { x: e.to[0], y: e.to[1] } })),
+		blockedEdges: edges.map(toEdge),
+		doorEdges: doorEdges.map(toEdge),
 	}
 }
 
@@ -704,7 +676,6 @@ function makeGridFloor(id: string, w: number, h: number, blocked: string[] = [],
 	engine.addAgent({ id: 'B', floorId: 'F1', x: 1, y: 0, targetX: 1, targetY: 0, speed: 1 })
 	engine.tick(5)
 	const agents = engine.getAgents()
-	assert.ok(agents.every(a => a.x !== a.x || true), 'reservation: agents should not overlap')
 	const positions = agents.map(a => `${a.x},${a.y}`)
 	const unique = new Set(positions)
 	assert.equal(unique.size, positions.length, 'reservation: no two agents should occupy the same cell')
@@ -716,7 +687,6 @@ function makeGridFloor(id: string, w: number, h: number, blocked: string[] = [],
 		floorId: 'F1', itemId: 'item1', interactSpotId: 'a0', x: 5, y: 0, tags: [],
 		capacity: 1, durationMinSeconds: 1, durationMaxSeconds: 1,
 	}]
-	let repathCount = 0
 	const engine = new NpcEngine({ floors: [floor], interactionTargets: targets }, {
 		...NPC_ENGINE_DEFAULT_OPTIONS,
 		random: rngSeq(),
@@ -727,12 +697,10 @@ function makeGridFloor(id: string, w: number, h: number, blocked: string[] = [],
 	engine.addAgent({ id: 'B', floorId: 'F1', x: 5, y: 0, targetX: 0, targetY: 0, speed: 1 })
 	for (let i = 0; i < 100; i++) {
 		engine.tick(1)
-		const events = engine.drainEvents()
-		repathCount += events.filter(e => e.type === 'repath').length
+		engine.drainEvents()
 	}
 	const events = engine.drainEvents()
 	const failedEvents = events.filter(e => e.type === 'repath-failed')
-	assert.ok(repathCount >= 0, 'repath: head-on conflict should trigger repath attempts')
 	assert.equal(failedEvents.length, 0, 'repath: should not produce repath-failed on a 2-row grid with room to maneuver')
 }
 
@@ -907,19 +875,7 @@ function makeTarget(itemId: string, x: number, y: number): NpcEngineInteractionT
 // --- Door passage event tests ---
 
 const doorFloor: NpcEngineFloor = {
-	id: 'F1',
-	width: 6,
-	height: 6,
-	tileSize: 1,
-	walkable: [
-		{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 2, y: 0 }, { x: 3, y: 0 }, { x: 4, y: 0 }, { x: 5, y: 0 },
-		{ x: 0, y: 1 }, { x: 1, y: 1 }, { x: 2, y: 1 }, { x: 3, y: 1 }, { x: 4, y: 1 }, { x: 5, y: 1 },
-		{ x: 0, y: 2 }, { x: 1, y: 2 }, { x: 2, y: 2 }, { x: 3, y: 2 }, { x: 4, y: 2 }, { x: 5, y: 2 },
-		{ x: 0, y: 3 }, { x: 1, y: 3 }, { x: 2, y: 3 }, { x: 3, y: 3 }, { x: 4, y: 3 }, { x: 5, y: 3 },
-		{ x: 0, y: 4 }, { x: 1, y: 4 }, { x: 2, y: 4 }, { x: 3, y: 4 }, { x: 4, y: 4 }, { x: 5, y: 4 },
-		{ x: 0, y: 5 }, { x: 1, y: 5 }, { x: 2, y: 5 }, { x: 3, y: 5 }, { x: 4, y: 5 }, { x: 5, y: 5 },
-	],
-	blockedEdges: [],
+	...makeGridFloor('F1', 6, 6),
 	doorEdges: [
 		{ from: { x: 2, y: 2 }, to: { x: 2, y: 3 } },
 	],

@@ -238,7 +238,7 @@ export default defineConfig({
 	plugins: [
 		vue(),
 		blueprintDataPlugin(),
-		visualizer({ filename: 'dist/bundle-report.html', gzipSize: true, brotliSize: true, template: 'treemap' }),
+		...(process.env.BUNDLE_REPORT ? [visualizer({ filename: 'dist/bundle-report.html', gzipSize: true, brotliSize: true, template: 'treemap' })] : []),
 	],
 	resolve: {
 		alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) },

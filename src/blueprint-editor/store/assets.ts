@@ -1,6 +1,6 @@
 import type { AssetDef, WalkableGrid, TileState } from '../domain/types'
 import { isSafeSvgMarkup, isValidColor, normalizeOriginAsset, applySvgColorConvention } from '../domain/types'
-import { aabbOverlap } from '../domain/collision'
+import { recalcCollapsed } from '../domain/collision'
 import { assetSizeFor, normalizeObject } from '../domain/geometry'
 import { parseSvgViewBox } from '../assets/assetUtils'
 import {
@@ -125,7 +125,6 @@ export async function updateAsset(id: string, patch: Partial<Pick<AssetDef, 'nam
 
 		const t = state.layout.canvas.tileSize
 		const assets = assetMap()
-		const collapsedIds: string[] = []
 
 		for (const floor of state.layout.floors) {
 			for (const obj of floor.objects) {
@@ -149,13 +148,10 @@ export async function updateAsset(id: string, patch: Partial<Pick<AssetDef, 'nam
 				if (patch.defaultRadius !== undefined) obj.radius = asset.defaultRadius
 				if (patch.defaultLabelPadding !== undefined) obj.labelPadding = asset.defaultLabelPadding
 				if (patch.defaultLocked !== undefined) obj.locked = asset.defaultLocked
-
-
-				const overlaps = floor.objects.some(o => o.id !== obj.id && aabbOverlap(obj, o))
-				obj.collapsed = overlaps
-				if (overlaps) collapsedIds.push(obj.id)
 			}
+			recalcCollapsed(floor, assets)
 		}
+		const collapsedIds = state.layout.floors.flatMap(floor => floor.objects.filter(o => o.type === id && o.collapsed).map(o => o.id))
 
 		if (collapsedIds.length > 0) {
 			toast.error(`${collapsedIds.length} object(s) collapsed due to overlap - shown in red`)
@@ -182,10 +178,7 @@ export async function refreshOriginInstances(): Promise<number> {
 				normalizeObject(object, tileSize, assets)
 				refreshedCount++
 			}
-			for (const object of floor.objects) {
-				const overlaps = floor.objects.some(other => other.id !== object.id && aabbOverlap(object, other))
-				object.collapsed = overlaps
-			}
+			recalcCollapsed(floor, assets)
 		}
 		await saveBlueprintData()
 		return refreshedCount

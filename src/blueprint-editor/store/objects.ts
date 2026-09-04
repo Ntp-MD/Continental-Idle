@@ -1,8 +1,8 @@
-import type { ObjectData, AssetDef, Rotation, EntityRef, TileState, WallSegment } from '../domain/types'
+import type { ObjectData, AssetDef, Rotation, EntityRef, TileState, WallSegment, Rect } from '../domain/types'
 import { CANVAS_WALL_OBJECT_TYPE, applySvgColorConvention, normalizeWallSegment, resolveObjectDef, resolveWallSegmentsForObject, assetPixelSize } from '../domain/types'
 import { findAssetCached, wallSegmentToObjectRect } from '../assets/assetUtils'
-import { buildingArea, normalizeObject } from '../domain/geometry'
-import { aabbOverlap, objectOverlapsAny, recalcCollapsed } from '../domain/collision'
+import { buildingArea, normalizeObject, roundedRectPath } from '../domain/geometry'
+import { aabbOverlap, objectOverlapsAny, recalcCollapsed, unionRects } from '../domain/collision'
 import {
 	state, toast, snap, clamp, assetMap, wallSelection,
 	currentFloor, withStateLock, initAssetFields,
@@ -138,16 +138,26 @@ export async function deleteSelected(): Promise<void> {
 			if (ids.length < objIds.length) {
 				toast.info(`${objIds.length - ids.length} locked object(s) skipped`)
 			}
-			const removedGroupIds = new Set(floor.objects.filter(o => ids.includes(o.id)).map(o => o.linkGroupId).filter((id): id is string => !!id))
-			floor.objects = floor.objects.filter(o => !ids.includes(o.id))
+			const idSet = new Set(ids)
+			const removed: ObjectData[] = []
+			const survivors: ObjectData[] = []
 			for (const o of floor.objects) {
-				if (o.linkGroupId && removedGroupIds.has(o.linkGroupId)) {
-					const remaining = floor.objects.filter(candidate => candidate.linkGroupId === o.linkGroupId)
-					if (remaining.length < 2) delete o.linkGroupId
+				if (idSet.has(o.id)) removed.push(o)
+				else survivors.push(o)
+			}
+			const removedGroupIds = new Set(removed.map(o => o.linkGroupId).filter((id): id is string => !!id))
+			floor.objects = survivors
+			const groupCounts = new Map<string, number>()
+			for (const o of survivors) {
+				if (o.linkGroupId) groupCounts.set(o.linkGroupId, (groupCounts.get(o.linkGroupId) ?? 0) + 1)
+			}
+			for (const o of survivors) {
+				if (o.linkGroupId && removedGroupIds.has(o.linkGroupId) && (groupCounts.get(o.linkGroupId) ?? 0) < 2) {
+					delete o.linkGroupId
 				}
 			}
 			clearSelection()
-			recalcCollapsed(floor, assetMap())
+			recalcCollapsed(floor, assetMap(), unionRects(removed) ?? undefined)
 			const saved = await saveBlueprintData()
 			if (saved) toast.success(`${ids.length} object${ids.length === 1 ? '' : 's'} deleted`)
 			return
@@ -161,6 +171,7 @@ export async function deleteSelected(): Promise<void> {
 			return
 		}
 		const deletedGroupId = o?.linkGroupId
+		const deletedRect: Rect | undefined = o ? { x: o.x, y: o.y, w: o.w, h: o.h } : undefined
 		floor.objects = floor.objects.filter(o => o.id !== primary.id)
 		if (deletedGroupId) {
 			const remainingGroup = floor.objects.filter(o => o.linkGroupId === deletedGroupId)
@@ -169,7 +180,7 @@ export async function deleteSelected(): Promise<void> {
 			}
 		}
 		clearSelection()
-		recalcCollapsed(floor, assetMap())
+		recalcCollapsed(floor, assetMap(), deletedRect)
 		const saved = await saveBlueprintData()
 		if (saved) toast.success('Object deleted')
 	})
@@ -276,7 +287,13 @@ export async function commitMove(): Promise<void> {
 			if (member) { member.x = old.x; member.y = old.y }
 		}
 	}
-	recalcCollapsed(floor, assetMap())
+	const beforeMove = unionRects(oldPositions.map(old => {
+		const moved = members.find(candidate => candidate.id === old.id)
+		return { x: old.x, y: old.y, w: moved?.w ?? 0, h: moved?.h ?? 0 }
+	}))
+	const afterMove = unionRects(members)
+	const movedBounds = beforeMove && afterMove ? unionRects([beforeMove, afterMove]) ?? undefined : (beforeMove ?? afterMove) ?? undefined
+	recalcCollapsed(floor, assetMap(), movedBounds)
 	await saveBlueprintData()
 }
 
@@ -298,6 +315,7 @@ export async function rotateSelected(): Promise<void> {
 			toast.warning('Cannot rotate - would overlap another object')
 			return
 		}
+		const prevRect = { x: o.x, y: o.y, w: o.w, h: o.h }
 		const nw = o.h
 		const nh = o.w
 		o.w = nw
@@ -311,7 +329,7 @@ export async function rotateSelected(): Promise<void> {
 		}
 
 		const cf = currentFloor.value
-		if (cf) recalcCollapsed(cf, assetMap())
+		if (cf) recalcCollapsed(cf, assetMap(), unionRects([prevRect, { x: o.x, y: o.y, w: o.w, h: o.h }]) ?? undefined)
 		const saved = await saveBlueprintData()
 		if (saved) {
 			const def = resolveObjectDef(o.rotation, findAssetCached(assetMap(), o.type), { w: o.w, h: o.h })
@@ -412,8 +430,10 @@ export async function flattenToSvgAsset(name?: string, walls?: readonly Selected
 		const ids = selectedObjectIds()
 		const selectedWalls = walls ?? wallSelection.value.filter(selection => selection.floorId === floor.id)
 		const selectedWallIds = new Set(selectedWalls.map(selection => selection.objectId))
-		const wallObjs = floor.objects.filter(object => object.type === CANVAS_WALL_OBJECT_TYPE && (ids.includes(object.id) || selectedWallIds.has(object.id)))
-		const objs = ids.map(id => floor.objects.find(o => o.id === id)).filter((object): object is ObjectData => !!object && object.type !== CANVAS_WALL_OBJECT_TYPE)
+		const idSet = new Set(ids)
+		const byId = new Map(floor.objects.map(o => [o.id, o] as const))
+		const wallObjs = floor.objects.filter(object => object.type === CANVAS_WALL_OBJECT_TYPE && (idSet.has(object.id) || selectedWallIds.has(object.id)))
+		const objs = ids.map(id => byId.get(id)).filter((object): object is ObjectData => !!object && object.type !== CANVAS_WALL_OBJECT_TYPE)
 		const selectedSegments = [
 			...wallObjs.flatMap(object => [object.x1, object.y1, object.x2, object.y2].every((value): value is number => typeof value === 'number')
 				? [{ x1: object.x1! * state.layout.canvas.tileSize, y1: object.y1! * state.layout.canvas.tileSize, x2: object.x2! * state.layout.canvas.tileSize, y2: object.y2! * state.layout.canvas.tileSize, door: object.door === true }]
@@ -490,12 +510,10 @@ export async function flattenToSvgAsset(name?: string, walls?: readonly Selected
 				const fill = obj.fillColor || asset?.defaultFillColor || 'var(--text-primary)'
 				const stroke = obj.strokeColor || asset?.defaultStrokeColor || 'var(--text-secondary)'
 				const rx = obj.rx
+				const rounded = rx ? roundedRectPath(ox + pad, oy + pad, dw, dh, rx) : null
 				let body: string
-				if (rx) {
-					const maxR = Math.min(dw, dh) / 2
-					const r = (v: number) => Math.max(0, Math.min(v, maxR))
-					const rtl = r(rx.tl), rtr = r(rx.tr), rbr = r(rx.br), rbl = r(rx.bl)
-					body = `<path d="M ${ox + pad + rtl} ${oy + pad} L ${ox + pad + dw - rtr} ${oy + pad} Q ${ox + pad + dw} ${oy + pad} ${ox + pad + dw} ${oy + pad + rtr} L ${ox + pad + dw} ${oy + pad + dh - rbr} Q ${ox + pad + dw} ${oy + pad + dh} ${ox + pad + dw - rbr} ${oy + pad + dh} L ${ox + pad + rtl} ${oy + pad + dh} Q ${ox + pad} ${oy + pad + dh} ${ox + pad} ${oy + pad + dh - rbl} L ${ox + pad} ${oy + pad + rtl} Q ${ox + pad} ${oy + pad} ${ox + pad + rtl} ${oy + pad} Z" fill="${fill}" stroke="${stroke}" stroke-width="1"/>`
+				if (rounded) {
+					body = `<path d="${rounded}" fill="${fill}" stroke="${stroke}" stroke-width="1"/>`
 				} else {
 					body = `<rect x="${ox + pad}" y="${oy + pad}" width="${dw}" height="${dh}" fill="${fill}" stroke="${stroke}" stroke-width="1" rx="${obj.radius ?? 0}"/>`
 				}
@@ -552,7 +570,7 @@ export async function flattenToSvgAsset(name?: string, walls?: readonly Selected
 		floor.objects = floor.objects.filter(o => !removeIds.has(o.id))
 		floor.objects.push(newObj)
 
-		recalcCollapsed(floor, assetMap())
+		recalcCollapsed(floor, assetMap(), unionRects([...objs, ...wallObjs, newObj]) ?? undefined)
 		clearSelection()
 		wallSelection.value = []
 		selectEntity({ type: 'object', id: newObj.id })

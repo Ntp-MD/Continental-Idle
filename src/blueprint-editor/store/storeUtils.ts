@@ -1,3 +1,4 @@
+import { toRaw } from 'vue'
 import type { NpcSimulationConfig, NpcTask } from '../domain/types'
 
 export function genId(prefix: string): string {
@@ -9,6 +10,21 @@ export function genId(prefix: string): string {
 
 export function taskMatchesQuery(task: NpcTask, query: string): boolean {
 	return task.label.toLowerCase().includes(query) || task.tags.some((tag) => tag.toLowerCase().includes(query))
+}
+
+export function cloneDeepRaw<T>(value: T): T {
+	return structuredClone(deepToRaw(value))
+}
+
+function deepToRaw<T>(value: T): T {
+	const raw = toRaw(value) as T
+	if (Array.isArray(raw)) return raw.map((item) => deepToRaw(item)) as T
+	if (raw !== null && typeof raw === 'object') {
+		const out: Record<string, unknown> = {}
+		for (const [key, entry] of Object.entries(raw)) out[key] = deepToRaw(entry)
+		return out as T
+	}
+	return raw
 }
 
 export function emptyNpcConfig(): NpcSimulationConfig {

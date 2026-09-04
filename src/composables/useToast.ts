@@ -27,3 +27,8 @@ export function useToast() {
     info: (msg: string) => show(msg, 'info'),
   }
 }
+
+export function reportSaved(ok: boolean, okMsg: string, failMsg: string): boolean {
+  show(ok ? okMsg : failMsg, ok ? 'success' : 'error')
+  return ok
+}

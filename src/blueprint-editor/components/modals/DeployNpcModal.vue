@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { ref, computed, toRaw, watch, onUnmounted } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { useToast } from '@/composables/useToast'
-import { useAssetsStore, state, emptyNpcConfig } from '../../blueprintStore'
-import { normalizeNpcConfig, type NpcSimulationConfig, type NpcRole, type NpcSpawnRule } from '../../domain/types'
+import { useDebouncedCallback } from '@/composables/useDebounceFn'
+import { useAssetsStore, state, emptyNpcConfig, cloneDeepRaw } from '../../blueprintStore'
+import { normalizeNpcConfig, clampInt, type NpcSimulationConfig, type NpcRole, type NpcSpawnRule } from '../../domain/types'
 import ModalShell from '../shell/ModalShell.vue'
 import TagChip from '../inputs/TagChip.vue'
 
@@ -16,7 +17,7 @@ if (!state.layout.npcConfig) {
   state.layout.npcConfig = emptyNpcConfig()
 }
 
-const draft = ref<NpcSimulationConfig>(structuredClone(toRaw(state.layout.npcConfig)))
+const draft = ref<NpcSimulationConfig>(cloneDeepRaw(state.layout.npcConfig))
 const newSpawnTag = ref<Record<string, string>>({})
 const spawnFloorId = ref('')
 
@@ -25,27 +26,16 @@ const floors = computed(() => store.state.layout.floors)
 const selectedRoleId = ref('')
 const selectedRole = computed(() => roles.value.find((role) => role.id === selectedRoleId.value) ?? roles.value[0])
 
-let persistTimer: number | null = null
-function schedulePersist(): void {
-  if (persistTimer) window.clearTimeout(persistTimer)
-  persistTimer = window.setTimeout(() => {
-    const normalized = normalizeNpcConfig(draft.value)
-    if (normalized) void store.updateNpcConfig(normalized)
-  }, 400)
-}
-
-onUnmounted(() => {
-  if (persistTimer) {
-    window.clearTimeout(persistTimer)
-    persistTimer = null
-  }
-})
+const schedulePersist = useDebouncedCallback(() => {
+  const normalized = normalizeNpcConfig(draft.value)
+  if (normalized) void store.updateNpcConfig(normalized)
+}, 400)
 
 watch(
   () => props.open,
   (open) => {
     if (open && state.layout.npcConfig) {
-      draft.value = structuredClone(toRaw(state.layout.npcConfig))
+      draft.value = cloneDeepRaw(state.layout.npcConfig)
     }
   },
 )
@@ -76,7 +66,7 @@ function togglePoolFloor(roleId: string, floorId: string): void {
 }
 
 function setPoolCount(roleId: string, count: number) {
-  const safe = Math.max(0, Math.min(100, Math.floor(count || 0)))
+  const safe = clampInt(count || 0, 0, 100)
   const entry = draft.value.pool.find((p) => p.roleId === roleId)
   if (safe === 0) {
     if (entry) draft.value.pool = draft.value.pool.filter((p) => p.roleId !== roleId)
@@ -110,10 +100,7 @@ async function persistDraft(): Promise<void> {
 }
 
 async function onClose() {
-  if (persistTimer) {
-    window.clearTimeout(persistTimer)
-    persistTimer = null
-  }
+  schedulePersist.cancel()
   await persistDraft()
   emit('close')
 }
@@ -123,10 +110,7 @@ async function onDeploy() {
     toast.warning('Set at least one NPC count before deploying')
     return
   }
-  if (persistTimer) {
-    window.clearTimeout(persistTimer)
-    persistTimer = null
-  }
+  schedulePersist.cancel()
   await persistDraft()
   emit('deploy', spawnFloorId.value)
 }
@@ -195,7 +179,7 @@ async function onDeploy() {
               max="100"
               :aria-label="`Count for ${role.label}`"
               @click.stop
-              @input="setPoolCount(role.id, Number(($event.target as HTMLInputElement).value))"
+              @change="setPoolCount(role.id, Number(($event.target as HTMLInputElement).value))"
             />
             <button
               class="deploy__step"
@@ -271,7 +255,7 @@ async function onDeploy() {
   </ModalShell>
 </template>
 
-<style scoped>
+<style>
 .deploy__sidebar {
   flex: 1 1 240px;
   max-width: 360px;

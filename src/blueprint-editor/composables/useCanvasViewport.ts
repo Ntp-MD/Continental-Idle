@@ -1,4 +1,5 @@
 import { ref, computed, type Ref, type ComputedRef } from 'vue'
+import { useDebouncedCallback } from '@/composables/useDebounceFn'
 
 export interface ViewportState {
 	zoom: Ref<number>
@@ -98,12 +99,11 @@ export function useCanvasViewport(
 	const spaceDown = ref(false)
 	const panning = ref<{ startX: number; startY: number; panX: number; panY: number } | null>(null)
 	const zooming = ref(false)
-	let zoomTimer: ReturnType<typeof setTimeout> | null = null
+	const stopZooming = useDebouncedCallback(() => { zooming.value = false }, 200)
 
 	function markZooming() {
 		zooming.value = true
-		if (zoomTimer) clearTimeout(zoomTimer)
-		zoomTimer = setTimeout(() => { zooming.value = false }, 200)
+		stopZooming()
 	}
 
 	function startPan(e: MouseEvent) {

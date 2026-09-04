@@ -24,7 +24,7 @@ function onConfirm() {
 </script>
 
 <template>
-  <ModalShell :open="!!pending" modal-id="modal-confirm" :title="pending?.title ?? ''" @close="onCancel">
+  <ModalShell :open="!!pending" modal-id="modal-confirm" top-layer :title="pending?.title ?? ''" @close="onCancel">
     <div v-if="pending" class="form__col" @keydown.enter.stop.prevent="onConfirm">
       <p class="confirmdialog__msg">{{ pending.message }}</p>
       <input
@@ -51,8 +51,8 @@ function onConfirm() {
   </ModalShell>
 </template>
 
-<style scoped>
-:deep(#modal-confirm) {
+<style>
+#modal-confirm {
   width: min(90vw, 400px);
   max-height: calc(100vh - 32px);
 }

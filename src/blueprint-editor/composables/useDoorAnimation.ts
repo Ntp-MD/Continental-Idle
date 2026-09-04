@@ -53,6 +53,7 @@ export function useDoorAnimation(host: DoorAnimationHost) {
 		const proximityPx = DOOR_PROXIMITY_TILES * tileSize
 		const npcs = host.getNpcs()
 		const states = new Map(doorStates.value)
+		let changed = false
 
 		const passageEvents = host.getDoorPassageEvents?.()
 		if (passageEvents && passageEvents.length) {
@@ -63,8 +64,8 @@ export function useDoorAnimation(host: DoorAnimationHost) {
 				const panel = matchDoorPanel(doors, evt.doorEdge.from.x, evt.doorEdge.from.y, evt.doorEdge.to.x, evt.doorEdge.to.y, tileSize)
 				if (!panel) continue
 				let state = states.get(panel.key)
-				if (!state) { state = { progress: 0, target: 0, lastNearby: 0 }; states.set(panel.key, state) }
-				state.target = 1
+				if (!state) { state = { progress: 0, target: 0, lastNearby: 0 }; states.set(panel.key, state); changed = true }
+				if (state.target !== 1) { state.target = 1; changed = true }
 				state.lastNearby = now
 				maxTick = Math.max(maxTick, evt.tick)
 			}
@@ -73,23 +74,28 @@ export function useDoorAnimation(host: DoorAnimationHost) {
 
 		for (const door of doors) {
 			let state = states.get(door.key)
-			if (!state) { state = { progress: 0, target: 0, lastNearby: 0 }; states.set(door.key, state) }
+			if (!state) { state = { progress: 0, target: 0, lastNearby: 0 }; states.set(door.key, state); changed = true }
 			const nearby = npcs.some(n => {
 				const dx = n.x - door.cx
 				const dy = n.y - door.cy
 				return Math.hypot(dx, dy) < proximityPx
 			})
-			if (nearby) { state.target = 1; state.lastNearby = now }
-			else if (now - state.lastNearby > DOOR_CLOSE_DELAY_MS) state.target = 0
+			if (nearby) { if (state.target !== 1) { state.target = 1; changed = true } state.lastNearby = now }
+			else if (now - state.lastNearby > DOOR_CLOSE_DELAY_MS) { if (state.target !== 0) { state.target = 0; changed = true } }
 		}
 
 		for (const door of doors) {
 			const state = states.get(door.key)
 			if (!state) continue
-			state.progress += (state.target - state.progress) * DOOR_ANIM_SPEED
-			if (Math.abs(state.progress - state.target) < 0.01) state.progress = state.target
+			const next = state.progress + (state.target - state.progress) * DOOR_ANIM_SPEED
+			if (Math.abs(state.target - next) < 0.01) {
+				if (state.progress !== state.target) { state.progress = state.target; changed = true }
+			} else if (next !== state.progress) {
+				state.progress = next
+				changed = true
+			}
 		}
-		doorStates.value = states
+		if (changed) doorStates.value = states
 		rafId = requestAnimationFrame(tick)
 	}
 

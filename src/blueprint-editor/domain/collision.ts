@@ -5,6 +5,19 @@ export function aabbOverlap(a: Rect, b: Rect): boolean {
 	return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y
 }
 
+export function unionRects(rects: Rect[]): Rect | null {
+	let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
+	for (const r of rects) {
+		if (!Number.isFinite(r.x) || !Number.isFinite(r.y) || !Number.isFinite(r.w) || !Number.isFinite(r.h)) continue
+		minX = Math.min(minX, r.x)
+		minY = Math.min(minY, r.y)
+		maxX = Math.max(maxX, r.x + r.w)
+		maxY = Math.max(maxY, r.y + r.h)
+	}
+	if (!Number.isFinite(minX) || !Number.isFinite(minY) || !Number.isFinite(maxX) || !Number.isFinite(maxY)) return null
+	return { x: minX, y: minY, w: maxX - minX, h: maxY - minY }
+}
+
 export function objectOverlapsAny(
 	objects: ObjectData[],
 	assetMap: Map<string, AssetDef>,

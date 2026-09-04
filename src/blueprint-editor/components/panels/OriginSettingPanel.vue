@@ -44,6 +44,8 @@ const dimFields = ref<{
 })
 const assetRxSync = ref(true)
 const assetColorSync = ref(true)
+const assetName = ref(props.asset.name ?? '')
+const assetLabel = ref(props.asset.defaultLabel ?? '')
 const portal = ref(props.asset.tags?.includes('portal') ?? false)
 const assetTags = ref<string[]>([])
 let syncingAsset = false
@@ -69,6 +71,8 @@ watch(
       defaultStrokeColor: a.defaultStrokeColor,
     }
     assetTags.value = a.tags ? [...a.tags] : []
+    assetName.value = a.name ?? ''
+    assetLabel.value = a.defaultLabel ?? ''
     portal.value = a.tags?.includes('portal') ?? false
     nextTick(() => {
       syncingAsset = false
@@ -79,6 +83,26 @@ watch(
 
 const isSvgAsset = computed(() => assetIsSvg(props.asset))
 const isNpcDeployed = store.isNpcPreview
+
+async function commitName() {
+  const val = assetName.value.trim()
+  if (!val || val === props.asset.name) {
+    assetName.value = props.asset.name ?? ''
+    return
+  }
+  await store.updateAsset(props.asset.id, { name: val })
+  assetName.value = props.asset.name ?? val
+}
+
+async function commitLabel() {
+  const val = assetLabel.value.trim()
+  if (val === (props.asset.defaultLabel ?? '')) {
+    assetLabel.value = props.asset.defaultLabel ?? ''
+    return
+  }
+  await store.updateAsset(props.asset.id, { defaultLabel: val })
+  assetLabel.value = props.asset.defaultLabel ?? val
+}
 
 async function commitField(
   field: 'defaultPadding' | 'defaultRadius' | 'defaultLabelPadding' | 'defaultFillColor' | 'defaultStrokeColor',
@@ -165,6 +189,21 @@ watch(portal, async (v) => {
 </script>
 
 <template>
+  <div class="form__col">
+    <div>Identity</div>
+    <div class="form__row">
+      <label>Name</label>
+      <input v-model="assetName" type="text" aria-label="Asset name" @change="commitName" />
+    </div>
+    <div class="form__row">
+      <label>Label</label>
+      <input v-model="assetLabel" type="text" aria-label="Asset label" placeholder="Use asset name" @change="commitLabel" />
+    </div>
+    <div class="form__row">
+      <label>Origin</label>
+      <span>{{ asset.origin ?? 'drawn' }}</span>
+    </div>
+  </div>
   <div class="form__col">
     <div>Dimensions</div>
     <div v-if="!isSvgAsset" class="form__row">

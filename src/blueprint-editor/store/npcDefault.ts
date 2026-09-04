@@ -1,5 +1,6 @@
 import { toRaw } from 'vue'
 import type { NpcSimulationConfig } from '../domain/types'
+import { clampInt } from '../domain/types'
 import { state } from './state'
 import { saveBlueprintData } from './persistence'
 
@@ -10,7 +11,7 @@ export function mergeNpcConfig(config: NpcSimulationConfig): NpcSimulationConfig
 	const rawRates = config.tagTriggerRates ?? {}
 	const tagTriggerRates: Record<string, number> = {}
 	for (const [tag, rate] of Object.entries(rawRates)) {
-		const clamped = Math.max(0, Math.min(100, Math.floor(rate)))
+		const clamped = clampInt(rate, 0, 100)
 		if (clamped > 0) tagTriggerRates[tag.trim()] = clamped
 	}
 

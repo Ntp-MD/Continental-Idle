@@ -351,6 +351,9 @@ function backToEditor() {
     </section>
 
     <ModalShell :open="showModal" modal-id="showcase-modal" title="ModalShell sample" @close="showModal = false">
+      <template #header>
+        <span class="form__hint">header slot</span>
+      </template>
       <div class="form__col">
         <div class="form__hint">modal__header / modal__body / modal__footer from ModalShell</div>
         <div class="form__row">

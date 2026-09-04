@@ -13,6 +13,7 @@ const props = withDefaults(
     height?: string
     maxHeight?: string
     floating?: boolean
+    topLayer?: boolean
     bodyClass?: string
   }>(),
   {
@@ -22,6 +23,7 @@ const props = withDefaults(
     height: undefined,
     maxHeight: undefined,
     floating: false,
+    topLayer: false,
     bodyClass: undefined,
   },
 )
@@ -66,6 +68,7 @@ onUnmounted(() => {
     <div
       v-if="open"
       class="modal__overlay"
+      :class="{ 'modal__overlay--top': topLayer }"
       @click.self="!floating && onClose()"
     >
       <div
@@ -80,6 +83,7 @@ onUnmounted(() => {
       >
         <div class="modal__header" @mousedown="onDown">
           <span :id="titleId">{{ title }}</span>
+          <slot name="header" />
           <button class="modal__close" aria-label="Close" @click="onClose">x</button>
         </div>
         <div class="modal__body" :class="bodyClass">
@@ -94,6 +98,10 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
+.modal__overlay--top {
+  z-index: var(--z-layer-confirm);
+}
+
 .modal--dragging,
 .modal--dragging .modal__header {
   cursor: grabbing;

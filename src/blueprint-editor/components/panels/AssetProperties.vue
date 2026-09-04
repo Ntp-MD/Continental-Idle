@@ -1,13 +1,12 @@
 <script setup lang="ts">
-import { ref, watch, computed, nextTick, defineAsyncComponent } from 'vue'
+import { ref, watch, computed, defineAsyncComponent } from 'vue'
 import { useAssetsStore } from '../../blueprintStore'
 import { useToast } from '@/composables/useToast'
 import { useConfirm } from '@/composables/useConfirm'
 import { useAsyncAction } from '../../composables/useAsyncAction'
 import { useClipboardCopy } from '../../composables/useClipboardCopy'
-import { assetSvgVarStyle, assetPreviewSvg, assetPreviewViewBox, assetIsSvg } from '../../assets/assetUtils'
-import { useCanvasWallStyle, DOOR_COLOR } from '../../composables/useCanvasWallStyle'
-import { useSvgPreview } from '../../composables/useSvgPreview'
+import { assetIsSvg } from '../../assets/assetUtils'
+import { useAssetPreview } from '../../composables/useAssetPreview'
 import ErrorBoundary from '@/components/overlays/ErrorBoundary.vue'
 import type { AssetDef } from '../../domain/types'
 import TagPicker from '../inputs/TagPicker.vue'
@@ -20,22 +19,13 @@ const confirm = useConfirm().confirm
 const { pending, run } = useAsyncAction()
 const { copyId } = useClipboardCopy()
 
-const assetFields = ref<{ name: string; defaultLabel: string }>({
-  name: '',
-  defaultLabel: '',
-})
 const assetTags = ref<string[]>([])
 const showEditor = ref(false)
 
 watch(
-  () => props.asset,
-  (a) => {
-    assetFields.value = {
-      name: a.name,
-      defaultLabel: a.defaultLabel ?? '',
-    }
-    assetTags.value = a.tags ? [...a.tags] : []
-    showEditor.value = false
+  () => props.asset.tags,
+  (tags) => {
+    assetTags.value = tags ? [...tags] : []
   },
   { immediate: true },
 )
@@ -44,22 +34,9 @@ const isSvgAsset = computed(() => assetIsSvg(props.asset))
 const isNpcDeployed = store.isNpcPreview
 const orphanAssetTags = computed(() => assetTags.value.filter((tag) => !managedTagSet.value.has(tag)))
 
-const { canvasTileSize, wallColor, wallThickness } = useCanvasWallStyle()
-
-const previewSvgViewBox = computed(() => assetPreviewViewBox(props.asset, canvasTileSize.value))
-
-const previewSvg = computed(() =>
-  assetPreviewSvg(props.asset, canvasTileSize.value, wallColor.value, wallThickness.value, DOOR_COLOR),
-)
-const previewVars = computed(() => assetSvgVarStyle(props.asset))
-
-const previewSvgEl = ref<SVGSVGElement | null>(null)
-const { render: renderPreview } = useSvgPreview(previewSvg, previewSvgEl)
-
-watch(
-  () => props.asset.id,
-  () => nextTick(renderPreview),
-)
+const { viewBox: previewSvgViewBox, vars: previewVars, setEl: setPreviewEl } = useAssetPreview({
+  asset: () => props.asset,
+})
 
 const collapsedCount = computed(() => {
   let count = 0
@@ -74,11 +51,6 @@ const collapsedCount = computed(() => {
 const assetInUse = computed(() => {
   return store.state.layout.floors.some((f) => f.objects.some((o) => o.type === props.asset.id))
 })
-
-async function commitField(field: 'name' | 'defaultLabel') {
-  const val = assetFields.value[field]
-  await store.updateAsset(props.asset.id, { [field]: val } as Partial<AssetDef>)
-}
 
 async function saveAssetTags(tags: string[]) {
   if (isNpcDeployed.value && tags.includes('portal') !== assetTags.value.includes('portal')) {
@@ -120,7 +92,7 @@ async function duplicateAsset() {
       <label>Preview</label>
       <div class="preview__svg">
         <svg
-          ref="previewSvgEl"
+          :ref="setPreviewEl"
           :viewBox="previewSvgViewBox"
           width="80"
           height="80"
@@ -144,16 +116,16 @@ async function duplicateAsset() {
 
     <div class="form__row">
       <label>Name</label>
-      <input v-model="assetFields.name" type="text" aria-label="Asset name" @change="commitField('name')" />
+      <input type="text" aria-label="Asset name" :value="asset.name" disabled />
     </div>
     <div class="form__row">
       <label>Label</label>
       <input
-        v-model="assetFields.defaultLabel"
         type="text"
         aria-label="Asset label"
         placeholder="Use asset name"
-        @change="commitField('defaultLabel')"
+        :value="asset.defaultLabel ?? ''"
+        disabled
       />
     </div>
     <div class="form__row">
