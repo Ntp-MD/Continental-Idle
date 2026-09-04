@@ -63,6 +63,7 @@
 .modal__overlay:has([aria-modal='false']) {
 	padding: var(--gap-md);
 	pointer-events: none;
+	background: none;
 }
 
 .modal__overlay:has([aria-modal='false']) .modal {

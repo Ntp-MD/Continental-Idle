@@ -374,7 +374,7 @@ function backToEditor() {
       floating
       @close="showFloating = false"
     >
-      <div class="form__hint">floating modal - overlay is click-through</div>
+      <div class="form__hint">floating modal - no overlay backdrop, click-through</div>
     </ModalShell>
 
     <ToastContainer />

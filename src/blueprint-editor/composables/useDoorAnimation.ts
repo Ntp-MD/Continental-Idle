@@ -7,9 +7,12 @@ export interface DoorAnimState {
 	progress: number
 	target: 0 | 1
 	lastNearby: number
+	/** Timestamp of the last close transition; null while the door has never closed. */
+	lastClosed: number | null
 }
 
 const DOOR_CLOSE_DELAY_MS = 1500
+const DOOR_REOPEN_INTERVAL_MS = 1500
 const DOOR_ANIM_SPEED = 0.08
 const DOOR_PROXIMITY_TILES = 2
 
@@ -64,9 +67,10 @@ export function useDoorAnimation(host: DoorAnimationHost) {
 				const panel = matchDoorPanel(doors, evt.doorEdge.from.x, evt.doorEdge.from.y, evt.doorEdge.to.x, evt.doorEdge.to.y, tileSize)
 				if (!panel) continue
 				let state = states.get(panel.key)
-				if (!state) { state = { progress: 0, target: 0, lastNearby: 0 }; states.set(panel.key, state); changed = true }
-				if (state.target !== 1) { state.target = 1; changed = true }
-				state.lastNearby = now
+				if (!state) { state = { progress: 0, target: 0, lastNearby: 0, lastClosed: null }; states.set(panel.key, state); changed = true }
+				const canOpen = state.lastClosed === null || now - state.lastClosed >= DOOR_REOPEN_INTERVAL_MS
+				if (canOpen && state.target !== 1) { state.target = 1; changed = true }
+				if (state.target === 1) state.lastNearby = now
 				maxTick = Math.max(maxTick, evt.tick)
 			}
 			lastConsumedEventTick = maxTick
@@ -74,14 +78,15 @@ export function useDoorAnimation(host: DoorAnimationHost) {
 
 		for (const door of doors) {
 			let state = states.get(door.key)
-			if (!state) { state = { progress: 0, target: 0, lastNearby: 0 }; states.set(door.key, state); changed = true }
+			if (!state) { state = { progress: 0, target: 0, lastNearby: 0, lastClosed: null }; states.set(door.key, state); changed = true }
 			const nearby = npcs.some(n => {
 				const dx = n.x - door.cx
 				const dy = n.y - door.cy
 				return Math.hypot(dx, dy) < proximityPx
 			})
-			if (nearby) { if (state.target !== 1) { state.target = 1; changed = true } state.lastNearby = now }
-			else if (now - state.lastNearby > DOOR_CLOSE_DELAY_MS) { if (state.target !== 0) { state.target = 0; changed = true } }
+			const canOpen = state.lastClosed === null || now - state.lastClosed >= DOOR_REOPEN_INTERVAL_MS
+			if (nearby && canOpen) { if (state.target !== 1) { state.target = 1; changed = true } state.lastNearby = now }
+			else if (!nearby && now - state.lastNearby > DOOR_CLOSE_DELAY_MS) { if (state.target !== 0) { state.target = 0; state.lastClosed = now; changed = true } }
 		}
 
 		for (const door of doors) {

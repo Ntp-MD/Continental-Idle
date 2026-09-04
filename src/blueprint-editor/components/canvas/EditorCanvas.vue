@@ -1231,34 +1231,18 @@ async function cancelDrawnOrigin() {
         <template v-for="door in doorPanels" :key="`door-${door.key}`">
           <rect
             v-if="door.horizontal"
-            :x="door.cx - door.length / 2 - (door.length / 2) * doorProgress(door.key)"
+            :x="door.cx - door.length / 2 + door.slideDir * door.length * doorProgress(door.key)"
             :y="door.cy - door.thickness / 2"
-            :width="door.length / 2"
+            :width="door.length"
             :height="door.thickness"
             class="door__panel"
           />
           <rect
-            v-if="door.horizontal"
-            :x="door.cx + (door.length / 2) * doorProgress(door.key)"
-            :y="door.cy - door.thickness / 2"
-            :width="door.length / 2"
-            :height="door.thickness"
-            class="door__panel"
-          />
-          <rect
-            v-if="!door.horizontal"
+            v-else
             :x="door.cx - door.thickness / 2"
-            :y="door.cy - door.length / 2 - (door.length / 2) * doorProgress(door.key)"
+            :y="door.cy - door.length / 2 + door.slideDir * door.length * doorProgress(door.key)"
             :width="door.thickness"
-            :height="door.length / 2"
-            class="door__panel"
-          />
-          <rect
-            v-if="!door.horizontal"
-            :x="door.cx - door.thickness / 2"
-            :y="door.cy + (door.length / 2) * doorProgress(door.key)"
-            :width="door.thickness"
-            :height="door.length / 2"
+            :height="door.length"
             class="door__panel"
           />
         </template>

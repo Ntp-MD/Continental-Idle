@@ -1,7 +1,7 @@
 import { computed, type ComputedRef } from 'vue'
-import type { AssetDef, FloorData, ObjectData, WallSegment } from '../domain/types'
+import type { AssetDef, FloorData, ObjectData, Rect, WallSegment } from '../domain/types'
 import { CANVAS_WALL_OBJECT_TYPE, resolveObjectDef, resolveWallSegmentsForObject } from '../domain/types'
-import { findAssetCached, doorPanelsData, type DoorPanel } from '../assets/assetUtils'
+import { findAssetCached, doorPanelsData, doorSlideDir, type DoorPanel } from '../assets/assetUtils'
 import { useCanvasWallStyle } from './useCanvasWallStyle'
 
 export interface TileRun {
@@ -106,12 +106,27 @@ export function useCanvasRuns(sources: CanvasRunsSources) {
 
 	const doorPanels = computed<DoorPanel[]>(() => {
 		const thickness = wallThickness.value
+		const objects = sources.floor.value?.objects ?? []
 		const panels: DoorPanel[] = []
+		const pushPanels = (segments: readonly WallSegment[], ownerId: string, ownerWalls: readonly WallSegment[]) => {
+			const blockers = objects.filter(o => o.id !== ownerId)
+			for (const panel of doorPanelsData(segments, 1, thickness)) {
+				const halfT = panel.thickness / 2
+				const ownWalls: Rect[] = ownerWalls
+					.filter(s => !s.door && (
+						panel.horizontal
+							? s.y1 === s.y2 && Math.abs(s.y1 - panel.cy) <= halfT
+							: s.x1 === s.x2 && Math.abs(s.x1 - panel.cx) <= halfT
+					))
+					.map(s => ({ x: Math.min(s.x1, s.x2), y: Math.min(s.y1, s.y2), w: Math.abs(s.x2 - s.x1), h: Math.abs(s.y2 - s.y1) }))
+				panels.push({ ...panel, slideDir: doorSlideDir(panel, blockers, ownWalls) })
+			}
+		}
 		for (const run of wallRuns.value) {
-			if (run.door) panels.push(...doorPanelsData([run], 1, thickness))
+			if (run.door) pushPanels([run], run.objectId, [])
 		}
 		for (const line of objWallLines.value) {
-			if (line.door) panels.push(...doorPanelsData([line], 1, thickness))
+			if (line.door) pushPanels([line], line.id, objWallLines.value.filter(o => o.id === line.id && !o.door))
 		}
 		return panels
 	})

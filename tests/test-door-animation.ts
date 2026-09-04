@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { doorPanelsData, doorPanelsSvg, wallSegmentsOverlaySvg, assetPreviewSvg } from '../src/blueprint-editor/assets/assetUtils'
+import { doorPanelsData, doorSlideDir, doorPanelsSvg, wallSegmentsOverlaySvg, assetPreviewSvg } from '../src/blueprint-editor/assets/assetUtils'
 import {
 	normalizeWallSegment,
 	normalizeWallSegments,
@@ -36,6 +36,7 @@ const THICKNESS = 3
 const DOOR_COLOR = '#3b82f6'
 const WALL_COLOR = '#2ec4b6'
 const DOOR_CLOSE_DELAY_MS = 1500
+const DOOR_REOPEN_INTERVAL_MS = 1500
 const DOOR_ANIM_SPEED = 0.08
 const DOOR_PROXIMITY_TILES = 2
 
@@ -76,14 +77,15 @@ function tickDoors(
 	const next = new Map(states)
 	for (const door of doors) {
 		let state = next.get(door.key)
-		if (!state) { state = { progress: 0, target: 0, lastNearby: 0 }; next.set(door.key, state) }
+		if (!state) { state = { progress: 0, target: 0, lastNearby: 0, lastClosed: null }; next.set(door.key, state) }
 		const nearby = npcs.some(n => {
 			const dx = n.x - door.cx
 			const dy = n.y - door.cy
 			return Math.hypot(dx, dy) < proximityPx
 		})
-		if (nearby) { state.target = 1; state.lastNearby = now }
-		else if (now - state.lastNearby > DOOR_CLOSE_DELAY_MS) state.target = 0
+		const canOpen = state.lastClosed === null || now - state.lastClosed >= DOOR_REOPEN_INTERVAL_MS
+		if (nearby && canOpen) { state.target = 1; state.lastNearby = now }
+		else if (!nearby && now - state.lastNearby > DOOR_CLOSE_DELAY_MS) { if (state.target !== 0) { state.target = 0; state.lastClosed = now } }
 		state.progress += (state.target - state.progress) * DOOR_ANIM_SPEED
 		if (Math.abs(state.progress - state.target) < 0.01) state.progress = state.target
 	}
@@ -217,6 +219,54 @@ assert.equal(zeroThick[0].thickness, 1, 'thickness clamped to 1')
 
 assert.equal(doorPanelsData([], TILE, THICKNESS).length, 0)
 
+// doorSlideDir - collision-aware slide direction
+const slidePanel = doorPanelsData([{ x1: 0, y1: 5, x2: 4, y2: 5, door: true }], TILE, THICKNESS)[0]
+assert.equal(doorSlideDir(slidePanel, []), 1, 'no blockers -> default slide right')
+assert.equal(
+	doorSlideDir(slidePanel, [{ x: 90, y: 115, w: 40, h: 20 }]),
+	-1,
+	'blocker over right sweep zone -> slide left',
+)
+assert.equal(
+	doorSlideDir(slidePanel, [{ x: -30, y: 115, w: 40, h: 20 }]),
+	1,
+	'blocker over left sweep zone -> slide right',
+)
+assert.equal(
+	doorSlideDir(slidePanel, [{ x: 90, y: 115, w: 40, h: 20 }, { x: -30, y: 115, w: 40, h: 20 }]),
+	1,
+	'both sides blocked -> fallback right',
+)
+assert.equal(
+	doorSlideDir(slidePanel, [{ x: 90, y: 0, w: 40, h: 40 }]),
+	1,
+	'blocker away from wall line does not block',
+)
+const slidePanelV = doorPanelsData([{ x1: 2, y1: 0, x2: 2, y2: 3, door: true }], TILE, THICKNESS)[0]
+assert.equal(doorSlideDir(slidePanelV, [{ x: 40, y: 55, w: 20, h: 40 }]), -1, 'vertical blocker below -> slide up')
+
+// own wall priority: slide into own wall side unless another asset blocks it
+const ownRight = [{ x: 100, y: 123, w: 75, h: 4 }]
+const ownLeft = [{ x: -75, y: 123, w: 75, h: 4 }]
+assert.equal(doorSlideDir(slidePanel, [], ownRight), 1, 'own wall right -> slide right')
+assert.equal(doorSlideDir(slidePanel, [], ownLeft), -1, 'own wall left -> slide left')
+assert.equal(
+	doorSlideDir(slidePanel, [{ x: 110, y: 115, w: 40, h: 20 }], ownRight),
+	-1,
+	'own wall right but asset blocks -> slide to other side',
+)
+assert.equal(
+	doorSlideDir(slidePanel, [{ x: -60, y: 115, w: 40, h: 20 }], ownLeft),
+	1,
+	'own wall left but asset blocks -> slide to other side',
+)
+assert.equal(doorSlideDir(slidePanel, [], [...ownRight, ...ownLeft]), 1, 'own wall both sides, free -> default right')
+assert.equal(
+	doorSlideDir(slidePanel, [{ x: 110, y: 115, w: 40, h: 20 }], [...ownRight, ...ownLeft]),
+	-1,
+	'own wall both sides, right blocked -> slide left',
+)
+
 console.log('Phase 3: PASS')
 
 // ============================================================================
@@ -228,11 +278,11 @@ const closedSvg = doorPanelsSvg([{ x1: 0, y1: 5, x2: 4, y2: 5, door: true }], TI
 assert.ok(closedSvg.includes('<g class="door-overlay">'), 'SVG wrapped in door-overlay group')
 const closedRects = closedSvg.match(/<rect/g)
 assert.ok(closedRects, 'SVG contains rect elements')
-assert.equal(closedRects!.length, 2, 'closed door has 2 panels')
+assert.equal(closedRects!.length, 1, 'closed door has 1 full panel')
 
 const openSvg = doorPanelsSvg([{ x1: 0, y1: 5, x2: 4, y2: 5, door: true }], TILE, THICKNESS, DOOR_COLOR, 1)
 const openRects = openSvg.match(/<rect/g)
-assert.equal(openRects!.length, 2, 'open door has 2 panels')
+assert.equal(openRects!.length, 1, 'open door has 1 full panel')
 
 const halfSvg = doorPanelsSvg([{ x1: 0, y1: 5, x2: 4, y2: 5, door: true }], TILE, THICKNESS, DOOR_COLOR, 0.5)
 assert.ok(halfSvg.includes('<g class="door-overlay">'))
@@ -240,7 +290,7 @@ assert.ok(halfSvg.includes('<g class="door-overlay">'))
 const vSvg = doorPanelsSvg([{ x1: 2, y1: 0, x2: 2, y2: 3, door: true }], TILE, THICKNESS, DOOR_COLOR, 0)
 assert.ok(vSvg.includes('<g class="door-overlay">'))
 const vRects = vSvg.match(/<rect/g)
-assert.equal(vRects!.length, 2, 'vertical door has 2 panels')
+assert.equal(vRects!.length, 1, 'vertical door has 1 full panel')
 
 assert.equal(doorPanelsSvg([], TILE, THICKNESS, DOOR_COLOR, 1), '')
 
@@ -249,17 +299,15 @@ const multiSvg = doorPanelsSvg([
 	{ x1: 2, y1: 0, x2: 2, y2: 3, door: true },
 ], TILE, THICKNESS, DOOR_COLOR, 0)
 const multiRects = multiSvg.match(/<rect/g)
-assert.equal(multiRects!.length, 4, '2 doors = 4 panels')
+assert.equal(multiRects!.length, 2, '2 doors = 2 panels')
 
 const hSeg: WallSegment = { x1: 0, y1: 5, x2: 4, y2: 5, door: true }
 const panels = doorPanelsData([hSeg], TILE, THICKNESS)
 const p = panels[0]
 const half = p.length / 2
-assert.ok(closedSvg.includes(`x="${fmt(p.cx - half)}"`), 'closed left panel at cx - half')
-assert.ok(closedSvg.includes(`x="${fmt(p.cx)}"`), 'closed right panel at cx')
-assert.ok(openSvg.includes(`x="${fmt(p.cx - half - half)}"`), 'open left panel shifted by half')
-assert.ok(openSvg.includes(`x="${fmt(p.cx + half)}"`), 'open right panel shifted by half')
-assert.ok(closedSvg.includes(`width="${fmt(half)}"`), 'panel width = half length')
+assert.ok(closedSvg.includes(`x="${fmt(p.cx - half)}"`), 'closed panel at cx - half')
+assert.ok(openSvg.includes(`x="${fmt(p.cx + half)}"`), 'open panel shifted right by full length (slideDir 1)')
+assert.ok(closedSvg.includes(`width="${fmt(p.length)}"`), 'panel width = full length')
 assert.ok(closedSvg.includes(`height="${p.thickness}"`), 'panel height = thickness')
 
 console.log('Phase 4: PASS')
@@ -429,6 +477,31 @@ assert.equal(delayStates.get(delayDoors[0].key)!.target, 0, 'target = 0 after cl
 console.log('Phase 8: PASS')
 
 // ============================================================================
+// PHASE 8B: Reopen interval - door stays closed before next NPC opens it
+// ============================================================================
+console.log('--- Phase 8B: Reopen interval ---')
+
+const reopenDoors = doorPanelsData([{ x1: 0, y1: 0, x2: 4, y2: 0, door: true }], TILE, THICKNESS)
+let reopenStates = new Map<string, DoorAnimState>()
+
+reopenStates = tickDoors(reopenDoors, [makeNpc(50, 0)], reopenStates, 1000)
+assert.equal(reopenStates.get(reopenDoors[0].key)!.target, 1, 'reopen: NPC opens door')
+
+reopenStates = tickDoors(reopenDoors, [makeNpc(9999, 9999)], reopenStates, 2000)
+reopenStates = tickDoors(reopenDoors, [makeNpc(9999, 9999)], reopenStates, 2000 + DOOR_CLOSE_DELAY_MS + 100)
+assert.equal(reopenStates.get(reopenDoors[0].key)!.target, 0, 'reopen: door closed after NPC out')
+const closedAt = reopenStates.get(reopenDoors[0].key)!.lastClosed
+assert.equal(closedAt, 2000 + DOOR_CLOSE_DELAY_MS + 100, 'reopen: lastClosed recorded at close transition')
+
+reopenStates = tickDoors(reopenDoors, [makeNpc(50, 0)], reopenStates, closedAt + DOOR_REOPEN_INTERVAL_MS - 100)
+assert.equal(reopenStates.get(reopenDoors[0].key)!.target, 0, 'reopen: stays closed during interval')
+
+reopenStates = tickDoors(reopenDoors, [makeNpc(50, 0)], reopenStates, closedAt + DOOR_REOPEN_INTERVAL_MS + 100)
+assert.equal(reopenStates.get(reopenDoors[0].key)!.target, 1, 'reopen: opens after interval')
+
+console.log('Phase 8B: PASS')
+
+// ============================================================================
 // PHASE 9: Lerp convergence - mathematical properties
 // ============================================================================
 console.log('--- Phase 9: Lerp convergence ---')
@@ -501,16 +574,13 @@ for (let iter = 0; iter < FUZZ_ITERATIONS; iter++) {
 	const progress = rng()
 	const svg = doorPanelsSvg([normalized], TILE, THICKNESS, DOOR_COLOR, progress)
 	const rectCount = (svg.match(/<rect/g) || []).length
-	assert.equal(rectCount, 2, `fuzz ${iter}: 2 panels at progress ${progress.toFixed(3)}`)
+	assert.equal(rectCount, 1, `fuzz ${iter}: 1 full panel at progress ${progress.toFixed(3)}`)
 
-	const half = panel.length / 2
-	const off = half * progress
+	const off = panel.length * progress
 	if (panel.horizontal) {
-		assert.ok(svg.includes(`x="${fmt(panel.cx - half - off)}"`), `fuzz ${iter}: left panel x correct`)
-		assert.ok(svg.includes(`x="${fmt(panel.cx + off)}"`), `fuzz ${iter}: right panel x correct`)
+		assert.ok(svg.includes(`x="${fmt(panel.cx - panel.length / 2 + off)}"`), `fuzz ${iter}: panel x correct`)
 	} else {
-		assert.ok(svg.includes(`y="${fmt(panel.cy - half - off)}"`), `fuzz ${iter}: top panel y correct`)
-		assert.ok(svg.includes(`y="${fmt(panel.cy + off)}"`), `fuzz ${iter}: bottom panel y correct`)
+		assert.ok(svg.includes(`y="${fmt(panel.cy - panel.length / 2 + off)}"`), `fuzz ${iter}: panel y correct`)
 	}
 
 	const npcX = rng() * 500
@@ -570,7 +640,7 @@ for (const rot of rotations) {
 	const progress = pStates.get(panels[0].key)!.progress
 	const svg = doorPanelsSvg(doorSegs, TILE, THICKNESS, DOOR_COLOR, progress)
 	assert.ok(svg.includes('<g class="door-overlay">'), `pipeline rot ${rot}: SVG generated`)
-	assert.equal((svg.match(/<rect/g) || []).length, 2, `pipeline rot ${rot}: 2 panels in SVG`)
+	assert.equal((svg.match(/<rect/g) || []).length, 1, `pipeline rot ${rot}: 1 panel in SVG`)
 
 	if (rot === 0 || rot === 180) {
 		assert.equal(panels[0].horizontal, true, `pipeline rot ${rot}: door is horizontal`)
@@ -584,7 +654,7 @@ assert.ok(previewSvg.includes('door-overlay'), 'preview SVG has door overlay')
 assert.ok(previewSvg.includes('wall-overlay'), 'preview SVG has wall overlay')
 const previewDoorRects = previewSvg.match(/<rect[^>]*fill="#3b82f6"/g)
 assert.ok(previewDoorRects, 'preview has door-colored rects')
-assert.equal(previewDoorRects!.length, 2, 'preview has exactly 2 door panels (closed)')
+assert.equal(previewDoorRects!.length, 1, 'preview has exactly 1 door panel (closed)')
 
 console.log('Phase 11: PASS')
 
@@ -609,7 +679,7 @@ for (let i = 0; i < 50; i++) {
 const manyPanels = doorPanelsData(manySegs, TILE, THICKNESS)
 assert.equal(manyPanels.length, 50, '50 doors -> 50 panels')
 const manySvg = doorPanelsSvg(manySegs, TILE, THICKNESS, DOOR_COLOR, 0.5)
-assert.equal((manySvg.match(/<rect/g) || []).length, 100, '50 doors -> 100 panels in SVG')
+assert.equal((manySvg.match(/<rect/g) || []).length, 50, '50 doors -> 50 panels in SVG')
 
 let manyStates = new Map<string, DoorAnimState>()
 const manyNpcs = [makeNpc(manyPanels[25].cx, manyPanels[25].cy)]
@@ -671,7 +741,7 @@ const rtSegs: WallSegment[] = [
 const rtSvg = doorPanelsSvg(rtSegs, TILE, THICKNESS, DOOR_COLOR, 0.5)
 
 const rtRects = rtSvg.match(/<rect[^>]*>/g) || []
-assert.equal(rtRects.length, 4, 'round-trip: 4 rects for 2 doors')
+assert.equal(rtRects.length, 2, 'round-trip: 2 rects for 2 doors')
 
 for (const rect of rtRects) {
 	assert.ok(rect.includes(`fill="${DOOR_COLOR}"`), `round-trip: rect has correct fill color`)
@@ -755,7 +825,7 @@ const evtDoorCy = eventDoors[0].cy
 	const now = Date.now()
 	for (const door of doors) {
 		let state = states.get(door.key)
-		if (!state) { state = { progress: 0, target: 0, lastNearby: 0 }; states.set(door.key, state) }
+		if (!state) { state = { progress: 0, target: 0, lastNearby: 0, lastClosed: null }; states.set(door.key, state) }
 		const nearby = npcs.some(n => Math.hypot(n.x - door.cx, n.y - door.cy) < proximityPx)
 		if (nearby) { state.target = 1; state.lastNearby = now }
 	}
@@ -777,7 +847,7 @@ const evtDoorCy = eventDoors[0].cy
 	const now = Date.now()
 	for (const door of doors) {
 		let state = states.get(door.key)
-		if (!state) { state = { progress: 0, target: 0, lastNearby: 0 }; states.set(door.key, state) }
+		if (!state) { state = { progress: 0, target: 0, lastNearby: 0, lastClosed: null }; states.set(door.key, state) }
 		for (const evt of events) {
 			if (evt.type !== 'door-passage' || evt.tick <= lastConsumedEventTick) continue
 			if (!evt.doorEdge) continue

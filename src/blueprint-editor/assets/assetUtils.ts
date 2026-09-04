@@ -1,6 +1,6 @@
 import { isValidColor } from '../domain/types'
 import { assetPixelSize, CANVAS_WALL_OBJECT_TYPE } from '../domain/types'
-import type { WallSegment } from '../domain/types'
+import type { Rect, WallSegment } from '../domain/types'
 import type { AssetDef, FloorData, FloorLayoutData, NpcSimulationConfig, ObjectPlacement, SvgRole, SvgRoleInfo, WalkableGrid, TileState } from '../domain/types'
 
 export function findAsset(assets: readonly AssetDef[], type: string): AssetDef | undefined {
@@ -56,6 +56,7 @@ export interface DoorPanel {
 	length: number
 	thickness: number
 	horizontal: boolean
+	slideDir: -1 | 1
 }
 
 export function doorPanelsData(
@@ -80,8 +81,27 @@ export function doorPanelsData(
 				length,
 				thickness: t,
 				horizontal,
+				slideDir: 1 as const,
 			}
 		})
+}
+
+export function doorSlideDir(panel: DoorPanel, blockers: readonly Rect[], ownWalls: readonly Rect[] = []): -1 | 1 {
+	const halfT = panel.thickness / 2
+	const eps = 0.5
+	function zoneHits(rects: readonly Rect[], dir: -1 | 1): boolean {
+		const zx1 = panel.horizontal ? (dir > 0 ? panel.cx + panel.length / 2 : panel.cx - panel.length * 1.5) : panel.cx - halfT
+		const zx2 = panel.horizontal ? (dir > 0 ? panel.cx + panel.length * 1.5 : panel.cx - panel.length / 2) : panel.cx + halfT
+		const zy1 = panel.horizontal ? panel.cy - halfT : (dir > 0 ? panel.cy + panel.length / 2 : panel.cy - panel.length * 1.5)
+		const zy2 = panel.horizontal ? panel.cy + halfT : (dir > 0 ? panel.cy + panel.length * 1.5 : panel.cy - panel.length / 2)
+		return rects.some(b => b.x < zx2 - eps && b.x + b.w > zx1 + eps && b.y < zy2 - eps && b.y + b.h > zy1 + eps)
+	}
+	const ownPlus = ownWalls.length > 0 && zoneHits(ownWalls, 1)
+	const ownMinus = ownWalls.length > 0 && zoneHits(ownWalls, -1)
+	if (ownPlus && !ownMinus) return zoneHits(blockers, 1) ? -1 : 1
+	if (ownMinus && !ownPlus) return zoneHits(blockers, -1) ? 1 : -1
+	if (ownPlus && ownMinus) return zoneHits(blockers, 1) ? -1 : 1
+	return !zoneHits(blockers, 1) ? 1 : zoneHits(blockers, -1) ? 1 : -1
 }
 
 export function doorPanelsSvg(
@@ -95,15 +115,12 @@ export function doorPanelsSvg(
 	if (!panels.length) return ''
 	const parts: string[] = []
 	for (const p of panels) {
-		const half = p.length / 2
-		const off = half * progress
+		const off = p.length * progress * p.slideDir
 		const halfT = p.thickness / 2
 		if (p.horizontal) {
-			parts.push(`<rect x="${(p.cx - half - off).toFixed(2)}" y="${(p.cy - halfT).toFixed(2)}" width="${half.toFixed(2)}" height="${p.thickness}" fill="${color}" rx="1"/>`)
-			parts.push(`<rect x="${(p.cx + off).toFixed(2)}" y="${(p.cy - halfT).toFixed(2)}" width="${half.toFixed(2)}" height="${p.thickness}" fill="${color}" rx="1"/>`)
+			parts.push(`<rect x="${(p.cx - p.length / 2 + off).toFixed(2)}" y="${(p.cy - halfT).toFixed(2)}" width="${p.length.toFixed(2)}" height="${p.thickness}" fill="${color}" rx="1"/>`)
 		} else {
-			parts.push(`<rect x="${(p.cx - halfT).toFixed(2)}" y="${(p.cy - half - off).toFixed(2)}" width="${p.thickness}" height="${half.toFixed(2)}" fill="${color}" rx="1"/>`)
-			parts.push(`<rect x="${(p.cx - halfT).toFixed(2)}" y="${(p.cy + off).toFixed(2)}" width="${p.thickness}" height="${half.toFixed(2)}" fill="${color}" rx="1"/>`)
+			parts.push(`<rect x="${(p.cx - halfT).toFixed(2)}" y="${(p.cy - p.length / 2 + off).toFixed(2)}" width="${p.thickness}" height="${p.length.toFixed(2)}" fill="${color}" rx="1"/>`)
 		}
 	}
 	return `<g class="door-overlay">${parts.join('')}</g>`

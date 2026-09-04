@@ -155,21 +155,19 @@ assert.equal(vPanels[0].length, 3 * tileSize)
 const wallOnly: WallSegment = { x1: 0, y1: 0, x2: 5, y2: 0 }
 assert.equal(doorPanelsData([wallOnly], tileSize, thickness).length, 0)
 
-// SVG output at progress=0 (closed): two panels side by side, no offset
+// SVG output at progress=0 (closed): single full panel covering the opening
 const closedSvg = doorPanelsSvg([hSeg], tileSize, thickness, '#3b82f6', 0)
 assert.ok(closedSvg.includes('<g class="door-overlay">'))
 assert.ok(closedSvg.includes('<rect'))
-// At progress=0, left panel starts at cx - length/2, right panel starts at cx
+// At progress=0, the panel starts at cx - length/2
 const halfLen = (4 * tileSize) / 2
 const cx = (0 + 4) * tileSize / 2
 const fmt = (n: number) => n.toFixed(2)
-assert.ok(closedSvg.includes(`x="${fmt(cx - halfLen)}"`), 'closed left panel at cx - half')
-assert.ok(closedSvg.includes(`x="${fmt(cx)}"`), 'closed right panel at cx')
+assert.ok(closedSvg.includes(`x="${fmt(cx - halfLen)}"`), 'closed panel at cx - half')
 
-// SVG output at progress=1 (open): panels offset by half length
+// SVG output at progress=1 (open): panel slid by full length (slideDir default 1)
 const openSvg = doorPanelsSvg([hSeg], tileSize, thickness, '#3b82f6', 1)
-assert.ok(openSvg.includes(`x="${fmt(cx - halfLen - halfLen)}"`), 'open left panel shifted left by half')
-assert.ok(openSvg.includes(`x="${fmt(cx + halfLen)}"`), 'open right panel shifted right by half')
+assert.ok(openSvg.includes(`x="${fmt(cx + halfLen)}"`), 'open panel shifted right by full length')
 
 // Empty segments produce empty SVG
 assert.equal(doorPanelsSvg([], tileSize, thickness, '#fff', 1), '')
