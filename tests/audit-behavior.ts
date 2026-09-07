@@ -203,11 +203,11 @@ const policy = createNpcEnginePolicy({
 })
 
 engine = new NpcEngine(built.layout, {
+	...NPC_ENGINE_DEFAULT_OPTIONS,
 	ticksPerSecond: TPS,
 	agentClearance: 0.5,
 	random,
 	...policy,
-	...NPC_ENGINE_DEFAULT_OPTIONS,
 })
 
 for (const spawn of SPAWNS) {

@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
-import { applySvgColorConvention, isSafeSvgMarkup, normalizeBlueprintDataFile, normalizeObjectPlacement, normalizeOriginAsset, normalizeTag, resolveObjectDef, parseCanvasConfig, CANVAS_FIELD_SPECS } from '../src/blueprint-editor/domain/types'
-import { serializeAsset, serializeObject } from '../src/blueprint-editor/assets/assetUtils'
+import { applySvgColorConvention, isSafeSvgMarkup, normalizeBlueprintDataFile, normalizeInteractSpots, normalizeNpcConfig, normalizeObjectPlacement, normalizeOriginAsset, normalizeTag, normalizeWallSegment, normalizeWallSegments, resolveInteractSpotAnchor, resolveObjectDef, rotateInteractSpots90, snapSpotToEdge, parseCanvasConfig, CANVAS_FIELD_SPECS } from '../src/blueprint-editor/domain/types'
+import { serializeAsset, serializeObject, resolveDoorMode } from '../src/blueprint-editor/assets/assetUtils'
+import { reattachDoorModes } from '../src/blueprint-editor/domain/gridEditing'
 import { resolvePlacedObject } from '../src/blueprint-editor/domain/geometry'
 import { buildBlueprintData } from '../src/blueprint-editor/store/dataLoader'
 import { emptyNpcConfig } from '../src/blueprint-editor/store/storeUtils'
@@ -68,10 +69,10 @@ const rotatableAsset: AssetDef = {
 	...runtimeAsset,
 	interactSpots: [{ x: 10, y: 5 }, { x: 40, y: 20 }],
 }
-assert.deepEqual(resolveObjectDef(0, rotatableAsset, { w: 50, h: 25 }).interactSpots, [{ x: 10, y: 5 }, { x: 40, y: 20 }])
-assert.deepEqual(resolveObjectDef(90, rotatableAsset, { w: 25, h: 50 }).interactSpots, [{ x: 20, y: 10 }, { x: 5, y: 40 }])
-assert.deepEqual(resolveObjectDef(180, rotatableAsset, { w: 50, h: 25 }).interactSpots, [{ x: 40, y: 20 }, { x: 10, y: 5 }])
-assert.deepEqual(resolveObjectDef(270, rotatableAsset, { w: 25, h: 50 }).interactSpots, [{ x: 5, y: 40 }, { x: 20, y: 10 }])
+assert.deepEqual(resolveObjectDef(0, rotatableAsset, { w: 50, h: 25 }).interactSpots, [{ kind: 'stand', x: 10, y: 5 }, { kind: 'stand', x: 40, y: 20 }])
+assert.deepEqual(resolveObjectDef(90, rotatableAsset, { w: 25, h: 50 }).interactSpots, [{ kind: 'stand', x: 20, y: 10 }, { kind: 'stand', x: 5, y: 40 }])
+assert.deepEqual(resolveObjectDef(180, rotatableAsset, { w: 50, h: 25 }).interactSpots, [{ kind: 'stand', x: 40, y: 20 }, { kind: 'stand', x: 10, y: 5 }])
+assert.deepEqual(resolveObjectDef(270, rotatableAsset, { w: 25, h: 50 }).interactSpots, [{ kind: 'stand', x: 5, y: 40 }, { kind: 'stand', x: 20, y: 10 }])
 
 const serializedAsset = serializeAsset(runtimeAsset)
 assert.equal('unknownField' in serializedAsset, false)
@@ -205,5 +206,102 @@ const wallSaved = buildBlueprintData({
 assert.deepEqual(wallSaved.layout.floors[0].objects[0], serializedWall)
 
 console.log('Wall paint persistence checks passed')
+
+// ── Wall doorMode placement round-trip ──
+assert.deepEqual(
+  normalizeObjectPlacement({ id: 'door-test', type: '__canvas-wall__', x: 0, y: 0, rotation: 0, isWall: true, x1: 0, y1: 0, x2: 2, y2: 0, door: true, doorMode: 'auto-close' }),
+  { id: 'door-test', type: '__canvas-wall__', x: 0, y: 0, rotation: 0, isWall: true, x1: 0, y1: 0, x2: 2, y2: 0, door: true, doorMode: 'auto-close' },
+  'wall door mode survives placement normalize',
+)
+assert.equal(
+  normalizeObjectPlacement({ id: 'door-test', type: '__canvas-wall__', x: 0, y: 0, rotation: 0, isWall: true, door: true, doorMode: 'party' })?.doorMode,
+  undefined,
+  'unknown door mode dropped',
+)
+assert.deepEqual(
+  serializeObject({ id: 'door-test', type: '__canvas-wall__', x: 0, y: 0, rotation: 0, isWall: true, door: true, doorMode: 'hold-open' }),
+  { id: 'door-test', type: '__canvas-wall__', x: 0, y: 0, rotation: 0, isWall: true, door: true, doorMode: 'hold-open' },
+  'wall door mode survives serialize',
+)
+console.log('Wall door mode checks passed')
+
+// ── InteractSpot union (stand/edge/post) + task.post round-trip ──
+assert.deepEqual(normalizeInteractSpots([[1, 2]]), [{ kind: 'stand', x: 1, y: 2 }], 'tuple ingress normalizes to stand')
+assert.deepEqual(normalizeInteractSpots([{ x: 1, y: 2, post: 'Bar Back' }]), [{ kind: 'stand', x: 1, y: 2, post: 'bar-back' }], 'post slug uses tag semantics')
+assert.deepEqual(
+	normalizeInteractSpots([{ kind: 'edge', edge: 'n', offset: 20, x: 20, y: 0, post: 'Bar-Back' }]),
+	[{ kind: 'edge', edge: 'N', offset: 20, x: 20, y: 0, post: 'bar-back' }],
+	'edge ingress uppercases edge enum and keeps render cache',
+)
+assert.equal(normalizeInteractSpots([{ kind: 'edge', edge: 'N', offset: 5 }]), undefined, 'edge without render cache is dropped')
+assert.equal(normalizeInteractSpots([{ kind: 'edge', edge: 'Q', offset: 5, x: 0, y: 0 }]), undefined, 'unknown edge enum is dropped')
+assert.deepEqual(
+	normalizeInteractSpots([{ x: 1, y: 1 }, { x: 1, y: 1, post: 'a' }, { x: 1, y: 1, post: 'a' }]),
+	[{ kind: 'stand', x: 1, y: 1 }, { kind: 'stand', x: 1, y: 1, post: 'a' }],
+	'dedupe accounts for post names',
+)
+assert.equal(normalizeInteractSpots([]), undefined)
+assert.equal(normalizeInteractSpots('nope'), undefined)
+assert.deepEqual(resolveInteractSpotAnchor({ kind: 'edge', edge: 'S', offset: 7, x: 0, y: 0 }, 100, 50), { x: 7, y: 50 })
+assert.deepEqual(resolveInteractSpotAnchor({ x: 3, y: 4 }, 100, 50), { x: 3, y: 4 }, 'bare legacy spot anchors as-is')
+assert.deepEqual(
+	rotateInteractSpots90([{ kind: 'edge', edge: 'N', offset: 20, x: 20, y: 0 }], 100, 50, 1),
+	[{ kind: 'edge', edge: 'E', offset: 20, x: 50, y: 20 }],
+	'edge rotates enum clockwise and refreshes render cache from the anchor',
+)
+assert.deepEqual(
+	rotateInteractSpots90([{ kind: 'edge', edge: 'N', offset: 20, x: 20, y: 0, post: 'back' }], 100, 50, 2),
+	[{ kind: 'edge', edge: 'S', offset: 20, x: 80, y: 50, post: 'back' }],
+	'post names never rotate; offset scalar preserved',
+)
+assert.deepEqual(snapSpotToEdge(20, 2, 100, 50), { edge: 'N', offset: 20 }, 'near top snaps north')
+assert.deepEqual(snapSpotToEdge(20, 49, 100, 50), { edge: 'S', offset: 20 }, 'near bottom snaps south')
+assert.deepEqual(snapSpotToEdge(99, 20, 100, 50), { edge: 'E', offset: 20 }, 'near right snaps east')
+assert.deepEqual(snapSpotToEdge(1, 20, 100, 50), { edge: 'W', offset: 20 }, 'near left snaps west')
+assert.deepEqual(snapSpotToEdge(150, 25, 100, 50), { edge: 'E', offset: 25 }, 'offset clamps to edge length')
+assert.deepEqual(snapSpotToEdge(50, 25, 100, 50), { edge: 'N', offset: 50 }, 'center ties break toward north deterministically')
+const postedConfig = normalizeNpcConfig({
+	speed: 0.2,
+	defaultRoleId: 'r1',
+	roles: [{ id: 'r1', label: 'Staff', color: '#fff', focusTags: [], restrictedTags: [], taskIds: ['t1'], focusChance: 100 }],
+	tasks: [
+		{ id: 't1', label: 'Tend', tags: ['bar'], post: { assetId: 'bar-1', post: 'Bar Back' } },
+		{ id: 't2', label: 'Plain', tags: [] },
+		{ id: 't3', label: 'Broken', tags: [], post: { assetId: '' } },
+	],
+	pool: [],
+})
+assert.ok(postedConfig)
+assert.deepEqual(postedConfig.tasks[0].post, { assetId: 'bar-1', post: 'bar-back' })
+assert.equal(postedConfig.tasks[1].post, undefined)
+assert.equal(postedConfig.tasks[2].post, undefined, 'bad post sanitizes in place - task survives')
+assert.equal(postedConfig.tasks.length, 3, 'no task dropped by post sanitize')
+console.log('InteractSpot union + task.post checks passed')
+
+// ── WallSegment.doorMode round-trip ──
+assert.deepEqual(
+  normalizeWallSegment({ x1: 0, y1: 5, x2: 4, y2: 5, door: true, doorMode: 'auto-close' }),
+  { x1: 0, y1: 5, x2: 4, y2: 5, door: true, doorMode: 'auto-close' },
+  'door mode survives normalize',
+)
+assert.equal(normalizeWallSegment({ x1: 0, y1: 5, x2: 4, y2: 5, door: true, doorMode: 'party' })?.doorMode, undefined, 'unknown mode dropped')
+assert.equal(normalizeWallSegment({ x1: 0, y1: 5, x2: 4, y2: 5, doorMode: 'auto-close' })?.doorMode, undefined, 'mode without door flag dropped')
+const mergedModes = normalizeWallSegments([
+  { x1: 0, y1: 5, x2: 4, y2: 5, door: true },
+  { x1: 0, y1: 5, x2: 4, y2: 5, door: true, doorMode: 'hold-open' },
+])
+assert.equal(mergedModes?.[0]?.doorMode, 'hold-open', 'dedupe merges mode onto first')
+assert.equal(resolveDoorMode(undefined, true), 'auto-close', 'rooms derive auto-close')
+assert.equal(resolveDoorMode(undefined, false), 'hold-open', 'passage derives hold-open')
+assert.equal(resolveDoorMode('hold-open', true), 'hold-open', 'explicit wins over derived')
+assert.deepEqual(
+  reattachDoorModes(
+    [{ x1: 0, y1: 0, x2: 1, y2: 0, door: true, doorMode: 'auto-close' }],
+    [{ x1: 0, y1: 0, x2: 1, y2: 0, door: true }],
+  ),
+  [{ x1: 0, y1: 0, x2: 1, y2: 0, door: true, doorMode: 'auto-close' }],
+  'grid save reattaches mode by coords',
+)
+console.log('Door mode model checks passed')
 
 console.log('Blueprint schema checks passed')

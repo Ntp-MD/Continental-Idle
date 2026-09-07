@@ -1,21 +1,76 @@
 import { onMounted, onUnmounted, watch, type ComputedRef, type Ref } from 'vue'
 import type { NpcSimDot } from '../domain/types'
 
+export interface ChatBubble {
+	x: number
+	y: number
+	text: string
+	dim: boolean
+}
+
+export type NpcMoodKind = 'patient' | 'stuck' | 'bored' | 'lost' | 'waiting' | 'detouring' | 'unknown' | null
+
+export const NPC_MOOD_LEGEND: readonly { kind: Exclude<NpcMoodKind, null>; label: string; color: string }[] = [
+	{ kind: 'stuck', label: 'Stuck (cross)', color: 'var(--accent-red)' },
+	{ kind: 'patient', label: 'Patient', color: 'var(--accent-blue)' },
+	{ kind: 'detouring', label: 'Detouring', color: 'var(--accent-blue)' },
+	{ kind: 'waiting', label: 'Waiting', color: 'var(--accent-gold)' },
+	{ kind: 'lost', label: 'Lost (dot)', color: 'var(--accent-gold)' },
+	{ kind: 'bored', label: 'Bored', color: 'var(--text-secondary)' },
+]
+
+const ARRIVAL_TAG_TEXT = 'Just arrived'
+const ARRIVAL_TAG_FONT = '10px system-ui, sans-serif'
+const ARRIVAL_TAG_W = 68
+const ARRIVAL_TAG_H = 14
+
+export function resolveNpcMood(status: NpcSimDot['status'], reason: string | undefined): NpcMoodKind {
+	if (status === 'queued') return 'patient'
+	if (status !== 'waiting') return null
+	if (reason === 'queued') return 'patient'
+	switch (reason) {
+		case 'no-path':
+		case 'repath-failed':
+			return 'stuck'
+		case 'no-target':
+		case 'no-wander':
+			return 'bored'
+		case 'no-floor':
+		case 'wrong-floor':
+			return 'lost'
+		case 'portal-busy':
+		case 'spot-busy':
+		case 'reserve-raced':
+			return 'waiting'
+		case 'repath-blocked':
+			return 'detouring'
+		case 'queue-left':
+		case 'yielded':
+		case undefined:
+			return null
+		default:
+			return 'unknown'
+	}
+}
+
 export interface NpcOverlayDrawSources {
 	frameDots: Map<string, NpcSimDot>
+	waitReasons: ReadonlyMap<string, string>
+	arrivalMarks: ReadonlyMap<string, number>
 	floorId: () => string
 	guides: Ref<boolean>
 	svg: Ref<SVGSVGElement | null>
 	canvas: Ref<HTMLCanvasElement | null>
 	viewBox: ComputedRef<string>
 	rulerSize: ComputedRef<number>
+	chats: () => readonly ChatBubble[]
 }
 
 export function useNpcOverlayDraw(sources: NpcOverlayDrawSources) {
 	let drawRaf: number | null = null
 	let geoDirty = true
 	const geo = { sLeft: 0, sTop: 0, sWidth: 0, sHeight: 0, a: 1, b: 0, c: 0, d: 1, e: 0, f: 0, dpr: 1 }
-	const themeColors = { accent: '#4cc9f0', guide: '#3a86ff', green: '#2ec4b6' }
+	const themeColors = { accent: '#4cc9f0', guide: '#3a86ff', green: '#2ec4b6', gold: '#d29922', red: '#dc2626', secondary: '#6e7681' }
 	let geoObserver: ResizeObserver | null = null
 
 	function readThemeColors(): void {
@@ -23,6 +78,9 @@ export function useNpcOverlayDraw(sources: NpcOverlayDrawSources) {
 		themeColors.accent = style.getPropertyValue('--accent-primary').trim() || '#4cc9f0'
 		themeColors.guide = style.getPropertyValue('--accent-blue').trim() || '#3a86ff'
 		themeColors.green = style.getPropertyValue('--accent-green').trim() || '#2ec4b6'
+		themeColors.gold = style.getPropertyValue('--accent-gold').trim() || '#d29922'
+		themeColors.red = style.getPropertyValue('--accent-red').trim() || '#dc2626'
+		themeColors.secondary = style.getPropertyValue('--text-secondary').trim() || '#6e7681'
 	}
 
 	function syncGeometry(): boolean {
@@ -90,6 +148,9 @@ export function useNpcOverlayDraw(sources: NpcOverlayDrawSources) {
 		const colGuide = themeColors.guide
 		const colGreen = themeColors.green
 		const colRing = 'rgba(255,255,255,0.8)'
+		const colGold = themeColors.gold
+		const colRed = themeColors.red
+		const colDim = themeColors.secondary
 		const fid = sources.floorId()
 		for (const dot of sources.frameDots.values()) {
 			if (dot.floorId !== fid) continue
@@ -125,13 +186,111 @@ export function useNpcOverlayDraw(sources: NpcOverlayDrawSources) {
 				ctx.lineTo(tx, ty + 3)
 				ctx.stroke()
 			}
+		ctx.beginPath()
+		ctx.arc(sx, sy, 4, 0, Math.PI * 2)
+		ctx.fillStyle = dot.color
+		ctx.fill()
+		ctx.lineWidth = 1
+		const mood = resolveNpcMood(dot.status, sources.waitReasons.get(dot.id))
+		if (dot.status === 'interacting' || dot.status === 'chatting') ctx.strokeStyle = colGreen
+		else if (mood === 'stuck') ctx.strokeStyle = colRed
+		else if (mood === 'lost' || mood === 'waiting') ctx.strokeStyle = colGold
+		else if (mood === 'patient' || mood === 'detouring') ctx.strokeStyle = colGuide
+		else if (mood === 'bored' || mood === 'unknown') ctx.strokeStyle = colDim
+		else ctx.strokeStyle = colRing
+		ctx.stroke()
+		if (mood === 'stuck') {
 			ctx.beginPath()
-			ctx.arc(sx, sy, 4, 0, Math.PI * 2)
-			ctx.fillStyle = dot.color
-			ctx.fill()
-			ctx.lineWidth = 1
-			ctx.strokeStyle = dot.status === 'interacting' ? colGreen : colRing
+			ctx.moveTo(sx - 3, sy - 3)
+			ctx.lineTo(sx + 3, sy + 3)
+			ctx.moveTo(sx + 3, sy - 3)
+			ctx.lineTo(sx - 3, sy + 3)
 			ctx.stroke()
+		} else if (mood === 'lost') {
+			ctx.fillStyle = colGold
+			ctx.beginPath()
+			ctx.arc(sx, sy - 7, 2, 0, Math.PI * 2)
+			ctx.fill()
+		}
+		}
+		if (sources.arrivalMarks.size > 0) {
+			ctx.font = ARRIVAL_TAG_FONT
+			ctx.textAlign = 'center'
+			ctx.textBaseline = 'middle'
+			for (const agentId of sources.arrivalMarks.keys()) {
+				const dot = sources.frameDots.get(agentId)
+				if (!dot || dot.floorId !== fid) continue
+				const sx = geo.a * dot.x + geo.c * dot.y + geo.e - geo.sLeft
+				const sy = geo.b * dot.x + geo.d * dot.y + geo.f - geo.sTop
+				if (sx < -8 || sy < -8 || sx > vw + 8 || sy > vh + 8) continue
+				const boxX = Math.max(4, Math.min(vw - ARRIVAL_TAG_W - 4, sx - ARRIVAL_TAG_W / 2))
+				const boxY = Math.max(4, sy - 16 - ARRIVAL_TAG_H)
+				ctx.fillStyle = 'rgba(20,24,32,0.92)'
+				ctx.strokeStyle = colGreen
+				ctx.lineWidth = 1
+				ctx.beginPath()
+				if (typeof ctx.roundRect === 'function') ctx.roundRect(boxX, boxY, ARRIVAL_TAG_W, ARRIVAL_TAG_H, 4)
+				else ctx.rect(boxX, boxY, ARRIVAL_TAG_W, ARRIVAL_TAG_H)
+				ctx.fill()
+				ctx.stroke()
+				ctx.fillStyle = '#ffffff'
+				ctx.fillText(ARRIVAL_TAG_TEXT, boxX + ARRIVAL_TAG_W / 2, boxY + ARRIVAL_TAG_H / 2 + 0.5)
+			}
+			ctx.textAlign = 'start'
+			ctx.textBaseline = 'alphabetic'
+		}
+		const chats = sources.chats()
+		if (chats.length > 0) {
+			ctx.font = '11px system-ui, sans-serif'
+			const drawn: { x: number; y: number; w: number }[] = []
+			for (const chat of chats) {
+				const bx = geo.a * chat.x + geo.c * chat.y + geo.e - geo.sLeft
+				const by = geo.b * chat.x + geo.d * chat.y + geo.f - geo.sTop
+				let text = chat.text
+				let boxWidth = ctx.measureText(text).width + 16
+				const maxWidth = 220
+				if (boxWidth > maxWidth) {
+					while (text.length > 1 && ctx.measureText(text + '...').width + 16 > maxWidth) text = text.slice(0, -1)
+					text += '...'
+					boxWidth = ctx.measureText(text).width + 16
+				}
+				const boxHeight = 20
+				let boxX = Math.max(4, Math.min(vw - boxWidth - 4, bx - boxWidth / 2))
+				if (vw - boxWidth - 4 < 4) boxX = 4
+				let boxY = by - 34
+				let below = false
+				if (boxY < 4) {
+					boxY = by + 14
+					below = true
+				}
+				const centerX = boxX + boxWidth / 2
+				const centerY = boxY + boxHeight / 2
+				if (drawn.some(other => Math.abs(other.x - centerX) < (other.w + boxWidth) / 2 - 8 && Math.abs(other.y - centerY) < 20)) continue
+				drawn.push({ x: centerX, y: centerY, w: boxWidth })
+				ctx.fillStyle = 'rgba(20,24,32,0.92)'
+				ctx.strokeStyle = colAccent
+				ctx.lineWidth = 1
+				ctx.beginPath()
+				if (typeof ctx.roundRect === 'function') ctx.roundRect(boxX, boxY, boxWidth, boxHeight, 6)
+				else ctx.rect(boxX, boxY, boxWidth, boxHeight)
+				ctx.fill()
+				ctx.stroke()
+				const tipX = Math.max(boxX + 6, Math.min(boxX + boxWidth - 6, bx))
+				ctx.beginPath()
+				if (below) {
+					ctx.moveTo(tipX - 4, boxY)
+					ctx.lineTo(tipX + 4, boxY)
+					ctx.lineTo(bx, by)
+				} else {
+					ctx.moveTo(tipX - 4, boxY + boxHeight)
+					ctx.lineTo(tipX + 4, boxY + boxHeight)
+					ctx.lineTo(bx, by)
+				}
+				ctx.closePath()
+				ctx.fill()
+				ctx.fillStyle = chat.dim ? 'rgba(255,255,255,0.6)' : '#ffffff'
+				ctx.fillText(text, boxX + 8, boxY + 14)
+			}
 		}
 	}
 

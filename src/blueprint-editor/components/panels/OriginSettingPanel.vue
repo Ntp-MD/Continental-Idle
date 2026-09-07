@@ -2,14 +2,16 @@
 import { ref, watch, computed, nextTick } from 'vue'
 import { useAssetsStore } from '../../blueprintStore'
 import { useToast } from '@/composables/useToast'
+import { useConfirm } from '@/composables/useConfirm'
 import { useDebouncedCallback } from '@/composables/useDebounceFn'
 import type { AssetDef } from '../../domain/types'
 import { isHexColor, isValidColor, normalizeCornerRx } from '../../domain/types'
-import { assetIsSvg } from '../../assets/assetUtils'
+import { assetIsSvg, withSegmentDoorMode } from '../../assets/assetUtils'
 import ColorInput from '../inputs/ColorInput.vue'
 
 const props = defineProps<{ asset: AssetDef }>()
 const store = useAssetsStore()
+const confirm = useConfirm().confirm
 
 const dimFields = ref<{
   w: number
@@ -83,6 +85,11 @@ watch(
 
 const isSvgAsset = computed(() => assetIsSvg(props.asset))
 const isNpcDeployed = store.isNpcPreview
+const doorSegments = computed(() =>
+  (props.asset.wallSegments ?? [])
+    .map((segment, index) => ({ segment, index }))
+    .filter((entry) => entry.segment.door === true),
+)
 
 async function commitName() {
   const val = assetName.value.trim()
@@ -142,6 +149,30 @@ async function commitRx() {
   await store.updateAsset(props.asset.id, { defaultRx: normalized })
 }
 
+async function commitDoorMode(index: number, mode: string) {
+  await store.updateAsset(props.asset.id, {
+    wallSegments: withSegmentDoorMode(
+      props.asset.wallSegments ?? [],
+      index,
+      mode === 'hold-open' || mode === 'auto-close' ? mode : undefined,
+    ),
+  })
+}
+
+async function deleteDoorSegment(index: number) {
+  const segments = props.asset.wallSegments ?? []
+  if (!segments[index]?.door) return
+  const confirmed = await confirm({
+    title: 'Delete door',
+    message: `Delete door ${index + 1} from "${props.asset.name}"? This action cannot be undone.`,
+    confirmLabel: 'Delete',
+    cancelLabel: 'Cancel',
+    danger: true,
+  })
+  if (!confirmed) return
+  await store.updateAsset(props.asset.id, { wallSegments: segments.filter((_, i) => i !== index) })
+}
+
 const commitRxDebounced = useDebouncedCallback(() => {
   void commitRx()
 }, 300)
@@ -189,70 +220,64 @@ watch(portal, async (v) => {
 </script>
 
 <template>
-  <div class="form__col">
+  <div class="form__col form--section">
     <div>Identity</div>
-    <div class="form__row">
-      <label>Name</label>
-      <input v-model="assetName" type="text" aria-label="Asset name" @change="commitName" />
-    </div>
-    <div class="form__row">
-      <label>Label</label>
-      <input v-model="assetLabel" type="text" aria-label="Asset label" placeholder="Use asset name" @change="commitLabel" />
-    </div>
-    <div class="form__row">
-      <label>Origin</label>
-      <span>{{ asset.origin ?? 'drawn' }}</span>
+    <div class="form__row form--start form--wrap">
+      <div class="form__col">
+        <label>Name</label>
+        <input v-model="assetName" type="text" aria-label="Asset name" @change="commitName"
+        />
+      </div>
+      <div class="form__col">
+        <label>Label</label>
+        <input
+          v-model="assetLabel" type="text" aria-label="Asset label" placeholder="Use asset name"
+          @change="commitLabel"
+        />
+      </div>
+      <div class="form__col">
+        <label>Origin</label>
+        <span>{{ asset.origin ?? 'drawn' }}</span>
+      </div>
     </div>
   </div>
-  <div class="form__col">
+  <div class="form__col form--section">
     <div>Dimensions</div>
     <div v-if="!isSvgAsset" class="form__row">
       <label>Unit Mode</label>
-      <div class="form__col">
+      <div class="form__row">
         <button :class="{ 'flag--warning': !dimFields.usePx }" disabled>Tiles</button>
         <button :class="{ 'flag--warning': dimFields.usePx }" disabled>Pixels</button>
       </div>
     </div>
     <template v-if="!dimFields.usePx">
       <div class="form__row">
-        <div class="form__row">
-          <label>Width</label>
-          <input type="number" min="1" :value="dimFields.w" disabled readonly />
-        </div>
-        <div class="form__row">
-          <label>Height</label>
-          <input type="number" min="1" :value="dimFields.h" disabled readonly />
-        </div>
+        <label>Width</label>
+        <input type="number" min="1" :value="dimFields.w" disabled readonly />
+        <label>Height</label>
+        <input type="number" min="1" :value="dimFields.h" disabled readonly />
       </div>
     </template>
     <template v-else>
       <div class="form__row">
-        <div class="form__row">
-          <label>Width (px)</label>
-          <input type="number" min="1" :value="dimFields.pxW" disabled readonly />
-        </div>
-        <div class="form__row">
-          <label>Height (px)</label>
-          <input type="number" min="1" :value="dimFields.pxH" disabled readonly />
-        </div>
+        <label>Width (px)</label>
+        <input type="number" min="1" :value="dimFields.pxW" disabled readonly />
+        <label>Height (px)</label>
+        <input type="number" min="1" :value="dimFields.pxH" disabled readonly />
       </div>
     </template>
-    <div class="form__row">
-      <div class="form__row">
+    <div class="form__row form--start form--wrap">
+      <div class="form__col">
         <label>Default Padding</label>
         <input
-          v-model.number="dimFields.defaultPadding"
-          type="number"
-          min="0"
+          v-model.number="dimFields.defaultPadding" type="number" min="0"
           @change="commitField('defaultPadding')"
         />
       </div>
-      <div class="form__row">
+      <div class="form__col">
         <label>Label Padding</label>
         <input
-          v-model.number="dimFields.defaultLabelPadding"
-          type="number"
-          min="0"
+          v-model.number="dimFields.defaultLabelPadding" type="number" min="0"
           @change="commitField('defaultLabelPadding')"
         />
       </div>
@@ -281,24 +306,12 @@ watch(portal, async (v) => {
           <input v-model.number="dimFields.rxBR" class="size--fit" type="number" min="0" @input="onRxInput('rxBR')" />
         </label>
         <button
-          type="button"
-          :class="{ 'flag--active': assetRxSync }"
-          :aria-pressed="assetRxSync"
+          type="button" :class="{ 'flag--active': assetRxSync }" :aria-pressed="assetRxSync"
           :aria-label="assetRxSync ? 'Sync all corners - ON' : 'Sync all corners - OFF'"
-          :title="assetRxSync ? 'Sync all corners - ON' : 'Sync all corners - OFF'"
-          @click="assetRxSync = !assetRxSync"
-        >
+          :title="assetRxSync ? 'Sync all corners - ON' : 'Sync all corners - OFF'" @click="assetRxSync = !assetRxSync">
           <svg
-            viewBox="0 0 24 24"
-            width="16"
-            height="16"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            aria-hidden="true"
-          >
+            viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
             <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
           </svg>
@@ -306,77 +319,73 @@ watch(portal, async (v) => {
       </div>
     </div>
   </div>
-  <div class="form__col">
+  <div class="form__col form--section">
     <div>Appearance</div>
     <div class="form__row">
       <label>Fill Color</label>
 
       <ColorInput
-        v-model="dimFields.defaultFillColor"
-        :allow-transparent="true"
-        placeholder="#RRGGBB (empty = wireframe)"
-        aria-label="Asset fill color"
-        @commit="commitField('defaultFillColor')"
-      />
+        v-model="dimFields.defaultFillColor" :allow-transparent="true"
+        placeholder="#RRGGBB (empty = wireframe)" aria-label="Asset fill color"
+        @commit="commitField('defaultFillColor')" />
       <button type="button" @click="clearAssetFillColor">Reset</button>
       <button
-        type="button"
-        :class="{ 'flag--active': assetColorSync }"
-        :aria-pressed="assetColorSync"
+        type="button" :class="{ 'flag--active': assetColorSync }" :aria-pressed="assetColorSync"
         :aria-label="assetColorSync ? 'Outline follows Fill - ON' : 'Outline follows Fill - OFF'"
         :title="assetColorSync ? 'Outline follows Fill - ON' : 'Outline follows Fill - OFF'"
-        @click="assetColorSync = !assetColorSync"
-      >
-        <svg
-          viewBox="0 0 24 24"
-          width="16"
-          height="16"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-          aria-hidden="true"
-        >
-          <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
-          <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
-        </svg>
-      </button>
+        @click="assetColorSync = !assetColorSync">
+          <svg
+            viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+            <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+          </svg>
+        </button>
     </div>
     <div class="form__row">
       <label>Outline Color</label>
-      <div class="form__col">
+ 
         <ColorInput
-          v-model="dimFields.defaultStrokeColor"
-          allow-transparent
-          placeholder="#RRGGBB (empty = auto from fill)"
-          aria-label="Asset outline color"
-          @commit="commitField('defaultStrokeColor')"
-        />
+        v-model="dimFields.defaultStrokeColor" allow-transparent
+          placeholder="#RRGGBB (empty = auto from fill)" aria-label="Asset outline color"
+          @commit="commitField('defaultStrokeColor')" />
         <button type="button" @click="clearAssetStrokeColor">Reset</button>
-      </div>
+  
     </div>
   </div>
-  <div class="form__col">
+  <div class="form__col form--section">
     <div>Behavior</div>
     <div class="form__row">
       <label>Portal</label>
       <button
-        :class="{ 'flag--success': portal, 'flag--danger': !portal }"
-        :disabled="isNpcDeployed"
-        :title="
-          isNpcDeployed
-            ? 'Exit NPC preview to change Portal setting'
-            : portal
-              ? 'NPCs can travel to another floor through this object'
-              : 'NPCs cannot use this object for cross-floor travel'
-        "
-        @click="portal = !portal"
-      >
+        :class="{ 'flag--success': portal, 'flag--danger': !portal }" :disabled="isNpcDeployed" :title="isNpcDeployed
+          ? 'Exit NPC preview to change Portal setting'
+          : portal
+            ? 'NPCs can travel to another floor through this object'
+            : 'NPCs cannot use this object for cross-floor travel'
+        " @click="portal = !portal">
         {{ portal ? 'ON' : 'OFF' }}
       </button>
     </div>
     <div class="form__hint">Portal objects let NPCs travel between floors (e.g. elevators, stairs).</div>
+  </div>
+  <div class="form__col form--section">
+    <div>Doors</div>
+    <div v-if="!doorSegments.length" class="empty">No doors on this asset</div>
+    <div v-for="entry in doorSegments" :key="`door-mode-${entry.index}`" class="form__row">
+      <label :for="`door-mode-${entry.index}`">Door {{ entry.index + 1 }} ({{ entry.segment.x1 }},{{ entry.segment.y1 }}
+        -&gt; {{ entry.segment.x2 }},{{ entry.segment.y2 }})</label>
+      <select
+        :id="`door-mode-${entry.index}`" :value="entry.segment.doorMode ?? 'auto'" aria-label="Door close mode"
+        @change="commitDoorMode(entry.index, ($event.target as HTMLSelectElement).value)"
+      >
+        <option value="auto">Auto</option>
+        <option value="hold-open">Hold open</option>
+        <option value="auto-close">Auto-close</option>
+      </select>
+      <button type="button" class="flag--danger" :aria-label="`Delete door ${entry.index + 1}`" @click="deleteDoorSegment(entry.index)">x</button>
+    </div>
+    <div class="form__hint">Auto means rooms close themselves while occupied, passage stays open.</div>
   </div>
 </template>
 

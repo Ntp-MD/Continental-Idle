@@ -42,7 +42,7 @@ export function useCanvasSelection(
 			return
 		}
 		const store = opts.store
-		if (store.state.mode === 'move') {
+		if (store.state.mode === 'move' || store.state.mode === 'npc-preview') {
 			opts.startPan(e)
 			return
 		}

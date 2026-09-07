@@ -27,6 +27,7 @@ export type {
 	NpcLayoutBuildResult,
 	NpcWalkableMap,
 } from './layoutBuild'
+export { chatPairKey, resolveChatExchange } from './socialLines'
 export { createNpcEnginePolicy } from './policy'
 export type { NpcEnginePolicy, NpcPolicyContext } from './policy'
 export type {
@@ -42,4 +43,5 @@ export type {
 	NpcEngineQueue,
 	NpcEnginePathfinder,
 	NpcEnginePoint,
+	NpcEngineWaitReason,
 } from './types'

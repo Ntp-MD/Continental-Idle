@@ -75,9 +75,4 @@ export class WanderMemory {
 		}
 		return best
 	}
-
-	clear(): void {
-		this.recentTiles.clear()
-		this.order.length = 0
-	}
 }

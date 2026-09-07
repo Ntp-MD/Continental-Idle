@@ -307,6 +307,33 @@ function backToEditor() {
     </section>
 
     <section class="showcase__section">
+      <h2>Canvas marks (static samples)</h2>
+      <p class="form__hint">Side-effect free samples of the shapes the editor canvas draws.</p>
+      <div class="showcase__row">
+        <svg width="64" height="28" viewBox="0 0 64 28" role="img" aria-label="Door panel closed">
+          <line x1="4" y1="20" x2="60" y2="20" stroke="var(--border-dim)" stroke-width="3" stroke-linecap="round" />
+          <rect x="22" y="17" width="20" height="6" rx="1" fill="var(--text-secondary)" />
+        </svg>
+        <svg width="64" height="28" viewBox="0 0 64 28" role="img" aria-label="Door panel open">
+          <line x1="4" y1="20" x2="60" y2="20" stroke="var(--border-dim)" stroke-width="3" stroke-linecap="round" />
+          <rect x="38" y="17" width="20" height="6" rx="1" fill="var(--text-secondary)" />
+        </svg>
+        <span class="form__hint">door panel: closed / slid open</span>
+      </div>
+      <div class="showcase__row">
+        <svg width="220" height="36" viewBox="0 0 220 36" role="img" aria-label="Interact spots">
+          <circle cx="20" cy="16" r="5" fill="var(--accent-green)" stroke="var(--text-primary)" stroke-width="0.8" />
+          <text x="20" y="8" text-anchor="middle" font-size="8" fill="color-mix(in srgb, var(--accent-green) 70%, var(--bg-primary))">IS1</text>
+          <circle cx="100" cy="16" r="5" fill="var(--accent-green)" stroke="var(--text-primary)" stroke-width="0.8" />
+          <text x="100" y="8" text-anchor="middle" font-size="8" fill="color-mix(in srgb, var(--accent-green) 70%, var(--bg-primary))">bar-back</text>
+          <circle cx="180" cy="16" r="5" fill="none" stroke="var(--accent-green)" stroke-width="0.8" />
+          <text x="180" y="8" text-anchor="middle" font-size="8" fill="color-mix(in srgb, var(--accent-green) 70%, var(--bg-primary))">edge</text>
+        </svg>
+        <span class="form__hint">stand spot / named post / edge spot</span>
+      </div>
+    </section>
+
+    <section class="showcase__section">
       <h2>Modal mockups (real components, live editor data)</h2>
       <p class="form__hint">
         Same components the editor uses, mounted standalone with reloadEditorData(). Changes made here write to the real

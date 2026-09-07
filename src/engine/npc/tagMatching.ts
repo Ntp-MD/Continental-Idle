@@ -28,3 +28,12 @@ export function getRoleFocusTags(config: NpcSimulationConfig, role: NpcRole, man
 	const managed = new Set(managedTags)
 	return tags.filter(tag => managed.has(tag))
 }
+
+function isPostTargetTag(tag: string): boolean {
+	return tag.startsWith('post:')
+}
+
+export function hasPostTag(tags: readonly string[] | undefined): boolean {
+	if (!tags) return false
+	return tags.some(isPostTargetTag)
+}

@@ -47,7 +47,10 @@ export function floorSignature(floor: FloorData | undefined): string {
 export function useNpcSimulation(sources: NpcSimulationSources = {}): {
 	npcs: Ref<NpcSimDot[]>
 	frameDots: Map<string, NpcSimDot>
+	waitReasons: ReadonlyMap<string, string>
+	arrivalMarks: ReadonlyMap<string, number>
 	doorPassageEvents: ShallowRef<NpcEngineEvent[]>
+	socialEvents: ShallowRef<NpcEngineEvent[]>
 	deploy: (floorId?: string, spawnFloorId?: string) => void
 	start: () => void
 	stop: () => void
@@ -97,7 +100,10 @@ export function useNpcSimulation(sources: NpcSimulationSources = {}): {
 	return {
 		npcs: core.npcs,
 		frameDots: core.frameDots,
+		waitReasons: core.waitReasons,
+		arrivalMarks: core.arrivalMarks,
 		doorPassageEvents: core.doorPassageEvents,
+		socialEvents: core.socialEvents,
 		deploy(floorId?: string, spawnFloorId?: string) {
 			const view = floorId ?? sources.getFloor?.()?.id
 			const floors = sources.getAllFloors?.() ?? []
@@ -108,8 +114,7 @@ export function useNpcSimulation(sources: NpcSimulationSources = {}): {
 		},
 		start: core.start,
 		stop() {
-			core.clearDeployment()
-			core.stopLoop()
+			core.reset()
 		},
 		pause: () => { core.isPaused.value = true },
 		resume: () => { core.isPaused.value = false },

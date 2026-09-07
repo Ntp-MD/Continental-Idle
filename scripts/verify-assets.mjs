@@ -57,6 +57,12 @@ function validateAnchorPoints(value) {
 		if (Array.isArray(a)) return `entry ${i}: [x,y] tuple not allowed — must be {x,y} object`
 		if (!a || typeof a !== 'object') return `entry ${i}: must be an object`
 		if (!isFiniteNum(a.x) || !isFiniteNum(a.y)) return `entry ${i}: x and y must be finite numbers`
+		if (a.kind !== undefined && a.kind !== 'stand' && a.kind !== 'edge') return `entry ${i}: kind must be "stand" or "edge"`
+		if (a.kind === 'edge') {
+			if (!['N', 'S', 'E', 'W'].includes(a.edge)) return `entry ${i}: edge must be one of N/S/E/W`
+			if (!isFiniteNum(a.offset) || a.offset < 0) return `entry ${i}: offset must be a finite number >= 0`
+		}
+		if (a.post !== undefined && (typeof a.post !== 'string' || !a.post.trim())) return `entry ${i}: post must be a non-empty string`
 	}
 	return null
 }
@@ -103,6 +109,7 @@ function validateWallSegments(value) {
 		if (![segment.x1, segment.y1, segment.x2, segment.y2].every(isFiniteNum)) return `entry ${i}: endpoints must be finite numbers`
 		if (segment.x1 !== segment.x2 && segment.y1 !== segment.y2) return `entry ${i}: must be axis-aligned`
 		if (segment.x1 === segment.x2 && segment.y1 === segment.y2) return `entry ${i}: must not be zero-length`
+		if (segment.doorMode !== undefined && segment.doorMode !== 'hold-open' && segment.doorMode !== 'auto-close') return `entry ${i}: doorMode must be "hold-open" or "auto-close"`
 	}
 	return null
 }

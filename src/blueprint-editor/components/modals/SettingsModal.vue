@@ -331,16 +331,16 @@ async function resetEditorAll() {
     >
       <div class="form__col form--section">
         <div>Canvas Size</div>
-        <div class="form__row form--wrap">
-          <div class="form__row">
+        <div class="form__row form--start form--wrap">
+          <div class="form__col">
             <label for="canvas__width">Width</label>
             <input id="canvas__width" v-model.number="widthInput" type="number" min="100" step="25" />
           </div>
-          <div class="form__row">
+          <div class="form__col">
             <label for="canvas__height">Height</label>
             <input id="canvas__height" v-model.number="heightInput" type="number" min="100" step="25" />
           </div>
-          <div class="form__row">
+          <div class="form__col">
             <label for="canvas__tile">Tile</label>
             <input id="canvas__tile" v-model.number="tileInput" type="number" min="5" step="5" />
           </div>

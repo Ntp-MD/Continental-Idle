@@ -96,7 +96,7 @@ function makeAsset(over: Partial<AssetDef>): AssetDef {
 	const mapped = floor.objects[0]
 	assert.equal(mapped.walkable, false, 'walkable inherited from origin asset')
 	assert.equal(mapped.doorRequired, false)
-	assert.deepEqual(mapped.interactSpots, [{ x: 12.5, y: 12.5 }])
+	assert.deepEqual(mapped.interactSpots, [{ kind: 'stand', x: 12.5, y: 12.5 }])
 	assert.equal(mapped.interact?.capacity, undefined)
 	assert.equal(mapped.interact?.durationMin, 2)
 	assert.equal(mapped.queue?.maxMembers, 2)

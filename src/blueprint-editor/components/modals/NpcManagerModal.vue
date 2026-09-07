@@ -240,6 +240,16 @@ function taskUsage(taskId: string): number {
   return taskUsageMap.value.get(taskId) ?? 0
 }
 
+const stationAssets = computed(() =>
+  store.state.assetRegistry
+    .map((asset) => ({
+      id: asset.id,
+      name: asset.name,
+      posts: [...new Set((asset.interactSpots ?? []).map((spot) => spot.post).filter((post): post is string => !!post))],
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name)),
+)
+
 async function addTask() {
   const id = genId('task')
   draft.value.tasks.push({ id, label: 'New Task', tags: [] })
@@ -287,6 +297,25 @@ async function addTaskTag(task: NpcTask, value: string) {
 
 async function removeTaskTag(task: NpcTask, tag: string) {
   task.tags = task.tags.filter((item) => item !== tag)
+  await updateTask()
+}
+
+async function setTaskPostAsset(task: NpcTask, assetId: string) {
+  if (!assetId.trim()) delete task.post
+  else task.post = { assetId: assetId.trim(), ...(task.post?.post ? { post: task.post.post } : {}) }
+  await updateTask()
+}
+
+async function setTaskPostName(task: NpcTask, name: string) {
+  if (!task.post?.assetId) return
+  const post = name.trim()
+  if (!post) delete task.post.post
+  else task.post.post = post
+  await updateTask()
+}
+
+async function clearTaskPost(task: NpcTask) {
+  delete task.post
   await updateTask()
 }
 
@@ -462,11 +491,15 @@ onUnmounted(() => {
             <NpcTaskCard
               :task="task"
               :usage-count="taskUsage(task.id)"
+              :assets="stationAssets"
               @update="updateTask"
               @rename="(value) => renameTask(task, value)"
               @remove="deleteTask(task.id)"
               @remove-tag="(tag) => removeTaskTag(task, tag)"
               @add-tag="(value) => addTaskTag(task, value)"
+              @set-post-asset="(assetId) => setTaskPostAsset(task, assetId)"
+              @set-post-name="(name) => setTaskPostName(task, name)"
+              @clear-post="clearTaskPost(task)"
             />
           </li>
         </ul>

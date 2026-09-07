@@ -1,6 +1,6 @@
 import { isValidColor } from '../domain/types'
-import { assetPixelSize, CANVAS_WALL_OBJECT_TYPE } from '../domain/types'
-import type { Rect, WallSegment } from '../domain/types'
+import { assetPixelSize, CANVAS_WALL_OBJECT_TYPE, resolveInteractSpotAnchor, resolveStreetTiles, resolveWallSegmentsForObject, spawnZoneAllowsRole } from '../domain/types'
+import type { Rect, WallSegment, DoorMode, CanvasConfig, NpcSpawnZone } from '../domain/types'
 import type { AssetDef, FloorData, FloorLayoutData, NpcSimulationConfig, ObjectPlacement, SvgRole, SvgRoleInfo, WalkableGrid, TileState } from '../domain/types'
 
 export function findAsset(assets: readonly AssetDef[], type: string): AssetDef | undefined {
@@ -57,6 +57,27 @@ export interface DoorPanel {
 	thickness: number
 	horizontal: boolean
 	slideDir: -1 | 1
+	ownerObjectId?: string
+	mode?: DoorMode
+}
+
+export function resolveDoorMode(explicitMode: DoorMode | undefined, ownerHasSpots: boolean): DoorMode {
+	if (explicitMode !== undefined) return explicitMode
+	return ownerHasSpots ? 'auto-close' : 'hold-open'
+}
+
+export function withSegmentDoorMode(
+	segments: readonly WallSegment[],
+	index: number,
+	mode: DoorMode | undefined,
+): WallSegment[] {
+	return segments.map((segment, i) => {
+		if (i !== index) return { ...segment }
+		if (mode !== undefined) return { ...segment, doorMode: mode }
+		const next = { ...segment }
+		delete next.doorMode
+		return next
+	})
 }
 
 export function doorPanelsData(
@@ -150,6 +171,7 @@ export function wallSegmentsOverlaySvg(asset: AssetDef, tileSize: number, color:
 		x2: s.x2 * scaleX,
 		y2: s.y2 * scaleY,
 		door: true as const,
+		...(s.doorMode !== undefined ? { doorMode: s.doorMode } : {}),
 	}))
 	const doorSvg = doorPanelsSvg(scaledDoorSegs, 1, sw, doorColor, 0)
 	return `<g class="wall-overlay">${wallParts.join('')}${doorSvg}</g>`
@@ -182,7 +204,6 @@ export function parseSvgViewBox(svg: string): { w: number; h: number } | null {
 export const ASSET_ORIGIN_LABELS: Record<string, string> = {
 	drawn: 'Drawn',
 	'svg-import': 'SVG',
-	linked: 'Linked',
 	flattened: 'Flattened',
 }
 
@@ -299,6 +320,7 @@ export function serializeObject(obj: ObjectPlacement): ObjectPlacement {
 	if (obj.locked !== undefined) out.locked = obj.locked
 	if (obj.isWall !== undefined) out.isWall = obj.isWall
 	if (obj.door === true && obj.isWall && obj.type === CANVAS_WALL_OBJECT_TYPE) out.door = true
+	if (obj.doorMode !== undefined && out.door === true) out.doorMode = obj.doorMode
 	for (const key of ['x1', 'y1', 'x2', 'y2'] as const) {
 		const value = obj[key]
 		if (typeof value === 'number' && Number.isFinite(value)) out[key] = value
@@ -413,7 +435,120 @@ function collectFloorAssetTags(layout: FloorLayoutData, assetMap: Map<string, As
 function floorHasSpawnZoneForRole(floor: FloorData, roleId: string): boolean {
 	const zones = floor.spawnZones
 	if (!zones?.length) return false
-	return zones.some(zone => !zone.roleIds?.length || zone.roleIds.includes(roleId))
+	return zones.some(zone => spawnZoneAllowsRole(zone, roleId))
+}
+
+function roleCanReachFloor(roleId: string, floor: FloorData, poolFloorIds: string[] | undefined): boolean {
+	if (floor.allowedRoleIds?.length && !floor.allowedRoleIds.includes(roleId)) return false
+	if (poolFloorIds?.length && !poolFloorIds.includes(floor.id)) return false
+	return true
+}
+
+export function isGuestRoleId(roleId: string): boolean {
+	return roleId.toLowerCase().includes('guest')
+}
+
+function zoneOverlapsStreetRing(zone: NpcSpawnZone, canvas: CanvasConfig, streetWidthTiles: number): boolean {
+	const tileSize = Math.max(1, canvas.tileSize)
+	const cols = Math.max(0, Math.ceil(canvas.width / tileSize))
+	const rows = Math.max(0, Math.ceil(canvas.height / tileSize))
+	const band = streetWidthTiles
+	// Mirror the engine: no street cells exist when the ring covers the whole canvas.
+	if (cols <= band * 2 || rows <= band * 2) return false
+	for (let ty = 0; ty < rows; ty++) {
+		const rowBand = ty < band || ty >= rows - band
+		for (let tx = 0; tx < cols; tx++) {
+			if (!rowBand && !(tx < band || tx >= cols - band)) continue
+			// Engine spawn predicate (filterNpcSpawnTiles): a cell spawns iff its
+			// center px lands inside the zone. A zone that contains no street cell
+			// center can never spawn a guest, so it does NOT satisfy the convention.
+			const px = (tx + 0.5) * tileSize
+			const py = (ty + 0.5) * tileSize
+			if (px >= zone.x && px < zone.x + zone.w && py >= zone.y && py < zone.y + zone.h) return true
+		}
+	}
+	return false
+}
+
+export interface FloorWallSegment {
+	segment: WallSegment
+	ownerObjectId: string
+}
+
+export function collectFloorWallSegments(
+	floor: FloorData,
+	tileSize: number,
+	getAssetDef?: (type: string) => AssetDef | undefined,
+): FloorWallSegment[] {
+	const segments: FloorWallSegment[] = []
+	for (const object of floor.objects) {
+		if (object.isWall && object.type === CANVAS_WALL_OBJECT_TYPE) {
+			const { x1, y1, x2, y2 } = object
+			if (typeof x1 !== 'number' || !Number.isFinite(x1) || typeof y1 !== 'number' || !Number.isFinite(y1) || typeof x2 !== 'number' || !Number.isFinite(x2) || typeof y2 !== 'number' || !Number.isFinite(y2)) continue
+			const segment: WallSegment = { x1: x1 * tileSize, y1: y1 * tileSize, x2: x2 * tileSize, y2: y2 * tileSize }
+			if (object.door) segment.door = true
+			segments.push({ segment, ownerObjectId: object.id })
+			continue
+		}
+		const asset = getAssetDef?.(object.type)
+		if (!asset?.wallSegments?.length) continue
+		for (const segment of resolveWallSegmentsForObject(asset.wallSegments, asset, object, tileSize)) {
+			segments.push({ segment, ownerObjectId: object.id })
+		}
+	}
+	return segments
+}
+
+export interface FloorEntrance {
+	key: string
+	centerX: number
+	centerY: number
+	ownerObjectId: string
+}
+
+export function collectFloorEntrances(
+	floor: FloorData,
+	canvas: CanvasConfig,
+	streetWidthTiles: number,
+	assetMap: Map<string, AssetDef>,
+): FloorEntrance[] {
+	const tileSize = canvas.tileSize
+	const band = streetWidthTiles * tileSize
+	const isStreetCell = (px: number, py: number): boolean =>
+		px < band || py < band || px > canvas.width - band || py > canvas.height - band
+	const doorSegments = collectFloorWallSegments(floor, tileSize, (type: string) => assetMap.get(type))
+		.filter(entry => entry.segment.door)
+	const entrances: FloorEntrance[] = []
+	for (const { segment, ownerObjectId } of doorSegments) {
+		const horizontal = segment.y1 === segment.y2
+		if (!horizontal && segment.x1 !== segment.x2) continue
+		const alongStart = Math.min(horizontal ? segment.x1 : segment.y1, horizontal ? segment.x2 : segment.y2) / tileSize
+		const alongEnd = Math.max(horizontal ? segment.x1 : segment.y1, horizontal ? segment.x2 : segment.y2) / tileSize
+		const firstCell = Math.ceil(alongStart - 1e-6)
+		const lastCell = Math.ceil(alongEnd - 1e-6) - 1
+		let nearStreet = false
+		let nearInterior = false
+		let farStreet = false
+		let farInterior = false
+		for (let cell = firstCell; cell <= lastCell; cell++) {
+			const along = cell * tileSize + tileSize / 2
+			const nearX = horizontal ? along : segment.x1 - tileSize / 2
+			const nearY = horizontal ? segment.y1 - tileSize / 2 : along
+			const farX = horizontal ? along : segment.x1 + tileSize / 2
+			const farY = horizontal ? segment.y1 + tileSize / 2 : along
+			if (isStreetCell(nearX, nearY)) nearStreet = true; else nearInterior = true
+			if (isStreetCell(farX, farY)) farStreet = true; else farInterior = true
+		}
+		if ((nearStreet && farInterior) || (farStreet && nearInterior)) {
+			entrances.push({
+				key: `${segment.x1},${segment.y1},${segment.x2},${segment.y2}`,
+				centerX: (segment.x1 + segment.x2) / 2,
+				centerY: (segment.y1 + segment.y2) / 2,
+				ownerObjectId,
+			})
+		}
+	}
+	return entrances
 }
 
 export function validateSettingsCompleteness(
@@ -477,6 +612,55 @@ export function validateSettingsCompleteness(
 		if (!taskIdsReferenced.has(task.id)) {
 			issues.push(`Task "${task.label}" is not assigned to any role`)
 		}
+		const post = task.post
+		if (!post) continue
+		const asset = assetMap.get(post.assetId)
+		if (!asset) {
+			issues.push(`Task "${task.label}" posts to unknown asset "${post.assetId}" - it behaves as a plain tag task`)
+			continue
+		}
+		const spots = asset.interactSpots ?? []
+		const matching = post.post ? spots.filter(spot => spot.post === post.post) : spots
+		if (!matching.length) {
+			issues.push(`Task "${task.label}" posts to "${post.post ?? 'any spot'}" but asset "${asset.name}" has no matching spot`)
+			continue
+		}
+		if ((asset.tags ?? []).includes('portal')) {
+			issues.push(`Task "${task.label}" posts to portal asset "${asset.name}" - the post index ignores portals`)
+		}
+		const anchors = new Map<string, string>()
+		for (const spot of matching) {
+			const anchor = spot.kind === 'edge'
+				? resolveInteractSpotAnchor(spot, asset.svgViewBox?.w ?? 0, asset.svgViewBox?.h ?? 0)
+				: { x: spot.x, y: spot.y }
+			const key = `${anchor.x},${anchor.y}`
+			const prev = anchors.get(key)
+			if (prev !== undefined && prev !== (spot.post ?? '')) {
+				issues.push(`Asset "${asset.name}" has different posts sharing one cell - "${prev || 'unnamed'}" vs "${spot.post ?? 'unnamed'}"`)
+			} else {
+				anchors.set(key, spot.post ?? '')
+			}
+		}
+		const placedFloors = layout.floors.filter(floor => floor.objects.some(object => object.type === asset.id))
+		if (!placedFloors.length) {
+			issues.push(`Task "${task.label}" posts to asset "${asset.name}" which is not placed on any floor`)
+			continue
+		}
+		const assetTags = new Set((asset.tags ?? []).map(tag => tag.trim().toLowerCase()))
+		for (const role of npcConfig.roles.filter(candidate => candidate.taskIds.includes(task.id))) {
+			const poolEntry = npcConfig.pool.find(entry => entry.roleId === role.id)
+			const poolCount = poolEntry?.count ?? 0
+			if (poolCount <= 0) {
+				issues.push(`Task "${task.label}" posts role "${role.label}" but its pool count is 0 - nobody will man the post`)
+			}
+			if (role.restrictedTags.some(tag => assetTags.has(tag.trim().toLowerCase()))) {
+				issues.push(`Task "${task.label}" posts role "${role.label}" to asset "${asset.name}" whose tags it restricts - the post may be unreachable`)
+			}
+			const reachable = placedFloors.some(floor => roleCanReachFloor(role.id, floor, poolEntry?.floorIds))
+			if (!reachable) {
+				issues.push(`Task "${task.label}" posts role "${role.label}" but every floor with "${asset.name}" excludes it`)
+			}
+		}
 	}
 
 	for (const entry of npcConfig.pool) {
@@ -487,6 +671,31 @@ export function validateSettingsCompleteness(
 		if (entry.count <= 0) {
 			const role = npcConfig.roles.find(r => r.id === entry.roleId)
 			issues.push(`Pool entry for role "${role?.label ?? entry.roleId}" has count ${entry.count} - no NPCs will spawn`)
+		}
+	}
+
+	const streetFloorId = layout.streetFloorId
+	if (streetFloorId) {
+		const streetFloor = layout.floors.find(floor => floor.id === streetFloorId)
+		if (streetFloor) {
+			const streetGuestRoleIds = new Set(npcConfig.pool
+				.filter(entry => entry.count > 0
+					&& isGuestRoleId(entry.roleId)
+					&& (!entry.floorIds?.length || entry.floorIds.includes(streetFloorId))
+					&& (!streetFloor.allowedRoleIds?.length || streetFloor.allowedRoleIds.includes(entry.roleId)))
+				.map(entry => entry.roleId))
+			const streetWidth = resolveStreetTiles(layout)
+			const served = [...streetGuestRoleIds].some(roleId =>
+				(streetFloor.spawnZones ?? []).some(zone =>
+					spawnZoneAllowsRole(zone, roleId)
+					&& zoneOverlapsStreetRing(zone, layout.canvas, streetWidth)))
+			if (streetGuestRoleIds.size > 0) {
+				if (!served) {
+					issues.push(`Floor "${streetFloor.label}" is the street floor but no spawn zone covers its sidewalk - guest arrivals need a street-side spawn zone`)
+				} else if (collectFloorEntrances(streetFloor, layout.canvas, streetWidth, assetMap).length === 0) {
+					issues.push(`Floor "${streetFloor.label}" has street-side spawn zones but no door connects the street to the building - guest arrivals need an entrance door on the street floor`)
+				}
+			}
 		}
 	}
 

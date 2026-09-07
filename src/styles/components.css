@@ -24,6 +24,10 @@
 	align-items: flex-start;
 }
 
+.form__row.form--start > div {
+	flex: 1;
+}
+
 .form--section {
 	border-bottom: 1px solid var(--border-dim);
 	padding-bottom: var(--gap-sm);

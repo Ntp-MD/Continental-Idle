@@ -195,6 +195,7 @@ async function onDeploy() {
       <section v-if="selectedRole" class="form__col deploy__detail">
         <h3>Spawn Rule: {{ selectedRole.label }}</h3>
         <template v-if="getPoolCount(selectedRole.id) > 0">
+          <div class="form__row form--start form--wrap">
           <div class="form__col form--section">
             <div>Spawn Floors</div>
             <template v-if="!spawnFloorId">
@@ -239,6 +240,7 @@ async function onDeploy() {
               aria-label="Add target tag"
               @keydown.enter="onAddSpawnTagFor(selectedRole)"
             />
+          </div>
           </div>
         </template>
         <p v-else class="form__hint">Set a count above 0 to configure spawn floors and target tags.</p>

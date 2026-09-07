@@ -11,7 +11,9 @@ Repo instructions for AI agents. Read the matching section before touching an ar
 - Zero-duplication: never create a second way to do the same thing. No duplicate impls, facades, or wrappers.
 - DO directly: in-scope edits, local refactors, obvious wiring. STOP + ask: destructive (rm/migrate/drop), scope >3 files, new dependency/infra, secrets/auth change.
 - Rule: confidence >80% and reversible -> do it, state assumption in report. Else ask.
+- Ask with options: whenever stopping to ask, present numbered options (2-4) each with pros/cons, then state which option is recommended and why.
 - Claim then impact: user-reported bug/request -> verify against code first and state what is actually true; assess impact + pros/cons before implementing.
+- Engineering standard: for every choice, pick the efficient / best-practice / higher-performance / cleaner-code option first; when alternatives exist, state briefly in the report why the chosen path won.
 - Keep scope: fix the asked task only. User correction persists for the session.
 
 ## Autonomous Development Workflow
@@ -23,7 +25,7 @@ When working on a task, follow this workflow:
    - Understand the current architecture before making changes.
 
 2. Plan
-   - Create a clear implementation plan.
+   - Write a tight 4-part plan before coding: (1) What to add/fix and non-goals, (2) Why it must change, (3) How to fix it in order, (4) Why this method over alternatives.
    - Identify affected files and potential risks.
 
 3. Implement
@@ -79,7 +81,9 @@ When the user asks to make, review, improve, or reorder a plan ("make plan",
 - New plan: `_archive/<topic-slug>.md` (`.txt` also allowed on request).
 - Existing plan: re-read it first, then edit in place; never create a second file for the same topic.
 - Plan capture never touches `src/`, `tests/`, or configs - file writes stay inside `_archive/`.
+- Implemented plan: delete `_archive/<topic-slug>.md` once fully implemented and reported; plans track active work only, never pile up.
 - After writing, report the file path plus a short summary of the order and checkpoints.
+- Shared board `_archive/park.md` is the cross-agent intent log: re-read it at task start; no realtime watch, on-demand re-read only.
 
 ## Skills
 
@@ -87,6 +91,7 @@ Registry is provider-agnostic; skill files stay in place, never copy per provide
 
 - `normalize-audit` (`.opencode/skills/normalize-audit/SKILL.md`) - before touching data flow: migration, loaders, persistence, sync, validation, engine adapters, UI saves.
 - `autonomous-development` (`.opencode/skills/autonomous-development/SKILL.md`) - how to run the Autonomous Development Workflow: inspect -> plan -> implement -> test -> fix -> review -> repeat.
+- `ui-layout` (`.opencode/skills/ui-layout/SKILL.md`) - canonical form/markup/CSS/class patterns; pairs with `autonomous-development` at Implement + Review for every template/markup/CSS/class change.
 
 ## Verify
 
@@ -126,7 +131,7 @@ Reuse these for `src/blueprint-editor/`; do not introduce alternatives.
 
 - Modals: `ModalShell` with `:open` / `@close`; heavy/rare modals via `defineAsyncComponent`.
 - Tabs: shared `.tabs__bar` / `.tabs__tab` with `role="tablist"`; bar fixed, only panel scrolls.
-- Showcase: every UI primitive/wrapper must appear in `src/dev/UiShowcase.vue` (open `/?showcase=1`); update it in the same change.
+- Showcase: every shared UI primitive/wrapper must appear in `src/dev/UiShowcase.vue` (open `/?showcase=1`); update it in the same change. Feature panels/cards already reachable through a showcased modal need no extra entry.
 - Confirm: injected `confirm()`, never `window.confirm`. Feedback: `useToast` for users, `editorLog` for console. Never `alert` / `console.log` for user-facing state.
 - Dirty tracking: `useDirtyBaseline` (one snapshot + `dirty` computed). No hand-rolled flags, no stringified-key comparison.
 - Concurrency: `withStateLock` for store mutations, `useAsyncAction` for UI pending. One guard per layer, no duplicate booleans.

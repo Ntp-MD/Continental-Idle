@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch, inject, type Ref } from 'vue'
 import { useAssetsStore, dragState, endAssetDrag, wallSelection } from '../../blueprintStore'
-import { svgColorVarStyle } from '../../assets/assetUtils'
+import { svgColorVarStyle, isGuestRoleId } from '../../assets/assetUtils'
 import { svgTransform as svgTransformGeo, roundedRectPath, buildingArea } from '../../domain/geometry'
 import {
   CANVAS_WALL_OBJECT_TYPE,
@@ -18,9 +18,10 @@ import { useCanvasWallStyle } from '../../composables/useCanvasWallStyle'
 import ColorInput from '../inputs/ColorInput.vue'
 import ModalShell from '../shell/ModalShell.vue'
 import { useNpcSimulation } from '../../composables/useNpcSimulation'
+import { chatPairKey, resolveChatExchange } from '@/engine/npc'
 import { useDoorAnimation } from '../../composables/useDoorAnimation'
 import { useWallPaint, type WallSegment, type WallSelection } from '../../composables/useWallPaint'
-import { useNpcOverlayDraw } from '../../composables/useNpcOverlayDraw'
+import { useNpcOverlayDraw, type ChatBubble } from '../../composables/useNpcOverlayDraw'
 import { useCanvasRuns, type WallRun, type ObjWallLine } from '../../composables/useCanvasRuns'
 import { renderSvgInto as renderSvgContent } from '../../assets/svgSanitizer'
 
@@ -79,6 +80,7 @@ watch(
       stopNpcDraw()
       doorAnimation.stop()
       doorAnimation.reset()
+      cancelObjectDrag()
     }
   },
 )
@@ -94,7 +96,6 @@ const savedToggles = (() => {
 })()
 const showWalkableOverlay = ref(savedToggles.showWalkableOverlay ?? false)
 const showInteractSpots = ref(savedToggles.showInteractSpots ?? false)
-const showWalls = ref(savedToggles.showWalls ?? false)
 const showObjectHighlights = ref(savedToggles.showObjectHighlights ?? false)
 const showBuildingBounds = ref(savedToggles.showBuildingBounds ?? true)
 const showNpcGuides = ref(savedToggles.showNpcGuides ?? true)
@@ -105,7 +106,6 @@ const viewToggles: Record<string, Ref<boolean>> = {
   showLabels,
   showWalkableOverlay,
   showInteractSpots,
-  showWalls,
   showObjectHighlights,
   showBuildingBounds,
   showNpcGuides,
@@ -130,7 +130,6 @@ function toggleView(key: string) {
 
 const isInteracting = computed(() => !!panning.value || !!moving.value || zooming.value)
 const renderWalkableOverlay = computed(() => showWalkableOverlay.value && !isInteracting.value)
-const renderWalls = computed(() => (showWalls.value || store.state.wallPaint) && !isInteracting.value)
 const renderInteractSpots = computed(() => showInteractSpots.value && !isInteracting.value)
 const renderObjectHighlights = computed(() => showObjectHighlights.value && !isInteracting.value)
 const renderBuildingBounds = computed(() => showBuildingBounds.value)
@@ -263,14 +262,49 @@ const {
   localPoint,
 } = vp
 
+const EMPTY_CHATS: readonly ChatBubble[] = []
+const activeChats = new Map<string, { by: string; at: number }>()
+watch(
+  () => npcSimulation.socialEvents.value,
+  (events) => {
+    for (const event of events ?? []) {
+      if (!event.partnerId) continue
+      const key = chatPairKey(event.agentId, event.partnerId)
+      if (event.type === 'chatting-start') activeChats.set(key, { by: event.agentId, at: event.tick })
+      else if (event.type === 'chatting-end') activeChats.delete(key)
+    }
+  },
+)
+function chatBubbles(): readonly ChatBubble[] {
+  if (activeChats.size === 0) return EMPTY_CHATS
+  const fid = store.state.currentFloorId
+  const bubbles: ChatBubble[] = []
+  for (const [key, info] of activeChats) {
+    const sep = key.indexOf('|')
+    const first = npcSimulation.frameDots.get(key.slice(0, sep))
+    const second = npcSimulation.frameDots.get(key.slice(sep + 1))
+    if (!first || !second || first.floorId !== fid || second.floorId !== fid) continue
+    if (first.status !== 'chatting' || second.status !== 'chatting') continue
+    const staffOnly = !isGuestRoleId(first.type) && !isGuestRoleId(second.type)
+    const [opener, reply] = resolveChatExchange(key, info.at, staffOnly)
+    const openerFirst = info.by === first.id
+    bubbles.push({ x: first.x, y: first.y, text: openerFirst ? opener : reply, dim: !openerFirst })
+    bubbles.push({ x: second.x, y: second.y, text: openerFirst ? reply : opener, dim: openerFirst })
+  }
+  return bubbles
+}
+
 const { startNpcDraw, stopNpcDraw } = useNpcOverlayDraw({
   frameDots: npcSimulation.frameDots,
+  waitReasons: npcSimulation.waitReasons,
+  arrivalMarks: npcSimulation.arrivalMarks,
   floorId: () => store.state.currentFloorId,
   guides: showNpcGuides,
   svg: vp.svgRef,
   canvas: npcCanvasRef,
   viewBox,
   rulerSize: RULER_SIZE,
+  chats: chatBubbles,
 })
 
 const { walkableRuns, wallRuns, objWallLines, wallRunsNoDoors, objWallLinesNoDoors, doorPanels, objDef, objAssetMap } = useCanvasRuns({
@@ -355,10 +389,6 @@ watch(
       store.select(null)
       store.selectAsset(null)
       wallPaint.clearSelection()
-      if (!showWalls.value) {
-        showWalls.value = true
-        saveViewToggles()
-      }
     }
   },
   { immediate: true },
@@ -576,6 +606,7 @@ function tryCycleSelect(p: { x: number; y: number }): EntityRef | null {
 
 function onObjectMouseDown(e: MouseEvent, id: string) {
   if (store.state.wallPaint) return
+  if (store.state.mode === 'npc-preview') return
   wallPaint.clearSelection()
   if (e.button === 1 || spaceDown.value) return
   e.stopPropagation()
@@ -610,6 +641,18 @@ function onObjectMouseDown(e: MouseEvent, id: string) {
 let _dragHasMoved = false
 let _moveRafId: number | null = null
 let _movePending: { x: number; y: number } | null = null
+
+function cancelObjectDrag(): void {
+  if (_moveRafId !== null) {
+    cancelAnimationFrame(_moveRafId)
+    _moveRafId = null
+  }
+  _movePending = null
+  _dragHasMoved = false
+  moving.value = null
+  window.removeEventListener('mousemove', onMoveMouseMove)
+  window.removeEventListener('mouseup', onMoveMouseUp)
+}
 
 function onMoveMouseMove(e: MouseEvent) {
   if (!moving.value) return
@@ -1169,6 +1212,33 @@ async function cancelDrawnOrigin() {
         />
       </g>
 
+      <!-- Wall paint guides (full-canvas crosshair while drawing walls) -->
+      <g
+        v-if="store.state.wallPaint && rulerMouseX >= 0 && rulerMouseY >= 0"
+        class="editor__svg--noevents"
+      >
+        <line
+          :x1="rulerMouseX"
+          :y1="0"
+          :x2="rulerMouseX"
+          :y2="canvas.height"
+          stroke="var(--text-secondary)"
+          stroke-width="1"
+          stroke-dasharray="6 4"
+          opacity="0.6"
+        />
+        <line
+          :x1="0"
+          :y1="rulerMouseY"
+          :x2="canvas.width"
+          :y2="rulerMouseY"
+          stroke="var(--text-secondary)"
+          stroke-width="1"
+          stroke-dasharray="6 4"
+          opacity="0.6"
+        />
+      </g>
+
       <g v-if="floor && floor.objects.length === 0">
         <text
           :x="canvas.width / 2"
@@ -1199,8 +1269,7 @@ async function cancelDrawnOrigin() {
       </g>
 
       <g
-        v-if="renderWalls"
-        v-memo="[wallRunsNoDoors, objWallLinesNoDoors, renderWalls, wallColor, wallThickness, selectedWall]"
+        v-memo="[wallRunsNoDoors, objWallLinesNoDoors, wallColor, wallThickness, selectedWall]"
         class="editor__svg--noevents"
       >
         <line
@@ -1227,7 +1296,7 @@ async function cancelDrawnOrigin() {
         />
       </g>
 
-      <g v-if="doorPanels.length && (renderWalls || store.state.mode === 'npc-preview')" class="editor__svg--noevents">
+      <g v-if="doorPanels.length" class="editor__svg--noevents">
         <template v-for="door in doorPanels" :key="`door-${door.key}`">
           <rect
             v-if="door.horizontal"
@@ -1435,8 +1504,8 @@ async function cancelDrawnOrigin() {
                   :cx="obj.x + interactSpot.x"
                   :cy="obj.y + interactSpot.y"
                   :r="interactSpotRadius"
-                  fill="var(--accent-green)"
-                  stroke="var(--text-primary)"
+                  :fill="interactSpot.kind === 'edge' ? 'none' : 'var(--accent-green)'"
+                  :stroke="interactSpot.kind === 'edge' ? 'var(--accent-green)' : 'var(--text-primary)'"
                   stroke-width="0.8"
                 />
                 <text
@@ -1446,7 +1515,7 @@ async function cancelDrawnOrigin() {
                   :font-size="interactSpotFontSize"
                   fill="color-mix(in srgb, var(--accent-green) 70%, var(--bg-primary))"
                 >
-                  IS{{ interactSpotIdx + 1 }}
+                  {{ interactSpot.post ?? `IS${interactSpotIdx + 1}` }}
                 </text>
               </g>
             </template>
@@ -1605,14 +1674,6 @@ async function cancelDrawnOrigin() {
         @click="toggleView('showWalkableOverlay')"
       >
         Walk
-      </button>
-      <button
-        :class="{ 'flag--active': showWalls }"
-        title="Toggle Outer Walls"
-        aria-label="Toggle walls"
-        @click="toggleView('showWalls')"
-      >
-        Wall
       </button>
       <button
         :class="{ 'flag--active': showInteractSpots }"

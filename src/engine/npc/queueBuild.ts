@@ -23,8 +23,13 @@ function edgeKey(from: NpcEnginePoint, to: NpcEnginePoint): string {
 	return `${key(from.x, from.y)}>${key(to.x, to.y)}`
 }
 
-function isBlockedEdge(floor: NpcEngineFloor, from: NpcEnginePoint, to: NpcEnginePoint): boolean {
-	return (floor.blockedEdges ?? []).some(edge => edgeKey(edge.from, edge.to) === edgeKey(from, to) || edgeKey(edge.from, edge.to) === edgeKey(to, from))
+function blockedEdgeKeySet(floor: NpcEngineFloor): Set<string> {
+	const keys = new Set<string>()
+	for (const edge of floor.blockedEdges ?? []) {
+		keys.add(edgeKey(edge.from, edge.to))
+		keys.add(edgeKey(edge.to, edge.from))
+	}
+	return keys
 }
 
 function objectTargetKeys(objectId: string, targets: readonly NpcEngineInteractionTarget[]): string[] {
@@ -54,9 +59,28 @@ function rotateWallSegmentsGrid(segments: WallSegment[], w: number, h: number, r
 			const tmp = w; w = h; h = tmp
 		}
 		const normalized = normalizeWallSegment({ x1, y1, x2, y2, door })
-		if (normalized) result.push(normalized)
+		if (normalized) {
+			if (seg.door === true && seg.doorMode !== undefined) normalized.doorMode = seg.doorMode
+			result.push(normalized)
+		}
 	}
 	return result
+}
+
+function sideCellsForDirection(
+	direction: Direction,
+	rows: number,
+	cols: number,
+): Array<{ row: number; col: number }> {
+	const cells: Array<{ row: number; col: number }> = []
+	if (direction.dc === 0) {
+		const row = direction.dr === -1 ? 0 : rows - 1
+		for (let col = 0; col < cols; col++) cells.push({ row, col })
+	} else {
+		const col = direction.dc === -1 ? 0 : cols - 1
+		for (let row = 0; row < rows; row++) cells.push({ row, col })
+	}
+	return cells
 }
 
 function doorCellsForDirection(
@@ -117,6 +141,8 @@ export function buildNpcQueues(
 	targets: readonly NpcEngineInteractionTarget[],
 ): NpcEngineQueue[] {
 	const walkable = new Set(floor.walkable.map(point => key(point.x, point.y)))
+	const blockedEdgeKeys = blockedEdgeKeySet(floor)
+	const isBlocked = (from: NpcEnginePoint, to: NpcEnginePoint): boolean => blockedEdgeKeys.has(edgeKey(from, to))
 	const queues: NpcEngineQueue[] = []
 	for (const object of floorData.objects) {
 		const asset = assets.get(object.type)
@@ -135,9 +161,17 @@ export function buildNpcQueues(
 			asset.wallSegments?.filter(seg => seg.door) ?? [],
 			asset.w, asset.h, rotSteps,
 		)
-		if (!doorSegments.length) continue
+		if (!doorSegments.length && !definition.queue) continue
+		const standalone = doorSegments.length === 0
+		const targetCells = new Set(
+			targets
+				.filter(target => target.itemId === `object:${object.id}` && !target.transitionToFloorId)
+				.map(target => key(target.x, target.y)),
+		)
 		for (const direction of DIRECTIONS) {
-			const doorCells = doorCellsForDirection(doorSegments, direction, rows, cols)
+			const doorCells = standalone
+				? sideCellsForDirection(direction, rows, cols)
+				: doorCellsForDirection(doorSegments, direction, rows, cols)
 			if (!doorCells.length) continue
 			doorCells.sort((a, b) => (direction.tangent === 'row' ? a.row - b.row : a.col - b.col))
 			const groups: Array<Array<{ row: number; col: number }>> = []
@@ -156,7 +190,7 @@ export function buildNpcQueues(
 						const base = objectCell(object, cell.row, cell.col, tileSize)
 						const point = { x: base.x + direction.dc * depth, y: base.y + direction.dr * depth }
 						const previousPoint = { x: point.x - direction.dc, y: point.y - direction.dr }
-						if (!walkable.has(key(point.x, point.y)) || isBlockedEdge(floor, previousPoint, point)) continue
+						if (!walkable.has(key(point.x, point.y)) || targetCells.has(key(point.x, point.y)) || isBlocked(previousPoint, point)) continue
 						const tangent = direction.tangent === 'row' ? cell.row : cell.col
 						candidateSlots.push({ point, depth, tangentDistance: Math.abs(tangent - midpoint) })
 					}
@@ -177,7 +211,12 @@ export function buildNpcQueues(
 						const base = objectCell(object, cell.row, cell.col, tileSize)
 						return { x: base.x + direction.dc * admissionDepth, y: base.y + direction.dr * admissionDepth }
 					})
-					.filter(point => walkable.has(key(point.x, point.y)))
+					.filter(point => {
+						if (!walkable.has(key(point.x, point.y))) return false
+						if (targetCells.has(key(point.x, point.y))) return false
+						const previousPoint = { x: point.x - direction.dc, y: point.y - direction.dr }
+						return !isBlocked(previousPoint, point)
+					})
 				queues.push({
 					key: `${floor.id}:queue:${object.id}:${direction.dr}:${direction.dc}:${group[0].row}:${group[0].col}`,
 					targetKeys,

@@ -35,15 +35,14 @@ const TILE = 25
 const THICKNESS = 3
 const DOOR_COLOR = '#3b82f6'
 const WALL_COLOR = '#2ec4b6'
-const DOOR_CLOSE_DELAY_MS = 1500
-const DOOR_REOPEN_INTERVAL_MS = 1500
+const DOOR_CLOSE_DELAY_MS = 1000
 const DOOR_ANIM_SPEED = 0.08
 const DOOR_PROXIMITY_TILES = 2
 
 // ============================================================================
 // Test helpers
 // ============================================================================
-function makeNpc(x: number, y: number): NpcSimDot {
+function makeNpc(x: number, y: number, status: NpcSimDot['status'] = 'walking'): NpcSimDot {
 	return {
 		id: `npc-${x}-${y}`,
 		floorId: 'F1',
@@ -52,7 +51,7 @@ function makeNpc(x: number, y: number): NpcSimDot {
 		targetX: x, targetY: y,
 		speed: 1,
 		color: '#fff',
-		status: 'walking',
+		status,
 		pauseTimer: 0,
 		pathIdx: 0,
 		path: [],
@@ -63,33 +62,60 @@ function makeNpc(x: number, y: number): NpcSimDot {
 	}
 }
 
-// Deterministic tick function matching useDoorAnimation internal logic.
-// Used for precise frame-by-frame testing without RAF.
-function tickDoors(
-	doors: ReturnType<typeof doorPanelsData>,
-	npcs: NpcSimDot[],
-	states: Map<string, DoorAnimState>,
-	now: number,
-	tileSize: number = TILE,
-): Map<string, DoorAnimState> {
-	if (!doors.length) return states
-	const proximityPx = DOOR_PROXIMITY_TILES * tileSize
-	const next = new Map(states)
-	for (const door of doors) {
-		let state = next.get(door.key)
-		if (!state) { state = { progress: 0, target: 0, lastNearby: 0, lastClosed: null }; next.set(door.key, state) }
-		const nearby = npcs.some(n => {
-			const dx = n.x - door.cx
-			const dy = n.y - door.cy
-			return Math.hypot(dx, dy) < proximityPx
-		})
-		const canOpen = state.lastClosed === null || now - state.lastClosed >= DOOR_REOPEN_INTERVAL_MS
-		if (nearby && canOpen) { state.target = 1; state.lastNearby = now }
-		else if (!nearby && now - state.lastNearby > DOOR_CLOSE_DELAY_MS) { if (state.target !== 0) { state.target = 0; state.lastClosed = now } }
-		state.progress += (state.target - state.progress) * DOOR_ANIM_SPEED
-		if (Math.abs(state.progress - state.target) < 0.01) state.progress = state.target
+const rigQueue: Array<(now: number) => void> = []
+const rigGlobal = globalThis as unknown as Record<string, unknown>
+const rigPrevRaf = rigGlobal.requestAnimationFrame
+const rigPrevCancel = rigGlobal.cancelAnimationFrame
+rigGlobal.requestAnimationFrame = (cb: (now: number) => void) => { rigQueue.push(cb); return rigQueue.length }
+rigGlobal.cancelAnimationFrame = () => {}
+
+interface DoorRig {
+	doors: ReturnType<typeof doorPanelsData>
+	setNpcs(npcs: NpcSimDot[]): void
+	setEvents(events: NpcEngineEvent[]): void
+	step(now: number): Map<string, DoorAnimState>
+	target(key: string): number
+	progress(key: string): number
+}
+
+function makeDoorRig(segments: Parameters<typeof doorPanelsData>[0]): DoorRig {
+	const doors = doorPanelsData(segments, TILE, THICKNESS)
+	const scope = effectScope()
+	const doorsRef = shallowRef(doors)
+	const npcsRef = shallowRef<NpcSimDot[]>([])
+	const tileRef = ref(TILE)
+	const eventsRef = shallowRef<NpcEngineEvent[]>([])
+	const anim = scope.run(() => useDoorAnimation({
+		getDoors: () => doorsRef.value,
+		getNpcs: () => npcsRef.value,
+		getTileSize: () => tileRef.value,
+		getDoorPassageEvents: () => eventsRef.value,
+	}))!
+	anim.start()
+	let states: Map<string, DoorAnimState> = anim.doorStates.value
+	return {
+		doors,
+		setNpcs(npcs) { npcsRef.value = npcs },
+		setEvents(events) { eventsRef.value = events },
+		step(now) {
+			for (const cb of rigQueue.splice(0)) cb(now)
+			states = anim.doorStates.value
+			return states
+		},
+		target(key) { return states.get(key)?.target ?? Number.NaN },
+		progress(key) { return states.get(key)?.progress ?? Number.NaN },
 	}
-	return next
+}
+
+function crossDoorEvent(tick: number, agentId: string, from: { x: number; y: number }, to: { x: number; y: number }): NpcEngineEvent {
+	return { type: 'door-passage', agentId, floorId: 'F1', tick, doorEdge: { from, to } }
+}
+
+function interactingAt(npc: NpcSimDot, id: string): NpcSimDot {
+	return {
+		...npc, id, status: 'interacting',
+		interactTargetKey: 'F1:object:desk', interactSpotKey: 'F1:object:desk:object:desk:0',
+	}
 }
 
 function fmt(n: number): string { return n.toFixed(2) }
@@ -366,138 +392,135 @@ assert.ok(preview.includes('wall-overlay'), 'preview SVG includes wall overlay')
 console.log('Phase 5: PASS')
 
 // ============================================================================
-// PHASE 6: Animation state machine - proximity, open/close, lerp
+// PHASE 6: Animation state machine - hold-open, occupancy lock, lerp
 // ============================================================================
 console.log('--- Phase 6: Animation state machine ---')
 
-const animDoors = doorPanelsData([
-	{ x1: 0, y1: 5, x2: 4, y2: 5, door: true },
-], TILE, THICKNESS)
-let states = new Map<string, DoorAnimState>()
-states = tickDoors(animDoors, [], states, 0)
-const state0 = states.get(animDoors[0].key)!
-assert.equal(state0.progress, 0, 'initial progress = 0')
-assert.equal(state0.target, 0, 'initial target = 0 (closed)')
+const rig6 = makeDoorRig([{ x1: 0, y1: 5, x2: 4, y2: 5, door: true }])
+const key6 = rig6.doors[0].key
+rig6.setNpcs([])
+rig6.step(0)
+assert.equal(rig6.target(key6), 1, 'first tick holds open (no proximity needed)')
+assert.ok(rig6.progress(key6) > 0, 'progress starts moving toward 1')
 
-const npcNearby = makeNpc(animDoors[0].cx, animDoors[0].cy)
-states = tickDoors(animDoors, [npcNearby], states, 100)
-const state1 = states.get(animDoors[0].key)!
-assert.equal(state1.target, 1, 'NPC nearby -> target = 1')
-assert.equal(state1.lastNearby, 100, 'lastNearby updated')
-assert.ok(state1.progress > 0, 'progress starts moving toward 1')
+const npcNearby6 = makeNpc(rig6.doors[0].cx, rig6.doors[0].cy)
+rig6.setNpcs([npcNearby6])
+rig6.step(100)
+assert.equal(rig6.target(key6), 1, 'NPC nearby -> target = 1')
 
-let progBefore = state1.progress
+let progBefore = rig6.progress(key6)
 for (let i = 0; i < 100; i++) {
-	states = tickDoors(animDoors, [npcNearby], states, 200 + i * 16)
+	rig6.setNpcs([npcNearby6])
+	rig6.step(200 + i * 16)
 }
-const stateOpen = states.get(animDoors[0].key)!
-assert.ok(stateOpen.progress > progBefore, 'progress increased over ticks')
-assert.equal(stateOpen.progress, 1, 'progress converged to 1 (open)')
+assert.ok(rig6.progress(key6) > progBefore, 'progress increased over ticks')
+assert.equal(rig6.progress(key6), 1, 'progress converged to 1 (open)')
 
-const npcFar = makeNpc(9999, 9999)
-states = tickDoors(animDoors, [npcFar], states, 2000)
-const stateLeaving = states.get(animDoors[0].key)!
-assert.equal(stateLeaving.target, 1, 'target still 1 within close delay')
-states = tickDoors(animDoors, [npcFar], states, 1784 + DOOR_CLOSE_DELAY_MS + 100)
-const stateClosing = states.get(animDoors[0].key)!
-assert.equal(stateClosing.target, 0, 'target = 0 after close delay')
-
+rig6.setEvents([crossDoorEvent(1, 'occ', { x: 1, y: 4 }, { x: 1, y: 5 })])
+rig6.setNpcs([interactingAt(npcNearby6, 'occ')])
+rig6.step(2000)
+assert.equal(rig6.target(key6), 0, 'occupant locks the door')
+rig6.setEvents([])
 for (let i = 0; i < 100; i++) {
-	states = tickDoors(animDoors, [npcFar], states, 3400 + i * 16)
+	rig6.step(2100 + i * 16)
 }
-const stateClosed = states.get(animDoors[0].key)!
-assert.equal(stateClosed.progress, 0, 'progress converged back to 0 (closed)')
+assert.equal(rig6.progress(key6), 0, 'progress converged to 0 (closed)')
 
-states = tickDoors(animDoors, [npcNearby], states, 6000)
-states = tickDoors(animDoors, [npcFar], states, 6001)
-states = tickDoors(animDoors, [npcNearby], states, 6002)
-const stateReenter = states.get(animDoors[0].key)!
-assert.equal(stateReenter.target, 1, 'NPC re-enters -> target stays 1')
+rig6.setEvents([crossDoorEvent(2, 'occ', { x: 1, y: 4 }, { x: 1, y: 5 })])
+rig6.setNpcs([makeNpc(9999, 9999)])
+rig6.step(4000)
+assert.equal(rig6.target(key6), 0, 'exit holds the door closed')
+assert.equal(rig6.step(4000).get(key6)!.lastClosed, 4000, 'lastClosed recorded at cycle close')
+rig6.setEvents([])
+rig6.step(4000 + DOOR_CLOSE_DELAY_MS + 100)
+assert.equal(rig6.target(key6), 1, 'hold-open resumes after the hold')
 
 console.log('Phase 6: PASS')
 
 // ============================================================================
-// PHASE 7: Proximity threshold - boundary testing (uses tileSize, not thickness)
+// PHASE 7: Occupancy fallback radius - boundary testing (uses tileSize, not thickness)
 // ============================================================================
-console.log('--- Phase 7: Proximity threshold ---')
+console.log('--- Phase 7: Occupancy fallback radius ---')
 
-const proxDoors = doorPanelsData([{ x1: 0, y1: 0, x2: 4, y2: 0, door: true }], TILE, THICKNESS)
+const rig7 = makeDoorRig([{ x1: 0, y1: 0, x2: 4, y2: 0, door: true }])
+const key7 = rig7.doors[0].key
+const doorCx = rig7.doors[0].cx // 50
+const doorCy = rig7.doors[0].cy // 0
 const proximityPx = DOOR_PROXIMITY_TILES * TILE // = 50px (2 tiles)
-const doorCx = proxDoors[0].cx // 50
-const doorCy = proxDoors[0].cy // 0
 
-const npcAtBoundary = makeNpc(doorCx + proximityPx - 1, doorCy)
-let proxStates = new Map<string, DoorAnimState>()
-proxStates = tickDoors(proxDoors, [npcAtBoundary], proxStates, 0)
-assert.equal(proxStates.get(proxDoors[0].key)!.target, 1, 'NPC just inside 2-tile boundary -> open')
+rig7.setNpcs([interactingAt(makeNpc(doorCx + proximityPx - 1, doorCy), 'in')])
+rig7.step(0)
+assert.equal(rig7.target(key7), 0, 'interacting just inside 2-tile radius -> locked')
 
-proxStates = new Map<string, DoorAnimState>()
-const npcOutside = makeNpc(doorCx + proximityPx + 10, doorCy)
-proxStates = tickDoors(proxDoors, [npcOutside], proxStates, 0)
-assert.equal(proxStates.get(proxDoors[0].key)!.target, 0, 'NPC outside 2-tile boundary -> closed')
+rig7.setNpcs([interactingAt(makeNpc(doorCx + proximityPx + 10, doorCy), 'out')])
+rig7.step(16)
+assert.equal(rig7.target(key7), 1, 'interacting outside 2-tile radius -> hold-open')
 
-proxStates = new Map<string, DoorAnimState>()
-proxStates = tickDoors(proxDoors, [makeNpc(doorCx, doorCy)], proxStates, 0)
-assert.equal(proxStates.get(proxDoors[0].key)!.target, 1, 'NPC at center -> open')
+rig7.setNpcs([makeNpc(doorCx, doorCy)])
+rig7.step(32)
+assert.equal(rig7.target(key7), 1, 'walking at center -> hold-open (status gate)')
 
-proxStates = new Map<string, DoorAnimState>()
-proxStates = tickDoors(proxDoors, [npcOutside, makeNpc(doorCx, doorCy)], proxStates, 0)
-assert.equal(proxStates.get(proxDoors[0].key)!.target, 1, 'one NPC near -> open despite other far')
-
-const twoDoors = doorPanelsData([
+const rig7b = makeDoorRig([
 	{ x1: 0, y1: 0, x2: 4, y2: 0, door: true },
 	{ x1: 10, y1: 10, x2: 14, y2: 10, door: true },
-], TILE, THICKNESS)
-let twoStates = new Map<string, DoorAnimState>()
-twoStates = tickDoors(twoDoors, [makeNpc(50, 0)], twoStates, 0)
-assert.equal(twoStates.get(twoDoors[0].key)!.target, 1, 'door 1 open (NPC near)')
-assert.equal(twoStates.get(twoDoors[1].key)!.target, 0, 'door 2 closed (NPC far)')
+])
+rig7b.setNpcs([interactingAt(makeNpc(50, 0), 'near1')])
+const states7b = rig7b.step(0)
+assert.equal(states7b.get(rig7b.doors[0].key)!.target, 0, 'door 1 locked (occupant near)')
+assert.equal(states7b.get(rig7b.doors[1].key)!.target, 1, 'door 2 hold-open (occupant far)')
 
 console.log('Phase 7: PASS')
 
 // ============================================================================
-// PHASE 8: Close delay timing - precise boundary
+// PHASE 8: Post-cycle hold timing - precise boundary
 // ============================================================================
-console.log('--- Phase 8: Close delay timing ---')
+console.log('--- Phase 8: Post-cycle hold timing ---')
 
-const delayDoors = doorPanelsData([{ x1: 0, y1: 0, x2: 4, y2: 0, door: true }], TILE, THICKNESS)
-let delayStates = new Map<string, DoorAnimState>()
+const rig8 = makeDoorRig([{ x1: 0, y1: 0, x2: 4, y2: 0, door: true }])
+const key8 = rig8.doors[0].key
+const cross8 = (tick: number) => crossDoorEvent(tick, 'u', { x: 1, y: 0 }, { x: 1, y: 1 })
+rig8.setNpcs([makeNpc(9999, 9999)])
+rig8.setEvents([cross8(1)])
+rig8.step(1000)
+rig8.setEvents([cross8(2)])
+rig8.step(2000)
+assert.equal(rig8.target(key8), 0, 'cycle completion forces close')
+assert.equal(rig8.step(2000).get(key8)!.lastClosed, 2000, 'lastClosed recorded at cycle close')
 
-delayStates = tickDoors(delayDoors, [makeNpc(50, 0)], delayStates, 1000)
-assert.equal(delayStates.get(delayDoors[0].key)!.lastNearby, 1000)
+rig8.setEvents([])
+rig8.step(2000 + DOOR_CLOSE_DELAY_MS - 1)
+assert.equal(rig8.target(key8), 0, 'target still 0 just before hold expiry')
 
-delayStates = tickDoors(delayDoors, [makeNpc(9999, 9999)], delayStates, 2000)
-
-delayStates = tickDoors(delayDoors, [makeNpc(9999, 9999)], delayStates, 2499)
-assert.equal(delayStates.get(delayDoors[0].key)!.target, 1, 'target still 1 just before close delay')
-
-delayStates = tickDoors(delayDoors, [makeNpc(9999, 9999)], delayStates, 2501)
-assert.equal(delayStates.get(delayDoors[0].key)!.target, 0, 'target = 0 after close delay boundary')
+rig8.step(2000 + DOOR_CLOSE_DELAY_MS + 1)
+assert.equal(rig8.target(key8), 1, 'target = 1 after hold boundary')
 
 console.log('Phase 8: PASS')
 
 // ============================================================================
-// PHASE 8B: Reopen interval - door stays closed before next NPC opens it
+// PHASE 8B: Post-cycle hold overrides presence - waiter cannot open early
 // ============================================================================
-console.log('--- Phase 8B: Reopen interval ---')
+console.log('--- Phase 8B: Post-cycle hold overrides presence ---')
 
-const reopenDoors = doorPanelsData([{ x1: 0, y1: 0, x2: 4, y2: 0, door: true }], TILE, THICKNESS)
-let reopenStates = new Map<string, DoorAnimState>()
+const rig8b = makeDoorRig([{ x1: 0, y1: 0, x2: 4, y2: 0, door: true }])
+const key8b = rig8b.doors[0].key
+const cross8b = (tick: number, agentId: string) => crossDoorEvent(tick, agentId, { x: 1, y: 0 }, { x: 1, y: 1 })
+rig8b.setNpcs([makeNpc(9999, 9999)])
+rig8b.setEvents([cross8b(1, 'u')])
+rig8b.step(1000)
+rig8b.setEvents([cross8b(2, 'u')])
+rig8b.step(2000)
+assert.equal(rig8b.target(key8b), 0, 'hold: cycle completion closes')
+const closedAt = rig8b.step(2000).get(key8b)!.lastClosed
+assert.equal(closedAt, 2000, 'hold: lastClosed recorded at cycle close')
 
-reopenStates = tickDoors(reopenDoors, [makeNpc(50, 0)], reopenStates, 1000)
-assert.equal(reopenStates.get(reopenDoors[0].key)!.target, 1, 'reopen: NPC opens door')
+rig8b.setNpcs([makeNpc(50, 0)])
+rig8b.setEvents([cross8b(3, 'v')])
+rig8b.step(closedAt + DOOR_CLOSE_DELAY_MS - 100)
+assert.equal(rig8b.target(key8b), 0, 'hold: waiting newcomer cannot open early')
 
-reopenStates = tickDoors(reopenDoors, [makeNpc(9999, 9999)], reopenStates, 2000)
-reopenStates = tickDoors(reopenDoors, [makeNpc(9999, 9999)], reopenStates, 2000 + DOOR_CLOSE_DELAY_MS + 100)
-assert.equal(reopenStates.get(reopenDoors[0].key)!.target, 0, 'reopen: door closed after NPC out')
-const closedAt = reopenStates.get(reopenDoors[0].key)!.lastClosed
-assert.equal(closedAt, 2000 + DOOR_CLOSE_DELAY_MS + 100, 'reopen: lastClosed recorded at close transition')
-
-reopenStates = tickDoors(reopenDoors, [makeNpc(50, 0)], reopenStates, closedAt + DOOR_REOPEN_INTERVAL_MS - 100)
-assert.equal(reopenStates.get(reopenDoors[0].key)!.target, 0, 'reopen: stays closed during interval')
-
-reopenStates = tickDoors(reopenDoors, [makeNpc(50, 0)], reopenStates, closedAt + DOOR_REOPEN_INTERVAL_MS + 100)
-assert.equal(reopenStates.get(reopenDoors[0].key)!.target, 1, 'reopen: opens after interval')
+rig8b.setEvents([])
+rig8b.step(closedAt + DOOR_CLOSE_DELAY_MS + 100)
+assert.equal(rig8b.target(key8b), 1, 'hold: newcomer served after expiry')
 
 console.log('Phase 8B: PASS')
 
@@ -506,40 +529,43 @@ console.log('Phase 8B: PASS')
 // ============================================================================
 console.log('--- Phase 9: Lerp convergence ---')
 
-const lerpDoors = doorPanelsData([{ x1: 0, y1: 0, x2: 4, y2: 0, door: true }], TILE, THICKNESS)
-let lerpStates = new Map<string, DoorAnimState>()
+const rig9 = makeDoorRig([{ x1: 0, y1: 0, x2: 4, y2: 0, door: true }])
+const key9 = rig9.doors[0].key
+rig9.setNpcs([makeNpc(50, 0)])
+rig9.setEvents([])
 
-lerpStates = tickDoors(lerpDoors, [makeNpc(50, 0)], lerpStates, 0)
-const p0 = lerpStates.get(lerpDoors[0].key)!.progress
+rig9.step(0)
+const p0 = rig9.progress(key9)
 assert.equal(p0, 0 + (1 - 0) * DOOR_ANIM_SPEED, 'first tick: progress = 0 + (1-0) * 0.08 = 0.08')
 
-lerpStates = tickDoors(lerpDoors, [makeNpc(50, 0)], lerpStates, 16)
-const p1 = lerpStates.get(lerpDoors[0].key)!.progress
+rig9.step(16)
+const p1 = rig9.progress(key9)
 assert.ok(Math.abs(p1 - (p0 + (1 - p0) * DOOR_ANIM_SPEED)) < 1e-10, 'second tick: lerp formula correct')
 
 let prevProgress = 0
 let monotonic = true
 for (let i = 0; i < 200; i++) {
-	lerpStates = tickDoors(lerpDoors, [makeNpc(50, 0)], lerpStates, 32 + i * 16)
-	const curr = lerpStates.get(lerpDoors[0].key)!.progress
+	rig9.step(32 + i * 16)
+	const curr = rig9.progress(key9)
 	if (curr < prevProgress - 1e-10) { monotonic = false; break }
 	prevProgress = curr
 }
 assert.ok(monotonic, 'progress monotonically increasing toward 1')
-assert.equal(lerpStates.get(lerpDoors[0].key)!.progress, 1, 'progress snapped to 1')
+assert.equal(rig9.progress(key9), 1, 'progress snapped to 1')
 
-lerpStates = tickDoors(lerpDoors, [makeNpc(9999, 9999)], lerpStates, 5000)
-lerpStates = tickDoors(lerpDoors, [makeNpc(9999, 9999)], lerpStates, 5000 + DOOR_CLOSE_DELAY_MS + 100)
+rig9.setEvents([crossDoorEvent(1, 'occ', { x: 1, y: 0 }, { x: 1, y: 1 })])
+rig9.setNpcs([interactingAt(makeNpc(50, 0), 'occ')])
+rig9.step(5000)
 prevProgress = 1
 monotonic = true
 for (let i = 0; i < 200; i++) {
-	lerpStates = tickDoors(lerpDoors, [makeNpc(9999, 9999)], lerpStates, 6000 + i * 16)
-	const curr = lerpStates.get(lerpDoors[0].key)!.progress
+	rig9.step(5100 + i * 16)
+	const curr = rig9.progress(key9)
 	if (curr > prevProgress + 1e-10) { monotonic = false; break }
 	prevProgress = curr
 }
 assert.ok(monotonic, 'progress monotonically decreasing toward 0')
-assert.equal(lerpStates.get(lerpDoors[0].key)!.progress, 0, 'progress snapped to 0')
+assert.equal(rig9.progress(key9), 0, 'progress snapped to 0')
 
 console.log('Phase 9: PASS')
 
@@ -583,15 +609,6 @@ for (let iter = 0; iter < FUZZ_ITERATIONS; iter++) {
 		assert.ok(svg.includes(`y="${fmt(panel.cy - panel.length / 2 + off)}"`), `fuzz ${iter}: panel y correct`)
 	}
 
-	const npcX = rng() * 500
-	const npcY = rng() * 500
-	const npc = makeNpc(npcX, npcY)
-	let fStates = new Map<string, DoorAnimState>()
-	fStates = tickDoors(panels, [npc], fStates, 0)
-	const fstate = fStates.get(panel.key)!
-	assert.ok(fstate.progress >= 0 && fstate.progress <= 1, `fuzz ${iter}: progress in [0,1]`)
-	assert.ok(fstate.target === 0 || fstate.target === 1, `fuzz ${iter}: target is 0 or 1`)
-
 	fuzzPass++
 }
 assert.equal(fuzzPass, FUZZ_ITERATIONS, `all ${FUZZ_ITERATIONS} fuzz iterations passed`)
@@ -633,11 +650,13 @@ for (const rot of rotations) {
 	const panels = doorPanelsData(doorSegs, TILE, THICKNESS)
 	assert.equal(panels.length, 1, `pipeline rot ${rot}: 1 door panel`)
 
-	let pStates = new Map<string, DoorAnimState>()
-	pStates = tickDoors(panels, [makeNpc(panels[0].cx, panels[0].cy)], pStates, 0)
-	assert.equal(pStates.get(panels[0].key)!.target, 1, `pipeline rot ${rot}: NPC at door -> open`)
+	const pipeRig = makeDoorRig(doorSegs)
+	pipeRig.setNpcs([makeNpc(panels[0].cx, panels[0].cy)])
+	pipeRig.setEvents([])
+	pipeRig.step(0)
+	assert.equal(pipeRig.target(panels[0].key), 1, `pipeline rot ${rot}: NPC at door -> open`)
 
-	const progress = pStates.get(panels[0].key)!.progress
+	const progress = pipeRig.progress(panels[0].key)
 	const svg = doorPanelsSvg(doorSegs, TILE, THICKNESS, DOOR_COLOR, progress)
 	assert.ok(svg.includes('<g class="door-overlay">'), `pipeline rot ${rot}: SVG generated`)
 	assert.equal((svg.match(/<rect/g) || []).length, 1, `pipeline rot ${rot}: 1 panel in SVG`)
@@ -681,14 +700,17 @@ assert.equal(manyPanels.length, 50, '50 doors -> 50 panels')
 const manySvg = doorPanelsSvg(manySegs, TILE, THICKNESS, DOOR_COLOR, 0.5)
 assert.equal((manySvg.match(/<rect/g) || []).length, 50, '50 doors -> 50 panels in SVG')
 
-let manyStates = new Map<string, DoorAnimState>()
-const manyNpcs = [makeNpc(manyPanels[25].cx, manyPanels[25].cy)]
-manyStates = tickDoors(manyPanels, manyNpcs, manyStates, 0)
-let openCount = 0
+const manyRig = makeDoorRig(manySegs)
+manyRig.setNpcs([interactingAt(makeNpc(manyPanels[25].cx, manyPanels[25].cy), 'many-25')])
+manyRig.setEvents([])
+manyRig.step(0)
+let closedCount = 0
+let closedKey = ''
 for (const panel of manyPanels) {
-	if (manyStates.get(panel.key)!.target === 1) openCount++
+	if (manyRig.target(panel.key) === 0) { closedCount++; closedKey = panel.key }
 }
-assert.equal(openCount, 1, 'only 1 door open (NPC near 1)')
+assert.equal(closedCount, 1, 'only the occupied door locks')
+assert.equal(closedKey, manyPanels[25].key, 'locked door is the occupied one')
 
 assert.equal(normalizeWallSegment({ x1: 5, y1: 5, x2: 5, y2: 5, door: true }), undefined, 'degenerate door rejected')
 
@@ -714,18 +736,19 @@ console.log('Phase 12: PASS')
 // ============================================================================
 console.log('--- Phase 13: State isolation ---')
 
-const doorsA = doorPanelsData([{ x1: 0, y1: 0, x2: 4, y2: 0, door: true }], TILE, THICKNESS)
-const doorsB = doorPanelsData([{ x1: 10, y1: 10, x2: 14, y2: 10, door: true }], TILE, THICKNESS)
+const rigA = makeDoorRig([{ x1: 0, y1: 0, x2: 4, y2: 0, door: true }])
+const rigB = makeDoorRig([{ x1: 10, y1: 10, x2: 14, y2: 10, door: true }])
+assert.notEqual(rigA.doors[0].key, rigB.doors[0].key, 'door keys are unique per location')
 
-let statesA = new Map<string, DoorAnimState>()
-let statesB = new Map<string, DoorAnimState>()
+rigA.setNpcs([interactingAt(makeNpc(50, 0), 'iso-a')])
+rigA.setEvents([])
+rigB.setNpcs([])
+rigB.setEvents([])
+rigA.step(0)
+rigB.step(0)
 
-statesA = tickDoors(doorsA, [makeNpc(50, 0)], statesA, 0)
-statesB = tickDoors(doorsB, [makeNpc(50, 0)], statesB, 0)
-
-assert.equal(statesA.get(doorsA[0].key)!.target, 1, 'system A: NPC near -> open')
-assert.equal(statesB.get(doorsB[0].key)!.target, 0, 'system B: no NPC near -> closed')
-assert.notEqual(doorsA[0].key, doorsB[0].key, 'door keys are unique per location')
+assert.equal(rigA.target(rigA.doors[0].key), 0, 'system A: occupant locks its door')
+assert.equal(rigB.target(rigB.doors[0].key), 1, 'system B: hold-open independent of A')
 
 console.log('Phase 13: PASS')
 
@@ -789,9 +812,16 @@ scope.stop()
 console.log('Phase 15: PASS')
 
 // ============================================================================
-// PHASE 16: Hybrid door animation (proximity + door-passage events)
+// PHASE 16: Hybrid door animation (proximity + events, self-contained mini-model)
 // ============================================================================
 console.log('--- Phase 16: Hybrid door animation (proximity + events) ---')
+
+interface Phase16State {
+	progress: number
+	target: number
+	lastNearby: number
+	lastClosed: number | null
+}
 
 import type { NpcEngineEvent } from '../src/engine/npc'
 
@@ -817,7 +847,7 @@ const evtDoorCy = eventDoors[0].cy
 
 // Test 1: proximity opens door even without events (NPC nearby)
 {
-	const states = new Map<string, DoorAnimState>()
+	const states = new Map<string, Phase16State>()
 	const tileSize = eventTileSizeRef.value
 	const proximityPx = DOOR_PROXIMITY_TILES * tileSize
 	const doors = eventDoorsRef.value
@@ -834,7 +864,7 @@ const evtDoorCy = eventDoors[0].cy
 
 // Test 2: door-passage event opens door even without nearby NPC
 {
-	const states = new Map<string, DoorAnimState>()
+	const states = new Map<string, Phase16State>()
 	const tileSize = eventTileSizeRef.value
 	const proximityPx = DOOR_PROXIMITY_TILES * tileSize
 	const doors = eventDoorsRef.value
@@ -919,13 +949,254 @@ eventScope.stop()
 console.log('Phase 16: PASS')
 
 // ============================================================================
+// PHASE 17: Queued waiters keep hold-open, occupants lock, next served after hold
+// ============================================================================
+console.log('--- Phase 17: Queued waiters, occupant lock, next served ---')
+
+const rig17 = makeDoorRig([{ x1: 0, y1: 0, x2: 4, y2: 0, door: true }])
+const key17 = rig17.doors[0].key
+const cx17 = rig17.doors[0].cx
+const cy17 = rig17.doors[0].cy
+const cross17 = (tick: number, agentId: string) => crossDoorEvent(tick, agentId, { x: 1, y: 0 }, { x: 1, y: 1 })
+
+rig17.setNpcs([makeNpc(cx17, cy17, 'queued')])
+rig17.setEvents([])
+rig17.step(1000)
+assert.equal(rig17.target(key17), 1, 'queued waiter keeps hold-open')
+
+rig17.setNpcs([interactingAt(makeNpc(cx17, cy17), 'occ17')])
+rig17.step(2000)
+assert.equal(rig17.target(key17), 0, 'occupant locks despite the waiter crowd')
+
+rig17.setNpcs([makeNpc(9999, 9999)])
+rig17.step(3000)
+assert.equal(rig17.target(key17), 1, 'never stuck closed once the room is empty')
+
+rig17.setEvents([cross17(1, 'occ17b')])
+rig17.setNpcs([interactingAt(makeNpc(cx17, cy17), 'occ17b')])
+rig17.step(4000)
+rig17.setEvents([cross17(2, 'occ17b')])
+rig17.setNpcs([makeNpc(cx17, cy17, 'queued')])
+rig17.step(5000)
+assert.equal(rig17.target(key17), 0, 'exit holds closed even with a waiter present')
+rig17.setEvents([])
+rig17.step(5000 + DOOR_CLOSE_DELAY_MS + 100)
+assert.equal(rig17.target(key17), 1, 'waiter served after the hold')
+
+console.log('Phase 17: PASS')
+
+rigGlobal.requestAnimationFrame = rigPrevRaf
+rigGlobal.cancelAnimationFrame = rigPrevCancel
+rigQueue.length = 0
+
+// ============================================================================
+// PHASE 18: Room-state doors - hold-open free, locked while occupied, binary targets
+// ============================================================================
+console.log('--- Phase 18: Room-state doors (hold-open / locked) ---')
+
+let phase18Raf: ((now: number) => void) | null = null
+const phase18Global = globalThis as unknown as Record<string, unknown>
+const phase18PrevRaf = phase18Global.requestAnimationFrame
+const phase18PrevCancel = phase18Global.cancelAnimationFrame
+phase18Global.requestAnimationFrame = (cb: (now: number) => void) => { phase18Raf = cb; return 1 }
+phase18Global.cancelAnimationFrame = () => { phase18Raf = null }
+try {
+	const roomDoors = doorPanelsData([{ x1: 2, y1: 2, x2: 2, y2: 4, door: true }], TILE, THICKNESS)
+	const roomKey = roomDoors[0].key
+	const roomCx = roomDoors[0].cx
+	const roomCy = roomDoors[0].cy
+	const roomScope = effectScope()
+	const roomDoorsRef = shallowRef(roomDoors)
+	const roomNpcsRef = shallowRef<NpcSimDot[]>([])
+	const roomTileRef = ref(TILE)
+	const roomEventsRef = shallowRef<NpcEngineEvent[]>([])
+	const roomAnim = roomScope.run(() => useDoorAnimation({
+		getDoors: () => roomDoorsRef.value,
+		getNpcs: () => roomNpcsRef.value,
+		getTileSize: () => roomTileRef.value,
+		getDoorPassageEvents: () => roomEventsRef.value,
+	}))!
+	roomAnim.start()
+	const stepRoom = (now: number): number => {
+		const cb = phase18Raf
+		phase18Raf = null
+		cb!(now)
+		return roomAnim.doorStates.value.get(roomKey)?.target ?? Number.NaN
+	}
+	const crossEvt = (tick: number, agentId: string): NpcEngineEvent => ({
+		type: 'door-passage', agentId, floorId: 'F1', tick,
+		doorEdge: { from: { x: 2, y: 2 }, to: { x: 2, y: 3 } },
+	})
+	const reserved = (npc: NpcSimDot): NpcSimDot => ({
+		...npc, interactTargetKey: 'F1:object:desk', interactSpotKey: 'F1:object:desk:object:desk:0',
+	})
+
+	assert.equal(stepRoom(1000), 1, 'free room holds the door open')
+	roomNpcsRef.value = [makeNpc(roomCx, roomCy)]
+	assert.equal(stepRoom(1100), 1, 'unreserved passerby keeps hold-open')
+	roomNpcsRef.value = [reserved(makeNpc(roomCx, roomCy))]
+	assert.equal(stepRoom(1200), 1, 'reserved approacher keeps hold-open with no mid-hover')
+	roomEventsRef.value = [crossEvt(1, 'n1')]
+	roomNpcsRef.value = [{ ...reserved(makeNpc(9999, 9999)), id: 'n1', status: 'interacting' }]
+	assert.equal(stepRoom(1300), 0, 'occupied room locks the door')
+	roomEventsRef.value = []
+	assert.equal(stepRoom(1400), 0, 'stays locked while occupied')
+	roomEventsRef.value = [crossEvt(2, 'n1')]
+	roomNpcsRef.value = [{ ...makeNpc(roomCx, roomCy), id: 'n2' }]
+	assert.equal(stepRoom(1500), 0, 'exit forces a visible close')
+	roomEventsRef.value = []
+	assert.equal(stepRoom(1500 + DOOR_CLOSE_DELAY_MS + 100), 1, 'reopens for the next in line, never stuck closed')
+	roomScope.stop()
+} finally {
+	phase18Global.requestAnimationFrame = phase18PrevRaf
+	phase18Global.cancelAnimationFrame = phase18PrevCancel
+	phase18Raf = null
+}
+
+console.log('Phase 18: PASS')
+
+// ============================================================================
+// PHASE 19: Engine restarts + missed entries - epoch heal, spawn-inside fallback
+// ============================================================================
+console.log('--- Phase 19: Epoch heal + spawn-inside fallback ---')
+
+let phase19Raf: ((now: number) => void) | null = null
+const phase19Global = globalThis as unknown as Record<string, unknown>
+const phase19PrevRaf = phase19Global.requestAnimationFrame
+const phase19PrevCancel = phase19Global.cancelAnimationFrame
+phase19Global.requestAnimationFrame = (cb: (now: number) => void) => { phase19Raf = cb; return 1 }
+phase19Global.cancelAnimationFrame = () => { phase19Raf = null }
+try {
+	const epochDoors = doorPanelsData([{ x1: 2, y1: 2, x2: 2, y2: 4, door: true }], TILE, THICKNESS)
+	const epochKey = epochDoors[0].key
+	const epochScope = effectScope()
+	const epochDoorsRef = shallowRef(epochDoors)
+	const epochNpcsRef = shallowRef<NpcSimDot[]>([])
+	const epochTileRef = ref(TILE)
+	const epochEventsRef = shallowRef<NpcEngineEvent[]>([])
+	const epochAnim = epochScope.run(() => useDoorAnimation({
+		getDoors: () => epochDoorsRef.value,
+		getNpcs: () => epochNpcsRef.value,
+		getTileSize: () => epochTileRef.value,
+		getDoorPassageEvents: () => epochEventsRef.value,
+	}))!
+	epochAnim.start()
+	const stepEpoch = (now: number): number => {
+		const cb = phase19Raf
+		phase19Raf = null
+		cb!(now)
+		return epochAnim.doorStates.value.get(epochKey)?.target ?? Number.NaN
+	}
+	const crossAt = (tick: number, agentId: string): NpcEngineEvent => ({
+		type: 'door-passage', agentId, floorId: 'F1', tick,
+		doorEdge: { from: { x: 2, y: 2 }, to: { x: 2, y: 3 } },
+	})
+	const interacting = (npc: NpcSimDot, id: string): NpcSimDot => ({
+		...npc, id, status: 'interacting',
+		interactTargetKey: 'F1:object:desk', interactSpotKey: 'F1:object:desk:object:desk:0',
+	})
+
+	epochEventsRef.value = [crossAt(50, 'n1')]
+	stepEpoch(1000)
+	epochEventsRef.value = [crossAt(3, 'n1')]
+	epochNpcsRef.value = [interacting(makeNpc(epochDoors[0].cx, epochDoors[0].cy), 'n1')]
+	assert.equal(stepEpoch(1100), 0, 'restarted engine epoch is adopted, occupant locks the door')
+	epochEventsRef.value = []
+	assert.equal(stepEpoch(1200), 0, 'stays locked while occupant inside')
+
+	epochAnim.reset()
+	epochNpcsRef.value = [interacting(makeNpc(epochDoors[0].cx, epochDoors[0].cy), 'spawn')]
+	epochEventsRef.value = []
+	assert.equal(stepEpoch(2000), 0, 'spawned-inside occupant locks the door with zero crossings')
+	epochNpcsRef.value = [interacting(makeNpc(9999, 9999), 'far')]
+	assert.equal(stepEpoch(2100), 1, 'far-away interaction never locks the door')
+	epochScope.stop()
+} finally {
+	phase19Global.requestAnimationFrame = phase19PrevRaf
+	phase19Global.cancelAnimationFrame = phase19PrevCancel
+	phase19Raf = null
+}
+
+console.log('Phase 19: PASS')
+
+rigGlobal.requestAnimationFrame = (cb: (now: number) => void) => { rigQueue.push(cb); return rigQueue.length }
+rigGlobal.cancelAnimationFrame = () => {}
+rigQueue.splice(0)
+
+// ============================================================================
+// PHASE 20: Auto-close basics - closed default, approach opens
+// ============================================================================
+console.log('--- Phase 20: Auto-close basics ---')
+
+{
+	const rig20 = makeDoorRig([{ x1: 0, y1: 5, x2: 4, y2: 5, door: true }])
+	const key20 = rig20.doors[0].key
+	rig20.doors[0].mode = 'auto-close'
+	rig20.doors[0].ownerObjectId = 'restroom'
+	rig20.setNpcs([])
+	rig20.setEvents([])
+	assert.equal(rig20.step(1000).get(key20)!.target, 0, 'auto: empty room stays closed')
+	rig20.setNpcs([makeNpc(50, 100)])
+	assert.equal(rig20.step(1100).get(key20)!.target, 1, 'auto: approaching walker opens')
+	rig20.setNpcs([makeNpc(500, 500)])
+	assert.equal(rig20.step(1200).get(key20)!.target, 0, 'auto: nobody near closes')
+}
+
+console.log('Phase 20: PASS')
+
+// ============================================================================
+// PHASE 21: Auto-close occupancy lock - reservation beats proximity, no radius
+// ============================================================================
+console.log('--- Phase 21: Auto-close occupancy lock ---')
+
+{
+	const rig21 = makeDoorRig([{ x1: 0, y1: 5, x2: 4, y2: 5, door: true }])
+	const key21 = rig21.doors[0].key
+	rig21.doors[0].mode = 'auto-close'
+	rig21.doors[0].ownerObjectId = 'restroom'
+	const occupant: NpcSimDot = {
+		...makeNpc(900, 900, 'interacting'), id: 'occ',
+		interactTargetKey: 'F1:object:restroom', interactSpotKey: 'F1:object:restroom:object:restroom:0',
+	}
+	rig21.setNpcs([occupant, makeNpc(50, 100)])
+	rig21.setEvents([])
+	assert.equal(rig21.step(1000).get(key21)!.target, 0, 'auto: far-away occupant still locks (no radius)')
+	rig21.setNpcs([makeNpc(50, 100)])
+	assert.equal(rig21.step(1500).get(key21)!.target, 0, 'auto: stability hold keeps closed right after release')
+	assert.equal(rig21.step(2001).get(key21)!.target, 1, 'auto: approach opens after the hold')
+}
+
+console.log('Phase 21: PASS')
+
+// ============================================================================
+// PHASE 22: Auto-close transit - odd passage opens, even closes
+// ============================================================================
+console.log('--- Phase 22: Auto-close transit ---')
+
+{
+	const rig22 = makeDoorRig([{ x1: 0, y1: 5, x2: 4, y2: 5, door: true }])
+	const key22 = rig22.doors[0].key
+	rig22.doors[0].mode = 'auto-close'
+	rig22.doors[0].ownerObjectId = 'restroom'
+	rig22.setNpcs([])
+	rig22.setEvents([crossDoorEvent(10, 'n1', { x: 0, y: 5 }, { x: 1, y: 5 })])
+	assert.equal(rig22.step(1000).get(key22)!.target, 1, 'auto: odd passage opens mid-transit')
+	rig22.setEvents([crossDoorEvent(10, 'n1', { x: 0, y: 5 }, { x: 1, y: 5 }), crossDoorEvent(11, 'n1', { x: 1, y: 5 }, { x: 0, y: 5 })])
+	const states22 = rig22.step(1100)
+	assert.equal(states22.get(key22)!.target, 0, 'auto: completed cycle closes')
+	assert.equal(states22.get(key22)!.lastClosed, 1100, 'auto: cycle completion records close')
+}
+
+console.log('Phase 22: PASS')
+
+// ============================================================================
 // SUMMARY
 // ============================================================================
 console.log('')
 console.log('========================================')
 console.log('ALL DOOR ANIMATION TESTS PASSED')
 console.log('========================================')
-console.log('Phases: 16')
+console.log('Phases: 22')
 console.log(`Fuzz iterations: ${FUZZ_ITERATIONS}`)
 console.log(`Rotations tested: ${rotations.join(', ')}`)
 console.log('Pipeline: normalize -> rotate -> panels -> animate -> SVG')

@@ -1,5 +1,6 @@
 import type { AssetDef, FloorData, NpcRole, ObjectData, ResolvedObjectDef, WallSegment } from '../../blueprint-editor/domain/types'
-import { CANVAS_WALL_OBJECT_TYPE, resolveInteractForTarget, resolveObjectDef, resolveWallSegmentsForObject, STREET_TILES } from '../../blueprint-editor/domain/types'
+import { CANVAS_WALL_OBJECT_TYPE, resolveInteractForTarget, resolveObjectDef, spawnZoneAllowsRole, STREET_TILES } from '../../blueprint-editor/domain/types'
+import { collectFloorWallSegments } from '../../blueprint-editor/assets/assetUtils'
 import { buildNpcQueues } from './queueBuild'
 import { getObjectTags, hasMatchingTag } from './tagMatching'
 import type { NpcEngineBlockedEdge, NpcEngineFloor, NpcEngineInteractionTarget, NpcEngineLayout, NpcEnginePoint } from './types'
@@ -197,8 +198,7 @@ export function buildWalkableMap(
 	return { tiles, width, height, cellSize }
 }
 
-function wallBlocksEdge(segment: WallSegment, x: number, y: number, nx: number, ny: number, tileSize: number): boolean {
-	if (segment.door) return false
+function segmentCoversEdge(segment: WallSegment, x: number, y: number, nx: number, ny: number, tileSize: number): boolean {
 	const epsilon = 1e-6
 	if (segment.y1 === segment.y2 && nx === x && ny === y + 1) {
 		const boundary = Math.round(segment.y1 / tileSize)
@@ -215,22 +215,28 @@ function wallBlocksEdge(segment: WallSegment, x: number, y: number, nx: number, 
 	return false
 }
 
-function wallSegmentsForFloor(floor: FloorData, tileSize: number, getAssetDef?: GetAssetDef): WallSegment[] {
-	const segments: WallSegment[] = []
-	for (const object of floor.objects) {
-		if (object.isWall && object.type === CANVAS_WALL_OBJECT_TYPE) {
-			if ([object.x1, object.y1, object.x2, object.y2].every((value): value is number => typeof value === 'number' && Number.isFinite(value))) {
-				const seg: WallSegment = { x1: object.x1! * tileSize, y1: object.y1! * tileSize, x2: object.x2! * tileSize, y2: object.y2! * tileSize }
-				if (object.door) seg.door = true
-				segments.push(seg)
+function buildEdgePartition(floor: FloorData, map: NpcWalkableMap, getAssetDef?: GetAssetDef): { blockedEdges: NpcEngineBlockedEdge[]; doorEdges: NpcEngineBlockedEdge[] } {
+	const wallSegments = collectFloorWallSegments(floor, map.cellSize, getAssetDef)
+	const blockedEdges: NpcEngineBlockedEdge[] = []
+	const doorEdges: NpcEngineBlockedEdge[] = []
+	for (const cell of map.tiles) {
+		const [x, y] = cell.split(',').map(Number)
+		for (const [dx, dy] of [[1, 0], [0, 1]] as const) {
+			const nx = x + dx
+			const ny = y + dy
+			if (!map.tiles.has(tileKey(nx, ny))) continue
+			let coversWall = false
+			let coversDoor = false
+			for (const { segment } of wallSegments) {
+				if (!segmentCoversEdge(segment, x, y, nx, ny, map.cellSize)) continue
+				if (segment.door) coversDoor = true
+				else coversWall = true
 			}
-			continue
+			if (coversWall && !coversDoor) blockedEdges.push({ from: { x, y }, to: { x: nx, y: ny } })
+			if (coversDoor) doorEdges.push({ from: { x, y }, to: { x: nx, y: ny } })
 		}
-		const asset = getAssetDef?.(object.type)
-		if (!asset?.wallSegments?.length) continue
-		segments.push(...resolveWallSegmentsForObject(asset.wallSegments, asset, object, tileSize))
 	}
-	return segments
+	return { blockedEdges, doorEdges }
 }
 
 export function buildBlockedEdges(
@@ -238,38 +244,7 @@ export function buildBlockedEdges(
 	map: NpcWalkableMap,
 	getAssetDef?: GetAssetDef,
 ): NpcEngineBlockedEdge[] {
-	const wallSegments = wallSegmentsForFloor(floor, map.cellSize, getAssetDef)
-	const edges: NpcEngineBlockedEdge[] = []
-	for (const cell of map.tiles) {
-		const [x, y] = cell.split(',').map(Number)
-		for (const [dx, dy] of [[1, 0], [0, 1]] as const) {
-			const nx = x + dx
-			const ny = y + dy
-			if (!map.tiles.has(tileKey(nx, ny))) continue
-			const blocked = wallSegments.some(segment => wallBlocksEdge(segment, x, y, nx, ny, map.cellSize))
-			if (!blocked) continue
-			edges.push({ from: { x, y }, to: { x: nx, y: ny } })
-		}
-	}
-	return edges
-}
-
-function doorBlocksEdge(segment: WallSegment, x: number, y: number, nx: number, ny: number, tileSize: number): boolean {
-	if (!segment.door) return false
-	const epsilon = 1e-6
-	if (segment.y1 === segment.y2 && nx === x && ny === y + 1) {
-		const boundary = Math.round(segment.y1 / tileSize)
-		const start = Math.min(segment.x1, segment.x2) / tileSize
-		const end = Math.max(segment.x1, segment.x2) / tileSize
-		return boundary === ny && x >= start - epsilon && x < end - epsilon
-	}
-	if (segment.x1 === segment.x2 && nx === x + 1 && ny === y) {
-		const boundary = Math.round(segment.x1 / tileSize)
-		const start = Math.min(segment.y1, segment.y2) / tileSize
-		const end = Math.max(segment.y1, segment.y2) / tileSize
-		return boundary === nx && y >= start - epsilon && y < end - epsilon
-	}
-	return false
+	return buildEdgePartition(floor, map, getAssetDef).blockedEdges
 }
 
 export function buildDoorEdges(
@@ -277,20 +252,7 @@ export function buildDoorEdges(
 	map: NpcWalkableMap,
 	getAssetDef?: GetAssetDef,
 ): NpcEngineBlockedEdge[] {
-	const wallSegments = wallSegmentsForFloor(floor, map.cellSize, getAssetDef)
-	const edges: NpcEngineBlockedEdge[] = []
-	for (const cell of map.tiles) {
-		const [x, y] = cell.split(',').map(Number)
-		for (const [dx, dy] of [[1, 0], [0, 1]] as const) {
-			const nx = x + dx
-			const ny = y + dy
-			if (!map.tiles.has(tileKey(nx, ny))) continue
-			const isDoor = wallSegments.some(segment => doorBlocksEdge(segment, x, y, nx, ny, map.cellSize))
-			if (!isDoor) continue
-			edges.push({ from: { x, y }, to: { x: nx, y: ny } })
-		}
-	}
-	return edges
+	return buildEdgePartition(floor, map, getAssetDef).doorEdges
 }
 
 function findNearestWalkable(map: NpcWalkableMap, x: number, y: number, radius: number): NpcEnginePoint | null {
@@ -335,7 +297,7 @@ export function filterNpcSpawnTiles(map: NpcWalkableMap, floor: FloorData, roleI
 		const px = cellToPixel(x, map.cellSize)
 		const py = cellToPixel(y, map.cellSize)
 		return zones.some(zone =>
-			(!zone.roleIds?.length || zone.roleIds.includes(roleId))
+			spawnZoneAllowsRole(zone, roleId)
 			&& px >= zone.x && px < zone.x + zone.w
 			&& py >= zone.y && py < zone.y + zone.h,
 		)
@@ -365,13 +327,14 @@ function buildObjectInteractionTargets(
 				INTERACT_SPOT_SEARCH_RADIUS,
 			)
 			if (!cell) return
+			const postTag = interactSpot.post ? `post:${interactSpot.post}` : undefined
 			targets.push({
 				floorId: floor.id,
 				itemId,
 				interactSpotId: `${itemId}:${index}`,
 				x: cell.x,
 				y: cell.y,
-				tags,
+				tags: postTag ? [...tags, postTag] : tags,
 				capacity: resolved.capacity,
 				durationMinSeconds: resolved.durationMinSeconds,
 				durationMaxSeconds: resolved.durationMaxSeconds,

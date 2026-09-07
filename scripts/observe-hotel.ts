@@ -41,7 +41,7 @@ const floors: FloorData[] = floorKeys.map(id => ({
 	id,
 	name: id,
 	label: id,
-	objects: payload.floors[id].objects.map(o => ({ id: o.id, type: o.type, x: o.x!, y: o.y!, w: o.w!, h: o.h!, rotation: o.rotation })),
+	objects: payload.floors[id].objects.map(o => ({ id: o.id, type: o.type, x: o.x!, y: o.y!, w: o.w!, h: o.h!, rotation: o.rotation, isWall: (o as any).isWall, x1: (o as any).x1, y1: (o as any).y1, x2: (o as any).x2, y2: (o as any).y2, door: (o as any).door })),
 	defaultWalkable: payload.floors[id].defaultWalkable,
 	walkable: payload.floors[id].walkable,
 	spawnZones: payload.floors[id].spawnZones,
@@ -62,7 +62,12 @@ const policy = createNpcEnginePolicy({
 	getAssetTags: type => assetMap.get(type)?.tags,
 	random,
 })
-const engine = new NpcEngine(built.layout, { ticksPerSecond: 60, random, ...policy })
+const engine = new NpcEngine(built.layout, {
+	ticksPerSecond: 60, random,
+	socialRadius: 2, socialCooldownSeconds: 45,
+	socialChatDurationMinSeconds: 3, socialChatDurationMaxSeconds: 8,
+	...policy,
+})
 
 // Spawn exactly like useNpcSimulationCore.spawnAgents.
 const TPS = 60
@@ -99,6 +104,8 @@ for (const entry of npcConfig.pool) {
 const SIM_SECONDS = Number(process.env.OBS_SECONDS ?? 600)
 const SAMPLE_EVERY = TPS
 const statusSamples: Record<string, number> = {}
+const waitingReasons: Record<string, number> = {}
+let chatsStarted = 0
 const ridesByFloorPair = new Map<string, number>()
 let samplesTaken = 0
 let prevFloorById = new Map<string, string>()
@@ -128,6 +135,12 @@ while (engine.tickNumber < SIM_SECONDS * TPS) {
 	}
 	prevFloorById = nextFloorById
 	samplesTaken++
+	for (const event of engine.drainEvents()) {
+		if (event.type === 'chatting-start') { chatsStarted++ ; continue }
+		if (event.type !== 'waiting') continue
+		const reason = event.reason ?? 'unknown'
+		waitingReasons[reason] = (waitingReasons[reason] ?? 0) + 1
+	}
 }
 
 console.log(`simulated ${SIM_SECONDS}s @${TPS}tps | agents=${engine.listAgents().length} | ${samplesTaken} samples`)
@@ -135,6 +148,13 @@ const totalStatus = Object.values(statusSamples).reduce((a, b) => a + b, 0)
 for (const [status, n] of Object.entries(statusSamples)) {
 	console.log(`  ${status.padEnd(12)} ${(n / totalStatus * 100).toFixed(1)}%`)
 }
+const totalWaits = Object.values(waitingReasons).reduce((a, b) => a + b, 0)
+console.log('\nwaiting reasons (events):')
+for (const [reason, n] of Object.entries(waitingReasons).sort((a, b) => b[1] - a[1])) {
+	console.log(`  ${reason.padEnd(14)} ${n} (${(n / Math.max(1, totalWaits) * 100).toFixed(1)}%)`)
+}
+if (!totalWaits) console.log('  none')
+console.log(`\nchats started: ${chatsStarted}`)
 console.log('\ncross-floor travels (sampled):')
 for (const [pair, n] of [...ridesByFloorPair.entries()].sort((a, b) => b[1] - a[1])) {
 	console.log(`  ${pair}: ~${n}`)

@@ -2,7 +2,7 @@ import type { AssetDef, WalkableGrid, TileState } from '../domain/types'
 import { isSafeSvgMarkup, isValidColor, normalizeOriginAsset, applySvgColorConvention } from '../domain/types'
 import { recalcCollapsed } from '../domain/collision'
 import { assetSizeFor, normalizeObject } from '../domain/geometry'
-import { parseSvgViewBox } from '../assets/assetUtils'
+import { parseSvgViewBox, serializeAsset } from '../assets/assetUtils'
 import {
 	state, toast, clamp, withStateLock, initAssetFields, assetMap,
 } from './state'
@@ -193,21 +193,12 @@ export async function duplicateAsset(id: string): Promise<AssetDef | null> {
 			return null
 		}
 		const copy: AssetDef = {
-			...source,
+			...serializeAsset(source),
 			id: genAssetId('custom', `${source.name} copy`, c => state.assetRegistry.some(a => a.id === c)),
 			name: `${source.name} copy`,
 			origin: 'drawn',
 		}
 
-		if (source.svg) copy.svg = source.svg
-		if (source.svgViewBox) copy.svgViewBox = { ...source.svgViewBox }
-		if (source.walkableGrid) copy.walkableGrid = source.walkableGrid.map(row => [...row])
-		if (source.tileStates) copy.tileStates = source.tileStates.map(row => [...row])
-		if (source.wallSegments) copy.wallSegments = source.wallSegments.map(segment => ({ ...segment }))
-		if (source.interactSpots) copy.interactSpots = source.interactSpots.map(p => ({ ...p }))
-		if (source.interact) copy.interact = { ...source.interact }
-		if (source.defaultRx) copy.defaultRx = { ...source.defaultRx }
-		if (source.tags) copy.tags = [...source.tags]
 		if (!copy.defaultFillColor) copy.defaultFillColor = '#ffffff'
 		state.assetRegistry.push(copy)
 		await saveBlueprintData()

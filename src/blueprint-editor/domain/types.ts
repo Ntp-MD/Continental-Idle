@@ -51,12 +51,15 @@ export interface FloorWalkable {
 	tileStates?: TileState[][]
 }
 
+export type DoorMode = 'hold-open' | 'auto-close'
+
 export interface WallSegment {
 	x1: number
 	y1: number
 	x2: number
 	y2: number
 	door?: boolean
+	doorMode?: DoorMode
 }
 
 // --- Section 13: Shared internal helpers (not exported) ---
@@ -135,9 +138,11 @@ export function normalizeWallSegment(value: unknown): WallSegment | undefined {
 	if (x1 !== x2 && y1 !== y2) return undefined
 	if (x1 === x2 && y1 === y2) return undefined
 	const door = record.door === true
+	const doorMode: DoorMode | undefined = record.doorMode === 'hold-open' || record.doorMode === 'auto-close' ? record.doorMode : undefined
 	const base = (a: number, b: number, c: number, d: number): WallSegment => {
 		const seg: WallSegment = { x1: a, y1: b, x2: c, y2: d }
 		if (door) seg.door = true
+		if (door && doorMode !== undefined) seg.doorMode = doorMode
 		return seg
 	}
 	if (x1 === x2) return y1 <= y2 ? base(x1, y1, x2, y2) : base(x2, y2, x1, y1)
@@ -154,6 +159,7 @@ export function normalizeWallSegments(value: unknown): WallSegment[] | undefined
 		const existing = seen.get(key)
 		if (existing) {
 			if (segment.door) existing.door = true
+			if (segment.door && segment.doorMode !== undefined && existing.doorMode === undefined) existing.doorMode = segment.doorMode
 			continue
 		}
 		seen.set(key, segment)
@@ -197,6 +203,7 @@ export function resolveWallSegmentsForObject(
 		const normalized = normalizeWallSegment({ x1: a.x, y1: a.y, x2: b.x, y2: b.y })
 		if (!normalized) return []
 		if (segment.door) normalized.door = true
+		if (segment.door && segment.doorMode !== undefined) normalized.doorMode = segment.doorMode
 		return [normalized]
 	})
 }
@@ -219,10 +226,25 @@ export function normalizeFloorWalkable(value: unknown): FloorWalkable | undefine
 
 // --- Section 4: Interact & queue types ---
 
-export interface InteractSpot {
+export type InteractSpotEdge = 'N' | 'S' | 'E' | 'W'
+
+export interface StandInteractSpot {
+	kind?: 'stand'
 	x: number
 	y: number
+	post?: string
 }
+
+export interface EdgeInteractSpot {
+	kind?: 'edge'
+	edge: InteractSpotEdge
+	offset: number
+	x: number
+	y: number
+	post?: string
+}
+
+export type InteractSpot = StandInteractSpot | EdgeInteractSpot
 
 export interface InteractConfig {
 	capacity?: number
@@ -250,29 +272,42 @@ export function normalizeNpcQueueConfig(value: unknown): NpcQueueConfig | undefi
 	return { ...(maxMembers === undefined ? {} : { maxMembers }), ...(admissionDepth === undefined ? {} : { admissionDepth }) }
 }
 
+function isInteractSpotEdge(value: unknown): value is InteractSpotEdge {
+	return value === 'N' || value === 'S' || value === 'E' || value === 'W'
+}
+
 export function normalizeInteractSpots(value: unknown): InteractSpot[] | undefined {
 	if (!Array.isArray(value) || value.length > MAX_INTERACT_SPOTS) return undefined
 	const seen = new Set<string>()
 	const points: InteractSpot[] = []
 	for (const point of value) {
-		let x: number | undefined
-		let y: number | undefined
+		let item: Record<string, unknown> | undefined
 		if (Array.isArray(point) && point.length === 2 && typeof point[0] === 'number' && typeof point[1] === 'number') {
-			x = point[0]
-			y = point[1]
+			item = { x: point[0], y: point[1] }
 		} else if (point && typeof point === 'object') {
-			const item = point as Record<string, unknown>
-			if (typeof item.x === 'number' && typeof item.y === 'number') {
-				x = item.x
-				y = item.y
-			}
+			item = point as Record<string, unknown>
 		}
-		if (x === undefined || y === undefined) continue
+		if (!item) continue
+		const post = normalizeTag(item.post)
+		if (item.kind === 'edge' || (item.kind !== 'stand' && item.edge !== undefined && item.offset !== undefined)) {
+			const rawEdge = typeof item.edge === 'string' ? item.edge.toUpperCase() : undefined
+			if (!isInteractSpotEdge(rawEdge)) continue
+			if (typeof item.offset !== 'number' || !Number.isFinite(item.offset) || item.offset < 0 || item.offset > MAX_PIXEL_DIMENSION) continue
+			if (typeof item.x !== 'number' || typeof item.y !== 'number' || !Number.isFinite(item.x) || !Number.isFinite(item.y) || Math.abs(item.x) > MAX_PIXEL_DIMENSION || Math.abs(item.y) > MAX_PIXEL_DIMENSION) continue
+			const key = `edge:${rawEdge}:${item.offset}:${post ?? ''}:${item.x},${item.y}`
+			if (seen.has(key)) continue
+			seen.add(key)
+			points.push({ kind: 'edge', edge: rawEdge, offset: item.offset, x: item.x, y: item.y, ...(post ? { post } : {}) })
+			continue
+		}
+		if (typeof item.x !== 'number' || typeof item.y !== 'number') continue
+		const x = item.x
+		const y = item.y
 		if (!Number.isFinite(x) || !Number.isFinite(y) || Math.abs(x) > MAX_PIXEL_DIMENSION || Math.abs(y) > MAX_PIXEL_DIMENSION) continue
-		const key = `${x},${y}`
+		const key = `stand:${x},${y}:${post ?? ''}`
 		if (seen.has(key)) continue
 		seen.add(key)
-		points.push({ x, y })
+		points.push({ kind: 'stand', x, y, ...(post ? { post } : {}) })
 	}
 	return points.length > 0 ? points : undefined
 }
@@ -420,6 +455,49 @@ export interface ObjectDefinitionSize {
 	h: number
 }
 
+const INTERACT_SPOT_EDGE_ROTATION: Record<InteractSpotEdge, InteractSpotEdge> = { N: 'E', E: 'S', S: 'W', W: 'N' }
+
+function rotateSpotEdge(edge: InteractSpotEdge, times: number): InteractSpotEdge {
+	let result = edge
+	const n = ((times % 4) + 4) % 4
+	for (let i = 0; i < n; i++) result = INTERACT_SPOT_EDGE_ROTATION[result]
+	return result
+}
+
+export function resolveInteractSpotAnchor(spot: InteractSpot, width: number, height: number): { x: number; y: number } {
+	if (spot.kind !== 'edge') return { x: spot.x, y: spot.y }
+	const w = Number.isFinite(width) && width > 0 ? width : 0
+	const h = Number.isFinite(height) && height > 0 ? height : 0
+	const edgeLength = spot.edge === 'N' || spot.edge === 'S' ? w : h
+	const offset = Number.isFinite(spot.offset) ? Math.min(Math.max(0, spot.offset), edgeLength) : 0
+	switch (spot.edge) {
+		case 'N': return { x: offset, y: 0 }
+		case 'S': return { x: offset, y: h }
+		case 'E': return { x: w, y: offset }
+		case 'W': return { x: 0, y: offset }
+		default: return { x: spot.x, y: spot.y }
+	}
+}
+
+export function snapSpotToEdge(x: number, y: number, width: number, height: number): { edge: InteractSpotEdge; offset: number } {
+	const w = Number.isFinite(width) && width > 0 ? width : 0
+	const h = Number.isFinite(height) && height > 0 ? height : 0
+	const px = Number.isFinite(x) ? x : 0
+	const py = Number.isFinite(y) ? y : 0
+	const distances: { edge: InteractSpotEdge; distance: number; offset: number }[] = [
+		{ edge: 'N', distance: py, offset: px },
+		{ edge: 'S', distance: h - py, offset: px },
+		{ edge: 'E', distance: w - px, offset: py },
+		{ edge: 'W', distance: px, offset: py },
+	]
+	let best = distances[0]
+	for (const candidate of distances) {
+		if (candidate.distance < best.distance) best = candidate
+	}
+	const edgeLength = best.edge === 'N' || best.edge === 'S' ? w : h
+	return { edge: best.edge, offset: Math.min(Math.max(0, best.offset), edgeLength) }
+}
+
 export function rotateInteractSpots90(
 	spots: InteractSpot[] | undefined,
 	width: number,
@@ -429,11 +507,18 @@ export function rotateInteractSpots90(
 	if (!spots || spots.length === 0) return spots
 	const n = ((times % 4) + 4) % 4
 	if (n === 0) return spots
-	let result = spots.map(({ x, y }) => ({ x, y }))
+	let result: InteractSpot[] = spots.map(spot => ({ ...spot }))
 	let currentWidth = width
 	let currentHeight = height
 	for (let i = 0; i < n; i++) {
-		result = result.map(({ x, y }) => ({ x: currentHeight - y, y: x }))
+		result = result.map(spot => {
+			if (spot.kind === 'edge') {
+				const edge = rotateSpotEdge(spot.edge, 1)
+				const anchor = resolveInteractSpotAnchor(spot, currentWidth, currentHeight)
+				return { ...spot, edge, x: currentHeight - anchor.y, y: anchor.x }
+			}
+			return { ...spot, x: currentHeight - spot.y, y: spot.x }
+		})
 		const nextWidth = currentHeight
 		currentHeight = currentWidth
 		currentWidth = nextWidth
@@ -486,6 +571,7 @@ export function normalizeObjectPlacement(value: unknown): ObjectPlacement | unde
 	if (typeof record.locked === 'boolean') placement.locked = record.locked
 	if (typeof record.isWall === 'boolean') placement.isWall = record.isWall
 	if (record.door === true && placement.isWall && type === CANVAS_WALL_OBJECT_TYPE) placement.door = true
+	if (placement.door === true && (record.doorMode === 'hold-open' || record.doorMode === 'auto-close')) placement.doorMode = record.doorMode
 	for (const key of ['x1', 'y1', 'x2', 'y2'] as const) {
 		const value = record[key]
 		if (isFiniteNumber(value)) placement[key] = value
@@ -779,10 +865,25 @@ export function normalizeOriginAssetFile(value: unknown): OriginAssetFile | unde
 
 // --- Section 7: NPC config types & normalization ---
 
+export interface NpcTaskPost {
+	assetId: string
+	post?: string
+}
+
 export interface NpcTask {
 	id: string
 	label: string
 	tags: string[]
+	post?: NpcTaskPost
+}
+
+function sanitizeTaskPost(value: unknown): NpcTaskPost | undefined {
+	if (value === undefined || value === null) return undefined
+	if (!isRecord(value)) return undefined
+	const assetId = normalizeIdentifier(value.assetId)
+	if (!assetId) return undefined
+	const post = normalizeTag(value.post)
+	return { assetId, ...(post ? { post } : {}) }
 }
 
 
@@ -848,7 +949,7 @@ export interface NpcSimDot {
 	targetY: number
 	speed: number
 	color: string
-	status: 'walking' | 'queued' | 'waiting' | 'interacting' | 'idle'
+	status: 'walking' | 'queued' | 'waiting' | 'interacting' | 'chatting' | 'idle'
 	pauseTimer: number
 	pathIdx: number
 	path: [number, number][]
@@ -870,6 +971,7 @@ export interface ObjectPlacement {
 	x2?: number
 	y2?: number
 	door?: boolean
+	doorMode?: DoorMode
 	linkGroupId?: string
 	locked?: boolean
 	fillColor?: string
@@ -916,6 +1018,11 @@ export interface NpcSpawnZone {
 	w: number
 	h: number
 	roleIds?: string[]
+}
+
+export function spawnZoneAllowsRole(zone: NpcSpawnZone, roleId: string): boolean {
+	if (!zone.roleIds?.length) return true
+	return zone.roleIds.includes(roleId)
 }
 
 export function normalizeNpcSpawnZones(value: unknown): NpcSpawnZone[] | undefined {
@@ -1284,6 +1391,7 @@ function isValidTask(t: unknown): t is NpcTask {
 	if (!isRecord(t)) return false
 	return !!normalizeIdentifier(t.id) && !!normalizeText(t.label)
 		&& Array.isArray(t.tags) && !!normalizeTags(t.tags)
+		&& (t.post === undefined || isRecord(t.post))
 }
 
 function isValidPoolEntry(p: unknown): p is NpcDeploymentPool {
@@ -1339,11 +1447,15 @@ export function normalizeNpcConfig(value: unknown): NpcSimulationConfig | undefi
 			}
 			return normalized
 		}),
-		tasks: tasks.map(task => ({
-			id: task.id.trim(),
-			label: task.label.trim(),
-			tags: normalizeTags(task.tags) ?? [],
-		})),
+		tasks: tasks.map(task => {
+			const post = sanitizeTaskPost(task.post)
+			return {
+				id: task.id.trim(),
+				label: task.label.trim(),
+				tags: normalizeTags(task.tags) ?? [],
+				...(post ? { post } : {}),
+			}
+		}),
 		pool: pool.map(entry => ({
 			roleId: entry.roleId.trim(),
 			count: clampInt(entry.count, 0, 1000),

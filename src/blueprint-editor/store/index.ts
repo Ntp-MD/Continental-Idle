@@ -7,7 +7,7 @@ import {
 import {
 	beginDrawnObject, addObject, canPlaceObject, select, toggleMultiSelect, deleteSelected,
 	moveSelectedTo, commitMove, rotateSelected,
-	flattenToSvgAsset, replaceCanvasWallSegments,
+	flattenToSvgAsset, replaceCanvasWallSegments, removeWallDoor, setWallDoorMode,
 	linkObjects, unlinkObject, toggleObjectLock,
 } from './objects'
 import {
@@ -29,7 +29,7 @@ export {
 export {
 	beginDrawnObject, addObject, canPlaceObject, select, toggleMultiSelect, deleteSelected,
 	moveSelectedTo, commitMove, rotateSelected,
-	flattenToSvgAsset, replaceCanvasWallSegments,
+	flattenToSvgAsset, replaceCanvasWallSegments, removeWallDoor, setWallDoorMode,
 	linkObjects, unlinkObject, toggleObjectLock,
 } from './objects'
 export {
@@ -63,7 +63,7 @@ export function useAssetsStore() {
 		reorderFloors, selectFloor, updateFloor,
 		beginDrawnObject, addObject, canPlaceObject, select, toggleMultiSelect, deleteSelected,
 		moveSelectedTo, commitMove, rotateSelected,
-		flattenToSvgAsset, replaceCanvasWallSegments,
+		flattenToSvgAsset, replaceCanvasWallSegments, removeWallDoor, setWallDoorMode,
 		linkObjects, unlinkObject, toggleObjectLock,
 		addSvgAsset, updateAsset, deleteAsset, duplicateAsset, refreshOriginInstances,
 		updateNpcConfig,

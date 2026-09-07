@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict'
-import { NpcEngine, NPC_ENGINE_DEFAULT_OPTIONS, findNpcGridPath, selectBestTarget, WanderMemory, type NpcEngineLayout, type NpcEngineInteractionTarget, type NpcEngineFloor, type NpcEngineAgent, type NpcEngineOptions } from '../src/engine/npc'
-import { normalizeAllowedRoleIds } from '../src/blueprint-editor/domain/types'
+import { NpcEngine, NPC_ENGINE_DEFAULT_OPTIONS, buildNpcEngineLayout, createNpcEnginePolicy, findNpcGridPath, selectBestTarget, WanderMemory, type NpcEngineLayout, type NpcEngineInteractionTarget, type NpcEngineFloor, type NpcEngineAgent, type NpcEngineOptions } from '../src/engine/npc'
+import { normalizeAllowedRoleIds, normalizeNpcConfig } from '../src/blueprint-editor/domain/types'
 import { validatePortalConfiguration, buildAssetMap } from '../src/blueprint-editor/assets/assetUtils'
-import type { AssetDef } from '../src/blueprint-editor/domain/types'
+import type { AssetDef, FloorData } from '../src/blueprint-editor/domain/types'
 
 function makeElevatorAsset(): AssetDef {
 	const offsets = [12.5, 37.5, 62.5]
@@ -773,7 +773,7 @@ console.log('Shared NPC engine checks passed')
 // ─── Target scoring tests ───
 
 function makeAgent(id: string, x: number, y: number): NpcEngineAgent {
-	return { id, floorId: 'F1', x, y, targetX: x, targetY: y, speed: 1, status: 'idle', path: [], pathIndex: 0, reservationItemId: null, reservationInteractSpotId: null, interactionRemainingTicks: 0, crossFloorCooldownUntil: 0 }
+	return { id, floorId: 'F1', x, y, targetX: x, targetY: y, speed: 1, status: 'idle', path: [], pathIndex: 0, reservationItemId: null, reservationInteractSpotId: null, interactionRemainingTicks: 0, chatPartnerId: null, crossFloorCooldownUntil: 0 }
 }
 
 function makeTarget(itemId: string, x: number, y: number): NpcEngineInteractionTarget {
@@ -983,5 +983,236 @@ const twoDoorPassages = twoDoorEvents.filter(e => e.type === 'door-passage')
 assert.ok(twoDoorPassages.length >= 2, 'multiple door-passage events for multiple doors crossed')
 
 console.log('Door passage event checks passed')
+
+// Arrival bounce: physically blocked spot applies backoff instead of instant re-reserve
+{
+	const bounceFloor: NpcEngineFloor = {
+		id: 'F1', width: 12, height: 12, tileSize: 1,
+		walkable: Array.from({ length: 144 }, (_, index) => ({ x: index % 12, y: Math.floor(index / 12) })),
+	}
+	const bounceBed: NpcEngineInteractionTarget = {
+		floorId: 'F1', itemId: 'bed', interactSpotId: 'bed:0',
+		x: 5, y: 5, tags: [], capacity: 1, durationMinSeconds: 1, durationMaxSeconds: 1,
+	}
+	const bounceEngine = new NpcEngine({ floors: [bounceFloor], interactionTargets: [bounceBed] }, {
+		...NPC_ENGINE_DEFAULT_OPTIONS,
+		ticksPerSecond: 60,
+		agentClearance: 0.5,
+		random: () => 0,
+		pathfinder: (floor, from, to, blocked) => findNpcGridPath(floor, from, to, blocked),
+		targetSelector: (agent, targets) => agent.id === 'walker' ? (targets[0] ?? null) : null,
+		wanderSelector: () => null,
+	})
+	// Loiterer stands within clearance of the spot but holds a different cell
+	bounceEngine.addAgent({ id: 'loiterer', floorId: 'F1', x: 4.6, y: 5, targetX: 4.6, targetY: 5, speed: 30, status: 'idle' })
+	bounceEngine.addAgent({ id: 'walker', floorId: 'F1', x: 5, y: 8, targetX: 5, targetY: 8, speed: 30, status: 'idle' })
+	let bouncedAt = -1
+	let sawReservation = false
+	for (let i = 1; i <= 300; i++) {
+		bounceEngine.tick(1)
+		bounceEngine.drainEvents()
+		const walker = bounceEngine.getAgent('walker')!
+		if (walker.reservationItemId !== null) sawReservation = true
+		if (sawReservation && bouncedAt < 0 && walker.reservationItemId === null) bouncedAt = i
+		if (bouncedAt >= 0) break
+	}
+	assert.ok(sawReservation, 'walker reserves the spot first')
+	assert.ok(bouncedAt > 0, 'walker bounces off the occupied spot')
+	let reReserved = false
+	for (let i = 1; i <= 100; i++) {
+		bounceEngine.tick(1)
+		bounceEngine.drainEvents()
+		if (bounceEngine.getAgent('walker')!.reservationItemId !== null) { reReserved = true; break }
+	}
+	assert.equal(reReserved, false, 'no instant re-reserve inside the backoff window')
+}
+
+// Portal throughput: a shared stairwell drains every traveller (pins serialized behavior)
+{
+	function throughRandom(): () => number {
+		let a = 7
+		return () => {
+			a |= 0
+			a = (a + 0x6D2B79F5) | 0
+			let t = a
+			t = Math.imul(t ^ (t >>> 15), t | 1)
+			t ^= t + Math.imul(t ^ (t >>> 7), t | 61)
+			return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+		}
+	}
+	const portals = makePortalPair('F1', 'F2', 'p1', 'p2', [5, 5], [8, 8])
+	const throughLayout: NpcEngineLayout = {
+		floors: [
+			...tenByTenFloors('F1', 'F2'),
+		],
+		interactionTargets: [
+			{ floorId: 'F2', itemId: 'desk', interactSpotId: 'a1', x: 1, y: 1, tags: ['service'], capacity: 3, durationMinSeconds: 1, durationMaxSeconds: 2 },
+			...portals,
+		],
+	}
+	const throughEngine = testEngine(throughLayout, {
+		ticksPerSecond: 60,
+		random: throughRandom(),
+		targetSelector: (_agent, targets) => targets.find(t => t.itemId === 'desk') ?? null,
+		crossFloorSelector: (_agent, candidates) => candidates.find(t => t.floorId === 'F2' && t.itemId === 'desk') ?? null,
+	})
+	throughEngine.addAgent({ id: 'npc-t1', roleId: 'staff', floorId: 'F1', x: 4, y: 5, targetX: 4, targetY: 5, speed: 30 })
+	const crossed = new Set<string>()
+	for (let i = 0; i < 3000 && crossed.size < 3; i++) {
+		throughEngine.tick(1)
+		if (i === 3) throughEngine.addAgent({ id: 'npc-t2', roleId: 'staff', floorId: 'F1', x: 3, y: 5, targetX: 3, targetY: 5, speed: 30 })
+		if (i === 6) throughEngine.addAgent({ id: 'npc-t3', roleId: 'staff', floorId: 'F1', x: 5, y: 4, targetX: 5, targetY: 4, speed: 30 })
+		for (const e of throughEngine.drainEvents()) {
+			if (e.type === 'floor-transition') crossed.add(e.agentId)
+		}
+	}
+	assert.deepEqual([...crossed].sort(), ['npc-t1', 'npc-t2', 'npc-t3'], 'every traveller crosses the shared portal')
+}
+
+// Portal dest-occupied: backoff instead of hammering the route
+{
+	const portals = makePortalPair('F1', 'F2', 'p1', 'p2', [5, 5], [8, 8])
+	const hammerLayout: NpcEngineLayout = {
+		floors: [
+			...tenByTenFloors('F1', 'F2'),
+		],
+		interactionTargets: [
+			{ floorId: 'F2', itemId: 'desk', interactSpotId: 'a1', x: 1, y: 1, tags: ['service'], capacity: 1, durationMinSeconds: 1, durationMaxSeconds: 1 },
+			...portals,
+		],
+	}
+	const hammerEngine = new NpcEngine(hammerLayout, {
+		...NPC_ENGINE_DEFAULT_OPTIONS,
+		ticksPerSecond: 60,
+		agentClearance: 0.5,
+		random: () => 0,
+		pathfinder: directPath,
+		targetSelector: () => null,
+		crossFloorSelector: (_agent, candidates) => candidates[0] ?? null,
+	})
+	hammerEngine.addAgent({ id: 'npc-statue', roleId: 'staff', floorId: 'F2', x: 8, y: 8, targetX: 8, targetY: 8, speed: 10 })
+	hammerEngine.addAgent({ id: 'npc-traveller', roleId: 'staff', floorId: 'F1', x: 4, y: 5, targetX: 4, targetY: 5, speed: 10 })
+	let bouncedAt = -1
+	let sawReservation = false
+	for (let i = 1; i <= 400; i++) {
+		hammerEngine.tick(1)
+		hammerEngine.drainEvents()
+		const traveller = hammerEngine.getAgents().find(a => a.id === 'npc-traveller')!
+		if (traveller.reservationItemId !== null) sawReservation = true
+		if (sawReservation && bouncedAt < 0 && traveller.reservationItemId === null) bouncedAt = i
+		if (bouncedAt >= 0) break
+	}
+	assert.ok(sawReservation, 'traveller reserves the portal first')
+	assert.ok(bouncedAt > 0, 'traveller bounces off the occupied destination')
+	const bounceTicks: number[] = []
+	for (let i = 1; i <= 400; i++) {
+		hammerEngine.tick(1)
+		for (const e of hammerEngine.drainEvents()) {
+			if (e.type === 'waiting' && e.agentId === 'npc-traveller' && e.itemId) bounceTicks.push(i)
+		}
+		if (bounceTicks.length >= 2) break
+	}
+	assert.ok(bounceTicks.length >= 1, 'bounce emits a waiting event')
+	if (bounceTicks.length >= 2) {
+		assert.ok(bounceTicks[1] - bounceTicks[0] > 100, 'portal re-attempt waits out the backoff window')
+	}
+}
+
+// Station posts: adapter tags + posted stay-loop + guest invisibility + shared capacity
+{
+	const barAsset: AssetDef = {
+		id: 'bar',
+		name: 'Bar',
+		w: 4,
+		h: 1,
+		walkable: false,
+		tags: ['lounge'],
+		interactSpots: [
+			{ kind: 'stand', x: 25, y: 31 },
+			{ kind: 'stand', x: 50, y: 31 },
+			{ kind: 'stand', x: 75, y: 31 },
+			{ kind: 'stand', x: 25, y: -6, post: 'bar-back' },
+		],
+		interact: { capacity: 2, durationMin: 1, durationMax: 2 },
+	}
+	const postFloor: FloorData = {
+		id: 'F1',
+		name: 'Ground',
+		label: 'G',
+		defaultWalkable: true,
+		objects: [{ id: 'bar1', type: 'bar', x: 100, y: 100, rotation: 0, w: 100, h: 25 }],
+	}
+	const built = buildNpcEngineLayout(
+		[postFloor],
+		{ w: 400, h: 300, tileSize: 25 },
+		type => (type === 'bar' ? barAsset : undefined),
+		() => ['lounge'],
+	)
+	const backTarget = built.layout.interactionTargets.find(target => target.interactSpotId === 'object:bar1:3')
+	assert.ok(backTarget, 'post spot builds a target')
+	assert.ok(backTarget.tags.includes('post:bar-back'), 'post target carries its post tag')
+	assert.deepEqual([backTarget.x, backTarget.y], [5, 3])
+	assert.ok(
+		built.layout.interactionTargets
+			.filter(target => target.itemId === 'object:bar1' && target.interactSpotId !== 'object:bar1:3')
+			.every(target => !target.tags.some(tag => tag.startsWith('post:'))),
+		'front targets carry no post tag',
+	)
+	const postConfig = normalizeNpcConfig({
+		speed: 0.2,
+		defaultRoleId: 'staff',
+		roles: [
+			{ id: 'staff', label: 'Staff', color: '#fff', focusTags: [], restrictedTags: [], taskIds: ['tend'], focusChance: 100 },
+			{ id: 'guest', label: 'Guest', color: '#fff', focusTags: ['lounge'], restrictedTags: [], taskIds: [], focusChance: 100 },
+		],
+		tasks: [{ id: 'tend', label: 'Tend', tags: ['lounge'], post: { assetId: 'bar', post: 'bar-back' } }],
+		pool: [],
+	})
+	assert.ok(postConfig)
+	let postEngine: NpcEngine
+	const postPolicy = createNpcEnginePolicy({
+		getConfig: () => postConfig,
+		floors: built.layout.floors,
+		floorMaps: built.floorMaps,
+		floorDataMap: built.floorDataMap,
+		ticksPerSecond: 60,
+		getTickNumber: () => postEngine.tickNumber,
+		listAgents: () => postEngine.listAgents(),
+		getAssetTags: () => ['lounge'],
+		random: makeRng(7),
+		interactionTargets: built.layout.interactionTargets,
+	})
+	postEngine = new NpcEngine(
+		{ floors: built.layout.floors, interactionTargets: built.layout.interactionTargets, queues: built.layout.queues },
+		{ ...NPC_ENGINE_DEFAULT_OPTIONS, ticksPerSecond: 60, agentClearance: 0.5, random: makeRng(8), ...postPolicy },
+	)
+	postEngine.addAgent({ id: 'bartender', roleId: 'staff', floorId: 'F1', x: 0, y: 0, targetX: 0, targetY: 0, speed: 30 })
+	postEngine.addAgent({ id: 'patron', roleId: 'guest', floorId: 'F1', x: 11, y: 8, targetX: 11, targetY: 8, speed: 30 })
+	let postedAt = -1
+	let patronTouchedBack = false
+	let patronUsedFront = false
+	for (let i = 0; i < 1500 && (postedAt < 0 || !patronUsedFront); i++) {
+		postEngine.tick(1)
+		postEngine.drainEvents()
+		const staff = postEngine.getAgents().find(a => a.id === 'bartender')!
+		const guest = postEngine.getAgents().find(a => a.id === 'patron')!
+		if (staff.status === 'interacting' && staff.reservationItemId === 'object:bar1' && staff.reservationInteractSpotId === 'object:bar1:3') {
+			if (postedAt < 0) postedAt = i
+		}
+		if (guest.reservationInteractSpotId === 'object:bar1:3') patronTouchedBack = true
+		if (guest.reservationItemId === 'object:bar1' && guest.reservationInteractSpotId !== 'object:bar1:3') patronUsedFront = true
+	}
+	assert.ok(postedAt >= 0, 'bartender posts at bar-back')
+	assert.ok(!patronTouchedBack, 'guest never takes the posted spot')
+	assert.ok(patronUsedFront, 'guest still served at a front spot within shared capacity')
+	const heldKey = postEngine.getAgents().find(a => a.id === 'bartender')!.reservationInteractSpotId
+	for (let i = 0; i < 60 * 2 + 240; i++) {
+		postEngine.tick(1)
+		postEngine.drainEvents()
+	}
+	const after = postEngine.getAgents().find(a => a.id === 'bartender')!
+	assert.equal(after.reservationInteractSpotId, heldKey, 'posted reservation survives past durationMax (stay-loop holds the spot)')
+	assert.equal(after.reservationInteractSpotId, 'object:bar1:3', 'still the same post spot')
+}
 
 console.log('Shared NPC engine checks passed')

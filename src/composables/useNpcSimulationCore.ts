@@ -25,7 +25,6 @@ export interface NpcSimulationCoreHost {
 	getCanvas(): NpcCanvasBounds
 	getViewFloorId(): string | null
 	idPrefix: string
-	syncIntervalMs?: number
 	random?: () => number
 	getAssetDef?(type: string): AssetDef | undefined
 	getAssetTags?(type: string): string[] | undefined
@@ -38,9 +37,35 @@ function resolveRole(config: NpcSimulationConfig, roleId: string): NpcRole | und
 		?? config.roles[0]
 }
 
+export function latchArrivalEvent(
+	arrived: Set<string>,
+	marks: Map<string, number>,
+	event: NpcEngineEvent,
+	idPrefix: string,
+): void {
+	if (event.type !== 'interaction-start') return
+	if (arrived.has(event.agentId)) return
+	if (!event.agentId.startsWith(idPrefix)) return
+	arrived.add(event.agentId)
+	marks.set(event.agentId, event.tick)
+}
+
+export const ARRIVAL_MARK_MAX_AGE_TICKS = 5 * NPC_ENGINE_TICKS_PER_SECOND
+export const ARRIVAL_MARK_LIVE_CAP = 50
+
+export function pruneArrivalMarks(marks: Map<string, number>, currentTick: number): void {
+	for (const [agentId, tick] of marks) {
+		if (currentTick - tick > ARRIVAL_MARK_MAX_AGE_TICKS) marks.delete(agentId)
+	}
+	if (marks.size <= ARRIVAL_MARK_LIVE_CAP) return
+	const byAge = [...marks.entries()].sort((a, b) => a[1] - b[1])
+	for (const [agentId] of byAge.slice(0, byAge.length - ARRIVAL_MARK_LIVE_CAP)) marks.delete(agentId)
+}
+
 export function useNpcSimulationCore(host: NpcSimulationCoreHost) {
 	const npcs = shallowRef<NpcSimDot[]>([])
 	const doorPassageEvents = shallowRef<NpcEngineEvent[]>([])
+	const socialEvents = shallowRef<NpcEngineEvent[]>([])
 	const isPaused = ref(false)
 	const simSpeed = ref(1)
 	const config = ref<NpcSimulationConfig>({
@@ -63,9 +88,14 @@ export function useNpcSimulationCore(host: NpcSimulationCoreHost) {
 	let currentCanvas: NpcCanvasBounds | null = null
 	let viewFloorId: string | null = host.getViewFloorId()
 
-	const SYNC_INTERVAL_MS = host.syncIntervalMs ?? 250
+	const SYNC_INTERVAL_MS = 250
 	let lastSyncAt = 0
 	const frameDots = new Map<string, NpcSimDot>()
+	const waitReasons = new Map<string, string>()
+	const arrived = new Set<string>()
+	const arrivalMarks = new Map<string, number>()
+	const seenAgentIds = new Set<string>()
+	const dotRoleColors = new Map<string, string>()
 
 	function isRoleAllowedOnFloor(roleId: string, floorId: string): boolean {
 		const floor = floorDataMap.get(floorId)
@@ -73,16 +103,25 @@ export function useNpcSimulationCore(host: NpcSimulationCoreHost) {
 		return floor.allowedRoleIds.includes(roleId)
 	}
 
+	function dotColorFor(requestedRoleId: string): string {
+		let color = dotRoleColors.get(requestedRoleId)
+		if (color === undefined) {
+			color = resolveRole(config.value, requestedRoleId)?.color ?? '#8ecae6'
+			dotRoleColors.set(requestedRoleId, color)
+		}
+		return color
+	}
+
 	function syncAgents(): void {
 		const currentEngine = engine
 		if (!currentEngine) return
 		const agents = currentEngine.listAgents()
-		const seen = new Set<string>()
+		seenAgentIds.clear()
 		for (const agent of agents) {
 			const map = floorMaps.get(agent.floorId)
 			if (!map) continue
 			const cs = map.cellSize
-			seen.add(agent.id)
+			seenAgentIds.add(agent.id)
 			const existing = frameDots.get(agent.id)
 			const dot: NpcSimDot = existing ?? {
 				id: agent.id,
@@ -108,18 +147,30 @@ export function useNpcSimulationCore(host: NpcSimulationCoreHost) {
 			dot.type = agent.roleId ?? ''
 			dot.x = cellToPixel(agent.x, cs)
 			dot.y = cellToPixel(agent.y, cs)
-			dot.targetX = cellToPixel(agent.targetX, cs)
-			dot.targetY = cellToPixel(agent.targetY, cs)
-			dot.status = agent.status
+		dot.targetX = cellToPixel(agent.targetX, cs)
+		dot.targetY = cellToPixel(agent.targetY, cs)
+		dot.status = agent.status
+		if (agent.reservationItemId !== null && agent.reservationInteractSpotId !== null) {
+			dot.interactTargetKey = `${agent.floorId}:${agent.reservationItemId}`
+			dot.interactSpotKey = `${agent.floorId}:${agent.reservationItemId}:${agent.reservationInteractSpotId}`
+		} else {
+			dot.interactTargetKey = null
+			dot.interactSpotKey = null
+		}
 			if (dot.path.length !== agent.path.length || agent.pathIndex < dot.pathIdx) {
 				dot.path = agent.path.map(point => [cellToPixel(point.x, cs), cellToPixel(point.y, cs)] as [number, number])
 			}
 			dot.pathIdx = agent.pathIndex
-			const role = resolveRole(config.value, agent.roleId ?? '')
-			if (role && dot) dot.color = role.color
+			dot.color = dotColorFor(agent.roleId ?? '')
 		}
-		for (const id of frameDots.keys()) {
-			if (!seen.has(id)) frameDots.delete(id)
+		if (frameDots.size > seenAgentIds.size) {
+			for (const id of frameDots.keys()) {
+				if (!seenAgentIds.has(id)) frameDots.delete(id)
+			}
+		}
+		for (const id of waitReasons.keys()) {
+			const dot = frameDots.get(id)
+			if (!dot || (dot.status !== 'waiting' && dot.status !== 'queued')) waitReasons.delete(id)
 		}
 		const now = performance.now()
 		if (now - lastSyncAt >= SYNC_INTERVAL_MS && !isPaused.value) {
@@ -208,6 +259,7 @@ export function useNpcSimulationCore(host: NpcSimulationCoreHost) {
 			floors: built.layout.floors,
 			floorMaps,
 			floorDataMap,
+			interactionTargets: built.layout.interactionTargets,
 			ticksPerSecond: NPC_ENGINE_TICKS_PER_SECOND,
 			getTickNumber: () => engine?.tickNumber ?? 0,
 			listAgents: () => engine?.listAgents() ?? [],
@@ -233,6 +285,10 @@ export function useNpcSimulationCore(host: NpcSimulationCoreHost) {
 			wanderMemorySize: cfg?.wanderMemorySize ?? 32,
 			wanderSmallMapThreshold: cfg?.wanderSmallMapThreshold ?? 8,
 			triggerRatePeriodSeconds: cfg?.triggerRatePeriodSeconds ?? 60,
+			socialRadius: 2,
+			socialCooldownSeconds: 45,
+			socialChatDurationMinSeconds: 3,
+			socialChatDurationMaxSeconds: 8,
 			...policy,
 		})
 
@@ -255,11 +311,22 @@ export function useNpcSimulationCore(host: NpcSimulationCoreHost) {
 			tickCostEma = tickCostEma === 0 ? (performance.now() - t0) / steps : tickCostEma * 0.85 + ((performance.now() - t0) / steps) * 0.15
 			syncAgents()
 			const events = engine.drainEvents()
+			pruneArrivalMarks(arrivalMarks, engine.tickNumber)
 			if (events.length > 0) {
 				const doorEvents = events.filter(e => e.type === 'door-passage')
 				if (doorEvents.length > 0 || doorPassageEvents.value.length > 0) doorPassageEvents.value = doorEvents
-			} else if (doorPassageEvents.value.length > 0) {
-				doorPassageEvents.value = []
+				const chatEvents = events.filter(e => e.type === 'chatting-start' || e.type === 'chatting-end')
+				if (chatEvents.length > 0 || socialEvents.value.length > 0) socialEvents.value = chatEvents
+				for (const event of events) {
+					if (event.type === 'waiting' && event.reason) {
+						const dot = frameDots.get(event.agentId)
+						if (dot && (dot.status === 'waiting' || dot.status === 'queued')) waitReasons.set(event.agentId, event.reason)
+					}
+					latchArrivalEvent(arrived, arrivalMarks, event, host.idPrefix)
+				}
+			} else {
+				if (doorPassageEvents.value.length > 0) doorPassageEvents.value = []
+				if (socialEvents.value.length > 0) socialEvents.value = []
 			}
 		}
 		animationId = requestAnimationFrame(frame)
@@ -279,6 +346,7 @@ export function useNpcSimulationCore(host: NpcSimulationCoreHost) {
 	function ingestConfig(raw: NpcSimulationConfig | undefined): boolean {
 		if (!raw || !isNpcConfig(raw)) return false
 		config.value = mergeNpcConfig(cloneDeepRaw(raw))
+		dotRoleColors.clear()
 		applyConfigSpeedToAgents()
 		return true
 	}
@@ -294,7 +362,10 @@ export function useNpcSimulationCore(host: NpcSimulationCoreHost) {
 	return {
 		npcs,
 		frameDots,
+		waitReasons,
+		arrivalMarks,
 		doorPassageEvents,
+		socialEvents,
 		isPaused,
 		simSpeed,
 		config,
@@ -305,6 +376,9 @@ export function useNpcSimulationCore(host: NpcSimulationCoreHost) {
 			spawnFloorOverride = spawnFloorId ?? null
 			tickCostEma = 0
 			deploymentActive = true
+			waitReasons.clear()
+			arrived.clear()
+			arrivalMarks.clear()
 			viewFloorId = newViewFloorId
 			buildEngine(floors, canvas)
 			start()
@@ -319,15 +393,16 @@ export function useNpcSimulationCore(host: NpcSimulationCoreHost) {
 			viewFloorId = floorId
 			if (deploymentActive) syncAgents()
 		},
-		clearDeployment(): void {
-			deploymentActive = false
-		},
 		reset(): void {
 			stopLoop()
 			engine = null
 			floorMaps = new Map()
 			floorDataMap = new Map()
 			frameDots.clear()
+			waitReasons.clear()
+			arrived.clear()
+			arrivalMarks.clear()
+			dotRoleColors.clear()
 			currentCanvas = null
 			viewFloorId = null
 			deploymentActive = false
@@ -335,6 +410,7 @@ export function useNpcSimulationCore(host: NpcSimulationCoreHost) {
 			tickCostEma = 0
 			npcs.value = []
 			doorPassageEvents.value = []
+			socialEvents.value = []
 		},
 		start,
 		stopLoop,

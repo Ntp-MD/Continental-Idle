@@ -17,6 +17,16 @@ How to execute the workflow defined in `AGENTS.md`. That file states WHAT is req
 ## Step 2 - Plan
 
 - Write a short plan: files to touch (keep to 3 or fewer or stop and ask), risks, and the single matching Verify suite from `AGENTS.md`.
+- Shape the plan as 4 tight parts, no coding until each is clear:
+  1. What - add vs fix, exact scope, explicit non-goals.
+  2. Why - current vs expected behavior with proof (file:line or failing suite), impact if left unfixed.
+  3. How - fix steps in order, files to touch, the single matching Verify suite.
+  4. Why this way - repo pattern reused, rejected alternatives with one-line reason each, risks plus rollback.
+- Pre-proof gate (no coding until ALL hold): a captured baseline exists
+  (failing suite output, current disk content, or current rendered behavior);
+  every edit anchor carries an identity (`id`/`name`/`key`), never bare
+  values alone; UI work names who confirms the visual (agents cannot see
+  renders).
 - Identify cross-references: if you add/rename/remove a function, type field, CSS class, store export, or doc claim, grep BOTH names repo-wide and plan every consumer update in the same change.
 - If the plan needs a destructive action, a new dependency, new infra, or a secrets/auth change, stop and ask.
 
@@ -47,6 +57,9 @@ How to execute the workflow defined in `AGENTS.md`. That file states WHAT is req
 - Check: correctness, regressions, unnecessary complexity, consistency with repo patterns.
 - Check correspondence: zero references to removed symbols, showcase updated if a UI primitive changed, whitelists/serializers/patch unions updated if a field changed.
 - Check text rules: no PowerShell round-trip of files, no `box-shadow` / `drop-shadow`, state via borders only.
+- Re-run every suite the change could affect (not just the matching one when
+  shared code moved), and check working-tree status for files changed beyond
+  the plan scope (concurrent edits happen - re-read before trusting).
 
 ## Step 7 - Repeat until tests pass
 

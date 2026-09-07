@@ -124,6 +124,7 @@ function submitRoleTag(kind: 'focus' | 'restricted') {
         </div>
       </div>
 
+      <div class="form__row form--start form--wrap">
       <div class="form__col form--section">
         <h4>Focus Tags</h4>
         <p class="npc__hint">Where this NPC prefers to go. Empty = wanders anywhere.</p>
@@ -191,6 +192,7 @@ function submitRoleTag(kind: 'focus' | 'restricted') {
             </button>
           </li>
         </ul>
+      </div>
       </div>
 
       <div class="form__col form--section npc__scroll">

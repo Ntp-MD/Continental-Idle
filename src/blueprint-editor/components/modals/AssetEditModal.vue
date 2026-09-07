@@ -17,6 +17,7 @@ const tabs: { key: EditorTab; label: string }[] = [
   { key: 'walk', label: 'Walkable' },
   { key: 'door', label: 'Doors & Edges' },
   { key: 'interactspots', label: 'Interact Spots' },
+  { key: 'assign', label: 'Assign NPC' },
 ]
 
 watch(
@@ -86,8 +87,8 @@ watch(
 }
 
 #modal-asset-edit {
-  width: min(94vw, 1000px);
-  height: min(80vh, 720px);
+  width: min(96vw, 1200px);
+  height: min(88vh, 800px);
   max-height: calc(100vh - 32px);
 }
 

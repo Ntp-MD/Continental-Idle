@@ -2,12 +2,13 @@
 import { computed, ref, watch } from 'vue'
 import { useAssetsStore } from '../../blueprintStore'
 import { useConfirm } from '@/composables/useConfirm'
+import { useToast } from '@/composables/useToast'
 import { STREET_TILES, type FloorData, type TileState, type WallSegment } from '../../domain/types'
-import { segmentHasDoor, wallSegmentsToEdges, type TileEdges, type BorderSide } from '../../domain/gridEditing'
+import { segmentHasDoor, wallSegmentsToEdges, tileEdgeKey, doorKeyForSide, segmentCoversTileEdge, type TileEdges, type BorderSide } from '../../domain/gridEditing'
 import { useDirtyBaseline } from '../../composables/useDirtyBaseline'
 import ModalShell from '../shell/ModalShell.vue'
 
-type WalkableMode = 'walk' | 'door'
+type WalkableMode = 'walk' | 'door' | 'select'
 
 const props = defineProps<{
   streetTiles?: number
@@ -63,7 +64,7 @@ function detectEdgeSide(e: MouseEvent, target: HTMLElement): BorderSide | null {
 function toggleDoorAt(row: number, col: number, side: BorderSide): void {
   const e = gridEdges.value[row]?.[col]
   if (!e) return
-  const doorKey = `door${side.charAt(0).toUpperCase() + side.slice(1)}` as keyof TileEdges
+  const doorKey = doorKeyForSide(side)
   if (e[doorKey]) {
     delete e[doorKey]
   } else {
@@ -71,6 +72,88 @@ function toggleDoorAt(row: number, col: number, side: BorderSide): void {
     if (!e[wallKey]) e[wallKey] = true
     e[doorKey] = true
   }
+}
+
+const selectedEdges = ref<Set<string>>(new Set())
+const selectedDoorMode = ref<'auto' | 'hold-open' | 'auto-close'>('auto')
+const hoverEdge = ref<{ r: number; c: number; side: BorderSide } | null>(null)
+
+function toggleEdgeSelection(row: number, col: number, e: MouseEvent): void {
+  const side = detectEdgeSide(e, e.currentTarget as HTMLElement)
+  if (!side) return
+  const key = tileEdgeKey(row, col, side)
+  if (selectedEdges.value.has(key)) selectedEdges.value.delete(key)
+  else selectedEdges.value.add(key)
+}
+
+function clearEdgeSelection(): void {
+  selectedEdges.value.clear()
+}
+
+function isSelectedEdge(row: number, col: number, side: BorderSide): boolean {
+  return activeMode.value === 'select' && selectedEdges.value.has(tileEdgeKey(row, col, side))
+}
+
+function isPreviewEdge(row: number, col: number, side: BorderSide): boolean {
+  const hover = hoverEdge.value
+  if (!hover || activeMode.value !== 'door') return false
+  if (hover.r !== row || hover.c !== col || hover.side !== side) return false
+  const edges = gridEdges.value[row]?.[col]
+  if (!edges) return false
+  return !edges[doorKeyForSide(side)]
+}
+
+function onTileHover(row: number, col: number, e: MouseEvent): void {
+  if (activeMode.value !== 'door') {
+    if (hoverEdge.value) hoverEdge.value = null
+    return
+  }
+  const side = detectEdgeSide(e, e.currentTarget as HTMLElement)
+  const prev = hoverEdge.value
+  if (side === null) {
+    if (prev) hoverEdge.value = null
+    return
+  }
+  if (!prev || prev.r !== row || prev.c !== col || prev.side !== side) hoverEdge.value = { r: row, c: col, side }
+}
+
+function deleteSelectedDoors(): void {
+  if (!selectedEdges.value.size || !props.floor) return
+  for (const key of selectedEdges.value) {
+    const [r, c, side] = key.split(',')
+    const edges = gridEdges.value[Number(r)]?.[Number(c)]
+    if (!edges) continue
+    delete edges[doorKeyForSide(side as BorderSide)]
+  }
+  selectedEdges.value.clear()
+}
+
+async function applyDoorModeToSelected(): Promise<void> {
+  const floor = props.floor
+  if (!floor || !selectedEdges.value.size) return
+  const picked = new Set<string>()
+  const selected = [...selectedEdges.value].map(key => {
+    const [r, c, side] = key.split(',')
+    return { r: Number(r), c: Number(c), side: side as BorderSide }
+  })
+  for (const object of floor.objects) {
+    if (!object.isWall || object.door !== true) continue
+    if ([object.x1, object.y1, object.x2, object.y2].some(value => typeof value !== 'number')) continue
+    const segment = { x1: object.x1!, y1: object.y1!, x2: object.x2!, y2: object.y2! }
+    if (selected.some(entry => segmentCoversTileEdge(segment, entry.r, entry.c, entry.side))) picked.add(object.id)
+  }
+  if (!picked.size) {
+    useToast().warning('No wall doors touch the selected edges')
+    return
+  }
+  const mode = selectedDoorMode.value === 'auto' ? undefined : selectedDoorMode.value
+  let saved = true
+  for (const id of picked) {
+    saved = (await store.setWallDoorMode(floor.id, id, mode)) && saved
+  }
+  if (!saved) useToast().error('Failed to save door mode')
+  else useToast().success(`Door mode set on ${picked.size} wall${picked.size === 1 ? '' : 's'}`)
+  selectedEdges.value.clear()
 }
 
 function applyOuterWall(): void {
@@ -137,6 +220,8 @@ function syncEdgesFromSegments(): void {
 
 function resetDraft(): void {
   tileStates.value = createTileStates(props.floor)
+  selectedEdges.value.clear()
+  hoverEdge.value = null
   wallSegments.value = (props.floor?.objects ?? [])
     .filter(
       (object) =>
@@ -164,6 +249,10 @@ function tileState(row: number, col: number): TileState {
 }
 
 function updateTile(row: number, col: number, e: MouseEvent): void {
+  if (activeMode.value === 'select') {
+    toggleEdgeSelection(row, col, e)
+    return
+  }
   if (activeMode.value === 'door') {
     const side = detectEdgeSide(e, e.currentTarget as HTMLElement)
     if (side) {
@@ -242,10 +331,13 @@ function close(): void {
   <ModalShell :open="open" modal-id="modal-walkable-setting" title="Walkable Setting" @close="close">
     <div class="form__row form--wrap" role="toolbar" aria-label="Walkable setting tools">
       <button type="button" :class="{ 'flag--warning': activeMode === 'walk' }" @click="setMode('walk')">
-        Wall / Block
+        Walkable
       </button>
       <button type="button" :class="{ 'flag--warning': activeMode === 'door' }" @click="setMode('door')">
-        Door / Door
+        Doors
+      </button>
+      <button type="button" :class="{ 'flag--warning': activeMode === 'select' }" @click="setMode('select')">
+        Select
       </button>
       <template v-if="activeMode === 'walk'">
         <button type="button" :class="{ 'flag--warning': walkBrush === 'walkable' }" @click="walkBrush = 'walkable'">
@@ -260,7 +352,25 @@ function close(): void {
         <button type="button" @click="clearAllDoors">Clear Doors</button>
         <button type="button" @click="clearAllEdges">Clear Walls</button>
       </template>
+      <div v-if="activeMode === 'select'" class="form__row form--wrap">
+        <span class="form__hint">{{ selectedEdges.size }} edge{{ selectedEdges.size === 1 ? '' : 's' }} selected - click tile edges to toggle</span>
+        <select
+          :value="selectedDoorMode"
+          aria-label="Door mode for selected edges"
+          @change="selectedDoorMode = ($event.target as HTMLSelectElement).value as 'auto' | 'hold-open' | 'auto-close'"
+        >
+          <option value="auto">Auto</option>
+          <option value="hold-open">Hold open</option>
+          <option value="auto-close">Auto-close</option>
+        </select>
+        <button type="button" :disabled="!selectedEdges.size" @click="applyDoorModeToSelected">Apply mode</button>
+        <button type="button" :disabled="!selectedEdges.size" @click="deleteSelectedDoors">Delete</button>
+        <button type="button" :disabled="!selectedEdges.size" @click="clearEdgeSelection">Clear</button>
+      </div>
     </div>
+
+    <div v-if="activeMode === 'walk'" class="form__hint">Paint walkable or blocked tiles. Blocked tiles stop movement.</div>
+    <div v-else class="form__hint">Click a tile edge to toggle a door. Walls are added under doors automatically.</div>
 
     <div class="form__row form--wrap walk__legend" aria-label="Walkable legend">
       <span><i class="swatch walk__swatch--walkable" />Walkable</span>
@@ -269,12 +379,13 @@ function close(): void {
       <span><i class="swatch walk__swatch--door" />Door (door edge)</span>
     </div>
 
-    <div
-      class="walk__grid"
-      :style="gridStyle"
-      role="grid"
-      :aria-label="`${buildingCols} by ${buildingRows} walkable grid`"
-    >
+      <div
+        class="walk__grid"
+        :style="gridStyle"
+        role="grid"
+        :aria-label="`${buildingCols} by ${buildingRows} walkable grid`"
+        @mouseleave="hoverEdge = null"
+      >
       <template v-for="rowIndex in buildingRows" :key="`walk-row-${rowIndex}`">
         <button
           v-for="colIndex in buildingCols"
@@ -283,41 +394,46 @@ function close(): void {
           class="walk__cell"
           :class="`walk__cell--${tileState(buildingStartRow + rowIndex - 1, buildingStartCol + colIndex - 1)}`"
           :aria-label="`Row ${rowIndex}, column ${colIndex}, ${tileState(buildingStartRow + rowIndex - 1, buildingStartCol + colIndex - 1)}`"
-          @mousedown.prevent="updateTile(buildingStartRow + rowIndex - 1, buildingStartCol + colIndex - 1, $event)"
-          @click="activateTile(buildingStartRow + rowIndex - 1, buildingStartCol + colIndex - 1)"
-        >
-          <span
-            v-if="gridEdges[buildingStartRow + rowIndex - 1]?.[buildingStartCol + colIndex - 1]?.top"
-            class="walk__edge walk__edge--top"
-            :class="{
-              'walk__edge--door':
-                gridEdges[buildingStartRow + rowIndex - 1]?.[buildingStartCol + colIndex - 1]?.doorTop,
-            }"
-          ></span>
-          <span
-            v-if="gridEdges[buildingStartRow + rowIndex - 1]?.[buildingStartCol + colIndex - 1]?.right"
-            class="walk__edge walk__edge--right"
-            :class="{
-              'walk__edge--door':
-                gridEdges[buildingStartRow + rowIndex - 1]?.[buildingStartCol + colIndex - 1]?.doorRight,
-            }"
-          ></span>
-          <span
-            v-if="gridEdges[buildingStartRow + rowIndex - 1]?.[buildingStartCol + colIndex - 1]?.bottom"
-            class="walk__edge walk__edge--bottom"
-            :class="{
-              'walk__edge--door':
-                gridEdges[buildingStartRow + rowIndex - 1]?.[buildingStartCol + colIndex - 1]?.doorBottom,
-            }"
-          ></span>
-          <span
-            v-if="gridEdges[buildingStartRow + rowIndex - 1]?.[buildingStartCol + colIndex - 1]?.left"
-            class="walk__edge walk__edge--left"
-            :class="{
-              'walk__edge--door':
-                gridEdges[buildingStartRow + rowIndex - 1]?.[buildingStartCol + colIndex - 1]?.doorLeft,
-            }"
-          ></span>
+            @mousedown.prevent="updateTile(buildingStartRow + rowIndex - 1, buildingStartCol + colIndex - 1, $event)"
+            @click="activateTile(buildingStartRow + rowIndex - 1, buildingStartCol + colIndex - 1)"
+            @mousemove="onTileHover(buildingStartRow + rowIndex - 1, buildingStartCol + colIndex - 1, $event)"
+          >
+            <span
+              v-if="gridEdges[buildingStartRow + rowIndex - 1]?.[buildingStartCol + colIndex - 1]?.top || isPreviewEdge(buildingStartRow + rowIndex - 1, buildingStartCol + colIndex - 1, 'top') || isSelectedEdge(buildingStartRow + rowIndex - 1, buildingStartCol + colIndex - 1, 'top')"
+              class="walk__edge walk__edge--top"
+              :class="{
+                'walk__edge--door':
+                  gridEdges[buildingStartRow + rowIndex - 1]?.[buildingStartCol + colIndex - 1]?.doorTop || isPreviewEdge(buildingStartRow + rowIndex - 1, buildingStartCol + colIndex - 1, 'top'),
+                'walk__edge--selected': isSelectedEdge(buildingStartRow + rowIndex - 1, buildingStartCol + colIndex - 1, 'top'),
+              }"
+            ></span>
+            <span
+              v-if="gridEdges[buildingStartRow + rowIndex - 1]?.[buildingStartCol + colIndex - 1]?.right || isPreviewEdge(buildingStartRow + rowIndex - 1, buildingStartCol + colIndex - 1, 'right')"
+              class="walk__edge walk__edge--right"
+              :class="{
+                'walk__edge--door':
+                  gridEdges[buildingStartRow + rowIndex - 1]?.[buildingStartCol + colIndex - 1]?.doorRight || isPreviewEdge(buildingStartRow + rowIndex - 1, buildingStartCol + colIndex - 1, 'right'),
+                'walk__edge--selected': isSelectedEdge(buildingStartRow + rowIndex - 1, buildingStartCol + colIndex - 1, 'right'),
+              }"
+            ></span>
+            <span
+              v-if="gridEdges[buildingStartRow + rowIndex - 1]?.[buildingStartCol + colIndex - 1]?.bottom || isPreviewEdge(buildingStartRow + rowIndex - 1, buildingStartCol + colIndex - 1, 'bottom')"
+              class="walk__edge walk__edge--bottom"
+              :class="{
+                'walk__edge--door':
+                  gridEdges[buildingStartRow + rowIndex - 1]?.[buildingStartCol + colIndex - 1]?.doorBottom || isPreviewEdge(buildingStartRow + rowIndex - 1, buildingStartCol + colIndex - 1, 'bottom'),
+                'walk__edge--selected': isSelectedEdge(buildingStartRow + rowIndex - 1, buildingStartCol + colIndex - 1, 'bottom'),
+              }"
+            ></span>
+            <span
+              v-if="gridEdges[buildingStartRow + rowIndex - 1]?.[buildingStartCol + colIndex - 1]?.left || isPreviewEdge(buildingStartRow + rowIndex - 1, buildingStartCol + colIndex - 1, 'left')"
+              class="walk__edge walk__edge--left"
+              :class="{
+                'walk__edge--door':
+                  gridEdges[buildingStartRow + rowIndex - 1]?.[buildingStartCol + colIndex - 1]?.doorLeft || isPreviewEdge(buildingStartRow + rowIndex - 1, buildingStartCol + colIndex - 1, 'left'),
+                'walk__edge--selected': isSelectedEdge(buildingStartRow + rowIndex - 1, buildingStartCol + colIndex - 1, 'left'),
+              }"
+            ></span>
         </button>
       </template>
     </div>
@@ -368,7 +484,6 @@ function close(): void {
   display: grid;
   grid-template-columns: repeat(var(--walk-cols), minmax(0, 1fr));
   width: min(100%, 900px);
-  aspect-ratio: var(--walk-cols) / auto;
   border: 1px solid var(--border-dim);
   background: var(--bg-primary);
   margin: 0 auto;
@@ -377,6 +492,7 @@ function close(): void {
 .walk__cell {
   position: relative;
   min-width: 0;
+  min-height: 0;
   aspect-ratio: 1;
   padding: 0;
   border-radius: 0;
@@ -391,6 +507,10 @@ function close(): void {
 
 .walk__edge--door {
   background: var(--accent-blue);
+}
+
+.walk__edge--selected {
+  background: var(--accent-primary);
 }
 
 .walk__edge--top {

@@ -55,28 +55,47 @@ export function wallSegmentsToEdges(
 }
 
 export function edgesToWallSegments(edges: TileEdges[][]): WallSegment[] {
-  const segments: WallSegment[] = []
-  const seen = new Map<string, number>()
-  const add = (segment: { x1: number; y1: number; x2: number; y2: number }, door: boolean) => {
-    const key = `${segment.x1},${segment.y1},${segment.x2},${segment.y2}`
-    const idx = seen.get(key)
-    if (idx !== undefined) {
-      if (door) segments[idx].door = true
-      return
-    }
-    seen.set(key, segments.length)
-    segments.push(door ? { ...segment, door: true } : segment)
-  }
-  for (let row = 0; row < edges.length; row++) {
-    for (let col = 0; col < (edges[row]?.length ?? 0); col++) {
-      const edge = edges[row][col]
-      if (edge.top) add({ x1: col, y1: row, x2: col + 1, y2: row }, !!edge.doorTop)
-      if (edge.bottom) add({ x1: col, y1: row + 1, x2: col + 1, y2: row + 1 }, !!edge.doorBottom)
-      if (edge.left) add({ x1: col, y1: row, x2: col, y2: row + 1 }, !!edge.doorLeft)
-      if (edge.right) add({ x1: col + 1, y1: row, x2: col + 1, y2: row + 1 }, !!edge.doorRight)
-    }
-  }
-  return segments
+	const segments: WallSegment[] = []
+	const seen = new Map<string, number>()
+	const add = (segment: { x1: number; y1: number; x2: number; y2: number }, door: boolean) => {
+		const key = `${segment.x1},${segment.y1},${segment.x2},${segment.y2}`
+		const idx = seen.get(key)
+		if (idx !== undefined) {
+			if (door) segments[idx].door = true
+			return
+		}
+		seen.set(key, segments.length)
+		segments.push(door ? { ...segment, door: true } : segment)
+	}
+	for (let row = 0; row < edges.length; row++) {
+		for (let col = 0; col < (edges[row]?.length ?? 0); col++) {
+			const edge = edges[row][col]
+			if (edge.top) add({ x1: col, y1: row, x2: col + 1, y2: row }, !!edge.doorTop)
+			if (edge.bottom) add({ x1: col, y1: row + 1, x2: col + 1, y2: row + 1 }, !!edge.doorBottom)
+			if (edge.left) add({ x1: col, y1: row, x2: col, y2: row + 1 }, !!edge.doorLeft)
+			if (edge.right) add({ x1: col + 1, y1: row, x2: col + 1, y2: row + 1 }, !!edge.doorRight)
+		}
+	}
+	return segments
+}
+
+export function reattachDoorModes(
+	previous: readonly WallSegment[] | undefined,
+	next: readonly WallSegment[],
+): WallSegment[] {
+	if (!previous?.length) return [...next]
+	const modes = new Map<string, NonNullable<WallSegment['doorMode']>>()
+	for (const segment of previous) {
+		if (segment.door === true && segment.doorMode !== undefined) {
+			modes.set(`${segment.x1},${segment.y1},${segment.x2},${segment.y2}`, segment.doorMode)
+		}
+	}
+	if (!modes.size) return [...next]
+	return next.map(segment => {
+		if (segment.door !== true || segment.doorMode !== undefined) return segment
+		const mode = modes.get(`${segment.x1},${segment.y1},${segment.x2},${segment.y2}`)
+		return mode === undefined ? segment : { ...segment, doorMode: mode }
+	})
 }
 
 export function segmentHasDoor(segment: WallSegment, edges: TileEdges[][]): boolean {
@@ -96,6 +115,37 @@ export function segmentHasDoor(segment: WallSegment, edges: TileEdges[][]): bool
   for (let row = start; row < end; row++) {
     if (edges[row]?.[boundary]?.doorLeft) return true
     if (edges[row]?.[boundary - 1]?.doorRight) return true
+  }
+  return false
+}
+
+export function tileEdgeKey(row: number, col: number, side: BorderSide): string {
+  return `${row},${col},${side}`
+}
+
+export function doorKeyForSide(side: BorderSide): 'doorTop' | 'doorRight' | 'doorBottom' | 'doorLeft' {
+  return `door${side.charAt(0).toUpperCase() + side.slice(1)}` as 'doorTop' | 'doorRight' | 'doorBottom' | 'doorLeft'
+}
+
+export function segmentCoversTileEdge(
+  segment: Pick<WallSegment, 'x1' | 'y1' | 'x2' | 'y2'>,
+  row: number,
+  col: number,
+  side: BorderSide,
+): boolean {
+  if (segment.y1 === segment.y2) {
+    const start = Math.round(Math.min(segment.x1, segment.x2))
+    const end = Math.max(start + 1, Math.round(Math.max(segment.x1, segment.x2)))
+    if (side === 'top') return Math.round(segment.y1) === row && col >= start && col < end
+    if (side === 'bottom') return Math.round(segment.y1) === row + 1 && col >= start && col < end
+    return false
+  }
+  if (segment.x1 === segment.x2) {
+    const start = Math.round(Math.min(segment.y1, segment.y2))
+    const end = Math.max(start + 1, Math.round(Math.max(segment.y1, segment.y2)))
+    if (side === 'left') return Math.round(segment.x1) === col && row >= start && row < end
+    if (side === 'right') return Math.round(segment.x1) === col + 1 && row >= start && row < end
+    return false
   }
   return false
 }

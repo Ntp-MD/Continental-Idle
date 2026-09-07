@@ -1,5 +1,5 @@
-import type { ObjectData, AssetDef, Rotation, EntityRef, TileState, WallSegment, Rect } from '../domain/types'
-import { CANVAS_WALL_OBJECT_TYPE, applySvgColorConvention, normalizeWallSegment, resolveObjectDef, resolveWallSegmentsForObject, assetPixelSize } from '../domain/types'
+import type { ObjectData, AssetDef, Rotation, EntityRef, FloorData, TileState, WallSegment, Rect, DoorMode } from '../domain/types'
+import { CANVAS_WALL_OBJECT_TYPE, applySvgColorConvention, normalizeInteractConfig, normalizeInteractSpots, normalizeNpcQueueConfig, normalizeTags, normalizeWallSegment, normalizeWallSegments, resolveObjectDef, resolveWallSegmentsForObject, assetPixelSize } from '../domain/types'
 import { findAssetCached, wallSegmentToObjectRect } from '../assets/assetUtils'
 import { buildingArea, normalizeObject, roundedRectPath } from '../domain/geometry'
 import { aabbOverlap, objectOverlapsAny, recalcCollapsed, unionRects } from '../domain/collision'
@@ -15,6 +15,26 @@ export function getLinkedObjects(obj: ObjectData): ObjectData[] {
 	const floor = currentFloor.value
 	if (!floor || !obj.linkGroupId) return []
 	return floor.objects.filter(o => o.id !== obj.id && o.linkGroupId === obj.linkGroupId)
+}
+
+function dissolveGroupsIfSmall(floor: FloorData, groupIds: ReadonlySet<string>): void {
+	if (groupIds.size === 0) return
+	const counts = new Map<string, number>()
+	for (const o of floor.objects) {
+		if (o.linkGroupId && groupIds.has(o.linkGroupId)) counts.set(o.linkGroupId, (counts.get(o.linkGroupId) ?? 0) + 1)
+	}
+	for (const o of floor.objects) {
+		if (o.linkGroupId && groupIds.has(o.linkGroupId) && (counts.get(o.linkGroupId) ?? 0) < 2) delete o.linkGroupId
+	}
+}
+
+function removeLinkMember(floor: FloorData, id: string): string | null {
+	const obj = floor.objects.find(o => o.id === id)
+	if (!obj?.linkGroupId) return null
+	const groupId = obj.linkGroupId
+	delete obj.linkGroupId
+	dissolveGroupsIfSmall(floor, new Set([groupId]))
+	return groupId
 }
 
 function canvasWallObject(segment: WallSegment, tileSize: number): ObjectData | null {
@@ -42,9 +62,31 @@ export async function replaceCanvasWallSegments(floorId: string, segments: reado
 	const floor = state.layout.floors.find(item => item.id === floorId)
 	if (!floor) return false
 	const tileSize = state.layout.canvas.tileSize
+	const prevModes = new Map<string, DoorMode>()
+	for (const object of floor.objects) {
+		if (object.type !== CANVAS_WALL_OBJECT_TYPE || object.door !== true || object.doorMode === undefined) continue
+		if ([object.x1, object.y1, object.x2, object.y2].every((value): value is number => typeof value === 'number')) {
+			prevModes.set(`${object.x1},${object.y1},${object.x2},${object.y2}`, object.doorMode)
+		}
+	}
 	const walls = segments.map(segment => canvasWallObject(segment, tileSize)).filter((wall): wall is ObjectData => !!wall)
+	for (const wall of walls) {
+		if (wall.door !== true || wall.x1 === undefined) continue
+		const mode = prevModes.get(`${wall.x1},${wall.y1},${wall.x2},${wall.y2}`)
+		if (mode !== undefined) wall.doorMode = mode
+	}
 	floor.objects = [...floor.objects.filter(object => object.type !== CANVAS_WALL_OBJECT_TYPE), ...walls]
 	recalcCollapsed(floor, assetMap())
+	return saveBlueprintData()
+}
+
+export async function setWallDoorMode(floorId: string, objectId: string, mode: DoorMode | undefined): Promise<boolean> {
+	const floor = state.layout.floors.find(item => item.id === floorId)
+	if (!floor) return false
+	const object = floor.objects.find(item => item.id === objectId)
+	if (!object || object.type !== CANVAS_WALL_OBJECT_TYPE || object.door !== true) return false
+	if (mode === undefined) delete object.doorMode
+	else object.doorMode = mode
 	return saveBlueprintData()
 }
 
@@ -147,15 +189,7 @@ export async function deleteSelected(): Promise<void> {
 			}
 			const removedGroupIds = new Set(removed.map(o => o.linkGroupId).filter((id): id is string => !!id))
 			floor.objects = survivors
-			const groupCounts = new Map<string, number>()
-			for (const o of survivors) {
-				if (o.linkGroupId) groupCounts.set(o.linkGroupId, (groupCounts.get(o.linkGroupId) ?? 0) + 1)
-			}
-			for (const o of survivors) {
-				if (o.linkGroupId && removedGroupIds.has(o.linkGroupId) && (groupCounts.get(o.linkGroupId) ?? 0) < 2) {
-					delete o.linkGroupId
-				}
-			}
+			dissolveGroupsIfSmall(floor, removedGroupIds)
 			clearSelection()
 			recalcCollapsed(floor, assetMap(), unionRects(removed) ?? undefined)
 			const saved = await saveBlueprintData()
@@ -173,12 +207,7 @@ export async function deleteSelected(): Promise<void> {
 		const deletedGroupId = o?.linkGroupId
 		const deletedRect: Rect | undefined = o ? { x: o.x, y: o.y, w: o.w, h: o.h } : undefined
 		floor.objects = floor.objects.filter(o => o.id !== primary.id)
-		if (deletedGroupId) {
-			const remainingGroup = floor.objects.filter(o => o.linkGroupId === deletedGroupId)
-			if (remainingGroup.length <= 1) {
-				for (const member of remainingGroup) delete member.linkGroupId
-			}
-		}
+		if (deletedGroupId) dissolveGroupsIfSmall(floor, new Set([deletedGroupId]))
 		clearSelection()
 		recalcCollapsed(floor, assetMap(), deletedRect)
 		const saved = await saveBlueprintData()
@@ -395,10 +424,8 @@ export async function unlinkObject(id: string): Promise<boolean> {
 		return false
 	}
 
-	const groupId = obj.linkGroupId
-	for (const member of floor.objects) {
-		if (member.linkGroupId === groupId) delete member.linkGroupId
-	}
+	const groupId = removeLinkMember(floor, id)
+	if (!groupId) return false
 	const saved = await saveBlueprintData()
 	if (!saved) return false
 	toast.success('Unlinked object')
@@ -413,6 +440,28 @@ export async function toggleObjectLock(id: string): Promise<void> {
 	o.locked = !o.locked
 	const saved = await saveBlueprintData()
 	if (saved) toast.info(o.locked ? 'Object locked' : 'Object unlocked')
+}
+
+export async function removeWallDoor(floorId: string, objectId: string): Promise<boolean> {
+	return withStateLock(async () => {
+		const floor = state.layout.floors.find(item => item.id === floorId)
+		if (!floor) return false
+		const object = floor.objects.find(item => item.id === objectId)
+		if (!object || object.type !== CANVAS_WALL_OBJECT_TYPE || object.door !== true) return false
+		if (object.locked) {
+			toast.warning('Wall is locked')
+			return false
+		}
+		object.door = false
+		delete object.doorMode
+		return saveBlueprintData()
+	}).catch(e => {
+		if (e instanceof Error && e.message === 'Operation in progress') {
+			toast.warning('Operation in progress')
+			return false
+		}
+		throw e
+	})
 }
 
 function namespaceSvgIds(svg: string, ns: string): string {
@@ -477,6 +526,27 @@ export async function flattenToSvgAsset(name?: string, walls?: readonly Selected
 		selectedSegments.push(...sourceAssetWalls)
 
 		const amap = assetMap()
+		const sourceAssets = objs.map(object => findAssetCached(amap, object.type))
+		const mergedTags = normalizeTags([...new Set(sourceAssets.flatMap(asset => asset?.tags ?? []))]) ?? []
+		const mergedInteractSources = sourceAssets.map(asset => asset?.interact).filter((value): value is NonNullable<typeof value> => !!value)
+		const mergedQueueSources = sourceAssets.map(asset => asset?.queue).filter((value): value is NonNullable<typeof value> => !!value)
+		if (mergedInteractSources.length > 1) toast.warning('Flatten keeps the first interact config - review Interact settings on the merged asset')
+		if (mergedQueueSources.length > 1) toast.warning('Flatten keeps the first queue config - review Queue settings on the merged asset')
+		const flattenedDoorModes = wallObjs.filter(object => object.doorMode !== undefined).length
+		if (flattenedDoorModes > 0) toast.warning(`Flatten drops ${flattenedDoorModes} wall door mode(s) - review door settings on the merged asset`)
+		let droppedEdgeSpots = 0
+		const mergedInteractSpots = normalizeInteractSpots(objs.flatMap(object => {
+			const asset = findAssetCached(amap, object.type)
+			const definition = resolveObjectDef(object.rotation, asset, { w: object.w, h: object.h })
+			return (definition.interactSpots ?? []).flatMap(spot => {
+				if (spot.kind === 'edge') {
+					droppedEdgeSpots++
+					return []
+				}
+				return [{ ...spot, x: spot.x + object.x - minX, y: spot.y + object.y - minY }]
+			})
+		}))
+		if (droppedEdgeSpots > 0) toast.warning(`Flatten drops ${droppedEdgeSpots} edge interact spot(s) - edge rebase is unsupported, review Interact settings on the merged asset`)
 		const flatName = (name && name.trim()) || `Flattened ${objs.length}`
 		const assetId = genAssetId('custom', flatName, c => state.assetRegistry.some(a => a.id === c))
 		const svgParts: string[] = []
@@ -540,16 +610,24 @@ export async function flattenToSvgAsset(name?: string, walls?: readonly Selected
 			tileStates: Array.from({ length: gridH }, () => Array.from({ length: gridW }, () => 'blocked' as TileState)),
 			svg: applySvgColorConvention(innerSvg),
 			svgViewBox: { w: vbW, h: vbH },
+			...(mergedTags.length ? { tags: mergedTags } : {}),
+			...(mergedInteractSources[0] ? { interact: normalizeInteractConfig(mergedInteractSources[0]) ?? mergedInteractSources[0] } : {}),
+			...(mergedInteractSpots?.length ? { interactSpots: mergedInteractSpots } : {}),
+			...(mergedQueueSources[0] ? { queue: normalizeNpcQueueConfig(mergedQueueSources[0]) ?? mergedQueueSources[0] } : {}),
+			...(sourceAssets.some(asset => asset?.doorRequired) ? { doorRequired: true } : {}),
 		}
 
 		if (selectedSegments.length) {
-			asset.wallSegments = selectedSegments.map(segment => ({
+			const normalizedSegments = normalizeWallSegments(selectedSegments.map(segment => ({
 				x1: (segment.x1 - minX) / t,
 				y1: (segment.y1 - minY) / t,
 				x2: (segment.x2 - minX) / t,
 				y2: (segment.y2 - minY) / t,
 				door: segment.door === true,
-			}))
+				...('doorMode' in segment && (segment.doorMode === 'hold-open' || segment.doorMode === 'auto-close') ? { doorMode: segment.doorMode } : {}),
+			})))
+			if (normalizedSegments) asset.wallSegments = normalizedSegments
+			else toast.warning('Flattened wall segments are invalid - walls dropped, review Walkable Grid')
 		}
 
 		initAssetFields(asset)
@@ -564,15 +642,20 @@ export async function flattenToSvgAsset(name?: string, walls?: readonly Selected
 			w: totalW,
 			h: totalH,
 		}
-
+		normalizeObject(newObj, t, assetMap())
 
 		const removeIds = new Set([...objs, ...wallObjs].map(o => o.id))
+		if (floor.objects.some(o => !removeIds.has(o.id) && !o.isWall && aabbOverlap(newObj, o))) {
+			toast.warning('Flattened asset overlaps another object - SVG art skips collision checks, review placement')
+		}
+		const removedGroupIds = new Set([...objs, ...wallObjs].map(o => o.linkGroupId).filter((id): id is string => !!id))
 		floor.objects = floor.objects.filter(o => !removeIds.has(o.id))
 		floor.objects.push(newObj)
+		dissolveGroupsIfSmall(floor, removedGroupIds)
 
 		recalcCollapsed(floor, assetMap(), unionRects([...objs, ...wallObjs, newObj]) ?? undefined)
 		clearSelection()
-		wallSelection.value = []
+		wallSelection.value = wallSelection.value.filter(selection => selection.floorId !== floor.id)
 		selectEntity({ type: 'object', id: newObj.id })
 		await saveBlueprintData()
 

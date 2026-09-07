@@ -141,7 +141,6 @@ function toggleTransparent() {
   display: flex;
   align-items: center;
   gap: var(--gap-xs);
-  width: 100%;
 }
 
 .color__swatch {

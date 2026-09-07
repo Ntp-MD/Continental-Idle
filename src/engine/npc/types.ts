@@ -55,7 +55,7 @@ export interface NpcEngineLayout {
 	queues?: readonly NpcEngineQueue[]
 }
 
-export type NpcEngineAgentStatus = 'walking' | 'queued' | 'waiting' | 'interacting' | 'idle'
+export type NpcEngineAgentStatus = 'walking' | 'queued' | 'waiting' | 'interacting' | 'chatting' | 'idle'
 
 export interface NpcEngineAgent {
 	id: string
@@ -73,6 +73,7 @@ export interface NpcEngineAgent {
 	reservationItemId: string | null
 	reservationInteractSpotId: string | null
 	interactionRemainingTicks: number
+	chatPartnerId: string | null
 	queueKey?: string | null
 	queuePendingKey?: string | null
 	queueSlotIndex?: number | null
@@ -85,11 +86,28 @@ export type NpcEngineEventType =
 	| 'waiting'
 	| 'interaction-start'
 	| 'interaction-end'
+	| 'chatting-start'
+	| 'chatting-end'
 	| 'blocked'
 	| 'repath'
 	| 'repath-failed'
 	| 'floor-transition'
 	| 'door-passage'
+
+export type NpcEngineWaitReason =
+	| 'yielded'
+	| 'repath-failed'
+	| 'repath-blocked'
+	| 'no-floor'
+	| 'queue-left'
+	| 'no-wander'
+	| 'no-target'
+	| 'wrong-floor'
+	| 'reserve-raced'
+	| 'no-path'
+	| 'portal-busy'
+	| 'spot-busy'
+	| 'queued'
 
 export interface NpcEngineEvent {
 	type: NpcEngineEventType
@@ -97,6 +115,8 @@ export interface NpcEngineEvent {
 	floorId: string
 	itemId?: string
 	interactSpotId?: string
+	reason?: NpcEngineWaitReason
+	partnerId?: string
 	tick: number
 
 	fromFloorId?: string
@@ -124,6 +144,10 @@ export interface NpcEngineOptions {
 	) => NpcEngineInteractionTarget | null
 
 	wanderSelector?: (agent: NpcEngineAgent) => NpcEnginePoint | null
+	socialSelector?: (
+		agent: NpcEngineAgent,
+		candidates: readonly NpcEngineAgent[],
+	) => NpcEngineAgent | null
 	queueSelector?: (
 		agent: NpcEngineAgent,
 		targets: readonly NpcEngineInteractionTarget[],
@@ -140,6 +164,11 @@ export interface NpcEngineOptions {
 	) => NpcEngineInteractionTarget | null
 
 	crossFloorCooldownSeconds: number
+	queuePatienceSeconds?: number
+	socialRadius?: number
+	socialCooldownSeconds?: number
+	socialChatDurationMinSeconds?: number
+	socialChatDurationMaxSeconds?: number
 	progressWatchdogTicks: number
 	maxRepathAttempts: number
 	repathCooldownSeconds: number

@@ -1,7 +1,7 @@
 import { computed, type ComputedRef } from 'vue'
-import type { AssetDef, FloorData, ObjectData, Rect, WallSegment } from '../domain/types'
+import type { AssetDef, DoorMode, FloorData, ObjectData, Rect, WallSegment } from '../domain/types'
 import { CANVAS_WALL_OBJECT_TYPE, resolveObjectDef, resolveWallSegmentsForObject } from '../domain/types'
-import { findAssetCached, doorPanelsData, doorSlideDir, type DoorPanel } from '../assets/assetUtils'
+import { findAssetCached, doorPanelsData, doorSlideDir, resolveDoorMode, type DoorPanel } from '../assets/assetUtils'
 import { useCanvasWallStyle } from './useCanvasWallStyle'
 
 export interface TileRun {
@@ -108,8 +108,11 @@ export function useCanvasRuns(sources: CanvasRunsSources) {
 		const thickness = wallThickness.value
 		const objects = sources.floor.value?.objects ?? []
 		const panels: DoorPanel[] = []
-		const pushPanels = (segments: readonly WallSegment[], ownerId: string, ownerWalls: readonly WallSegment[]) => {
+		const pushPanels = (segments: readonly WallSegment[], ownerId: string, ownerWalls: readonly WallSegment[], explicitMode?: DoorMode) => {
 			const blockers = objects.filter(o => o.id !== ownerId)
+			const ownerAsset = objAssetMap.value.get(ownerId)
+			const ownerHasSpots = !ownerAsset?.tags?.includes('portal') && (ownerAsset?.interactSpots?.length ?? 0) > 0
+			const mode = resolveDoorMode(explicitMode, ownerHasSpots)
 			for (const panel of doorPanelsData(segments, 1, thickness)) {
 				const halfT = panel.thickness / 2
 				const ownWalls: Rect[] = ownerWalls
@@ -119,14 +122,14 @@ export function useCanvasRuns(sources: CanvasRunsSources) {
 							: s.x1 === s.x2 && Math.abs(s.x1 - panel.cx) <= halfT
 					))
 					.map(s => ({ x: Math.min(s.x1, s.x2), y: Math.min(s.y1, s.y2), w: Math.abs(s.x2 - s.x1), h: Math.abs(s.y2 - s.y1) }))
-				panels.push({ ...panel, slideDir: doorSlideDir(panel, blockers, ownWalls) })
+				panels.push({ ...panel, slideDir: doorSlideDir(panel, blockers, ownWalls), ownerObjectId: ownerId, mode })
 			}
 		}
 		for (const run of wallRuns.value) {
-			if (run.door) pushPanels([run], run.objectId, [])
+			if (run.door) pushPanels([run], run.objectId, [], objects.find(o => o.id === run.objectId)?.doorMode)
 		}
 		for (const line of objWallLines.value) {
-			if (line.door) pushPanels([line], line.id, objWallLines.value.filter(o => o.id === line.id && !o.door))
+			if (line.door) pushPanels([line], line.id, objWallLines.value.filter(o => o.id === line.id && !o.door), line.doorMode)
 		}
 		return panels
 	})
@@ -138,5 +141,5 @@ export function useCanvasRuns(sources: CanvasRunsSources) {
 		)
 	}
 
-	return { objDefMap, objAssetMap, walkableRuns, wallRuns, objWallLines, wallRunsNoDoors, objWallLinesNoDoors, doorPanels, objDef }
+	return { objAssetMap, walkableRuns, wallRuns, objWallLines, wallRunsNoDoors, objWallLinesNoDoors, doorPanels, objDef }
 }

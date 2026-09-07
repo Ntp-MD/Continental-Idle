@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import { ref, computed, watch, defineAsyncComponent } from 'vue'
-import { useAssetsStore } from '../../blueprintStore'
+import { genId, useAssetsStore } from '../../blueprintStore'
 import { useToast, reportSaved } from '@/composables/useToast'
 import { useConfirm } from '@/composables/useConfirm'
 import { sanitizeString } from '../../../utils/sanitize'
-import { resolveStreetTiles } from '../../domain/types'
-import type { FloorData } from '../../domain/types'
+import { CANVAS_WALL_OBJECT_TYPE, resolveStreetTiles, spawnZoneAllowsRole } from '../../domain/types'
+import type { DoorMode, FloorData, NpcSpawnZone } from '../../domain/types'
+import { resolveDoorMode, withSegmentDoorMode } from '../../assets/assetUtils'
 import ModalShell from '../shell/ModalShell.vue'
 const FloorWalkablePanel = defineAsyncComponent(() => import('./FloorWalkablePanel.vue'))
 
@@ -23,6 +24,12 @@ const editingLabel = ref(false)
 const editingLabelRaw = ref('')
 const floorDragIndex = ref<number | null>(null)
 const showWalkable = ref(false)
+const newZoneLabel = ref('')
+const newZoneX = ref(0)
+const newZoneY = ref(0)
+const newZoneW = ref(100)
+const newZoneH = ref(100)
+const newZoneRoles = ref<string[]>([])
 
 const floors = computed(() => store.state.layout.floors)
 const availableRoles = computed(() => store.state.layout.npcConfig?.roles ?? [])
@@ -32,6 +39,82 @@ const selectedFloor = computed<FloorData | undefined>(
 )
 
 const streetTiles = computed(() => resolveStreetTiles(store.state.layout))
+
+interface FloorAssetDoor {
+  objectId: string
+  assetId: string
+  assetName: string
+  index: number
+  explicit: DoorMode | undefined
+  effective: DoorMode
+}
+
+const floorCanvasDoors = computed(() => selectedFloor.value?.objects.filter(
+  (object) => object.isWall && object.type === CANVAS_WALL_OBJECT_TYPE && object.door === true,
+) ?? [])
+
+const floorAssetDoors = computed<FloorAssetDoor[]>(() => {
+  const floor = selectedFloor.value
+  if (!floor) return []
+  const assets = store.assetMap()
+  const rows: FloorAssetDoor[] = []
+  for (const object of floor.objects) {
+    const asset = assets.get(object.type)
+    if (!asset?.wallSegments?.length) continue
+    const portal = asset.tags?.includes('portal') ?? false
+    const hasSpots = (asset.interactSpots?.length ?? 0) > 0
+    asset.wallSegments.forEach((segment, index) => {
+      if (segment.door !== true) return
+      rows.push({
+        objectId: object.id,
+        assetId: asset.id,
+        assetName: asset.name,
+        index,
+        explicit: segment.doorMode,
+        effective: resolveDoorMode(segment.doorMode, hasSpots && !portal),
+      })
+    })
+  }
+  return rows
+})
+
+async function deleteCanvasDoor(objectId: string) {
+  const floor = selectedFloor.value
+  if (!floor) return
+  const confirmed = await confirm({
+    title: 'Delete wall door',
+    message: 'Delete this wall door? The wall stays, only the door opening is removed. This action cannot be undone.',
+    confirmLabel: 'Delete',
+    cancelLabel: 'Cancel',
+    danger: true,
+  })
+  if (!confirmed) return
+  const deleted = await store.removeWallDoor(floor.id, objectId)
+  reportSaved(deleted, 'Wall door deleted', 'Failed to delete wall door')
+}
+
+async function setCanvasDoorMode(objectId: string, mode: string) {
+  const floor = selectedFloor.value
+  if (!floor) return
+  const saved = await store.setWallDoorMode(
+    floor.id,
+    objectId,
+    mode === 'hold-open' || mode === 'auto-close' ? mode : undefined,
+  )
+  if (!saved) toast.error('Failed to save door mode')
+}
+
+async function setAssetDoorMode(assetId: string, index: number, mode: string) {
+  const asset = store.assetMap().get(assetId)
+  if (!asset) return
+  await store.updateAsset(assetId, {
+    wallSegments: withSegmentDoorMode(
+      asset.wallSegments ?? [],
+      index,
+      mode === 'hold-open' || mode === 'auto-close' ? mode : undefined,
+    ),
+  })
+}
 
 watch(
   () => props.open,
@@ -137,6 +220,78 @@ async function clearRoles() {
   await store.updateFloor(selectedFloor.value.id, { allowedRoleIds: [] })
 }
 
+function isZoneRole(zone: NpcSpawnZone, roleId: string): boolean {
+  return spawnZoneAllowsRole(zone, roleId)
+}
+async function toggleZoneRole(zoneId: string, roleId: string): Promise<void> {
+  const floor = selectedFloor.value
+  if (!floor) return
+  const zone = floor.spawnZones?.find((entry) => entry.id === zoneId)
+  if (!zone) return
+  const allIds = availableRoles.value.map((role) => role.id)
+  const explicit = zone.roleIds?.length ? [...zone.roleIds] : [...allIds]
+  const next = explicit.includes(roleId) ? explicit.filter((id) => id !== roleId) : [...explicit, roleId]
+  const trimmed = next.filter((id) => allIds.includes(id))
+  const zones = (floor.spawnZones ?? []).map((entry) => {
+    if (entry.id !== zoneId) return entry
+    const nextZone: NpcSpawnZone = { ...entry, roleIds: trimmed }
+    if (!trimmed.length || trimmed.length >= allIds.length) delete nextZone.roleIds
+    return nextZone
+  })
+  await store.updateFloor(floor.id, { spawnZones: zones })
+}
+
+function toggleNewZoneRole(roleId: string) {
+  const set = new Set(newZoneRoles.value)
+  if (set.has(roleId)) set.delete(roleId)
+  else set.add(roleId)
+  newZoneRoles.value = [...set]
+}
+
+async function addSpawnZone() {
+  const floor = selectedFloor.value
+  if (!floor) return
+  const label = sanitizeString(newZoneLabel.value.trim()) || `Zone ${(floor.spawnZones?.length ?? 0) + 1}`
+  const rect = { x: newZoneX.value, y: newZoneY.value, w: newZoneW.value, h: newZoneH.value }
+  if (
+    ![rect.x, rect.y, rect.w, rect.h].every((v) => typeof v === 'number' && Number.isFinite(v)) ||
+    rect.x < 0 || rect.y < 0 || rect.w <= 0 || rect.h <= 0
+  ) {
+    toast.warning('Zone needs finite x/y and positive w/h')
+    return
+  }
+  const zone: NpcSpawnZone = {
+    id: genId('zone'),
+    label,
+    x: rect.x,
+    y: rect.y,
+    w: rect.w,
+    h: rect.h,
+    ...(newZoneRoles.value.length ? { roleIds: [...newZoneRoles.value] } : {}),
+  }
+  const saved = await store.updateFloor(floor.id, { spawnZones: [...(floor.spawnZones ?? []), zone] })
+  if (!reportSaved(saved, `Zone "${label}" added`, 'Failed to add zone')) return
+  newZoneLabel.value = ''
+  newZoneRoles.value = []
+}
+
+async function deleteSpawnZone(zoneId: string) {
+  const floor = selectedFloor.value
+  if (!floor) return
+  const zone = floor.spawnZones?.find((entry) => entry.id === zoneId)
+  if (!zone) return
+  const ok = await confirm({
+    title: 'Delete spawn zone',
+    message: `Delete zone "${zone.label}"? This action cannot be undone.`,
+    confirmLabel: 'Delete',
+    cancelLabel: 'Cancel',
+    danger: true,
+  })
+  if (!ok) return
+  const saved = await store.updateFloor(floor.id, { spawnZones: (floor.spawnZones ?? []).filter((entry) => entry.id !== zoneId) })
+  reportSaved(saved, `Zone "${zone.label}" deleted`, 'Failed to delete zone')
+}
+
 function floorCounts(f: FloorData): string {
   return `${f.objects.length} objects`
 }
@@ -192,6 +347,7 @@ function floorCounts(f: FloorData): string {
       <!-- Right pane: Detail editor -->
       <div class="form__col floor__body">
         <template v-if="selectedFloor">
+          <div class="form__row form--start form--wrap">
           <div class="form__col form--section">
             <div class="floor__heading">
               <span>Details</span>
@@ -247,6 +403,7 @@ function floorCounts(f: FloorData): string {
               <span>Empty areas are walkable</span>
             </label>
           </div>
+          </div>
 
           <div class="form__col form--section">
             <div>Allowed Roles</div>
@@ -266,6 +423,89 @@ function floorCounts(f: FloorData): string {
             <span v-if="!availableRoles.length" class="empty"
               >No roles configured - open Role Manager to add roles</span
             >
+          </div>
+
+          <div class="form__col form--section">
+            <div>Spawn Zones</div>
+            <ul v-if="selectedFloor.spawnZones?.length" class="form__col">
+              <li v-for="zone in selectedFloor.spawnZones" :key="zone.id" class="form__col card__item">
+                <div class="form__row">
+                  <span class="size--stretch truncate">{{ zone.label }} ({{ zone.x }},{{ zone.y }} {{ zone.w }}x{{ zone.h }})</span>
+                  <small class="form__hint">{{ zone.roleIds?.length ? `${zone.roleIds.length} roles` : 'all roles' }}</small>
+                  <button type="button" class="flag--danger" :aria-label="`Delete zone ${zone.label}`" @click="deleteSpawnZone(zone.id)">x</button>
+                </div>
+                <ul v-if="availableRoles.length" class="form__row form--wrap">
+                  <li v-for="role in availableRoles" :key="`zone-${zone.id}-${role.id}`" class="floor__role">
+                    <label class="card__item" :class="{ 'flag--active': isZoneRole(zone, role.id) }">
+                      <input type="checkbox" :checked="isZoneRole(zone, role.id)" :aria-label="`${role.label} spawns in ${zone.label}`" @change="toggleZoneRole(zone.id, role.id)" />
+                      <span class="swatch" :style="{ background: role.color }" />
+                      <span>{{ role.label }}</span>
+                    </label>
+                  </li>
+                </ul>
+              </li>
+            </ul>
+            <div v-else class="empty">No zones - NPCs spawn anywhere walkable</div>
+            <div class="form__row">
+              <input
+                v-model="newZoneLabel"
+                class="size--stretch"
+                type="text"
+                placeholder="New zone"
+                aria-label="New zone label"
+                @keydown.enter="addSpawnZone"
+              />
+              <button type="button" class="flag--active" @click="addSpawnZone">Add</button>
+            </div>
+            <div class="form__row form--wrap">
+              <label class="form__col">X<input v-model.number="newZoneX" class="size--fit" type="number" min="0" aria-label="Zone x" /></label>
+              <label class="form__col">Y<input v-model.number="newZoneY" class="size--fit" type="number" min="0" aria-label="Zone y" /></label>
+              <label class="form__col">W<input v-model.number="newZoneW" class="size--fit" type="number" min="1" aria-label="Zone width" /></label>
+              <label class="form__col">H<input v-model.number="newZoneH" class="size--fit" type="number" min="1" aria-label="Zone height" /></label>
+            </div>
+            <ul v-if="availableRoles.length" class="form__row form--wrap">
+              <li v-for="role in availableRoles" :key="`zone-role-${role.id}`">
+                <label class="card__item" :class="{ 'flag--active': newZoneRoles.includes(role.id) }">
+                  <input type="checkbox" :checked="newZoneRoles.includes(role.id)" @change="toggleNewZoneRole(role.id)" />
+                  <span class="swatch" :style="{ background: role.color }" />
+                  <span>{{ role.label }}</span>
+                </label>
+              </li>
+            </ul>
+          </div>
+
+          <div class="form__col form--section">
+            <div>Doors</div>
+            <ul v-if="floorCanvasDoors.length || floorAssetDoors.length" class="form__col">
+              <li v-for="door in floorCanvasDoors" :key="`wall-door-${door.id}`" class="card__item">
+                <span class="size--stretch truncate">Wall ({{ door.x1 }},{{ door.y1 }} -&gt; {{ door.x2 }},{{ door.y2 }})</span>
+                <select
+                  :value="door.doorMode ?? 'auto'"
+                  :aria-label="`Close mode for wall door ${door.id}`"
+                  @change="setCanvasDoorMode(door.id, ($event.target as HTMLSelectElement).value)"
+                >
+                  <option value="auto">Auto</option>
+                  <option value="hold-open">Hold open</option>
+                  <option value="auto-close">Auto-close</option>
+                </select>
+                <button type="button" class="flag--danger" :aria-label="`Delete wall door ${door.id}`" @click="deleteCanvasDoor(door.id)">x</button>
+              </li>
+              <li v-for="door in floorAssetDoors" :key="`asset-door-${door.objectId}-${door.index}`" class="card__item">
+                <span class="size--stretch truncate">{{ door.assetName }} - Door {{ door.index + 1 }}</span>
+                <small class="form__hint">{{ door.effective }} (shared)</small>
+                <select
+                  :value="door.explicit ?? 'auto'"
+                  :aria-label="`Close mode for ${door.assetName} door ${door.index + 1}`"
+                  @change="setAssetDoorMode(door.assetId, door.index, ($event.target as HTMLSelectElement).value)"
+                >
+                  <option value="auto">Auto</option>
+                  <option value="hold-open">Hold open</option>
+                  <option value="auto-close">Auto-close</option>
+                </select>
+              </li>
+            </ul>
+            <div v-else class="empty">No doors on this floor</div>
+            <div class="form__hint">Asset doors are shared across floors - canvas wall doors belong to this floor.</div>
           </div>
         </template>
         <div v-else class="empty">Select a floor to edit</div>
@@ -324,7 +564,7 @@ function floorCounts(f: FloorData): string {
 
 <style>
 #modal-floor-manager {
-  width: min(94vw, 800px);
+  width: min(96vw, 980px);
   max-height: calc(100vh - 32px);
 }
 

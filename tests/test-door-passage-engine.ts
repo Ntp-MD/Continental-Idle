@@ -657,13 +657,80 @@ for (const evt of nonDoorEvents) {
 console.log('Phase 17: PASS')
 
 // ============================================================================
-// SUMMARY
+// PHASE 18: overlapping plain wall over door span - door wins, stay enterable
 // ============================================================================
-console.log('')
+console.log('--- Phase 18: overlapping wall over door (door wins) ---')
+
+const overlapFloor = makeFloor([
+	makeCanvasWallDoor(2, 3, 5, 3),
+	makeCanvasWall(2, 3, 5, 3),
+])
+const overlapMap = buildWalkableMap(overlapFloor, CANVAS)
+const overlapBlocked = buildBlockedEdges(overlapFloor, overlapMap)
+const overlapDoors = buildDoorEdges(overlapFloor, overlapMap)
+const sealedCount = overlapBlocked.filter(e =>
+	(e.from.y + 1 === e.to.y && e.to.y === 3 && e.from.x >= 2 && e.from.x <= 4)
+).length
+assert.equal(sealedCount, 0, 'overlap: no blocked edges on the door span')
+const openCount = overlapDoors.filter(e =>
+	(e.from.y + 1 === e.to.y && e.to.y === 3 && e.from.x >= 2 && e.from.x <= 4)
+).length
+assert.ok(openCount > 0, 'overlap: door edges still present on the span')
+
+const overlapEngineFloor: NpcEngineFloor = {
+	id: 'F1', width: 8, height: 8, tileSize: 1,
+	walkable: makeWalkableGrid(8, 8),
+	blockedEdges: overlapBlocked,
+	doorEdges: overlapDoors,
+}
+const overlapLayout: NpcEngineLayout = { floors: [overlapEngineFloor], interactionTargets: [] }
+const overlapEngine = new NpcEngine(overlapLayout, {
+	...NPC_ENGINE_DEFAULT_OPTIONS, ticksPerSecond: 1, agentClearance: 0.5,
+	random: makeRng(12), pathfinder: doorPathfinder,
+	targetSelector: () => null, wanderSelector: () => ({ x: 3, y: 5 }),
+})
+overlapEngine.addAgent({ id: 'overlap-npc', floorId: 'F1', x: 3, y: 1, targetX: 3, targetY: 5, speed: 1 })
+overlapEngine.tick(15)
+const overlapEvents = overlapEngine.drainEvents().filter(e => e.type === 'door-passage')
+assert.ok(overlapEvents.length > 0, 'overlap: NPC crosses the door, passage emitted')
+
+console.log('Phase 18: PASS')
+
+// ============================================================================
+// PHASE 19: diagonal step across a door line emits door-passage
+// ============================================================================
+console.log('--- Phase 19: diagonal door crossing ---')
+
+const diagFloor: NpcEngineFloor = {
+	id: 'F1', width: 6, height: 6, tileSize: 1,
+	walkable: makeWalkableGrid(6, 6),
+	blockedEdges: [],
+	doorEdges: [{ from: { x: 2, y: 2 }, to: { x: 2, y: 3 } }],
+}
+const diagLayout: NpcEngineLayout = { floors: [diagFloor], interactionTargets: [] }
+const diagEngine = new NpcEngine(diagLayout, {
+	...NPC_ENGINE_DEFAULT_OPTIONS, ticksPerSecond: 1, agentClearance: 0.5,
+	random: makeRng(13), pathfinder: () => [{ x: 3, y: 2 }, { x: 2, y: 3 }],
+	targetSelector: () => null, wanderSelector: () => ({ x: 2, y: 3 }),
+})
+diagEngine.addAgent({ id: 'diag-npc', floorId: 'F1', x: 3, y: 2, targetX: 3, targetY: 2, speed: 1 })
+diagEngine.tick(5)
+const diagEvents = diagEngine.drainEvents().filter(e => e.type === 'door-passage')
+assert.equal(diagEvents.length, 1, 'diagonal: exactly 1 door-passage event')
+assert.equal(diagEvents[0].doorEdge!.from.x, 2, 'diagonal: edge from.x = 2')
+assert.equal(diagEvents[0].doorEdge!.from.y, 2, 'diagonal: edge from.y = 2')
+assert.equal(diagEvents[0].doorEdge!.to.x, 2, 'diagonal: edge to.x = 2')
+assert.equal(diagEvents[0].doorEdge!.to.y, 3, 'diagonal: edge to.y = 3')
+
+console.log('Phase 19: PASS')
+
+// ============================================================================
+// SUMMARY
+// ============================================================================\nconsole.log('')
 console.log('========================================')
 console.log('ALL DOOR PASSAGE ENGINE TESTS PASSED')
 console.log('========================================')
-console.log('Phases: 17')
+console.log('Phases: 19')
 console.log('Coverage:')
 console.log('  - buildDoorEdges() direct tests')
 console.log('  - door edges vs blocked edges separation')
@@ -680,5 +747,7 @@ console.log('  - matchDoorPanel with rotations')
 console.log('  - full pipeline: layout -> engine -> events')
 console.log('  - event deduplication')
 console.log('  - multiple doors on same path')
+console.log('  - overlapping wall over door (door wins)')
+console.log('  - diagonal door crossing')
 console.log('  - event type safety')
 console.log('========================================')

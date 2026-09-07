@@ -25,7 +25,7 @@ function octileDistance(a: NpcEnginePoint, b: NpcEnginePoint): number {
 	return (dx + dy) + (Math.SQRT2 - 2) * Math.min(dx, dy)
 }
 
-export function scoreTarget(target: NpcEngineInteractionTarget, ctx: TargetScoringContext): number {
+function scoreTarget(target: NpcEngineInteractionTarget, ctx: TargetScoringContext): number {
 	const maxWeight = ctx.options?.maxDistanceWeight ?? 10
 	const noveltyBonus = ctx.options?.noveltyBonus ?? 2
 	const ageDecay = ctx.options?.ageDecayPerTick ?? 0.01
