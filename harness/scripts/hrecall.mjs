@@ -2,7 +2,7 @@
 // Pulls the entries relevant to a question so agents stop re-reading the
 // whole board. Set HARNESS_ROOT to point at another repo root.
 //
-// Run with: node scripts/hrecall.mjs <query...> [--limit N] [--json]
+// Run with: node harness/scripts/hrecall.mjs <query...> [--limit N] [--json]
 // Exit code: 0 = ok (even with zero matches), 1 = usage error
 import fs from 'node:fs'
 import path from 'node:path'
@@ -32,7 +32,7 @@ function main() {
   const args = parseArgs(process.argv.slice(2))
   const query = args._.join(' ')
   if (!query) {
-    console.error('hrecall: usage: node scripts/hrecall.mjs <query...> [--limit N] [--json]')
+    console.error('hrecall: usage: node harness/scripts/hrecall.mjs <query...> [--limit N] [--json]')
     process.exit(1)
   }
   const limit = args.limit === undefined ? 5 : Number(args.limit)

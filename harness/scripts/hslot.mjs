@@ -3,7 +3,7 @@
 // _archive/history.md. Set HARNESS_ROOT to point at another repo root
 // (used to demo/test without touching real state).
 //
-// Run with: node scripts/hslot.mjs <command> [options]
+// Run with: node harness/scripts/hslot.mjs <command> [options]
 // Exit code: 0 = ok, 1 = usage error or check failure
 import fs from 'node:fs'
 import path from 'node:path'
@@ -12,7 +12,7 @@ import { fileURLToPath } from 'node:url'
 
 const root = process.env.HARNESS_ROOT
   ? path.resolve(process.env.HARNESS_ROOT)
-  : path.resolve(fileURLToPath(new URL('..', import.meta.url)))
+  : path.resolve(fileURLToPath(new URL('../..', import.meta.url)))
 const slotPath = path.join(root, '_archive', 'current-task.md')
 const historyPath = path.join(root, '_archive', 'history.md')
 

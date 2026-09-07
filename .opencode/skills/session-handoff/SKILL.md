@@ -82,12 +82,12 @@ stop, re-check Hand-off Note; at task start, read the slot first.
 
 ## Attaching to another project (portable)
 
-1. Copy this whole folder to the target project (same relative path,
-   or any skills dir the target agent reads), plus
-   `_archive/install-intent.md` (the installer lives next to the state
-   files, not in this folder - keep exactly one copy).
-2. In the target project, read `_archive/install-intent.md` and execute
-   it - it is self-contained (all file contents embedded) and wires
+1. Copy the whole `harness/` folder to the target project (any path
+   the target agent reads for skills), plus `harness/INSTALL.md`
+   (the installer lives next to the harness, not in the state dir -
+   keep exactly one copy).
+2. In the target project, read `harness/INSTALL.md` and execute it -
+   it is self-contained (all file contents embedded) and wires
    everything itself, then verifies.
 3. No runtime, no packages, no services - markdown only (MIT upstream:
    softaworks/agent-toolkit).

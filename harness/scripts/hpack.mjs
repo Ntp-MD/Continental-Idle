@@ -1,48 +1,37 @@
 // hpack - assemble a versioned agent-harness bundle from repo sources.
-// The bundle is build output (never checked in): skills, scripts, archive
-// templates, HARNESS.md, plus install.mjs. Single source of truth stays here.
+// Skills live at .opencode/skills/ (runtime home, read by opencode); hpack
+// copies them into the bundle as skills/<name>/SKILL.md. The rest of the
+// harness tool (scripts, templates, story doc, INSTALL payload, README)
+// lives at harness/. Single source of truth stays in the repo.
 //
-// Run with: node scripts/hpack.mjs [--out dist/agent-harness] [--version NAME] [--zip]
+// Run with: node harness/scripts/hpack.mjs [--out dist/agent-harness] [--version NAME] [--zip]
 // Exit code: 0 = ok, 1 = usage error or build failure
 import fs from 'node:fs'
 import path from 'node:path'
 import { execSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 
-const root = path.resolve(fileURLToPath(new URL('..', import.meta.url)))
+const harnessRoot = path.resolve(fileURLToPath(new URL('..', import.meta.url)))
+const repoRoot = path.resolve(harnessRoot, '..')
 
+// [source, dest] where source is relative to repo root, dest is relative
+// to the bundle root. Skill source paths escape harness/ on purpose.
 const SOURCES = [
   ['.opencode/skills/session-handoff/SKILL.md', 'skills/session-handoff/SKILL.md'],
   ['.opencode/skills/autonomous-development/SKILL.md', 'skills/autonomous-development/SKILL.md'],
   ['.opencode/skills/normalize-audit/SKILL.md', 'skills/normalize-audit/SKILL.md'],
-  ['scripts/hslot.mjs', 'scripts/hslot.mjs'],
-  ['scripts/hverify.mjs', 'scripts/hverify.mjs'],
-  ['scripts/hrecall.mjs', 'scripts/hrecall.mjs'],
-  ['scripts/harness-install.mjs', 'install.mjs'],
-  ['HARNESS.md', 'HARNESS.md'],
-  ['_archive/history-template.md', 'archive/history-template.md'],
+  ['.opencode/skills/ui-layout/SKILL.md', 'skills/ui-layout/SKILL.md'],
+  ['harness/scripts/hslot.mjs', 'scripts/hslot.mjs'],
+  ['harness/scripts/hverify.mjs', 'scripts/hverify.mjs'],
+  ['harness/scripts/hrecall.mjs', 'scripts/hrecall.mjs'],
+  ['harness/scripts/harness-install.mjs', 'install.mjs'],
+  ['harness/README.md', 'README.md'],
+  ['harness/HARNESS.md', 'HARNESS.md'],
+  ['harness/INSTALL.md', 'INSTALL.md'],
+  ['harness/templates/current-task.md', 'templates/current-task.md'],
+  ['harness/templates/history.md', 'templates/history.md'],
+  ['harness/templates/history-template.md', 'templates/history-template.md'],
 ]
-
-const SLOT_HEADERS = [
-  'Agent',
-  'Mission',
-  'Investigation',
-  'Findings',
-  'Approach',
-  'Plan',
-  'Verify',
-  'Current Thinking',
-  'Blockers',
-  'Hand-off Note',
-]
-
-function emptySlot() {
-  return SLOT_HEADERS.map((header) => `## ${header}\n`).join('\n') + '\n'
-}
-
-function freshHistory() {
-  return '# History - shared cross-agent intent log\n\nEntries only. Protocol + pattern live in `history-template.md` - follow them when logging below.\n\n## Entries (Doing - Finished (Agent, Model) + Detail Bullets)\n\n- (empty - first finished task adds the first entry here)\n'
-}
 
 function fail(message) {
   console.error(`hpack: ${message}`)
@@ -85,33 +74,29 @@ function datestamp() {
 
 function main() {
   const args = parseArgs(process.argv.slice(2))
-  const out = path.resolve(root, args.out ?? 'dist/agent-harness')
+  const out = path.resolve(harnessRoot, args.out ?? 'dist/agent-harness')
   const version = args.version ?? `harness-${datestamp()}`
   if (fs.existsSync(out) && fs.readdirSync(out).length > 0 && !args.force) {
     fail(`out dir not empty: ${out} (pass --force to rebuild)`)
   }
   for (const [source] of SOURCES) {
-    if (!fs.existsSync(path.join(root, source))) fail(`source missing: ${source}`)
+    if (!fs.existsSync(path.join(repoRoot, source))) fail(`source missing: ${source}`)
   }
   fs.rmSync(out, { recursive: true, force: true })
   const files = []
   for (const [source, dest] of SOURCES) {
     const target = path.join(out, dest)
     fs.mkdirSync(path.dirname(target), { recursive: true })
-    fs.copyFileSync(path.join(root, source), target)
+    fs.copyFileSync(path.join(repoRoot, source), target)
     files.push(dest)
   }
-  fs.mkdirSync(path.join(out, 'archive'), { recursive: true })
-  fs.writeFileSync(path.join(out, 'archive', 'current-task.md'), emptySlot())
-  fs.writeFileSync(path.join(out, 'archive', 'history.md'), freshHistory())
-  files.push('archive/current-task.md', 'archive/history.md')
   fs.writeFileSync(path.join(out, 'VERSION'), `${version}\n`)
   const manifest = {
     version,
     built: new Date().toISOString(),
     files: [...files, 'VERSION', 'MANIFEST.json'].sort(),
     notes:
-      'ui-layout skill is blueprint-editor-specific and intentionally excluded; copy it manually if the target needs it.',
+      'Full harness bundle: skills + scripts + templates + INSTALL.md. Install with: node install.mjs --root /path/to/target',
   }
   fs.writeFileSync(path.join(out, 'MANIFEST.json'), JSON.stringify(manifest, null, 2) + '\n')
   console.log(`hpack: ${files.length} payload files + VERSION + MANIFEST.json -> ${out} (${version})`)

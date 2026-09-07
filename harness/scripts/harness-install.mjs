@@ -10,13 +10,13 @@ import { fileURLToPath } from 'node:url'
 
 const bundleRoot = path.dirname(fileURLToPath(import.meta.url))
 
-const SKILLS = ['session-handoff', 'autonomous-development', 'normalize-audit']
+const SKILLS = ['session-handoff', 'autonomous-development', 'normalize-audit', 'ui-layout']
 const SCRIPTS = ['hslot.mjs', 'hverify.mjs', 'hrecall.mjs']
 const SHORTCUTS = {
-  hslot: 'node scripts/hslot.mjs',
-  hverify: 'node scripts/hverify.mjs',
-  hrecall: 'node scripts/hrecall.mjs',
-  hcheck: 'node scripts/hslot.mjs check',
+  hslot: 'node harness/scripts/hslot.mjs',
+  hverify: 'node harness/scripts/hverify.mjs',
+  hrecall: 'node harness/scripts/hrecall.mjs',
+  hcheck: 'node harness/scripts/hslot.mjs check',
 }
 
 function fail(message) {
@@ -47,10 +47,10 @@ function managedBlock(stateDir, skillsDir) {
   return (
     `<!-- harness:start (managed by agent-harness installer - keep markers, edit around them) -->\n` +
     `## Agent Harness (managed)\n\n` +
-    `- Skills live under \`${skillsDir}/\`: \`session-handoff\` (live slot + done-log), \`autonomous-development\` (workflow + plan template), \`normalize-audit\` (data-flow preflight). Read the matching skill before work.\n` +
+    `- Skills live under \`${skillsDir}/\`: \`session-handoff\` (live slot + done-log), \`autonomous-development\` (workflow + plan template), \`normalize-audit\` (data-flow preflight), \`ui-layout\` (BEM/CSS guide, editor projects only). Read the matching skill before work.\n` +
     `- Live slot \`${stateDir}/current-task.md\`: update after every meaningful step, clear when done. Done-log \`${stateDir}/history.md\`.\n` +
     `- Verify router: \`npm run hverify\` (route = print, run = execute) runs ONLY the matching suite for current changes.\n` +
-    `- Story: \`HARNESS.md\`.\n` +
+    `- Story: \`harness/HARNESS.md\`. Entry point: \`harness/README.md\`.\n` +
     `<!-- harness:end -->\n`
   )
 }
@@ -98,11 +98,11 @@ function main() {
   for (const name of SCRIPTS) {
     const from = path.join(bundleRoot, 'scripts', name)
     if (!fs.existsSync(from)) fail(`bundle payload missing: scripts/${name}`)
-    const to = path.join(target, 'scripts', name)
+    const to = path.join(target, 'harness', 'scripts', name)
     fs.mkdirSync(path.dirname(to), { recursive: true })
     if (fs.existsSync(to) && !force) {
       scriptResult.skipped++
-      log.push(`skip (exists): scripts/${name}`)
+      log.push(`skip (exists): harness/scripts/${name}`)
     } else {
       fs.copyFileSync(from, to)
       scriptResult.copied++
@@ -115,7 +115,7 @@ function main() {
   if (fs.existsSync(slot)) {
     log.push('slot: kept existing current-task.md (never overwritten)')
   } else {
-    fs.copyFileSync(path.join(bundleRoot, 'archive', 'current-task.md'), slot)
+    fs.copyFileSync(path.join(bundleRoot, 'templates', 'current-task.md'), slot)
     log.push('slot: wrote empty current-task.md')
   }
   for (const name of ['history.md', 'history-template.md']) {
@@ -123,19 +123,19 @@ function main() {
     if (fs.existsSync(to) && !force) {
       log.push(`skip (exists): ${stateDir}/${name}`)
     } else {
-      fs.copyFileSync(
-        path.join(bundleRoot, 'archive', name === 'history.md' ? 'history.md' : 'history-template.md'),
-        to,
-      )
+      fs.copyFileSync(path.join(bundleRoot, 'templates', name), to)
       log.push(`wrote: ${stateDir}/${name}`)
     }
   }
-  const doc = path.join(target, 'HARNESS.md')
-  if (fs.existsSync(doc) && !force) {
-    log.push('skip (exists): HARNESS.md')
-  } else {
-    fs.copyFileSync(path.join(bundleRoot, 'HARNESS.md'), doc)
-    log.push('wrote: HARNESS.md')
+  for (const name of ['HARNESS.md', 'README.md', 'INSTALL.md']) {
+    const to = path.join(target, 'harness', name)
+    fs.mkdirSync(path.dirname(to), { recursive: true })
+    if (fs.existsSync(to) && !force) {
+      log.push(`skip (exists): harness/${name}`)
+    } else {
+      fs.copyFileSync(path.join(bundleRoot, name), to)
+      log.push(`wrote: harness/${name}`)
+    }
   }
 
   const pkgFile = path.join(target, 'package.json')
@@ -191,7 +191,7 @@ function main() {
 
   console.log(`install: target ${target}`)
   for (const line of log) console.log(`  ${line}`)
-  console.log('install: next: restart opencode, then run `npm run hcheck` (or: node scripts/hslot.mjs check)')
+  console.log('install: next: restart opencode, then run `npm run hcheck` (or: node harness/scripts/hslot.mjs check)')
 }
 
 main()

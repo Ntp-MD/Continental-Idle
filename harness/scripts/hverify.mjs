@@ -2,7 +2,7 @@
 // Reads the working tree (git status) and prints ONLY the matching suite,
 // then optionally runs it. Never the full matrix.
 //
-// Run with: node scripts/hverify.mjs [route|run]
+// Run with: node harness/scripts/hverify.mjs [route|run]
 // Exit code: 0 = pass (or route printed), 1 = a suite failed / usage error
 import fs from 'node:fs'
 import path from 'node:path'
@@ -11,7 +11,7 @@ import { fileURLToPath } from 'node:url'
 
 const root = process.env.HARNESS_ROOT
   ? path.resolve(process.env.HARNESS_ROOT)
-  : path.resolve(fileURLToPath(new URL('..', import.meta.url)))
+  : path.resolve(fileURLToPath(new URL('../..', import.meta.url)))
 
 const BANS =
   'Bans: no verify/test matrix unless asked. Never test:npc-perf, test:npc-scale, test:behavior, observe:hotel unless asked.'
@@ -70,7 +70,7 @@ function route(files) {
       needsEnginePick = true
     } else if (file.endsWith('.ts') && (/schema|migrat|persist|sync|payload/i.test(file) || file.includes('/data/'))) {
       needsSchemaPick = true
-    } else if (file.startsWith('scripts/') && file.endsWith('.mjs')) {
+    } else if (file.startsWith('harness/scripts/') && file.endsWith('.mjs')) {
       eslintFiles.push(file)
     } else if (file.startsWith('tests/') && file.endsWith('.ts')) {
       push(`tsx ${file}`)
@@ -149,7 +149,7 @@ function runPlan(plan) {
 
 const mode = process.argv[2] ?? 'route'
 if (mode !== 'route' && mode !== 'run') {
-  console.error('hverify: usage: node scripts/hverify.mjs [route|run]')
+  console.error('hverify: usage: node harness/scripts/hverify.mjs [route|run]')
   process.exit(1)
 }
 const files = changedFiles()

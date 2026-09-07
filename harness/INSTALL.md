@@ -1,4 +1,4 @@
-# Install Intent - self-wiring installer for lite session-handoff
+# Install Intent - self-wiring installer for the agent harness
 
 Agent: reading this file means you are the installer. Execute Steps 1-5
 in order to completion. Do not stop after one step. ASCII only, markdown
@@ -8,24 +8,43 @@ Target: the project in your current working directory (NOT the repo this
 file was copied from). Max 5 new files + 1 instruction edit. If the
 target layout forces more, stop and ask with options.
 
-Live slot is `<state>/current-task.md` (single file, Living Context
-sections). Done-log lives in the state dir (`<state>/history.md`).
+The harness itself lives at `<bundle>/` (this folder: `INSTALL.md`,
+`HARNESS.md`, `README.md`, plus `skills/`, `scripts/`, and `templates/`
+that `hpack` populates from the source repo). The live slot is
+`<state>/current-task.md` (single file, Living Context sections). The
+done-log lives in the state dir (`<state>/history.md`).
 
 ## Step 1 - Locate anchors (read-only)
 
 - Project root = your cwd. Confirm it contains a code dir (e.g. `src/`).
+- Bundle root: the folder this file lives in (`<bundle>`). The
+  installer reads `skills/`, `scripts/`, `templates/`, `HARNESS.md`,
+  `README.md`, and `INSTALL.md` from here. The `install.mjs` payload
+  in this folder is what gets copied into a target project on demand.
 - Instruction file: prefer existing `AGENTS.md`, else `CLAUDE.md`, else
   the harness rules dir (e.g. `.cursor/rules`). Record its path.
-- Skills dir: prefer the harness convention (`.opencode/skills/`,
-  `.claude/skills/`, `.agent/skills/`). Record it, default to
-  `.opencode/skills/` if none exists.
+- Skills dir: prefer the existing convention in the target
+  (`.opencode/skills/`, `.claude/skills/`, `.agent/skills/`). Default
+  to `.opencode/skills/` - the harness ships its own skills folder
+  that the agent reads directly.
 - State dir: prefer existing `_archive/`, else `.claude/handoffs/`
   parent, else create `_archive/`. Record it. In the steps below
   `<state>` means this dir and `<skills>` means the skills dir.
+- Agent config (if present): if the target uses `opencode.json` or
+  similar with a `skills.paths` array, append the absolute path of
+  `<bundle>/skills` to that array. Do not rewrite the file.
 
-## Step 2 - Write the skill file
+## Step 2 - Write the skill files
 
-Write `<skills>/session-handoff/SKILL.md` with exactly this content:
+For each folder in `<bundle>/skills/`, copy its `SKILL.md` into
+`<skills>/<folder>/SKILL.md` in the target. If the target has a
+different convention (e.g. `.claude/skills/`), copy there instead.
+
+If the target lacks a `session-handoff` skill, copy
+`<bundle>/skills/session-handoff/SKILL.md` (its content is below) so
+the wire-up has a target. Otherwise skip this step.
+
+`<bundle>/skills/session-handoff/SKILL.md` payload:
 
 ````markdown
 ---
@@ -109,11 +128,11 @@ stop, re-check Hand-off Note; at task start, read the slot first.
 
 ## Attaching to another project (portable)
 
-1. Copy this whole folder to the target project (same relative path,
-   or any skills dir the target agent reads), plus
-   `<state>/install-intent.md` (the installer lives next to the state
-   files, not in this folder - keep exactly one copy).
-2. In the target project, read `<state>/install-intent.md` and execute
+1. Copy the whole `<harness>/` folder to the target project (any path
+   the target agent can read for skills), plus
+   `<harness>/INSTALL.md` (the installer lives next to the harness,
+   not in the state dir - keep exactly one copy).
+2. In the target project, read `<harness>/INSTALL.md` and execute
    it - it is self-contained (all file contents embedded) and wires
    everything itself, then verifies.
 3. No runtime, no packages, no services - markdown only (MIT upstream:
@@ -122,115 +141,35 @@ stop, re-check Hand-off Note; at task start, read the slot first.
 
 ## Step 3 - Write the state files
 
-Write `<state>/current-task.md` with exactly this content (empty slot):
+Copy `<harness>/templates/current-task.md` to `<state>/current-task.md`
+(empty slot).
 
-````markdown
-## Agent
-<!-- Name | Model ID (exact) | Provider -->
+Copy `<harness>/templates/history.md` to `<state>/history.md` (fresh log
+- do NOT copy entries from any other project).
 
-## Mission
-<!-- Original instruction — translated to English -->
-<!-- Received: YYYY-MM-DD HH:MM UTC+7 -->
+Copy `<harness>/templates/history-template.md` to
+`<state>/history-template.md` (static pattern doc).
 
-## Investigation
-<!-- Confirm the problem is real before touching anything -->
-<!-- What was checked, what was found, verdict: confirmed | not-reproduced | unclear -->
-
-## Findings
-<!-- What exists, what's broken, what's unexpected -->
-<!-- Facts only — no fixes here -->
-
-## Approach
-<!-- Chosen fix and why this over alternatives -->
-<!-- Format: chose X over Y — reason -->
-
-## Plan
-- [ ] Step 1
-- [ ] Step 2
-- [ ] Step 3
-<!-- Check off each step as done — do not batch at the end -->
-
-## Verify
-<!-- Matching suite + result, fixes applied on failure -->
-<!-- Review verdict: correctness, regressions, correspondence -->
-
-## Current Thinking
-<!-- Latest thought only — where your head is right now -->
-
-## Blockers
-<!-- [HARD] blocks everything | [SOFT] blocks only this step -->
-<!-- Format: [HARD/SOFT] — what — what's needed to unblock -->
-
-## Hand-off Note
-<!-- Next action must be directly executable -->
-<!-- Leave blank if not handing off -->
-````
-
-Write `<state>/history.md` with exactly this content (fresh log - do NOT
-copy entries from any other project):
-
-````markdown
-# History - shared cross-agent intent log
-
-Entries only. Protocol + pattern live in `<state>/history-template.md` -
-follow them when logging below.
-
-## Entries (Doing - Finished (Agent, Model) + Detail Bullets)
-
-- (empty - first finished task adds the first entry here)
-````
-
-Write `<state>/history-template.md` with exactly this content:
-
-````markdown
-# History template - protocol + pattern (static, do not log entries here)
-
-Done-log lives in `<state>/history.md` under `## Entries`. Follow the
-pattern below, keep this file unchanged.
-
-## Protocol
-
-- mode: file-bridge, no MCP server
-- clock: all Started/Finished stamps in UTC+7 (Asia/Bangkok), format `YYYY-MM-DD HH:MM UTC+7`
-- Handoff (mid-task takeover): live state lives in `<state>/current-task.md`
-  (single slot, Living Context sections - read it at task start alongside
-  this board); writer updates it after every meaningful step (limit can hit
-  anytime, disk must hold the latest state), taker clears it when done and
-  logs here
-
-## Pattern (how to log)
-
-- Shape per finished task:
-  `### <doing> - <finished> (<agent>, <exact-model-id>)` followed by `- <detail>` bullets (what changed + how verified, no essays)
-- Name states the exact model id/version, never a bare nickname; unrecoverable models use `(<agent>, model unknown)`
-- Stamp: `YYYY-MM-DD HH:MM UTC+7` (Asia/Bangkok - convert before writing, never log UTC/Z/other zones)
-- Log only when done, never in advance; extend the same block instead of adding a second one
-- Installer/template upkeep is not logged here; product work only
-- Times must be real (system clock) - never invent or round times for another agent's rows
-````
-
-Payloads already use `<state>` / `<skills>` placeholders - substitute the
-recorded dirs throughout before writing (the live slot
-`<state>/current-task.md` moves with the state dir - no `.context/` dir
-needed). If the target team uses
-another timezone, swap the UTC+7 clock lines in all state payloads
+The `<harness>/templates/` scaffolds already use `<state>` and `<skills>`
+placeholders in the same shape the installer used to use inline - the
+installer now copies verbatim, no substitution. If the target team uses
+another timezone, swap the UTC+7 clock lines in all three templates
 consistently.
 
 ## Step 4 - Register in the instruction file
 
 - If the recorded instruction file has a skills registry section, append
-  this line there (paths adjusted to Steps 1-3):
-  ``- `session-handoff` (`<skills>/session-handoff/SKILL.md`) - lite file-based session handoff: `<state>/current-task.md` is the live slot (RESUME at task start, CREATE every meaningful step, clear when done); read when pausing mid-task or taking over another agent's work.``
+  one line per skill under `<skills>/` (paths adjusted to Steps 1-3):
+  ``- `<name>` (`<skills>/<name>/SKILL.md`) - <description from frontmatter>.``
 - Add the wiring rule (new section if none fits):
   ``- Session handoff: RESUME (`<state>/current-task.md`) at task start, CREATE (update slot every meaningful step; final pass on voluntary stop only); log finished work in `<state>/history.md`.``
 - If no instruction file exists, create a minimal `AGENTS.md` containing
-  only a Skills section (line above) and a Session handoff wiring section
-  (rule above).
+  the skills section and the Session handoff wiring section above.
 
 ## Step 5 - Verify and report
 
 - Read back all written files. Grep the target repo for stale references
-  (old board names, retired slot paths, duplicated templates) - zero must
-  remain.
+  (old board names, retired slot paths, duplicated templates, references
+  to `.opencode/skills/...` skills not in this bundle) - zero must remain.
 - Report: files created, instruction file touched, assumptions made
   (skills dir, state dir, timezone), how verified. Short, no essay.
