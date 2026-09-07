@@ -7,9 +7,11 @@ import type {
 	NpcEngineOptions,
 	NpcEngineQueue,
 	NpcEnginePoint,
+	NpcEngineWaitReason,
 } from './types'
+import { hasPostTag } from './tagMatching'
+import { NPC_ENGINE_DEFAULT_OPTIONS, type NpcEngineResolvedOptions } from './config'
 
-const DEFAULT_TICKS_PER_SECOND = 60
 const EPSILON = 0.000001
 
 const EXIT_DIRECTIONS: readonly NpcEnginePoint[] = [
@@ -44,7 +46,7 @@ function cellKey(floorId: string, x: number, y: number): string {
 
 export class NpcEngine {
 	private readonly layout: NpcEngineLayout
-	private readonly options: NpcEngineOptions
+	private readonly options: NpcEngineResolvedOptions
 	private readonly ticksPerSecond: number
 	private readonly agentClearance: number
 	private readonly random: () => number
@@ -55,6 +57,8 @@ export class NpcEngine {
 	private readonly queueMembers = new Map<string, string[]>()
 	private readonly queueSlotReservations = new Map<string, string>()
 	private readonly queueArrivalSequence = new Map<string, number>()
+	private readonly queueJoinTick = new Map<string, number>()
+	private readonly socialCooldownUntil = new Map<string, number>()
 	private readonly waitingUntil = new Map<string, number>()
 	private readonly blockedTargets = new Map<string, Map<string, number>>()
 	private readonly events: NpcEngineEvent[] = []
@@ -62,6 +66,7 @@ export class NpcEngine {
 
 	private readonly cellReservations = new Map<string, string>()
 	private readonly cellByAgent = new Map<string, string>()
+	private readonly waypointByAgent = new Map<string, string>()
 	private readonly floorById = new Map<string, NpcEngineFloor>()
 	private readonly queueByKey = new Map<string, NpcEngineQueue>()
 	private readonly targetsByKey = new Map<string, NpcEngineInteractionTarget>()
@@ -86,9 +91,9 @@ export class NpcEngine {
 
 	constructor(layout: NpcEngineLayout, options: NpcEngineOptions) {
 		this.layout = layout
-		this.options = options
-		this.ticksPerSecond = Math.max(1, Math.round(options.ticksPerSecond ?? DEFAULT_TICKS_PER_SECOND))
-		this.agentClearance = Math.max(0, options.agentClearance ?? 0.5)
+		this.options = { ...NPC_ENGINE_DEFAULT_OPTIONS, ...options }
+		this.ticksPerSecond = Math.max(1, Math.round(this.options.ticksPerSecond))
+		this.agentClearance = Math.max(0, this.options.agentClearance)
 		this.random = options.random ?? Math.random
 		for (const floor of layout.floors) {
 			this.floorById.set(floor.id, floor)
@@ -132,7 +137,7 @@ export class NpcEngine {
 		return this.events.splice(0)
 	}
 
-	addAgent(agent: Omit<NpcEngineAgent, 'status' | 'path' | 'pathIndex' | 'reservationItemId' | 'reservationInteractSpotId' | 'interactionRemainingTicks' | 'crossFloorCooldownUntil'> & Partial<Pick<NpcEngineAgent, 'status' | 'path' | 'pathIndex' | 'reservationItemId' | 'reservationInteractSpotId' | 'interactionRemainingTicks' | 'crossFloorCooldownUntil'>>): void {
+	addAgent(agent: Omit<NpcEngineAgent, 'status' | 'path' | 'pathIndex' | 'reservationItemId' | 'reservationInteractSpotId' | 'interactionRemainingTicks' | 'chatPartnerId' | 'crossFloorCooldownUntil'> & Partial<Pick<NpcEngineAgent, 'status' | 'path' | 'pathIndex' | 'reservationItemId' | 'reservationInteractSpotId' | 'interactionRemainingTicks' | 'chatPartnerId' | 'crossFloorCooldownUntil'>>): void {
 		if (this.agents.has(agent.id)) throw new Error(`NPC agent already exists: ${agent.id}`)
 		this.agentListCache = null
 		this.agents.set(agent.id, {
@@ -143,6 +148,7 @@ export class NpcEngine {
 			reservationItemId: agent.reservationItemId ?? null,
 			reservationInteractSpotId: agent.reservationInteractSpotId ?? null,
 			interactionRemainingTicks: agent.interactionRemainingTicks ?? 0,
+			chatPartnerId: agent.chatPartnerId ?? null,
 			queueKey: agent.queueKey ?? null,
 			queuePendingKey: agent.queuePendingKey ?? null,
 			queueSlotIndex: agent.queueSlotIndex ?? null,
@@ -160,12 +166,17 @@ export class NpcEngine {
 		this.agentListCache = null
 		this.leaveQueue(agent)
 		this.releaseReservation(agent)
+		this.endChat(agent, false)
+		this.queueJoinTick.delete(agentId)
+		this.socialCooldownUntil.delete(agentId)
+		this.lastChooseTargetTick.delete(agentId)
 		this.waitingUntil.delete(agentId)
 		this.blockedTargets.delete(agentId)
 		this.progressWatchdog.delete(agentId)
 		this.repathAttempts.delete(agentId)
 		this.repathCooldownUntil.delete(agentId)
 		this.clearCellReservation(agentId)
+		this.waypointByAgent.delete(agentId)
 		this.agents.delete(agentId)
 		return true
 	}
@@ -179,12 +190,16 @@ export class NpcEngine {
 		this.queueMembers.clear()
 		this.queueSlotReservations.clear()
 		this.queueArrivalSequence.clear()
+		this.queueJoinTick.clear()
+		this.socialCooldownUntil.clear()
+		this.lastChooseTargetTick.clear()
 		this.waitingUntil.clear()
 		this.blockedTargets.clear()
 		this.events.length = 0
 		this.tickCount = 0
 		this.cellReservations.clear()
 		this.cellByAgent.clear()
+		this.waypointByAgent.clear()
 		this.progressWatchdog.clear()
 		this.repathAttempts.clear()
 		this.repathCooldownUntil.clear()
@@ -197,6 +212,7 @@ export class NpcEngine {
 		this.leaveQueue(agent)
 		agent.queuePendingKey = null
 		this.releaseReservation(agent)
+		this.endChat(agent, true)
 		this.waitingUntil.delete(agent.id)
 		this.blockedTargets.delete(agent.id)
 		this.progressWatchdog.delete(agent.id)
@@ -219,11 +235,21 @@ export class NpcEngine {
 		this.pathCallsThisTick = 0
 		this.chooseTargetCallsThisTick = 0
 		this.releasedThisTick.clear()
-		const releasedInteractions = new Set<string>()
 
 		for (const agent of this.agents.values()) {
 			if (agent.status === 'queued') {
+				if (this.queueWaitExceeded(agent)) {
+					this.abandonQueue(agent)
+					continue
+				}
 				if (this.isQueueFront(agent)) this.chooseTarget(agent)
+				continue
+			}
+			if (agent.status === 'chatting') {
+				agent.interactionRemainingTicks--
+				if (agent.interactionRemainingTicks <= 0) {
+					this.endChat(agent, true)
+				}
 				continue
 			}
 			if (agent.status === 'interacting') {
@@ -231,8 +257,17 @@ export class NpcEngine {
 				if (agent.interactionRemainingTicks <= 0) {
 					const itemId = agent.reservationItemId ?? undefined
 					const interactSpotId = agent.reservationInteractSpotId ?? undefined
+					const held = agent.reservationItemId !== null && agent.reservationInteractSpotId !== null
+						? this.targetsByKey.get(`${agent.floorId}:${agent.reservationItemId}:${agent.reservationInteractSpotId}`)
+						: undefined
+					if (held && hasPostTag(held.tags)) {
+						this.emit({ type: 'interaction-end', agentId: agent.id, floorId: agent.floorId, itemId, interactSpotId })
+						agent.interactionRemainingTicks = Math.max(1, Math.floor(held.durationMaxSeconds * this.ticksPerSecond))
+						this.emit({ type: 'interaction-start', agentId: agent.id, floorId: agent.floorId, itemId, interactSpotId })
+						continue
+					}
+					this.markBlocked(agent)
 					this.releaseReservation(agent)
-					releasedInteractions.add(agent.id)
 					this.releasedThisTick.add(agent.id)
 					if (!this.standsOnInteractionSpot(agent) || !this.vacateSpotCell(agent)) agent.status = 'idle'
 					this.emit({ type: 'interaction-end', agentId: agent.id, floorId: agent.floorId, itemId, interactSpotId })
@@ -240,7 +275,7 @@ export class NpcEngine {
 				continue
 			}
 
-			const justReleased = releasedInteractions.has(agent.id)
+			const justReleased = this.releasedThisTick.has(agent.id)
 			if (agent.status === 'waiting') {
 				if (this.tickCount < (this.waitingUntil.get(agent.id) ?? 0)) continue
 				this.waitingUntil.delete(agent.id)
@@ -261,7 +296,96 @@ export class NpcEngine {
 			}
 		}
 
+		this.resolveSocialEncounters()
 		this.resolveWalkingAgents()
+	}
+
+	private static readonly SOCIAL_ATTEMPT_INTERVAL = 30
+
+	private socialRadius(): number {
+		return Math.max(0, this.options.socialRadius)
+	}
+
+	private hashAgentId(id: string): number {
+		let hash = 0
+		for (let i = 0; i < id.length; i++) hash = (hash * 31 + id.charCodeAt(i)) | 0
+		return Math.abs(hash)
+	}
+
+	private sociallyFree(agent: MutableAgent): boolean {
+		return agent.reservationItemId === null && !agent.queueKey && !agent.queuePendingKey && agent.chatPartnerId === null
+	}
+
+	private resolveSocialEncounters(): void {
+		const radius = this.socialRadius()
+		if (radius <= 0 || this.agents.size < 2) return
+		for (const agent of this.agents.values()) {
+			if (agent.status !== 'idle' && agent.status !== 'walking') continue
+			if (!this.sociallyFree(agent)) continue
+			if ((this.socialCooldownUntil.get(agent.id) ?? 0) > this.tickCount) continue
+			if ((this.tickCount + this.hashAgentId(agent.id)) % NpcEngine.SOCIAL_ATTEMPT_INTERVAL !== 0) continue
+			const partner = this.findChatPartner(agent, radius)
+			if (partner) this.beginChat(agent, partner)
+		}
+	}
+
+	private findChatPartner(agent: MutableAgent, radius: number): MutableAgent | null {
+		const candidates: MutableAgent[] = []
+		for (const other of this.agents.values()) {
+			if (other.id === agent.id || other.floorId !== agent.floorId) continue
+			if (other.status !== 'idle' && other.status !== 'waiting' && other.status !== 'walking') continue
+			if (!this.sociallyFree(other)) continue
+			if ((this.socialCooldownUntil.get(other.id) ?? 0) > this.tickCount) continue
+			if (Math.hypot(other.x - agent.x, other.y - agent.y) > radius) continue
+			candidates.push(other)
+		}
+		if (!candidates.length) return null
+		if (!this.options.socialSelector) return candidates[0] ?? null
+		const picked = this.options.socialSelector(agent, candidates)
+		if (!picked) return null
+		const live = this.agents.get(picked.id)
+		return live && candidates.some(candidate => candidate.id === live.id) ? live : null
+	}
+
+	private beginChat(agent: MutableAgent, partner: MutableAgent): void {
+		const duration = this.durationTicks({
+			durationMinSeconds: this.options.socialChatDurationMinSeconds,
+			durationMaxSeconds: this.options.socialChatDurationMaxSeconds,
+		})
+		for (const [self, other] of [[agent, partner], [partner, agent]] as const) {
+			self.path = []
+			self.pathIndex = 0
+			self.targetX = other.x
+			self.targetY = other.y
+			self.status = 'chatting'
+			self.chatPartnerId = other.id
+			self.interactionRemainingTicks = duration
+			this.waitingUntil.delete(self.id)
+			this.emit({ type: 'chatting-start', agentId: self.id, floorId: self.floorId, partnerId: other.id })
+		}
+	}
+
+	private endChat(agent: MutableAgent, emitSelf: boolean): void {
+		const wasChatting = agent.status === 'chatting'
+		const partnerId = agent.chatPartnerId
+		agent.chatPartnerId = null
+		if (wasChatting) agent.status = 'idle'
+		agent.interactionRemainingTicks = 0
+		const cooldownUntil = this.tickCount + Math.max(1, Math.round(this.options.socialCooldownSeconds * this.ticksPerSecond))
+		this.socialCooldownUntil.set(agent.id, cooldownUntil)
+		if (partnerId !== null) {
+			const partner = this.agents.get(partnerId)
+			if (partner && partner.status === 'chatting' && partner.chatPartnerId === agent.id) {
+				partner.chatPartnerId = null
+				partner.status = 'idle'
+				partner.interactionRemainingTicks = 0
+				this.socialCooldownUntil.set(partner.id, cooldownUntil)
+				this.emit({ type: 'chatting-end', agentId: partner.id, floorId: partner.floorId, partnerId: agent.id })
+			}
+		}
+		if (emitSelf && (wasChatting || partnerId !== null)) {
+			this.emit({ type: 'chatting-end', agentId: agent.id, floorId: agent.floorId, partnerId: partnerId ?? undefined })
+		}
 	}
 
 	private resolveWalkingAgents(): void {
@@ -306,6 +430,8 @@ export class NpcEngine {
 		})
 		const yielded = this.yieldedScratch
 		yielded.clear()
+		const claimed = new Set<string>()
+		const swapCells = new Set<string>()
 
 		for (const agent of sortedWalkers) {
 			const proposal = proposals.get(agent.id)
@@ -313,32 +439,63 @@ export class NpcEngine {
 
 			if (proposal.fromKey === proposal.toKey) {
 				this.syncCellReservation(agent)
-				continue
-			}
-
-			const existingHolder = this.cellReservations.get(proposal.toKey)
-			if (existingHolder && existingHolder !== agent.id) {
-				yielded.add(agent.id)
+				this.waypointByAgent.set(agent.id, proposal.toKey)
+				claimed.add(agent.id)
 				continue
 			}
 
 			const swapConflict = this.detectSwapConflict(agent, proposal, proposals, agentByFromCell)
 			if (swapConflict) {
-				if (priorityOf(agent.id) < priorityOf(swapConflict)) {
+				const partner = this.agents.get(swapConflict)
+				if (!partner || !this.canCompleteSwapStep(agent, partner)) {
+					yielded.add(agent.id)
 					yielded.add(swapConflict)
-					this.cellReservations.delete(proposal.fromKey)
-				} else {
+					continue
+				}
+				// Atomic one-tick exchange: both agents reach each other's cell
+				// this tick, so keep residence claims and let both execute.
+				// Post-move syncCellReservation swaps ownership with no leak.
+				claimed.add(agent.id)
+				swapCells.add(proposal.fromKey)
+				swapCells.add(proposal.toKey)
+				continue
+			}
+			const existingHolder = this.cellReservations.get(proposal.toKey)
+			if (existingHolder && existingHolder !== agent.id
+				&& !this.holderVacatesFully(existingHolder, proposal.toKey, proposals, yielded, claimed, swapCells)) {
+				yielded.add(agent.id)
+				continue
+			}
+			// Diagonal steps cannot cut through corner cells another agent
+			// holds (the pathfinder's no-corner-cut rule, re-checked at
+			// execution time while claims may have changed since path build).
+			const [fx, fy] = this.cellCoords(proposal.fromKey)
+			const [tx, ty] = this.cellCoords(proposal.toKey)
+			if (Math.abs(tx - fx) === 1 && Math.abs(ty - fy) === 1) {
+				const c1 = cellKey(agent.floorId, tx, fy)
+				const c2 = cellKey(agent.floorId, fx, ty)
+				if (this.isCornerBlocked(agent.id, c1, proposals) || this.isCornerBlocked(agent.id, c2, proposals)) {
 					yielded.add(agent.id)
 					continue
 				}
 			}
 
-			this.cellReservations.delete(proposal.fromKey)
+			// Two-cell claim: hold the residence AND the waypoint. Release any
+			// stale waypoint claim from a previous path or tick.
+			const prevWaypoint = this.waypointByAgent.get(agent.id)
+			if (prevWaypoint !== undefined && prevWaypoint !== proposal.fromKey && prevWaypoint !== proposal.toKey
+				&& this.cellReservations.get(prevWaypoint) === agent.id) {
+				this.cellReservations.delete(prevWaypoint)
+			}
+			this.waypointByAgent.set(agent.id, proposal.toKey)
+			this.cellReservations.set(proposal.fromKey, agent.id)
 			this.cellReservations.set(proposal.toKey, agent.id)
+			claimed.add(agent.id)
 		}
 
 		for (const agent of walkers) {
 			if (yielded.has(agent.id)) {
+				this.releaseWaypointIntent(agent)
 				this.handleYielded(agent)
 			} else {
 				this.executeMove(agent)
@@ -346,11 +503,64 @@ export class NpcEngine {
 		}
 	}
 
+	private cellCoords(key: string): [number, number] {
+		const cell = key.slice(key.lastIndexOf(':') + 1)
+		const [x, y] = cell.split(',').map(Number)
+		return [x, y]
+	}
+
+	private releaseWaypointIntent(agent: MutableAgent): void {
+		const waypoint = this.waypointByAgent.get(agent.id)
+		const residence = this.cellByAgent.get(agent.id)
+		if (waypoint !== undefined && waypoint !== residence && this.cellReservations.get(waypoint) === agent.id) {
+			this.cellReservations.delete(waypoint)
+		}
+		if (residence !== undefined) this.waypointByAgent.set(agent.id, residence)
+	}
+
+	private holderVacatesFully(holderId: string, cell: string, proposals: Map<string, MoveProposal>, yielded: Set<string>, claimed: Set<string>, swapCells: Set<string>): boolean {
+		if (yielded.has(holderId) || !claimed.has(holderId) || swapCells.has(cell)) return false
+		const holderProposal = proposals.get(holderId)
+		if (!holderProposal || holderProposal.fromKey !== cell || holderProposal.toKey === cell) return false
+		const holder = this.agents.get(holderId)
+		const next = holder?.path[holder.pathIndex]
+		if (!holder || !next) return false
+		const step = Math.max(0, holder.speed) / this.ticksPerSecond
+		return Math.hypot(next.x - holder.x, next.y - holder.y) <= step + EPSILON
+	}
+
+	private isCornerBlocked(agentId: string, cell: string, proposals: Map<string, MoveProposal>): boolean {
+		const holder = this.cellReservations.get(cell)
+		if (holder && holder !== agentId) return true
+		for (const proposal of proposals.values()) {
+			if (proposal.agentId === agentId) continue
+			if (proposal.fromKey === cell || proposal.toKey === cell) return true
+		}
+		return false
+	}
+
 	private detectSwapConflict(agent: MutableAgent, proposal: MoveProposal, proposals: Map<string, MoveProposal>, agentByFromCell: Map<string, string>): string | null {
 		const otherId = agentByFromCell.get(proposal.toKey)
 		if (!otherId || otherId === agent.id) return null
 		const otherProposal = proposals.get(otherId)
 		return otherProposal?.toKey === proposal.fromKey ? otherId : null
+	}
+
+	// A swap only executes as a genuine one-tick exchange when BOTH agents can
+	// reach each other's cell this tick. Otherwise both agents stand (no claim
+	// changes) and the repath/detour machinery resolves the head-on.
+	private canCompleteSwapStep(agent: MutableAgent, partner: MutableAgent): boolean {
+		const aNext = agent.path[agent.pathIndex]
+		if (aNext) {
+			const aStep = Math.max(0, agent.speed) / this.ticksPerSecond
+			if (Math.hypot(aNext.x - agent.x, aNext.y - agent.y) > aStep + EPSILON) return false
+		}
+		const bNext = partner.path[partner.pathIndex]
+		if (bNext) {
+			const bStep = Math.max(0, partner.speed) / this.ticksPerSecond
+			if (Math.hypot(bNext.x - partner.x, bNext.y - partner.y) > bStep + EPSILON) return false
+		}
+		return true
 	}
 
 	private executeMove(agent: MutableAgent): void {
@@ -384,6 +594,7 @@ export class NpcEngine {
 		agent.x += (next.x - agent.x) * ratio
 		agent.y += (next.y - agent.y) * ratio
 		this.syncCellReservation(agent)
+		this.releaseWaypointIntent(agent)
 		this.resetProgress(agent)
 	}
 
@@ -392,13 +603,30 @@ export class NpcEngine {
 		const doorSet = this.doorEdgesByFloor.get(agent.floorId)
 		if (!doorSet) return
 		const key = `${fromX},${fromY}->${toX},${toY}`
-		if (!doorSet.has(key)) return
-		this.emit({
-			type: 'door-passage',
-			agentId: agent.id,
-			floorId: agent.floorId,
-			doorEdge: { from: { x: fromX, y: fromY }, to: { x: toX, y: toY } },
-		})
+		if (doorSet.has(key)) {
+			this.emit({
+				type: 'door-passage',
+				agentId: agent.id,
+				floorId: agent.floorId,
+				doorEdge: { from: { x: fromX, y: fromY }, to: { x: toX, y: toY } },
+			})
+			return
+		}
+		if (fromX !== toX && fromY !== toY) {
+			const corners = [{ x: toX, y: fromY }, { x: fromX, y: toY }]
+			for (const corner of corners) {
+				const first = `${fromX},${fromY}->${corner.x},${corner.y}`
+				const second = `${corner.x},${corner.y}->${toX},${toY}`
+				const matched = doorSet.has(first) ? first : doorSet.has(second) ? second : null
+				if (!matched) continue
+				const [from, to] = matched.split('->').map(pair => {
+					const [x, y] = pair.split(',').map(Number)
+					return { x, y }
+				})
+				this.emit({ type: 'door-passage', agentId: agent.id, floorId: agent.floorId, doorEdge: { from, to } })
+				return
+			}
+		}
 	}
 
 	private handleYielded(agent: MutableAgent): void {
@@ -418,8 +646,12 @@ export class NpcEngine {
 			return
 		}
 
+		if (agent.queueKey) {
+			agent.status = 'queued'
+			return
+		}
 		this.emit({ type: 'blocked', agentId: agent.id, floorId: agent.floorId })
-		this.setWaiting(agent)
+		this.setWaiting(agent, undefined, 'yielded')
 	}
 
 	private canRepath(agent: MutableAgent): boolean {
@@ -439,7 +671,7 @@ export class NpcEngine {
 			this.releaseReservation(agent)
 			agent.path = []
 			agent.pathIndex = 0
-			this.setWaiting(agent)
+			this.setWaiting(agent, undefined, 'repath-failed')
 			this.repathAttempts.set(agent.id, 0)
 			this.repathCooldownUntil.set(agent.id, this.tickCount + this.ticksPerSecond * cooldownSeconds * Math.pow(2, maxAttempts))
 			return
@@ -447,7 +679,7 @@ export class NpcEngine {
 
 		const floor = this.getFloor(agent.floorId)
 		if (!floor) {
-			this.setWaiting(agent)
+			this.setWaiting(agent, undefined, 'no-floor')
 			return
 		}
 
@@ -457,12 +689,24 @@ export class NpcEngine {
 		const path = this.options.pathfinder(floor, agent, target, blockedCells)
 
 		if (!path || path.length === 0) {
+			this.pathCallsThisTick++
+			const clearPath = this.options.pathfinder(floor, agent, target, undefined)
+			if (clearPath && clearPath.length > 0) {
+				this.repathAttempts.set(agent.id, 0)
+				this.repathCooldownUntil.set(agent.id, this.tickCount + this.ticksPerSecond * cooldownSeconds)
+				if (agent.queueKey) {
+					agent.status = 'queued'
+					return
+				}
+				this.setWaiting(agent, undefined, 'repath-blocked')
+				return
+			}
 			this.emit({ type: 'repath-failed', agentId: agent.id, floorId: agent.floorId, itemId: agent.reservationItemId ?? undefined, interactSpotId: agent.reservationInteractSpotId ?? undefined })
 			this.markBlocked(agent)
 			this.releaseReservation(agent)
 			agent.path = []
 			agent.pathIndex = 0
-			this.setWaiting(agent)
+			this.setWaiting(agent, undefined, 'repath-failed')
 			this.repathAttempts.set(agent.id, attempts + 1)
 			this.repathCooldownUntil.set(agent.id, this.tickCount + this.ticksPerSecond * cooldownSeconds * Math.pow(cooldownExponent, attempts))
 			return
@@ -488,6 +732,29 @@ export class NpcEngine {
 		for (const other of this.agents.values()) {
 			if (other.id === agent.id || other.floorId !== floorId) continue
 			blocked.add(`${Math.floor(other.x)},${Math.floor(other.y)}`)
+		}
+		for (const queue of this.layout.queues ?? []) {
+			if (queue.targetKeys.length === 0) continue
+			if (!queue.targetKeys.some(targetKey => targetKey.startsWith(`${floorId}:`))) continue
+			if (agent.queueKey === queue.key || agent.queuePendingKey === queue.key) continue
+			if (agent.reservationItemId !== null && queue.targetKeys.some(targetKey => targetKey.startsWith(`${floorId}:${agent.reservationItemId}:`))) continue
+			let allBusy = true
+			for (const targetKey of queue.targetKeys) {
+				const target = this.targetsByKey.get(targetKey)
+				if (!target) { allBusy = false; break }
+				const holders = this.reservations.get(`${target.floorId}:${target.itemId}`)
+				const busy = this.interactSpotReservations.has(targetKey) || (holders?.size ?? 0) >= Math.max(1, Math.floor(target.capacity ?? 1))
+				if (!busy) { allBusy = false; break }
+			}
+			if (!allBusy) continue
+			for (const point of queue.slots) blocked.add(`${Math.floor(point.x)},${Math.floor(point.y)}`)
+			let lineSize = this.queueMembers.get(queue.key)?.length ?? 0
+			for (const other of this.agents.values()) {
+				if (other.id !== agent.id && other.floorId === floorId && other.queuePendingKey === queue.key) lineSize++
+			}
+			const lineCapacity = Math.min(Math.max(0, Math.floor(queue.maxMembers)), queue.slots.length)
+			if (lineSize < lineCapacity) continue
+			for (const point of queue.admissionPoints) blocked.add(`${Math.floor(point.x)},${Math.floor(point.y)}`)
 		}
 		return blocked
 	}
@@ -569,7 +836,7 @@ export class NpcEngine {
 		agent.path = []
 		agent.pathIndex = 0
 		agent.status = 'queued'
-		this.emit({ type: 'waiting', agentId: agent.id, floorId: agent.floorId })
+		this.emit({ type: 'waiting', agentId: agent.id, floorId: agent.floorId, reason: 'queued' })
 	}
 
 	private assignQueueSlot(agent: MutableAgent, queue: NpcEngineQueue, slotIndex: number): boolean {
@@ -602,15 +869,46 @@ export class NpcEngine {
 		this.queueSlotReservations.set(slotKey, agent.id)
 		agent.queueKey = queue.key
 		agent.queueArrivalSequence = sequence
+		this.queueJoinTick.set(agent.id, this.tickCount)
 		if (!this.assignQueueSlot(agent, queue, slotIndex)) {
 			this.queueSlotReservations.delete(slotKey)
 			this.queueMembers.set(queue.key, members.filter(id => id !== agent.id))
 			agent.queueKey = null
 			agent.queueSlotIndex = null
 			agent.queueArrivalSequence = null
+			this.queueJoinTick.delete(agent.id)
 			return false
 		}
 		return true
+	}
+
+	private queueWaitExceeded(agent: MutableAgent): boolean {
+		if (!agent.queueKey) return false
+		const joined = this.queueJoinTick.get(agent.id)
+		if (joined === undefined) return false
+		const patience = Math.max(1, Math.round(this.options.queuePatienceSeconds * this.ticksPerSecond))
+		return this.tickCount - joined >= patience
+	}
+
+	private queueBlockedForAgent(queue: NpcEngineQueue, agent: MutableAgent): boolean {
+		const blocked = this.blockedTargets.get(agent.id)
+		if (!blocked) return false
+		return queue.targetKeys.every(targetKey => (blocked.get(targetKey) ?? 0) > this.tickCount)
+	}
+
+	private abandonQueue(agent: MutableAgent): void {
+		const queue = agent.queueKey ? this.getQueue(agent.queueKey) : undefined
+		this.leaveQueue(agent)
+		this.queueJoinTick.delete(agent.id)
+		if (queue) {
+			const blocked = this.blockedTargets.get(agent.id) ?? new Map<string, number>()
+			for (const [targetKey, until] of blocked) if (until <= this.tickCount) blocked.delete(targetKey)
+			const until = this.tickCount + this.ticksPerSecond * 2
+			for (const targetKey of queue.targetKeys) blocked.set(targetKey, until)
+			this.blockedTargets.set(agent.id, blocked)
+		}
+		agent.status = 'idle'
+		this.chooseTarget(agent)
 	}
 
 	private leaveQueue(agent: MutableAgent): void {
@@ -632,7 +930,7 @@ export class NpcEngine {
 					if (member.queueSlotIndex !== null && member.queueSlotIndex !== undefined) this.queueSlotReservations.delete(this.queueSlotKey(queueKey, member.queueSlotIndex))
 					member.queueSlotIndex = i
 					this.queueSlotReservations.set(this.queueSlotKey(queueKey, i), member.id)
-					if (member.status === 'queued' || member.status === 'walking') this.assignQueueSlot(member, queue, i)
+					if ((member.status === 'queued' || member.status === 'walking') && !this.pathBudgetExceeded()) this.assignQueueSlot(member, queue, i)
 				}
 			}
 		}
@@ -640,6 +938,7 @@ export class NpcEngine {
 		agent.queuePendingKey = null
 		agent.queueSlotIndex = null
 		agent.queueArrivalSequence = null
+		this.queueJoinTick.delete(agent.id)
 	}
 
 	private sameFloorTargetsCache = new Map<string, NpcEngineInteractionTarget[]>()
@@ -688,19 +987,24 @@ export class NpcEngine {
 			const queue = this.getQueue(agent.queueKey)
 			if (queue) {
 				const queueTargetKeys = new Set(queue.targetKeys)
-				selected = available.find(target => queueTargetKeys.has(this.targetKey(target))) ?? null
+				selected = available.find(target => queueTargetKeys.has(this.targetKey(target)) && !hasPostTag(target.tags)) ?? null
 			}
-			if (!selected) {
-				this.leaveQueue(agent)
-				this.setWaiting(agent)
+		if (!selected) {
+			if (queue) {
+				agent.status = 'queued'
 				return
 			}
+			this.leaveQueue(agent)
+			this.setWaiting(agent, undefined, 'queue-left')
+			return
+		}
 		}
 
 		if (selected && agent.queueKey) this.leaveQueue(agent)
 		if (!selected) {
-			const queue = this.options.queueSelector?.(agent, sameFloorTargets, available, this.layout.queues ?? [])
-			if (queue && this.queueHasCapacity(queue) && this.beginQueueApproach(queue, agent)) return
+			const openQueues = (this.layout.queues ?? []).filter(candidate => !this.queueBlockedForAgent(candidate, agent))
+			const queue = this.options.queueSelector?.(agent, sameFloorTargets, available, openQueues)
+			if (queue && this.queueHasCapacity(queue) && !this.queueBlockedForAgent(queue, agent) && this.beginQueueApproach(queue, agent)) return
 			if (this.options.targetSelector && this.options.wanderSelector) {
 				const wander = this.options.wanderSelector(agent)
 				if (wander && !this.isOccupied(agent, wander)) {
@@ -717,15 +1021,15 @@ export class NpcEngine {
 						return
 					}
 				}
-				this.setWaiting(agent)
+				this.setWaiting(agent, undefined, 'no-wander')
 				return
 			}
 			if (this.options.targetSelector) {
-				this.setWaiting(agent)
+				this.setWaiting(agent, undefined, 'no-target')
 				return
 			}
 			if (sameFloorTargets.length > 0) {
-				this.setWaiting(agent, sameFloorTargets[0].itemId)
+				this.setWaiting(agent, sameFloorTargets[0].itemId, 'no-target')
 			} else {
 				agent.status = 'idle'
 			}
@@ -734,13 +1038,12 @@ export class NpcEngine {
 
 
 		if (selected.floorId !== agent.floorId && !selected.transitionToFloorId) {
-			this.setWaiting(agent)
+			this.setWaiting(agent, undefined, 'wrong-floor')
 			return
 		}
 
 		if (!this.reserve(selected, agent.id)) {
-			this.setWaiting(agent)
-			this.emit({ type: 'waiting', agentId: agent.id, floorId: agent.floorId, itemId: selected.itemId, interactSpotId: selected.interactSpotId })
+			this.setWaiting(agent, selected.itemId, 'reserve-raced')
 			return
 		}
 
@@ -751,6 +1054,17 @@ export class NpcEngine {
 		this.pathCallsThisTick++
 		const path = floor ? this.options.pathfinder(floor, agent, selected, blockedCells) : null
 		if (!path || path.length === 0) {
+			this.pathCallsThisTick++
+			const clearPath = floor ? this.options.pathfinder(floor, agent, selected, undefined) : null
+			if (clearPath && clearPath.length > 0) {
+				if (agent.queueKey) {
+					agent.status = 'queued'
+					return
+				}
+				this.releaseReservation(agent)
+				this.setWaiting(agent, undefined, 'repath-blocked')
+				return
+			}
 			this.releaseReservation(agent)
 			this.markBlocked(agent)
 			agent.status = 'idle'
@@ -792,8 +1106,9 @@ export class NpcEngine {
 
 			if (this.isOccupied(agent, destEndpoint, target.transitionToFloorId)) {
 
+				const itemId = agent.reservationItemId ?? undefined
 				this.releaseReservation(agent)
-				this.setWaiting(agent)
+				this.setWaiting(agent, itemId, 'portal-busy')
 				return
 			}
 
@@ -815,8 +1130,14 @@ export class NpcEngine {
 
 
 		if (this.isOccupiedByScan(agent, target, target.floorId)) {
+			if (agent.queueKey) {
+				agent.status = 'queued'
+				return
+			}
+			const itemId = agent.reservationItemId ?? undefined
+			this.markBlocked(agent)
 			this.releaseReservation(agent)
-			this.setWaiting(agent)
+			this.setWaiting(agent, itemId, 'spot-busy')
 			return
 		}
 		agent.x = target.x
@@ -831,7 +1152,7 @@ export class NpcEngine {
 		return `${target.floorId}:${target.itemId}:${target.interactSpotId}`
 	}
 
-	private setWaiting(agent: MutableAgent, emitItemId?: string): void {
+	private setWaiting(agent: MutableAgent, emitItemId: string | undefined, reason: NpcEngineWaitReason): void {
 		if (agent.queueKey) this.leaveQueue(agent)
 		agent.queuePendingKey = null
 		if (agent.reservationItemId !== null) this.releaseReservation(agent)
@@ -839,9 +1160,10 @@ export class NpcEngine {
 		if (!vacated) {
 			agent.status = 'waiting'
 			const jitter = Math.floor(this.random() * this.ticksPerSecond)
-			this.waitingUntil.set(agent.id, this.tickCount + this.ticksPerSecond + jitter)
+			const backoffSeconds = reason === 'portal-busy' ? this.options.repathCooldownSeconds : 1
+			this.waitingUntil.set(agent.id, this.tickCount + Math.floor(backoffSeconds * this.ticksPerSecond) + jitter)
+			this.emit({ type: 'waiting', agentId: agent.id, floorId: agent.floorId, itemId: emitItemId, reason })
 		}
-		if (emitItemId !== undefined) this.emit({ type: 'waiting', agentId: agent.id, floorId: agent.floorId, itemId: emitItemId })
 	}
 
 	private standsOnInteractionSpot(agent: MutableAgent): boolean {
@@ -976,7 +1298,7 @@ export class NpcEngine {
 		agent.interactionRemainingTicks = 0
 	}
 
-	private durationTicks(target: NpcEngineInteractionTarget): number {
+	private durationTicks(target: Pick<NpcEngineInteractionTarget, 'durationMinSeconds' | 'durationMaxSeconds'>): number {
 		const min = Math.max(0, Math.ceil(Math.min(target.durationMinSeconds, target.durationMaxSeconds) * this.ticksPerSecond))
 		const max = Math.max(min, Math.floor(Math.max(target.durationMinSeconds, target.durationMaxSeconds) * this.ticksPerSecond))
 		return min + Math.floor(clampRandom(this.random()) * (max - min + 1))
@@ -1003,7 +1325,8 @@ export class NpcEngine {
 			routes = this.layout.interactionTargets.filter(t => t.floorId === sourceFloorId && t.transitionToFloorId === destFloorId)
 			this.portalRoutesByPair.set(pairKey, routes)
 		}
-		return routes.find(t => this.canReserve(t, agentId)) ?? null
+		const blocked = this.blockedTargets.get(agentId)
+		return routes.find(t => this.canReserve(t, agentId) && (blocked?.get(this.targetKey(t)) ?? 0) <= this.tickCount) ?? null
 	}
 
 	private emit(event: Omit<NpcEngineEvent, 'tick'>): void {
