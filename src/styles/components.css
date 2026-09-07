@@ -99,6 +99,38 @@
 	border-bottom: 1px solid var(--border-dim);
 }
 
+.modal__status {
+	margin-right: auto;
+	flex-shrink: 1;
+	min-width: 0;
+	max-width: 50%;
+	border: 1px solid var(--border-dim);
+	border-radius: var(--radius-sm);
+	padding: 1px var(--gap-xs);
+	font-size: var(--font-sm);
+	line-height: 1.4;
+	color: var(--text-secondary);
+}
+
+.modal__status:empty {
+	display: none;
+}
+
+.modal__status--success {
+	border-color: var(--accent-green);
+	color: var(--accent-green);
+}
+
+.modal__status--warn {
+	border-color: var(--accent-gold);
+	color: var(--accent-gold);
+}
+
+.modal__status--fail {
+	border-color: var(--accent-red);
+	color: var(--accent-red);
+}
+
 .modal__close {
 	aspect-ratio: contain;
 }

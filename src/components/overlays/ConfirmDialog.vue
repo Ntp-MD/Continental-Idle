@@ -1,25 +1,15 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
 import { useConfirm } from '@/composables/useConfirm'
 import ModalShell from '../../blueprint-editor/components/shell/ModalShell.vue'
 
 const { pending, resolve } = useConfirm()
 
-const inputValue = ref('')
-const isPrompt = computed(() => pending.value?.prompt !== undefined)
-
-function submitPrompt() {
-  const value = inputValue.value.trim()
-  resolve(value || null)
-}
-
 function onCancel() {
-  resolve(isPrompt.value ? null : false)
+  resolve(false)
 }
 
 function onConfirm() {
-  if (isPrompt.value) submitPrompt()
-  else resolve(true)
+  resolve(true)
 }
 </script>
 
@@ -27,20 +17,11 @@ function onConfirm() {
   <ModalShell :open="!!pending" modal-id="modal-confirm" top-layer :title="pending?.title ?? ''" @close="onCancel">
     <div v-if="pending" class="form__col" @keydown.enter.stop.prevent="onConfirm">
       <p class="confirmdialog__msg">{{ pending.message }}</p>
-      <input
-        v-if="isPrompt"
-        v-model="inputValue"
-        data-autofocus
-        :aria-label="pending.title"
-        :placeholder="pending.promptPlaceholder ?? ''"
-        @keydown.enter.stop.prevent="submitPrompt"
-        @keydown.escape.stop.prevent="onCancel"
-      />
       <div class="form__row">
         <button class="size--stretch" @click="onCancel">{{ pending.cancelLabel }}</button>
         <button
           class="size--stretch"
-          :data-autofocus="isPrompt ? undefined : true"
+          data-autofocus
           :class="pending.danger ? 'flag--danger' : 'flag--active'"
           @click="onConfirm"
         >

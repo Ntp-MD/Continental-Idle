@@ -30,6 +30,29 @@ How to execute the workflow defined in `AGENTS.md`. That file states WHAT is req
 - Identify cross-references: if you add/rename/remove a function, type field, CSS class, store export, or doc claim, grep BOTH names repo-wide and plan every consumer update in the same change.
 - If the plan needs a destructive action, a new dependency, new infra, or a secrets/auth change, stop and ask.
 
+## Step 2b - Detailed plan (non-trivial work only)
+
+Single-file routine fixes keep the 4 tight parts above. For new behavior,
+multi-file changes, or anything needing user approval, expand into this shape
+before coding. The plan itself lives in `_archive/current-task.md` under Plan
+(single live slot, never a second file).
+
+1. Goal - one line: what changes for the user.
+2. Non-goals - what this change explicitly does NOT touch.
+3. Context - symbols already verified on disk (`file:line`), never assumed.
+4. Changes per file - one bullet each: file, anchor (function / class / CSS
+   symbol + line), before -> after sketch. Over 3 files: stop and ask first.
+5. Edge cases - inputs or states that could break, and how each is handled.
+6. Verify - matching suite from `AGENTS.md` plus manual repro steps plus
+   acceptance criteria (`done means: ...`).
+7. Risks + rollback - what could regress, how to revert by hand-editing
+   (never `checkout` / `restore` / `reset`).
+8. Open questions - anything unclear, each with a recommended default.
+
+Approval gate: code nothing until every item above is answered. If the change
+needs explicit user approval per `AGENTS.md` (destructive, scope over 3 files,
+new dependency/infra, secrets/auth), present this plan and wait.
+
 ## Step 3 - Implement
 
 - Follow the file-local conventions and the canonical editor patterns in `AGENTS.md`.

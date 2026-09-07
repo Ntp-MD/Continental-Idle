@@ -7,7 +7,7 @@ import { useConfirm } from '@/composables/useConfirm'
 import { useAssetPreview } from '../../composables/useAssetPreview'
 import { useCanvasDefaults } from '../../composables/useCanvasDefaults'
 import { useDirtyBaseline } from '../../composables/useDirtyBaseline'
-import { wallSegmentsToEdges, edgesToWallSegments, reattachDoorModes, tileEdgeKey, doorKeyForSide, segmentCoversTileEdge, type TileEdges, type BorderSide } from '../../domain/gridEditing'
+import { wallSegmentsToEdges, edgesToWallSegments, reattachDoorModes, tileEdgeKey, doorKeyForSide, mirrorTileEdge, segmentCoversTileEdge, type TileEdges, type BorderSide } from '../../domain/gridEditing'
 import { withSegmentDoorMode } from '../../assets/assetUtils'
 import type { AssetDef, TileState, EdgeInteractSpot, InteractSpot } from '../../domain/types'
 import { normalizeInteractConfig, normalizeNpcQueueConfig, resolveInteractForTarget, resolveInteractSpotAnchor, snapSpotToEdge } from '../../domain/types'
@@ -57,7 +57,7 @@ const { dirty: gridDirty, saveBaseline: saveGridBaseline } = useDirtyBaseline(()
 }))
 
 watch(gridDirty, (dirty) => {
-  if (dirty) scheduleAutoSave()
+  if (dirty && !isSavingGrid.value) scheduleAutoSave()
 })
 
 const scheduleAutoSave = useDebouncedCallback(() => {
@@ -84,7 +84,10 @@ const { viewBox: svgPreviewViewBox, vars: previewVars, setEl: setPreviewEl } = u
 watch(
   () => props.active,
   (visible) => {
-    if (!visible) scheduleAutoSave.cancel()
+    if (!visible) {
+      if (gridDirty.value) scheduleAutoSave.flush()
+      else scheduleAutoSave.cancel()
+    }
   },
 )
 
@@ -129,6 +132,7 @@ watch(
       if (!confirmed) {
         isRestoring.value = true
         store.selectAsset(previousGridAssetId.value)
+        if (gridDirty.value) scheduleAutoSave()
         return
       }
     }
@@ -416,10 +420,27 @@ function detectEdgeSide(e: MouseEvent): BorderSide | null {
   return null
 }
 
+function updateMirroredEdge(r: number, c: number, side: BorderSide, update: (edges: TileEdges, edgeSide: BorderSide) => void) {
+  const target = gridEdges.value[r]?.[c]
+  if (target) update(target, side)
+  const mirror = mirrorTileEdge(r, c, side)
+  const mirrorCell = gridEdges.value[mirror.r]?.[mirror.c]
+  if (mirrorCell) update(mirrorCell, mirror.side)
+}
+
 function toggleEdgeAt(r: number, c: number, side: BorderSide) {
   const e = gridEdges.value[r]?.[c]
   if (!e) return
-  e[side] = !e[side]
+  if (e[side]) {
+    updateMirroredEdge(r, c, side, (cell, s) => {
+      delete cell[s]
+      delete cell[doorKeyForSide(s)]
+    })
+  } else {
+    updateMirroredEdge(r, c, side, (cell, s) => {
+      cell[s] = true
+    })
+  }
 }
 
 function onWalkTileDown(r: number, c: number) {
@@ -452,9 +473,9 @@ function deleteSelectedDoors() {
   if (!selectedEdges.value.size) return
   for (const key of selectedEdges.value) {
     const [r, c, side] = key.split(',')
-    const edges = gridEdges.value[Number(r)]?.[Number(c)]
-    if (!edges) continue
-    delete edges[doorKeyForSide(side as BorderSide)]
+    updateMirroredEdge(Number(r), Number(c), side as BorderSide, (cell, s) => {
+      delete cell[doorKeyForSide(s)]
+    })
   }
   selectedEdges.value.clear()
 }
@@ -523,13 +544,15 @@ function isPreviewEdge(r: number, c: number, side: BorderSide): boolean {
 function toggleDoorAt(r: number, c: number, side: BorderSide) {
   const e = gridEdges.value[r]?.[c]
   if (!e) return
-  const key = doorKeyForSide(side)
-  if (e[key]) {
-    delete e[key]
+  if (e[doorKeyForSide(side)]) {
+    updateMirroredEdge(r, c, side, (cell, s) => {
+      delete cell[doorKeyForSide(s)]
+    })
   } else {
-    const wallKey = side as keyof TileEdges
-    if (!e[wallKey]) e[wallKey] = true
-    e[key] = true
+    updateMirroredEdge(r, c, side, (cell, s) => {
+      cell[s] = true
+      cell[doorKeyForSide(s)] = true
+    })
   }
 }
 
@@ -602,6 +625,10 @@ function clearAllEdges() {
         e.right = false
         e.bottom = false
         e.left = false
+        delete e.doorTop
+        delete e.doorRight
+        delete e.doorBottom
+        delete e.doorLeft
       }
     }
   }
@@ -763,32 +790,48 @@ const activeGridConfig = computed(
 
 async function saveGrid() {
   const a = props.asset
-  if (!a) return
-  const states = gridTiles.value.map((row) => [...row])
-  const grid = states.map((row) => row.map((t) => t === 'walkable'))
-  const wallSegments = reattachDoorModes(props.asset?.wallSegments, edgesToWallSegments(gridEdges.value))
-  const interactSpots = [...gridInteractSpots.value, ...gridEdgeSpots.value].map((p) => ({ ...p }))
-  const interact = normalizeInteractConfig({
-    capacity: interactCapacity.value,
-    durationMin: interactDurationMin.value,
-    durationMax: interactDurationMax.value,
-  })
-  const queue = normalizeNpcQueueConfig({
-    maxMembers: queueMaxMembers.value,
-    admissionDepth: queueAdmissionDepth.value,
-  })
-  await store.updateAsset(a.id, {
-    walkable: walkthrough.value,
-    walkableGrid: grid,
-    tileStates: states,
-    wallSegments,
-    interactSpots,
-    interact,
-    queue,
-  })
-  saveGridBaseline()
-  useToast().success('Walkable grid saved')
+  if (!a || isSavingGrid.value) return
+  isSavingGrid.value = true
+  editedGridDuringSave.value = false
+  let ok = false
+  try {
+    const states = gridTiles.value.map((row) => [...row])
+    const grid = states.map((row) => row.map((t) => t === 'walkable'))
+    const wallSegments = reattachDoorModes(props.asset?.wallSegments, edgesToWallSegments(gridEdges.value))
+    const interactSpots = [...gridInteractSpots.value, ...gridEdgeSpots.value].map((p) => ({ ...p }))
+    const interact = normalizeInteractConfig({
+      capacity: interactCapacity.value,
+      durationMin: interactDurationMin.value,
+      durationMax: interactDurationMax.value,
+    })
+    const queue = normalizeNpcQueueConfig({
+      maxMembers: queueMaxMembers.value,
+      admissionDepth: queueAdmissionDepth.value,
+    })
+    await store.updateAsset(a.id, {
+      walkable: walkthrough.value,
+      walkableGrid: grid,
+      tileStates: states,
+      wallSegments,
+      interactSpots,
+      interact,
+      queue,
+    })
+    ok = true
+    useToast().success('Walkable grid saved')
+  } finally {
+    isSavingGrid.value = false
+    if (editedGridDuringSave.value) scheduleAutoSave()
+    else if (ok) saveGridBaseline()
+  }
 }
+
+const isSavingGrid = ref(false)
+const editedGridDuringSave = ref(false)
+
+watch([gridTiles, gridEdges, gridInteractSpots, gridEdgeSpots], () => {
+  if (isSavingGrid.value) editedGridDuringSave.value = true
+}, { deep: true })
 </script>
 
 <template>
@@ -848,6 +891,9 @@ async function saveGrid() {
           <span class="walkablegrid__item"
             ><span class="walkablegrid__dot walkablegrid__dot--edge walkablegrid__dot--door"></span>Door (door
             edge)</span
+          >
+          <span class="walkablegrid__item"
+            ><span class="walkablegrid__dot walkablegrid__dot--edge walkablegrid__dot--selected"></span>Selected</span
           >
         </div>
         <div v-if="activeGridConfig?.key === 'assign'" class="form__row form__row--border">
@@ -1144,6 +1190,10 @@ async function saveGrid() {
 
 .walkablegrid__dot--door {
   background: linear-gradient(to top, var(--accent-blue) 0 3px, transparent 3px);
+}
+
+.walkablegrid__dot--selected {
+  background: linear-gradient(to top, var(--accent-primary) 0 3px, transparent 3px);
 }
 
 .walkablegrid__fill {

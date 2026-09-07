@@ -39,6 +39,10 @@ const toast = useToast()
 const { confirm } = useConfirm()
 
 const showModal = ref(false)
+const showcaseTone = ref<'success' | 'warn' | 'fail'>('success')
+const showcaseStatus = computed(
+  () => ({ success: 'Saved', warn: 'Warning', fail: 'Error' })[showcaseTone.value],
+)
 const showFloating = ref(false)
 const showPicker = ref(false)
 const showAssetEdit = ref(false)
@@ -377,12 +381,27 @@ function backToEditor() {
       </div>
     </section>
 
-    <ModalShell :open="showModal" modal-id="showcase-modal" title="ModalShell sample" @close="showModal = false">
+    <ModalShell
+      :open="showModal"
+      modal-id="showcase-modal"
+      title="ModalShell sample"
+      :status="showcaseStatus"
+      :status-tone="showcaseTone"
+      @close="showModal = false"
+    >
       <template #header>
         <span class="form__hint">header slot</span>
       </template>
       <div class="form__col">
         <div class="form__hint">modal__header / modal__body / modal__footer from ModalShell</div>
+        <div class="form__row">
+          <span class="form__hint">modal__status tone:</span>
+          <button :class="{ 'flag--success': showcaseTone === 'success' }" @click="showcaseTone = 'success'">
+            success
+          </button>
+          <button :class="{ 'flag--warning': showcaseTone === 'warn' }" @click="showcaseTone = 'warn'">warn</button>
+          <button :class="{ 'flag--danger': showcaseTone === 'fail' }" @click="showcaseTone = 'fail'">fail</button>
+        </div>
         <div class="form__row">
           <label>Inside body</label>
           <input type="text" value="input inside modal" />

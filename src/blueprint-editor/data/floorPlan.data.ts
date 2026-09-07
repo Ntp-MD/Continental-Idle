@@ -156,153 +156,7 @@ export const floorPlanData = {
           "rotation": 0
         },
         {
-          "id": "wall-d200dbc308",
-          "type": "__canvas-wall__",
-          "x": 250,
-          "y": 350,
-          "rotation": 0,
-          "isWall": true,
-          "x1": 10,
-          "y1": 14,
-          "x2": 16,
-          "y2": 14
-        },
-        {
-          "id": "wall-8b56008d65",
-          "type": "__canvas-wall__",
-          "x": 250,
-          "y": 500,
-          "rotation": 0,
-          "isWall": true,
-          "x1": 10,
-          "y1": 20,
-          "x2": 12,
-          "y2": 20
-        },
-        {
-          "id": "wall-b740b2f788",
-          "type": "__canvas-wall__",
-          "x": 300,
-          "y": 500,
-          "rotation": 0,
-          "isWall": true,
-          "door": true,
-          "x1": 12,
-          "y1": 20,
-          "x2": 13,
-          "y2": 20
-        },
-        {
-          "id": "wall-02c0ce7849",
-          "type": "__canvas-wall__",
-          "x": 325,
-          "y": 500,
-          "rotation": 0,
-          "isWall": true,
-          "x1": 13,
-          "y1": 20,
-          "x2": 16,
-          "y2": 20
-        },
-        {
-          "id": "wall-c3d8ed156b",
-          "type": "__canvas-wall__",
-          "x": 250,
-          "y": 350,
-          "rotation": 0,
-          "isWall": true,
-          "x1": 10,
-          "y1": 14,
-          "x2": 10,
-          "y2": 20
-        },
-        {
-          "id": "wall-fa97d15fd6",
-          "type": "__canvas-wall__",
-          "x": 400,
-          "y": 350,
-          "rotation": 0,
-          "isWall": true,
-          "x1": 16,
-          "y1": 14,
-          "x2": 16,
-          "y2": 20
-        },
-        {
-          "id": "wall-8dc50e1a98",
-          "type": "__canvas-wall__",
-          "x": 450,
-          "y": 350,
-          "rotation": 0,
-          "isWall": true,
-          "x1": 18,
-          "y1": 14,
-          "x2": 24,
-          "y2": 14
-        },
-        {
-          "id": "wall-a5d0cdf9c1",
-          "type": "__canvas-wall__",
-          "x": 450,
-          "y": 500,
-          "rotation": 0,
-          "isWall": true,
-          "x1": 18,
-          "y1": 20,
-          "x2": 20,
-          "y2": 20
-        },
-        {
-          "id": "wall-7f2160627f",
-          "type": "__canvas-wall__",
-          "x": 500,
-          "y": 500,
-          "rotation": 0,
-          "isWall": true,
-          "door": true,
-          "x1": 20,
-          "y1": 20,
-          "x2": 21,
-          "y2": 20
-        },
-        {
-          "id": "wall-1982c5bef8",
-          "type": "__canvas-wall__",
-          "x": 525,
-          "y": 500,
-          "rotation": 0,
-          "isWall": true,
-          "x1": 21,
-          "y1": 20,
-          "x2": 24,
-          "y2": 20
-        },
-        {
-          "id": "wall-58dc3ec7ce",
-          "type": "__canvas-wall__",
-          "x": 450,
-          "y": 350,
-          "rotation": 0,
-          "isWall": true,
-          "x1": 18,
-          "y1": 14,
-          "x2": 18,
-          "y2": 20
-        },
-        {
-          "id": "wall-36f4c47a9e",
-          "type": "__canvas-wall__",
-          "x": 600,
-          "y": 350,
-          "rotation": 0,
-          "isWall": true,
-          "x1": 24,
-          "y1": 14,
-          "x2": 24,
-          "y2": 20
-        },
-        {
-          "id": "wall-6690147b38",
+          "id": "wall-195bc811e9",
           "type": "__canvas-wall__",
           "x": 200,
           "y": 200,
@@ -314,19 +168,7 @@ export const floorPlanData = {
           "y2": 8
         },
         {
-          "id": "wall-d0816c615d",
-          "type": "__canvas-wall__",
-          "x": 200,
-          "y": 200,
-          "rotation": 0,
-          "isWall": true,
-          "x1": 8,
-          "y1": 8,
-          "x2": 8,
-          "y2": 9
-        },
-        {
-          "id": "wall-ccefd8d2d5",
+          "id": "wall-9b40f1ef2d",
           "type": "__canvas-wall__",
           "x": 225,
           "y": 200,
@@ -338,7 +180,7 @@ export const floorPlanData = {
           "y2": 8
         },
         {
-          "id": "wall-a14da22942",
+          "id": "wall-11b46dcde7",
           "type": "__canvas-wall__",
           "x": 250,
           "y": 200,
@@ -350,7 +192,7 @@ export const floorPlanData = {
           "y2": 8
         },
         {
-          "id": "wall-be8d71cc48",
+          "id": "wall-2bd7be6883",
           "type": "__canvas-wall__",
           "x": 275,
           "y": 200,
@@ -362,7 +204,7 @@ export const floorPlanData = {
           "y2": 8
         },
         {
-          "id": "wall-ddfdf66ebb",
+          "id": "wall-7f0dbee02b",
           "type": "__canvas-wall__",
           "x": 300,
           "y": 200,
@@ -374,7 +216,7 @@ export const floorPlanData = {
           "y2": 8
         },
         {
-          "id": "wall-e8e7a715ac",
+          "id": "wall-e13fa66169",
           "type": "__canvas-wall__",
           "x": 325,
           "y": 200,
@@ -386,7 +228,7 @@ export const floorPlanData = {
           "y2": 8
         },
         {
-          "id": "wall-676eb53f9e",
+          "id": "wall-6528c7c972",
           "type": "__canvas-wall__",
           "x": 350,
           "y": 200,
@@ -398,7 +240,7 @@ export const floorPlanData = {
           "y2": 8
         },
         {
-          "id": "wall-d7b67b5ad4",
+          "id": "wall-d41574ad73",
           "type": "__canvas-wall__",
           "x": 375,
           "y": 200,
@@ -410,7 +252,7 @@ export const floorPlanData = {
           "y2": 8
         },
         {
-          "id": "wall-b3ee0bf5d5",
+          "id": "wall-5ad53f9436",
           "type": "__canvas-wall__",
           "x": 400,
           "y": 200,
@@ -422,7 +264,7 @@ export const floorPlanData = {
           "y2": 8
         },
         {
-          "id": "wall-89bf5dc983",
+          "id": "wall-fd506aed72",
           "type": "__canvas-wall__",
           "x": 425,
           "y": 200,
@@ -434,7 +276,7 @@ export const floorPlanData = {
           "y2": 8
         },
         {
-          "id": "wall-75a4f9236c",
+          "id": "wall-262d63942a",
           "type": "__canvas-wall__",
           "x": 450,
           "y": 200,
@@ -446,7 +288,7 @@ export const floorPlanData = {
           "y2": 8
         },
         {
-          "id": "wall-ccf7758e5f",
+          "id": "wall-9c657a5f33",
           "type": "__canvas-wall__",
           "x": 475,
           "y": 200,
@@ -458,7 +300,7 @@ export const floorPlanData = {
           "y2": 8
         },
         {
-          "id": "wall-4d7cdbbe74",
+          "id": "wall-247524a786",
           "type": "__canvas-wall__",
           "x": 500,
           "y": 200,
@@ -470,7 +312,7 @@ export const floorPlanData = {
           "y2": 8
         },
         {
-          "id": "wall-382ad35161",
+          "id": "wall-12146c0ab0",
           "type": "__canvas-wall__",
           "x": 525,
           "y": 200,
@@ -482,55 +324,59 @@ export const floorPlanData = {
           "y2": 8
         },
         {
-          "id": "wall-92d0301320",
+          "id": "wall-6229295b02",
           "type": "__canvas-wall__",
           "x": 550,
           "y": 200,
           "rotation": 0,
           "isWall": true,
+          "door": true,
           "x1": 22,
           "y1": 8,
           "x2": 23,
           "y2": 8
         },
         {
-          "id": "wall-5b5ee47322",
+          "id": "wall-256b339d62",
           "type": "__canvas-wall__",
           "x": 575,
           "y": 200,
           "rotation": 0,
           "isWall": true,
+          "door": true,
           "x1": 23,
           "y1": 8,
           "x2": 24,
           "y2": 8
         },
         {
-          "id": "wall-fa5b667204",
+          "id": "wall-7654ef6c15",
           "type": "__canvas-wall__",
           "x": 600,
           "y": 200,
           "rotation": 0,
           "isWall": true,
+          "door": true,
           "x1": 24,
           "y1": 8,
           "x2": 25,
           "y2": 8
         },
         {
-          "id": "wall-5842b4dfad",
+          "id": "wall-0f684a45aa",
           "type": "__canvas-wall__",
           "x": 625,
           "y": 200,
           "rotation": 0,
           "isWall": true,
+          "door": true,
           "x1": 25,
           "y1": 8,
           "x2": 26,
           "y2": 8
         },
         {
-          "id": "wall-00a6ce9eb4",
+          "id": "wall-769b209a5e",
           "type": "__canvas-wall__",
           "x": 650,
           "y": 200,
@@ -542,7 +388,7 @@ export const floorPlanData = {
           "y2": 8
         },
         {
-          "id": "wall-6587bb735c",
+          "id": "wall-9d4317460c",
           "type": "__canvas-wall__",
           "x": 675,
           "y": 200,
@@ -554,7 +400,7 @@ export const floorPlanData = {
           "y2": 8
         },
         {
-          "id": "wall-c537886d6f",
+          "id": "wall-025509f0f7",
           "type": "__canvas-wall__",
           "x": 700,
           "y": 200,
@@ -566,7 +412,7 @@ export const floorPlanData = {
           "y2": 8
         },
         {
-          "id": "wall-84f9067c2f",
+          "id": "wall-4e00d9f80d",
           "type": "__canvas-wall__",
           "x": 725,
           "y": 200,
@@ -578,7 +424,7 @@ export const floorPlanData = {
           "y2": 8
         },
         {
-          "id": "wall-b5f5bb847a",
+          "id": "wall-41f216b525",
           "type": "__canvas-wall__",
           "x": 750,
           "y": 200,
@@ -590,7 +436,7 @@ export const floorPlanData = {
           "y2": 8
         },
         {
-          "id": "wall-6d8cc6d09c",
+          "id": "wall-b635eb03a2",
           "type": "__canvas-wall__",
           "x": 775,
           "y": 200,
@@ -602,7 +448,7 @@ export const floorPlanData = {
           "y2": 8
         },
         {
-          "id": "wall-3d97a56e0d",
+          "id": "wall-07f7829763",
           "type": "__canvas-wall__",
           "x": 800,
           "y": 200,
@@ -614,7 +460,7 @@ export const floorPlanData = {
           "y2": 8
         },
         {
-          "id": "wall-29ca8352ec",
+          "id": "wall-3bb0baf0fd",
           "type": "__canvas-wall__",
           "x": 825,
           "y": 200,
@@ -626,7 +472,7 @@ export const floorPlanData = {
           "y2": 8
         },
         {
-          "id": "wall-be8e1bce12",
+          "id": "wall-91ef75a09e",
           "type": "__canvas-wall__",
           "x": 850,
           "y": 200,
@@ -638,7 +484,7 @@ export const floorPlanData = {
           "y2": 8
         },
         {
-          "id": "wall-e415c102fa",
+          "id": "wall-2d57708e54",
           "type": "__canvas-wall__",
           "x": 875,
           "y": 200,
@@ -650,7 +496,7 @@ export const floorPlanData = {
           "y2": 8
         },
         {
-          "id": "wall-5f07ab8cd0",
+          "id": "wall-415081a9cc",
           "type": "__canvas-wall__",
           "x": 900,
           "y": 200,
@@ -662,7 +508,7 @@ export const floorPlanData = {
           "y2": 8
         },
         {
-          "id": "wall-feb16d55e9",
+          "id": "wall-4ab6560b2d",
           "type": "__canvas-wall__",
           "x": 925,
           "y": 200,
@@ -674,7 +520,7 @@ export const floorPlanData = {
           "y2": 8
         },
         {
-          "id": "wall-6d122b7786",
+          "id": "wall-713a257ba2",
           "type": "__canvas-wall__",
           "x": 950,
           "y": 200,
@@ -686,55 +532,59 @@ export const floorPlanData = {
           "y2": 8
         },
         {
-          "id": "wall-8379572dc4",
+          "id": "wall-c72a1b61ce",
           "type": "__canvas-wall__",
           "x": 975,
           "y": 200,
           "rotation": 0,
           "isWall": true,
+          "door": true,
           "x1": 39,
           "y1": 8,
           "x2": 40,
           "y2": 8
         },
         {
-          "id": "wall-38aa6d8543",
+          "id": "wall-ff1f65e6c0",
           "type": "__canvas-wall__",
           "x": 1000,
           "y": 200,
           "rotation": 0,
           "isWall": true,
+          "door": true,
           "x1": 40,
           "y1": 8,
           "x2": 41,
           "y2": 8
         },
         {
-          "id": "wall-9c42f4fa7a",
+          "id": "wall-a33d23f621",
           "type": "__canvas-wall__",
           "x": 1025,
           "y": 200,
           "rotation": 0,
           "isWall": true,
+          "door": true,
           "x1": 41,
           "y1": 8,
           "x2": 42,
           "y2": 8
         },
         {
-          "id": "wall-2f247b492d",
+          "id": "wall-84dbd59fb0",
           "type": "__canvas-wall__",
           "x": 1050,
           "y": 200,
           "rotation": 0,
           "isWall": true,
+          "door": true,
           "x1": 42,
           "y1": 8,
           "x2": 43,
           "y2": 8
         },
         {
-          "id": "wall-e594b5b08a",
+          "id": "wall-23f569cdfd",
           "type": "__canvas-wall__",
           "x": 1075,
           "y": 200,
@@ -746,7 +596,7 @@ export const floorPlanData = {
           "y2": 8
         },
         {
-          "id": "wall-87de77fb08",
+          "id": "wall-01cb205c62",
           "type": "__canvas-wall__",
           "x": 1100,
           "y": 200,
@@ -758,7 +608,7 @@ export const floorPlanData = {
           "y2": 8
         },
         {
-          "id": "wall-d3dcc1a8c7",
+          "id": "wall-ffee8dad68",
           "type": "__canvas-wall__",
           "x": 1125,
           "y": 200,
@@ -770,7 +620,7 @@ export const floorPlanData = {
           "y2": 8
         },
         {
-          "id": "wall-2b17b3e8fe",
+          "id": "wall-ae827dd40a",
           "type": "__canvas-wall__",
           "x": 1150,
           "y": 200,
@@ -782,7 +632,7 @@ export const floorPlanData = {
           "y2": 8
         },
         {
-          "id": "wall-b39f011e22",
+          "id": "wall-eec5e24b45",
           "type": "__canvas-wall__",
           "x": 1175,
           "y": 200,
@@ -794,7 +644,7 @@ export const floorPlanData = {
           "y2": 8
         },
         {
-          "id": "wall-b9e8d52d2f",
+          "id": "wall-f08498ceca",
           "type": "__canvas-wall__",
           "x": 1200,
           "y": 200,
@@ -806,7 +656,7 @@ export const floorPlanData = {
           "y2": 8
         },
         {
-          "id": "wall-d57114b603",
+          "id": "wall-fdf38ff7e7",
           "type": "__canvas-wall__",
           "x": 1225,
           "y": 200,
@@ -818,7 +668,7 @@ export const floorPlanData = {
           "y2": 8
         },
         {
-          "id": "wall-4e5df9ea15",
+          "id": "wall-85c1fc26c9",
           "type": "__canvas-wall__",
           "x": 1250,
           "y": 200,
@@ -830,7 +680,7 @@ export const floorPlanData = {
           "y2": 8
         },
         {
-          "id": "wall-a9b7e9bd0c",
+          "id": "wall-d403840a3a",
           "type": "__canvas-wall__",
           "x": 1275,
           "y": 200,
@@ -842,7 +692,7 @@ export const floorPlanData = {
           "y2": 8
         },
         {
-          "id": "wall-f7d6ece76c",
+          "id": "wall-68a9f6f3c1",
           "type": "__canvas-wall__",
           "x": 1300,
           "y": 200,
@@ -854,7 +704,7 @@ export const floorPlanData = {
           "y2": 8
         },
         {
-          "id": "wall-8eefe155fe",
+          "id": "wall-783a69425f",
           "type": "__canvas-wall__",
           "x": 1325,
           "y": 200,
@@ -866,7 +716,7 @@ export const floorPlanData = {
           "y2": 8
         },
         {
-          "id": "wall-f30100baeb",
+          "id": "wall-d880843379",
           "type": "__canvas-wall__",
           "x": 1350,
           "y": 200,
@@ -878,7 +728,7 @@ export const floorPlanData = {
           "y2": 8
         },
         {
-          "id": "wall-60dd41fa3f",
+          "id": "wall-0735930bbe",
           "type": "__canvas-wall__",
           "x": 1375,
           "y": 200,
@@ -890,7 +740,19 @@ export const floorPlanData = {
           "y2": 8
         },
         {
-          "id": "wall-201782ff25",
+          "id": "wall-03fab1f4f9",
+          "type": "__canvas-wall__",
+          "x": 200,
+          "y": 200,
+          "rotation": 0,
+          "isWall": true,
+          "x1": 8,
+          "y1": 8,
+          "x2": 8,
+          "y2": 9
+        },
+        {
+          "id": "wall-b96dfad896",
           "type": "__canvas-wall__",
           "x": 1400,
           "y": 200,
@@ -902,7 +764,7 @@ export const floorPlanData = {
           "y2": 9
         },
         {
-          "id": "wall-c4cebc1605",
+          "id": "wall-400c814aba",
           "type": "__canvas-wall__",
           "x": 200,
           "y": 225,
@@ -914,7 +776,7 @@ export const floorPlanData = {
           "y2": 10
         },
         {
-          "id": "wall-a701749abb",
+          "id": "wall-1e94f61a17",
           "type": "__canvas-wall__",
           "x": 1400,
           "y": 225,
@@ -926,7 +788,7 @@ export const floorPlanData = {
           "y2": 10
         },
         {
-          "id": "wall-4dd19867af",
+          "id": "wall-973058318e",
           "type": "__canvas-wall__",
           "x": 200,
           "y": 250,
@@ -938,7 +800,7 @@ export const floorPlanData = {
           "y2": 11
         },
         {
-          "id": "wall-a414afdcdf",
+          "id": "wall-5722222f02",
           "type": "__canvas-wall__",
           "x": 1400,
           "y": 250,
@@ -950,7 +812,7 @@ export const floorPlanData = {
           "y2": 11
         },
         {
-          "id": "wall-5c25fd494b",
+          "id": "wall-41309c6497",
           "type": "__canvas-wall__",
           "x": 200,
           "y": 275,
@@ -962,7 +824,7 @@ export const floorPlanData = {
           "y2": 12
         },
         {
-          "id": "wall-132510b3bc",
+          "id": "wall-cd158719de",
           "type": "__canvas-wall__",
           "x": 1400,
           "y": 275,
@@ -974,7 +836,7 @@ export const floorPlanData = {
           "y2": 12
         },
         {
-          "id": "wall-3f6a7ef06c",
+          "id": "wall-124eabd9fd",
           "type": "__canvas-wall__",
           "x": 200,
           "y": 300,
@@ -986,7 +848,7 @@ export const floorPlanData = {
           "y2": 13
         },
         {
-          "id": "wall-1128fc3128",
+          "id": "wall-ce92073f1b",
           "type": "__canvas-wall__",
           "x": 1400,
           "y": 300,
@@ -998,7 +860,7 @@ export const floorPlanData = {
           "y2": 13
         },
         {
-          "id": "wall-ba93ca1fdb",
+          "id": "wall-678caf98a8",
           "type": "__canvas-wall__",
           "x": 200,
           "y": 325,
@@ -1010,7 +872,7 @@ export const floorPlanData = {
           "y2": 14
         },
         {
-          "id": "wall-520f7739ce",
+          "id": "wall-e2f419dd25",
           "type": "__canvas-wall__",
           "x": 1400,
           "y": 325,
@@ -1022,7 +884,7 @@ export const floorPlanData = {
           "y2": 14
         },
         {
-          "id": "wall-c4521c6b4c",
+          "id": "wall-d0fa7d3764",
           "type": "__canvas-wall__",
           "x": 200,
           "y": 350,
@@ -1034,7 +896,7 @@ export const floorPlanData = {
           "y2": 15
         },
         {
-          "id": "wall-e339e7ddad",
+          "id": "wall-2be187b08a",
           "type": "__canvas-wall__",
           "x": 1400,
           "y": 350,
@@ -1046,7 +908,7 @@ export const floorPlanData = {
           "y2": 15
         },
         {
-          "id": "wall-0886f8d6bf",
+          "id": "wall-b9919bb9cc",
           "type": "__canvas-wall__",
           "x": 200,
           "y": 375,
@@ -1058,7 +920,7 @@ export const floorPlanData = {
           "y2": 16
         },
         {
-          "id": "wall-3e5bd5332b",
+          "id": "wall-576e164beb",
           "type": "__canvas-wall__",
           "x": 1400,
           "y": 375,
@@ -1070,7 +932,7 @@ export const floorPlanData = {
           "y2": 16
         },
         {
-          "id": "wall-b1777d45d5",
+          "id": "wall-1b6d28e761",
           "type": "__canvas-wall__",
           "x": 200,
           "y": 400,
@@ -1082,7 +944,7 @@ export const floorPlanData = {
           "y2": 17
         },
         {
-          "id": "wall-ae07ced71d",
+          "id": "wall-7bf279efde",
           "type": "__canvas-wall__",
           "x": 1400,
           "y": 400,
@@ -1094,7 +956,7 @@ export const floorPlanData = {
           "y2": 17
         },
         {
-          "id": "wall-83ad891b2e",
+          "id": "wall-ef01b81261",
           "type": "__canvas-wall__",
           "x": 200,
           "y": 425,
@@ -1106,7 +968,7 @@ export const floorPlanData = {
           "y2": 18
         },
         {
-          "id": "wall-2f1cf01c0b",
+          "id": "wall-522f1d08a9",
           "type": "__canvas-wall__",
           "x": 1400,
           "y": 425,
@@ -1118,7 +980,7 @@ export const floorPlanData = {
           "y2": 18
         },
         {
-          "id": "wall-893ad34b54",
+          "id": "wall-3c6f5943c2",
           "type": "__canvas-wall__",
           "x": 200,
           "y": 450,
@@ -1130,7 +992,7 @@ export const floorPlanData = {
           "y2": 19
         },
         {
-          "id": "wall-41ebc5b805",
+          "id": "wall-91f6677d18",
           "type": "__canvas-wall__",
           "x": 1400,
           "y": 450,
@@ -1142,7 +1004,7 @@ export const floorPlanData = {
           "y2": 19
         },
         {
-          "id": "wall-64f3c89e16",
+          "id": "wall-5439016867",
           "type": "__canvas-wall__",
           "x": 200,
           "y": 475,
@@ -1154,7 +1016,7 @@ export const floorPlanData = {
           "y2": 20
         },
         {
-          "id": "wall-971a31757b",
+          "id": "wall-fd9a00c803",
           "type": "__canvas-wall__",
           "x": 1400,
           "y": 475,
@@ -1166,7 +1028,7 @@ export const floorPlanData = {
           "y2": 20
         },
         {
-          "id": "wall-1f63ad96d1",
+          "id": "wall-d97390cb3a",
           "type": "__canvas-wall__",
           "x": 200,
           "y": 500,
@@ -1178,7 +1040,7 @@ export const floorPlanData = {
           "y2": 21
         },
         {
-          "id": "wall-9afe7aa119",
+          "id": "wall-1a41dc6ead",
           "type": "__canvas-wall__",
           "x": 1400,
           "y": 500,
@@ -1190,7 +1052,7 @@ export const floorPlanData = {
           "y2": 21
         },
         {
-          "id": "wall-0d3488b90e",
+          "id": "wall-45e01715eb",
           "type": "__canvas-wall__",
           "x": 200,
           "y": 525,
@@ -1202,7 +1064,7 @@ export const floorPlanData = {
           "y2": 22
         },
         {
-          "id": "wall-9e7bd00481",
+          "id": "wall-8ee8c2d807",
           "type": "__canvas-wall__",
           "x": 1400,
           "y": 525,
@@ -1214,7 +1076,7 @@ export const floorPlanData = {
           "y2": 22
         },
         {
-          "id": "wall-4a28784d51",
+          "id": "wall-e1aa43da8f",
           "type": "__canvas-wall__",
           "x": 200,
           "y": 550,
@@ -1226,7 +1088,7 @@ export const floorPlanData = {
           "y2": 23
         },
         {
-          "id": "wall-016dfc9b03",
+          "id": "wall-aec06bcea9",
           "type": "__canvas-wall__",
           "x": 1400,
           "y": 550,
@@ -1238,7 +1100,7 @@ export const floorPlanData = {
           "y2": 23
         },
         {
-          "id": "wall-88471ba84f",
+          "id": "wall-ae688741ea",
           "type": "__canvas-wall__",
           "x": 200,
           "y": 575,
@@ -1250,7 +1112,7 @@ export const floorPlanData = {
           "y2": 24
         },
         {
-          "id": "wall-a3145c8fe7",
+          "id": "wall-977fc0c887",
           "type": "__canvas-wall__",
           "x": 1400,
           "y": 575,
@@ -1262,7 +1124,7 @@ export const floorPlanData = {
           "y2": 24
         },
         {
-          "id": "wall-f4d6946c39",
+          "id": "wall-94e706c11d",
           "type": "__canvas-wall__",
           "x": 200,
           "y": 600,
@@ -1274,7 +1136,7 @@ export const floorPlanData = {
           "y2": 25
         },
         {
-          "id": "wall-c3457d4ac6",
+          "id": "wall-095371e136",
           "type": "__canvas-wall__",
           "x": 1400,
           "y": 600,
@@ -1286,7 +1148,7 @@ export const floorPlanData = {
           "y2": 25
         },
         {
-          "id": "wall-e60593667f",
+          "id": "wall-1fd93fdcf7",
           "type": "__canvas-wall__",
           "x": 200,
           "y": 625,
@@ -1298,7 +1160,7 @@ export const floorPlanData = {
           "y2": 26
         },
         {
-          "id": "wall-2d76536c9e",
+          "id": "wall-e2845c604e",
           "type": "__canvas-wall__",
           "x": 1400,
           "y": 625,
@@ -1310,7 +1172,7 @@ export const floorPlanData = {
           "y2": 26
         },
         {
-          "id": "wall-6d1b3c2321",
+          "id": "wall-e3e2f097c9",
           "type": "__canvas-wall__",
           "x": 200,
           "y": 650,
@@ -1322,7 +1184,7 @@ export const floorPlanData = {
           "y2": 27
         },
         {
-          "id": "wall-d05cebb0f2",
+          "id": "wall-2434b4568a",
           "type": "__canvas-wall__",
           "x": 1400,
           "y": 650,
@@ -1334,7 +1196,7 @@ export const floorPlanData = {
           "y2": 27
         },
         {
-          "id": "wall-d4a5bd2e68",
+          "id": "wall-99b8ad0f93",
           "type": "__canvas-wall__",
           "x": 200,
           "y": 675,
@@ -1346,7 +1208,7 @@ export const floorPlanData = {
           "y2": 28
         },
         {
-          "id": "wall-09da46e52c",
+          "id": "wall-a819fb5ce7",
           "type": "__canvas-wall__",
           "x": 1400,
           "y": 675,
@@ -1358,7 +1220,7 @@ export const floorPlanData = {
           "y2": 28
         },
         {
-          "id": "wall-a4cbe9fb05",
+          "id": "wall-56a70a198e",
           "type": "__canvas-wall__",
           "x": 200,
           "y": 700,
@@ -1370,7 +1232,7 @@ export const floorPlanData = {
           "y2": 29
         },
         {
-          "id": "wall-20ba27ea9e",
+          "id": "wall-e4a331927c",
           "type": "__canvas-wall__",
           "x": 1400,
           "y": 700,
@@ -1382,7 +1244,7 @@ export const floorPlanData = {
           "y2": 29
         },
         {
-          "id": "wall-6496ed1ee2",
+          "id": "wall-b350516805",
           "type": "__canvas-wall__",
           "x": 200,
           "y": 725,
@@ -1394,7 +1256,7 @@ export const floorPlanData = {
           "y2": 30
         },
         {
-          "id": "wall-d5e132bb29",
+          "id": "wall-90cad91291",
           "type": "__canvas-wall__",
           "x": 1400,
           "y": 725,
@@ -1406,7 +1268,7 @@ export const floorPlanData = {
           "y2": 30
         },
         {
-          "id": "wall-6844062817",
+          "id": "wall-e5aa9f5df6",
           "type": "__canvas-wall__",
           "x": 200,
           "y": 750,
@@ -1418,7 +1280,7 @@ export const floorPlanData = {
           "y2": 31
         },
         {
-          "id": "wall-ba64694f5f",
+          "id": "wall-c0e295dc28",
           "type": "__canvas-wall__",
           "x": 1400,
           "y": 750,
@@ -1430,19 +1292,7 @@ export const floorPlanData = {
           "y2": 31
         },
         {
-          "id": "wall-ad8bce76d7",
-          "type": "__canvas-wall__",
-          "x": 200,
-          "y": 800,
-          "rotation": 0,
-          "isWall": true,
-          "x1": 8,
-          "y1": 32,
-          "x2": 9,
-          "y2": 32
-        },
-        {
-          "id": "wall-b5912ea698",
+          "id": "wall-c3a0146d25",
           "type": "__canvas-wall__",
           "x": 200,
           "y": 775,
@@ -1454,7 +1304,19 @@ export const floorPlanData = {
           "y2": 32
         },
         {
-          "id": "wall-91f53593a1",
+          "id": "wall-102e5f05dc",
+          "type": "__canvas-wall__",
+          "x": 200,
+          "y": 800,
+          "rotation": 0,
+          "isWall": true,
+          "x1": 8,
+          "y1": 32,
+          "x2": 9,
+          "y2": 32
+        },
+        {
+          "id": "wall-798e598d95",
           "type": "__canvas-wall__",
           "x": 225,
           "y": 800,
@@ -1466,7 +1328,7 @@ export const floorPlanData = {
           "y2": 32
         },
         {
-          "id": "wall-5e1bf7f2e6",
+          "id": "wall-01ae2d9fbf",
           "type": "__canvas-wall__",
           "x": 250,
           "y": 800,
@@ -1478,7 +1340,7 @@ export const floorPlanData = {
           "y2": 32
         },
         {
-          "id": "wall-389dc68b21",
+          "id": "wall-61956be57c",
           "type": "__canvas-wall__",
           "x": 275,
           "y": 800,
@@ -1490,7 +1352,7 @@ export const floorPlanData = {
           "y2": 32
         },
         {
-          "id": "wall-7a4287201b",
+          "id": "wall-8e6e43b281",
           "type": "__canvas-wall__",
           "x": 300,
           "y": 800,
@@ -1502,7 +1364,7 @@ export const floorPlanData = {
           "y2": 32
         },
         {
-          "id": "wall-1800a136d9",
+          "id": "wall-19fc8048b9",
           "type": "__canvas-wall__",
           "x": 325,
           "y": 800,
@@ -1514,7 +1376,7 @@ export const floorPlanData = {
           "y2": 32
         },
         {
-          "id": "wall-cab38ee3dd",
+          "id": "wall-987e46e861",
           "type": "__canvas-wall__",
           "x": 350,
           "y": 800,
@@ -1526,7 +1388,7 @@ export const floorPlanData = {
           "y2": 32
         },
         {
-          "id": "wall-d440922fb0",
+          "id": "wall-7250dc1a2b",
           "type": "__canvas-wall__",
           "x": 375,
           "y": 800,
@@ -1538,7 +1400,7 @@ export const floorPlanData = {
           "y2": 32
         },
         {
-          "id": "wall-bc279294bc",
+          "id": "wall-da5d4e8bbb",
           "type": "__canvas-wall__",
           "x": 400,
           "y": 800,
@@ -1550,7 +1412,7 @@ export const floorPlanData = {
           "y2": 32
         },
         {
-          "id": "wall-27007eb7d5",
+          "id": "wall-74a56244e8",
           "type": "__canvas-wall__",
           "x": 425,
           "y": 800,
@@ -1562,7 +1424,7 @@ export const floorPlanData = {
           "y2": 32
         },
         {
-          "id": "wall-e70275e339",
+          "id": "wall-7ee9df2f70",
           "type": "__canvas-wall__",
           "x": 450,
           "y": 800,
@@ -1574,7 +1436,7 @@ export const floorPlanData = {
           "y2": 32
         },
         {
-          "id": "wall-6755046d1b",
+          "id": "wall-d14a5eab92",
           "type": "__canvas-wall__",
           "x": 475,
           "y": 800,
@@ -1586,7 +1448,7 @@ export const floorPlanData = {
           "y2": 32
         },
         {
-          "id": "wall-f1e194512d",
+          "id": "wall-2ccb22367d",
           "type": "__canvas-wall__",
           "x": 500,
           "y": 800,
@@ -1598,7 +1460,7 @@ export const floorPlanData = {
           "y2": 32
         },
         {
-          "id": "wall-0a50acaa6d",
+          "id": "wall-ca62956021",
           "type": "__canvas-wall__",
           "x": 525,
           "y": 800,
@@ -1610,7 +1472,7 @@ export const floorPlanData = {
           "y2": 32
         },
         {
-          "id": "wall-8b50b52952",
+          "id": "wall-39ce01f18b",
           "type": "__canvas-wall__",
           "x": 550,
           "y": 800,
@@ -1622,43 +1484,46 @@ export const floorPlanData = {
           "y2": 32
         },
         {
-          "id": "wall-efff742cbe",
+          "id": "wall-a9b10f56d1",
           "type": "__canvas-wall__",
           "x": 575,
           "y": 800,
           "rotation": 0,
           "isWall": true,
+          "door": true,
           "x1": 23,
           "y1": 32,
           "x2": 24,
           "y2": 32
         },
         {
-          "id": "wall-5fe4cfcaac",
+          "id": "wall-a605382d72",
           "type": "__canvas-wall__",
           "x": 600,
           "y": 800,
           "rotation": 0,
           "isWall": true,
+          "door": true,
           "x1": 24,
           "y1": 32,
           "x2": 25,
           "y2": 32
         },
         {
-          "id": "wall-a1b1160254",
+          "id": "wall-076b4ddd88",
           "type": "__canvas-wall__",
           "x": 625,
           "y": 800,
           "rotation": 0,
           "isWall": true,
+          "door": true,
           "x1": 25,
           "y1": 32,
           "x2": 26,
           "y2": 32
         },
         {
-          "id": "wall-ee6a5640cc",
+          "id": "wall-af9bb0c8ad",
           "type": "__canvas-wall__",
           "x": 650,
           "y": 800,
@@ -1670,7 +1535,7 @@ export const floorPlanData = {
           "y2": 32
         },
         {
-          "id": "wall-77c24c69d0",
+          "id": "wall-ed0d5ff0a5",
           "type": "__canvas-wall__",
           "x": 675,
           "y": 800,
@@ -1682,7 +1547,7 @@ export const floorPlanData = {
           "y2": 32
         },
         {
-          "id": "wall-e4f71f7827",
+          "id": "wall-7d81d207f1",
           "type": "__canvas-wall__",
           "x": 700,
           "y": 800,
@@ -1694,7 +1559,7 @@ export const floorPlanData = {
           "y2": 32
         },
         {
-          "id": "wall-a461358dc3",
+          "id": "wall-ae9c984e1c",
           "type": "__canvas-wall__",
           "x": 725,
           "y": 800,
@@ -1706,7 +1571,7 @@ export const floorPlanData = {
           "y2": 32
         },
         {
-          "id": "wall-d1bce9871f",
+          "id": "wall-2f2abf6d7f",
           "type": "__canvas-wall__",
           "x": 750,
           "y": 800,
@@ -1718,7 +1583,7 @@ export const floorPlanData = {
           "y2": 32
         },
         {
-          "id": "wall-6dc3f78099",
+          "id": "wall-c61d328f31",
           "type": "__canvas-wall__",
           "x": 775,
           "y": 800,
@@ -1730,7 +1595,7 @@ export const floorPlanData = {
           "y2": 32
         },
         {
-          "id": "wall-99a9c42ef6",
+          "id": "wall-49546753f9",
           "type": "__canvas-wall__",
           "x": 800,
           "y": 800,
@@ -1742,7 +1607,7 @@ export const floorPlanData = {
           "y2": 32
         },
         {
-          "id": "wall-9dea2f1444",
+          "id": "wall-2e9b108eb3",
           "type": "__canvas-wall__",
           "x": 825,
           "y": 800,
@@ -1754,7 +1619,7 @@ export const floorPlanData = {
           "y2": 32
         },
         {
-          "id": "wall-a1e31e9d56",
+          "id": "wall-c9deda15d5",
           "type": "__canvas-wall__",
           "x": 850,
           "y": 800,
@@ -1766,7 +1631,7 @@ export const floorPlanData = {
           "y2": 32
         },
         {
-          "id": "wall-d5b1e62f3e",
+          "id": "wall-125b0ef248",
           "type": "__canvas-wall__",
           "x": 875,
           "y": 800,
@@ -1778,7 +1643,7 @@ export const floorPlanData = {
           "y2": 32
         },
         {
-          "id": "wall-adb4e6bf6b",
+          "id": "wall-275d514361",
           "type": "__canvas-wall__",
           "x": 900,
           "y": 800,
@@ -1790,7 +1655,7 @@ export const floorPlanData = {
           "y2": 32
         },
         {
-          "id": "wall-d1f5de03b0",
+          "id": "wall-50063a3ae6",
           "type": "__canvas-wall__",
           "x": 925,
           "y": 800,
@@ -1802,7 +1667,7 @@ export const floorPlanData = {
           "y2": 32
         },
         {
-          "id": "wall-b243bd3bc0",
+          "id": "wall-123da9c33c",
           "type": "__canvas-wall__",
           "x": 950,
           "y": 800,
@@ -1814,7 +1679,7 @@ export const floorPlanData = {
           "y2": 32
         },
         {
-          "id": "wall-77ffd829e4",
+          "id": "wall-0472af8e78",
           "type": "__canvas-wall__",
           "x": 975,
           "y": 800,
@@ -1826,7 +1691,7 @@ export const floorPlanData = {
           "y2": 32
         },
         {
-          "id": "wall-bd1be5b020",
+          "id": "wall-87e22d5f67",
           "type": "__canvas-wall__",
           "x": 1000,
           "y": 800,
@@ -1838,7 +1703,7 @@ export const floorPlanData = {
           "y2": 32
         },
         {
-          "id": "wall-3dc1c2a655",
+          "id": "wall-6dc737f529",
           "type": "__canvas-wall__",
           "x": 1025,
           "y": 800,
@@ -1850,7 +1715,7 @@ export const floorPlanData = {
           "y2": 32
         },
         {
-          "id": "wall-7ecb900d2c",
+          "id": "wall-839c8a07da",
           "type": "__canvas-wall__",
           "x": 1050,
           "y": 800,
@@ -1862,7 +1727,7 @@ export const floorPlanData = {
           "y2": 32
         },
         {
-          "id": "wall-91540aa57f",
+          "id": "wall-608721b59b",
           "type": "__canvas-wall__",
           "x": 1075,
           "y": 800,
@@ -1874,7 +1739,7 @@ export const floorPlanData = {
           "y2": 32
         },
         {
-          "id": "wall-e746033d31",
+          "id": "wall-cf243bf0a9",
           "type": "__canvas-wall__",
           "x": 1100,
           "y": 800,
@@ -1886,7 +1751,7 @@ export const floorPlanData = {
           "y2": 32
         },
         {
-          "id": "wall-185fe5e13f",
+          "id": "wall-ec6d578bfd",
           "type": "__canvas-wall__",
           "x": 1125,
           "y": 800,
@@ -1898,7 +1763,7 @@ export const floorPlanData = {
           "y2": 32
         },
         {
-          "id": "wall-19a771fd9d",
+          "id": "wall-5f7927c3cb",
           "type": "__canvas-wall__",
           "x": 1150,
           "y": 800,
@@ -1910,7 +1775,7 @@ export const floorPlanData = {
           "y2": 32
         },
         {
-          "id": "wall-7ac7e08179",
+          "id": "wall-3e2e82d51c",
           "type": "__canvas-wall__",
           "x": 1175,
           "y": 800,
@@ -1922,7 +1787,7 @@ export const floorPlanData = {
           "y2": 32
         },
         {
-          "id": "wall-cc7547ab4d",
+          "id": "wall-7b5e2b1d36",
           "type": "__canvas-wall__",
           "x": 1200,
           "y": 800,
@@ -1934,7 +1799,7 @@ export const floorPlanData = {
           "y2": 32
         },
         {
-          "id": "wall-4242f7ebe9",
+          "id": "wall-ec2352da09",
           "type": "__canvas-wall__",
           "x": 1225,
           "y": 800,
@@ -1946,7 +1811,7 @@ export const floorPlanData = {
           "y2": 32
         },
         {
-          "id": "wall-3f85726132",
+          "id": "wall-63d7e26d97",
           "type": "__canvas-wall__",
           "x": 1250,
           "y": 800,
@@ -1958,7 +1823,7 @@ export const floorPlanData = {
           "y2": 32
         },
         {
-          "id": "wall-a0c00ff8e0",
+          "id": "wall-7438462957",
           "type": "__canvas-wall__",
           "x": 1275,
           "y": 800,
@@ -1970,7 +1835,7 @@ export const floorPlanData = {
           "y2": 32
         },
         {
-          "id": "wall-10f8e79a34",
+          "id": "wall-08af565d41",
           "type": "__canvas-wall__",
           "x": 1300,
           "y": 800,
@@ -1982,7 +1847,7 @@ export const floorPlanData = {
           "y2": 32
         },
         {
-          "id": "wall-01aba9fff2",
+          "id": "wall-88dcc35756",
           "type": "__canvas-wall__",
           "x": 1325,
           "y": 800,
@@ -1994,7 +1859,7 @@ export const floorPlanData = {
           "y2": 32
         },
         {
-          "id": "wall-ce93da0fa8",
+          "id": "wall-bdb42c132d",
           "type": "__canvas-wall__",
           "x": 1350,
           "y": 800,
@@ -2006,7 +1871,7 @@ export const floorPlanData = {
           "y2": 32
         },
         {
-          "id": "wall-be31615a19",
+          "id": "wall-332e2e07b6",
           "type": "__canvas-wall__",
           "x": 1375,
           "y": 800,
@@ -2018,7 +1883,7 @@ export const floorPlanData = {
           "y2": 32
         },
         {
-          "id": "wall-6b8922c846",
+          "id": "wall-8f61c5b340",
           "type": "__canvas-wall__",
           "x": 1400,
           "y": 775,

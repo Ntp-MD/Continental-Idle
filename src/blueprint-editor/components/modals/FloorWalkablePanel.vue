@@ -4,11 +4,12 @@ import { useAssetsStore } from '../../blueprintStore'
 import { useConfirm } from '@/composables/useConfirm'
 import { useToast } from '@/composables/useToast'
 import { STREET_TILES, type FloorData, type TileState, type WallSegment } from '../../domain/types'
-import { segmentHasDoor, wallSegmentsToEdges, tileEdgeKey, doorKeyForSide, segmentCoversTileEdge, type TileEdges, type BorderSide } from '../../domain/gridEditing'
+import { edgesToWallSegments, reattachDoorModes, wallSegmentsToEdges, tileEdgeKey, doorKeyForSide, mirrorTileEdge, segmentCoversTileEdge, type TileEdges, type BorderSide } from '../../domain/gridEditing'
 import { useDirtyBaseline } from '../../composables/useDirtyBaseline'
+import { useDebouncedCallback } from '@/composables/useDebounceFn'
 import ModalShell from '../shell/ModalShell.vue'
 
-type WalkableMode = 'walk' | 'door' | 'select'
+type WalkableMode = 'walk' | 'wall' | 'door' | 'select'
 
 const props = defineProps<{
   streetTiles?: number
@@ -61,50 +62,196 @@ function detectEdgeSide(e: MouseEvent, target: HTMLElement): BorderSide | null {
   return null
 }
 
+function updateMirroredEdge(row: number, col: number, side: BorderSide, update: (edges: TileEdges, edgeSide: BorderSide) => void): void {
+  const target = gridEdges.value[row]?.[col]
+  if (target) update(target, side)
+  const mirror = mirrorTileEdge(row, col, side)
+  const mirrorCell = gridEdges.value[mirror.r]?.[mirror.c]
+  if (mirrorCell) update(mirrorCell, mirror.side)
+}
+
 function toggleDoorAt(row: number, col: number, side: BorderSide): void {
   const e = gridEdges.value[row]?.[col]
   if (!e) return
-  const doorKey = doorKeyForSide(side)
-  if (e[doorKey]) {
-    delete e[doorKey]
+  if (e[doorKeyForSide(side)]) {
+    updateMirroredEdge(row, col, side, (cell, s) => {
+      delete cell[doorKeyForSide(s)]
+    })
   } else {
-    const wallKey = side as keyof TileEdges
-    if (!e[wallKey]) e[wallKey] = true
-    e[doorKey] = true
+    updateMirroredEdge(row, col, side, (cell, s) => {
+      cell[s] = true
+      cell[doorKeyForSide(s)] = true
+    })
+  }
+}
+
+function toggleWallAt(row: number, col: number, side: BorderSide): void {
+  const e = gridEdges.value[row]?.[col]
+  if (!e) return
+  if (e[side]) {
+    updateMirroredEdge(row, col, side, (cell, s) => {
+      delete cell[s]
+      delete cell[doorKeyForSide(s)]
+    })
+  } else {
+    updateMirroredEdge(row, col, side, (cell, s) => {
+      cell[s] = true
+    })
   }
 }
 
 const selectedEdges = ref<Set<string>>(new Set())
+const selectedTiles = ref<Set<string>>(new Set())
 const selectedDoorMode = ref<'auto' | 'hold-open' | 'auto-close'>('auto')
 const hoverEdge = ref<{ r: number; c: number; side: BorderSide } | null>(null)
+const selectAnchor = ref<{ r: number; c: number } | null>(null)
+const selectDraft = ref<{ r: number; c: number } | null>(null)
 
-function toggleEdgeSelection(row: number, col: number, e: MouseEvent): void {
-  const side = detectEdgeSide(e, e.currentTarget as HTMLElement)
-  if (!side) return
-  const key = tileEdgeKey(row, col, side)
-  if (selectedEdges.value.has(key)) selectedEdges.value.delete(key)
-  else selectedEdges.value.add(key)
+function tileKey(row: number, col: number): string {
+  return `${row},${col}`
 }
 
-function clearEdgeSelection(): void {
+function toggleTileSelection(row: number, col: number): void {
+  const key = tileKey(row, col)
+  if (selectedTiles.value.has(key)) selectedTiles.value.delete(key)
+  else selectedTiles.value.add(key)
+}
+
+function onSelectDown(row: number, col: number, e: MouseEvent): void {
+  const side = detectEdgeSide(e, e.currentTarget as HTMLElement)
+  if (side) {
+    const key = tileEdgeKey(row, col, side)
+    if (selectedEdges.value.has(key)) selectedEdges.value.delete(key)
+    else selectedEdges.value.add(key)
+    selectAnchor.value = null
+    selectDraft.value = null
+    return
+  }
+  selectAnchor.value = { r: row, c: col }
+  selectDraft.value = { r: row, c: col }
+}
+
+function onSelectEnter(row: number, col: number): void {
+  if (activeMode.value !== 'select' || !selectAnchor.value) return
+  selectDraft.value = { r: row, c: col }
+}
+
+function onSelectUp(): void {
+  const anchor = selectAnchor.value
+  const draft = selectDraft.value
+  selectAnchor.value = null
+  selectDraft.value = null
+  if (activeMode.value !== 'select' || !anchor || !draft) return
+  if (anchor.r === draft.r && anchor.c === draft.c) {
+    toggleTileSelection(anchor.r, anchor.c)
+    return
+  }
+  const top = Math.min(anchor.r, draft.r)
+  const bottom = Math.max(anchor.r, draft.r)
+  const left = Math.min(anchor.c, draft.c)
+  const right = Math.max(anchor.c, draft.c)
+  for (let r = top; r <= bottom; r++) {
+    for (let c = left; c <= right; c++) selectedTiles.value.add(tileKey(r, c))
+  }
+}
+
+function cancelBoxSelect(): void {
+  selectAnchor.value = null
+  selectDraft.value = null
+}
+
+function clearSelection(): void {
   selectedEdges.value.clear()
+  selectedTiles.value.clear()
+}
+
+function isSelectedTile(row: number, col: number): boolean {
+  if (activeMode.value !== 'select') return false
+  if (selectedTiles.value.has(tileKey(row, col))) return true
+  const anchor = selectAnchor.value
+  const draft = selectDraft.value
+  if (!anchor || !draft) return false
+  const top = Math.min(anchor.r, draft.r)
+  const bottom = Math.max(anchor.r, draft.r)
+  const left = Math.min(anchor.c, draft.c)
+  const right = Math.max(anchor.c, draft.c)
+  return row >= top && row <= bottom && col >= left && col <= right
 }
 
 function isSelectedEdge(row: number, col: number, side: BorderSide): boolean {
   return activeMode.value === 'select' && selectedEdges.value.has(tileEdgeKey(row, col, side))
 }
 
+type EdgeKind = 'Door' | 'Wall' | 'Empty'
+
+function edgeKind(row: number, col: number, side: BorderSide): EdgeKind {
+  const edges = gridEdges.value[row]?.[col]
+  if (!edges) return 'Empty'
+  if (edges[doorKeyForSide(side)]) return 'Door'
+  if (edges[side]) return 'Wall'
+  return 'Empty'
+}
+
+interface SelectionItem {
+  key: string
+  label: string
+}
+
+const selectionItems = computed<SelectionItem[]>(() => {
+  const items: SelectionItem[] = []
+  for (const key of selectedTiles.value) {
+    const [r, c] = key.split(',').map(Number)
+    const state = tileStates.value[r]?.[c] ?? 'blocked'
+    items.push({ key: `tile-${key}`, label: `Tile R${r - buildingStartRow.value + 1} C${c - buildingStartCol.value + 1} - ${state === 'walkable' ? 'Walkable' : 'Blocked'}` })
+  }
+  for (const key of selectedEdges.value) {
+    const [r, c, side] = key.split(',')
+    items.push({ key: `edge-${key}`, label: `Edge R${Number(r) - buildingStartRow.value + 1} C${Number(c) - buildingStartCol.value + 1} ${side} - ${edgeKind(Number(r), Number(c), side as BorderSide)}` })
+  }
+  return items.slice(0, 12)
+})
+
+const selectionRemainder = computed(() => selectedTiles.value.size + selectedEdges.value.size - selectionItems.value.length)
+
+const selectionSummary = computed(() => {
+  const tileCount = selectedTiles.value.size
+  const edgeCount = selectedEdges.value.size
+  if (!tileCount && !edgeCount) return 'Nothing selected - click a tile, drag a box, or click a tile edge'
+  const parts: string[] = []
+  if (tileCount) {
+    let walkable = 0
+    for (const key of selectedTiles.value) {
+      const [r, c] = key.split(',').map(Number)
+      if (tileStates.value[r]?.[c] === 'walkable') walkable++
+    }
+    parts.push(`${tileCount} tile${tileCount === 1 ? '' : 's'} (${walkable} walkable, ${tileCount - walkable} blocked)`)
+  }
+  if (edgeCount) {
+    let doors = 0
+    let walls = 0
+    for (const key of selectedEdges.value) {
+      const [r, c, side] = key.split(',')
+      const kind = edgeKind(Number(r), Number(c), side as BorderSide)
+      if (kind === 'Door') doors++
+      else if (kind === 'Wall') walls++
+    }
+    parts.push(`${edgeCount} edge${edgeCount === 1 ? '' : 's'} (${doors} door${doors === 1 ? '' : 's'}, ${walls} wall${walls === 1 ? '' : 's'}, ${edgeCount - doors - walls} empty)`)
+  }
+  return `${parts.join(', ')} selected`
+})
+
 function isPreviewEdge(row: number, col: number, side: BorderSide): boolean {
   const hover = hoverEdge.value
-  if (!hover || activeMode.value !== 'door') return false
+  if (!hover || (activeMode.value !== 'door' && activeMode.value !== 'wall')) return false
   if (hover.r !== row || hover.c !== col || hover.side !== side) return false
   const edges = gridEdges.value[row]?.[col]
   if (!edges) return false
+  if (activeMode.value === 'wall') return !edges[side]
   return !edges[doorKeyForSide(side)]
 }
 
 function onTileHover(row: number, col: number, e: MouseEvent): void {
-  if (activeMode.value !== 'door') {
+  if (activeMode.value !== 'door' && activeMode.value !== 'wall') {
     if (hoverEdge.value) hoverEdge.value = null
     return
   }
@@ -121,9 +268,10 @@ function deleteSelectedDoors(): void {
   if (!selectedEdges.value.size || !props.floor) return
   for (const key of selectedEdges.value) {
     const [r, c, side] = key.split(',')
-    const edges = gridEdges.value[Number(r)]?.[Number(c)]
-    if (!edges) continue
-    delete edges[doorKeyForSide(side as BorderSide)]
+    updateMirroredEdge(Number(r), Number(c), side as BorderSide, (cell, s) => {
+      delete cell[s]
+      delete cell[doorKeyForSide(s)]
+    })
   }
   selectedEdges.value.clear()
 }
@@ -221,6 +369,8 @@ function syncEdgesFromSegments(): void {
 function resetDraft(): void {
   tileStates.value = createTileStates(props.floor)
   selectedEdges.value.clear()
+  selectedTiles.value.clear()
+  cancelBoxSelect()
   hoverEdge.value = null
   wallSegments.value = (props.floor?.objects ?? [])
     .filter(
@@ -230,6 +380,7 @@ function resetDraft(): void {
     .map((object) => {
       const seg: WallSegment = { x1: object.x1!, y1: object.y1!, x2: object.x2!, y2: object.y2! }
       if (object.door) seg.door = true
+      if (object.doorMode !== undefined) seg.doorMode = object.doorMode
       return seg
     })
   syncEdgesFromSegments()
@@ -250,7 +401,7 @@ function tileState(row: number, col: number): TileState {
 
 function updateTile(row: number, col: number, e: MouseEvent): void {
   if (activeMode.value === 'select') {
-    toggleEdgeSelection(row, col, e)
+    onSelectDown(row, col, e)
     return
   }
   if (activeMode.value === 'door') {
@@ -260,43 +411,84 @@ function updateTile(row: number, col: number, e: MouseEvent): void {
     }
     return
   }
+  if (activeMode.value === 'wall') {
+    const side = detectEdgeSide(e, e.currentTarget as HTMLElement)
+    if (side) {
+      toggleWallAt(row, col, side)
+    }
+    return
+  }
   tileStates.value[row][col] = walkBrush.value
 }
 
 function activateTile(row: number, col: number): void {
-  if (activeMode.value === 'door') return
+  if (activeMode.value !== 'walk') return
   tileStates.value[row][col] = walkBrush.value
 }
 
 function setMode(mode: WalkableMode): void {
   activeMode.value = mode
+  if (mode !== 'select') cancelBoxSelect()
 }
 
 async function saveWalkable(): Promise<void> {
-  if (!props.floor) return
-  const states = tileStates.value.map((row) => [...row])
-  for (let row = 0; row < rows.value; row++) {
-    for (let col = 0; col < cols.value; col++) {
-      const isStreet =
-        row < buildingStartRow.value ||
-        row >= buildingEndRow.value ||
-        col < buildingStartCol.value ||
-        col >= buildingEndCol.value
-      if (isStreet) states[row][col] = 'walkable'
+  if (!props.floor || isSavingWalkable.value) return
+  isSavingWalkable.value = true
+  editedDuringSave.value = false
+  let ok = false
+  try {
+    const states = tileStates.value.map((row) => [...row])
+    for (let row = 0; row < rows.value; row++) {
+      for (let col = 0; col < cols.value; col++) {
+        const isStreet =
+          row < buildingStartRow.value ||
+          row >= buildingEndRow.value ||
+          col < buildingStartCol.value ||
+          col >= buildingEndCol.value
+        if (isStreet) states[row][col] = 'walkable'
+      }
     }
+    const walkableGrid = states.map((row) => row.map((state) => state === 'walkable'))
+    const segmentsWithDoor = reattachDoorModes(wallSegments.value, edgesToWallSegments(gridEdges.value))
+    const saved = await store.updateFloor(props.floor.id, {
+      walkable: { walkableGrid, tileStates: states },
+    })
+    const wallsSaved = saved ? await store.replaceCanvasWallSegments(props.floor.id, segmentsWithDoor) : false
+    if (saved && wallsSaved) {
+      applyingOwnWalkable.value = true
+      try {
+        wallSegments.value = segmentsWithDoor.map((seg) => ({ ...seg }))
+        syncEdgesFromSegments()
+      } finally {
+        applyingOwnWalkable.value = false
+      }
+      ok = true
+      useToast().success('Walkable saved')
+    } else {
+      useToast().error('Failed to save walkable')
+    }
+  } finally {
+    isSavingWalkable.value = false
+    if (editedDuringSave.value) scheduleAutoSave()
+    else if (ok) saveBaseline()
   }
-  const walkableGrid = states.map((row) => row.map((state) => state === 'walkable'))
-  const segmentsWithDoor = wallSegments.value.map((seg) => {
-    const result: WallSegment = { x1: seg.x1, y1: seg.y1, x2: seg.x2, y2: seg.y2 }
-    if (segmentHasDoor(seg, gridEdges.value)) result.door = true
-    return result
-  })
-  const saved = await store.updateFloor(props.floor.id, {
-    walkable: { walkableGrid, tileStates: states },
-  })
-  if (saved) await store.replaceCanvasWallSegments(props.floor.id, segmentsWithDoor)
-  if (saved) saveBaseline()
 }
+
+const isSavingWalkable = ref(false)
+const applyingOwnWalkable = ref(false)
+const editedDuringSave = ref(false)
+
+watch([tileStates, wallSegments, gridEdges], () => {
+  if (isSavingWalkable.value && !applyingOwnWalkable.value) editedDuringSave.value = true
+}, { deep: true })
+
+const scheduleAutoSave = useDebouncedCallback(() => {
+  void saveWalkable()
+}, 300)
+
+watch(dirty, (isDirty) => {
+  if (isDirty && !isSavingWalkable.value) scheduleAutoSave()
+})
 
 async function resetWalkable(): Promise<void> {
   const confirmed = await confirm({
@@ -320,21 +512,36 @@ async function resetWalkable(): Promise<void> {
   )
   wallSegments.value = []
   gridEdges.value = []
+  selectedEdges.value.clear()
+  selectedTiles.value.clear()
+  cancelBoxSelect()
 }
 
 function close(): void {
+  if (dirty.value) scheduleAutoSave.flush()
+  else scheduleAutoSave.cancel()
   emit('close')
 }
 </script>
 
 <template>
-  <ModalShell :open="open" modal-id="modal-walkable-setting" title="Walkable Setting" @close="close">
+  <ModalShell
+    :open="open"
+    modal-id="modal-walkable-setting"
+    title="Walkable Setting"
+    :status="dirty ? 'Unsaved walkable changes - auto-saving...' : 'Walkable saved'"
+    :status-tone="dirty ? 'warn' : 'success'"
+    @close="close"
+  >
     <div class="form__row form--wrap" role="toolbar" aria-label="Walkable setting tools">
       <button type="button" :class="{ 'flag--warning': activeMode === 'walk' }" @click="setMode('walk')">
         Walkable
       </button>
+      <button type="button" :class="{ 'flag--warning': activeMode === 'wall' }" @click="setMode('wall')">
+        Wall
+      </button>
       <button type="button" :class="{ 'flag--warning': activeMode === 'door' }" @click="setMode('door')">
-        Doors
+        Door
       </button>
       <button type="button" :class="{ 'flag--warning': activeMode === 'select' }" @click="setMode('select')">
         Select
@@ -347,36 +554,48 @@ function close(): void {
           Block
         </button>
       </template>
-      <template v-else>
+      <template v-else-if="activeMode === 'wall'">
         <button type="button" @click="applyOuterWall">Outer Walls</button>
-        <button type="button" @click="clearAllDoors">Clear Doors</button>
         <button type="button" @click="clearAllEdges">Clear Walls</button>
       </template>
-      <div v-if="activeMode === 'select'" class="form__row form--wrap">
-        <span class="form__hint">{{ selectedEdges.size }} edge{{ selectedEdges.size === 1 ? '' : 's' }} selected - click tile edges to toggle</span>
-        <select
-          :value="selectedDoorMode"
-          aria-label="Door mode for selected edges"
-          @change="selectedDoorMode = ($event.target as HTMLSelectElement).value as 'auto' | 'hold-open' | 'auto-close'"
-        >
-          <option value="auto">Auto</option>
-          <option value="hold-open">Hold open</option>
-          <option value="auto-close">Auto-close</option>
-        </select>
-        <button type="button" :disabled="!selectedEdges.size" @click="applyDoorModeToSelected">Apply mode</button>
-        <button type="button" :disabled="!selectedEdges.size" @click="deleteSelectedDoors">Delete</button>
-        <button type="button" :disabled="!selectedEdges.size" @click="clearEdgeSelection">Clear</button>
+      <template v-else-if="activeMode === 'door'">
+        <button type="button" @click="applyOuterWall">Outer Walls</button>
+        <button type="button" @click="clearAllDoors">Clear Doors</button>
+      </template>
+      <div v-if="activeMode === 'select'" class="form__col">
+        <div class="form__row form--wrap">
+          <span class="form__hint">{{ selectionSummary }}</span>
+          <select
+            :value="selectedDoorMode"
+            aria-label="Door mode for selected edges"
+            @change="selectedDoorMode = ($event.target as HTMLSelectElement).value as 'auto' | 'hold-open' | 'auto-close'"
+          >
+            <option value="auto">Auto</option>
+            <option value="hold-open">Hold open</option>
+            <option value="auto-close">Auto-close</option>
+          </select>
+          <button type="button" :disabled="!selectedEdges.size" @click="applyDoorModeToSelected">Apply mode</button>
+          <button type="button" :disabled="!selectedEdges.size" @click="deleteSelectedDoors">Delete doors + walls</button>
+          <button type="button" :disabled="!selectedEdges.size && !selectedTiles.size" @click="clearSelection">Clear</button>
+        </div>
+        <div v-if="selectionItems.length" class="form__col" aria-label="Current selection">
+          <span v-for="item in selectionItems" :key="item.key" class="form__hint">{{ item.label }}</span>
+          <span v-if="selectionRemainder > 0" class="form__hint">and {{ selectionRemainder }} more...</span>
+        </div>
       </div>
     </div>
 
     <div v-if="activeMode === 'walk'" class="form__hint">Paint walkable or blocked tiles. Blocked tiles stop movement.</div>
-    <div v-else class="form__hint">Click a tile edge to toggle a door. Walls are added under doors automatically.</div>
+    <div v-else-if="activeMode === 'wall'" class="form__hint">Click a tile edge to toggle a wall. Removing a wall also removes its door.</div>
+    <div v-else-if="activeMode === 'door'" class="form__hint">Click a tile edge to toggle a door. Walls are added under doors automatically.</div>
+    <div v-else class="form__hint">Click a tile or drag a box to select tiles, click a tile edge to select it. Apply a door mode or delete doors and walls on selected edges.</div>
 
     <div class="form__row form--wrap walk__legend" aria-label="Walkable legend">
       <span><i class="swatch walk__swatch--walkable" />Walkable</span>
       <span><i class="swatch walk__swatch--blocked" />Blocked</span>
       <span><i class="swatch walk__swatch--wall" />Wall edge</span>
       <span><i class="swatch walk__swatch--door" />Door (door edge)</span>
+      <span><i class="swatch walk__swatch--selected" />Selected</span>
     </div>
 
       <div
@@ -384,7 +603,8 @@ function close(): void {
         :style="gridStyle"
         role="grid"
         :aria-label="`${buildingCols} by ${buildingRows} walkable grid`"
-        @mouseleave="hoverEdge = null"
+        @mouseleave="hoverEdge = null; cancelBoxSelect()"
+        @mouseup="onSelectUp"
       >
       <template v-for="rowIndex in buildingRows" :key="`walk-row-${rowIndex}`">
         <button
@@ -392,10 +612,11 @@ function close(): void {
           :key="`walk-cell-${rowIndex}-${colIndex}`"
           type="button"
           class="walk__cell"
-          :class="`walk__cell--${tileState(buildingStartRow + rowIndex - 1, buildingStartCol + colIndex - 1)}`"
+          :class="[`walk__cell--${tileState(buildingStartRow + rowIndex - 1, buildingStartCol + colIndex - 1)}`, { 'walk__cell--selected': isSelectedTile(buildingStartRow + rowIndex - 1, buildingStartCol + colIndex - 1) }]"
           :aria-label="`Row ${rowIndex}, column ${colIndex}, ${tileState(buildingStartRow + rowIndex - 1, buildingStartCol + colIndex - 1)}`"
             @mousedown.prevent="updateTile(buildingStartRow + rowIndex - 1, buildingStartCol + colIndex - 1, $event)"
             @click="activateTile(buildingStartRow + rowIndex - 1, buildingStartCol + colIndex - 1)"
+            @mouseenter="onSelectEnter(buildingStartRow + rowIndex - 1, buildingStartCol + colIndex - 1)"
             @mousemove="onTileHover(buildingStartRow + rowIndex - 1, buildingStartCol + colIndex - 1, $event)"
           >
             <span
@@ -408,7 +629,7 @@ function close(): void {
               }"
             ></span>
             <span
-              v-if="gridEdges[buildingStartRow + rowIndex - 1]?.[buildingStartCol + colIndex - 1]?.right || isPreviewEdge(buildingStartRow + rowIndex - 1, buildingStartCol + colIndex - 1, 'right')"
+              v-if="gridEdges[buildingStartRow + rowIndex - 1]?.[buildingStartCol + colIndex - 1]?.right || isPreviewEdge(buildingStartRow + rowIndex - 1, buildingStartCol + colIndex - 1, 'right') || isSelectedEdge(buildingStartRow + rowIndex - 1, buildingStartCol + colIndex - 1, 'right')"
               class="walk__edge walk__edge--right"
               :class="{
                 'walk__edge--door':
@@ -417,7 +638,7 @@ function close(): void {
               }"
             ></span>
             <span
-              v-if="gridEdges[buildingStartRow + rowIndex - 1]?.[buildingStartCol + colIndex - 1]?.bottom || isPreviewEdge(buildingStartRow + rowIndex - 1, buildingStartCol + colIndex - 1, 'bottom')"
+              v-if="gridEdges[buildingStartRow + rowIndex - 1]?.[buildingStartCol + colIndex - 1]?.bottom || isPreviewEdge(buildingStartRow + rowIndex - 1, buildingStartCol + colIndex - 1, 'bottom') || isSelectedEdge(buildingStartRow + rowIndex - 1, buildingStartCol + colIndex - 1, 'bottom')"
               class="walk__edge walk__edge--bottom"
               :class="{
                 'walk__edge--door':
@@ -426,7 +647,7 @@ function close(): void {
               }"
             ></span>
             <span
-              v-if="gridEdges[buildingStartRow + rowIndex - 1]?.[buildingStartCol + colIndex - 1]?.left || isPreviewEdge(buildingStartRow + rowIndex - 1, buildingStartCol + colIndex - 1, 'left')"
+              v-if="gridEdges[buildingStartRow + rowIndex - 1]?.[buildingStartCol + colIndex - 1]?.left || isPreviewEdge(buildingStartRow + rowIndex - 1, buildingStartCol + colIndex - 1, 'left') || isSelectedEdge(buildingStartRow + rowIndex - 1, buildingStartCol + colIndex - 1, 'left')"
               class="walk__edge walk__edge--left"
               :class="{
                 'walk__edge--door':
@@ -439,10 +660,9 @@ function close(): void {
     </div>
 
     <template #footer>
-      <span class="form__hint">{{ dirty ? 'Unsaved walkable changes' : 'Walkable saved' }}</span>
       <div class="form__row">
         <button type="button" @click="resetWalkable">Reset to floor default</button>
-        <button type="button" class="flag--success" :disabled="!dirty" @click="saveWalkable">Save Walkable</button>
+        <button type="button" class="flag--success" :disabled="!dirty || isSavingWalkable" @click="saveWalkable">Save Walkable</button>
       </div>
     </template>
   </ModalShell>
@@ -480,6 +700,12 @@ function close(): void {
   border-width: 2px;
 }
 
+.walk__swatch--selected {
+  border-color: var(--accent-primary);
+  border-style: solid;
+  border-width: 2px;
+}
+
 .walk__grid {
   display: grid;
   grid-template-columns: repeat(var(--walk-cols), minmax(0, 1fr));
@@ -497,6 +723,11 @@ function close(): void {
   padding: 0;
   border-radius: 0;
   cursor: crosshair;
+}
+
+.walk__cell--selected {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: -2px;
 }
 
 .walk__edge {

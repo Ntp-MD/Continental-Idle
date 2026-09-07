@@ -52,6 +52,7 @@ When working on a task, follow this workflow:
 8. Only then report completion
    - Report completion only when the task is actually finished.
    - Summarize what was changed and what checks passed.
+   - Live slot (`_archive/current-task.md`) must be current (or cleared + logged in history.md) - a task with a stale slot is not finished.
 
 ## Autonomous Execution
 
@@ -83,7 +84,7 @@ When the user asks to make, review, improve, or reorder a plan ("make plan",
 - Plan capture never touches `src/`, `tests/`, or configs - file writes stay inside `_archive/`.
 - Implemented plan: delete `_archive/<topic-slug>.md` once fully implemented and reported; plans track active work only, never pile up.
 - After writing, report the file path plus a short summary of the order and checkpoints.
-- Shared board `_archive/park.md` is the cross-agent intent log: re-read it at task start; no realtime watch, on-demand re-read only.
+- Live slot `_archive/current-task.md`: read it first at task start, update after every meaningful step, clear when done. Shared board `_archive/history.md` is the cross-agent intent log: re-read alongside the slot; no realtime watch, on-demand re-read only.
 
 ## Skills
 
@@ -92,6 +93,7 @@ Registry is provider-agnostic; skill files stay in place, never copy per provide
 - `normalize-audit` (`.opencode/skills/normalize-audit/SKILL.md`) - before touching data flow: migration, loaders, persistence, sync, validation, engine adapters, UI saves.
 - `autonomous-development` (`.opencode/skills/autonomous-development/SKILL.md`) - how to run the Autonomous Development Workflow: inspect -> plan -> implement -> test -> fix -> review -> repeat.
 - `ui-layout` (`.opencode/skills/ui-layout/SKILL.md`) - canonical form/markup/CSS/class patterns; pairs with `autonomous-development` at Implement + Review for every template/markup/CSS/class change.
+- `session-handoff` (`.opencode/skills/session-handoff/SKILL.md`) - lite file-based session handoff: `_archive/current-task.md` is the live slot (RESUME at task start, CREATE every meaningful step, clear when done); read when pausing mid-task or taking over another agent's work.
 
 ## Verify
 
@@ -103,6 +105,8 @@ Run ONLY the suite matching the change, never the full matrix.
 | Engine/domain TS                             | the single matching `test:<name>`                            |
 | Schema/persistence/sync                      | the single matching schema suite                             |
 
+Router: `npm run hverify` (route = print, run = execute) derives ONLY the row above from `git status`; engine/domain and schema rows stay human-pick. Story: `HARNESS.md`.
+
 Bans: no `verify` / `test` matrix unless asked. Never `test:npc-perf`, `test:npc-scale`, `test:behavior`, `observe:hotel` unless asked. Temp diagnostics go in `tests/_*.tmp.ts`, deleted same session, never committed.
 
 Report: claim verdict (which part of the report was true), what changed, assumption made, impact/trade-offs, how verified. Short, no essay. Report unrelated failures separately, never fix silently.
@@ -111,7 +115,7 @@ Report: claim verdict (which part of the report was true), what changed, assumpt
 
 - Correspondence: add/rename/remove of function, type field, CSS class, store export, or doc claim -> grep BOTH names repo-wide (`src/ tests/ scripts/ *.md`), update every consumer (templates, re-exports, whitelists, `src/dev/UiShowcase.vue`, docs) in the SAME change. Zero references to removed symbols.
 - Read before write: files rewritten by tooling (codegen, editor save-flow, build) must be re-read immediately before editing; disk beats any snapshot.
-- Scope: blueprint editor only (`App.vue` boots `BlueprintEditor.vue`). Do NOT touch `src/engine/` or `_archive/` unprompted. Never commit unless asked. No new infra (services, DB, queues, buses, generic repos) or scale optimization without demonstrated need.
+- Scope: blueprint editor only (`App.vue` boots `BlueprintEditor.vue`). Do NOT touch `src/engine/` unprompted. `_archive/` holds workflow state only (live slot `current-task.md`, history log, plans); live slot writes go to `_archive/current-task.md`. Never commit unless asked. No new infra (services, DB, queues, buses, generic repos) or scale optimization without demonstrated need.
 - Git history is off-limits: no `checkout` / `restore` / `reset` / `diff` / `log` against HEAD or commits, no stash. Revert by hand-editing the working tree only.
 - Text: never round-trip through PowerShell (`Get-Content`/`Set-Content` corrupts UTF-8-without-BOM); use Edit tool or Node. ASCII-only source and copy (`-`, `...`, `deg`, `x`; SVG icons, never glyphs). No `box-shadow` / `drop-shadow`; state via borders only.
 - Cleanup: removing a symbol removes all references project-wide in the same change. Zero-delta duplicates are dead code: delete, do not replace. Preserve user data; validate cross-references when domains split or recombine.

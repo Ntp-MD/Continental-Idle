@@ -19,7 +19,7 @@ export function useDebouncedRef<T>(source: Ref<T>, delayMs: number): Ref<T> {
   return debounced
 }
 
-export type DebouncedCallback<T extends (...args: never[]) => void> = T & { cancel: () => void }
+export type DebouncedCallback<T extends (...args: never[]) => void> = T & { cancel: () => void; flush: () => void }
 
 export function useDebouncedCallback<T extends (...args: never[]) => void>(fn: T, delayMs: number): DebouncedCallback<T> {
   let timer: ReturnType<typeof setTimeout> | null = null
@@ -33,6 +33,12 @@ export function useDebouncedCallback<T extends (...args: never[]) => void>(fn: T
   wrapped.cancel = () => {
     if (timer) clearTimeout(timer)
     timer = null
+  }
+  wrapped.flush = () => {
+    if (!timer) return
+    clearTimeout(timer)
+    timer = null
+    fn()
   }
 
   onUnmounted(() => {

@@ -64,6 +64,13 @@ const statusText = computed(() => {
   return ''
 })
 
+const statusTone = computed<'success' | 'warn' | 'fail' | ''>(() => {
+  if (invalidRole.value || missingDefault.value) return 'fail'
+  if (saveState.value === 'unsaved') return 'warn'
+  if (saveState.value === 'saved') return 'success'
+  return ''
+})
+
 function normalizeConfig(value: NpcSimulationConfig): NpcSimulationConfig {
   const normalized = normalizeNpcConfig(cloneDeepRaw(value))
   if (!normalized) throw new Error('Invalid NPC configuration')
@@ -395,15 +402,14 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <ModalShell :open="open" modal-id="modal-npc-manager" title="NPC Manager" @close="onClose">
-    <template #header>
-      <span
-        class="npc__status-text truncate"
-        :class="{ 'npc__status-text--invalid': invalidRole || missingDefault }"
-        aria-live="polite"
-        >{{ statusText }}</span
-      >
-    </template>
+  <ModalShell
+    :open="open"
+    modal-id="modal-npc-manager"
+    title="NPC Manager"
+    :status="statusText"
+    :status-tone="statusTone"
+    @close="onClose"
+  >
     <div class="tabs__bar">
       <button
         type="button"
@@ -444,7 +450,6 @@ onUnmounted(() => {
         :all-tags="tags"
         :trigger-rates="draft.tagTriggerRates"
         :is-default="selectedRole.id === draft.defaultRoleId"
-        @update="updateRole"
         @rename="renameRole"
         @chance="setRoleChance"
         @commit-color="commitRoleColor"
@@ -492,7 +497,6 @@ onUnmounted(() => {
               :task="task"
               :usage-count="taskUsage(task.id)"
               :assets="stationAssets"
-              @update="updateTask"
               @rename="(value) => renameTask(task, value)"
               @remove="deleteTask(task.id)"
               @remove-tag="(tag) => removeTaskTag(task, tag)"
@@ -535,15 +539,6 @@ onUnmounted(() => {
 
 .npc__add {
   flex-shrink: 0;
-}
-
-.npc__status-text {
-  color: var(--text-secondary);
-  margin-right: auto;
-}
-
-.npc__status-text--invalid {
-  color: var(--accent-gold);
 }
 
 #modal-npc-manager {

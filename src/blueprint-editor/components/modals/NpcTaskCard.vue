@@ -17,7 +17,6 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{
-  (e: 'update'): void
   (e: 'rename', value: string): void
   (e: 'remove'): void
   (e: 'remove-tag', tag: string): void

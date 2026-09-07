@@ -15,7 +15,6 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{
-  (e: 'update'): void
   (e: 'rename', value: string): void
   (e: 'chance', value: number): void
   (e: 'commit-color', value: string | undefined): void

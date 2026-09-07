@@ -60,7 +60,6 @@ export function useNpcSimulation(sources: NpcSimulationSources = {}): {
 	refresh: () => void
 	isPaused: Ref<boolean>
 	simSpeed: Ref<number>
-	config: Ref<NpcSimulationConfig>
 } {
 	const core: NpcSimulationCore = useNpcSimulationCore({
 		getConfig: () => sources.getConfig?.(),
@@ -122,6 +121,5 @@ export function useNpcSimulation(sources: NpcSimulationSources = {}): {
 		refresh: core.refresh,
 		isPaused: core.isPaused,
 		simSpeed: core.simSpeed,
-		config: core.config,
 	}
 }

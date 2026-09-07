@@ -32,7 +32,6 @@ export function useAssetListState() {
 
   return {
     searchQuery,
-    allAssets,
     filteredAssets,
     incompleteMap,
     incompleteTitle,

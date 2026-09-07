@@ -98,29 +98,19 @@ export function reattachDoorModes(
 	})
 }
 
-export function segmentHasDoor(segment: WallSegment, edges: TileEdges[][]): boolean {
-  if (segment.y1 === segment.y2) {
-    const boundary = Math.round(segment.y1)
-    const start = Math.round(Math.min(segment.x1, segment.x2))
-    const end = Math.round(Math.max(segment.x1, segment.x2))
-    for (let col = start; col < end; col++) {
-      if (edges[boundary]?.[col]?.doorTop) return true
-      if (edges[boundary - 1]?.[col]?.doorBottom) return true
-    }
-    return false
-  }
-  const boundary = Math.round(segment.x1)
-  const start = Math.round(Math.min(segment.y1, segment.y2))
-  const end = Math.round(Math.max(segment.y1, segment.y2))
-  for (let row = start; row < end; row++) {
-    if (edges[row]?.[boundary]?.doorLeft) return true
-    if (edges[row]?.[boundary - 1]?.doorRight) return true
-  }
-  return false
-}
-
 export function tileEdgeKey(row: number, col: number, side: BorderSide): string {
   return `${row},${col},${side}`
+}
+
+export function mirrorTileEdge(
+  row: number,
+  col: number,
+  side: BorderSide,
+): { r: number; c: number; side: BorderSide } {
+  if (side === 'top') return { r: row - 1, c: col, side: 'bottom' }
+  if (side === 'bottom') return { r: row + 1, c: col, side: 'top' }
+  if (side === 'left') return { r: row, c: col - 1, side: 'right' }
+  return { r: row, c: col + 1, side: 'left' }
 }
 
 export function doorKeyForSide(side: BorderSide): 'doorTop' | 'doorRight' | 'doorBottom' | 'doorLeft' {

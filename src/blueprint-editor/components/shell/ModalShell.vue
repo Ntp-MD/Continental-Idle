@@ -15,6 +15,8 @@ const props = withDefaults(
     floating?: boolean
     topLayer?: boolean
     bodyClass?: string
+    status?: string
+    statusTone?: 'success' | 'warn' | 'fail' | ''
   }>(),
   {
     modalId: undefined,
@@ -25,6 +27,8 @@ const props = withDefaults(
     floating: false,
     topLayer: false,
     bodyClass: undefined,
+    status: '',
+    statusTone: '',
   },
 )
 
@@ -37,6 +41,8 @@ useFocusTrap(isOpen, containerRef)
 const { pos, isDragging, onDown, reset } = useDraggable(containerRef)
 
 const titleId = useId()
+
+const statusClass = computed(() => (props.statusTone ? `modal__status--${props.statusTone}` : ''))
 
 function onClose() {
   emit('close')
@@ -84,6 +90,7 @@ onUnmounted(() => {
         <div class="modal__header" @mousedown="onDown">
           <span :id="titleId">{{ title }}</span>
           <slot name="header" />
+          <div class="modal__status truncate" :class="statusClass" role="status" aria-live="polite">{{ status }}</div>
           <button class="modal__close" aria-label="Close" @click="onClose">x</button>
         </div>
         <div class="modal__body" :class="bodyClass">
