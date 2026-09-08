@@ -141,7 +141,8 @@ const segs = normalizeWallSegments([
 	{ x1: 1, y1: 0, x2: 1, y2: 3, door: true },
 ])
 assert.ok(segs, 'normalizeWallSegments returns segments')
-assert.equal(segs!.length, 2, 'deduped to 2 segments')
+assert.equal(segs!.length, 7, '1x1 canonical: long inputs split into 4 horizontal + 3 vertical pieces')
+assert.ok(segs!.every(s => Math.abs(s.x1 - s.x2) + Math.abs(s.y1 - s.y2) === 1), 'every piece spans exactly 1 tile')
 const horizSeg = segs!.find(s => s.y1 === s.y2)
 assert.ok(horizSeg, 'found horizontal segment')
 assert.equal(horizSeg!.door, true, 'door flag merged from duplicate')
@@ -212,20 +213,35 @@ console.log('Phase 2: PASS')
 console.log('--- Phase 3: doorPanelsData geometry ---')
 
 const hPanels = doorPanelsData([{ x1: 0, y1: 5, x2: 4, y2: 5, door: true }], TILE, THICKNESS)
-assert.equal(hPanels.length, 1)
+assert.equal(hPanels.length, 2, '4-wide door splits into 2 halves')
 assert.equal(hPanels[0].horizontal, true)
-assert.equal(hPanels[0].cx, 50)
+assert.equal(hPanels[1].horizontal, true)
+assert.equal(hPanels[0].cx, 25)
+assert.equal(hPanels[1].cx, 75)
 assert.equal(hPanels[0].cy, 125)
-assert.equal(hPanels[0].length, 100)
+assert.equal(hPanels[0].length, 50)
+assert.equal(hPanels[1].length, 50)
 assert.equal(hPanels[0].thickness, THICKNESS)
-assert.equal(hPanels[0].key, '0,125,100,125')
+assert.equal(hPanels[0].slideDir, -1, 'left half slides left')
+assert.equal(hPanels[1].slideDir, 1, 'right half slides right')
+assert.equal(hPanels[0].group, hPanels[1].group, 'halves share a group')
+assert.equal(hPanels[0].key, '0,125,50,125')
+assert.equal(hPanels[1].key, '50,125,100,125')
 
 const vPanels = doorPanelsData([{ x1: 2, y1: 0, x2: 2, y2: 3, door: true }], TILE, THICKNESS)
-assert.equal(vPanels.length, 1)
+assert.equal(vPanels.length, 2, '3-tall door splits into 2 halves')
 assert.equal(vPanels[0].horizontal, false)
 assert.equal(vPanels[0].cx, 50)
-assert.equal(vPanels[0].cy, 37.5)
-assert.equal(vPanels[0].length, 75)
+assert.equal(vPanels[0].cy, 18.75)
+assert.equal(vPanels[1].cy, 56.25)
+assert.equal(vPanels[0].length, 37.5)
+assert.equal(vPanels[0].slideDir, -1, 'top half slides up')
+assert.equal(vPanels[1].slideDir, 1, 'bottom half slides down')
+
+const narrowPanels = doorPanelsData([{ x1: 0, y1: 5, x2: 1, y2: 5, door: true }], TILE, THICKNESS)
+assert.equal(narrowPanels.length, 1, '1-wide door stays a single panel')
+assert.equal(narrowPanels[0].length, TILE)
+assert.equal(narrowPanels[0].half, undefined)
 
 assert.equal(doorPanelsData([{ x1: 0, y1: 0, x2: 5, y2: 0 }], TILE, THICKNESS).length, 0)
 
@@ -235,31 +251,63 @@ const mixed = doorPanelsData([
 	{ x1: 1, y1: 0, x2: 1, y2: 5 },
 	{ x1: 2, y1: 0, x2: 2, y2: 4, door: true },
 ], TILE, THICKNESS)
-assert.equal(mixed.length, 2, 'only door segments pass through')
+assert.equal(mixed.length, 4, 'two wide doors pass through as 4 halves')
 
 const tinyDoor = doorPanelsData([{ x1: 0, y1: 0, x2: 0.5, y2: 0, door: true }], TILE, THICKNESS)
 assert.ok(tinyDoor[0].length >= THICKNESS * 2, 'minimum length enforced')
 
 const zeroThick = doorPanelsData([{ x1: 0, y1: 0, x2: 3, y2: 0, door: true }], TILE, 0)
+assert.equal(zeroThick.length, 2, '3-wide door splits even at zero thickness')
 assert.equal(zeroThick[0].thickness, 1, 'thickness clamped to 1')
 
 assert.equal(doorPanelsData([], TILE, THICKNESS).length, 0)
 
-// doorSlideDir - collision-aware slide direction
-const slidePanel = doorPanelsData([{ x1: 0, y1: 5, x2: 4, y2: 5, door: true }], TILE, THICKNESS)[0]
+// ============================================================================
+// PHASE 3b: 1x1 storage pieces merge before panel computation
+// ============================================================================
+console.log('--- Phase 3b: doorPanelsData merges 1-tile door pieces ---')
+
+const tiledPieces = doorPanelsData([
+	{ x1: 0, y1: 5, x2: 1, y2: 5, door: true, doorMode: 'auto-close' },
+	{ x1: 1, y1: 5, x2: 2, y2: 5, door: true, doorMode: 'auto-close' },
+	{ x1: 2, y1: 5, x2: 3, y2: 5, door: true, doorMode: 'auto-close' },
+], TILE, THICKNESS)
+assert.equal(tiledPieces.length, 2, '3 separate 1-tile door pieces merge into one run -> 2 halves')
+assert.equal(tiledPieces[0].half, -1)
+assert.equal(tiledPieces[1].half, 1)
+assert.equal(tiledPieces[0].group, tiledPieces[1].group, 'merged run halves share a group')
+
+const mixedMode = doorPanelsData([
+	{ x1: 0, y1: 5, x2: 1, y2: 5, door: true, doorMode: 'auto-close' },
+	{ x1: 1, y1: 5, x2: 2, y2: 5, door: true, doorMode: 'hold-open' },
+], TILE, THICKNESS)
+assert.equal(mixedMode.length, 2, 'adjacent door pieces with different doorMode stay separate panels')
+
+const gapBetween = doorPanelsData([
+	{ x1: 0, y1: 5, x2: 1, y2: 5, door: true },
+	{ x1: 2, y1: 5, x2: 3, y2: 5, door: true },
+], TILE, THICKNESS)
+assert.equal(gapBetween.length, 2, 'non-contiguous door pieces stay separate panels')
+
+console.log('Phase 3b: PASS')
+
+// doorSlideDir - collision-aware slide direction (single-panel doors only;
+// split halves carry a fixed -1/+1 and never consult blockers)
+const slidePanel = doorPanelsData([{ x1: 0, y1: 5, x2: 1, y2: 5, door: true }], TILE, THICKNESS)[0]
+assert.equal(slidePanel.length, TILE, '1-wide slide fixture is a single panel')
 assert.equal(doorSlideDir(slidePanel, []), 1, 'no blockers -> default slide right')
 assert.equal(
-	doorSlideDir(slidePanel, [{ x: 90, y: 115, w: 40, h: 20 }]),
+	doorSlideDir(slidePanel, [{ x: 30, y: 124, w: 10, h: 2 }]),
 	-1,
 	'blocker over right sweep zone -> slide left',
 )
 assert.equal(
-	doorSlideDir(slidePanel, [{ x: -30, y: 115, w: 40, h: 20 }]),
+	doorSlideDir(slidePanel, [{ x: -20, y: 124, w: 10, h: 2 }]),
 	1,
 	'blocker over left sweep zone -> slide right',
 )
 assert.equal(
-	doorSlideDir(slidePanel, [{ x: 90, y: 115, w: 40, h: 20 }, { x: -30, y: 115, w: 40, h: 20 }]),
+	doorSlideDir(slidePanel, [{ x: 30, y: 124, w: 10, h: 2 }, { x: -20, y: 124, w: 10, h: 2 }]),
 	1,
 	'both sides blocked -> fallback right',
 )
@@ -268,27 +316,27 @@ assert.equal(
 	1,
 	'blocker away from wall line does not block',
 )
-const slidePanelV = doorPanelsData([{ x1: 2, y1: 0, x2: 2, y2: 3, door: true }], TILE, THICKNESS)[0]
-assert.equal(doorSlideDir(slidePanelV, [{ x: 40, y: 55, w: 20, h: 40 }]), -1, 'vertical blocker below -> slide up')
+const slidePanelV = doorPanelsData([{ x1: 2, y1: 0, x2: 2, y2: 1, door: true }], TILE, THICKNESS)[0]
+assert.equal(doorSlideDir(slidePanelV, [{ x: 49, y: 30, w: 2, h: 10 }]), -1, 'vertical blocker below -> slide up')
 
 // own wall priority: slide into own wall side unless another asset blocks it
-const ownRight = [{ x: 100, y: 123, w: 75, h: 4 }]
-const ownLeft = [{ x: -75, y: 123, w: 75, h: 4 }]
+const ownRight = [{ x: 25, y: 124, w: 25, h: 2 }]
+const ownLeft = [{ x: -25, y: 124, w: 25, h: 2 }]
 assert.equal(doorSlideDir(slidePanel, [], ownRight), 1, 'own wall right -> slide right')
 assert.equal(doorSlideDir(slidePanel, [], ownLeft), -1, 'own wall left -> slide left')
 assert.equal(
-	doorSlideDir(slidePanel, [{ x: 110, y: 115, w: 40, h: 20 }], ownRight),
+	doorSlideDir(slidePanel, [{ x: 30, y: 124, w: 10, h: 2 }], ownRight),
 	-1,
 	'own wall right but asset blocks -> slide to other side',
 )
 assert.equal(
-	doorSlideDir(slidePanel, [{ x: -60, y: 115, w: 40, h: 20 }], ownLeft),
+	doorSlideDir(slidePanel, [{ x: -20, y: 124, w: 10, h: 2 }], ownLeft),
 	1,
 	'own wall left but asset blocks -> slide to other side',
 )
 assert.equal(doorSlideDir(slidePanel, [], [...ownRight, ...ownLeft]), 1, 'own wall both sides, free -> default right')
 assert.equal(
-	doorSlideDir(slidePanel, [{ x: 110, y: 115, w: 40, h: 20 }], [...ownRight, ...ownLeft]),
+	doorSlideDir(slidePanel, [{ x: 30, y: 124, w: 10, h: 2 }], [...ownRight, ...ownLeft]),
 	-1,
 	'own wall both sides, right blocked -> slide left',
 )
@@ -304,11 +352,11 @@ const closedSvg = doorPanelsSvg([{ x1: 0, y1: 5, x2: 4, y2: 5, door: true }], TI
 assert.ok(closedSvg.includes('<g class="door-overlay">'), 'SVG wrapped in door-overlay group')
 const closedRects = closedSvg.match(/<rect/g)
 assert.ok(closedRects, 'SVG contains rect elements')
-assert.equal(closedRects!.length, 1, 'closed door has 1 full panel')
+assert.equal(closedRects!.length, 2, 'closed wide door has 2 halves')
 
 const openSvg = doorPanelsSvg([{ x1: 0, y1: 5, x2: 4, y2: 5, door: true }], TILE, THICKNESS, DOOR_COLOR, 1)
 const openRects = openSvg.match(/<rect/g)
-assert.equal(openRects!.length, 1, 'open door has 1 full panel')
+assert.equal(openRects!.length, 2, 'open wide door has 2 halves')
 
 const halfSvg = doorPanelsSvg([{ x1: 0, y1: 5, x2: 4, y2: 5, door: true }], TILE, THICKNESS, DOOR_COLOR, 0.5)
 assert.ok(halfSvg.includes('<g class="door-overlay">'))
@@ -316,7 +364,7 @@ assert.ok(halfSvg.includes('<g class="door-overlay">'))
 const vSvg = doorPanelsSvg([{ x1: 2, y1: 0, x2: 2, y2: 3, door: true }], TILE, THICKNESS, DOOR_COLOR, 0)
 assert.ok(vSvg.includes('<g class="door-overlay">'))
 const vRects = vSvg.match(/<rect/g)
-assert.equal(vRects!.length, 1, 'vertical door has 1 full panel')
+assert.equal(vRects!.length, 2, 'vertical wide door has 2 halves')
 
 assert.equal(doorPanelsSvg([], TILE, THICKNESS, DOOR_COLOR, 1), '')
 
@@ -325,16 +373,19 @@ const multiSvg = doorPanelsSvg([
 	{ x1: 2, y1: 0, x2: 2, y2: 3, door: true },
 ], TILE, THICKNESS, DOOR_COLOR, 0)
 const multiRects = multiSvg.match(/<rect/g)
-assert.equal(multiRects!.length, 2, '2 doors = 2 panels')
+assert.equal(multiRects!.length, 4, '2 wide doors = 4 halves')
 
 const hSeg: WallSegment = { x1: 0, y1: 5, x2: 4, y2: 5, door: true }
 const panels = doorPanelsData([hSeg], TILE, THICKNESS)
-const p = panels[0]
-const half = p.length / 2
-assert.ok(closedSvg.includes(`x="${fmt(p.cx - half)}"`), 'closed panel at cx - half')
-assert.ok(openSvg.includes(`x="${fmt(p.cx + half)}"`), 'open panel shifted right by full length (slideDir 1)')
-assert.ok(closedSvg.includes(`width="${fmt(p.length)}"`), 'panel width = full length')
-assert.ok(closedSvg.includes(`height="${p.thickness}"`), 'panel height = thickness')
+assert.equal(panels.length, 2)
+const left = panels[0]
+const right = panels[1]
+assert.ok(closedSvg.includes(`x="${fmt(left.cx - left.length / 2)}"`), 'closed left half at left edge')
+assert.ok(closedSvg.includes(`x="${fmt(right.cx - right.length / 2)}"`), 'closed right half at center')
+assert.ok(openSvg.includes(`x="${fmt(left.cx - left.length / 2 - left.length)}"`), 'open left half slid left by half length')
+assert.ok(openSvg.includes(`x="${fmt(right.cx - right.length / 2 + right.length)}"`), 'open right half slid right by half length')
+assert.ok(closedSvg.includes(`width="${fmt(left.length)}"`), 'half width = half length')
+assert.ok(closedSvg.includes(`height="${left.thickness}"`), 'panel height = thickness')
 
 console.log('Phase 4: PASS')
 
@@ -452,9 +503,9 @@ rig7.setNpcs([interactingAt(makeNpc(doorCx + proximityPx - 1, doorCy), 'in')])
 rig7.step(0)
 assert.equal(rig7.target(key7), 0, 'interacting just inside 2-tile radius -> locked')
 
-rig7.setNpcs([interactingAt(makeNpc(doorCx + proximityPx + 10, doorCy), 'out')])
+rig7.setNpcs([interactingAt(makeNpc(rig7.doors[1].cx + proximityPx + 10, doorCy), 'out')])
 rig7.step(16)
-assert.equal(rig7.target(key7), 1, 'interacting outside 2-tile radius -> hold-open')
+assert.equal(rig7.target(key7), 1, 'interacting outside both halves radius -> hold-open')
 
 rig7.setNpcs([makeNpc(doorCx, doorCy)])
 rig7.step(32)
@@ -466,8 +517,9 @@ const rig7b = makeDoorRig([
 ])
 rig7b.setNpcs([interactingAt(makeNpc(50, 0), 'near1')])
 const states7b = rig7b.step(0)
-assert.equal(states7b.get(rig7b.doors[0].key)!.target, 0, 'door 1 locked (occupant near)')
-assert.equal(states7b.get(rig7b.doors[1].key)!.target, 1, 'door 2 hold-open (occupant far)')
+assert.equal(states7b.get(rig7b.doors[0].key)!.target, 0, 'door 1 left half locked (occupant near)')
+assert.equal(states7b.get(rig7b.doors[1].key)!.target, 0, 'door 1 right half locked with its group')
+assert.equal(states7b.get(rig7b.doors[2].key)!.target, 1, 'door 2 hold-open (occupant far)')
 
 console.log('Phase 7: PASS')
 
@@ -593,20 +645,27 @@ for (let iter = 0; iter < FUZZ_ITERATIONS; iter++) {
 	const panels = doorPanelsData([normalized], TILE, THICKNESS)
 	if (!panels.length) continue
 
-	const panel = panels[0]
-	assert.ok(panel.length >= THICKNESS * 2, `fuzz ${iter}: length >= thickness*2`)
-	assert.ok(panel.thickness >= 1, `fuzz ${iter}: thickness >= 1`)
+	const tileLen = Math.abs(normalized.x2 - normalized.x1 + normalized.y2 - normalized.y1)
+	const expectedCount = tileLen >= 2 ? 2 : 1
+	assert.equal(panels.length, expectedCount, `fuzz ${iter}: panel count matches width`)
+
+	for (const panel of panels) {
+		assert.ok(panel.length >= THICKNESS, `fuzz ${iter}: length >= thickness`)
+		assert.ok(panel.thickness >= 1, `fuzz ${iter}: thickness >= 1`)
+	}
 
 	const progress = rng()
 	const svg = doorPanelsSvg([normalized], TILE, THICKNESS, DOOR_COLOR, progress)
 	const rectCount = (svg.match(/<rect/g) || []).length
-	assert.equal(rectCount, 1, `fuzz ${iter}: 1 full panel at progress ${progress.toFixed(3)}`)
+	assert.equal(rectCount, expectedCount, `fuzz ${iter}: ${expectedCount} halves at progress ${progress.toFixed(3)}`)
 
-	const off = panel.length * progress
-	if (panel.horizontal) {
-		assert.ok(svg.includes(`x="${fmt(panel.cx - panel.length / 2 + off)}"`), `fuzz ${iter}: panel x correct`)
-	} else {
-		assert.ok(svg.includes(`y="${fmt(panel.cy - panel.length / 2 + off)}"`), `fuzz ${iter}: panel y correct`)
+	for (const panel of panels) {
+		const off = panel.length * progress * panel.slideDir
+		if (panel.horizontal) {
+			assert.ok(svg.includes(`x="${fmt(panel.cx - panel.length / 2 + off)}"`), `fuzz ${iter}: panel x correct`)
+		} else {
+			assert.ok(svg.includes(`y="${fmt(panel.cy - panel.length / 2 + off)}"`), `fuzz ${iter}: panel y correct`)
+		}
 	}
 
 	fuzzPass++
@@ -645,21 +704,23 @@ for (const rot of rotations) {
 	assert.ok(resolved.length > 0, `pipeline rot ${rot}: segments resolved`)
 
 	const doorSegs = resolved.filter(s => s.door)
-	assert.equal(doorSegs.length, 1, `pipeline rot ${rot}: 1 door segment after rotation`)
+	assert.equal(doorSegs.length, 3, `pipeline rot ${rot}: 3-wide door = 3 one-tile pieces in 1x1 canonical storage`)
+	assert.ok(doorSegs.every(s => s.x1 === s.x2 ? Math.abs(s.y2 - s.y1) === TILE : s.y1 === s.y2 && Math.abs(s.x2 - s.x1) === TILE), `pipeline rot ${rot}: door pieces span 1 tile`)
 
 	const panels = doorPanelsData(doorSegs, TILE, THICKNESS)
-	assert.equal(panels.length, 1, `pipeline rot ${rot}: 1 door panel`)
+	assert.equal(panels.length, 2, `pipeline rot ${rot}: 3-wide door splits into 2 halves`)
 
 	const pipeRig = makeDoorRig(doorSegs)
 	pipeRig.setNpcs([makeNpc(panels[0].cx, panels[0].cy)])
 	pipeRig.setEvents([])
 	pipeRig.step(0)
 	assert.equal(pipeRig.target(panels[0].key), 1, `pipeline rot ${rot}: NPC at door -> open`)
+	assert.equal(pipeRig.target(panels[1].key), 1, `pipeline rot ${rot}: both halves open together`)
 
 	const progress = pipeRig.progress(panels[0].key)
 	const svg = doorPanelsSvg(doorSegs, TILE, THICKNESS, DOOR_COLOR, progress)
 	assert.ok(svg.includes('<g class="door-overlay">'), `pipeline rot ${rot}: SVG generated`)
-	assert.equal((svg.match(/<rect/g) || []).length, 1, `pipeline rot ${rot}: 1 panel in SVG`)
+	assert.equal((svg.match(/<rect/g) || []).length, 2, `pipeline rot ${rot}: 2 halves in SVG`)
 
 	if (rot === 0 || rot === 180) {
 		assert.equal(panels[0].horizontal, true, `pipeline rot ${rot}: door is horizontal`)
@@ -673,7 +734,7 @@ assert.ok(previewSvg.includes('door-overlay'), 'preview SVG has door overlay')
 assert.ok(previewSvg.includes('wall-overlay'), 'preview SVG has wall overlay')
 const previewDoorRects = previewSvg.match(/<rect[^>]*fill="#3b82f6"/g)
 assert.ok(previewDoorRects, 'preview has door-colored rects')
-assert.equal(previewDoorRects!.length, 1, 'preview has exactly 1 door panel (closed)')
+assert.equal(previewDoorRects!.length, 2, 'preview has exactly 2 door halves (closed)')
 
 console.log('Phase 11: PASS')
 
@@ -683,12 +744,15 @@ console.log('Phase 11: PASS')
 console.log('--- Phase 12: Edge cases and stress ---')
 
 const longDoor = doorPanelsData([{ x1: 0, y1: 0, x2: 100, y2: 0, door: true }], TILE, THICKNESS)
-assert.equal(longDoor[0].length, 100 * TILE, 'long door length correct')
+assert.equal(longDoor.length, 2, 'long door splits into 2 halves')
+assert.equal(longDoor[0].length, (100 * TILE) / 2, 'long door half length correct')
 const longSvg = doorPanelsSvg([{ x1: 0, y1: 0, x2: 100, y2: 0, door: true }], TILE, THICKNESS, DOOR_COLOR, 1)
 assert.ok(longSvg.includes('<g class="door-overlay">'), 'long door SVG generated')
 
 const originDoor = doorPanelsData([{ x1: 0, y1: 0, x2: 3, y2: 0, door: true }], TILE, THICKNESS)
-assert.equal(originDoor[0].cx, 37.5, 'origin door cx correct')
+assert.equal(originDoor.length, 2, 'origin wide door splits into 2 halves')
+assert.equal(originDoor[0].cx, 18.75, 'origin left half cx correct')
+assert.equal(originDoor[1].cx, 56.25, 'origin right half cx correct')
 assert.equal(originDoor[0].cy, 0, 'origin door cy = 0')
 
 const manySegs: WallSegment[] = []
@@ -696,21 +760,22 @@ for (let i = 0; i < 50; i++) {
 	manySegs.push({ x1: i * 4, y1: 0, x2: i * 4 + 3, y2: 0, door: true })
 }
 const manyPanels = doorPanelsData(manySegs, TILE, THICKNESS)
-assert.equal(manyPanels.length, 50, '50 doors -> 50 panels')
+assert.equal(manyPanels.length, 100, '50 wide doors -> 100 halves')
 const manySvg = doorPanelsSvg(manySegs, TILE, THICKNESS, DOOR_COLOR, 0.5)
-assert.equal((manySvg.match(/<rect/g) || []).length, 50, '50 doors -> 50 panels in SVG')
+assert.equal((manySvg.match(/<rect/g) || []).length, 100, '50 wide doors -> 100 halves in SVG')
 
 const manyRig = makeDoorRig(manySegs)
-manyRig.setNpcs([interactingAt(makeNpc(manyPanels[25].cx, manyPanels[25].cy), 'many-25')])
+manyRig.setNpcs([interactingAt(makeNpc(manyPanels[50].cx, manyPanels[50].cy), 'many-25')])
 manyRig.setEvents([])
 manyRig.step(0)
 let closedCount = 0
-let closedKey = ''
+const closedKeys: string[] = []
 for (const panel of manyPanels) {
-	if (manyRig.target(panel.key) === 0) { closedCount++; closedKey = panel.key }
+	if (manyRig.target(panel.key) === 0) { closedCount++; closedKeys.push(panel.key) }
 }
-assert.equal(closedCount, 1, 'only the occupied door locks')
-assert.equal(closedKey, manyPanels[25].key, 'locked door is the occupied one')
+assert.equal(closedCount, 2, 'only the occupied door group locks (both halves)')
+assert.ok(closedKeys.includes(manyPanels[50].key), 'locked halves are the occupied ones')
+assert.ok(closedKeys.includes(manyPanels[51].key), 'locked halves are the occupied ones')
 
 assert.equal(normalizeWallSegment({ x1: 5, y1: 5, x2: 5, y2: 5, door: true }), undefined, 'degenerate door rejected')
 
@@ -764,7 +829,7 @@ const rtSegs: WallSegment[] = [
 const rtSvg = doorPanelsSvg(rtSegs, TILE, THICKNESS, DOOR_COLOR, 0.5)
 
 const rtRects = rtSvg.match(/<rect[^>]*>/g) || []
-assert.equal(rtRects.length, 2, 'round-trip: 2 rects for 2 doors')
+assert.equal(rtRects.length, 4, 'round-trip: 4 rects for 2 wide doors')
 
 for (const rect of rtRects) {
 	assert.ok(rect.includes(`fill="${DOOR_COLOR}"`), `round-trip: rect has correct fill color`)

@@ -149,7 +149,10 @@ function makeAsset(over: Partial<AssetDef>): AssetDef {
 	const syncedObjects = payload.floors.G!.objects
 	assert.equal(syncedObjects[0].isWall, true)
 	assert.deepEqual([syncedObjects[0].x1, syncedObjects[0].y1, syncedObjects[0].x2, syncedObjects[0].y2], [0, 1, 2, 1])
-	assert.deepEqual(syncedObjects[1].wallSegments, wall.wallSegments)
+	assert.deepEqual(syncedObjects[1].wallSegments, [
+		{ x1: 0, y1: 0, x2: 1, y2: 0 },
+		{ x1: 1, y1: 0, x2: 2, y2: 0 },
+	], 'asset wall segments sync as 1-tile pieces')
 }
 
 // ── Canvas + npcConfig ──

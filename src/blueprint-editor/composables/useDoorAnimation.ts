@@ -41,6 +41,10 @@ function matchDoorPanel(panels: readonly DoorPanel[], edgeFromX: number, edgeFro
 	return undefined
 }
 
+function groupKeyOf(panel: DoorPanel): string {
+	return panel.group ?? panel.key
+}
+
 export function useDoorAnimation(host: DoorAnimationHost) {
 	const doorStates = shallowRef<Map<string, DoorAnimState>>(new Map())
 	let rafId: number | null = null
@@ -60,18 +64,33 @@ export function useDoorAnimation(host: DoorAnimationHost) {
 		let changed = false
 		const cycleClosed = new Set<string>()
 		const agentById = new Map(npcs.map(npc => [npc.id, npc]))
+		const panelsByGroup = new Map<string, DoorPanel[]>()
+		for (const door of doors) {
+			const g = groupKeyOf(door)
+			const arr = panelsByGroup.get(g)
+			if (arr) arr.push(door)
+			else panelsByGroup.set(g, [door])
+		}
+		function groupMembers(door: DoorPanel): DoorPanel[] {
+			return panelsByGroup.get(groupKeyOf(door)) ?? [door]
+		}
 
 		function doorOccupied(door: DoorPanel): boolean {
-			const prefix = `${door.key}|`
-			for (const passageKey of passageCounts.keys()) {
-				if (!passageKey.startsWith(prefix)) continue
-				const status = agentById.get(passageKey.slice(prefix.length))?.status
-				if (status === 'interacting' || status === 'chatting') return true
+			const members = groupMembers(door)
+			for (const member of members) {
+				const prefix = `${member.key}|`
+				for (const passageKey of passageCounts.keys()) {
+					if (!passageKey.startsWith(prefix)) continue
+					const status = agentById.get(passageKey.slice(prefix.length))?.status
+					if (status === 'interacting' || status === 'chatting') return true
+				}
 			}
-		for (const npc of npcs) {
-			if (npc.status !== 'interacting') continue
-			if (Math.hypot(npc.x - door.cx, npc.y - door.cy) >= proximityPx) continue
-			return true
+		for (const member of members) {
+			for (const npc of npcs) {
+				if (npc.status !== 'interacting') continue
+				if (Math.hypot(npc.x - member.cx, npc.y - member.cy) >= proximityPx) continue
+				return true
+			}
 		}
 		return false
 	}
@@ -90,18 +109,22 @@ export function useDoorAnimation(host: DoorAnimationHost) {
 	}
 
 	function doorInTransit(door: DoorPanel): boolean {
-		const prefix = `${door.key}|`
-		for (const passageKey of passageCounts.keys()) {
-			if (passageKey.startsWith(prefix)) return true
+		for (const member of groupMembers(door)) {
+			const prefix = `${member.key}|`
+			for (const passageKey of passageCounts.keys()) {
+				if (passageKey.startsWith(prefix)) return true
+			}
 		}
 		return false
 	}
 
 	function doorApproached(door: DoorPanel, occupants: readonly NpcSimDot[], proximityPx: number): boolean {
-		for (const npc of occupants) {
-			if (npc.status !== 'walking' && npc.status !== 'idle' && npc.status !== 'waiting') continue
-			if (Math.hypot(npc.x - door.cx, npc.y - door.cy) >= proximityPx) continue
-			return true
+		for (const member of groupMembers(door)) {
+			for (const npc of occupants) {
+				if (npc.status !== 'walking' && npc.status !== 'idle' && npc.status !== 'waiting') continue
+				if (Math.hypot(npc.x - member.cx, npc.y - member.cy) >= proximityPx) continue
+				return true
+			}
 		}
 		return false
 	}
@@ -123,56 +146,66 @@ export function useDoorAnimation(host: DoorAnimationHost) {
 				if (!evt.doorEdge) continue
 				const panel = matchDoorPanel(doors, evt.doorEdge.from.x, evt.doorEdge.from.y, evt.doorEdge.to.x, evt.doorEdge.to.y, tileSize)
 				if (!panel) continue
-				let state = states.get(panel.key)
-				if (!state) { state = { progress: 0, target: 0, lastClosed: null, lastOccupied: null }; states.set(panel.key, state); changed = true }
-				const cycleKey = `${panel.key}|${evt.agentId}`
-				const count = (passageCounts.get(cycleKey) ?? 0) + 1
-				if (count % 2 === 0) {
-					passageCounts.delete(cycleKey)
-					cycleClosed.add(panel.key)
-				} else {
-					passageCounts.set(cycleKey, count)
+				for (const member of groupMembers(panel)) {
+					let state = states.get(member.key)
+					if (!state) { state = { progress: 0, target: 0, lastClosed: null, lastOccupied: null }; states.set(member.key, state); changed = true }
+					const cycleKey = `${member.key}|${evt.agentId}`
+					const count = (passageCounts.get(cycleKey) ?? 0) + 1
+					if (count % 2 === 0) {
+						passageCounts.delete(cycleKey)
+						cycleClosed.add(member.key)
+					} else {
+						passageCounts.set(cycleKey, count)
+					}
 				}
 				maxTick = Math.max(maxTick, evt.tick)
 			}
 			lastConsumedEventTick = maxTick
 		}
 
-		for (const door of doors) {
-			if (cycleClosed.has(door.key)) continue
-			let state = states.get(door.key)
-			if (!state) { state = { progress: 0, target: 0, lastClosed: null, lastOccupied: null }; states.set(door.key, state); changed = true }
+		for (const members of panelsByGroup.values()) {
+			const door = members[0]
+			if (members.some(m => cycleClosed.has(m.key))) continue
+			for (const m of members) {
+				if (!states.get(m.key)) { states.set(m.key, { progress: 0, target: 0, lastClosed: null, lastOccupied: null }); changed = true }
+			}
+			const setGroupTarget = (target: 0 | 1): void => {
+				for (const m of members) {
+					const st = states.get(m.key)!
+					if (st.target !== target) { st.target = target; changed = true }
+				}
+			}
 			if (door.mode === 'auto-close') {
 				if (doorRoomOccupied(door, npcs)) {
-					if (state.target !== 0) state.target = 0
-					state.lastOccupied = now
+					setGroupTarget(0)
+					for (const m of members) states.get(m.key)!.lastOccupied = now
 					changed = true
 					continue
 				}
 				if (doorInTransit(door)) {
-					if (state.target !== 1) { state.target = 1; changed = true }
+					setGroupTarget(1)
 					continue
 				}
-				if (state.lastOccupied !== null && now - state.lastOccupied < DOOR_CLOSE_DELAY_MS) {
-					if (state.target !== 0) { state.target = 0; changed = true }
+				if (members.some(m => { const st = states.get(m.key)!; return st.lastOccupied !== null && now - st.lastOccupied < DOOR_CLOSE_DELAY_MS })) {
+					setGroupTarget(0)
 					continue
 				}
 				if (doorApproached(door, npcs, proximityPx)) {
-					if (state.target !== 1) { state.target = 1; changed = true }
+					setGroupTarget(1)
 					continue
 				}
-				if (state.target !== 0) { state.target = 0; changed = true }
+				setGroupTarget(0)
 				continue
 			}
 			if (doorOccupied(door)) {
-				if (state.target !== 0) { state.target = 0; changed = true }
+				setGroupTarget(0)
 				continue
 			}
-			if (state.lastClosed !== null && now - state.lastClosed < DOOR_CLOSE_DELAY_MS) {
-				if (state.target !== 0) { state.target = 0; changed = true }
+			if (members.some(m => { const st = states.get(m.key)!; return st.lastClosed !== null && now - st.lastClosed < DOOR_CLOSE_DELAY_MS })) {
+				setGroupTarget(0)
 				continue
 			}
-			if (state.target !== 1) { state.target = 1; changed = true }
+			setGroupTarget(1)
 		}
 
 		for (const key of cycleClosed) {

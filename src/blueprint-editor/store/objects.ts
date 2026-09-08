@@ -80,14 +80,18 @@ export async function replaceCanvasWallSegments(floorId: string, segments: reado
 	return saveBlueprintData()
 }
 
-export async function setWallDoorMode(floorId: string, objectId: string, mode: DoorMode | undefined): Promise<boolean> {
+export async function setWallDoorMode(floorId: string, objectIds: readonly string[], mode: DoorMode | undefined): Promise<boolean> {
 	const floor = state.layout.floors.find(item => item.id === floorId)
 	if (!floor) return false
-	const object = floor.objects.find(item => item.id === objectId)
-	if (!object || object.type !== CANVAS_WALL_OBJECT_TYPE || object.door !== true) return false
-	if (mode === undefined) delete object.doorMode
-	else object.doorMode = mode
-	return saveBlueprintData()
+	const ids = new Set(objectIds)
+	let touched = false
+	for (const object of floor.objects) {
+		if (!ids.has(object.id) || object.type !== CANVAS_WALL_OBJECT_TYPE || object.door !== true) continue
+		if (mode === undefined) delete object.doorMode
+		else object.doorMode = mode
+		touched = true
+	}
+	return touched ? saveBlueprintData() : false
 }
 
 export async function beginDrawnObject(name: string, w: number, h: number, x: number, y: number): Promise<{ asset: AssetDef; object: ObjectData } | null> {
@@ -442,19 +446,23 @@ export async function toggleObjectLock(id: string): Promise<void> {
 	if (saved) toast.info(o.locked ? 'Object locked' : 'Object unlocked')
 }
 
-export async function removeWallDoor(floorId: string, objectId: string): Promise<boolean> {
+export async function removeWallDoor(floorId: string, objectIds: readonly string[]): Promise<boolean> {
 	return withStateLock(async () => {
 		const floor = state.layout.floors.find(item => item.id === floorId)
 		if (!floor) return false
-		const object = floor.objects.find(item => item.id === objectId)
-		if (!object || object.type !== CANVAS_WALL_OBJECT_TYPE || object.door !== true) return false
-		if (object.locked) {
-			toast.warning('Wall is locked')
-			return false
+		const ids = new Set(objectIds)
+		let touched = false
+		for (const object of floor.objects) {
+			if (!ids.has(object.id) || object.type !== CANVAS_WALL_OBJECT_TYPE || object.door !== true) continue
+			if (object.locked) {
+				toast.warning('Wall is locked')
+				continue
+			}
+			object.door = false
+			delete object.doorMode
+			touched = true
 		}
-		object.door = false
-		delete object.doorMode
-		return saveBlueprintData()
+		return touched ? saveBlueprintData() : false
 	}).catch(e => {
 		if (e instanceof Error && e.message === 'Operation in progress') {
 			toast.warning('Operation in progress')

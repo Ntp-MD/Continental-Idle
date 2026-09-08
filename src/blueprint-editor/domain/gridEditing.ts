@@ -1,4 +1,4 @@
-import type { WallSegment } from './types'
+import type { DoorMode, WallSegment } from './types'
 
 export type TileEdges = {
   top?: boolean
@@ -100,6 +100,174 @@ export function reattachDoorModes(
 
 export function tileEdgeKey(row: number, col: number, side: BorderSide): string {
   return `${row},${col},${side}`
+}
+
+interface SegmentRun {
+	horizontal: boolean
+	fixed: number
+	door: boolean
+	doorMode: DoorMode | undefined
+	pieces: { lo: number; hi: number }[]
+}
+
+function segmentRunKey(segment: WallSegment, includeMode: boolean): string {
+	const horizontal = segment.y1 === segment.y2
+	const fixed = horizontal ? segment.y1 : segment.x1
+	const mode = includeMode ? (segment.doorMode ?? '') : ''
+	return `${horizontal ? 'h' : 'v'}:${fixed}:${segment.door === true}:${mode}`
+}
+
+export function mergeCollinearWallSegments(segments: readonly WallSegment[]): WallSegment[] {
+	const runs = new Map<string, SegmentRun>()
+	for (const segment of segments) {
+		const horizontal = segment.y1 === segment.y2
+		const fixed = horizontal ? segment.y1 : segment.x1
+		const lo = Math.min(horizontal ? segment.x1 : segment.y1, horizontal ? segment.x2 : segment.y2)
+		const hi = Math.max(horizontal ? segment.x1 : segment.y1, horizontal ? segment.x2 : segment.y2)
+		const key = segmentRunKey(segment, true)
+		const run = runs.get(key) ?? { horizontal, fixed, door: segment.door === true, doorMode: segment.doorMode, pieces: [] }
+		run.pieces.push({ lo, hi })
+		runs.set(key, run)
+	}
+	const out: WallSegment[] = []
+	for (const run of runs.values()) {
+		run.pieces.sort((a, b) => a.lo - b.lo)
+		let start = run.pieces[0]!.lo
+		let end = run.pieces[0]!.hi
+		const flush = () => {
+			const segment: WallSegment = run.horizontal
+				? { x1: start, y1: run.fixed, x2: end, y2: run.fixed }
+				: { x1: run.fixed, y1: start, x2: run.fixed, y2: end }
+			if (run.door) {
+				segment.door = true
+				if (run.doorMode !== undefined) segment.doorMode = run.doorMode
+			}
+			out.push(segment)
+		}
+		for (let i = 1; i < run.pieces.length; i++) {
+			const piece = run.pieces[i]!
+			if (piece.lo <= end) {
+				end = Math.max(end, piece.hi)
+				continue
+			}
+			flush()
+			start = piece.lo
+			end = piece.hi
+		}
+		flush()
+	}
+	return out
+}
+
+export function doorRunBounds(
+	segments: readonly WallSegment[],
+	anchor: WallSegment,
+): { horizontal: boolean; fixed: number; lo: number; hi: number } | null {
+	if (anchor.door !== true) return null
+	const horizontal = anchor.y1 === anchor.y2
+	const fixed = horizontal ? anchor.y1 : anchor.x1
+	let lo = Math.min(horizontal ? anchor.x1 : anchor.y1, horizontal ? anchor.x2 : anchor.y2)
+	let hi = Math.max(horizontal ? anchor.x1 : anchor.y1, horizontal ? anchor.x2 : anchor.y2)
+	const intervals: { lo: number; hi: number }[] = []
+	for (const segment of segments) {
+		if (segment.door !== true) continue
+		const segmentHorizontal = segment.y1 === segment.y2
+		if (segmentHorizontal !== horizontal) continue
+		if ((segmentHorizontal ? segment.y1 : segment.x1) !== fixed) continue
+		intervals.push({
+			lo: Math.min(segmentHorizontal ? segment.x1 : segment.y1, segmentHorizontal ? segment.x2 : segment.y2),
+			hi: Math.max(segmentHorizontal ? segment.x1 : segment.y1, segmentHorizontal ? segment.x2 : segment.y2),
+		})
+	}
+	let changed = true
+	while (changed) {
+		changed = false
+		for (const interval of intervals) {
+			if (interval.lo <= hi && interval.hi >= lo) {
+				const nextLo = Math.min(lo, interval.lo)
+				const nextHi = Math.max(hi, interval.hi)
+				if (nextLo !== lo || nextHi !== hi) {
+					lo = nextLo
+					hi = nextHi
+					changed = true
+				}
+			}
+		}
+	}
+	return { horizontal, fixed, lo, hi }
+}
+
+export interface DoorRun {
+	horizontal: boolean
+	fixed: number
+	lo: number
+	hi: number
+	anchor: WallSegment
+	count: number
+}
+
+function segmentBounds(segment: WallSegment, horizontal: boolean): { lo: number; hi: number; fixed: number } {
+	const fixed = horizontal ? segment.y1 : segment.x1
+	return {
+		fixed,
+		lo: Math.min(horizontal ? segment.x1 : segment.y1, horizontal ? segment.x2 : segment.y2),
+		hi: Math.max(horizontal ? segment.x1 : segment.y1, horizontal ? segment.x2 : segment.y2),
+	}
+}
+
+function segmentInBounds(segment: WallSegment, bounds: { horizontal: boolean; fixed: number; lo: number; hi: number }): boolean {
+	const horizontal = segment.y1 === segment.y2
+	if (horizontal !== bounds.horizontal) return false
+	if ((horizontal ? segment.y1 : segment.x1) !== bounds.fixed) return false
+	const { lo, hi } = segmentBounds(segment, horizontal)
+	return lo >= bounds.lo && hi <= bounds.hi
+}
+
+export function doorRuns(segments: readonly WallSegment[]): DoorRun[] {
+	const runs: DoorRun[] = []
+	const consumed = new Set<WallSegment>()
+	for (const segment of segments) {
+		if (segment.door !== true || consumed.has(segment)) continue
+		const bounds = doorRunBounds(segments, segment)
+		if (!bounds) continue
+		let count = 0
+		for (const piece of segments) {
+			if (piece.door !== true || consumed.has(piece)) continue
+			if (!segmentInBounds(piece, bounds)) continue
+			consumed.add(piece)
+			count++
+		}
+		runs.push({ ...bounds, anchor: segment, count })
+	}
+	return runs
+}
+
+export function withoutDoorRun(segments: readonly WallSegment[], anchor: WallSegment): WallSegment[] {
+	const bounds = doorRunBounds(segments, anchor)
+	if (!bounds) return [...segments]
+	return segments.filter(segment => segment.door !== true || !segmentInBounds(segment, bounds))
+}
+
+export function doorRunLabel(run: Pick<DoorRun, 'horizontal' | 'fixed' | 'lo' | 'hi'>): string {
+	return run.horizontal
+		? `${run.lo},${run.fixed} -> ${run.hi},${run.fixed}`
+		: `${run.fixed},${run.lo} -> ${run.fixed},${run.hi}`
+}
+
+export function withDoorRunMode(
+	segments: readonly WallSegment[],
+	anchor: WallSegment,
+	mode: DoorMode | undefined,
+): WallSegment[] {
+	const bounds = doorRunBounds(segments, anchor)
+	if (!bounds) return [...segments]
+	return segments.map(segment => {
+		if (segment.door !== true || !segmentInBounds(segment, bounds)) return segment
+		const next = { ...segment }
+		if (mode !== undefined) next.doorMode = mode
+		else delete next.doorMode
+		return next
+	})
 }
 
 export function mirrorTileEdge(

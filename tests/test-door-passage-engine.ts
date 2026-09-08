@@ -442,8 +442,9 @@ function matchDoorPanel(panels: ReturnType<typeof doorPanelsData>, edgeFromX: nu
 // Vertical door at x=2, y=0..3 (in tile coords)
 const vDoorSeg: WallSegment = { x1: 2, y1: 0, x2: 2, y2: 3, door: true }
 const vPanels = doorPanelsData([vDoorSeg], TILE, 3)
-assert.equal(vPanels.length, 1)
+assert.equal(vPanels.length, 2, '3-tall door splits into 2 halves')
 assert.equal(vPanels[0].horizontal, false)
+assert.equal(vPanels[0].group, vPanels[1].group, 'halves share a group')
 
 // Engine edge: (2,1)->(2,2) - should match
 const matched1 = matchDoorPanel(vPanels, 2, 1, 2, 2, TILE)
@@ -487,7 +488,7 @@ for (const rot of rotations) {
 	assert.equal(doorSegs.length, 1, `rotation ${rot}: 1 door segment resolved`)
 
 	const panels = doorPanelsData(doorSegs, TILE, 3)
-	assert.equal(panels.length, 1, `rotation ${rot}: 1 door panel`)
+	assert.equal(panels.length, 2, `rotation ${rot}: wide door splits into 2 halves`)
 
 	// Generate a synthetic engine edge at the door's midpoint
 	const panel = panels[0]

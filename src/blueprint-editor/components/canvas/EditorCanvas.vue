@@ -23,6 +23,7 @@ import { useDoorAnimation } from '../../composables/useDoorAnimation'
 import { useWallPaint, type WallSegment, type WallSelection } from '../../composables/useWallPaint'
 import { useNpcOverlayDraw, type ChatBubble } from '../../composables/useNpcOverlayDraw'
 import { useCanvasRuns, type WallRun, type ObjWallLine } from '../../composables/useCanvasRuns'
+import { segmentCoversTileEdge, type BorderSide } from '../../domain/gridEditing'
 import { renderSvgInto as renderSvgContent } from '../../assets/svgSanitizer'
 
 const vSvgContent = {
@@ -191,6 +192,20 @@ function wallsInRect(rect: { x: number; y: number; w: number; h: number }): Wall
     }))
 }
 
+function wallAtEdge(col: number, row: number, side: BorderSide): WallSelection | null {
+  const t = canvas.value.tileSize
+  if (t <= 0) return null
+  const floorId = floor.value?.id ?? ''
+  for (const wall of wallRuns.value) {
+    const object = floor.value?.objects.find((item) => item.id === wall.objectId)
+    const segment = { x1: wall.x1 / t, y1: wall.y1 / t, x2: wall.x2 / t, y2: wall.y2 / t, door: wall.door }
+    if (segmentCoversTileEdge(segment, row, col, side)) {
+      return { floorId, objectId: wall.objectId, segment: { x1: segment.x1, y1: segment.y1, x2: segment.x2, y2: segment.y2, door: wall.door }, locked: object?.locked }
+    }
+  }
+  return null
+}
+
 const modeLabel = computed(() => {
   if (store.state.wallPaint) return 'Draw Wall Mode'
   const labels: Record<string, string> = {
@@ -344,16 +359,10 @@ const wallPaint = useWallPaint({
   canvasWidth: () => canvas.value.width,
   canvasHeight: () => canvas.value.height,
   floor,
-  wallAtPoint,
   wallsInRect,
-  commit: async (floorId, wall) => {
+  wallAtEdge,
+  commit: async () => {
     try {
-      const target = store.state.layout.floors.find((item) => item.id === floorId)
-      if (!target) {
-        toast.error('Failed to save wall - floor not found')
-        return
-      }
-      target.objects.push(wall)
       const saved = await store.saveBlueprintData()
       if (saved) toast.success('Wall saved')
       else toast.error('Failed to save wall')
@@ -376,7 +385,6 @@ const wallPaint = useWallPaint({
   },
 })
 const { wallColor, wallThickness } = useCanvasWallStyle()
-const wallPreview = wallPaint.preview
 const selectedWall = wallPaint.selected
 watch(
   () => store.state.wallPaint,
@@ -1316,19 +1324,6 @@ async function cancelDrawnOrigin() {
           />
         </template>
       </g>
-
-      <line
-        v-if="wallPreview && !isInteracting"
-        :x1="wallPreview.x1"
-        :y1="wallPreview.y1"
-        :x2="wallPreview.x2"
-        :y2="wallPreview.y2"
-        :stroke="wallColor"
-        :stroke-width="Math.max(2, wallThickness)"
-        stroke-dasharray="6 4"
-        opacity="0.9"
-        class="editor__svg--noevents"
-      />
 
       <g v-if="renderBuildingBounds" v-memo="[buildingAreaRect, renderBuildingBounds]" class="editor__svg--noevents">
         <rect

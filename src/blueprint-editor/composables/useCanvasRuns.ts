@@ -106,6 +106,7 @@ export function useCanvasRuns(sources: CanvasRunsSources) {
 
 	const doorPanels = computed<DoorPanel[]>(() => {
 		const thickness = wallThickness.value
+		const pxPerTile = sources.tileSize()
 		const objects = sources.floor.value?.objects ?? []
 		const panels: DoorPanel[] = []
 		const pushPanels = (segments: readonly WallSegment[], ownerId: string, ownerWalls: readonly WallSegment[], explicitMode?: DoorMode) => {
@@ -113,7 +114,11 @@ export function useCanvasRuns(sources: CanvasRunsSources) {
 			const ownerAsset = objAssetMap.value.get(ownerId)
 			const ownerHasSpots = !ownerAsset?.tags?.includes('portal') && (ownerAsset?.interactSpots?.length ?? 0) > 0
 			const mode = resolveDoorMode(explicitMode, ownerHasSpots)
-			for (const panel of doorPanelsData(segments, 1, thickness)) {
+			for (const panel of doorPanelsData(segments, 1, thickness, pxPerTile)) {
+				if (panel.half !== undefined) {
+					panels.push({ ...panel, slideDir: panel.half, ownerObjectId: ownerId, mode })
+					continue
+				}
 				const halfT = panel.thickness / 2
 				const ownWalls: Rect[] = ownerWalls
 					.filter(s => !s.door && (

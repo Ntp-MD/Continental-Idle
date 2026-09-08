@@ -7,8 +7,7 @@ import { useConfirm } from '@/composables/useConfirm'
 import { useAssetPreview } from '../../composables/useAssetPreview'
 import { useCanvasDefaults } from '../../composables/useCanvasDefaults'
 import { useDirtyBaseline } from '../../composables/useDirtyBaseline'
-import { wallSegmentsToEdges, edgesToWallSegments, reattachDoorModes, tileEdgeKey, doorKeyForSide, mirrorTileEdge, segmentCoversTileEdge, type TileEdges, type BorderSide } from '../../domain/gridEditing'
-import { withSegmentDoorMode } from '../../assets/assetUtils'
+import { wallSegmentsToEdges, edgesToWallSegments, reattachDoorModes, tileEdgeKey, doorKeyForSide, mirrorTileEdge, segmentCoversTileEdge, withDoorRunMode, type TileEdges, type BorderSide } from '../../domain/gridEditing'
 import type { AssetDef, TileState, EdgeInteractSpot, InteractSpot } from '../../domain/types'
 import { normalizeInteractConfig, normalizeNpcQueueConfig, resolveInteractForTarget, resolveInteractSpotAnchor, snapSpotToEdge } from '../../domain/types'
 
@@ -498,7 +497,7 @@ async function applyDoorModeToSelected() {
   }
   const mode = selectedDoorMode.value === 'auto' ? undefined : selectedDoorMode.value
   let next = asset.wallSegments ?? []
-  for (const index of picked) next = withSegmentDoorMode(next, index, mode)
+  for (const index of picked) next = withDoorRunMode(next, next[index]!, mode)
   await store.updateAsset(asset.id, { wallSegments: next })
   selectedEdges.value.clear()
 }

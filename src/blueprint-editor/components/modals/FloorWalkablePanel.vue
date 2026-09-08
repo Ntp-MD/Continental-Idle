@@ -295,10 +295,8 @@ async function applyDoorModeToSelected(): Promise<void> {
     return
   }
   const mode = selectedDoorMode.value === 'auto' ? undefined : selectedDoorMode.value
-  let saved = true
-  for (const id of picked) {
-    saved = (await store.setWallDoorMode(floor.id, id, mode)) && saved
-  }
+  const ids = [...picked]
+  const saved = await store.setWallDoorMode(floor.id, ids, mode)
   if (!saved) useToast().error('Failed to save door mode')
   else useToast().success(`Door mode set on ${picked.size} wall${picked.size === 1 ? '' : 's'}`)
   selectedEdges.value.clear()
@@ -325,16 +323,24 @@ function clearAllDoors(): void {
 }
 
 async function clearAllEdges(): Promise<void> {
+  if (!props.floor) return
   const confirmed = await confirm({
     title: 'Clear walls',
-    message: 'Remove all wall segments on this floor? This cannot be undone.',
+    message: 'Remove all walls and doors on this floor? This cannot be undone.',
     confirmLabel: 'Clear',
     cancelLabel: 'Cancel',
     danger: true,
   })
   if (!confirmed) return
+  const saved = await store.replaceCanvasWallSegments(props.floor.id, [])
+  if (!saved) {
+    useToast().error('Failed to clear walls')
+    return
+  }
   wallSegments.value = []
   gridEdges.value = []
+  saveBaseline()
+  useToast().success('Walls cleared')
 }
 
 const tileSize = computed(() => Math.max(1, Math.round(store.state.layout.canvas.tileSize)))
@@ -555,7 +561,6 @@ function close(): void {
         </button>
       </template>
       <template v-else-if="activeMode === 'wall'">
-        <button type="button" @click="applyOuterWall">Outer Walls</button>
         <button type="button" @click="clearAllEdges">Clear Walls</button>
       </template>
       <template v-else-if="activeMode === 'door'">

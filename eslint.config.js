@@ -51,7 +51,7 @@ export default tseslint.config(
     },
   },
   {
-    ignores: ['dist/**', 'node_modules/**', 'src/blueprint-editor/data/*.data.ts', '_archive/**', 'eslint.config.js', 'src/engine/**'],
+    ignores: ['dist/**', 'node_modules/**', 'src/blueprint-editor/data/*.data.ts', 'harness/**/*.md', 'eslint.config.js', 'src/engine/**'],
   },
   prettier,
 )

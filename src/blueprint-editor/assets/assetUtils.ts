@@ -1,3 +1,4 @@
+import { mergeCollinearWallSegments } from '../domain/gridEditing'
 import { isValidColor } from '../domain/types'
 import { assetPixelSize, CANVAS_WALL_OBJECT_TYPE, resolveInteractSpotAnchor, resolveStreetTiles, resolveWallSegmentsForObject, spawnZoneAllowsRole } from '../domain/types'
 import type { Rect, WallSegment, DoorMode, CanvasConfig, NpcSpawnZone } from '../domain/types'
@@ -59,6 +60,8 @@ export interface DoorPanel {
 	slideDir: -1 | 1
 	ownerObjectId?: string
 	mode?: DoorMode
+	half?: -1 | 1
+	group?: string
 }
 
 export function resolveDoorMode(explicitMode: DoorMode | undefined, ownerHasSpots: boolean): DoorMode {
@@ -66,45 +69,54 @@ export function resolveDoorMode(explicitMode: DoorMode | undefined, ownerHasSpot
 	return ownerHasSpots ? 'auto-close' : 'hold-open'
 }
 
-export function withSegmentDoorMode(
-	segments: readonly WallSegment[],
-	index: number,
-	mode: DoorMode | undefined,
-): WallSegment[] {
-	return segments.map((segment, i) => {
-		if (i !== index) return { ...segment }
-		if (mode !== undefined) return { ...segment, doorMode: mode }
-		const next = { ...segment }
-		delete next.doorMode
-		return next
-	})
-}
-
 export function doorPanelsData(
 	segments: readonly WallSegment[],
 	tileSize: number,
 	thickness: number,
+	unitsPerTile: number = tileSize,
 ): DoorPanel[] {
 	const t = Math.max(1, thickness)
-	return segments
-		.filter(s => s.door)
-		.map(s => {
-			const x1 = s.x1 * tileSize
-			const y1 = s.y1 * tileSize
-			const x2 = s.x2 * tileSize
-			const y2 = s.y2 * tileSize
-			const horizontal = y1 === y2
-			const length = Math.max(t * 2, Math.abs(horizontal ? x2 - x1 : y2 - y1))
-			return {
-				key: `${x1},${y1},${x2},${y2}`,
-				cx: (x1 + x2) / 2,
-				cy: (y1 + y2) / 2,
-				length,
-				thickness: t,
-				horizontal,
-				slideDir: 1 as const,
+	const unit = unitsPerTile > 0 ? unitsPerTile : tileSize
+	const out: DoorPanel[] = []
+	for (const s of mergeCollinearWallSegments(segments)) {
+		if (!s.door) continue
+		const x1 = s.x1 * tileSize
+		const y1 = s.y1 * tileSize
+		const x2 = s.x2 * tileSize
+		const y2 = s.y2 * tileSize
+		const horizontal = y1 === y2
+		const pxLen = Math.abs(horizontal ? x2 - x1 : y2 - y1)
+		const fullLen = Math.max(t * 2, pxLen)
+		const group = `${x1},${y1},${x2},${y2}`
+		if (pxLen / unit >= 2) {
+			const halfLen = fullLen / 2
+			if (horizontal) {
+				const lo = Math.min(x1, x2)
+				const mid = (x1 + x2) / 2
+				const hi = Math.max(x1, x2)
+				out.push({ key: `${lo},${y1},${mid},${y1}`, cx: (lo + mid) / 2, cy: y1, length: halfLen, thickness: t, horizontal, slideDir: -1, half: -1, group })
+				out.push({ key: `${mid},${y1},${hi},${y1}`, cx: (mid + hi) / 2, cy: y1, length: halfLen, thickness: t, horizontal, slideDir: 1, half: 1, group })
+			} else {
+				const lo = Math.min(y1, y2)
+				const mid = (y1 + y2) / 2
+				const hi = Math.max(y1, y2)
+				out.push({ key: `${x1},${lo},${x1},${mid}`, cx: x1, cy: (lo + mid) / 2, length: halfLen, thickness: t, horizontal, slideDir: -1, half: -1, group })
+				out.push({ key: `${x1},${mid},${x1},${hi}`, cx: x1, cy: (mid + hi) / 2, length: halfLen, thickness: t, horizontal, slideDir: 1, half: 1, group })
 			}
+			continue
+		}
+		out.push({
+			key: group,
+			cx: (x1 + x2) / 2,
+			cy: (y1 + y2) / 2,
+			length: fullLen,
+			thickness: t,
+			horizontal,
+			slideDir: 1 as const,
+			group,
 		})
+	}
+	return out
 }
 
 export function doorSlideDir(panel: DoorPanel, blockers: readonly Rect[], ownWalls: readonly Rect[] = []): -1 | 1 {
@@ -131,8 +143,9 @@ export function doorPanelsSvg(
 	thickness: number,
 	color: string,
 	progress = 0,
+	unitsPerTile?: number,
 ): string {
-	const panels = doorPanelsData(segments, tileSize, thickness)
+	const panels = doorPanelsData(segments, tileSize, thickness, unitsPerTile ?? tileSize)
 	if (!panels.length) return ''
 	const parts: string[] = []
 	for (const p of panels) {
@@ -173,7 +186,7 @@ export function wallSegmentsOverlaySvg(asset: AssetDef, tileSize: number, color:
 		door: true as const,
 		...(s.doorMode !== undefined ? { doorMode: s.doorMode } : {}),
 	}))
-	const doorSvg = doorPanelsSvg(scaledDoorSegs, 1, sw, doorColor, 0)
+	const doorSvg = doorPanelsSvg(scaledDoorSegs, 1, sw, doorColor, 0, scaleX)
 	return `<g class="wall-overlay">${wallParts.join('')}${doorSvg}</g>`
 }
 

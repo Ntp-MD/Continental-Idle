@@ -69,7 +69,7 @@ const MAX_SVG_ATTRIBUTE_LENGTH = 4096
 const MAX_SVG_LENGTH = 250_000
 const MAX_GRID_ROWS = 256
 const MAX_GRID_COLUMNS = 256
-const MAX_WALL_SEGMENTS = 2048
+const MAX_WALL_SEGMENTS = 8192
 const MAX_INTERACT_SPOTS = 512
 const MAX_SVG_ROLES = 512
 const MAX_ASSET_DIMENSION = 10_000
@@ -149,23 +149,45 @@ export function normalizeWallSegment(value: unknown): WallSegment | undefined {
 	return x1 <= x2 ? base(x1, y1, x2, y2) : base(x2, y2, x1, y1)
 }
 
+export function splitWallSegmentToTiles(segment: WallSegment): WallSegment[] {
+	const horizontal = segment.y1 === segment.y2
+	const fixed = horizontal ? segment.y1 : segment.x1
+	const lo = Math.round(Math.min(horizontal ? segment.x1 : segment.y1, horizontal ? segment.x2 : segment.y2))
+	const hi = Math.round(Math.max(horizontal ? segment.x1 : segment.y1, horizontal ? segment.x2 : segment.y2))
+	const count = Math.max(1, hi - lo)
+	const pieces: WallSegment[] = []
+	for (let i = 0; i < count; i++) {
+		const piece: WallSegment = horizontal
+			? { x1: lo + i, y1: fixed, x2: lo + i + 1, y2: fixed }
+			: { x1: fixed, y1: lo + i, x2: fixed, y2: lo + i + 1 }
+		if (segment.door) {
+			piece.door = true
+			if (segment.doorMode !== undefined) piece.doorMode = segment.doorMode
+		}
+		pieces.push(piece)
+	}
+	return pieces
+}
+
 export function normalizeWallSegments(value: unknown): WallSegment[] | undefined {
-	if (!Array.isArray(value) || value.length > MAX_WALL_SEGMENTS) return undefined
+	if (!Array.isArray(value)) return undefined
 	const seen = new Map<string, WallSegment>()
 	for (const item of value) {
 		const segment = normalizeWallSegment(item)
 		if (!segment) continue
-		const key = `${segment.x1},${segment.y1},${segment.x2},${segment.y2}`
-		const existing = seen.get(key)
-		if (existing) {
-			if (segment.door) existing.door = true
-			if (segment.door && segment.doorMode !== undefined && existing.doorMode === undefined) existing.doorMode = segment.doorMode
-			continue
+		for (const piece of splitWallSegmentToTiles(segment)) {
+			const key = `${piece.x1},${piece.y1},${piece.x2},${piece.y2}`
+			const existing = seen.get(key)
+			if (existing) {
+				if (piece.door) existing.door = true
+				if (piece.door && piece.doorMode !== undefined && existing.doorMode === undefined) existing.doorMode = piece.doorMode
+				continue
+			}
+			seen.set(key, piece)
 		}
-		seen.set(key, segment)
 	}
-	const segments = [...seen.values()]
-	return segments.length > 0 ? segments : undefined
+	if (seen.size === 0 || seen.size > MAX_WALL_SEGMENTS) return undefined
+	return [...seen.values()]
 }
 
 export type AssetPixelSize = Pick<AssetDef, 'w' | 'h' | 'usePx' | 'pxW' | 'pxH'>
