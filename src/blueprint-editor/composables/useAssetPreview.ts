@@ -1,7 +1,7 @@
 import { computed, nextTick, ref, watch } from 'vue'
 import type { AssetDef } from '../domain/types'
 import { assetPreviewSvg, assetPreviewViewBox, assetSvgVarStyle } from '../assets/assetUtils'
-import { useCanvasWallStyle, DOOR_COLOR } from './useCanvasWallStyle'
+import { useCanvasDefaults } from './useCanvasDefaults'
 import { useSvgPreview } from './useSvgPreview'
 
 export interface AssetPreviewSources {
@@ -10,7 +10,7 @@ export interface AssetPreviewSources {
 }
 
 export function useAssetPreview(sources: AssetPreviewSources) {
-	const { canvasTileSize, wallColor, wallThickness } = useCanvasWallStyle()
+	const { canvasTileSize } = useCanvasDefaults()
 
 	const viewBox = computed(() => {
 		const asset = sources.asset()
@@ -18,7 +18,7 @@ export function useAssetPreview(sources: AssetPreviewSources) {
 	})
 	const svg = computed(() => {
 		const asset = sources.asset()
-		return asset ? assetPreviewSvg(asset, canvasTileSize.value, wallColor.value, wallThickness.value, DOOR_COLOR) : ''
+		return asset ? assetPreviewSvg(asset, canvasTileSize.value) : ''
 	})
 	const vars = computed(() => assetSvgVarStyle(sources.asset()))
 

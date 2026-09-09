@@ -1,7 +1,6 @@
 export {
 	useAssetsStore, reloadEditorData,
 	dragState, startAssetDrag, endAssetDrag,
-	wallSelection, clearWallSelection,
 	managedTagSet,
 } from './store/index'
 export { state } from './store/state'

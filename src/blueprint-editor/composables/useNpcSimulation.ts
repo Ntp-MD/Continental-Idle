@@ -27,7 +27,7 @@ export function floorSignature(floor: FloorData | undefined): string {
 	if (!floor) return ''
 	const parts: (string | number)[] = [floor.id, floor.objects.length, floor.defaultWalkable ? 1 : 0]
 	for (const o of floor.objects) {
-		parts.push(o.id, o.type, o.isWall ? 1 : 0, o.door ? 1 : 0)
+		parts.push(o.id, o.type)
 	}
 	parts.push(JSON.stringify(floor.allowedRoleIds ?? null), JSON.stringify(floor.spawnZones ?? null))
 	const ts = floor.walkable?.tileStates
@@ -49,7 +49,6 @@ export function useNpcSimulation(sources: NpcSimulationSources = {}): {
 	frameDots: Map<string, NpcSimDot>
 	waitReasons: ReadonlyMap<string, string>
 	arrivalMarks: ReadonlyMap<string, number>
-	doorPassageEvents: ShallowRef<NpcEngineEvent[]>
 	socialEvents: ShallowRef<NpcEngineEvent[]>
 	deploy: (floorId?: string, spawnFloorId?: string) => void
 	start: () => void
@@ -101,7 +100,6 @@ export function useNpcSimulation(sources: NpcSimulationSources = {}): {
 		frameDots: core.frameDots,
 		waitReasons: core.waitReasons,
 		arrivalMarks: core.arrivalMarks,
-		doorPassageEvents: core.doorPassageEvents,
 		socialEvents: core.socialEvents,
 		deploy(floorId?: string, spawnFloorId?: string) {
 			const view = floorId ?? sources.getFloor?.()?.id

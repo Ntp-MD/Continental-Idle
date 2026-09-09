@@ -41,7 +41,7 @@ const floors: FloorData[] = floorKeys.map(id => ({
 	id,
 	name: id,
 	label: id,
-	objects: payload.floors[id].objects.map(o => ({ id: o.id, type: o.type, x: o.x!, y: o.y!, w: o.w!, h: o.h!, rotation: o.rotation, isWall: (o as any).isWall, x1: (o as any).x1, y1: (o as any).y1, x2: (o as any).x2, y2: (o as any).y2, door: (o as any).door })),
+	objects: payload.floors[id].objects.map(o => ({ id: o.id, type: o.type, x: o.x!, y: o.y!, w: o.w!, h: o.h!, rotation: o.rotation })),
 	defaultWalkable: payload.floors[id].defaultWalkable,
 	walkable: payload.floors[id].walkable,
 	spawnZones: payload.floors[id].spawnZones,

@@ -1,7 +1,6 @@
 import assert from 'node:assert/strict'
-import { applySvgColorConvention, isSafeSvgMarkup, normalizeBlueprintDataFile, normalizeInteractSpots, normalizeNpcConfig, normalizeObjectPlacement, normalizeOriginAsset, normalizeTag, normalizeWallSegment, normalizeWallSegments, resolveInteractSpotAnchor, resolveObjectDef, rotateInteractSpots90, snapSpotToEdge, parseCanvasConfig, CANVAS_FIELD_SPECS } from '../src/blueprint-editor/domain/types'
-import { serializeAsset, serializeObject, resolveDoorMode } from '../src/blueprint-editor/assets/assetUtils'
-import { reattachDoorModes } from '../src/blueprint-editor/domain/gridEditing'
+import { applySvgColorConvention, isSafeSvgMarkup, normalizeBlueprintDataFile, normalizeInteractSpots, normalizeNpcConfig, normalizeObjectPlacement, normalizeOriginAsset, normalizeTag, normalizeTileStates, resolveInteractSpotAnchor, resolveObjectDef, rotateInteractSpots90, snapSpotToEdge, parseCanvasConfig, CANVAS_FIELD_SPECS } from '../src/blueprint-editor/domain/types'
+import { serializeAsset, serializeObject } from '../src/blueprint-editor/assets/assetUtils'
 import { resolvePlacedObject } from '../src/blueprint-editor/domain/geometry'
 import { buildBlueprintData } from '../src/blueprint-editor/store/dataLoader'
 import { emptyNpcConfig } from '../src/blueprint-editor/store/storeUtils'
@@ -154,76 +153,67 @@ assert.equal(conv('<rect fill="none" stroke="#abc" fill="none"/>'), '<rect fill=
 console.log('SVG color convention checks passed')
 
 const canvasKeys = Object.keys(CANVAS_FIELD_SPECS).sort()
-assert.deepEqual(canvasKeys, ['bgColor', 'height', 'labelColor', 'tileSize', 'wallColor', 'wallThickness', 'width'])
+assert.deepEqual(canvasKeys, ['bgColor', 'height', 'labelColor', 'tileSize', 'width'])
 
-const sampleCanvas: Required<CanvasConfig> = { width: 100, height: 50, tileSize: 25, bgColor: '#000000', labelColor: '#cccccc', wallColor: '#ffffff', wallThickness: 4 }
+const sampleCanvas: Required<CanvasConfig> = { width: 100, height: 50, tileSize: 25, bgColor: '#000000', labelColor: '#cccccc' }
 const roundTrip = parseCanvasConfig(sampleCanvas, true)
 assert.deepEqual(roundTrip, sampleCanvas)
 
-const strictCanvas = parseCanvasConfig({ width: 100, height: 50, tileSize: 25, wallColor: '#ffffff', wallThickness: 4 }, true)
-assert.deepEqual(strictCanvas, { width: 100, height: 50, tileSize: 25, wallColor: '#ffffff', wallThickness: 4 })
-assert.equal(parseCanvasConfig({ width: 100, height: 50, tileSize: 25, wallColor: 'white' }, true), null)
-assert.equal(parseCanvasConfig({ width: 100, height: 50, tileSize: 25, wallThickness: 11 }, true), null)
+const strictCanvas = parseCanvasConfig({ width: 100, height: 50, tileSize: 25, bgColor: '#ffffff', labelColor: '#cccccc' }, true)
+assert.deepEqual(strictCanvas, { width: 100, height: 50, tileSize: 25, bgColor: '#ffffff', labelColor: '#cccccc' })
+assert.equal(parseCanvasConfig({ width: 100, height: 50, tileSize: 25, bgColor: 'white' }, true), null)
+assert.equal(parseCanvasConfig({ width: 100, height: 50, tileSize: 0 }, true), null)
 assert.equal(parseCanvasConfig({ height: 50, tileSize: 25 }, true), null)
 
-const lenientCanvas = parseCanvasConfig({ width: 100, height: 50, tileSize: 25, wallColor: 'not-a-color', wallThickness: 99 }, false)
+const lenientCanvas = parseCanvasConfig({ width: 100, height: 50, tileSize: 25, bgColor: 'not-a-color', tileSizeExtra: 99 }, false)
 assert.deepEqual(lenientCanvas, { width: 100, height: 50, tileSize: 25 })
 console.log('Canvas config pipeline checks passed')
 
-const wallObject: ObjectData = {
+const legacyWallObject = {
 	id: 'wall-test',
-	type: '__canvas-wall__',
+	type: 'table-1',
 	x: 0,
 	y: 0,
-	w: 50,
-	h: 1,
 	rotation: 0,
 	isWall: true,
 	x1: 0,
 	y1: 0,
 	x2: 2,
 	y2: 0,
+	door: true,
+	doorMode: 'auto-close',
 }
-const serializedWall = serializeObject(wallObject)
-assert.deepEqual(serializedWall, {
+const normalizedLegacy = normalizeObjectPlacement(legacyWallObject)
+assert.deepEqual(normalizedLegacy, {
 	id: 'wall-test',
-	type: '__canvas-wall__',
+	type: 'table-1',
 	x: 0,
 	y: 0,
 	rotation: 0,
-	isWall: true,
-	x1: 0,
-	y1: 0,
-	x2: 2,
-	y2: 0,
 })
-const wallSaved = buildBlueprintData({
+const legacyRuntime = {
+	...normalizedLegacy!,
+	w: 50,
+	h: 25,
+	...legacyWallObject,
+} as unknown as ObjectData
+const serializedLegacy = serializeObject(legacyRuntime)
+assert.deepEqual(serializedLegacy, {
+	id: 'wall-test',
+	type: 'table-1',
+	x: 0,
+	y: 0,
+	rotation: 0,
+})
+const legacySaved = buildBlueprintData({
 	...layout,
-	floors: [{ ...layout.floors[0], objects: [wallObject] }],
+	floors: [{ ...layout.floors[0], objects: [{ ...serializedLegacy, w: 50, h: 25 }] }],
 }, [], {
 	...emptyNpcConfig(),
 }, [])
-assert.deepEqual(wallSaved.layout.floors[0].objects[0], serializedWall)
+assert.deepEqual(legacySaved.layout.floors[0].objects[0], serializedLegacy)
 
-console.log('Wall paint persistence checks passed')
-
-// ── Wall doorMode placement round-trip ──
-assert.deepEqual(
-  normalizeObjectPlacement({ id: 'door-test', type: '__canvas-wall__', x: 0, y: 0, rotation: 0, isWall: true, x1: 0, y1: 0, x2: 2, y2: 0, door: true, doorMode: 'auto-close' }),
-  { id: 'door-test', type: '__canvas-wall__', x: 0, y: 0, rotation: 0, isWall: true, x1: 0, y1: 0, x2: 2, y2: 0, door: true, doorMode: 'auto-close' },
-  'wall door mode survives placement normalize',
-)
-assert.equal(
-  normalizeObjectPlacement({ id: 'door-test', type: '__canvas-wall__', x: 0, y: 0, rotation: 0, isWall: true, door: true, doorMode: 'party' })?.doorMode,
-  undefined,
-  'unknown door mode dropped',
-)
-assert.deepEqual(
-  serializeObject({ id: 'door-test', type: '__canvas-wall__', x: 0, y: 0, rotation: 0, isWall: true, door: true, doorMode: 'hold-open' }),
-  { id: 'door-test', type: '__canvas-wall__', x: 0, y: 0, rotation: 0, isWall: true, door: true, doorMode: 'hold-open' },
-  'wall door mode survives serialize',
-)
-console.log('Wall door mode checks passed')
+console.log('Legacy wall key drop checks passed')
 
 // ── InteractSpot union (stand/edge/post) + task.post round-trip ──
 assert.deepEqual(normalizeInteractSpots([[1, 2]]), [{ kind: 'stand', x: 1, y: 2 }], 'tuple ingress normalizes to stand')
@@ -278,30 +268,9 @@ assert.equal(postedConfig.tasks[2].post, undefined, 'bad post sanitizes in place
 assert.equal(postedConfig.tasks.length, 3, 'no task dropped by post sanitize')
 console.log('InteractSpot union + task.post checks passed')
 
-// ── WallSegment.doorMode round-trip ──
-assert.deepEqual(
-  normalizeWallSegment({ x1: 0, y1: 5, x2: 4, y2: 5, door: true, doorMode: 'auto-close' }),
-  { x1: 0, y1: 5, x2: 4, y2: 5, door: true, doorMode: 'auto-close' },
-  'door mode survives normalize',
-)
-assert.equal(normalizeWallSegment({ x1: 0, y1: 5, x2: 4, y2: 5, door: true, doorMode: 'party' })?.doorMode, undefined, 'unknown mode dropped')
-assert.equal(normalizeWallSegment({ x1: 0, y1: 5, x2: 4, y2: 5, doorMode: 'auto-close' })?.doorMode, undefined, 'mode without door flag dropped')
-const mergedModes = normalizeWallSegments([
-  { x1: 0, y1: 5, x2: 4, y2: 5, door: true },
-  { x1: 0, y1: 5, x2: 4, y2: 5, door: true, doorMode: 'hold-open' },
-])
-assert.equal(mergedModes?.[0]?.doorMode, 'hold-open', 'dedupe merges mode onto first')
-assert.equal(resolveDoorMode(undefined, true), 'auto-close', 'rooms derive auto-close')
-assert.equal(resolveDoorMode(undefined, false), 'hold-open', 'passage derives hold-open')
-assert.equal(resolveDoorMode('hold-open', true), 'hold-open', 'explicit wins over derived')
-assert.deepEqual(
-  reattachDoorModes(
-    [{ x1: 0, y1: 0, x2: 1, y2: 0, door: true, doorMode: 'auto-close' }],
-    [{ x1: 0, y1: 0, x2: 1, y2: 0, door: true }],
-  ),
-  [{ x1: 0, y1: 0, x2: 1, y2: 0, door: true, doorMode: 'auto-close' }],
-  'grid save reattaches mode by coords',
-)
-console.log('Door mode model checks passed')
+// ── Tile door states round-trip ──
+assert.deepEqual(normalizeTileStates([['walkable', 'door', 'blocked']]), [['walkable', 'door', 'blocked']], 'door tile survives normalize')
+assert.equal(normalizeTileStates([['walkable', 'open']]), undefined, 'unknown tile state rejected')
+console.log('Tile door state checks passed')
 
 console.log('Blueprint schema checks passed')

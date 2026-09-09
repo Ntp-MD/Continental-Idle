@@ -11,16 +11,7 @@ export interface NpcEngineFloor {
 
 	walkable: readonly NpcEnginePoint[]
 
-	blockedEdges?: readonly NpcEngineBlockedEdge[]
-
-	doorEdges?: readonly NpcEngineBlockedEdge[]
-
 	allowedRoleIds?: readonly string[]
-}
-
-export interface NpcEngineBlockedEdge {
-	from: NpcEnginePoint
-	to: NpcEnginePoint
 }
 
 export interface NpcEngineInteractionTarget {
@@ -92,7 +83,6 @@ export type NpcEngineEventType =
 	| 'repath'
 	| 'repath-failed'
 	| 'floor-transition'
-	| 'door-passage'
 
 export type NpcEngineWaitReason =
 	| 'yielded'
@@ -121,8 +111,6 @@ export interface NpcEngineEvent {
 
 	fromFloorId?: string
 	toFloorId?: string
-
-	doorEdge?: NpcEngineBlockedEdge
 }
 
 export type NpcEnginePathfinder = (

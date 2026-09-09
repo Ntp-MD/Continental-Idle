@@ -19,7 +19,6 @@ function makeEngine(clearance: number, oneRow: boolean): NpcEngine {
 					...Array.from({ length: 12 }, (_, x) => ({ x, y: 5 })),
 					...Array.from({ length: 12 }, (_, x) => ({ x, y: 6 })),
 				],
-		blockedEdges: [],
 	}
 	const targets: NpcEngineInteractionTarget[] = [
 		{ floorId: 'F1', itemId: 'east', interactSpotId: 's', x: 9, y: 5, tags: [], durationMinSeconds: 1, durationMaxSeconds: 1 },

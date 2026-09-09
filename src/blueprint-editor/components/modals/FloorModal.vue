@@ -1,15 +1,12 @@
 <script setup lang="ts">
-import { ref, computed, watch, defineAsyncComponent } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { genId, useAssetsStore } from '../../blueprintStore'
 import { useToast, reportSaved } from '@/composables/useToast'
 import { useConfirm } from '@/composables/useConfirm'
 import { sanitizeString } from '../../../utils/sanitize'
-import { CANVAS_WALL_OBJECT_TYPE, resolveStreetTiles, spawnZoneAllowsRole } from '../../domain/types'
-import type { DoorMode, FloorData, NpcSpawnZone, WallSegment } from '../../domain/types'
-import { resolveDoorMode } from '../../assets/assetUtils'
-import { doorRuns, doorRunLabel, withDoorRunMode } from '../../domain/gridEditing'
+import { spawnZoneAllowsRole } from '../../domain/types'
+import type { FloorData, NpcSpawnZone } from '../../domain/types'
 import ModalShell from '../shell/ModalShell.vue'
-const FloorWalkablePanel = defineAsyncComponent(() => import('./FloorWalkablePanel.vue'))
 
 const props = defineProps<{ open: boolean }>()
 const emit = defineEmits<{ (e: 'close'): void }>()
@@ -24,7 +21,6 @@ const editingNameRaw = ref('')
 const editingLabel = ref(false)
 const editingLabelRaw = ref('')
 const floorDragIndex = ref<number | null>(null)
-const showWalkable = ref(false)
 const newZoneLabel = ref('')
 const newZoneX = ref(0)
 const newZoneY = ref(0)
@@ -38,118 +34,6 @@ const availableRoles = computed(() => store.state.layout.npcConfig?.roles ?? [])
 const selectedFloor = computed<FloorData | undefined>(
   () => floors.value.find((f) => f.id === selectedFloorId.value) ?? floors.value[0],
 )
-
-const streetTiles = computed(() => resolveStreetTiles(store.state.layout))
-
-interface FloorAssetDoor {
-  objectId: string
-  assetId: string
-  assetName: string
-  runIndex: number
-  label: string
-  explicit: DoorMode | undefined
-  effective: DoorMode
-  anchor: WallSegment
-}
-
-interface CanvasDoorRow {
-  ids: string[]
-  label: string
-  mode: DoorMode | undefined
-}
-
-const floorCanvasDoors = computed<CanvasDoorRow[]>(() => {
-  const doors = (selectedFloor.value?.objects ?? []).filter(
-    (object) => object.isWall && object.type === CANVAS_WALL_OBJECT_TYPE && object.door === true,
-  )
-  if (!doors.length) return []
-  const segments = doors.map((object) => ({
-    x1: object.x1 ?? 0,
-    y1: object.y1 ?? 0,
-    x2: object.x2 ?? 0,
-    y2: object.y2 ?? 0,
-    door: true as const,
-    doorMode: object.doorMode,
-  }))
-  return doorRuns(segments).map((run) => ({
-    ids: doors
-      .filter((object) => {
-        const horizontal = (object.y1 ?? 0) === (object.y2 ?? 0)
-        if (horizontal !== run.horizontal) return false
-        if ((horizontal ? object.y1 ?? 0 : object.x1 ?? 0) !== run.fixed) return false
-        const lo = Math.min(horizontal ? object.x1 ?? 0 : object.y1 ?? 0, horizontal ? object.x2 ?? 0 : object.y2 ?? 0)
-        const hi = Math.max(horizontal ? object.x1 ?? 0 : object.y1 ?? 0, horizontal ? object.x2 ?? 0 : object.y2 ?? 0)
-        return lo >= run.lo && hi <= run.hi
-      })
-      .map((object) => object.id),
-    label: doorRunLabel(run),
-    mode: run.anchor.doorMode,
-  }))
-})
-
-const floorAssetDoors = computed<FloorAssetDoor[]>(() => {
-  const floor = selectedFloor.value
-  if (!floor) return []
-  const assets = store.assetMap()
-  const rows: FloorAssetDoor[] = []
-  for (const object of floor.objects) {
-    const asset = assets.get(object.type)
-    if (!asset?.wallSegments?.length) continue
-    const portal = asset.tags?.includes('portal') ?? false
-    const hasSpots = (asset.interactSpots?.length ?? 0) > 0
-    doorRuns(asset.wallSegments).forEach((run, runIndex) => {
-      rows.push({
-        objectId: object.id,
-        assetId: asset.id,
-        assetName: asset.name,
-        runIndex,
-        label: doorRunLabel(run),
-        explicit: run.anchor.doorMode,
-        effective: resolveDoorMode(run.anchor.doorMode, hasSpots && !portal),
-        anchor: run.anchor,
-      })
-    })
-  }
-  return rows
-})
-
-async function deleteCanvasDoor(ids: string[]) {
-  const floor = selectedFloor.value
-  if (!floor) return
-  const confirmed = await confirm({
-    title: 'Delete wall door',
-    message: 'Delete this wall door? The wall stays, only the door opening is removed. This action cannot be undone.',
-    confirmLabel: 'Delete',
-    cancelLabel: 'Cancel',
-    danger: true,
-  })
-  if (!confirmed) return
-  const deleted = await store.removeWallDoor(floor.id, ids)
-  reportSaved(deleted, 'Wall door deleted', 'Failed to delete wall door')
-}
-
-async function setCanvasDoorMode(ids: string[], mode: string) {
-  const floor = selectedFloor.value
-  if (!floor) return
-  const saved = await store.setWallDoorMode(
-    floor.id,
-    ids,
-    mode === 'hold-open' || mode === 'auto-close' ? mode : undefined,
-  )
-  if (!saved) toast.error('Failed to save door mode')
-}
-
-async function setAssetDoorMode(assetId: string, anchor: WallSegment, mode: string) {
-  const asset = store.assetMap().get(assetId)
-  if (!asset) return
-  await store.updateAsset(assetId, {
-    wallSegments: withDoorRunMode(
-      asset.wallSegments ?? [],
-      anchor,
-      mode === 'hold-open' || mode === 'auto-close' ? mode : undefined,
-    ),
-  })
-}
 
 watch(
   () => props.open,
@@ -386,7 +270,6 @@ function floorCounts(f: FloorData): string {
           <div class="form__col form--section">
             <div class="floor__heading">
               <span>Details</span>
-              <button type="button" class="flag--warning" @click="showWalkable = true">Edit Walkable</button>
             </div>
             <div class="form__row">
               <label>Label</label>
@@ -509,39 +392,6 @@ function floorCounts(f: FloorData): string {
             </ul>
           </div>
 
-          <div class="form__col form--section">
-            <div>Doors</div>
-            <ul v-if="floorCanvasDoors.length || floorAssetDoors.length" class="form__col">
-              <li v-for="(door, index) in floorCanvasDoors" :key="`wall-door-${index}-${door.label}`" class="card__item">
-                <span class="size--stretch truncate">Wall ({{ door.label }})</span>
-                <select
-                  :value="door.mode ?? 'auto'"
-                  :aria-label="`Close mode for wall door ${door.label}`"
-                  @change="setCanvasDoorMode(door.ids, ($event.target as HTMLSelectElement).value)"
-                >
-                  <option value="auto">Auto</option>
-                  <option value="hold-open">Hold open</option>
-                  <option value="auto-close">Auto-close</option>
-                </select>
-                <button type="button" class="flag--danger" :aria-label="`Delete wall door ${door.label}`" @click="deleteCanvasDoor(door.ids)">x</button>
-              </li>
-              <li v-for="door in floorAssetDoors" :key="`asset-door-${door.objectId}-${door.runIndex}`" class="card__item">
-                <span class="size--stretch truncate">{{ door.assetName }} - Door {{ door.runIndex + 1 }} ({{ door.label }})</span>
-                <small class="form__hint">{{ door.effective }} (shared)</small>
-                <select
-                  :value="door.explicit ?? 'auto'"
-                  :aria-label="`Close mode for ${door.assetName} door ${door.runIndex + 1}`"
-                  @change="setAssetDoorMode(door.assetId, door.anchor, ($event.target as HTMLSelectElement).value)"
-                >
-                  <option value="auto">Auto</option>
-                  <option value="hold-open">Hold open</option>
-                  <option value="auto-close">Auto-close</option>
-                </select>
-              </li>
-            </ul>
-            <div v-else class="empty">No doors on this floor</div>
-            <div class="form__hint">Asset doors are shared across floors - canvas wall doors belong to this floor.</div>
-          </div>
         </template>
         <div v-else class="empty">Select a floor to edit</div>
       </div>
@@ -551,12 +401,6 @@ function floorCounts(f: FloorData): string {
       <button class="flag--danger" :disabled="floors.length <= 1" @click="onDelete(selectedFloor.id)">Delete</button>
     </template>
   </ModalShell>
-  <FloorWalkablePanel
-    :open="showWalkable"
-    :floor="selectedFloor"
-    :street-tiles="streetTiles"
-    @close="showWalkable = false"
-  />
 </template>
 
 <style>

@@ -89,7 +89,7 @@ export async function addSvgAsset(name: string, w: number, h: number, svgString:
 	})
 }
 
-export async function updateAsset(id: string, patch: Partial<Pick<AssetDef, 'name' | 'defaultPadding' | 'defaultRx' | 'defaultFillColor' | 'defaultStrokeColor' | 'defaultLabel' | 'defaultRadius' | 'defaultLabelPadding' | 'defaultLocked' | 'doorRequired' | 'tags' | 'interactSpots' | 'interact' | 'queue' | 'wallSegments'>> & { walkable?: boolean; walkableGrid?: WalkableGrid; tileStates?: TileState[][] }): Promise<void> {
+export async function updateAsset(id: string, patch: Partial<Pick<AssetDef, 'name' | 'defaultPadding' | 'defaultRx' | 'defaultFillColor' | 'defaultStrokeColor' | 'defaultLabel' | 'defaultRadius' | 'defaultLabelPadding' | 'defaultLocked' | 'doorRequired' | 'tags' | 'interactSpots' | 'interact' | 'queue'>> & { walkable?: boolean; walkableGrid?: WalkableGrid; tileStates?: TileState[][] }): Promise<void> {
 	return withStateLock(async () => {
 		const asset = state.assetRegistry.find(a => a.id === id)
 		if (!asset) {
@@ -113,7 +113,7 @@ export async function updateAsset(id: string, patch: Partial<Pick<AssetDef, 'nam
 
 		const candidateInput: Record<string, unknown> = { ...asset, ...(patch as Record<string, unknown>) }
 		for (const [key, value] of Object.entries(patch as Record<string, unknown>)) {
-			if (value === undefined || (typeof value === 'string' && value === '') || (Array.isArray(value) && value.length === 0 && ['tags', 'wallSegments', 'interactSpots', 'svgRoles'].includes(key))) delete candidateInput[key]
+			if (value === undefined || (typeof value === 'string' && value === '') || (Array.isArray(value) && value.length === 0 && ['tags', 'interactSpots', 'svgRoles'].includes(key))) delete candidateInput[key]
 		}
 		const normalizedAsset = normalizeOriginAsset(candidateInput)
 		if (!normalizedAsset) {

@@ -4,7 +4,6 @@ import { useAssetsStore } from '../../blueprintStore'
 import { useToast } from '@/composables/useToast'
 import { useConfirm } from '@/composables/useConfirm'
 import { useClipboardCopy } from '../../composables/useClipboardCopy'
-import { CANVAS_WALL_OBJECT_TYPE } from '../../domain/types'
 import type { ObjectData, AssetDef } from '../../domain/types'
 
 const props = defineProps<{ object: ObjectData }>()
@@ -13,7 +12,6 @@ const { confirm } = useConfirm()
 const { copyId } = useClipboardCopy()
 
 const assetDef = computed<AssetDef | undefined>(() => store.assetMap().get(props.object.type))
-const isCanvasWall = computed(() => props.object.isWall && props.object.type === CANVAS_WALL_OBJECT_TYPE)
 
 async function rotate() {
   await store.rotateSelected()
@@ -61,11 +59,7 @@ function deselect() {
         <label>Y</label>
         <span>{{ object.y }}</span>
       </div>
-      <div v-if="isCanvasWall" class="form__row">
-        <label>Wall Segment</label>
-        <span>{{ object.x1 }},{{ object.y1 }} -> {{ object.x2 }},{{ object.y2 }}</span>
-      </div>
-      <div v-else class="form__row">
+      <div class="form__row">
         <label>Rotation</label>
         <div class="form__col">
           <span>{{ object.rotation }}deg</span>

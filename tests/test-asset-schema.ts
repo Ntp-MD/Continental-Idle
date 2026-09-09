@@ -14,8 +14,6 @@ const sample: AssetDef = {
 	w: 2,
 	h: 1,
 	custom: true,
-	isWall: false,
-	wallSegments: [{ x1: 0, y1: 0, x2: 2, y2: 0 }],
 	walkable: true,
 	doorRequired: true,
 	defaultPadding: 2,

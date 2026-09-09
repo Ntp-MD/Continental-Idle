@@ -16,7 +16,6 @@ import type {
 	SyncedObject,
 } from './domain/types'
 import {
-	CANVAS_WALL_OBJECT_TYPE,
 	normalizeAllowedRoleIds,
 	normalizeFloorWalkable,
 	normalizeInteractConfig,
@@ -25,7 +24,6 @@ import {
 	normalizeNpcQueueConfig,
 	normalizeNpcSpawnZones,
 	normalizeTileStates,
-	normalizeWallSegments,
 	normalizeWalkableGrid,
 	resolveStreetTiles,
 } from './domain/types'
@@ -88,7 +86,6 @@ function buildSyncedObject(o: ObjectData, assets: ReadonlyMap<string, AssetDef>,
 	const queue = normalizeNpcQueueConfig(asset?.queue)
 	const walkableGrid = normalizeWalkableGrid(asset?.walkableGrid)
 	const tileStates = normalizeTileStates(asset?.tileStates)
-	const wallSegments = normalizeWallSegments(asset?.wallSegments)
 	const obj: SyncedObject = {
 		id: o.id,
 		type: o.type,
@@ -97,7 +94,6 @@ function buildSyncedObject(o: ObjectData, assets: ReadonlyMap<string, AssetDef>,
 		w: size?.w ?? 0,
 		h: size?.h ?? 0,
 		rotation: o.rotation,
-		...(o.isWall ? { isWall: true } : {}),
 		walkable: asset?.walkable ?? false,
 		doorRequired: asset?.doorRequired ?? false,
 	}
@@ -106,14 +102,6 @@ function buildSyncedObject(o: ObjectData, assets: ReadonlyMap<string, AssetDef>,
 	if (o.label) obj.label = o.label
 	if (walkableGrid) obj.walkableGrid = walkableGrid
 	if (tileStates) obj.tileStates = tileStates
-	if (wallSegments) obj.wallSegments = wallSegments
-	if (o.isWall && [o.x1, o.y1, o.x2, o.y2].every((value): value is number => typeof value === 'number' && Number.isFinite(value))) {
-		obj.x1 = o.x1
-		obj.y1 = o.y1
-		obj.x2 = o.x2
-		obj.y2 = o.y2
-	}
-	if (o.door === true && o.isWall && o.type === CANVAS_WALL_OBJECT_TYPE) obj.door = true
 	if (interactSpots?.length) obj.interactSpots = interactSpots
 	if (interact) obj.interact = interact
 	if (queue) obj.queue = queue

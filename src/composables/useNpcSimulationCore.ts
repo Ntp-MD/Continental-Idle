@@ -64,7 +64,6 @@ export function pruneArrivalMarks(marks: Map<string, number>, currentTick: numbe
 
 export function useNpcSimulationCore(host: NpcSimulationCoreHost) {
 	const npcs = shallowRef<NpcSimDot[]>([])
-	const doorPassageEvents = shallowRef<NpcEngineEvent[]>([])
 	const socialEvents = shallowRef<NpcEngineEvent[]>([])
 	const isPaused = ref(false)
 	const simSpeed = ref(1)
@@ -313,8 +312,6 @@ export function useNpcSimulationCore(host: NpcSimulationCoreHost) {
 			const events = engine.drainEvents()
 			pruneArrivalMarks(arrivalMarks, engine.tickNumber)
 			if (events.length > 0) {
-				const doorEvents = events.filter(e => e.type === 'door-passage')
-				if (doorEvents.length > 0 || doorPassageEvents.value.length > 0) doorPassageEvents.value = doorEvents
 				const chatEvents = events.filter(e => e.type === 'chatting-start' || e.type === 'chatting-end')
 				if (chatEvents.length > 0 || socialEvents.value.length > 0) socialEvents.value = chatEvents
 				for (const event of events) {
@@ -325,7 +322,6 @@ export function useNpcSimulationCore(host: NpcSimulationCoreHost) {
 					latchArrivalEvent(arrived, arrivalMarks, event, host.idPrefix)
 				}
 			} else {
-				if (doorPassageEvents.value.length > 0) doorPassageEvents.value = []
 				if (socialEvents.value.length > 0) socialEvents.value = []
 			}
 		}
@@ -364,7 +360,6 @@ export function useNpcSimulationCore(host: NpcSimulationCoreHost) {
 		frameDots,
 		waitReasons,
 		arrivalMarks,
-		doorPassageEvents,
 		socialEvents,
 		isPaused,
 		simSpeed,
@@ -409,7 +404,6 @@ export function useNpcSimulationCore(host: NpcSimulationCoreHost) {
 			spawnFloorOverride = null
 			tickCostEma = 0
 			npcs.value = []
-			doorPassageEvents.value = []
 			socialEvents.value = []
 		},
 		start,

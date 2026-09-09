@@ -1,10 +1,10 @@
-import type { ObjectData, AssetDef, Rotation, EntityRef, FloorData, TileState, WallSegment, Rect, DoorMode } from '../domain/types'
-import { CANVAS_WALL_OBJECT_TYPE, applySvgColorConvention, normalizeInteractConfig, normalizeInteractSpots, normalizeNpcQueueConfig, normalizeTags, normalizeWallSegment, normalizeWallSegments, resolveObjectDef, resolveWallSegmentsForObject, assetPixelSize } from '../domain/types'
-import { findAssetCached, wallSegmentToObjectRect } from '../assets/assetUtils'
+import type { ObjectData, AssetDef, Rotation, EntityRef, FloorData, TileState, Rect } from '../domain/types'
+import { applySvgColorConvention, normalizeInteractConfig, normalizeInteractSpots, normalizeNpcQueueConfig, normalizeTags, resolveObjectDef, assetPixelSize } from '../domain/types'
+import { findAssetCached } from '../assets/assetUtils'
 import { buildingArea, normalizeObject, roundedRectPath } from '../domain/geometry'
 import { aabbOverlap, objectOverlapsAny, recalcCollapsed, unionRects } from '../domain/collision'
 import {
-	state, toast, snap, clamp, assetMap, wallSelection,
+	state, toast, snap, clamp, assetMap,
 	currentFloor, withStateLock, initAssetFields,
 } from './state'
 import { genId, genAssetId } from './storeUtils'
@@ -35,63 +35,6 @@ function removeLinkMember(floor: FloorData, id: string): string | null {
 	delete obj.linkGroupId
 	dissolveGroupsIfSmall(floor, new Set([groupId]))
 	return groupId
-}
-
-function canvasWallObject(segment: WallSegment, tileSize: number): ObjectData | null {
-	const normalized = normalizeWallSegment(segment)
-	if (!normalized || tileSize <= 0) return null
-	const rect = wallSegmentToObjectRect(normalized, tileSize)
-	return {
-		id: genId('wall'),
-		type: CANVAS_WALL_OBJECT_TYPE,
-		x: rect.x,
-		y: rect.y,
-		w: rect.w,
-		h: rect.h,
-		rotation: 0,
-		isWall: true,
-		x1: normalized.x1,
-		y1: normalized.y1,
-		x2: normalized.x2,
-		y2: normalized.y2,
-		door: normalized.door,
-	}
-}
-
-export async function replaceCanvasWallSegments(floorId: string, segments: readonly WallSegment[]): Promise<boolean> {
-	const floor = state.layout.floors.find(item => item.id === floorId)
-	if (!floor) return false
-	const tileSize = state.layout.canvas.tileSize
-	const prevModes = new Map<string, DoorMode>()
-	for (const object of floor.objects) {
-		if (object.type !== CANVAS_WALL_OBJECT_TYPE || object.door !== true || object.doorMode === undefined) continue
-		if ([object.x1, object.y1, object.x2, object.y2].every((value): value is number => typeof value === 'number')) {
-			prevModes.set(`${object.x1},${object.y1},${object.x2},${object.y2}`, object.doorMode)
-		}
-	}
-	const walls = segments.map(segment => canvasWallObject(segment, tileSize)).filter((wall): wall is ObjectData => !!wall)
-	for (const wall of walls) {
-		if (wall.door !== true || wall.x1 === undefined) continue
-		const mode = prevModes.get(`${wall.x1},${wall.y1},${wall.x2},${wall.y2}`)
-		if (mode !== undefined) wall.doorMode = mode
-	}
-	floor.objects = [...floor.objects.filter(object => object.type !== CANVAS_WALL_OBJECT_TYPE), ...walls]
-	recalcCollapsed(floor, assetMap())
-	return saveBlueprintData()
-}
-
-export async function setWallDoorMode(floorId: string, objectIds: readonly string[], mode: DoorMode | undefined): Promise<boolean> {
-	const floor = state.layout.floors.find(item => item.id === floorId)
-	if (!floor) return false
-	const ids = new Set(objectIds)
-	let touched = false
-	for (const object of floor.objects) {
-		if (!ids.has(object.id) || object.type !== CANVAS_WALL_OBJECT_TYPE || object.door !== true) continue
-		if (mode === undefined) delete object.doorMode
-		else object.doorMode = mode
-		touched = true
-	}
-	return touched ? saveBlueprintData() : false
 }
 
 export async function beginDrawnObject(name: string, w: number, h: number, x: number, y: number): Promise<{ asset: AssetDef; object: ObjectData } | null> {
@@ -280,7 +223,7 @@ export function moveSelectedTo(x: number, y: number): void {
 		const members = multiSelectionMembers(floor)
 		const primary = state.selectionState.primary
 		const anchor = primary ? floor.objects.find(object => object.id === primary.id) : null
-		if (!anchor || members.length === 0 || members.some(member => member.locked || member.isWall)) return
+		if (!anchor || members.length === 0 || members.some(member => member.locked)) return
 		moveMembersTo(members, anchor, x, y)
 		return
 	}
@@ -288,7 +231,7 @@ export function moveSelectedTo(x: number, y: number): void {
 	const primary = state.selectionState.primary
 	if (!primary) return
 	const obj = selectedObject()
-	if (!obj || obj.locked || obj.isWall) return
+	if (!obj || obj.locked) return
 	moveMembersTo(objectMoveMembers(obj), obj, x, y)
 	obj.collapsed = floor.objects.some(other => other.id !== obj.id && aabbOverlap(obj, other))
 }
@@ -299,7 +242,7 @@ export async function commitMove(): Promise<void> {
 	const members = state.selectionState.items.length > 1
 		? multiSelectionMembers(floor)
 		: selectedObject() ? objectMoveMembers(selectedObject()!) : []
-	if (members.length === 0 || members.some(member => member.locked || member.isWall)) return
+	if (members.length === 0 || members.some(member => member.locked)) return
 	const minX = Math.min(...members.map(member => member.x))
 	const minY = Math.min(...members.map(member => member.y))
 	const maxX = Math.max(...members.map(member => member.x + member.w))
@@ -334,8 +277,7 @@ export async function rotateSelected(): Promise<void> {
 	return withStateLock(async () => {
 		if (state.selectionState.primary?.type !== 'object') return
 		const o = selectedObject()
-		if (!o || o.isWall) return
-		if (o.locked) {
+		if (!o || o.locked) {
 			toast.warning('Cannot rotate a locked object - unlock first')
 			return
 		}
@@ -377,12 +319,6 @@ export async function rotateSelected(): Promise<void> {
 }
 
 
-interface SelectedWallInput {
-	floorId: string
-	objectId: string
-	segment: WallSegment
-}
-
 export async function linkObjects(ids: string[]): Promise<boolean> {
 	const floor = currentFloor.value
 	if (!floor || ids.length < 2) return false
@@ -393,10 +329,6 @@ export async function linkObjects(ids: string[]): Promise<boolean> {
 	}
 	if (objs.some(o => o.locked)) {
 		toast.warning('Cannot link locked objects - unlock first')
-		return false
-	}
-	if (objs.some(o => o.isWall)) {
-		toast.warning('Canvas wall objects cannot be linked')
 		return false
 	}
 
@@ -446,32 +378,6 @@ export async function toggleObjectLock(id: string): Promise<void> {
 	if (saved) toast.info(o.locked ? 'Object locked' : 'Object unlocked')
 }
 
-export async function removeWallDoor(floorId: string, objectIds: readonly string[]): Promise<boolean> {
-	return withStateLock(async () => {
-		const floor = state.layout.floors.find(item => item.id === floorId)
-		if (!floor) return false
-		const ids = new Set(objectIds)
-		let touched = false
-		for (const object of floor.objects) {
-			if (!ids.has(object.id) || object.type !== CANVAS_WALL_OBJECT_TYPE || object.door !== true) continue
-			if (object.locked) {
-				toast.warning('Wall is locked')
-				continue
-			}
-			object.door = false
-			delete object.doorMode
-			touched = true
-		}
-		return touched ? saveBlueprintData() : false
-	}).catch(e => {
-		if (e instanceof Error && e.message === 'Operation in progress') {
-			toast.warning('Operation in progress')
-			return false
-		}
-		throw e
-	})
-}
-
 function namespaceSvgIds(svg: string, ns: string): string {
 	return svg
 		.replace(/\bid="([^"]*)"/g, (_m, v: string) => `id="${ns}-${v}"`)
@@ -480,28 +386,18 @@ function namespaceSvgIds(svg: string, ns: string): string {
 		.replace(/\shref="#/g, ` href="#${ns}-`)
 }
 
-export async function flattenToSvgAsset(name?: string, walls?: readonly SelectedWallInput[]): Promise<string | null> {
+export async function flattenToSvgAsset(name?: string): Promise<string | null> {
 	return withStateLock(async () => {
 		const floor = currentFloor.value
 		if (!floor) return null
 		const ids = selectedObjectIds()
-		const selectedWalls = walls ?? wallSelection.value.filter(selection => selection.floorId === floor.id)
-		const selectedWallIds = new Set(selectedWalls.map(selection => selection.objectId))
-		const idSet = new Set(ids)
 		const byId = new Map(floor.objects.map(o => [o.id, o] as const))
-		const wallObjs = floor.objects.filter(object => object.type === CANVAS_WALL_OBJECT_TYPE && (idSet.has(object.id) || selectedWallIds.has(object.id)))
-		const objs = ids.map(id => byId.get(id)).filter((object): object is ObjectData => !!object && object.type !== CANVAS_WALL_OBJECT_TYPE)
-		const selectedSegments = [
-			...wallObjs.flatMap(object => [object.x1, object.y1, object.x2, object.y2].every((value): value is number => typeof value === 'number')
-				? [{ x1: object.x1! * state.layout.canvas.tileSize, y1: object.y1! * state.layout.canvas.tileSize, x2: object.x2! * state.layout.canvas.tileSize, y2: object.y2! * state.layout.canvas.tileSize, door: object.door === true }]
-				: []),
-			...selectedWalls.filter(selection => !wallObjs.some(object => object.id === selection.objectId)).map(selection => selection.segment),
-		]
-		if (objs.length + selectedSegments.length < 2) {
+		const objs = ids.map(id => byId.get(id)).filter((object): object is ObjectData => !!object)
+		if (objs.length < 2) {
 			toast.warning('Select at least 2 items to flatten')
 			return null
 		}
-		if ([...objs, ...wallObjs].some(o => o.locked)) {
+		if (objs.some(o => o.locked)) {
 			toast.warning('Cannot flatten locked objects - unlock first')
 			return null
 		}
@@ -513,12 +409,6 @@ export async function flattenToSvgAsset(name?: string, walls?: readonly Selected
 			maxX = Math.max(maxX, obj.x + obj.w)
 			maxY = Math.max(maxY, obj.y + obj.h)
 		}
-		for (const seg of selectedSegments) {
-			minX = Math.min(minX, seg.x1, seg.x2)
-			minY = Math.min(minY, seg.y1, seg.y2)
-			maxX = Math.max(maxX, seg.x1, seg.x2)
-			maxY = Math.max(maxY, seg.y1, seg.y2)
-		}
 		if (!Number.isFinite(minX) || !Number.isFinite(minY)) return null
 		minX = snap(Math.round(minX))
 		minY = snap(Math.round(minY))
@@ -527,12 +417,6 @@ export async function flattenToSvgAsset(name?: string, walls?: readonly Selected
 		const totalW = maxX - minX
 		const totalH = maxY - minY
 		const t = state.layout.canvas.tileSize
-		const sourceAssetWalls = objs.flatMap(object => {
-			const asset = findAssetCached(assetMap(), object.type)
-			return asset?.wallSegments?.length ? resolveWallSegmentsForObject(asset.wallSegments, asset, object, t) : []
-		})
-		selectedSegments.push(...sourceAssetWalls)
-
 		const amap = assetMap()
 		const sourceAssets = objs.map(object => findAssetCached(amap, object.type))
 		const mergedTags = normalizeTags([...new Set(sourceAssets.flatMap(asset => asset?.tags ?? []))]) ?? []
@@ -540,8 +424,6 @@ export async function flattenToSvgAsset(name?: string, walls?: readonly Selected
 		const mergedQueueSources = sourceAssets.map(asset => asset?.queue).filter((value): value is NonNullable<typeof value> => !!value)
 		if (mergedInteractSources.length > 1) toast.warning('Flatten keeps the first interact config - review Interact settings on the merged asset')
 		if (mergedQueueSources.length > 1) toast.warning('Flatten keeps the first queue config - review Queue settings on the merged asset')
-		const flattenedDoorModes = wallObjs.filter(object => object.doorMode !== undefined).length
-		if (flattenedDoorModes > 0) toast.warning(`Flatten drops ${flattenedDoorModes} wall door mode(s) - review door settings on the merged asset`)
 		let droppedEdgeSpots = 0
 		const mergedInteractSpots = normalizeInteractSpots(objs.flatMap(object => {
 			const asset = findAssetCached(amap, object.type)
@@ -625,19 +507,6 @@ export async function flattenToSvgAsset(name?: string, walls?: readonly Selected
 			...(sourceAssets.some(asset => asset?.doorRequired) ? { doorRequired: true } : {}),
 		}
 
-		if (selectedSegments.length) {
-			const normalizedSegments = normalizeWallSegments(selectedSegments.map(segment => ({
-				x1: (segment.x1 - minX) / t,
-				y1: (segment.y1 - minY) / t,
-				x2: (segment.x2 - minX) / t,
-				y2: (segment.y2 - minY) / t,
-				door: segment.door === true,
-				...('doorMode' in segment && (segment.doorMode === 'hold-open' || segment.doorMode === 'auto-close') ? { doorMode: segment.doorMode } : {}),
-			})))
-			if (normalizedSegments) asset.wallSegments = normalizedSegments
-			else toast.warning('Flattened wall segments are invalid - walls dropped, review Walkable Grid')
-		}
-
 		initAssetFields(asset)
 		state.assetRegistry.push(asset)
 
@@ -652,24 +521,21 @@ export async function flattenToSvgAsset(name?: string, walls?: readonly Selected
 		}
 		normalizeObject(newObj, t, assetMap())
 
-		const removeIds = new Set([...objs, ...wallObjs].map(o => o.id))
-		if (floor.objects.some(o => !removeIds.has(o.id) && !o.isWall && aabbOverlap(newObj, o))) {
+		const removeIds = new Set(objs.map(o => o.id))
+		if (floor.objects.some(o => !removeIds.has(o.id) && aabbOverlap(newObj, o))) {
 			toast.warning('Flattened asset overlaps another object - SVG art skips collision checks, review placement')
 		}
-		const removedGroupIds = new Set([...objs, ...wallObjs].map(o => o.linkGroupId).filter((id): id is string => !!id))
+		const removedGroupIds = new Set(objs.map(o => o.linkGroupId).filter((id): id is string => !!id))
 		floor.objects = floor.objects.filter(o => !removeIds.has(o.id))
 		floor.objects.push(newObj)
 		dissolveGroupsIfSmall(floor, removedGroupIds)
 
-		recalcCollapsed(floor, assetMap(), unionRects([...objs, ...wallObjs, newObj]) ?? undefined)
+		recalcCollapsed(floor, assetMap(), unionRects([...objs, newObj]) ?? undefined)
 		clearSelection()
-		wallSelection.value = wallSelection.value.filter(selection => selection.floorId !== floor.id)
 		selectEntity({ type: 'object', id: newObj.id })
 		await saveBlueprintData()
 
-		toast.success(selectedSegments.length
-			? `Merged ${objs.length} object${objs.length === 1 ? '' : 's'} + ${selectedSegments.length} wall${selectedSegments.length === 1 ? '' : 's'} into "${flatName}"`
-			: `Merged ${objs.length} objects into "${flatName}"`)
+		toast.success(`Merged ${objs.length} objects into "${flatName}"`)
 		return assetId
 	})
 }

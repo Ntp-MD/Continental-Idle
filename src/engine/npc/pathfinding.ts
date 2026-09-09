@@ -2,10 +2,6 @@ import type { NpcEngineFloor, NpcEnginePoint } from './types'
 
 const SQRT2 = Math.SQRT2
 
-function key(point: NpcEnginePoint): string {
-	return `${point.x},${point.y}`
-}
-
 function octileDistance(ax: number, ay: number, bx: number, by: number): number {
 	const dx = Math.abs(ax - bx)
 	const dy = Math.abs(ay - by)
@@ -20,7 +16,6 @@ interface FloorIndex {
 	xs: Int32Array
 	ys: Int32Array
 	walkGrid: Int32Array
-	blocked: Set<number> | null
 	gScore: Float64Array
 	parent: Int32Array
 	stamp: Int32Array
@@ -52,17 +47,6 @@ function resolveFloorIndex(floor: NpcEngineFloor): FloorIndex {
 			idOf.set(`${x},${y}`, i)
 			walkGrid[y * width + x] = i + 1
 		}
-		let blocked: Set<number> | null = null
-		if ((floor.blockedEdges?.length ?? 0) > 0) {
-			blocked = new Set<number>()
-			for (const edge of floor.blockedEdges!) {
-				const fromId = idOf.get(key(edge.from))
-				const toId = idOf.get(key(edge.to))
-				if (fromId === undefined || toId === undefined) continue
-				blocked.add(fromId * count + toId)
-				blocked.add(toId * count + fromId)
-			}
-		}
 		index = {
 			width,
 			height,
@@ -71,7 +55,6 @@ function resolveFloorIndex(floor: NpcEngineFloor): FloorIndex {
 			xs,
 			ys,
 			walkGrid,
-			blocked,
 			gScore: new Float64Array(count),
 			parent: new Int32Array(count),
 			stamp: new Int32Array(count),
@@ -129,11 +112,6 @@ export function findNpcGridPath(
 			lastTransientCells.push(cell)
 		}
 	}
-
-	const blocked = idx.blocked
-	const count_ = count
-	const isBlockedEdge = (fromId: number, toId: number): boolean =>
-		blocked !== null && blocked.has(fromId * count_ + toId)
 
 	const heapNode = idx.heapNode
 	const heapG = idx.heapG
@@ -217,10 +195,9 @@ export function findNpcGridPath(
 			const nx = cx + CARDINAL_DX[d]
 			const ny = cy + CARDINAL_DY[d]
 			if (nx < 0 || ny < 0 || nx >= width || ny >= height) continue
-			const nextId = walkGrid[ny * width + nx] - 1
-			if (nextId < 0) continue
-			if (isBlockedEdge(currentNode, nextId)) continue
-			if (transientMark[ny * width + nx] !== 0) continue
+		const nextId = walkGrid[ny * width + nx] - 1
+		if (nextId < 0) continue
+		if (transientMark[ny * width + nx] !== 0) continue
 			const nextScore = currentG + 1
 			if (nextScore >= bestG(nextId)) continue
 			parent[nextId] = currentNode
@@ -242,12 +219,9 @@ export function findNpcGridPath(
 			const side1 = walkGrid[s1y * width + s1x] - 1
 			const side2 = walkGrid[s2y * width + s2x] - 1
 			if (side1 < 0 || side2 < 0) continue
-			const nextId = walkGrid[ny * width + nx] - 1
-			if (nextId < 0) continue
-			if (isBlockedEdge(currentNode, nextId)) continue
-			if (isBlockedEdge(currentNode, side1) || isBlockedEdge(currentNode, side2)) continue
-			if (isBlockedEdge(side1, nextId) || isBlockedEdge(side2, nextId)) continue
-			if (transientMark[s1y * width + s1x] !== 0 || transientMark[s2y * width + s2x] !== 0) continue
+		const nextId = walkGrid[ny * width + nx] - 1
+		if (nextId < 0) continue
+		if (transientMark[s1y * width + s1x] !== 0 || transientMark[s2y * width + s2x] !== 0) continue
 			if (transientMark[ny * width + nx] !== 0) continue
 			const nextScore = currentG + SQRT2
 			if (nextScore >= bestG(nextId)) continue

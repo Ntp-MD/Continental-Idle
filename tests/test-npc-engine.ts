@@ -569,16 +569,13 @@ function generateRuntimePortalTargets(
 
 // ─── 8-direction pathfinding tests ───
 
-function makeGridFloor(id: string, w: number, h: number, blocked: string[] = [], edges: { from: [number, number]; to: [number, number] }[] = [], doorEdges: { from: [number, number]; to: [number, number] }[] = []): NpcEngineFloor {
+function makeGridFloor(id: string, w: number, h: number, blocked: string[] = []): NpcEngineFloor {
 	const walkable: { x: number; y: number }[] = []
 	for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
 		if (!blocked.includes(`${x},${y}`)) walkable.push({ x, y })
 	}
-	const toEdge = (e: { from: [number, number]; to: [number, number] }) => ({ from: { x: e.from[0], y: e.from[1] }, to: { x: e.to[0], y: e.to[1] } })
 	return {
 		id, width: w, height: h, tileSize: 1, walkable,
-		blockedEdges: edges.map(toEdge),
-		doorEdges: doorEdges.map(toEdge),
 	}
 }
 
@@ -621,13 +618,10 @@ function makeGridFloor(id: string, w: number, h: number, blocked: string[] = [],
 }
 
 {
-	const floor = makeGridFloor('F1', 3, 3, [], [{ from: [0, 0], to: [1, 0] }])
+	const floor = makeGridFloor('F1', 3, 3, ['1,0', '1,1'])
 	const path = findNpcGridPath(floor, { x: 0, y: 0 }, { x: 2, y: 2 })
-	assert.ok(path.length > 0, '8-way: should find path with blocked edge')
-	const usesBlockedEdge = path.some((p, i) => i > 0 && ((path[i - 1].x === 0 && path[i - 1].y === 0 && p.x === 1 && p.y === 0) || (path[i - 1].x === 1 && path[i - 1].y === 0 && p.x === 0 && p.y === 0)))
-	assert.equal(usesBlockedEdge, false, '8-way: must not cross blocked edge')
-	const diagonalFrom00 = path.some((p, i) => i === 1 && p.x === 1 && p.y === 1)
-	assert.equal(diagonalFrom00, false, '8-way: must not cut corner when edge 0,0→1,0 is blocked')
+	assert.ok(path.length > 0, '8-way: should find path around a tile wall')
+	for (const p of path) assert.ok(!(p.x === 1 && (p.y === 0 || p.y === 1)), '8-way: path must not enter wall tiles')
 }
 
 {
@@ -872,14 +866,9 @@ function makeTarget(itemId: string, x: number, y: number): NpcEngineInteractionT
 	assert.ok(selected, 'wander: should handle eviction gracefully')
 }
 
-// --- Door passage event tests ---
+// --- Tile door walkability tests (doors are walkable cells, no edge events) ---
 
-const doorFloor: NpcEngineFloor = {
-	...makeGridFloor('F1', 6, 6),
-	doorEdges: [
-		{ from: { x: 2, y: 2 }, to: { x: 2, y: 3 } },
-	],
-}
+const doorFloor: NpcEngineFloor = makeGridFloor('F1', 6, 6)
 
 const doorLayout: NpcEngineLayout = {
 	floors: [doorFloor],
@@ -914,21 +903,10 @@ const doorEngine = new NpcEngine(doorLayout, {
 doorEngine.addAgent({ id: 'door-npc', floorId: 'F1', x: 2, y: 1, targetX: 2, targetY: 5, speed: 1 })
 doorEngine.tick(5)
 const doorEvents1 = doorEngine.drainEvents()
-const passageEvents1 = doorEvents1.filter(e => e.type === 'door-passage')
-assert.ok(passageEvents1.length > 0, 'door-passage event emitted when NPC crosses door edge')
-const passageEvt = passageEvents1[0]
-assert.equal(passageEvt.agentId, 'door-npc', 'door-passage event has correct agentId')
-assert.equal(passageEvt.floorId, 'F1', 'door-passage event has correct floorId')
-assert.ok(passageEvt.doorEdge, 'door-passage event has doorEdge')
-assert.equal(passageEvt.doorEdge!.from.x, 2, 'door edge from.x correct')
-assert.equal(passageEvt.doorEdge!.from.y, 2, 'door edge from.y correct')
-assert.equal(passageEvt.doorEdge!.to.x, 2, 'door edge to.x correct')
-assert.equal(passageEvt.doorEdge!.to.y, 3, 'door edge to.y correct')
-
-doorEngine.tick(10)
-const doorEvents2 = doorEngine.drainEvents()
-const passageEvents2 = doorEvents2.filter(e => e.type === 'door-passage')
-assert.equal(passageEvents2.length, 0, 'no door-passage events when NPC is not crossing a door')
+assert.ok(Array.isArray(doorEvents1), 'walk across tile doors drains events cleanly')
+const doorNpc = doorEngine.getAgent('door-npc')!
+assert.equal(doorNpc.x, 2, 'NPC walks straight through door tiles (x)')
+assert.equal(doorNpc.y, 5, 'NPC reaches target across door tiles (y)')
 
 const noDoorFloor: NpcEngineFloor = {
 	id: 'F2',
@@ -936,8 +914,6 @@ const noDoorFloor: NpcEngineFloor = {
 	height: 6,
 	tileSize: 1,
 	walkable: doorFloor.walkable,
-	blockedEdges: [],
-	doorEdges: [],
 }
 const noDoorLayout: NpcEngineLayout = { floors: [noDoorFloor], interactionTargets: [] }
 const noDoorEngine = new NpcEngine(noDoorLayout, {
@@ -952,7 +928,7 @@ const noDoorEngine = new NpcEngine(noDoorLayout, {
 noDoorEngine.addAgent({ id: 'npc-no-door', floorId: 'F2', x: 0, y: 0, targetX: 5, targetY: 5, speed: 1 })
 noDoorEngine.tick(20)
 const noDoorEvents = noDoorEngine.drainEvents()
-assert.equal(noDoorEvents.filter(e => e.type === 'door-passage').length, 0, 'no door-passage events on floor without doors')
+assert.ok(Array.isArray(noDoorEvents), 'plain floor drains events cleanly')
 
 const twoDoorFloor: NpcEngineFloor = {
 	id: 'F3',
@@ -960,11 +936,6 @@ const twoDoorFloor: NpcEngineFloor = {
 	height: 8,
 	tileSize: 1,
 	walkable: Array.from({ length: 8 }, (_, y) => Array.from({ length: 8 }, (_, x) => ({ x, y }))).flat(),
-	blockedEdges: [],
-	doorEdges: [
-		{ from: { x: 5, y: 2 }, to: { x: 5, y: 3 } },
-		{ from: { x: 5, y: 5 }, to: { x: 5, y: 6 } },
-	],
 }
 const twoDoorLayout: NpcEngineLayout = { floors: [twoDoorFloor], interactionTargets: [] }
 const twoDoorEngine = new NpcEngine(twoDoorLayout, {
@@ -979,10 +950,12 @@ const twoDoorEngine = new NpcEngine(twoDoorLayout, {
 twoDoorEngine.addAgent({ id: 'npc-2door', floorId: 'F3', x: 3, y: 0, targetX: 5, targetY: 7, speed: 1 })
 twoDoorEngine.tick(20)
 const twoDoorEvents = twoDoorEngine.drainEvents()
-const twoDoorPassages = twoDoorEvents.filter(e => e.type === 'door-passage')
-assert.ok(twoDoorPassages.length >= 2, 'multiple door-passage events for multiple doors crossed')
+assert.ok(Array.isArray(twoDoorEvents), 'tile-door floor drains events cleanly')
+const twoDoorNpc = twoDoorEngine.getAgent('npc-2door')!
+assert.equal(twoDoorNpc.x, 5, 'NPC crosses tile doors freely (x)')
+assert.equal(twoDoorNpc.y, 7, 'NPC crosses tile doors freely (y)')
 
-console.log('Door passage event checks passed')
+console.log('Tile door walkability checks passed')
 
 // Arrival bounce: physically blocked spot applies backoff instead of instant re-reserve
 {

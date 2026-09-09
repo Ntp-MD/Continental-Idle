@@ -10,7 +10,7 @@ import {
   placedCountTitle,
 } from '../../assets/assetUtils'
 import { renderSvgInto } from '../../assets/svgSanitizer'
-import { useCanvasWallStyle, DOOR_COLOR } from '../../composables/useCanvasWallStyle'
+import { useCanvasDefaults } from '../../composables/useCanvasDefaults'
 import { useAssetListState } from '../../composables/useAssetListState'
 import type { AssetDef } from '../../domain/types'
 import ModalShell from '../shell/ModalShell.vue'
@@ -24,14 +24,14 @@ const store = useAssetsStore()
 const { searchQuery, incompleteMap, incompleteTitle, placedCounts, placedObjectCount, filteredAssets } =
   useAssetListState()
 
-const { canvasTileSize, wallColor, wallThickness } = useCanvasWallStyle()
+const { canvasTileSize } = useCanvasDefaults()
 
 function assetViewBox(asset: AssetDef): string {
   return assetPreviewViewBox(asset, canvasTileSize.value)
 }
 
 function thumbSvg(asset: AssetDef): string {
-  return assetPreviewSvg(asset, canvasTileSize.value, wallColor.value, wallThickness.value, DOOR_COLOR)
+  return assetPreviewSvg(asset, canvasTileSize.value)
 }
 
 const thumbEls = new Map<string, SVGSVGElement>()

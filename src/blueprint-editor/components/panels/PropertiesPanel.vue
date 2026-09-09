@@ -12,9 +12,6 @@ const confirm = useConfirm().confirm
 
 const object = computed(() => store.selectedObject())
 const asset = computed(() => store.selectedAsset.value)
-const wallCount = computed(
-  () => store.wallSelection.value.filter((w) => w.floorId === store.currentFloor.value?.id).length,
-)
 const selectedItems = computed(() => {
   const floor = store.currentFloor.value
   if (!floor) return []
@@ -107,20 +104,18 @@ async function doUnlink() {
 
 async function doFlatten() {
   const ids = store.state.selectionState.items.filter((i) => i.type === 'object').map((i) => i.id)
-  const walls = store.wallSelection.value.filter((w) => w.floorId === store.currentFloor.value?.id)
-  if (ids.length + walls.length < 2) return
+  if (ids.length < 2) return
   const confirmed = await confirm({
     title: 'Flatten selection',
-    message: 'Merge the selected objects and walls into a single SVG asset? This cannot be undone.',
+    message: 'Merge the selected objects into a single SVG asset? This cannot be undone.',
     confirmLabel: 'Flatten',
     cancelLabel: 'Cancel',
     danger: true,
   })
   if (!confirmed) return
-  const id = await store.flattenToSvgAsset(flattenName.value || undefined, walls)
+  const id = await store.flattenToSvgAsset(flattenName.value || undefined)
   if (id) {
     flattenName.value = ''
-    store.clearWallSelection()
   }
 }
 </script>
@@ -202,14 +197,10 @@ async function doFlatten() {
       </div>
 
       <!-- Multi-selection -->
-      <div v-if="store.state.selectionState.items.length >= 2 || wallCount > 0">
+      <div v-if="store.state.selectionState.items.length >= 2">
         <div class="form__col">
           <h3>
-            {{ selectedItems.length }} object{{ selectedItems.length === 1 ? '' : 's' }} selected<template
-              v-if="wallCount"
-            >
-              + {{ wallCount }} wall{{ wallCount === 1 ? '' : 's' }}</template
-            >
+            {{ selectedItems.length }} object{{ selectedItems.length === 1 ? '' : 's' }} selected
           </h3>
           <div class="form__row">
             <ul class="multi-select__list">
@@ -230,12 +221,6 @@ async function doFlatten() {
             <label>Name</label>
             <input v-model="flattenName" type="text" placeholder="e.g. Table + Chairs" />
           </div>
-          <div v-if="wallCount" class="form__row">
-            <span
-              >{{ wallCount }} selected wall{{ wallCount === 1 ? '' : 's' }} will be merged into the asset and removed
-              from the floor grid</span
-            >
-          </div>
           <button class="flag--success size--fill" @click="doFlatten">Flatten to SVG Asset</button>
         </div>
       </div>
@@ -245,7 +230,7 @@ async function doFlatten() {
 
       <!-- Object editor (single selection only) -->
       <ObjectPropertiesForm
-        v-else-if="object && store.state.selectionState.items.length === 1 && wallCount === 0"
+        v-else-if="object && store.state.selectionState.items.length === 1"
         :object="object"
       />
     </div>

@@ -33,7 +33,7 @@ function readOriginAssets() {
 // Keep in sync with ASSET_DEF_FIELD_COVERAGE (assetUtils.ts).
 const REQUIRED_FIELDS = ['id', 'name', 'w', 'h']
 const OPTIONAL_FIELDS = [
-	'origin', 'category', 'custom', 'isWall', 'wallSegments',
+	'origin', 'category', 'custom',
 	'pxW', 'pxH', 'usePx',
 	'svg', 'svgViewBox', 'svgRoles',
 	'walkable', 'doorRequired',
@@ -101,19 +101,6 @@ function validateTileStates(value) {
 	return null
 }
 
-function validateWallSegments(value) {
-	if (!Array.isArray(value)) return 'must be an array'
-	for (let i = 0; i < value.length; i++) {
-		const segment = value[i]
-		if (!segment || typeof segment !== 'object') return `entry ${i}: must be an object`
-		if (![segment.x1, segment.y1, segment.x2, segment.y2].every(isFiniteNum)) return `entry ${i}: endpoints must be finite numbers`
-		if (segment.x1 !== segment.x2 && segment.y1 !== segment.y2) return `entry ${i}: must be axis-aligned`
-		if (segment.x1 === segment.x2 && segment.y1 === segment.y2) return `entry ${i}: must not be zero-length`
-		if (segment.doorMode !== undefined && segment.doorMode !== 'hold-open' && segment.doorMode !== 'auto-close') return `entry ${i}: doorMode must be "hold-open" or "auto-close"`
-	}
-	return null
-}
-
 function validateDefaultRx(value) {
 	if (!value || typeof value !== 'object') return 'must be an object'
 	for (const k of ['tl', 'tr', 'br', 'bl']) {
@@ -127,7 +114,6 @@ const SHAPE_VALIDATORS = {
 	interact: validateInteract,
 	walkableGrid: validateWalkableGrid,
 	tileStates: validateTileStates,
-	wallSegments: validateWallSegments,
 	defaultRx: validateDefaultRx,
 }
 

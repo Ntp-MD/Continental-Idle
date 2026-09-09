@@ -27,8 +27,7 @@ const queueAsset: AssetDef = {
 	name: 'Queue Asset',
 	w: 3,
 	h: 4,
-	tileStates: [['walkable', 'walkable', 'blocked'], ['walkable', 'walkable', 'walkable'], ['walkable', 'walkable', 'walkable'], ['walkable', 'walkable', 'blocked']],
-	wallSegments: [{ x1: 3, y1: 1, x2: 3, y2: 3, door: true }],
+	tileStates: [['walkable', 'walkable', 'walkable'], ['walkable', 'walkable', 'door'], ['walkable', 'walkable', 'door'], ['walkable', 'walkable', 'blocked']],
 	interactSpots: [{ x: 62.5, y: 12.5 }, { x: 62.5, y: 12.5 }],
 }
 const queueFloorData: FloorData = {
@@ -133,8 +132,6 @@ console.log('NPC queue checks passed')
 	const corridor: NpcEngineFloor = {
 		id: 'F1', width: 6, height: 6, tileSize: 1,
 		walkable: [0, 1, 2, 3, 4, 5].map(y => ({ x: 2, y })),
-		blockedEdges: [],
-		doorEdges: [{ from: { x: 2, y: 2 }, to: { x: 2, y: 3 } }],
 	}
 	const farBed = {
 		floorId: 'F1', itemId: 'bed', interactSpotId: 'bed:0',

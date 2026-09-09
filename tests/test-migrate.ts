@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { migrate } from '../src/blueprint-editor/store/migrate'
-import { normalizeNpcConfig, CANVAS_WALL_OBJECT_TYPE } from '../src/blueprint-editor/domain/types'
+import { normalizeNpcConfig } from '../src/blueprint-editor/domain/types'
 import { originAssets } from '../src/blueprint-editor/store/dataLoader'
 
 const validAsset = originAssets[0]
@@ -95,16 +95,17 @@ const result5 = migrate(withObject, originAssets)
 assert.equal(result5.layout.floors[0].objects.length, 1, 'object with unknown asset type should be filtered out')
 assert.equal(result5.layout.floors[0].objects[0].id, 'obj-1')
 
-const withWall = makeLayout({
+const withLegacyWall = makeLayout({
 	floors: [makeFloor({
 		objects: [
-			{ id: 'wall-1', type: CANVAS_WALL_OBJECT_TYPE, x: 0, y: 0, rotation: 0, w: 0, h: 0, isWall: true, x1: 0, y1: 0, x2: 100, y2: 0 },
+			{ id: 'wall-1', type: validAsset.id, x: 0, y: 0, rotation: 0, w: 0, h: 0, isWall: true, x1: 0, y1: 0, x2: 100, y2: 0 },
 		],
 	})],
 })
-const result6 = migrate(withWall, originAssets)
-assert.equal(result6.layout.floors[0].objects.length, 1, 'wall objects should survive asset lookup (isWall bypass)')
+const result6 = migrate(withLegacyWall, originAssets)
+assert.equal(result6.layout.floors[0].objects.length, 1, 'legacy wall keys do not drop the object')
 assert.equal(result6.layout.floors[0].objects[0].id, 'wall-1')
+assert.equal('isWall' in result6.layout.floors[0].objects[0], false, 'legacy isWall key is stripped')
 
 const withBadFloor = makeLayout({
 	floors: [

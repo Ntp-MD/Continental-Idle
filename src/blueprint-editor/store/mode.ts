@@ -1,4 +1,4 @@
-import type { EditorMode, EditorSettings } from '../domain/types'
+import type { EditorMode, EditorSettings, TileBrush } from '../domain/types'
 import { isValidColor, normalizeEditorSettings, EDITOR_FIELD_SPECS } from '../domain/types'
 import { state, clamp, assetMap } from './state'
 import { normalizeObject } from '../domain/geometry'
@@ -6,12 +6,13 @@ import { saveBlueprintData } from './persistence'
 
 export function setMode(mode: EditorMode) {
 	state.mode = mode
-	state.wallPaint = false
+	state.tileBrush = null
 	state.selectionState = { primary: null, items: [] }
 }
 
-export function setWallPaint(on: boolean) {
-	state.wallPaint = on
+export function setTileBrush(brush: TileBrush | null) {
+	state.tileBrush = brush
+	state.selectionState = { primary: null, items: [] }
 }
 
 export async function resizeCanvas(width: number, height: number, tileSize: number): Promise<boolean> {
@@ -22,7 +23,6 @@ export async function resizeCanvas(width: number, height: number, tileSize: numb
 	for (const floor of state.layout.floors) {
 		for (const o of floor.objects) {
 			normalizeObject(o, state.layout.canvas.tileSize, assetMap())
-			if (o.isWall) continue
 			const snapped = clamp({ x: Math.round(o.x / t) * t, y: Math.round(o.y / t) * t, w: o.w, h: o.h })
 			o.x = snapped.x
 			o.y = snapped.y
@@ -44,20 +44,6 @@ export async function setCanvasLabelColor(labelColor: string | undefined): Promi
 	if (labelColor !== undefined && !isValidColor(labelColor)) return false
 	if (labelColor) state.layout.canvas.labelColor = labelColor
 	else delete state.layout.canvas.labelColor
-	return saveBlueprintData()
-}
-
-export async function setWallColor(wallColor: string | undefined): Promise<boolean> {
-	if (wallColor !== undefined && !isValidColor(wallColor)) return false
-	if (wallColor) state.layout.canvas.wallColor = wallColor
-	else delete state.layout.canvas.wallColor
-	return saveBlueprintData()
-}
-
-export async function setWallThickness(thickness: number | null): Promise<boolean> {
-	if (thickness !== null && (!Number.isInteger(thickness) || thickness < 1 || thickness > 10)) return false
-	if (thickness !== null) state.layout.canvas.wallThickness = thickness
-	else delete state.layout.canvas.wallThickness
 	return saveBlueprintData()
 }
 

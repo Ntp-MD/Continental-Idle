@@ -2,17 +2,14 @@
 import { ref, watch, computed, nextTick } from 'vue'
 import { useAssetsStore } from '../../blueprintStore'
 import { useToast } from '@/composables/useToast'
-import { useConfirm } from '@/composables/useConfirm'
 import { useDebouncedCallback } from '@/composables/useDebounceFn'
 import type { AssetDef } from '../../domain/types'
 import { isHexColor, isValidColor, normalizeCornerRx } from '../../domain/types'
 import { assetIsSvg } from '../../assets/assetUtils'
-import { doorRuns, doorRunLabel, withDoorRunMode, withoutDoorRun, type DoorRun } from '../../domain/gridEditing'
 import ColorInput from '../inputs/ColorInput.vue'
 
 const props = defineProps<{ asset: AssetDef }>()
 const store = useAssetsStore()
-const confirm = useConfirm().confirm
 
 const dimFields = ref<{
   w: number
@@ -86,9 +83,6 @@ watch(
 
 const isSvgAsset = computed(() => assetIsSvg(props.asset))
 const isNpcDeployed = store.isNpcPreview
-const doorRows = computed(() =>
-  doorRuns(props.asset.wallSegments ?? []).map((run, index) => ({ run, index })),
-)
 
 async function commitName() {
   const val = assetName.value.trim()
@@ -146,30 +140,6 @@ async function commitRx() {
   const { rxTL, rxTR, rxBR, rxBL } = dimFields.value
   const normalized = normalizeCornerRx({ tl: rxTL, tr: rxTR, br: rxBR, bl: rxBL })
   await store.updateAsset(props.asset.id, { defaultRx: normalized })
-}
-
-async function commitDoorMode(run: DoorRun, mode: string) {
-  await store.updateAsset(props.asset.id, {
-    wallSegments: withDoorRunMode(
-      props.asset.wallSegments ?? [],
-      run.anchor,
-      mode === 'hold-open' || mode === 'auto-close' ? mode : undefined,
-    ),
-  })
-}
-
-async function deleteDoorRun(run: DoorRun) {
-  const segments = props.asset.wallSegments ?? []
-  if (!segments.some(segment => segment.door)) return
-  const confirmed = await confirm({
-    title: 'Delete door',
-    message: `Delete door ${run.lo},${run.fixed} -> ${run.hi},${run.fixed} (${run.count} tile${run.count > 1 ? 's' : ''}) from "${props.asset.name}"? This action cannot be undone.`,
-    confirmLabel: 'Delete',
-    cancelLabel: 'Cancel',
-    danger: true,
-  })
-  if (!confirmed) return
-  await store.updateAsset(props.asset.id, { wallSegments: withoutDoorRun(segments, run.anchor) })
 }
 
 const commitRxDebounced = useDebouncedCallback(() => {
@@ -367,23 +337,6 @@ watch(portal, async (v) => {
       </button>
     </div>
     <div class="form__hint">Portal objects let NPCs travel between floors (e.g. elevators, stairs).</div>
-  </div>
-  <div class="form__col form--section">
-    <div>Doors</div>
-    <div v-if="!doorRows.length" class="empty">No doors on this asset</div>
-    <div v-for="entry in doorRows" :key="`door-mode-${entry.index}`" class="form__row">
-      <label :for="`door-mode-${entry.index}`">Door {{ entry.index + 1 }} ({{ doorRunLabel(entry.run) }})</label>
-      <select
-        :id="`door-mode-${entry.index}`" :value="entry.run.anchor.doorMode ?? 'auto'" aria-label="Door close mode"
-        @change="commitDoorMode(entry.run, ($event.target as HTMLSelectElement).value)"
-      >
-        <option value="auto">Auto</option>
-        <option value="hold-open">Hold open</option>
-        <option value="auto-close">Auto-close</option>
-      </select>
-      <button type="button" class="flag--danger" :aria-label="`Delete door ${entry.index + 1}`" @click="deleteDoorRun(entry.run)">x</button>
-    </div>
-    <div class="form__hint">Auto means rooms close themselves while occupied, passage stays open.</div>
   </div>
 </template>
 

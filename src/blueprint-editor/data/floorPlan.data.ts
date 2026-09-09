@@ -3,93 +3,16 @@ export const floorPlanData = {
   "canvas": {
     "width": 1600,
     "height": 1000,
-    "tileSize": 25,
+    "tileSize": 20,
     "bgColor": "#000000",
-    "labelColor": "#cfcfcf",
-    "wallColor": "#ffffff"
+    "labelColor": "#cfcfcf"
   },
   "floors": [
     {
       "id": "floor-f6bc12edb3",
       "name": "Floor 2",
       "label": "F2",
-      "objects": [
-        {
-          "id": "wall-314bb4f900",
-          "type": "__canvas-wall__",
-          "x": 650,
-          "y": 225,
-          "rotation": 0,
-          "isWall": true,
-          "door": true,
-          "x1": 26,
-          "y1": 9,
-          "x2": 27,
-          "y2": 9
-        },
-        {
-          "id": "wall-2a1e4f105f",
-          "type": "__canvas-wall__",
-          "x": 850,
-          "y": 250,
-          "rotation": 0,
-          "isWall": true,
-          "x1": 34,
-          "y1": 10,
-          "x2": 34,
-          "y2": 11
-        },
-        {
-          "id": "wall-b3d6cbbd32",
-          "type": "__canvas-wall__",
-          "x": 600,
-          "y": 325,
-          "rotation": 0,
-          "isWall": true,
-          "door": true,
-          "x1": 24,
-          "y1": 13,
-          "x2": 25,
-          "y2": 13
-        },
-        {
-          "id": "wall-4be9c5c4b3",
-          "type": "__canvas-wall__",
-          "x": 900,
-          "y": 375,
-          "rotation": 0,
-          "isWall": true,
-          "x1": 36,
-          "y1": 15,
-          "x2": 37,
-          "y2": 15
-        },
-        {
-          "id": "wall-e8e70967e3",
-          "type": "__canvas-wall__",
-          "x": 750,
-          "y": 400,
-          "rotation": 0,
-          "isWall": true,
-          "door": true,
-          "x1": 30,
-          "y1": 16,
-          "x2": 31,
-          "y2": 16
-        },
-        {
-          "id": "wall-073e5072a9",
-          "type": "__canvas-wall__",
-          "x": 850,
-          "y": 500,
-          "rotation": 0,
-          "isWall": true,
-          "x1": 34,
-          "y1": 20,
-          "x2": 35,
-          "y2": 20
-        }
-      ],
+      "objects": [],
       "defaultWalkable": true,
       "walkable": {
         "walkableGrid": [

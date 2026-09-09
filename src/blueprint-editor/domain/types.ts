@@ -3,7 +3,7 @@
 //
 // Sections:
 //   1. Editor primitives          (EditorMode, Rotation, Rect, SelectionState)
-//   2. SVG & wall types            (SvgRole, WallSegment, color convention)
+//   2. SVG types                  (SvgRole, color convention)
 //   3. Floor walkable types        (TileState, WalkableGrid, FloorWalkable)
 //   4. Interact & queue types      (InteractSpot, InteractConfig, NpcQueueConfig)
 //   5. Asset types & normalization (AssetBase, AssetDef, normalizeOriginAsset)
@@ -23,7 +23,6 @@ export type EditorMode = 'object' | 'draw' | 'move' | 'npc-preview'
 export type Rotation = 0 | 90 | 180 | 270
 
 export const STREET_TILES = 8
-export const CANVAS_WALL_OBJECT_TYPE = '__canvas-wall__'
 
 export function resolveStreetTiles(layout: { streetWidthTiles?: number } | null | undefined): number {
 	const v = layout?.streetWidthTiles
@@ -44,6 +43,8 @@ export interface SvgRoleInfo {
 
 export type TileState = 'walkable' | 'blocked' | 'door'
 
+export type TileBrush = TileState | 'erase'
+
 export type WalkableGrid = boolean[][]
 
 export interface FloorWalkable {
@@ -51,15 +52,35 @@ export interface FloorWalkable {
 	tileStates?: TileState[][]
 }
 
-export type DoorMode = 'hold-open' | 'auto-close'
+export function resolveFloorTileStates(
+	floor: { walkable?: FloorWalkable; defaultWalkable?: boolean },
+	rows: number,
+	cols: number,
+): TileState[][] {
+	const existing = floor.walkable?.tileStates
+	if (existing?.length === rows && existing.every((row) => row.length === cols)) {
+		return existing.map((row) => [...row])
+	}
+	const existingGrid = floor.walkable?.walkableGrid
+	if (existingGrid?.length === rows && existingGrid.every((row) => row.length === cols)) {
+		return existingGrid.map((row) => row.map((cell) => (cell ? 'walkable' : 'blocked')))
+	}
+	const fallback: TileState = floor.defaultWalkable === false ? 'blocked' : 'walkable'
+	return Array.from({ length: rows }, () => Array.from({ length: cols }, () => fallback))
+}
 
-export interface WallSegment {
-	x1: number
-	y1: number
-	x2: number
-	y2: number
-	door?: boolean
-	doorMode?: DoorMode
+export function applyTileBrush(states: TileState[][], brush: TileBrush, row0: number, col0: number, row1: number, col1: number): void {
+	for (let row = Math.max(0, row0); row <= Math.min(states.length - 1, row1); row++) {
+		const cells = states[row]
+		for (let col = Math.max(0, col0); col <= Math.min(cells.length - 1, col1); col++) {
+			if (brush === 'erase') cells[col] = cells[col] === 'walkable' ? 'blocked' : 'walkable'
+			else cells[col] = brush
+		}
+	}
+}
+
+export function tileStatesToWalkableGrid(states: TileState[][]): WalkableGrid {
+	return states.map((row) => row.map((state) => state === 'walkable' || state === 'door'))
 }
 
 // --- Section 13: Shared internal helpers (not exported) ---
@@ -69,7 +90,6 @@ const MAX_SVG_ATTRIBUTE_LENGTH = 4096
 const MAX_SVG_LENGTH = 250_000
 const MAX_GRID_ROWS = 256
 const MAX_GRID_COLUMNS = 256
-const MAX_WALL_SEGMENTS = 8192
 const MAX_INTERACT_SPOTS = 512
 const MAX_SVG_ROLES = 512
 const MAX_ASSET_DIMENSION = 10_000
@@ -127,107 +147,12 @@ export function isSafeSvgMarkup(svg: string): boolean {
 		&& !/\b(?:javascript|vbscript|data|blob|mhtml):/i.test(svg)
 }
 
-export function normalizeWallSegment(value: unknown): WallSegment | undefined {
-	if (!value || typeof value !== 'object') return undefined
-	const record = value as Record<string, unknown>
-	if (![record.x1, record.y1, record.x2, record.y2].every(item => isFiniteNumber(item) && Math.abs(item) <= MAX_ASSET_DIMENSION)) return undefined
-	const x1 = record.x1 as number
-	const y1 = record.y1 as number
-	const x2 = record.x2 as number
-	const y2 = record.y2 as number
-	if (x1 !== x2 && y1 !== y2) return undefined
-	if (x1 === x2 && y1 === y2) return undefined
-	const door = record.door === true
-	const doorMode: DoorMode | undefined = record.doorMode === 'hold-open' || record.doorMode === 'auto-close' ? record.doorMode : undefined
-	const base = (a: number, b: number, c: number, d: number): WallSegment => {
-		const seg: WallSegment = { x1: a, y1: b, x2: c, y2: d }
-		if (door) seg.door = true
-		if (door && doorMode !== undefined) seg.doorMode = doorMode
-		return seg
-	}
-	if (x1 === x2) return y1 <= y2 ? base(x1, y1, x2, y2) : base(x2, y2, x1, y1)
-	return x1 <= x2 ? base(x1, y1, x2, y2) : base(x2, y2, x1, y1)
-}
-
-export function splitWallSegmentToTiles(segment: WallSegment): WallSegment[] {
-	const horizontal = segment.y1 === segment.y2
-	const fixed = horizontal ? segment.y1 : segment.x1
-	const lo = Math.round(Math.min(horizontal ? segment.x1 : segment.y1, horizontal ? segment.x2 : segment.y2))
-	const hi = Math.round(Math.max(horizontal ? segment.x1 : segment.y1, horizontal ? segment.x2 : segment.y2))
-	const count = Math.max(1, hi - lo)
-	const pieces: WallSegment[] = []
-	for (let i = 0; i < count; i++) {
-		const piece: WallSegment = horizontal
-			? { x1: lo + i, y1: fixed, x2: lo + i + 1, y2: fixed }
-			: { x1: fixed, y1: lo + i, x2: fixed, y2: lo + i + 1 }
-		if (segment.door) {
-			piece.door = true
-			if (segment.doorMode !== undefined) piece.doorMode = segment.doorMode
-		}
-		pieces.push(piece)
-	}
-	return pieces
-}
-
-export function normalizeWallSegments(value: unknown): WallSegment[] | undefined {
-	if (!Array.isArray(value)) return undefined
-	const seen = new Map<string, WallSegment>()
-	for (const item of value) {
-		const segment = normalizeWallSegment(item)
-		if (!segment) continue
-		for (const piece of splitWallSegmentToTiles(segment)) {
-			const key = `${piece.x1},${piece.y1},${piece.x2},${piece.y2}`
-			const existing = seen.get(key)
-			if (existing) {
-				if (piece.door) existing.door = true
-				if (piece.door && piece.doorMode !== undefined && existing.doorMode === undefined) existing.doorMode = piece.doorMode
-				continue
-			}
-			seen.set(key, piece)
-		}
-	}
-	if (seen.size === 0 || seen.size > MAX_WALL_SEGMENTS) return undefined
-	return [...seen.values()]
-}
-
 export type AssetPixelSize = Pick<AssetDef, 'w' | 'h' | 'usePx' | 'pxW' | 'pxH'>
 
 export function assetPixelSize(asset: AssetPixelSize, tileSize: number): { w: number; h: number } {
 	const w = asset.usePx ? (asset.pxW ?? asset.w * tileSize) : asset.w * tileSize
 	const h = asset.usePx ? (asset.pxH ?? asset.h * tileSize) : asset.h * tileSize
 	return { w, h }
-}
-
-export function resolveWallSegmentsForObject(
-	segments: readonly WallSegment[] | undefined,
-	asset: AssetPixelSize,
-	object: Pick<ObjectData, 'x' | 'y' | 'w' | 'h' | 'rotation'>,
-	tileSize: number,
-): WallSegment[] {
-	if (!segments?.length || asset.w <= 0 || asset.h <= 0) return []
-	const { w: sourceW, h: sourceH } = assetPixelSize(asset, tileSize)
-	if (sourceW <= 0 || sourceH <= 0 || object.w <= 0 || object.h <= 0) return []
-	const rotatedW = object.rotation === 90 || object.rotation === 270 ? sourceH : sourceW
-	const rotatedH = object.rotation === 90 || object.rotation === 270 ? sourceW : sourceH
-	const scaleX = object.w / rotatedW
-	const scaleY = object.h / rotatedH
-	const transformPoint = (x: number, y: number): { x: number; y: number } => {
-		const localX = x / asset.w * sourceW
-		const localY = y / asset.h * sourceH
-		if (object.rotation === 90) return { x: object.x + (sourceH - localY) * scaleX, y: object.y + localX * scaleY }
-		if (object.rotation === 180) return { x: object.x + (sourceW - localX) * scaleX, y: object.y + (sourceH - localY) * scaleY }
-		if (object.rotation === 270) return { x: object.x + localY * scaleX, y: object.y + (sourceW - localX) * scaleY }
-		return { x: object.x + localX * scaleX, y: object.y + localY * scaleY }
-	}
-	return segments.flatMap(segment => {
-		const a = transformPoint(segment.x1, segment.y1)
-		const b = transformPoint(segment.x2, segment.y2)
-		const normalized = normalizeWallSegment({ x1: a.x, y1: a.y, x2: b.x, y2: b.y })
-		if (!normalized) return []
-		if (segment.door) normalized.door = true
-		if (segment.door && segment.doorMode !== undefined) normalized.doorMode = segment.doorMode
-		return [normalized]
-	})
 }
 
 export function normalizeFloorWalkable(value: unknown): FloorWalkable | undefined {
@@ -466,7 +391,6 @@ export interface ResolvedObjectDef {
 	doorRequired: boolean
 	walkableGrid?: boolean[][]
 	tileStates?: TileState[][]
-	wallSegments?: WallSegment[]
 	interactSpots?: InteractSpot[]
 	interact?: InteractConfig
 	queue?: NpcQueueConfig
@@ -559,7 +483,6 @@ export function resolveObjectDef(
 	const rotSteps = Math.round(rotation / 90)
 	const walkableGrid = rotateGrid90(normalizeWalkableGrid(asset?.walkableGrid), rotSteps)
 	const tileStates = rotateGrid90(normalizeTileStates(asset?.tileStates), rotSteps)
-	const wallSegments = normalizeWallSegments(asset?.wallSegments)
 	const interactSpots = normalizeInteractSpots(asset?.interactSpots)
 	const sourceSize = size
 		? (rotSteps % 2 === 0 ? size : { w: size.h, h: size.w })
@@ -569,7 +492,7 @@ export function resolveObjectDef(
 		: interactSpots
 	const interact = normalizeInteractConfig(asset?.interact)
 	const queue = normalizeNpcQueueConfig(asset?.queue)
-	return { walkable, doorRequired, walkableGrid, tileStates, wallSegments, interactSpots: rotatedInteractSpots, interact, queue }
+	return { walkable, doorRequired, walkableGrid, tileStates, interactSpots: rotatedInteractSpots, interact, queue }
 }
 
 
@@ -591,13 +514,6 @@ export function normalizeObjectPlacement(value: unknown): ObjectPlacement | unde
 	const linkGroupId = normalizeIdentifier(record.linkGroupId)
 	if (linkGroupId) placement.linkGroupId = linkGroupId
 	if (typeof record.locked === 'boolean') placement.locked = record.locked
-	if (typeof record.isWall === 'boolean') placement.isWall = record.isWall
-	if (record.door === true && placement.isWall && type === CANVAS_WALL_OBJECT_TYPE) placement.door = true
-	if (placement.door === true && (record.doorMode === 'hold-open' || record.doorMode === 'auto-close')) placement.doorMode = record.doorMode
-	for (const key of ['x1', 'y1', 'x2', 'y2'] as const) {
-		const value = record[key]
-		if (isFiniteNumber(value)) placement[key] = value
-	}
 	const fillColor = typeof record.fillColor === 'string' && isValidColor(record.fillColor.trim()) ? record.fillColor.trim() : undefined
 	if (fillColor) placement.fillColor = fillColor
 	const strokeColor = typeof record.strokeColor === 'string' && isValidColor(record.strokeColor.trim()) ? record.strokeColor.trim() : undefined
@@ -628,8 +544,6 @@ export interface AssetBase {
 	w: number
 	h: number
 	custom?: boolean
-	isWall?: boolean
-	wallSegments?: WallSegment[]
 	walkable?: boolean
 	doorRequired?: boolean
 	defaultPadding?: number
@@ -755,16 +669,6 @@ export function normalizeOriginAsset(value: unknown): AssetDef | undefined {
 	if (hasOwn(record, 'custom')) {
 		if (typeof record.custom !== 'boolean') return undefined
 		asset.custom = record.custom
-	}
-	if (hasOwn(record, 'isWall')) {
-		if (typeof record.isWall !== 'boolean') return undefined
-		asset.isWall = record.isWall
-	}
-	if (hasOwn(record, 'wallSegments')) {
-		if (!Array.isArray(record.wallSegments)) return undefined
-		const wallSegments = normalizeWallSegments(record.wallSegments)
-		if (record.wallSegments.length > 0 && !wallSegments) return undefined
-		if (wallSegments) asset.wallSegments = wallSegments
 	}
 	if (hasOwn(record, 'walkable')) {
 		if (typeof record.walkable !== 'boolean') return undefined
@@ -987,13 +891,6 @@ export interface ObjectPlacement {
 	x: number
 	y: number
 	rotation: Rotation
-	isWall?: boolean
-	x1?: number
-	y1?: number
-	x2?: number
-	y2?: number
-	door?: boolean
-	doorMode?: DoorMode
 	linkGroupId?: string
 	locked?: boolean
 	fillColor?: string
@@ -1009,7 +906,6 @@ export interface ObjectData extends ObjectPlacement {
 	padding?: number
 	collapsed?: boolean
 	label?: string
-	isWall?: boolean
 }
 
 export interface ResolvedObject extends ObjectPlacement {
@@ -1021,12 +917,10 @@ export interface ResolvedObject extends ObjectPlacement {
 	padding?: number
 	fillColor?: string
 	label?: string
-	isWall?: boolean
 	walkable: boolean
 	doorRequired: boolean
 	walkableGrid?: WalkableGrid
 	tileStates?: TileState[][]
-	wallSegments?: WallSegment[]
 	interactSpots?: InteractSpot[]
 	interact?: InteractConfig
 	queue?: NpcQueueConfig
@@ -1095,8 +989,6 @@ export interface CanvasConfig {
 	tileSize: number
 	bgColor?: string
 	labelColor?: string
-	wallColor?: string
-	wallThickness?: number
 }
 
 export interface CanvasFieldSpec {
@@ -1112,8 +1004,6 @@ export const CANVAS_FIELD_SPECS = {
 	tileSize: { kind: 'number', required: true, min: 1, max: 1_000 },
 	bgColor: { kind: 'color' },
 	labelColor: { kind: 'color' },
-	wallColor: { kind: 'color' },
-	wallThickness: { kind: 'int', min: 1, max: 10 },
 } as const satisfies Record<keyof CanvasConfig, CanvasFieldSpec>
 
 export function parseCanvasConfig(raw: unknown, strict: boolean): CanvasConfig | null {
@@ -1151,8 +1041,6 @@ export interface FloorLayoutData {
 }
 
 export interface EditorSettings {
-	wallHitTolerancePx: number
-	wallHitToleranceTileRatio: number
 	dragThresholdPx: number
 	cycleThresholdPx: number
 	boxSelectThresholdPx: number
@@ -1169,7 +1057,6 @@ export interface EditorSettings {
 	rulerMinPx: number
 	rulerMaxPx: number
 	rulerBasePx: number
-	wallThicknessRatio: number
 	sidewalkTileRatio: number
 	walkableGridMinTilePx: number
 	walkableGridMaxTilePx: number
@@ -1185,8 +1072,6 @@ export interface EditorFieldSpec {
 }
 
 export const EDITOR_FIELD_SPECS = {
-	wallHitTolerancePx: { kind: 'number', min: 1, max: 100 },
-	wallHitToleranceTileRatio: { kind: 'number', min: 0.01, max: 1 },
 	dragThresholdPx: { kind: 'number', min: 0.5, max: 50 },
 	cycleThresholdPx: { kind: 'number', min: 1, max: 50 },
 	boxSelectThresholdPx: { kind: 'number', min: 1, max: 50 },
@@ -1203,7 +1088,6 @@ export const EDITOR_FIELD_SPECS = {
 	rulerMinPx: { kind: 'number', min: 4, max: 100 },
 	rulerMaxPx: { kind: 'number', min: 10, max: 200 },
 	rulerBasePx: { kind: 'number', min: 4, max: 100 },
-	wallThicknessRatio: { kind: 'number', min: 0.01, max: 0.5 },
 	sidewalkTileRatio: { kind: 'number', min: 0.1, max: 0.5 },
 	walkableGridMinTilePx: { kind: 'number', min: 4, max: 40 },
 	walkableGridMaxTilePx: { kind: 'number', min: 10, max: 80 },
@@ -1212,8 +1096,6 @@ export const EDITOR_FIELD_SPECS = {
 } as const satisfies Record<keyof EditorSettings, EditorFieldSpec>
 
 export const DEFAULT_EDITOR_SETTINGS: EditorSettings = {
-	wallHitTolerancePx: 6,
-	wallHitToleranceTileRatio: 0.2,
 	dragThresholdPx: 2,
 	cycleThresholdPx: 6,
 	boxSelectThresholdPx: 4,
@@ -1230,7 +1112,6 @@ export const DEFAULT_EDITOR_SETTINGS: EditorSettings = {
 	rulerMinPx: 16,
 	rulerMaxPx: 32,
 	rulerBasePx: 22,
-	wallThicknessRatio: 0.12,
 	sidewalkTileRatio: 0.25,
 	walkableGridMinTilePx: 14,
 	walkableGridMaxTilePx: 40,
@@ -1273,12 +1154,6 @@ export interface SyncedObject {
 	w: number
 	h: number
 	rotation: Rotation
-	isWall?: boolean
-	door?: boolean
-	x1?: number
-	y1?: number
-	x2?: number
-	y2?: number
 	fillColor?: string
 	strokeColor?: string
 	label?: string
@@ -1286,7 +1161,6 @@ export interface SyncedObject {
 	doorRequired?: boolean
 	walkableGrid?: boolean[][]
 	tileStates?: TileState[][]
-	wallSegments?: WallSegment[]
 	interactSpots?: InteractSpot[]
 	interact?: InteractConfig
 	queue?: NpcQueueConfig
@@ -1325,13 +1199,6 @@ export interface EntityRef {
 export interface SelectionState {
 	primary: EntityRef | null
 	items: EntityRef[]
-}
-
-function isValidWallPlacement(object: ObjectPlacement): boolean {
-	const hasWallFields = [object.x1, object.y1, object.x2, object.y2].some(value => value !== undefined)
-	if (!object.isWall) return !hasWallFields
-	return object.type === CANVAS_WALL_OBJECT_TYPE
-		&& normalizeWallSegment({ x1: object.x1, y1: object.y1, x2: object.x2, y2: object.y2 }) !== undefined
 }
 
 export function validateLayoutData(data: unknown): FloorLayoutData | null {
@@ -1569,7 +1436,7 @@ export function normalizePersistedLayoutData(value: unknown): PersistedFloorLayo
 		const objects: ObjectPlacement[] = []
 		for (const objectValue of item.objects) {
 			const placement = normalizeObjectPlacement(objectValue)
-			if (!placement || !isValidWallPlacement(placement) || objectIds.has(placement.id)) return undefined
+			if (!placement || objectIds.has(placement.id)) return undefined
 			objectIds.add(placement.id)
 			objects.push(placement)
 		}
@@ -1693,7 +1560,7 @@ export function normalizeBlueprintDataFile(value: unknown): BlueprintDataFile | 
 		for (const roleId of floor.allowedRoleIds ?? []) if (!roleIds.has(roleId)) return undefined
 		for (const zone of floor.spawnZones ?? []) for (const roleId of zone.roleIds ?? []) if (!roleIds.has(roleId)) return undefined
 		for (const object of floor.objects) {
-			if (object.type !== CANVAS_WALL_OBJECT_TYPE && !assetIds.has(object.type)) return undefined
+			if (!assetIds.has(object.type)) return undefined
 		}
 	}
 	return { $schema: BLUEPRINT_DATA_SCHEMA, version: BLUEPRINT_DATA_VERSION, tags, originAssets: assets, layout, npcConfig }

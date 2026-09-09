@@ -1,7 +1,6 @@
 import assert from 'node:assert/strict'
 import { collectFloorEntrances, isGuestRoleId, validateSettingsCompleteness } from '../src/blueprint-editor/assets/assetUtils'
-import { CANVAS_WALL_OBJECT_TYPE } from '../src/blueprint-editor/domain/types'
-import type { AssetDef, FloorLayoutData, NpcSimulationConfig, ObjectData } from '../src/blueprint-editor/domain/types'
+import type { FloorLayoutData, NpcSimulationConfig, ObjectData, TileState } from '../src/blueprint-editor/domain/types'
 
 const STREET_HINT_SNIPPET = 'need a street-side spawn zone'
 const ENTRANCE_HINT_SNIPPET = 'need an entrance door'
@@ -12,10 +11,14 @@ function makeLayout(opts: {
 	streetFloorId?: string
 	zones?: { x: number; y: number; w: number; h: number; roleIds?: string[] }[]
 	objects?: ObjectData[]
+	doors?: Array<[number, number]>
 }): FloorLayoutData {
 	const floor: FloorLayoutData['floors'][number] = { id: 'F1', name: 'Lobby', label: 'Lobby', objects: opts.objects ?? [] }
 	if (opts.zones) {
 		floor.spawnZones = opts.zones.map((zone, i) => ({ id: `zone-${i}`, label: `Z${i}`, ...zone }))
+	}
+	if (opts.doors) {
+		floor.walkable = makeWalkable(opts.doors)
 	}
 	return {
 		version: 1,
@@ -52,45 +55,20 @@ function hasEntranceHint(issues: string[]): boolean {
 	return issues.some(issue => issue.includes(ENTRANCE_HINT_SNIPPET))
 }
 
-// ── Entrance fixtures (plan A4c): only doors crossing the street ring count ──
-const doorAsset: AssetDef = {
-	id: 'door-asset',
-	name: 'Door',
-	category: 'Special',
-	w: 1,
-	h: 2,
-	custom: true,
-	isWall: true,
-	wallSegments: [{ x1: 0, y1: 0, x2: 0, y2: 2, door: true }],
-	walkable: false,
-	doorRequired: true,
-	defaultPadding: 0,
-	defaultRx: { tl: 0, tr: 0, br: 0, bl: 0 },
-	defaultFillColor: '#8a97ab',
-	defaultStrokeColor: '#5c6675',
-	defaultLabel: 'DR',
-	defaultRadius: 0,
-	defaultLabelPadding: 0,
-	defaultLocked: false,
-	tags: [],
-	origin: 'svg-import',
-	pxW: 25,
-	pxH: 50,
-	usePx: false,
-	svg: '<rect x="0" y="0" width="25" height="50" fill="#8a97ab" stroke="#5c6675"/>',
-	svgViewBox: { w: 25, h: 50 },
-	svgRoles: [],
-	walkableGrid: [[true], [true]],
-	tileStates: [['walkable'], ['walkable']],
-	interactSpots: [],
-	interact: { capacity: 1, durationMin: 1, durationMax: 3 },
-	queue: { maxMembers: 3, admissionDepth: 4 },
+// ── Entrance fixtures: door tiles crossing the street ring count ──
+const GRID_COLS = 32
+const GRID_ROWS = 24
+
+function makeWalkable(doors: Array<[number, number]>): { walkableGrid: boolean[][]; tileStates: TileState[][] } {
+	const tileStates: TileState[][] = Array.from({ length: GRID_ROWS }, () => Array.from({ length: GRID_COLS }, () => 'walkable' as TileState))
+	for (const [x, y] of doors) tileStates[y][x] = 'door'
+	return { walkableGrid: tileStates.map(row => row.map(() => true)), tileStates }
 }
-const doorAssetMap = new Map<string, AssetDef>([['door-asset', doorAsset]])
-const topBoundaryDoor: ObjectData = { id: 'wall-door-top', type: CANVAS_WALL_OBJECT_TYPE, x: 300, y: 200, w: 50, h: 25, rotation: 0, isWall: true, x1: 12, y1: 8, x2: 14, y2: 8, door: true }
-const interiorDoor: ObjectData = { id: 'wall-door-in', type: CANVAS_WALL_OBJECT_TYPE, x: 300, y: 300, w: 50, h: 25, rotation: 0, isWall: true, x1: 12, y1: 12, x2: 14, y2: 12, door: true }
-const streetOnlyDoor: ObjectData = { id: 'wall-door-st', type: CANVAS_WALL_OBJECT_TYPE, x: 50, y: 100, w: 50, h: 25, rotation: 0, isWall: true, x1: 2, y1: 4, x2: 4, y2: 4, door: true }
-const assetDoorObject: ObjectData = { id: 'asset-door-1', type: 'door-asset', x: 600, y: 250, w: 25, h: 50, rotation: 0, isWall: true }
+
+const BOUNDARY_DOOR: [number, number] = [12, 8]
+const INTERIOR_DOOR: [number, number] = [16, 12]
+const STREET_DOOR: [number, number] = [2, 4]
+const EAST_BOUNDARY_DOOR: [number, number] = [23, 10]
 
 assert.equal(isGuestRoleId('role-guest'), true)
 assert.equal(isGuestRoleId('role-bartender'), false)
@@ -118,11 +96,11 @@ console.log('guest role id predicate passed')
 	console.log('entrance hint present without doors passed')
 }
 
-// Entrance hint clears once a ring-boundary door exists.
+// Entrance hint clears once a ring-boundary door tile exists.
 {
 	const result = validateSettingsCompleteness(
-		makeLayout({ streetFloorId: 'F1', zones: [{ x: 50, y: 50, w: 100, h: 100 }], objects: [topBoundaryDoor] }),
-		doorAssetMap,
+		makeLayout({ streetFloorId: 'F1', zones: [{ x: 50, y: 50, w: 100, h: 100 }], doors: [BOUNDARY_DOOR] }),
+		new Map(),
 		makeConfig([{ roleId: 'role-guest', count: 6 }]),
 	)
 	assert.equal(hasStreetHint(result.issues), false)
@@ -130,10 +108,10 @@ console.log('guest role id predicate passed')
 	console.log('entrance hint absent with boundary door passed')
 }
 
-// Interior-only doors do not clear the entrance hint.
+// Interior-only door tiles do not clear the entrance hint.
 {
 	const result = validateSettingsCompleteness(
-		makeLayout({ streetFloorId: 'F1', zones: [{ x: 50, y: 50, w: 100, h: 100 }], objects: [interiorDoor] }),
+		makeLayout({ streetFloorId: 'F1', zones: [{ x: 50, y: 50, w: 100, h: 100 }], doors: [INTERIOR_DOOR] }),
 		new Map(),
 		makeConfig([{ roleId: 'role-guest', count: 6 }]),
 	)
@@ -250,34 +228,31 @@ console.log('guest role id predicate passed')
 	console.log('street hint suppressed by floor role restriction passed')
 }
 
-// ── collectFloorEntrances (plan A4c): only doors crossing the street ring count ──
+// ── collectFloorEntrances: only door tiles crossing the street ring count ──
 {
 	const entrances = collectFloorEntrances(
-		{ id: 'F1', name: 'Lobby', label: 'Lobby', objects: [topBoundaryDoor, interiorDoor, streetOnlyDoor] },
+		{ id: 'F1', name: 'Lobby', label: 'Lobby', objects: [], walkable: makeWalkable([BOUNDARY_DOOR, INTERIOR_DOOR, STREET_DOOR]) },
 		CANVAS,
 		8,
-		doorAssetMap,
 	)
-	assert.equal(entrances.length, 1, 'only the ring-boundary door is an entrance')
-	assert.equal(entrances[0].ownerObjectId, 'wall-door-top')
+	assert.equal(entrances.length, 1, 'only the ring-boundary door tile is an entrance')
+	assert.deepEqual([entrances[0].x, entrances[0].y], BOUNDARY_DOOR)
 	console.log('entrance derivation boundary-only passed')
 }
 
 {
 	const entrances = collectFloorEntrances(
-		{ id: 'F1', name: 'Lobby', label: 'Lobby', objects: [assetDoorObject] },
+		{ id: 'F1', name: 'Lobby', label: 'Lobby', objects: [], walkable: makeWalkable([EAST_BOUNDARY_DOOR]) },
 		CANVAS,
 		8,
-		doorAssetMap,
 	)
-	assert.equal(entrances.length, 1, 'asset door on the ring boundary is an entrance')
-	assert.equal(entrances[0].ownerObjectId, 'asset-door-1')
-	assert.equal(entrances[0].centerX, 600)
-	console.log('entrance derivation asset door passed')
+	assert.equal(entrances.length, 1, 'east ring-boundary door tile is an entrance')
+	assert.deepEqual([entrances[0].x, entrances[0].y], EAST_BOUNDARY_DOOR)
+	console.log('entrance derivation east door passed')
 }
 
 {
-	const entrances = collectFloorEntrances({ id: 'F1', name: 'Lobby', label: 'Lobby', objects: [] }, CANVAS, 8, doorAssetMap)
+	const entrances = collectFloorEntrances({ id: 'F1', name: 'Lobby', label: 'Lobby', objects: [] }, CANVAS, 8)
 	assert.equal(entrances.length, 0)
 	console.log('entrance derivation empty floor passed')
 }

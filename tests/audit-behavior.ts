@@ -2,8 +2,7 @@ import assert from 'node:assert/strict'
 import { NpcEngine, NPC_ENGINE_DEFAULT_OPTIONS } from '../src/engine/npc'
 import { buildNpcEngineLayout } from '../src/engine/npc/layoutBuild'
 import { createNpcEnginePolicy } from '../src/engine/npc/policy'
-import { CANVAS_WALL_OBJECT_TYPE } from '../src/blueprint-editor/domain/types'
-import type { AssetDef, FloorData, NpcSimulationConfig, ObjectData } from '../src/blueprint-editor/domain/types'
+import type { AssetDef, FloorData, FloorWalkable, NpcSimulationConfig, ObjectData, TileState } from '../src/blueprint-editor/domain/types'
 
 const TILE = 25
 const CANVAS = { w: 1600, h: 1000, tileSize: TILE }
@@ -98,21 +97,14 @@ function object(type: string, id: string, x: number, y: number): ObjectData {
 	return { id, type, x, y, w: asset.w * TILE, h: asset.h * TILE, rotation: 0 }
 }
 
-function sealedNorthWalls(floorId: string, wallCols: number[]): ObjectData[] {
-	return wallCols.map(col => ({
-		id: `wall-${floorId}-${col}`,
-		type: CANVAS_WALL_OBJECT_TYPE,
-		x: col * TILE,
-		y: 18 * TILE,
-		w: TILE,
-		h: 1,
-		rotation: 0,
-		isWall: true,
-		x1: col,
-		y1: 18,
-		x2: col + 1,
-		y2: 18,
-	}))
+function sealedNorthTiles(wallCols: number[]): FloorWalkable {
+	const cols = Math.ceil(CANVAS.w / TILE)
+	const rows = Math.ceil(CANVAS.h / TILE)
+	const tileStates: TileState[][] = Array.from({ length: rows }, () => Array.from({ length: cols }, () => 'walkable' as TileState))
+	for (const col of wallCols) {
+		if (col >= 0 && col < cols) tileStates[18][col] = 'blocked'
+	}
+	return { walkableGrid: tileStates.map(row => row.map(() => true)), tileStates }
 }
 
 const FLOORS: FloorData[] = [
@@ -121,7 +113,8 @@ const FLOORS: FloorData[] = [
 		name: 'Lobby',
 		label: 'G',
 		defaultWalkable: true,
-		objects: [...sealedNorthWalls('G', [24, 25, 26, 27]),
+		walkable: sealedNorthTiles([24, 25, 26, 27]),
+		objects: [
 		object('audit-elevator', 'elev-g', 300, 400),
 		object('audit-reception', 'reception-g', 600, 450),
 		object('audit-sofa', 'sofa-g1', 900, 500),
@@ -133,7 +126,8 @@ const FLOORS: FloorData[] = [
 		name: 'Lounge Bar',
 		label: 'F1',
 		defaultWalkable: true,
-		objects: [...sealedNorthWalls('F1', [28, 29, 30, 31]),
+		walkable: sealedNorthTiles([28, 29, 30, 31]),
+		objects: [
 		object('audit-elevator', 'elev-f1', 300, 400),
 		object('audit-bar', 'bar-f1', 700, 450),
 		object('audit-sofa', 'sofa-f1', 900, 550),
@@ -145,7 +139,8 @@ const FLOORS: FloorData[] = [
 		label: 'F2',
 		defaultWalkable: true,
 		allowedRoleIds: ['role-concierge'],
-		objects: [...sealedNorthWalls('F2', [24, 25, 26]),
+		walkable: sealedNorthTiles([24, 25, 26]),
+		objects: [
 		object('audit-elevator', 'elev-f2', 300, 400),
 		object('audit-staffdesk', 'staffdesk-f2', 600, 450),
 		],

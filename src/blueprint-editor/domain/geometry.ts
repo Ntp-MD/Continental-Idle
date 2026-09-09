@@ -1,6 +1,6 @@
 import type { AssetDef, ObjectData, ObjectPlacement, ResolvedObject, Rotation, Rect } from './types'
-import { CANVAS_WALL_OBJECT_TYPE, normalizeWallSegment, resolveObjectDef, STREET_TILES, assetPixelSize } from './types'
-import { findAsset, findAssetCached, wallSegmentToObjectRect } from '../assets/assetUtils'
+import { resolveObjectDef, STREET_TILES, assetPixelSize } from './types'
+import { findAsset, findAssetCached } from '../assets/assetUtils'
 
 export function assetSizeFor(
 	type: string,
@@ -22,22 +22,6 @@ export function normalizeObject(
 	tileSize: number,
 	assetLookup: AssetDef[] | Map<string, AssetDef>,
 ): void {
-	if (o.isWall && o.type === CANVAS_WALL_OBJECT_TYPE) {
-		const segment = normalizeWallSegment({ x1: o.x1, y1: o.y1, x2: o.x2, y2: o.y2, door: o.door })
-		if (!segment) return
-		o.x1 = segment.x1
-		o.y1 = segment.y1
-		o.x2 = segment.x2
-		o.y2 = segment.y2
-		const rect = wallSegmentToObjectRect(segment, tileSize)
-		o.x = rect.x
-		o.y = rect.y
-		o.w = rect.w
-		o.h = rect.h
-		o.rotation = 0
-		o.door = segment.door === true
-		return
-	}
 	o.x = Math.round(o.x / tileSize) * tileSize
 	o.y = Math.round(o.y / tileSize) * tileSize
 	const asset = Array.isArray(assetLookup)
@@ -51,11 +35,6 @@ export function normalizeObject(
 		rotation: o.rotation,
 		linkGroupId: o.linkGroupId,
 		locked: o.locked,
-		isWall: o.isWall,
-		x1: o.x1,
-		y1: o.y1,
-		x2: o.x2,
-		y2: o.y2,
 	}, asset, tileSize)
 	if (!resolved) return
 	o.w = resolved.w
@@ -66,7 +45,6 @@ export function normalizeObject(
 	o.padding = resolved.padding
 	o.rx = resolved.rx
 	o.fillColor = resolved.fillColor
-	o.isWall = resolved.isWall
 }
 
 export function resolvePlacedObject(
@@ -89,13 +67,11 @@ export function resolvePlacedObject(
 		rx: asset.defaultRx ? { ...asset.defaultRx } : undefined,
 		fillColor: placement.fillColor,
 		strokeColor: placement.strokeColor,
-		isWall: placement.isWall ?? asset.isWall,
 		locked: placement.locked ?? asset.defaultLocked,
 		walkable: definition.walkable,
 		doorRequired: definition.doorRequired,
 		walkableGrid: definition.walkableGrid,
 		tileStates: definition.tileStates,
-		wallSegments: definition.wallSegments,
 		interactSpots: definition.interactSpots,
 		interact: definition.interact,
 	}

@@ -7,8 +7,6 @@ export { NPC_ENGINE_TICKS_PER_SECOND, NPC_ENGINE_DEFAULT_AGENT_CLEARANCE, NPC_EN
 export { floorMatchesTargetTags, getObjectTags, getRoleFocusTags, hasMatchingTag } from './tagMatching'
 export { buildNpcQueues } from './queueBuild'
 export {
-	buildBlockedEdges,
-	buildDoorEdges,
 	buildNpcEngineLayout,
 	buildRoleWalkableMap,
 	buildWalkableMap,
@@ -33,7 +31,6 @@ export type { NpcEnginePolicy, NpcPolicyContext } from './policy'
 export type {
 	NpcEngineAgent,
 	NpcEngineAgentStatus,
-	NpcEngineBlockedEdge,
 	NpcEngineEvent,
 	NpcEngineEventType,
 	NpcEngineFloor,

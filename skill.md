@@ -19,7 +19,6 @@ For each boundary, name the specific normalization helper from the types module.
 | Interact-spot normalization | interact-spot arrays (stand/edge/post) at any boundary |
 | Interact config normalization | interact objects at any boundary |
 | Task post reference validation | task.post asset/post refs at any boundary |
-| Wall segment normalization | wall segment arrays (incl. doorMode) at any boundary |
 | Walkable grid normalization | boolean walkable grids |
 | Tile state normalization | tile state grids |
 | Engine target resolution | engine adapter target building (NOT at persistence boundary) |
@@ -161,7 +160,7 @@ Canonical form/markup/CSS/class patterns for `src/blueprint-editor/` UI.
 
 ### Grid editor parity
 
-`WalkableGridEditor.vue` (asset) and `FloorWalkablePanel.vue` (floor) are deliberately separate - do NOT merge them. Touching brushes, modes, hints, legends, edge previews, or tile visuals in one requires checking the other in the same change. Shared math stays in the walkable-grid domain module.
+`WalkableGridEditor.vue` (asset) and `FloorWalkablePanel.vue` (floor) are deliberately separate - do NOT merge them. Touching brushes, modes, hints, legends, or tile visuals in one requires checking the other in the same change. Shared math stays in the domain types module (pure normalize helpers).
 
 ### Component patterns
 
@@ -169,7 +168,7 @@ Canonical form/markup/CSS/class patterns for `src/blueprint-editor/` UI.
 - Modals: wrap in `ModalShell` with `:open` / `@close`. Load heavy or rarely opened modals with `defineAsyncComponent`.
 - Unsaved-changes tracking: `useDirtyBaseline` - one baseline snapshot plus a `dirty` computed. Do not hand-roll dirty flags, and do not stringify state for comparison.
 - Concurrency: store-level mutations use `withStateLock`; UI pending state uses `useAsyncAction`. One guard per layer, no extra boolean flags duplicating the guard.
-- Walkable-grid domain logic (tile states, wall segments <-> edges, door detection) lives in the walkable-grid domain module as pure functions. Components compose it, never re-implement the math inline.
+- Walkable-grid domain logic (tile states incl. door tiles) normalizes in the domain types module as pure functions. Components compose it, never re-implement the math inline.
 - Declarative schemas: canvas/editor settings are parsed via `CANVAS_FIELD_SPECS` / `EDITOR_FIELD_SPECS`. Never enumerate their keys by hand elsewhere.
 - Confirmation: `useConfirm().confirm` from `@/composables/useConfirm`, never `window.confirm`. User feedback: `useToast` for visible messages, `editorLog` for console diagnostics. Never `alert` / `console.log` for user-facing state.
 

@@ -45,8 +45,7 @@ export function migrate(data: unknown, availableAssets: readonly AssetDef[] = or
 						if (typeof o.padding === 'number' && o.padding > 0) base.padding = o.padding
 						if (typeof o.labelPadding === 'number' && o.labelPadding > 0) base.labelPadding = o.labelPadding
 						if (typeof o.fillColor === 'string') base.fillColor = o.fillColor
-						if (typeof o.collapsed === 'boolean') base.collapsed = o.collapsed
-						if (typeof o.isWall === 'boolean') base.isWall = o.isWall
+					if (typeof o.collapsed === 'boolean') base.collapsed = o.collapsed
 
 
 						const rx = normalizeCornerRx(o.rx)
@@ -71,7 +70,7 @@ export function migrate(data: unknown, availableAssets: readonly AssetDef[] = or
 	const migratedAssetMap = buildAssetMap(availableAssets)
 	for (const floor of migrated.floors) {
 		const beforeCount = floor.objects.length
-		floor.objects = floor.objects.filter(o => o.isWall || findAssetCached(migratedAssetMap, o.type))
+		floor.objects = floor.objects.filter(o => findAssetCached(migratedAssetMap, o.type))
 		const removedCount = beforeCount - floor.objects.length
 		if (removedCount > 0) {
 			editorLog.warn('Migration', `removed ${removedCount} object(s) with unknown asset types from floor "${floor.label}"`)

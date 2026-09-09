@@ -1,5 +1,5 @@
-import { reactive, computed, ref } from 'vue'
-import type { BlueprintTagDefinition, FloorLayoutData, AssetDef, FloorData, EditorMode, SelectionState, Rect, WallSegment } from '../domain/types'
+import { reactive, computed } from 'vue'
+import type { BlueprintTagDefinition, FloorLayoutData, AssetDef, FloorData, EditorMode, SelectionState, Rect, TileBrush } from '../domain/types'
 import { buildAssetMap, parseSvgRoles, buildWalkableGrid } from '../assets/assetUtils'
 import { snap as _snap, clamp as _clamp, buildingArea } from '../domain/geometry'
 import { originAssets, blueprintTagDefinitions, fetchBlueprintDataFromDisk, buildBlueprintData } from './dataLoader'
@@ -11,7 +11,7 @@ interface EditorState {
 	layout: FloorLayoutData
 	currentFloorId: string
 	mode: EditorMode
-	wallPaint: boolean
+	tileBrush: TileBrush | null
 	selectionState: SelectionState
 	selectedAssetId: string | null
 	assetRegistry: AssetDef[]
@@ -39,16 +39,6 @@ export async function withStateLock<T>(fn: () => Promise<T>): Promise<T> {
 
 export const dragState = reactive<{ assetId: string | null }>({ assetId: null })
 
-export interface WallSelectionEntry {
-	floorId: string
-	objectId: string
-	segment: WallSegment
-}
-export const wallSelection = ref<WallSelectionEntry[]>([])
-export function clearWallSelection(): void {
-	wallSelection.value = []
-}
-
 export function startAssetDrag(assetId: string) {
 	dragState.assetId = assetId
 }
@@ -62,7 +52,7 @@ export const state = reactive<EditorState>({
 	layout: initial.layout,
 	currentFloorId: '',
 	mode: 'object',
-	wallPaint: false,
+	tileBrush: null,
 	selectionState: { primary: null, items: [] },
 	selectedAssetId: null,
 	assetRegistry: originAssets.map(asset => structuredClone(asset)),

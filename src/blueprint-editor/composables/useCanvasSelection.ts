@@ -1,5 +1,4 @@
 import { ref, type Ref, type ComputedRef } from 'vue'
-import { CANVAS_WALL_OBJECT_TYPE } from '../domain/types'
 import type { Rect, ObjectData, FloorData, EditorMode } from '../domain/types'
 import type { AssetsStore } from '../store/index'
 import { aabbOverlap } from '../domain/collision'
@@ -82,7 +81,7 @@ export function useCanvasSelection(
 			opts.onBoxSelectComplete?.(rect)
 			const floor = opts.floor.value
 			const objs: ObjectData[] = floor?.objects ?? []
-			const hitIds = objs.filter(o => o.type !== CANVAS_WALL_OBJECT_TYPE && aabbOverlap(o, rect)).map(o => o.id)
+			const hitIds = objs.filter(o => aabbOverlap(o, rect)).map(o => o.id)
 			const store = opts.store
 			if (hitIds.length === 1) {
 				store.select({ type: 'object', id: hitIds[0] })

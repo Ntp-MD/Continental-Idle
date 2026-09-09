@@ -23,8 +23,6 @@ const heightInput = ref(store.state.layout.canvas.height)
 const tileInput = ref(store.state.layout.canvas.tileSize)
 const bgColorInput = ref(store.state.layout.canvas.bgColor)
 const labelColorInput = ref(store.state.layout.canvas.labelColor)
-const wallColorInput = ref(store.state.layout.canvas.wallColor)
-const wallThicknessInput = ref<number | undefined>(store.state.layout.canvas.wallThickness)
 
 watch(
   () => [props.open, store.state.layout.canvas] as const,
@@ -35,8 +33,6 @@ watch(
       tileInput.value = c.tileSize
       bgColorInput.value = c.bgColor
       labelColorInput.value = c.labelColor
-      wallColorInput.value = c.wallColor
-      wallThicknessInput.value = c.wallThickness
     }
   },
   { immediate: true },
@@ -79,32 +75,6 @@ async function applyLabelColor(value: string | undefined) {
     if (!saved) toast.error('Failed to set label color')
   } catch {
     toast.error('Failed to set label color')
-  }
-}
-
-async function applyWallColor(value: string | undefined) {
-  try {
-    const saved = await run(() => store.setWallColor(value))
-    if (!reportSaved(!!saved, value ? `Wall color saved: ${value}` : 'Wall color reset to default', 'Failed to set wall color')) return
-  } catch {
-    toast.error('Failed to set wall color')
-  }
-}
-
-function onWallColorInvalid(value: string) {
-  toast.error(`"${value}" is not a valid color - use #RRGGBB`)
-}
-
-async function applyWallThickness() {
-  const value =
-    typeof wallThicknessInput.value === 'number' && wallThicknessInput.value > 0
-      ? Math.round(wallThicknessInput.value)
-      : null
-  try {
-    const saved = await run(() => store.setWallThickness(value))
-    if (!saved) toast.error('Wall thickness must be 1-10')
-  } catch {
-    toast.error('Failed to set wall thickness')
   }
 }
 
@@ -160,8 +130,6 @@ const editorGroupsByTab: Record<Exclude<SettingsTab, 'canvas'>, EditorGroup[]> =
       title: 'Hit Testing',
       hint: 'Tolerances for hit, drag, cycle and box select.',
       fields: [
-        { key: 'wallHitTolerancePx', label: 'Wall hit px', step: 1 },
-        { key: 'wallHitToleranceTileRatio', label: 'Wall hit tile ratio', step: 0.01 },
         { key: 'dragThresholdPx', label: 'Drag threshold px', step: 0.5 },
         { key: 'cycleThresholdPx', label: 'Cycle threshold px', step: 0.5 },
         { key: 'boxSelectThresholdPx', label: 'Box select px', step: 0.5 },
@@ -193,12 +161,11 @@ const editorGroupsByTab: Record<Exclude<SettingsTab, 'canvas'>, EditorGroup[]> =
   scene: [
     {
       title: 'Street',
-      hint: 'Dash/gap ratios of tileSize; sidewalk and wall thickness fractions.',
+      hint: 'Dash/gap ratios of tileSize; sidewalk fraction.',
       fields: [
         { key: 'streetDashRatio', label: 'Dash ratio', step: 0.01 },
         { key: 'streetGapRatio', label: 'Gap ratio', step: 0.01 },
         { key: 'sidewalkTileRatio', label: 'Sidewalk tile ratio', step: 0.01 },
-        { key: 'wallThicknessRatio', label: 'Thickness ratio', step: 0.01 },
       ],
     },
     {
@@ -384,34 +351,6 @@ async function resetEditorAll() {
           />
         </div>
         <div class="form__hint">Color for all object labels.</div>
-      </div>
-
-      <div class="form__col form--section">
-        <div>Walls</div>
-        <div class="form__row">
-          <label>Color</label>
-          <ColorInput
-            v-model="wallColorInput"
-            placeholder="#RRGGBB (empty = theme green)"
-            aria-label="Wall line color"
-            @commit="applyWallColor"
-            @commit-invalid="onWallColorInvalid"
-          />
-        </div>
-        <div class="form__row">
-          <label for="canvas__wallthickness">Thickness</label>
-          <input
-            id="canvas__wallthickness"
-            v-model.number="wallThicknessInput"
-            type="number"
-            min="1"
-            max="10"
-            step="1"
-            :placeholder="'3'"
-            @change="applyWallThickness"
-          />
-        </div>
-        <div class="form__hint">For painted walls and building boundary.</div>
       </div>
 
       <div class="form__col form--section">

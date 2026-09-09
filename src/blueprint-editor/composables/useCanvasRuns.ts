@@ -1,8 +1,7 @@
 import { computed, type ComputedRef } from 'vue'
-import type { AssetDef, DoorMode, FloorData, ObjectData, Rect, WallSegment } from '../domain/types'
-import { CANVAS_WALL_OBJECT_TYPE, resolveObjectDef, resolveWallSegmentsForObject } from '../domain/types'
-import { findAssetCached, doorPanelsData, doorSlideDir, resolveDoorMode, type DoorPanel } from '../assets/assetUtils'
-import { useCanvasWallStyle } from './useCanvasWallStyle'
+import type { AssetDef, FloorData, ObjectData } from '../domain/types'
+import { resolveObjectDef } from '../domain/types'
+import { findAssetCached } from '../assets/assetUtils'
 
 export interface TileRun {
 	x: number
@@ -12,14 +11,6 @@ export interface TileRun {
 	state: string
 }
 
-export interface WallRun extends WallSegment {
-	objectId: string
-}
-
-export interface ObjWallLine extends WallSegment {
-	id: string
-}
-
 export interface CanvasRunsSources {
 	floor: ComputedRef<FloorData | undefined>
 	tileSize: () => number
@@ -27,8 +18,6 @@ export interface CanvasRunsSources {
 }
 
 export function useCanvasRuns(sources: CanvasRunsSources) {
-	const { wallThickness } = useCanvasWallStyle()
-
 	const objDefMap = computed(() => {
 		const map = new Map<string, ReturnType<typeof resolveObjectDef>>()
 		const assets = sources.assetMap()
@@ -66,79 +55,6 @@ export function useCanvasRuns(sources: CanvasRunsSources) {
 		return runs
 	})
 
-	const wallRuns = computed<WallRun[]>(() => {
-		const fl = sources.floor.value
-		if (!fl) return []
-		const t = sources.tileSize()
-		return fl.objects
-			.filter((object) => object.isWall && object.type === CANVAS_WALL_OBJECT_TYPE)
-			.flatMap((object) => {
-				if ([object.x1, object.y1, object.x2, object.y2].some((value) => typeof value !== 'number')) return []
-				const run: WallRun = {
-					objectId: object.id,
-					x1: object.x1! * t,
-					y1: object.y1! * t,
-					x2: object.x2! * t,
-					y2: object.y2! * t,
-				}
-				if (object.door) run.door = true
-				return [run]
-			})
-	})
-
-	const objWallLines = computed<ObjWallLine[]>(() => {
-		const fl = sources.floor.value
-		if (!fl) return []
-		const assets = sources.assetMap()
-		const t = sources.tileSize()
-		return fl.objects.flatMap((object) => {
-			const asset = assets.get(object.type)
-			if (!asset?.wallSegments?.length) return []
-			return resolveWallSegmentsForObject(asset.wallSegments, asset, object, t).map((segment) => ({
-				...segment,
-				id: object.id,
-			}))
-		})
-	})
-
-	const wallRunsNoDoors = computed(() => wallRuns.value.filter((w) => !w.door))
-	const objWallLinesNoDoors = computed(() => objWallLines.value.filter((w) => !w.door))
-
-	const doorPanels = computed<DoorPanel[]>(() => {
-		const thickness = wallThickness.value
-		const pxPerTile = sources.tileSize()
-		const objects = sources.floor.value?.objects ?? []
-		const panels: DoorPanel[] = []
-		const pushPanels = (segments: readonly WallSegment[], ownerId: string, ownerWalls: readonly WallSegment[], explicitMode?: DoorMode) => {
-			const blockers = objects.filter(o => o.id !== ownerId)
-			const ownerAsset = objAssetMap.value.get(ownerId)
-			const ownerHasSpots = !ownerAsset?.tags?.includes('portal') && (ownerAsset?.interactSpots?.length ?? 0) > 0
-			const mode = resolveDoorMode(explicitMode, ownerHasSpots)
-			for (const panel of doorPanelsData(segments, 1, thickness, pxPerTile)) {
-				if (panel.half !== undefined) {
-					panels.push({ ...panel, slideDir: panel.half, ownerObjectId: ownerId, mode })
-					continue
-				}
-				const halfT = panel.thickness / 2
-				const ownWalls: Rect[] = ownerWalls
-					.filter(s => !s.door && (
-						panel.horizontal
-							? s.y1 === s.y2 && Math.abs(s.y1 - panel.cy) <= halfT
-							: s.x1 === s.x2 && Math.abs(s.x1 - panel.cx) <= halfT
-					))
-					.map(s => ({ x: Math.min(s.x1, s.x2), y: Math.min(s.y1, s.y2), w: Math.abs(s.x2 - s.x1), h: Math.abs(s.y2 - s.y1) }))
-				panels.push({ ...panel, slideDir: doorSlideDir(panel, blockers, ownWalls), ownerObjectId: ownerId, mode })
-			}
-		}
-		for (const run of wallRuns.value) {
-			if (run.door) pushPanels([run], run.objectId, [], objects.find(o => o.id === run.objectId)?.doorMode)
-		}
-		for (const line of objWallLines.value) {
-			if (line.door) pushPanels([line], line.id, objWallLines.value.filter(o => o.id === line.id && !o.door), line.doorMode)
-		}
-		return panels
-	})
-
 	function objDef(obj: ObjectData) {
 		return (
 			objDefMap.value.get(obj.id) ??
@@ -146,5 +62,5 @@ export function useCanvasRuns(sources: CanvasRunsSources) {
 		)
 	}
 
-	return { objAssetMap, walkableRuns, wallRuns, objWallLines, wallRunsNoDoors, objWallLinesNoDoors, doorPanels, objDef }
+	return { objAssetMap, walkableRuns, objDef }
 }

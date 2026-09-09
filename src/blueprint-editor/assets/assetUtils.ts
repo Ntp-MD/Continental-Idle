@@ -1,7 +1,6 @@
-import { mergeCollinearWallSegments } from '../domain/gridEditing'
 import { isValidColor } from '../domain/types'
-import { assetPixelSize, CANVAS_WALL_OBJECT_TYPE, resolveInteractSpotAnchor, resolveStreetTiles, resolveWallSegmentsForObject, spawnZoneAllowsRole } from '../domain/types'
-import type { Rect, WallSegment, DoorMode, CanvasConfig, NpcSpawnZone } from '../domain/types'
+import { assetPixelSize, resolveInteractSpotAnchor, resolveStreetTiles, spawnZoneAllowsRole } from '../domain/types'
+import type { CanvasConfig, NpcSpawnZone } from '../domain/types'
 import type { AssetDef, FloorData, FloorLayoutData, NpcSimulationConfig, ObjectPlacement, SvgRole, SvgRoleInfo, WalkableGrid, TileState } from '../domain/types'
 
 export function findAsset(assets: readonly AssetDef[], type: string): AssetDef | undefined {
@@ -50,157 +49,8 @@ export function assetFallbackShapeSvg(asset: AssetDef, tileSize: number): string
 	return `<rect x="1" y="1" width="${Math.max(1, w - 2)}" height="${Math.max(1, h - 2)}" rx="${rx}" fill="${fill}" stroke="${stroke}" stroke-width="1"/>`
 }
 
-export interface DoorPanel {
-	key: string
-	cx: number
-	cy: number
-	length: number
-	thickness: number
-	horizontal: boolean
-	slideDir: -1 | 1
-	ownerObjectId?: string
-	mode?: DoorMode
-	half?: -1 | 1
-	group?: string
-}
-
-export function resolveDoorMode(explicitMode: DoorMode | undefined, ownerHasSpots: boolean): DoorMode {
-	if (explicitMode !== undefined) return explicitMode
-	return ownerHasSpots ? 'auto-close' : 'hold-open'
-}
-
-export function doorPanelsData(
-	segments: readonly WallSegment[],
-	tileSize: number,
-	thickness: number,
-	unitsPerTile: number = tileSize,
-): DoorPanel[] {
-	const t = Math.max(1, thickness)
-	const unit = unitsPerTile > 0 ? unitsPerTile : tileSize
-	const out: DoorPanel[] = []
-	for (const s of mergeCollinearWallSegments(segments)) {
-		if (!s.door) continue
-		const x1 = s.x1 * tileSize
-		const y1 = s.y1 * tileSize
-		const x2 = s.x2 * tileSize
-		const y2 = s.y2 * tileSize
-		const horizontal = y1 === y2
-		const pxLen = Math.abs(horizontal ? x2 - x1 : y2 - y1)
-		const fullLen = Math.max(t * 2, pxLen)
-		const group = `${x1},${y1},${x2},${y2}`
-		if (pxLen / unit >= 2) {
-			const halfLen = fullLen / 2
-			if (horizontal) {
-				const lo = Math.min(x1, x2)
-				const mid = (x1 + x2) / 2
-				const hi = Math.max(x1, x2)
-				out.push({ key: `${lo},${y1},${mid},${y1}`, cx: (lo + mid) / 2, cy: y1, length: halfLen, thickness: t, horizontal, slideDir: -1, half: -1, group })
-				out.push({ key: `${mid},${y1},${hi},${y1}`, cx: (mid + hi) / 2, cy: y1, length: halfLen, thickness: t, horizontal, slideDir: 1, half: 1, group })
-			} else {
-				const lo = Math.min(y1, y2)
-				const mid = (y1 + y2) / 2
-				const hi = Math.max(y1, y2)
-				out.push({ key: `${x1},${lo},${x1},${mid}`, cx: x1, cy: (lo + mid) / 2, length: halfLen, thickness: t, horizontal, slideDir: -1, half: -1, group })
-				out.push({ key: `${x1},${mid},${x1},${hi}`, cx: x1, cy: (mid + hi) / 2, length: halfLen, thickness: t, horizontal, slideDir: 1, half: 1, group })
-			}
-			continue
-		}
-		out.push({
-			key: group,
-			cx: (x1 + x2) / 2,
-			cy: (y1 + y2) / 2,
-			length: fullLen,
-			thickness: t,
-			horizontal,
-			slideDir: 1 as const,
-			group,
-		})
-	}
-	return out
-}
-
-export function doorSlideDir(panel: DoorPanel, blockers: readonly Rect[], ownWalls: readonly Rect[] = []): -1 | 1 {
-	const halfT = panel.thickness / 2
-	const eps = 0.5
-	function zoneHits(rects: readonly Rect[], dir: -1 | 1): boolean {
-		const zx1 = panel.horizontal ? (dir > 0 ? panel.cx + panel.length / 2 : panel.cx - panel.length * 1.5) : panel.cx - halfT
-		const zx2 = panel.horizontal ? (dir > 0 ? panel.cx + panel.length * 1.5 : panel.cx - panel.length / 2) : panel.cx + halfT
-		const zy1 = panel.horizontal ? panel.cy - halfT : (dir > 0 ? panel.cy + panel.length / 2 : panel.cy - panel.length * 1.5)
-		const zy2 = panel.horizontal ? panel.cy + halfT : (dir > 0 ? panel.cy + panel.length * 1.5 : panel.cy - panel.length / 2)
-		return rects.some(b => b.x < zx2 - eps && b.x + b.w > zx1 + eps && b.y < zy2 - eps && b.y + b.h > zy1 + eps)
-	}
-	const ownPlus = ownWalls.length > 0 && zoneHits(ownWalls, 1)
-	const ownMinus = ownWalls.length > 0 && zoneHits(ownWalls, -1)
-	if (ownPlus && !ownMinus) return zoneHits(blockers, 1) ? -1 : 1
-	if (ownMinus && !ownPlus) return zoneHits(blockers, -1) ? 1 : -1
-	if (ownPlus && ownMinus) return zoneHits(blockers, 1) ? -1 : 1
-	return !zoneHits(blockers, 1) ? 1 : zoneHits(blockers, -1) ? 1 : -1
-}
-
-export function doorPanelsSvg(
-	segments: readonly WallSegment[],
-	tileSize: number,
-	thickness: number,
-	color: string,
-	progress = 0,
-	unitsPerTile?: number,
-): string {
-	const panels = doorPanelsData(segments, tileSize, thickness, unitsPerTile ?? tileSize)
-	if (!panels.length) return ''
-	const parts: string[] = []
-	for (const p of panels) {
-		const off = p.length * progress * p.slideDir
-		const halfT = p.thickness / 2
-		if (p.horizontal) {
-			parts.push(`<rect x="${(p.cx - p.length / 2 + off).toFixed(2)}" y="${(p.cy - halfT).toFixed(2)}" width="${p.length.toFixed(2)}" height="${p.thickness}" fill="${color}" rx="1"/>`)
-		} else {
-			parts.push(`<rect x="${(p.cx - halfT).toFixed(2)}" y="${(p.cy - p.length / 2 + off).toFixed(2)}" width="${p.thickness}" height="${p.length.toFixed(2)}" fill="${color}" rx="1"/>`)
-		}
-	}
-	return `<g class="door-overlay">${parts.join('')}</g>`
-}
-
-export function wallSegmentsOverlaySvg(asset: AssetDef, tileSize: number, color: string, thickness: number, doorColor: string): string {
-	const segments = asset.wallSegments
-	if (!segments?.length || asset.w <= 0 || asset.h <= 0) return ''
-	const { w: sourceW, h: sourceH } = assetPixelSize(asset, tileSize)
-	if (sourceW <= 0 || sourceH <= 0) return ''
-	const scaleX = sourceW / asset.w
-	const scaleY = sourceH / asset.h
-	const sw = Math.max(0.5, thickness)
-	const wallParts: string[] = []
-	const doorSegs: WallSegment[] = []
-	for (const seg of segments) {
-		if (seg.door) { doorSegs.push(seg); continue }
-		const x1 = seg.x1 * scaleX
-		const y1 = seg.y1 * scaleY
-		const x2 = seg.x2 * scaleX
-		const y2 = seg.y2 * scaleY
-		wallParts.push(`<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${color}" stroke-width="${sw}" stroke-linecap="round"/>`)
-	}
-	const scaledDoorSegs = doorSegs.map(s => ({
-		x1: s.x1 * scaleX,
-		y1: s.y1 * scaleY,
-		x2: s.x2 * scaleX,
-		y2: s.y2 * scaleY,
-		door: true as const,
-		...(s.doorMode !== undefined ? { doorMode: s.doorMode } : {}),
-	}))
-	const doorSvg = doorPanelsSvg(scaledDoorSegs, 1, sw, doorColor, 0, scaleX)
-	return `<g class="wall-overlay">${wallParts.join('')}${doorSvg}</g>`
-}
-
-export function assetPreviewSvg(asset: AssetDef, tileSize: number, wallColor: string, wallThickness: number, doorColor: string): string {
-	const base = asset.svg?.replace(/var\(--border-dim\)/g, '#fff') ?? assetFallbackShapeSvg(asset, tileSize)
-	return base + wallSegmentsOverlaySvg(asset, tileSize, wallColor, wallThickness, doorColor)
-}
-
-export function wallSegmentToObjectRect(segment: WallSegment, tileSize: number): { x: number; y: number; w: number; h: number } {
-	const x = Math.min(segment.x1, segment.x2) * tileSize
-	const y = Math.min(segment.y1, segment.y2) * tileSize
-	const w = Math.max(1, Math.abs(segment.x2 - segment.x1) * tileSize)
-	const h = Math.max(1, Math.abs(segment.y2 - segment.y1) * tileSize)
-	return { x, y, w, h }
+export function assetPreviewSvg(asset: AssetDef, tileSize: number): string {
+	return asset.svg?.replace(/var\(--border-dim\)/g, '#fff') ?? assetFallbackShapeSvg(asset, tileSize)
 }
 
 export function parseSvgViewBox(svg: string): { w: number; h: number } | null {
@@ -331,13 +181,6 @@ export function serializeObject(obj: ObjectPlacement): ObjectPlacement {
 	if (obj.linkGroupId) out.linkGroupId = obj.linkGroupId
 
 	if (obj.locked !== undefined) out.locked = obj.locked
-	if (obj.isWall !== undefined) out.isWall = obj.isWall
-	if (obj.door === true && obj.isWall && obj.type === CANVAS_WALL_OBJECT_TYPE) out.door = true
-	if (obj.doorMode !== undefined && out.door === true) out.doorMode = obj.doorMode
-	for (const key of ['x1', 'y1', 'x2', 'y2'] as const) {
-		const value = obj[key]
-		if (typeof value === 'number' && Number.isFinite(value)) out[key] = value
-	}
 	if (obj.fillColor && isValidColor(obj.fillColor)) out.fillColor = obj.fillColor
 	if (obj.strokeColor && isValidColor(obj.strokeColor)) out.strokeColor = obj.strokeColor
 	return out
@@ -350,8 +193,6 @@ export const ASSET_DEF_FIELD_COVERAGE: Record<keyof AssetDef, true> = {
 	w: true,
 	h: true,
 	custom: true,
-	isWall: true,
-	wallSegments: true,
 	walkable: true,
 	doorRequired: true,
 	defaultPadding: true,
@@ -387,8 +228,6 @@ export function serializeAsset(asset: AssetDef): AssetDef {
 	if (asset.origin) out.origin = asset.origin
 	if (asset.category) out.category = asset.category
 	if (asset.custom) out.custom = asset.custom
-	if (asset.isWall !== undefined) out.isWall = asset.isWall
-	if (asset.wallSegments?.length) out.wallSegments = asset.wallSegments.map(segment => ({ ...segment }))
 	if (asset.walkable !== undefined) out.walkable = asset.walkable
 	if (asset.doorRequired) out.doorRequired = asset.doorRequired
 	if (asset.defaultPadding && asset.defaultPadding > 0) out.defaultPadding = asset.defaultPadding
@@ -483,82 +322,39 @@ function zoneOverlapsStreetRing(zone: NpcSpawnZone, canvas: CanvasConfig, street
 	return false
 }
 
-export interface FloorWallSegment {
-	segment: WallSegment
-	ownerObjectId: string
-}
-
-export function collectFloorWallSegments(
-	floor: FloorData,
-	tileSize: number,
-	getAssetDef?: (type: string) => AssetDef | undefined,
-): FloorWallSegment[] {
-	const segments: FloorWallSegment[] = []
-	for (const object of floor.objects) {
-		if (object.isWall && object.type === CANVAS_WALL_OBJECT_TYPE) {
-			const { x1, y1, x2, y2 } = object
-			if (typeof x1 !== 'number' || !Number.isFinite(x1) || typeof y1 !== 'number' || !Number.isFinite(y1) || typeof x2 !== 'number' || !Number.isFinite(x2) || typeof y2 !== 'number' || !Number.isFinite(y2)) continue
-			const segment: WallSegment = { x1: x1 * tileSize, y1: y1 * tileSize, x2: x2 * tileSize, y2: y2 * tileSize }
-			if (object.door) segment.door = true
-			segments.push({ segment, ownerObjectId: object.id })
-			continue
-		}
-		const asset = getAssetDef?.(object.type)
-		if (!asset?.wallSegments?.length) continue
-		for (const segment of resolveWallSegmentsForObject(asset.wallSegments, asset, object, tileSize)) {
-			segments.push({ segment, ownerObjectId: object.id })
-		}
-	}
-	return segments
-}
-
 export interface FloorEntrance {
 	key: string
-	centerX: number
-	centerY: number
-	ownerObjectId: string
+	x: number
+	y: number
 }
 
 export function collectFloorEntrances(
 	floor: FloorData,
 	canvas: CanvasConfig,
 	streetWidthTiles: number,
-	assetMap: Map<string, AssetDef>,
 ): FloorEntrance[] {
-	const tileSize = canvas.tileSize
-	const band = streetWidthTiles * tileSize
-	const isStreetCell = (px: number, py: number): boolean =>
-		px < band || py < band || px > canvas.width - band || py > canvas.height - band
-	const doorSegments = collectFloorWallSegments(floor, tileSize, (type: string) => assetMap.get(type))
-		.filter(entry => entry.segment.door)
+	const tileSize = Math.max(1, Math.round(canvas.tileSize))
+	const cols = Math.max(1, Math.ceil(canvas.width / tileSize))
+	const rows = Math.max(1, Math.ceil(canvas.height / tileSize))
+	const states = floor.walkable?.tileStates
+	if (!states?.length) return []
+	const isStreetCell = (x: number, y: number): boolean =>
+		x < streetWidthTiles || y < streetWidthTiles || x >= cols - streetWidthTiles || y >= rows - streetWidthTiles
 	const entrances: FloorEntrance[] = []
-	for (const { segment, ownerObjectId } of doorSegments) {
-		const horizontal = segment.y1 === segment.y2
-		if (!horizontal && segment.x1 !== segment.x2) continue
-		const alongStart = Math.min(horizontal ? segment.x1 : segment.y1, horizontal ? segment.x2 : segment.y2) / tileSize
-		const alongEnd = Math.max(horizontal ? segment.x1 : segment.y1, horizontal ? segment.x2 : segment.y2) / tileSize
-		const firstCell = Math.ceil(alongStart - 1e-6)
-		const lastCell = Math.ceil(alongEnd - 1e-6) - 1
-		let nearStreet = false
-		let nearInterior = false
-		let farStreet = false
-		let farInterior = false
-		for (let cell = firstCell; cell <= lastCell; cell++) {
-			const along = cell * tileSize + tileSize / 2
-			const nearX = horizontal ? along : segment.x1 - tileSize / 2
-			const nearY = horizontal ? segment.y1 - tileSize / 2 : along
-			const farX = horizontal ? along : segment.x1 + tileSize / 2
-			const farY = horizontal ? segment.y1 + tileSize / 2 : along
-			if (isStreetCell(nearX, nearY)) nearStreet = true; else nearInterior = true
-			if (isStreetCell(farX, farY)) farStreet = true; else farInterior = true
-		}
-		if ((nearStreet && farInterior) || (farStreet && nearInterior)) {
-			entrances.push({
-				key: `${segment.x1},${segment.y1},${segment.x2},${segment.y2}`,
-				centerX: (segment.x1 + segment.x2) / 2,
-				centerY: (segment.y1 + segment.y2) / 2,
-				ownerObjectId,
-			})
+	for (let y = 0; y < Math.min(rows, states.length); y++) {
+		const row = states[y]
+		if (!row) continue
+		for (let x = 0; x < Math.min(cols, row.length); x++) {
+			if (row[x] !== 'door') continue
+			const neighbors = [
+				[x - 1, y],
+				[x + 1, y],
+				[x, y - 1],
+				[x, y + 1],
+			].filter(([nx, ny]) => nx >= 0 && ny >= 0 && nx < cols && ny < rows)
+			const nearStreet = neighbors.some(([nx, ny]) => isStreetCell(nx, ny))
+			const nearInterior = neighbors.some(([nx, ny]) => !isStreetCell(nx, ny))
+			if (nearStreet && nearInterior) entrances.push({ key: `${x},${y}`, x, y })
 		}
 	}
 	return entrances
@@ -705,7 +501,7 @@ export function validateSettingsCompleteness(
 			if (streetGuestRoleIds.size > 0) {
 				if (!served) {
 					issues.push(`Floor "${streetFloor.label}" is the street floor but no spawn zone covers its sidewalk - guest arrivals need a street-side spawn zone`)
-				} else if (collectFloorEntrances(streetFloor, layout.canvas, streetWidth, assetMap).length === 0) {
+				} else if (collectFloorEntrances(streetFloor, layout.canvas, streetWidth).length === 0) {
 					issues.push(`Floor "${streetFloor.label}" has street-side spawn zones but no door connects the street to the building - guest arrivals need an entrance door on the street floor`)
 				}
 			}
@@ -716,7 +512,7 @@ export function validateSettingsCompleteness(
 		const interactableObjects = floor.objects.filter(object => {
 			const asset = assetMap.get(object.type)
 			if (!asset) return false
-			if (asset.walkable || asset.isWall) return false
+			if (asset.walkable) return false
 			return true
 		})
 		const withInteractSpots = interactableObjects.filter(object => {

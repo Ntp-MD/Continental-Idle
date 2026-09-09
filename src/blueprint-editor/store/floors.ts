@@ -1,5 +1,5 @@
-import type { FloorData } from '../domain/types'
-import { normalizeAllowedRoleIds, normalizeFloorWalkable, normalizeNpcSpawnZones } from '../domain/types'
+import type { FloorData, TileBrush } from '../domain/types'
+import { applyTileBrush, normalizeAllowedRoleIds, normalizeFloorWalkable, normalizeNpcSpawnZones, resolveFloorTileStates, resolveStreetTiles, tileStatesToWalkableGrid } from '../domain/types'
 import { state } from './state'
 import { genId, cloneDeepRaw } from './storeUtils'
 import { saveBlueprintData } from './persistence'
@@ -102,5 +102,32 @@ export async function updateFloor(
 	}
 	if (patch.name !== undefined) floor.name = patch.name
 	if (patch.label !== undefined) floor.label = patch.label
+	return saveBlueprintData()
+}
+
+export async function paintFloorTiles(
+	floorId: string,
+	brush: TileBrush,
+	rect: { row0: number; col0: number; row1: number; col1: number },
+): Promise<boolean> {
+	const floor = state.layout.floors.find(f => f.id === floorId)
+	if (!floor) return false
+	const tileSize = Math.max(1, Math.round(state.layout.canvas.tileSize))
+	const cols = Math.max(1, Math.ceil(state.layout.canvas.width / tileSize))
+	const rows = Math.max(1, Math.ceil(state.layout.canvas.height / tileSize))
+	const street = resolveStreetTiles(state.layout)
+	const states = resolveFloorTileStates(floor, rows, cols)
+	const r0 = Math.max(street, Math.min(rect.row0, rect.row1))
+	const r1 = Math.min(rows - street - 1, Math.max(rect.row0, rect.row1))
+	const c0 = Math.max(street, Math.min(rect.col0, rect.col1))
+	const c1 = Math.min(cols - street - 1, Math.max(rect.col0, rect.col1))
+	if (r0 <= r1 && c0 <= c1) applyTileBrush(states, brush, r0, c0, r1, c1)
+	for (let row = 0; row < rows; row++) {
+		for (let col = 0; col < cols; col++) {
+			if (row < street || row >= rows - street || col < street || col >= cols - street) states[row][col] = 'walkable'
+		}
+	}
+	const walkableGrid = tileStatesToWalkableGrid(states)
+	floor.walkable = { walkableGrid, tileStates: states }
 	return saveBlueprintData()
 }

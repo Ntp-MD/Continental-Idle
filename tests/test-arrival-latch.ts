@@ -50,7 +50,7 @@ function freshState(): { arrived: Set<string>; marks: Map<string, number> } {
 	const { arrived, marks } = freshState()
 	const others: NpcEngineEvent['type'][] = [
 		'waiting', 'interaction-end', 'chatting-start', 'chatting-end',
-		'blocked', 'repath', 'repath-failed', 'floor-transition', 'door-passage',
+		'blocked', 'repath', 'repath-failed', 'floor-transition',
 	]
 	for (const type of others) {
 		latchArrivalEvent(arrived, marks, makeEvent({ agentId: `${PREFIX}3`, type, tick: 7 }), PREFIX)

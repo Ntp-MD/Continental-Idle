@@ -7,11 +7,10 @@ import { useConfirm } from '@/composables/useConfirm'
 import { useAssetPreview } from '../../composables/useAssetPreview'
 import { useCanvasDefaults } from '../../composables/useCanvasDefaults'
 import { useDirtyBaseline } from '../../composables/useDirtyBaseline'
-import { wallSegmentsToEdges, edgesToWallSegments, reattachDoorModes, tileEdgeKey, doorKeyForSide, mirrorTileEdge, segmentCoversTileEdge, withDoorRunMode, type TileEdges, type BorderSide } from '../../domain/gridEditing'
 import type { AssetDef, TileState, EdgeInteractSpot, InteractSpot } from '../../domain/types'
 import { normalizeInteractConfig, normalizeNpcQueueConfig, resolveInteractForTarget, resolveInteractSpotAnchor, snapSpotToEdge } from '../../domain/types'
 
-export type GridTab = 'walk' | 'door' | 'interactspots' | 'assign'
+export type GridTab = 'walk' | 'interactspots' | 'assign'
 
 const props = defineProps<{ asset?: AssetDef; active: boolean; activeTab?: GridTab }>()
 
@@ -19,13 +18,8 @@ const store = useAssetsStore()
 const confirm = useConfirm().confirm
 
 const gridTiles = ref<TileState[][]>([])
-const gridEdges = ref<TileEdges[][]>([])
 const walkBrush = ref<TileState>('walkable')
-const doorTool = ref<'door' | 'border' | 'select'>('door')
-const selectedEdges = ref<Set<string>>(new Set())
-const selectedDoorMode = ref<'auto' | 'hold-open' | 'auto-close'>('auto')
 const isDraggingGrid = ref(false)
-const hoverEdge = ref<{ r: number; c: number; side: BorderSide } | null>(null)
 const previousGridAssetId = ref<string | null>(null)
 const isRestoring = ref(false)
 
@@ -45,7 +39,6 @@ const { canvasTileSize, editorSettings } = useCanvasDefaults()
 
 const { dirty: gridDirty, saveBaseline: saveGridBaseline } = useDirtyBaseline(() => ({
   grid: gridTiles.value,
-  edges: gridEdges.value,
   interactSpots: gridInteractSpots.value,
   edgeSpots: gridEdgeSpots.value,
   capacity: interactCapacity.value,
@@ -105,7 +98,6 @@ const assetSignature = computed(() => ({
   w: props.asset?.w,
   h: props.asset?.h,
   tileStates: props.asset?.tileStates,
-  wallSegments: props.asset?.wallSegments,
   interactSpots: props.asset?.interactSpots,
   interact: props.asset?.interact,
 }))
@@ -140,7 +132,6 @@ watch(
       initGridTiles(props.asset)
       gridInteractSpots.value = []
       gridEdgeSpots.value = []
-      selectedEdges.value.clear()
       for (const spot of props.asset.interactSpots ?? []) {
         if (spot.kind === 'edge') gridEdgeSpots.value.push({ ...spot })
         else gridInteractSpots.value.push({ ...spot })
@@ -160,10 +151,8 @@ watch(
       previousGridAssetId.value = props.asset.id
     } else {
       gridTiles.value = []
-      gridEdges.value = []
       gridInteractSpots.value = []
       gridEdgeSpots.value = []
-      selectedEdges.value.clear()
       saveGridBaseline()
       previousGridAssetId.value = null
     }
@@ -191,8 +180,6 @@ function initGridTiles(a: AssetDef) {
       gridTiles.value = defaultStates
     }
   }
-
-  gridEdges.value = wallSegmentsToEdges(a.wallSegments, rows, cols)
 }
 
 function removeInteractSpotsOnTile(r: number, c: number) {
@@ -400,48 +387,6 @@ function fillAllInteractSpots() {
   gridInteractSpots.value = spots
 }
 
-function detectEdgeSide(e: MouseEvent): BorderSide | null {
-  const target = e.currentTarget as HTMLElement | null
-  if (!target) return null
-  const rect = target.getBoundingClientRect()
-  const x = e.clientX - rect.left
-  const y = e.clientY - rect.top
-  const w = rect.width
-  const h = rect.height
-  const distances = [
-    { side: 'top' as BorderSide, d: y },
-    { side: 'right' as BorderSide, d: w - x },
-    { side: 'bottom' as BorderSide, d: h - y },
-    { side: 'left' as BorderSide, d: x },
-  ]
-  const nearest = distances.reduce((a, b) => (a.d < b.d ? a : b))
-  if (nearest.d <= 7) return nearest.side
-  return null
-}
-
-function updateMirroredEdge(r: number, c: number, side: BorderSide, update: (edges: TileEdges, edgeSide: BorderSide) => void) {
-  const target = gridEdges.value[r]?.[c]
-  if (target) update(target, side)
-  const mirror = mirrorTileEdge(r, c, side)
-  const mirrorCell = gridEdges.value[mirror.r]?.[mirror.c]
-  if (mirrorCell) update(mirrorCell, mirror.side)
-}
-
-function toggleEdgeAt(r: number, c: number, side: BorderSide) {
-  const e = gridEdges.value[r]?.[c]
-  if (!e) return
-  if (e[side]) {
-    updateMirroredEdge(r, c, side, (cell, s) => {
-      delete cell[s]
-      delete cell[doorKeyForSide(s)]
-    })
-  } else {
-    updateMirroredEdge(r, c, side, (cell, s) => {
-      cell[s] = true
-    })
-  }
-}
-
 function onWalkTileDown(r: number, c: number) {
   isDraggingGrid.value = true
   paintTile(r, c, walkBrush.value)
@@ -450,109 +395,6 @@ function onWalkTileDown(r: number, c: number) {
 function onWalkTileEnter(r: number, c: number) {
   if (!isDraggingGrid.value) return
   paintTile(r, c, walkBrush.value)
-}
-
-function toggleEdgeSelection(r: number, c: number, e: MouseEvent) {
-  const side = detectEdgeSide(e)
-  if (!side) return
-  const key = tileEdgeKey(r, c, side)
-  if (selectedEdges.value.has(key)) selectedEdges.value.delete(key)
-  else selectedEdges.value.add(key)
-}
-
-function clearEdgeSelection() {
-  selectedEdges.value.clear()
-}
-
-function isSelectedEdge(r: number, c: number, side: BorderSide): boolean {
-  return activeGridTab.value === 'door' && doorTool.value === 'select' && selectedEdges.value.has(tileEdgeKey(r, c, side))
-}
-
-function deleteSelectedDoors() {
-  if (!selectedEdges.value.size) return
-  for (const key of selectedEdges.value) {
-    const [r, c, side] = key.split(',')
-    updateMirroredEdge(Number(r), Number(c), side as BorderSide, (cell, s) => {
-      delete cell[doorKeyForSide(s)]
-    })
-  }
-  selectedEdges.value.clear()
-}
-
-async function applyDoorModeToSelected() {
-  const asset = props.asset
-  if (!asset || !selectedEdges.value.size) return
-  const picked = new Set<number>()
-  const selected = [...selectedEdges.value].map(key => {
-    const [r, c, side] = key.split(',')
-    return { r: Number(r), c: Number(c), side: side as BorderSide }
-  })
-  ;(asset.wallSegments ?? []).forEach((segment, index) => {
-    if (segment.door !== true) return
-    if (selected.some(entry => segmentCoversTileEdge(segment, entry.r, entry.c, entry.side))) picked.add(index)
-  })
-  if (!picked.size) {
-    useToast().warning('No asset doors touch the selected edges')
-    return
-  }
-  const mode = selectedDoorMode.value === 'auto' ? undefined : selectedDoorMode.value
-  let next = asset.wallSegments ?? []
-  for (const index of picked) next = withDoorRunMode(next, next[index]!, mode)
-  await store.updateAsset(asset.id, { wallSegments: next })
-  selectedEdges.value.clear()
-}
-
-function onDoorTileDown(r: number, c: number, e: MouseEvent) {
-  const side = detectEdgeSide(e)
-  if (!side) return
-  if (doorTool.value === 'select') {
-    toggleEdgeSelection(r, c, e)
-    return
-  }
-  if (doorTool.value === 'border') {
-    toggleEdgeAt(r, c, side)
-    return
-  }
-  toggleDoorAt(r, c, side)
-}
-
-function onDoorTileHover(r: number, c: number, e: MouseEvent) {
-  if (activeGridTab.value !== 'door') {
-    if (hoverEdge.value) hoverEdge.value = null
-    return
-  }
-  const side = detectEdgeSide(e)
-  const prev = hoverEdge.value
-  if (side === null) {
-    if (prev) hoverEdge.value = null
-    return
-  }
-  if (!prev || prev.r !== r || prev.c !== c || prev.side !== side) hoverEdge.value = { r, c, side }
-}
-
-function isPreviewEdge(r: number, c: number, side: BorderSide): boolean {
-  const hover = hoverEdge.value
-  if (!hover || activeGridTab.value !== 'door' || doorTool.value !== 'door') return false
-  if (hover.r !== r || hover.c !== c || hover.side !== side) return false
-  const edges = gridEdges.value[r]?.[c]
-  if (!edges) return false
-  const doorKey = doorKeyForSide(side)
-  return !edges[doorKey]
-}
-
-function toggleDoorAt(r: number, c: number, side: BorderSide) {
-  const e = gridEdges.value[r]?.[c]
-  if (!e) return
-  if (e[doorKeyForSide(side)]) {
-    updateMirroredEdge(r, c, side, (cell, s) => {
-      delete cell[doorKeyForSide(s)]
-    })
-  } else {
-    updateMirroredEdge(r, c, side, (cell, s) => {
-      cell[s] = true
-      cell[doorKeyForSide(s)] = true
-    })
-  }
 }
 
 function onInteractSpotTileDown(r: number, c: number) {
@@ -588,22 +430,6 @@ function fillGridCol(c: number) {
   }
 }
 
-function blockOuterSides() {
-  if (gridEdges.value.length === 0) return
-  const rows = gridEdges.value.length
-  const cols = gridEdges.value[0]?.length ?? 0
-  for (let r = 0; r < rows; r++) {
-    for (let c = 0; c < cols; c++) {
-      const e = gridEdges.value[r][c]
-      if (!e) continue
-      if (r === 0) e.top = true
-      if (r === rows - 1) e.bottom = true
-      if (c === 0) e.left = true
-      if (c === cols - 1) e.right = true
-    }
-  }
-}
-
 async function fillAllTilesBlocked() {
   const confirmed = await confirm({
     title: 'Block all tiles',
@@ -614,47 +440,6 @@ async function fillAllTilesBlocked() {
   })
   if (!confirmed) return
   fillAllTiles('blocked')
-}
-
-function clearAllEdges() {
-  for (const row of gridEdges.value) {
-    for (const e of row) {
-      if (e) {
-        e.top = false
-        e.right = false
-        e.bottom = false
-        e.left = false
-        delete e.doorTop
-        delete e.doorRight
-        delete e.doorBottom
-        delete e.doorLeft
-      }
-    }
-  }
-}
-
-async function clearAllEdgesConfirmed() {
-  const confirmed = await confirm({
-    title: 'Clear edges',
-    message: 'Remove all wall edges on this grid? This cannot be undone.',
-    confirmLabel: 'Clear',
-    cancelLabel: 'Cancel',
-    danger: true,
-  })
-  if (!confirmed) return
-  clearAllEdges()
-}
-
-function clearAllDoors() {
-  for (const row of gridEdges.value) {
-    for (const e of row) {
-      if (!e) continue
-      delete e.doorTop
-      delete e.doorRight
-      delete e.doorBottom
-      delete e.doorLeft
-    }
-  }
 }
 
 function walkTileBg(state: TileState): string {
@@ -669,17 +454,6 @@ function walkTileIcon(state: TileState): string {
   return state === 'blocked' ? 'x' : ''
 }
 
-function doorTileBg(state: TileState): string {
-  if (state === 'blocked') return 'color-mix(in srgb, var(--bg-primary) 60%, transparent)'
-  return 'color-mix(in srgb, var(--bg-primary) 80%, transparent)'
-}
-function doorTileBorder(_state: TileState): string {
-  return '1px solid var(--border-dim)'
-}
-function doorTileIcon(_state: TileState): string {
-  return ''
-}
-
 function interactSpotTileBg(state: TileState): string {
   if (state === 'blocked') return 'color-mix(in srgb, var(--accent-red) 10%, transparent)'
   return 'color-mix(in srgb, var(--accent-green) 8%, transparent)'
@@ -692,7 +466,7 @@ function interactSpotTileIcon(_state: TileState): string {
   return ''
 }
 
-type GridOverlay = 'none' | 'edges' | 'interactspots'
+type GridOverlay = 'none' | 'interactspots'
 
 interface GridConfig {
   key: string
@@ -730,27 +504,6 @@ const gridConfigs = computed<GridConfig[]>(() => [
     ],
     overlay: 'none',
     showColFill: true,
-  },
-  {
-    key: 'door',
-    label: 'Doors & Edges',
-    hint: 'Click a tile edge to toggle a door. Walls are added under doors automatically.',
-    tools: [
-      { label: 'Door', active: doorTool.value === 'door', onClick: () => (doorTool.value = 'door') },
-      { label: 'Edge', active: doorTool.value === 'border', onClick: () => (doorTool.value = 'border') },
-      { label: 'Select', active: doorTool.value === 'select', onClick: () => (doorTool.value = 'select') },
-    ],
-    tileBg: doorTileBg,
-    tileBorder: doorTileBorder,
-    tileIcon: doorTileIcon,
-    onTileDown: (r, c, e) => onDoorTileDown(r, c, e),
-    actions: [
-      { label: 'Outer Walls', onClick: blockOuterSides },
-      { label: 'Clear Doors', onClick: clearAllDoors },
-      { label: 'Clear Edges', onClick: () => void clearAllEdgesConfirmed() },
-    ],
-    overlay: 'edges',
-    showColFill: false,
   },
   {
     key: 'interactspots',
@@ -796,7 +549,6 @@ async function saveGrid() {
   try {
     const states = gridTiles.value.map((row) => [...row])
     const grid = states.map((row) => row.map((t) => t === 'walkable'))
-    const wallSegments = reattachDoorModes(props.asset?.wallSegments, edgesToWallSegments(gridEdges.value))
     const interactSpots = [...gridInteractSpots.value, ...gridEdgeSpots.value].map((p) => ({ ...p }))
     const interact = normalizeInteractConfig({
       capacity: interactCapacity.value,
@@ -811,7 +563,6 @@ async function saveGrid() {
       walkable: walkthrough.value,
       walkableGrid: grid,
       tileStates: states,
-      wallSegments,
       interactSpots,
       interact,
       queue,
@@ -828,7 +579,7 @@ async function saveGrid() {
 const isSavingGrid = ref(false)
 const editedGridDuringSave = ref(false)
 
-watch([gridTiles, gridEdges, gridInteractSpots, gridEdgeSpots], () => {
+watch([gridTiles, gridInteractSpots, gridEdgeSpots], () => {
   if (isSavingGrid.value) editedGridDuringSave.value = true
 }, { deep: true })
 </script>
@@ -871,9 +622,6 @@ watch([gridTiles, gridEdges, gridInteractSpots, gridEdgeSpots], () => {
       </div>
 
       <div class="walkablegrid__editor">
-        <div v-if="activeGridConfig?.disabled" class="form__hint">
-          Doors & Edges are ignored while Passable is ON - turn it OFF to edit walls and doors.
-        </div>
         <div v-if="activeGridConfig?.hint" class="form__hint">
           {{ activeGridConfig.hint }}
         </div>
@@ -883,16 +631,6 @@ watch([gridTiles, gridEdges, gridInteractSpots, gridEdgeSpots], () => {
           >
           <span class="walkablegrid__item"
             ><span class="walkablegrid__dot walkablegrid__dot--blocked"></span>Blocked</span
-          >
-          <span class="walkablegrid__item"
-            ><span class="walkablegrid__dot walkablegrid__dot--edge"></span>Wall edge</span
-          >
-          <span class="walkablegrid__item"
-            ><span class="walkablegrid__dot walkablegrid__dot--edge walkablegrid__dot--door"></span>Door (door
-            edge)</span
-          >
-          <span class="walkablegrid__item"
-            ><span class="walkablegrid__dot walkablegrid__dot--edge walkablegrid__dot--selected"></span>Selected</span
           >
         </div>
         <div v-if="activeGridConfig?.key === 'assign'" class="form__row form__row--border">
@@ -986,7 +724,7 @@ watch([gridTiles, gridEdges, gridInteractSpots, gridEdgeSpots], () => {
           <div class="walkablegrid__label">
             <span>{{ activeGridConfig.label }}</span>
           </div>
-          <div class="walkablegrid__grid" :style="{ '--cols': gridCols }" @mouseleave="hoverEdge = null">
+          <div class="walkablegrid__grid" :style="{ '--cols': gridCols }">
             <span
               v-for="c in gridCols"
               :key="'col' + c"
@@ -1020,30 +758,9 @@ watch([gridTiles, gridEdges, gridInteractSpots, gridEdgeSpots], () => {
                 @mousedown.prevent="activeGridConfig.onTileDown(r, c, $event)"
                 @click="onTileActivate(r, c, $event)"
                 @mouseenter="activeGridConfig.onTileEnter?.(r, c)"
-                @mousemove="onDoorTileHover(r, c, $event)"
               >
                 {{ activeGridConfig.tileIcon(state)
                 }}<span
-                  v-if="activeGridConfig.overlay === 'edges' && (gridEdges[r]?.[c]?.top || isPreviewEdge(r, c, 'top') || isSelectedEdge(r, c, 'top'))"
-                  class="walkablegrid__mark walkablegrid__edge--top"
-                  :class="{ 'walkablegrid__edge--door': gridEdges[r]?.[c]?.doorTop || isPreviewEdge(r, c, 'top'), 'walkablegrid__edge--selected': isSelectedEdge(r, c, 'top') }"
-                ></span
-                ><span
-                  v-if="activeGridConfig.overlay === 'edges' && (gridEdges[r]?.[c]?.right || isPreviewEdge(r, c, 'right') || isSelectedEdge(r, c, 'right'))"
-                  class="walkablegrid__mark walkablegrid__edge--right"
-                  :class="{ 'walkablegrid__edge--door': gridEdges[r]?.[c]?.doorRight || isPreviewEdge(r, c, 'right'), 'walkablegrid__edge--selected': isSelectedEdge(r, c, 'right') }"
-                ></span
-                ><span
-                  v-if="activeGridConfig.overlay === 'edges' && (gridEdges[r]?.[c]?.bottom || isPreviewEdge(r, c, 'bottom') || isSelectedEdge(r, c, 'bottom'))"
-                  class="walkablegrid__mark walkablegrid__edge--bottom"
-                  :class="{ 'walkablegrid__edge--door': gridEdges[r]?.[c]?.doorBottom || isPreviewEdge(r, c, 'bottom'), 'walkablegrid__edge--selected': isSelectedEdge(r, c, 'bottom') }"
-                ></span
-                ><span
-                  v-if="activeGridConfig.overlay === 'edges' && (gridEdges[r]?.[c]?.left || isPreviewEdge(r, c, 'left') || isSelectedEdge(r, c, 'left'))"
-                  class="walkablegrid__mark walkablegrid__edge--left"
-                  :class="{ 'walkablegrid__edge--door': gridEdges[r]?.[c]?.doorLeft || isPreviewEdge(r, c, 'left'), 'walkablegrid__edge--selected': isSelectedEdge(r, c, 'left') }"
-                ></span
-                ><span
                   v-for="(a, ai) in activeGridConfig.overlay === 'interactspots' ? interactSpotsInTile(r, c) : []"
                   :key="'interactspot_' + r + '_' + c + '_' + ai"
                   class="walkablegrid__mark walkablegrid__spot"
@@ -1065,21 +782,6 @@ watch([gridTiles, gridEdges, gridInteractSpots, gridEdgeSpots], () => {
             <button v-for="a in activeGridConfig.actions" :key="a.label" :disabled="a.disabled" @click="a.onClick">
               {{ a.label }}
             </button>
-          </div>
-          <div v-if="activeGridConfig.key === 'door' && doorTool === 'select'" class="form__row form--wrap">
-            <span class="form__hint">{{ selectedEdges.size }} edge{{ selectedEdges.size === 1 ? '' : 's' }} selected - click tile edges to toggle</span>
-            <select
-              :value="selectedDoorMode"
-              aria-label="Door mode for selected edges"
-              @change="selectedDoorMode = ($event.target as HTMLSelectElement).value as 'auto' | 'hold-open' | 'auto-close'"
-            >
-              <option value="auto">Auto</option>
-              <option value="hold-open">Hold open</option>
-              <option value="auto-close">Auto-close</option>
-            </select>
-            <button type="button" :disabled="!selectedEdges.size" @click="applyDoorModeToSelected">Apply mode</button>
-            <button type="button" :disabled="!selectedEdges.size" @click="deleteSelectedDoors">Delete</button>
-            <button type="button" :disabled="!selectedEdges.size" @click="clearEdgeSelection">Clear</button>
           </div>
         </div>
       </div>
@@ -1183,18 +885,6 @@ watch([gridTiles, gridEdges, gridInteractSpots, gridEdgeSpots], () => {
   border: 1px solid var(--accent-red);
 }
 
-.walkablegrid__dot--edge {
-  background: linear-gradient(to top, var(--accent-gold) 0 3px, transparent 3px);
-}
-
-.walkablegrid__dot--door {
-  background: linear-gradient(to top, var(--accent-blue) 0 3px, transparent 3px);
-}
-
-.walkablegrid__dot--selected {
-  background: linear-gradient(to top, var(--accent-primary) 0 3px, transparent 3px);
-}
-
 .walkablegrid__fill {
   width: 100%;
   height: 100%;
@@ -1252,49 +942,6 @@ watch([gridTiles, gridEdges, gridInteractSpots, gridEdgeSpots], () => {
 .walkablegrid__mark {
   position: absolute;
   pointer-events: none;
-}
-
-.walkablegrid__edge--top,
-.walkablegrid__edge--right,
-.walkablegrid__edge--bottom,
-.walkablegrid__edge--left {
-  background: var(--accent-gold);
-}
-
-.walkablegrid__edge--door {
-  background: var(--accent-blue);
-}
-
-.walkablegrid__edge--selected {
-  background: var(--accent-primary);
-}
-
-.walkablegrid__edge--top {
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 2px;
-}
-
-.walkablegrid__edge--right {
-  top: 0;
-  right: 0;
-  bottom: 0;
-  width: 2px;
-}
-
-.walkablegrid__edge--bottom {
-  bottom: 0;
-  left: 0;
-  right: 0;
-  height: 2px;
-}
-
-.walkablegrid__edge--left {
-  top: 0;
-  left: 0;
-  bottom: 0;
-  width: 2px;
 }
 
 .walkablegrid__tools {

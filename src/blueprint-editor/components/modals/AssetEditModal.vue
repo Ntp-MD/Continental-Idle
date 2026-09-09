@@ -15,7 +15,6 @@ const activeTab = ref<EditorTab>('general')
 const tabs: { key: EditorTab; label: string }[] = [
   { key: 'general', label: 'General' },
   { key: 'walk', label: 'Walkable' },
-  { key: 'door', label: 'Doors & Edges' },
   { key: 'interactspots', label: 'Interact Spots' },
   { key: 'assign', label: 'Assign NPC' },
 ]

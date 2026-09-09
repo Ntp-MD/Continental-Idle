@@ -72,6 +72,11 @@ function onSwitchMode(mode: 'object' | 'draw' | 'move') {
   store.setMode(mode)
 }
 
+function onTileBrush(brush: 'walkable' | 'blocked' | 'door' | 'erase') {
+  if (previewActive.value) return
+  store.setTileBrush(store.state.tileBrush === brush ? null : brush)
+}
+
 function onSyncToGame() {
   if (store.syncToGame()) toast.success('Blueprint synced to game')
   else toast.error('Blueprint sync failed')
@@ -100,7 +105,7 @@ function onSyncToGame() {
 
     <button
       :disabled="previewActive"
-      :class="{ 'flag--active': store.state.mode === 'object' && !store.state.wallPaint }"
+      :class="{ 'flag--active': store.state.mode === 'object' }"
       aria-label="Switch to object mode"
       @click="onSwitchMode('object')"
     >
@@ -108,29 +113,51 @@ function onSyncToGame() {
     </button>
     <button
       :disabled="previewActive"
-      :class="{ 'flag--active': store.state.mode === 'draw' && !store.state.wallPaint }"
+      :class="{ 'flag--active': store.state.mode === 'draw' }"
       aria-label="Switch to draw mode"
       @click="onSwitchMode('draw')"
     >
       Draw Object
     </button>
     <button
-      :class="{ 'flag--active': store.state.mode === 'move' && !store.state.wallPaint }"
+      :class="{ 'flag--active': store.state.mode === 'move' }"
       aria-label="Switch to move mode"
       @click="onSwitchMode('move')"
     >
       Move
     </button>
     <button
-      :class="{ 'flag--active': store.state.wallPaint }"
       :disabled="previewActive"
-      title="Draw walls on tile boundaries"
-      aria-label="Toggle draw wall tool"
-      @click="store.setWallPaint(!store.state.wallPaint)"
+      :class="{ 'flag--active': store.state.tileBrush === 'walkable' }"
+      aria-label="Paint walkable tiles on the current floor"
+      @click="onTileBrush('walkable')"
     >
-      Draw Wall
+      Walk
     </button>
-
+    <button
+      :disabled="previewActive"
+      :class="{ 'flag--active': store.state.tileBrush === 'blocked' }"
+      aria-label="Paint wall tiles on the current floor"
+      @click="onTileBrush('blocked')"
+    >
+      Wall
+    </button>
+    <button
+      :disabled="previewActive"
+      :class="{ 'flag--active': store.state.tileBrush === 'door' }"
+      aria-label="Paint door tiles on the current floor"
+      @click="onTileBrush('door')"
+    >
+      Door
+    </button>
+    <button
+      :disabled="previewActive"
+      :class="{ 'flag--active': store.state.tileBrush === 'erase' }"
+      aria-label="Erase wall and door tiles on the current floor"
+      @click="onTileBrush('erase')"
+    >
+      Erase
+    </button>
     <button title="Configure NPC roles and tags" aria-label="Open NPC manager" :disabled="previewActive" @click="onNpcManager">
       NPC Manager
     </button>

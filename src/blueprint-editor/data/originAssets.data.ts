@@ -4,7 +4,6 @@ export const originAssetsData = [
     "name": "Table 1",
     "w": 2,
     "h": 1,
-    "isWall": false,
     "walkable": false,
     "defaultPadding": 3,
     "defaultRx": {
@@ -59,7 +58,6 @@ export const originAssetsData = [
     "name": "Chair",
     "w": 1,
     "h": 1,
-    "isWall": false,
     "walkable": true,
     "defaultPadding": 5,
     "defaultRx": {
@@ -105,7 +103,6 @@ export const originAssetsData = [
     "name": "Table Set",
     "w": 2,
     "h": 3,
-    "isWall": false,
     "walkable": true,
     "tags": [
       "lounge"
@@ -182,7 +179,6 @@ export const originAssetsData = [
     "w": 2,
     "h": 2,
     "category": "Special",
-    "isWall": false,
     "walkable": true,
     "defaultFillColor": "#ffffff",
     "tags": [
@@ -242,7 +238,6 @@ export const originAssetsData = [
     "w": 1,
     "h": 1,
     "category": "Special",
-    "isWall": false,
     "walkable": false,
     "defaultFillColor": "#ffffff",
     "origin": "svg-import",
@@ -284,7 +279,6 @@ export const originAssetsData = [
     "w": 1,
     "h": 2,
     "category": "Special",
-    "isWall": false,
     "walkable": true,
     "defaultFillColor": "#ffffff",
     "origin": "svg-import",
@@ -332,7 +326,6 @@ export const originAssetsData = [
     "w": 2,
     "h": 1,
     "category": "Special",
-    "isWall": false,
     "walkable": false,
     "defaultFillColor": "#ffffff",
     "tags": [
@@ -380,7 +373,6 @@ export const originAssetsData = [
     "w": 2,
     "h": 1,
     "category": "Special",
-    "isWall": false,
     "walkable": true,
     "defaultFillColor": "#ffffff",
     "tags": [
@@ -432,7 +424,6 @@ export const originAssetsData = [
     "w": 1,
     "h": 1,
     "category": "Special",
-    "isWall": false,
     "walkable": true,
     "defaultFillColor": "#ffffff",
     "tags": [
@@ -477,7 +468,6 @@ export const originAssetsData = [
     "w": 8,
     "h": 1,
     "category": "Special",
-    "isWall": false,
     "walkable": false,
     "defaultFillColor": "#ffffff",
     "tags": [
@@ -564,7 +554,6 @@ export const originAssetsData = [
     "w": 2,
     "h": 1,
     "category": "Special",
-    "isWall": false,
     "walkable": false,
     "defaultFillColor": "#ffffff",
     "tags": [
@@ -611,7 +600,6 @@ export const originAssetsData = [
     "w": 2,
     "h": 1,
     "category": "Special",
-    "isWall": false,
     "walkable": false,
     "defaultFillColor": "#ffffff",
     "tags": [
@@ -658,7 +646,6 @@ export const originAssetsData = [
     "w": 1,
     "h": 1,
     "category": "Special",
-    "isWall": false,
     "walkable": false,
     "defaultFillColor": "#ffffff",
     "tags": [
@@ -703,7 +690,6 @@ export const originAssetsData = [
     "w": 1,
     "h": 1,
     "category": "Special",
-    "isWall": false,
     "walkable": false,
     "defaultFillColor": "#ffffff",
     "tags": [
@@ -748,7 +734,6 @@ export const originAssetsData = [
     "w": 1,
     "h": 1,
     "category": "Special",
-    "isWall": false,
     "walkable": false,
     "defaultFillColor": "#ffffff",
     "tags": [
@@ -793,7 +778,6 @@ export const originAssetsData = [
     "w": 2,
     "h": 1,
     "category": "Special",
-    "isWall": false,
     "walkable": false,
     "defaultFillColor": "#ffffff",
     "tags": [
@@ -841,7 +825,6 @@ export const originAssetsData = [
     "w": 2,
     "h": 1,
     "category": "Special",
-    "isWall": false,
     "walkable": true,
     "defaultFillColor": "#ffffff",
     "tags": [
@@ -893,7 +876,6 @@ export const originAssetsData = [
     "w": 1,
     "h": 1,
     "category": "Special",
-    "isWall": false,
     "walkable": true,
     "defaultFillColor": "#ffffff",
     "origin": "svg-import",
@@ -935,7 +917,6 @@ export const originAssetsData = [
     "w": 4,
     "h": 1,
     "category": "Special",
-    "isWall": false,
     "walkable": false,
     "defaultFillColor": "#ffffff",
     "tags": [
@@ -1008,7 +989,6 @@ export const originAssetsData = [
     "w": 2,
     "h": 1,
     "category": "Special",
-    "isWall": false,
     "walkable": false,
     "defaultFillColor": "#ffffff",
     "tags": [

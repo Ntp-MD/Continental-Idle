@@ -97,3 +97,34 @@ follow it when logging below.
 - FloorWalkablePanel wall mode: Outer Walls button removed (plot tool is the way); door mode keeps it (perimeter walls under doors)
 - Clear Walls now persists immediately via replaceCanvasWallSegments(floor, []) (was draft-only until Save); toast + saveBaseline
 - typecheck, lint:bem, lint:css, test:wall-paint green
+
+### floor walkable tile tools - 2026-09-08 18:25 UTC+7 (muse-spark, opencode/muse-spark-1.3-contributor-free)
+- FloorWalkablePanel remade tile-only: Walk/Wall/Door brushes paint tileStates, wallSegments + gridEdges + canvas wall saves dropped
+- floor door tiles persist as TileState door, walkableGrid counts walkable + door per canonical consistency rule
+- verify router suites green: lint:bem + lint:css + typecheck
+
+### edge wall system removed - 2026-09-08 19:40 UTC+7 (muse-spark, opencode/muse-spark-1.3-contributor-free)
+- walls/doors are cell tiles only: deleted gridEditing, useWallPaint, useCanvasWallStyle, useDoorAnimation, 3 wall/door test suites
+- canvas Draw Wall plot, grid Doors tab, floor/asset door lists, wall color/thickness settings removed; engine blockedEdges/doorEdges/door-passage events removed; queues anchor on tile-door cells; entrances derive from ring-crossing door tiles
+- suites green: typecheck (3 configs), lint, lint:bem, lint:css, npc-engine/queue/corridor/arrival/social, blueprint/asset/sync/migrate/settings-completeness, verify:assets
+
+### floor wall/door erase marquee - 2026-09-08 20:22 UTC+7 (cline, cline)
+- FloorWalkablePanel: Walk/Wall/Door/Erase all use ONE shared drag-cover gesture - mousedown starts the marquee, dragging extends it, release commits the rect
+- paint tools fill the covered rect with the brush (click = 1x1); Erase toggles tiles - wall/door -> walkable, walk -> wall (blocked), so painted walk tiles can be unplotted; live dashed preview: walk__cell--cover (accent-primary) paint, walk__cell--erase (accent-red) delete
+- reuses tile editor drag pattern (mousedown start / mouseenter extend / grid mouseup+mouseleave commit); picking any brush clears erase mode; grid user-select none; hint + aria updated
+- verified: typecheck (3 configs), lint:bem, lint:css green
+
+### tile tools moved to toolbar - 2026-09-08 21:15 UTC+7 (cline, cline)
+- Walk/Wall/Door/Erase moved from FloorWalkablePanel (deleted) into main Toolbar.vue as 4 tile-brush buttons; CRUD follows store.state.currentFloorId so actions apply to whichever floor is selected
+- new useCanvasTilePaint composable: window-level drag-cover gesture (mousedown start / mousemove extend / mouseup commit) with live preview rect; brush() from store.state.tileBrush, onCommit -> store.paintFloorTiles(currentFloorId, brush, rect)
+- store: state.tileBrush:TileBrush|null, setTileBrush() in mode.ts (clears selection), paintFloorTiles() in floors.ts (resolves states, clamps to building rect excluding street, applyTileBrush, force street walkable, rebuilds walkableGrid, saves)
+- EditorCanvas: useCanvasTilePaint wired; onSvgMouseDown delegates to tile paint when brush active (skips selection/pan); renderWalkableOverlay shows when tileBrush active; preview rect rendered with editor__tile-preview--{brush} classes
+- domain/types: TileBrush='walkable'|'blocked'|'door'|'erase', applyTileBrush (erase toggles walk<->blocked), resolveFloorTileStates, tileStatesToWalkableGrid
+- FloorModal: no longer references FloorWalkablePanel; streetTiles computed + Edit Walkable button removed
+- verified: typecheck (3 configs), lint:bem, lint:css, verify check pass
+
+### dead ref cleanup after wall removal - 2026-09-08 20:58 UTC+7 (cline, cline)
+- dropped 3 dead npm scripts from package.json (test:wall-paint, test:door-animation, test:door-passage-engine -> deleted test files); all remaining tsx test targets verified to exist
+- skill.md grid parity note no longer references removed edge previews / walkable-grid domain module; aligned to domain types normalize helpers
+- audit confirms no dead wall refs in live src (wall* symbols only in history log + absence-guard tests); svg-role__wall, doorRequired/tileStates door, observe-hotel kept (live features)
+- verified: route clean, npm script target existence check, hcheck pass
