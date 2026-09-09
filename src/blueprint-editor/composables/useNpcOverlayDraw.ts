@@ -59,6 +59,7 @@ export interface NpcOverlayDrawSources {
 	arrivalMarks: ReadonlyMap<string, number>
 	floorId: () => string
 	guides: Ref<boolean>
+	dotSize: () => number
 	svg: Ref<SVGSVGElement | null>
 	canvas: Ref<HTMLCanvasElement | null>
 	viewBox: ComputedRef<string>
@@ -152,11 +153,13 @@ export function useNpcOverlayDraw(sources: NpcOverlayDrawSources) {
 		const colRed = themeColors.red
 		const colDim = themeColors.secondary
 		const fid = sources.floorId()
+		const dotR = Math.max(1, sources.dotSize())
+		const crossR = dotR * 0.75
 		for (const dot of sources.frameDots.values()) {
 			if (dot.floorId !== fid) continue
 			const sx = geo.a * dot.x + geo.c * dot.y + geo.e - geo.sLeft
 			const sy = geo.b * dot.x + geo.d * dot.y + geo.f - geo.sTop
-			if (sx < -8 || sy < -8 || sx > vw + 8 || sy > vh + 8) continue
+			if (sx < -dotR - 4 || sy < -dotR - 4 || sx > vw + dotR + 4 || sy > vh + dotR + 4) continue
 			if (sources.guides.value && dot.status === 'walking') {
 				if (dot.path.length > 1) {
 					ctx.beginPath()
@@ -187,7 +190,7 @@ export function useNpcOverlayDraw(sources: NpcOverlayDrawSources) {
 				ctx.stroke()
 			}
 		ctx.beginPath()
-		ctx.arc(sx, sy, 4, 0, Math.PI * 2)
+		ctx.arc(sx, sy, dotR, 0, Math.PI * 2)
 		ctx.fillStyle = dot.color
 		ctx.fill()
 		ctx.lineWidth = 1
@@ -201,15 +204,15 @@ export function useNpcOverlayDraw(sources: NpcOverlayDrawSources) {
 		ctx.stroke()
 		if (mood === 'stuck') {
 			ctx.beginPath()
-			ctx.moveTo(sx - 3, sy - 3)
-			ctx.lineTo(sx + 3, sy + 3)
-			ctx.moveTo(sx + 3, sy - 3)
-			ctx.lineTo(sx - 3, sy + 3)
+			ctx.moveTo(sx - crossR, sy - crossR)
+			ctx.lineTo(sx + crossR, sy + crossR)
+			ctx.moveTo(sx + crossR, sy - crossR)
+			ctx.lineTo(sx - crossR, sy + crossR)
 			ctx.stroke()
 		} else if (mood === 'lost') {
 			ctx.fillStyle = colGold
 			ctx.beginPath()
-			ctx.arc(sx, sy - 7, 2, 0, Math.PI * 2)
+			ctx.arc(sx, sy - (dotR + 3), 2, 0, Math.PI * 2)
 			ctx.fill()
 		}
 		}

@@ -9,11 +9,25 @@ import path from 'node:path'
 import { BLUEPRINT_DATA_SCHEMA, BLUEPRINT_DATA_VERSION, normalizeBlueprintDataFile } from './src/blueprint-editor/domain/types.js'
 import type { BlueprintDataFile } from './src/blueprint-editor/domain/types.js'
 
-function isLocalhostOrigin(value: string | undefined): boolean {
+export function isPrivateLanIpv4(hostname: string): boolean {
+	const parts = hostname.split('.')
+	if (parts.length !== 4 || parts.some((p) => !/^\d+$/.test(p))) return false
+	const nums = parts.map(Number)
+	if (nums.some((n) => n < 0 || n > 255)) return false
+	const [a, b] = nums
+	if (a === 10) return true
+	if (a === 172 && b >= 16 && b <= 31) return true
+	if (a === 192 && b === 168) return true
+	return false
+}
+
+export function isTrustedDevOrigin(value: string | undefined): boolean {
 	if (!value) return true
 	try {
 		const url = new URL(value)
-		return ['localhost', '127.0.0.1', '::1', '::ffff:127.0.0.1', '0.0.0.0'].includes(url.hostname)
+		const hostname = url.hostname
+		if (['localhost', '127.0.0.1', '::1', '::ffff:127.0.0.1', '0.0.0.0'].includes(hostname)) return true
+		return isPrivateLanIpv4(hostname)
 	} catch {
 		return false
 	}
@@ -58,8 +72,8 @@ function isSafeClientRequest(req: IncomingMessage, res: ServerResponse, requires
 	const fetchSite = getHeader(req.headers['sec-fetch-site'])
 	if (getHeader(req.headers['x-blueprint-client']) !== '1'
 		|| (requiresSave && getHeader(req.headers['x-blueprint-save']) !== '1')
-		|| !isLocalhostOrigin(origin)
-		|| !isLocalhostOrigin(referer)
+		|| !isTrustedDevOrigin(origin)
+		|| !isTrustedDevOrigin(referer)
 		|| (fetchSite !== undefined && !ALLOWED_FETCH_SITES.has(fetchSite))) {
 		sendError(res, 403, 'Forbidden')
 		return false

@@ -128,3 +128,118 @@ follow it when logging below.
 - skill.md grid parity note no longer references removed edge previews / walkable-grid domain module; aligned to domain types normalize helpers
 - audit confirms no dead wall refs in live src (wall* symbols only in history log + absence-guard tests); svg-role__wall, doorRequired/tileStates door, observe-hotel kept (live features)
 - verified: route clean, npm script target existence check, hcheck pass
+
+### crud reference doc - 2026-09-09 09:35 UTC+7 (cline, cline)
+- new docs/crud-reference.md: every store CRUD grouped by module (floors/objects/assets/tags/npc/mode/clipboard/persistence/selection/state) with function + kind + about, same idea as UiShowcase one-section-per-group
+- skill.md Layout rule 4 extended with CRUD gate: new/changed/removed store CRUD must update docs/crud-reference.md in the same change, so the file stays up to date like UiShowcase
+- verified: route (docs-only, nothing to run), check pass
+
+### harness unified feature lane - 2026-09-09 11:03 UTC+7 (muse-spark, opencode/muse-spark-1.3-contributor-free)
+- folded feature-flow into harness/HARNESS.md: entry router + Phases A-G (Align/Model/Zoom-out/Interface-pick/Tickets/Build-4c-hybrid/Compress-C1-auto) feeding the per-ticket loop; R1 arch scan flag-only in review
+- AGENTS.md workflow points at feature lane; glossary locked to skill.md; verify.mjs header comment only, no logic change
+- deleted untracked docs/matt-migration.md; stale grep 0 in live files; docs/crud-reference.md kept
+- verified: npx eslint harness/scripts/verify.mjs --max-warnings 0 clean; route prints table; check pass
+
+### seal loop-vs-lane seams - 2026-09-09 11:11 UTC+7 (muse-spark, opencode/muse-spark-1.3-contributor-free)
+- HARNESS.md only: 6 boundary lines so each job has one owner - lane outputs are loop inputs (Step 2 plans ticket slice only), one suite two moments (Step 4 = Phase F red/green), arch scan owned by Step 6 (Phase F points at it), caveman is tone while Step 7 stays the report shape
+- verified: HARNESS.md ASCII-only; route (md-only, nothing runnable); check pass
+
+### audit items implemented - 2026-09-09 11:11 UTC+7 (muse-spark, opencode/muse-spark-1.3-contributor-free)
+- docs/crud-reference.md: all 10 table separators fixed to 4 cells; erase-on-door (->walkable) documented; addFloor name/label corrected; lock row lists new panel button
+- ObjectPropertiesForm.vue: new Lock/Unlock toggle (reuses store.toggleObjectLock, title with L hint); Copy->Copy ID; Delete title with shortcut
+- AssetProperties.vue: Copy->Copy ID; FloorModal.vue: both Delete buttons get reason titles when last floor
+- verified: lint:bem + lint:css pass (33 files); typecheck (3 configs) green; eslint verify.mjs clean; check pass
+
+### history log rule tightened - 2026-09-09 11:11 UTC+7 (muse-spark, opencode/muse-spark-1.3-contributor-free)
+- HARNESS.md History pattern now allowlists loggable work (implemented changes + decisions taken) and bans questions, no-change audits, untaken recommendations, parked ideas
+- user correction: agent was logging every inquiry; persists for the session
+- verified: route (md-only change, nothing runnable; bem/css/typecheck rows belong to prior-task dirt, proven green); check pass
+
+### prune history noise - 2026-09-09 11:11 UTC+7 (muse-spark, opencode/muse-spark-1.3-contributor-free)
+- removed 4 no-change audit/parked entries per the tightened log rule; verified: entry headers intact; check pass
+
+### canvas wall color preference - 2026-09-09 13:23 UTC+7 (muse-spark, opencode/muse-spark-1.3-contributor-free)
+- CanvasConfig.wallColor (optional color) + CANVAS_FIELD_SPECS + setCanvasWallColor + SettingsModal Walls row; EditorCanvas blocked tiles use it with CSS fallback; editor-only like labelColor, no sync mirror
+- suites green: lint:bem, lint:css, typecheck (3 configs), test:blueprint-schema, test:migrate
+
+### settings apply bottom-align - 2026-09-09 13:26 UTC+7 (muse-spark, opencode/muse-spark-1.3-contributor-free)
+- SettingsModal Canvas Size Apply button gets scoped settings__apply--bottom (margin-top auto), bottom-aligns with inputs in the top-aligned row
+- suites green: lint:bem, lint:css, typecheck (3 configs)
+
+### object tile orphan fix - 2026-09-09 13:35 UTC+7 (muse-spark, opencode/muse-spark-1.3-contributor-free)
+- EditorCanvas object-grid overlay reused floor editor__tile--walkable/blocked (orphan obj- prefix dropped) + wallColor style override + v-memo dep; zero new classes
+- suites green: lint:bem, lint:css, typecheck (3 configs)
+
+### ring paint wins - 2026-09-09 13:45 UTC+7 (muse-spark, opencode/muse-spark-1.3-contributor-free)
+- paintFloorTiles: street-ring walkable forcing moved before brush so explicit wall/door/erase paint sticks in the ring (also unblocks ring-crossing entrance doors); crud-reference row updated
+- verified: temp ring-paint probe green (deleted same session), test:blueprint-schema + test:sync-payload green, typecheck clean
+
+### review chain rule - 2026-09-09 13:50 UTC+7 (muse-spark, opencode/muse-spark-1.3-contributor-free)
+- harness.md Step 6 Review gains chain check: each changed function lists direct callers/callees with touched-or-unaffected verdict; deeper hops only on contract change
+- verified: check pass
+
+### lan save 403 fix - 2026-09-09 14:05 UTC+7 (muse-spark, opencode/muse-spark-1.3-contributor-free)
+- vite.config.ts origin guard now trusts private-LAN IPv4 (10/8, 172.16/12, 192.168/16); LAN saves no longer 403-revert every paint; internet origins still blocked
+- verified: temp origin test green (deleted same session), typecheck (3 configs) clean, eslint clean
+
+### wall door visibility toggles - 2026-09-09 14:15 UTC+7 (muse-spark, opencode/muse-spark-1.3-contributor-free)
+- editor__controls gains Walls/Doors buttons (showWallTiles/showDoorTiles in viewToggles, persisted); floor overlay renders visibleWalkableRuns, object blocked cells hide with Walls off; no new classes
+- verified: lint:bem, lint:css green, typecheck (3 configs) clean
+
+### wall door overlay decoupling - 2026-09-09 14:25 UTC+7 (muse-spark, opencode/muse-spark-1.3-contributor-free)
+- wall/door tiles now render on their own toggles (renderWallOverlay/renderDoorOverlay); Walk master gates walkable fills only; brush-active still shows all while painting
+- verified: lint:bem, lint:css green, typecheck (3 configs) clean
+
+### erase select-delete rework - 2026-09-09 14:40 UTC+7 (muse-spark, opencode/muse-spark-1.3-contributor-free)
+- erase brush marquees a persistent selection (no release commit); Delete clears it to walkable via paintFloorTiles, Esc cancels; paint brushes unchanged; crud-reference erase rows updated
+- verified: temp defer-mode test green (deleted same session), lint:bem, lint:css green, typecheck clean
+
+### erase button rename - 2026-09-09 14:45 UTC+7 (muse-spark, opencode/muse-spark-1.3-contributor-free)
+- Toolbar Erase label becomes Erase wall&door (+ matching aria-label); verified: lint:bem, lint:css, typecheck clean
+
+### wall preview color - 2026-09-09 14:55 UTC+7 (muse-spark, opencode/muse-spark-1.3-contributor-free)
+- editor__tile-preview--blocked fill/stroke red to accent-primary; erase preview + committed fill stay red
+- verified: lint:bem, lint:css green, typecheck clean
+
+### erase selection lifecycle fix - 2026-09-09 15:20 UTC+7 (cline, cline)
+- chain review found: erase selection survived floor switch (Delete erased wrong floor) and resurrected after brush cycle; dead `streetTiles` opt left after clamp removal
+- EditorCanvas watches `currentFloorId` + `tileBrush` -> clearTileSelection; `streetTiles` opt removed from useCanvasTilePaint + wiring; crud-reference erase row updated
+- street-ring paint vs engine (`isTileWalkable` ignores ring tileStates) accepted for now: ring tiles stay cosmetic/blocked per current contract - revisit if ring walls/doors must gate NPCs
+- verified: lint:bem, lint:css, typecheck (3 configs)
+
+### door tile animation - 2026-09-09 16:05 UTC+7 (cline, cline)
+- cell door animation (replaces deleted edge-system animation): groupDoorCells pure helper in domain/types groups connected door cells into slide halves (slideDir -1/+1, axis = longest bbox side)
+- new useDoorTileAnimation: NPC dot within group bbox + 1 tile pad opens the group; auto-closes 500ms after NPCs leave; transient only - not persisted, not synced, engine pass-through unchanged
+- EditorCanvas: floor door cells render in their own non-memo group with CSS transform/opacity transition (220ms); visibleWalkableRuns drops door runs; v-memo deps updated; zero new classes
+- object tileStates door cells (queue anchors) intentionally not animated
+- verified: temp door-group test green (deleted same session), lint:bem, lint:css, typecheck (3 configs)
+
+### tile resize rescales walkable grids - 2026-09-09 16:40 UTC+7 (cline, cline)
+- user-reported: changing tileSize left tileStates/walkableGrid at old grid dims (resizeCanvas only snapped objects) - overlays/engine read stale indices at wrong pixel positions
+- new rescaleFloorWalkable pure helper in domain/types: nearest-cell mapping old grid -> new rows/cols, rebuilds walkableGrid via tileStatesToWalkableGrid, no-op when dims match or no data; handles legacy grid-only floors
+- resizeCanvas computes rows/cols from new w/h/tileSize and applies rescale to every floor before object snapping
+- verified: temp rescale test green (deleted same session), lint:bem, lint:css, typecheck (3 configs), test:blueprint-schema, test:migrate
+
+### npc dot size setting - 2026-09-09 17:05 UTC+7 (cline, cline)
+- user-requested: NPC dot size split from tile size - new npcDotSize EditorSettings field (spec min 2 max 12, default 4, normalize/auto-UI via EDITOR_FIELD_SPECS)
+- useNpcOverlayDraw takes dotSize source: dot radius + proportional stuck-cross/lost-badge; EditorCanvas wires editorSettings.npcDotSize
+- SettingsModal Display > Overlay Sizes gains "NPC dot radius" row; editor-only setting, no sync payload impact
+- verified: temp npc-dot-size test green (deleted same session), lint:bem, lint:css, typecheck (3 configs), test:settings-completeness, test:blueprint-schema
+
+### settings tab consolidation - 2026-09-09 17:30 UTC+7 (cline, cline)
+- user-approved option A: street ratios (dash/gap/sidewalk) moved from Scene tab into Canvas tab Street section next to ring controls; Ruler group moved Scene -> Display; Scene tab removed (4 tabs remain)
+- street ratio rows bind editor draft + applyEditorField (immediate apply, min/max from EDITOR_FIELD_SPECS); no new classes, zero data changes
+- verified: lint:bem, lint:css, typecheck (3 configs)
+
+### erase marquee cell guide - 2026-09-09 17:55 UTC+7 (cline, cline)
+- user-requested guide back for zone-based erase: wall/door cells inside the erase marquee highlight red (45% accent) while dragging and while selection persists
+- eraseGuideRects computed intersects walkableRuns (blocked+door) with tilePaintPreview rect (live drag or stored selection); rendered in own non-memo group before preview outline
+- scoped class editor__erase-guide added (single component, user-approved); crud-reference erase row updated
+- follow-up per user feedback: erase preview fill removed (fill: none) - dashed border + selected-cell highlights only
+- user-requested erase/select coexistence: while Erase brush is active, mousedown on an object selects it (existing box-select flow); mousedown on empty tile starts the erase marquee; Walk/Wall/Door brushes stay exclusive
+- objectAtLocalPoint hit-test (topmost object contains point) in EditorCanvas.onSvgMouseDown; crud-reference erase row updated
+- user-requested: Select mode now selects wall/door tiles too - box marquee with no object hits sets the erase-selection (reuse setSelection from useCanvasTilePaint, brush-match guard relaxed; mousedown clears prior selection via onBoxSelectStart) - highlight + Delete work without the Erase brush
+- user-approved: Erase button removed from Toolbar, Select renamed "Free tool" - tile marquee/delete lives in Free tool only; deferCommit opt + erase branch + objectAtLocalPoint deleted (dead code); paint commit now clears stale tile selection; internal 'erase' TileBrush marker kept for selection semantics
+- verified: lint:bem, lint:css, typecheck (3 configs), test:blueprint-schema
+- follow-up per user feedback: zone border shows only while dragging (tilePaint active gate on preview outline); after release only the selected-cell highlights remain
+

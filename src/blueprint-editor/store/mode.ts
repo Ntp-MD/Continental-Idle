@@ -1,5 +1,5 @@
 import type { EditorMode, EditorSettings, TileBrush } from '../domain/types'
-import { isValidColor, normalizeEditorSettings, EDITOR_FIELD_SPECS } from '../domain/types'
+import { isValidColor, normalizeEditorSettings, EDITOR_FIELD_SPECS, rescaleFloorWalkable } from '../domain/types'
 import { state, clamp, assetMap } from './state'
 import { normalizeObject } from '../domain/geometry'
 import { saveBlueprintData } from './persistence'
@@ -20,7 +20,10 @@ export async function resizeCanvas(width: number, height: number, tileSize: numb
 	const w = Math.max(t, Math.round(width / t) * t)
 	const h = Math.max(t, Math.round(height / t) * t)
 	state.layout.canvas = { ...state.layout.canvas, width: w, height: h, tileSize: t }
+	const rows = Math.max(1, Math.ceil(h / t))
+	const cols = Math.max(1, Math.ceil(w / t))
 	for (const floor of state.layout.floors) {
+		floor.walkable = rescaleFloorWalkable(floor.walkable, rows, cols)
 		for (const o of floor.objects) {
 			normalizeObject(o, state.layout.canvas.tileSize, assetMap())
 			const snapped = clamp({ x: Math.round(o.x / t) * t, y: Math.round(o.y / t) * t, w: o.w, h: o.h })
@@ -44,6 +47,13 @@ export async function setCanvasLabelColor(labelColor: string | undefined): Promi
 	if (labelColor !== undefined && !isValidColor(labelColor)) return false
 	if (labelColor) state.layout.canvas.labelColor = labelColor
 	else delete state.layout.canvas.labelColor
+	return saveBlueprintData()
+}
+
+export async function setCanvasWallColor(wallColor: string | undefined): Promise<boolean> {
+	if (wallColor !== undefined && !isValidColor(wallColor)) return false
+	if (wallColor) state.layout.canvas.wallColor = wallColor
+	else delete state.layout.canvas.wallColor
 	return saveBlueprintData()
 }
 

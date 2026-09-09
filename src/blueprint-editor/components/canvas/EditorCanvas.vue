@@ -20,6 +20,7 @@ import { chatPairKey, resolveChatExchange } from '@/engine/npc'
 import { useNpcOverlayDraw, type ChatBubble } from '../../composables/useNpcOverlayDraw'
 import { useCanvasRuns } from '../../composables/useCanvasRuns'
 import { useCanvasTilePaint } from '../../composables/useCanvasTilePaint'
+import { useDoorTileAnimation, type DoorCellRect } from '../../composables/useDoorTileAnimation'
 import { renderSvgInto as renderSvgContent } from '../../assets/svgSanitizer'
 
 const vSvgContent = {
@@ -95,6 +96,8 @@ const showBuildingBounds = ref(savedToggles.showBuildingBounds ?? true)
 const showNpcGuides = ref(savedToggles.showNpcGuides ?? true)
 const showGrid = ref(savedToggles.showGrid ?? true)
 const showLabels = ref(savedToggles.showLabels ?? true)
+const showWallTiles = ref(savedToggles.showWallTiles ?? true)
+const showDoorTiles = ref(savedToggles.showDoorTiles ?? true)
 const viewToggles: Record<string, Ref<boolean>> = {
   showGrid,
   showLabels,
@@ -103,6 +106,8 @@ const viewToggles: Record<string, Ref<boolean>> = {
   showObjectHighlights,
   showBuildingBounds,
   showNpcGuides,
+  showWallTiles,
+  showDoorTiles,
 }
 
 function saveViewToggles() {
@@ -124,6 +129,13 @@ function toggleView(key: string) {
 
 const isInteracting = computed(() => !!panning.value || !!moving.value || zooming.value)
 const renderWalkableOverlay = computed(() => (showWalkableOverlay.value || !!store.state.tileBrush) && !isInteracting.value)
+const renderWallOverlay = computed(() => (showWallTiles.value || !!store.state.tileBrush) && !isInteracting.value)
+const renderDoorOverlay = computed(() => (showDoorTiles.value || !!store.state.tileBrush) && !isInteracting.value)
+const visibleWalkableRuns = computed(() =>
+  walkableRuns.value.filter(
+    (run) => (run.state === 'walkable' && renderWalkableOverlay.value) || (run.state === 'blocked' && renderWallOverlay.value),
+  ),
+)
 const renderInteractSpots = computed(() => showInteractSpots.value && !isInteracting.value)
 const renderObjectHighlights = computed(() => showObjectHighlights.value && !isInteracting.value)
 const renderBuildingBounds = computed(() => showBuildingBounds.value)
@@ -242,6 +254,7 @@ const { startNpcDraw, stopNpcDraw } = useNpcOverlayDraw({
   arrivalMarks: npcSimulation.arrivalMarks,
   floorId: () => store.state.currentFloorId,
   guides: showNpcGuides,
+  dotSize: () => editorSettings.value.npcDotSize,
   svg: vp.svgRef,
   canvas: npcCanvasRef,
   viewBox,
@@ -293,6 +306,23 @@ const sel = useCanvasSelection({
   zoom,
   boxSelectThresholdPx: () => editorSettings.value.boxSelectThresholdPx,
   onDrawComplete,
+  onBoxSelectStart: () => clearTileSelection(),
+  onTileMarquee: (rect) => {
+    const t = canvas.value.tileSize
+    const hit = walkableRuns.value.some(
+      (run) =>
+        (run.state === 'blocked' || run.state === 'door')
+        && run.x < rect.x + rect.w && run.x + run.w > rect.x
+        && run.y < rect.y + rect.h && run.y + run.h > rect.y,
+    )
+    if (!hit) return
+    setTilePaintSelection({
+      row0: Math.floor(rect.y / t),
+      col0: Math.floor(rect.x / t),
+      row1: Math.floor((rect.y + rect.h - 1) / t),
+      col1: Math.floor((rect.x + rect.w - 1) / t),
+    })
+  },
 })
 const { boxSelect, onCanvasMouseDown, onBoxSelectMouseMove, onBoxSelectMouseUp } = sel
 
@@ -302,12 +332,46 @@ const tilePaint = useCanvasTilePaint({
   tileSize: () => canvas.value.tileSize,
   canvasWidth: () => canvas.value.width,
   canvasHeight: () => canvas.value.height,
-  streetTiles: () => streetTotalTiles.value,
   onCommit: (brush, rect) => {
+    clearTileSelection()
     void store.paintFloorTiles(store.state.currentFloorId, brush, rect)
   },
 })
-const { preview: tilePaintPreview, onMouseDown: onTilePaintMouseDown } = tilePaint
+const { active: tilePaintDragging, preview: tilePaintPreview, selection: tileEraseSelection, onMouseDown: onTilePaintMouseDown, clearSelection: clearTileSelection, setSelection: setTilePaintSelection } = tilePaint
+
+const eraseGuideRects = computed(() => {
+  const preview = tilePaintPreview.value
+  if (!preview || preview.brush !== 'erase') return []
+  const rects: Array<{ x: number; y: number; w: number; h: number }> = []
+  const x1 = preview.x + preview.w
+  const y1 = preview.y + preview.h
+  for (const run of walkableRuns.value) {
+    if (run.state !== 'blocked' && run.state !== 'door') continue
+    const rx = Math.max(run.x, preview.x)
+    const ry = Math.max(run.y, preview.y)
+    const rw = Math.min(run.x + run.w, x1) - rx
+    const rh = Math.min(run.y + run.h, y1) - ry
+    if (rw > 0 && rh > 0) rects.push({ x: rx, y: ry, w: rw, h: rh })
+  }
+  return rects
+})
+watch(() => store.state.currentFloorId, () => clearTileSelection())
+watch(() => store.state.tileBrush, () => clearTileSelection())
+
+const { cells: doorCells, openKeys: doorOpenKeys } = useDoorTileAnimation({
+  tileStates: () => floor.value?.walkable?.tileStates,
+  floorId: () => store.state.currentFloorId,
+  tileSize: () => canvas.value.tileSize,
+  npcs: () => npcSimulation.npcs.value,
+})
+
+function doorTileStyle(cell: DoorCellRect): Record<string, string> {
+  if (!doorOpenKeys.value.has(cell.groupKey)) return {}
+  const distance = cell.w
+  const dx = cell.axis === 'x' ? cell.slideDir * distance : 0
+  const dy = cell.axis === 'y' ? cell.slideDir * distance : 0
+  return { transform: `translate(${dx}px, ${dy}px)`, opacity: '0.3' }
+}
 
 function onSvgMouseDown(e: MouseEvent) {
   if (store.state.tileBrush) {
@@ -556,6 +620,14 @@ async function onKeyDown(e: KeyboardEvent) {
     return
   }
   if ((e.key === 'Delete' || e.key === 'Backspace') && !e.repeat) {
+    const tiles = tileEraseSelection.value
+    if (tiles) {
+      e.preventDefault()
+      const saved = await store.paintFloorTiles(store.state.currentFloorId, 'walkable', tiles.rect)
+      clearTileSelection()
+      if (!saved) toast.error('Failed to erase tiles')
+      return
+    }
     const primary = store.state.selectionState.primary
     const objCount = primary ? store.state.selectionState.items.length || 1 : 0
     if (objCount === 0) return
@@ -603,6 +675,7 @@ async function onKeyDown(e: KeyboardEvent) {
     }
   } else if (e.key === 'Escape') {
     if (dragState.assetId) endAssetDrag()
+    clearTileSelection()
     store.state.selectionState = { primary: null, items: [] }
   } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'l') {
     e.preventDefault()
@@ -1032,22 +1105,48 @@ async function cancelDrawnOrigin() {
       </g>
 
       <g
-        v-if="renderWalkableOverlay && floor?.walkable?.tileStates"
-        v-memo="[walkableRuns, renderWalkableOverlay]"
+        v-if="floor?.walkable?.tileStates && (renderWalkableOverlay || renderWallOverlay)"
+        v-memo="[visibleWalkableRuns, renderWalkableOverlay, renderWallOverlay, canvas.wallColor]"
         class="editor__svg--noevents"
       >
         <rect
-          v-for="(run, i) in walkableRuns"
+          v-for="(run, i) in visibleWalkableRuns"
           :key="`floor-walk-run-${i}`"
           :x="run.x"
           :y="run.y"
           :width="run.w"
           :height="run.h"
           :class="`editor__tile editor__tile--${run.state}`"
+          :style="run.state === 'blocked' && canvas.wallColor ? { fill: canvas.wallColor } : undefined"
         />
       </g>
 
-      <g v-if="tilePaintPreview" class="editor__svg--noevents">
+      <g v-if="renderDoorOverlay && doorCells.length" class="editor__svg--noevents">
+        <rect
+          v-for="cell in doorCells"
+          :key="cell.key"
+          :x="cell.x"
+          :y="cell.y"
+          :width="cell.w"
+          :height="cell.h"
+          class="editor__tile editor__tile--door"
+          :style="doorTileStyle(cell)"
+        />
+      </g>
+
+      <g v-if="eraseGuideRects.length" class="editor__svg--noevents">
+        <rect
+          v-for="(guide, i) in eraseGuideRects"
+          :key="`erase-guide-${i}`"
+          :x="guide.x"
+          :y="guide.y"
+          :width="guide.w"
+          :height="guide.h"
+          class="editor__erase-guide"
+        />
+      </g>
+
+      <g v-if="tilePaintDragging && tilePaintPreview" class="editor__svg--noevents">
         <rect
           :x="tilePaintPreview.x"
           :y="tilePaintPreview.y"
@@ -1161,19 +1260,21 @@ async function cancelDrawnOrigin() {
               class="editor__overlay--highlight editor__svg--noevents"
             />
             <template
-              v-if="renderWalkableOverlay && objDef(obj).walkableGrid"
-              v-memo="[obj.id, obj.x, obj.y, obj.w, obj.h, renderWalkableOverlay, objDef(obj).walkableGrid]"
+              v-if="(renderWalkableOverlay || renderWallOverlay) && objDef(obj).walkableGrid"
+              v-memo="[obj.id, obj.x, obj.y, obj.w, obj.h, renderWalkableOverlay, renderWallOverlay, objDef(obj).walkableGrid, canvas.wallColor]"
             >
               <template v-for="(row, gr) in objDef(obj).walkableGrid" :key="'wg_' + obj.id + '-' + gr">
-                <rect
-                  v-for="(cell, gc) in row"
-                  :key="'wg_' + obj.id + '-' + gr + '-' + gc"
-                  :x="obj.x + gc * (obj.w / row.length)"
-                  :y="obj.y + gr * (obj.h / objDef(obj).walkableGrid!.length)"
-                  :width="obj.w / row.length"
-                  :height="obj.h / objDef(obj).walkableGrid!.length"
-                  :class="`editor__tile editor__tile--obj-${cell ? 'walkable' : 'blocked'}`"
-                />
+                <template v-for="(cell, gc) in row" :key="'wgc_' + obj.id + '-' + gr + '-' + gc">
+                  <rect
+                    v-if="(cell && renderWalkableOverlay) || (!cell && renderWallOverlay)"
+                    :x="obj.x + gc * (obj.w / row.length)"
+                    :y="obj.y + gr * (obj.h / objDef(obj).walkableGrid!.length)"
+                    :width="obj.w / row.length"
+                    :height="obj.h / objDef(obj).walkableGrid!.length"
+                    :class="`editor__tile editor__tile--${cell ? 'walkable' : 'blocked'}`"
+                    :style="!cell && canvas.wallColor ? { fill: canvas.wallColor } : undefined"
+                  />
+                </template>
               </template>
             </template>
             <rect
@@ -1401,6 +1502,22 @@ async function cancelDrawnOrigin() {
         Walk
       </button>
       <button
+        :class="{ 'flag--active': showWallTiles }"
+        title="Toggle Wall Tiles"
+        aria-label="Toggle wall tiles"
+        @click="toggleView('showWallTiles')"
+      >
+        Walls
+      </button>
+      <button
+        :class="{ 'flag--active': showDoorTiles }"
+        title="Toggle Door Tiles"
+        aria-label="Toggle door tiles"
+        @click="toggleView('showDoorTiles')"
+      >
+        Doors
+      </button>
+      <button
         :class="{ 'flag--active': showInteractSpots }"
         title="Toggle Interact Spots"
         aria-label="Toggle interact spots"
@@ -1572,6 +1689,7 @@ async function cancelDrawnOrigin() {
 .editor__tile--door {
   fill: color-mix(in srgb, var(--accent-blue) 30%, transparent);
   stroke: color-mix(in srgb, var(--accent-green) 20%, transparent);
+  transition: transform 220ms ease, opacity 220ms ease;
 }
 
 .editor__tile--blocked {
@@ -1595,13 +1713,17 @@ async function cancelDrawnOrigin() {
 }
 
 .editor__tile-preview--blocked {
-  fill: color-mix(in srgb, var(--accent-red) 25%, transparent);
-  stroke: var(--accent-red);
+  fill: color-mix(in srgb, var(--accent-primary) 25%, transparent);
+  stroke: var(--accent-primary);
 }
 
 .editor__tile-preview--erase {
-  fill: color-mix(in srgb, var(--accent-red) 20%, transparent);
+  fill: none;
   stroke: var(--accent-red);
+}
+
+.editor__erase-guide {
+  fill: color-mix(in srgb, var(--accent-red) 45%, transparent);
 }
 
 .editor__ruler--passive {

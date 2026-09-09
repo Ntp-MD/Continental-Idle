@@ -153,14 +153,14 @@ assert.equal(conv('<rect fill="none" stroke="#abc" fill="none"/>'), '<rect fill=
 console.log('SVG color convention checks passed')
 
 const canvasKeys = Object.keys(CANVAS_FIELD_SPECS).sort()
-assert.deepEqual(canvasKeys, ['bgColor', 'height', 'labelColor', 'tileSize', 'width'])
+assert.deepEqual(canvasKeys, ['bgColor', 'height', 'labelColor', 'tileSize', 'wallColor', 'width'])
 
-const sampleCanvas: Required<CanvasConfig> = { width: 100, height: 50, tileSize: 25, bgColor: '#000000', labelColor: '#cccccc' }
+const sampleCanvas: Required<CanvasConfig> = { width: 100, height: 50, tileSize: 25, bgColor: '#000000', labelColor: '#cccccc', wallColor: '#ff0000' }
 const roundTrip = parseCanvasConfig(sampleCanvas, true)
 assert.deepEqual(roundTrip, sampleCanvas)
 
-const strictCanvas = parseCanvasConfig({ width: 100, height: 50, tileSize: 25, bgColor: '#ffffff', labelColor: '#cccccc' }, true)
-assert.deepEqual(strictCanvas, { width: 100, height: 50, tileSize: 25, bgColor: '#ffffff', labelColor: '#cccccc' })
+const strictCanvas = parseCanvasConfig({ width: 100, height: 50, tileSize: 25, bgColor: '#ffffff', labelColor: '#cccccc', wallColor: '#ff0000' }, true)
+assert.deepEqual(strictCanvas, { width: 100, height: 50, tileSize: 25, bgColor: '#ffffff', labelColor: '#cccccc', wallColor: '#ff0000' })
 assert.equal(parseCanvasConfig({ width: 100, height: 50, tileSize: 25, bgColor: 'white' }, true), null)
 assert.equal(parseCanvasConfig({ width: 100, height: 50, tileSize: 0 }, true), null)
 assert.equal(parseCanvasConfig({ height: 50, tileSize: 25 }, true), null)

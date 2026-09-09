@@ -110,7 +110,7 @@ async function duplicateAsset() {
       <label>ID</label>
       <div class="form__row size--stretch">
         <input class="size--fill" type="text" :value="asset.id" disabled title="Asset ID" />
-        <button @click="copyId(asset.id)">Copy</button>
+        <button title="Copy asset ID to clipboard" @click="copyId(asset.id)">Copy ID</button>
       </div>
     </div>
 

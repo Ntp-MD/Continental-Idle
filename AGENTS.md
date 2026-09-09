@@ -25,11 +25,11 @@ Universal harness companion - ships with `harness/`. Everything here applies eve
 
 ## Workflow
 
-`inspect -> plan -> implement -> test -> fix -> review -> done` per `harness/harness.md` (light loop for single-file routine fixes). The live slot must be current (or cleared + logged in `history.md`) - a task with a stale slot is not finished.
+`inspect -> plan -> implement -> test -> fix -> review -> done` per `harness/harness.md` (feature lane for ideas/PRDs/issues, light loop for single-file routine fixes). The live slot must be current (or cleared + logged in `history.md`) - a task with a stale slot is not finished.
 
 ## Canonical patterns
 
-Settled project patterns live in `skill.md` (Layout: Component patterns + Domain). Reuse them; do not introduce a second way.
+Settled project patterns live in `skill.md` (Layout: Component patterns + Domain). Reuse them; do not introduce a second way. Glossary lives in `skill.md` only - never a second glossary file.
 
 ## Verify
 

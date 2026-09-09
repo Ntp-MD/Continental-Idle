@@ -25,6 +25,7 @@ export function useCanvasSelection(
 		onDrawComplete?: (rect: Rect) => void
 		onBoxSelectStart?: () => void
 		onBoxSelectComplete?: (rect: Rect) => void
+		onTileMarquee?: (rect: Rect) => void
 	},
 ): SelectionState {
 	const boxSelectThreshold = () => Math.max(1, opts.boxSelectThresholdPx() / opts.zoom.value)
@@ -88,6 +89,8 @@ export function useCanvasSelection(
 			} else if (hitIds.length > 1) {
 				const items = hitIds.map(id => ({ type: 'object' as const, id }))
 				store.state.selectionState = { primary: items[0], items }
+			} else {
+				opts.onTileMarquee?.(rect)
 			}
 		}
 		boxSelect.value = null

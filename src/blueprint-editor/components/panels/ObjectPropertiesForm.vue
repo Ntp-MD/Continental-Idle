@@ -34,6 +34,10 @@ async function doUnlink() {
   useToast().info('Object unlinked')
 }
 
+async function toggleLock() {
+  await store.toggleObjectLock(props.object.id)
+}
+
 function deselect() {
   store.select(null)
   store.selectAsset(null)
@@ -48,7 +52,7 @@ function deselect() {
         <label>ID</label>
         <div class="form__row size--stretch">
           <input class="size--fill" type="text" :value="object.id" disabled title="Object ID" />
-          <button @click="copyId(object.id)">Copy</button>
+          <button title="Copy object ID to clipboard" @click="copyId(object.id)">Copy ID</button>
         </div>
       </div>
       <div class="form__row">
@@ -110,7 +114,8 @@ function deselect() {
     </div>
     <div class="form__row">
       <button @click="deselect">Deselect</button>
-      <button class="flag--danger" @click="remove">Delete</button>
+      <button :title="object.locked ? 'Unlock object (L)' : 'Lock object (L)'" @click="toggleLock">{{ object.locked ? 'Unlock' : 'Lock' }}</button>
+      <button class="flag--danger" title="Delete selected object (Delete)" @click="remove">Delete</button>
     </div>
   </div>
 </template>

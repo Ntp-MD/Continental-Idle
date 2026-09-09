@@ -3,6 +3,8 @@
 // route: read the working tree and print ONLY the matching suites plus the
 // project's verify table (marked block in the instruction file).
 // run: execute the runnable suites, stop at the first failure.
+// Covers both lanes in harness.md: light loop (single-file fix) and feature
+// lane (per-ticket loop) - routing is per changed file either way.
 //
 // Run with: node harness/scripts/verify.mjs [check|route|run|compact]
 // Exit code: 0 = ok, 1 = check failure / suite failure / usage error

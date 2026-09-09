@@ -83,6 +83,99 @@ export function tileStatesToWalkableGrid(states: TileState[][]): WalkableGrid {
 	return states.map((row) => row.map((state) => state === 'walkable' || state === 'door'))
 }
 
+export interface DoorGroupCell {
+	row: number
+	col: number
+	slideDir: -1 | 1
+}
+
+export interface DoorGroup {
+	key: string
+	axis: 'x' | 'y'
+	cells: DoorGroupCell[]
+}
+
+export function groupDoorCells(states: TileState[][]): DoorGroup[] {
+	const groups: DoorGroup[] = []
+	if (!states?.length) return groups
+	const seen = new Set<string>()
+	const isDoor = (row: number, col: number): boolean => states[row]?.[col] === 'door'
+	for (let row = 0; row < states.length; row++) {
+		const cols = states[row]?.length ?? 0
+		for (let col = 0; col < cols; col++) {
+			const key = `${row},${col}`
+			if (!isDoor(row, col) || seen.has(key)) continue
+			const cells: Array<{ row: number; col: number }> = []
+			const queue = [{ row, col }]
+			seen.add(key)
+			while (queue.length) {
+				const current = queue.shift()!
+				cells.push(current)
+				const neighbors = [
+					[current.row - 1, current.col],
+					[current.row + 1, current.col],
+					[current.row, current.col - 1],
+					[current.row, current.col + 1],
+				]
+				for (const [nr, nc] of neighbors) {
+					const nk = `${nr},${nc}`
+					if (nr < 0 || nc < 0 || !isDoor(nr, nc) || seen.has(nk)) continue
+					seen.add(nk)
+					queue.push({ row: nr, col: nc })
+				}
+			}
+			const minRow = Math.min(...cells.map((cell) => cell.row))
+			const maxRow = Math.max(...cells.map((cell) => cell.row))
+			const minCol = Math.min(...cells.map((cell) => cell.col))
+			const maxCol = Math.max(...cells.map((cell) => cell.col))
+			const axis: 'x' | 'y' = maxCol - minCol >= maxRow - minRow ? 'x' : 'y'
+			const sorted = [...cells].sort((a, b) => (axis === 'x' ? a.col - b.col : a.row - b.row))
+			const half = Math.ceil(sorted.length / 2)
+			groups.push({
+				key: `${minRow},${minCol}`,
+				axis,
+				cells: sorted.map((cell, index) => ({ row: cell.row, col: cell.col, slideDir: index < half ? -1 : 1 })),
+			})
+		}
+	}
+	return groups
+}
+
+export function rescaleFloorWalkable(walkable: FloorWalkable | undefined, rows: number, cols: number): FloorWalkable | undefined {
+	if (!walkable) return walkable
+	const states = walkable.tileStates
+	if (states?.length && states[0]?.length) {
+		const oldRows = states.length
+		const oldCols = states[0].length
+		if (oldRows === rows && oldCols === cols) return walkable
+		const scale = (map: (or: number, oc: number) => TileState): TileState[][] =>
+			Array.from({ length: rows }, (_, row) =>
+				Array.from({ length: cols }, (_, col) => {
+					const or = Math.min(oldRows - 1, Math.floor((row * oldRows) / rows))
+					const oc = Math.min(oldCols - 1, Math.floor((col * oldCols) / cols))
+					return map(or, oc)
+				}),
+			)
+		const scaled = scale((or, oc) => states[or][oc] ?? 'walkable')
+		return { walkableGrid: tileStatesToWalkableGrid(scaled), tileStates: scaled }
+	}
+	const grid = walkable.walkableGrid
+	if (grid?.length && grid[0]?.length) {
+		const oldRows = grid.length
+		const oldCols = grid[0].length
+		if (oldRows === rows && oldCols === cols) return walkable
+		const scaled = Array.from({ length: rows }, (_, row) =>
+			Array.from({ length: cols }, (_, col) => {
+				const or = Math.min(oldRows - 1, Math.floor((row * oldRows) / rows))
+				const oc = Math.min(oldCols - 1, Math.floor((col * oldCols) / cols))
+				return grid[or]?.[oc] ?? true
+			}),
+		)
+		return { walkableGrid: scaled }
+	}
+	return walkable
+}
+
 // --- Section 13: Shared internal helpers (not exported) ---
 
 const MAX_DATA_STRING_LENGTH = 512
@@ -989,6 +1082,7 @@ export interface CanvasConfig {
 	tileSize: number
 	bgColor?: string
 	labelColor?: string
+	wallColor?: string
 }
 
 export interface CanvasFieldSpec {
@@ -1004,6 +1098,7 @@ export const CANVAS_FIELD_SPECS = {
 	tileSize: { kind: 'number', required: true, min: 1, max: 1_000 },
 	bgColor: { kind: 'color' },
 	labelColor: { kind: 'color' },
+	wallColor: { kind: 'color' },
 } as const satisfies Record<keyof CanvasConfig, CanvasFieldSpec>
 
 export function parseCanvasConfig(raw: unknown, strict: boolean): CanvasConfig | null {
@@ -1062,6 +1157,7 @@ export interface EditorSettings {
 	walkableGridMaxTilePx: number
 	walkableGridMaxWidthPx: number
 	walkableGridMaxHeightPx: number
+	npcDotSize: number
 }
 
 export interface EditorFieldSpec {
@@ -1093,6 +1189,7 @@ export const EDITOR_FIELD_SPECS = {
 	walkableGridMaxTilePx: { kind: 'number', min: 10, max: 80 },
 	walkableGridMaxWidthPx: { kind: 'number', min: 200, max: 2000 },
 	walkableGridMaxHeightPx: { kind: 'number', min: 200, max: 2000 },
+	npcDotSize: { kind: 'number', min: 2, max: 12 },
 } as const satisfies Record<keyof EditorSettings, EditorFieldSpec>
 
 export const DEFAULT_EDITOR_SETTINGS: EditorSettings = {
@@ -1117,6 +1214,7 @@ export const DEFAULT_EDITOR_SETTINGS: EditorSettings = {
 	walkableGridMaxTilePx: 40,
 	walkableGridMaxWidthPx: 900,
 	walkableGridMaxHeightPx: 560,
+	npcDotSize: 4,
 }
 
 export function normalizeEditorSettings(value: unknown): EditorSettings {

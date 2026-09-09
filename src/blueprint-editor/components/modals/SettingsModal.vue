@@ -23,6 +23,7 @@ const heightInput = ref(store.state.layout.canvas.height)
 const tileInput = ref(store.state.layout.canvas.tileSize)
 const bgColorInput = ref(store.state.layout.canvas.bgColor)
 const labelColorInput = ref(store.state.layout.canvas.labelColor)
+const wallColorInput = ref(store.state.layout.canvas.wallColor)
 
 watch(
   () => [props.open, store.state.layout.canvas] as const,
@@ -33,6 +34,7 @@ watch(
       tileInput.value = c.tileSize
       bgColorInput.value = c.bgColor
       labelColorInput.value = c.labelColor
+      wallColorInput.value = c.wallColor
     }
   },
   { immediate: true },
@@ -78,6 +80,15 @@ async function applyLabelColor(value: string | undefined) {
   }
 }
 
+async function applyWallColor(value: string | undefined) {
+  try {
+    const saved = await run(() => store.setCanvasWallColor(value))
+    if (!saved) toast.error('Failed to set wall color')
+  } catch {
+    toast.error('Failed to set wall color')
+  }
+}
+
 async function applyStreetFloor(floorId: string | null) {
   try {
     const saved = await run(() => store.setStreetFloor(floorId))
@@ -110,13 +121,12 @@ interface EditorGroup {
   fields: FieldDef[]
 }
 
-type SettingsTab = 'canvas' | 'interaction' | 'display' | 'scene' | 'grid'
+type SettingsTab = 'canvas' | 'interaction' | 'display' | 'grid'
 const activeTab = ref<SettingsTab>('canvas')
 const settingsTabs: { key: SettingsTab; label: string }[] = [
   { key: 'canvas', label: 'Canvas' },
   { key: 'interaction', label: 'Interaction' },
   { key: 'display', label: 'Display' },
-  { key: 'scene', label: 'Scene' },
   { key: 'grid', label: 'Grid Editor' },
 ]
 const editorTabs = settingsTabs.filter((t) => t.key !== 'canvas') as {
@@ -139,10 +149,11 @@ const editorGroupsByTab: Record<Exclude<SettingsTab, 'canvas'>, EditorGroup[]> =
   display: [
     {
       title: 'Overlay Sizes',
-      hint: 'Radius of spot dots and lock indicators.',
+      hint: 'Radius of spot dots, lock indicators and NPC dots.',
       fields: [
         { key: 'interactSpotRadiusPx', label: 'Interact spot radius', step: 0.5 },
         { key: 'lockIndicatorRadiusPx', label: 'Lock indicator radius', step: 0.5 },
+        { key: 'npcDotSize', label: 'NPC dot radius', step: 0.5 },
       ],
     },
     {
@@ -155,17 +166,6 @@ const editorGroupsByTab: Record<Exclude<SettingsTab, 'canvas'>, EditorGroup[]> =
         { key: 'zoneLabelFontSizePx', label: 'Zone label', step: 0.5 },
         { key: 'emptyStateFontSizePx', label: 'Empty state', step: 1 },
         { key: 'rulerTickFontSizePx', label: 'Ruler tick', step: 0.5 },
-      ],
-    },
-  ],
-  scene: [
-    {
-      title: 'Street',
-      hint: 'Dash/gap ratios of tileSize; sidewalk fraction.',
-      fields: [
-        { key: 'streetDashRatio', label: 'Dash ratio', step: 0.01 },
-        { key: 'streetGapRatio', label: 'Gap ratio', step: 0.01 },
-        { key: 'sidewalkTileRatio', label: 'Sidewalk tile ratio', step: 0.01 },
       ],
     },
     {
@@ -312,7 +312,7 @@ async function resetEditorAll() {
             <input id="canvas__tile" v-model.number="tileInput" type="number" min="5" step="5" />
           </div>
           <button
-            class="flag--active size--fit"
+            class="flag--active size--fit settings__apply--bottom"
             :disabled="pending"
             aria-label="Apply canvas size"
             @click="applyCanvasSize"
@@ -354,6 +354,21 @@ async function resetEditorAll() {
       </div>
 
       <div class="form__col form--section">
+        <div>Walls</div>
+        <div class="form__row">
+          <label for="canvas__wallcolor">Color</label>
+          <ColorInput
+            v-model="wallColorInput"
+            allow-transparent
+            placeholder="#RRGGBB (empty = theme default)"
+            aria-label="Wall tile color"
+            @commit="applyWallColor"
+          />
+        </div>
+        <div class="form__hint">Color for wall tiles.</div>
+      </div>
+
+      <div class="form__col form--section">
         <div>Street</div>
         <div class="form__row">
           <label for="canvas__streetfloor">On floor</label>
@@ -381,7 +396,43 @@ async function resetEditorAll() {
             <option v-for="w in [5, 6, 7, 8, 9, 10, 11, 12]" :key="w" :value="w">{{ w }} tiles</option>
           </select>
         </div>
-        <div class="form__hint">Ring width drives placement boundary and NPC walkable zone.</div>
+        <div class="form__row">
+          <label for="es__streetDashRatio">Dash ratio</label>
+          <input
+            id="es__streetDashRatio"
+            v-model.number="draft.streetDashRatio"
+            type="number"
+            :min="fieldRange('streetDashRatio').min"
+            :max="fieldRange('streetDashRatio').max"
+            :step="0.01"
+            @change="applyEditorField('streetDashRatio')"
+          />
+        </div>
+        <div class="form__row">
+          <label for="es__streetGapRatio">Gap ratio</label>
+          <input
+            id="es__streetGapRatio"
+            v-model.number="draft.streetGapRatio"
+            type="number"
+            :min="fieldRange('streetGapRatio').min"
+            :max="fieldRange('streetGapRatio').max"
+            :step="0.01"
+            @change="applyEditorField('streetGapRatio')"
+          />
+        </div>
+        <div class="form__row">
+          <label for="es__sidewalkTileRatio">Sidewalk tile ratio</label>
+          <input
+            id="es__sidewalkTileRatio"
+            v-model.number="draft.sidewalkTileRatio"
+            type="number"
+            :min="fieldRange('sidewalkTileRatio').min"
+            :max="fieldRange('sidewalkTileRatio').max"
+            :step="0.01"
+            @change="applyEditorField('sidewalkTileRatio')"
+          />
+        </div>
+        <div class="form__hint">Ring width drives placement boundary and NPC walkable zone; ratios style dash/gap/sidewalk.</div>
       </div>
     </div>
 
@@ -433,6 +484,12 @@ async function resetEditorAll() {
     </template>
   </ModalShell>
 </template>
+
+<style scoped>
+.settings__apply--bottom {
+  margin-top: auto;
+}
+</style>
 
 <style>
 .settings__panel {

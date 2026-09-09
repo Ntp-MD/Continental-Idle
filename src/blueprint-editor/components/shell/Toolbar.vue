@@ -72,7 +72,7 @@ function onSwitchMode(mode: 'object' | 'draw' | 'move') {
   store.setMode(mode)
 }
 
-function onTileBrush(brush: 'walkable' | 'blocked' | 'door' | 'erase') {
+function onTileBrush(brush: 'walkable' | 'blocked' | 'door') {
   if (previewActive.value) return
   store.setTileBrush(store.state.tileBrush === brush ? null : brush)
 }
@@ -106,10 +106,10 @@ function onSyncToGame() {
     <button
       :disabled="previewActive"
       :class="{ 'flag--active': store.state.mode === 'object' }"
-      aria-label="Switch to object mode"
+      aria-label="Switch to free tool mode - select objects and wall/door tiles"
       @click="onSwitchMode('object')"
     >
-      Object
+      Free tool
     </button>
     <button
       :disabled="previewActive"
@@ -149,14 +149,6 @@ function onSyncToGame() {
       @click="onTileBrush('door')"
     >
       Door
-    </button>
-    <button
-      :disabled="previewActive"
-      :class="{ 'flag--active': store.state.tileBrush === 'erase' }"
-      aria-label="Erase wall and door tiles on the current floor"
-      @click="onTileBrush('erase')"
-    >
-      Erase
     </button>
     <button title="Configure NPC roles and tags" aria-label="Open NPC manager" :disabled="previewActive" @click="onNpcManager">
       NPC Manager

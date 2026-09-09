@@ -252,7 +252,7 @@ function floorCounts(f: FloorData): string {
             <button
               type="button"
               class="flag--danger"
-              title="Delete floor"
+              :title="floors.length <= 1 ? 'Cannot delete the last floor' : 'Delete floor'"
               :aria-label="`Delete floor ${f.name}`"
               :disabled="floors.length <= 1"
               @click.stop="onDelete(f.id)"
@@ -398,7 +398,7 @@ function floorCounts(f: FloorData): string {
     </div>
     <template v-if="selectedFloor" #footer>
       <button @click="onDuplicate(selectedFloor.id)">Duplicate</button>
-      <button class="flag--danger" :disabled="floors.length <= 1" @click="onDelete(selectedFloor.id)">Delete</button>
+      <button class="flag--danger" :title="floors.length <= 1 ? 'Cannot delete the last floor' : 'Delete floor'" :disabled="floors.length <= 1" @click="onDelete(selectedFloor.id)">Delete</button>
     </template>
   </ModalShell>
 </template>

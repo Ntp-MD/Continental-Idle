@@ -117,16 +117,12 @@ export async function paintFloorTiles(
 	const rows = Math.max(1, Math.ceil(state.layout.canvas.height / tileSize))
 	const street = resolveStreetTiles(state.layout)
 	const states = resolveFloorTileStates(floor, rows, cols)
-	const r0 = Math.max(street, Math.min(rect.row0, rect.row1))
-	const r1 = Math.min(rows - street - 1, Math.max(rect.row0, rect.row1))
-	const c0 = Math.max(street, Math.min(rect.col0, rect.col1))
-	const c1 = Math.min(cols - street - 1, Math.max(rect.col0, rect.col1))
-	if (r0 <= r1 && c0 <= c1) applyTileBrush(states, brush, r0, c0, r1, c1)
 	for (let row = 0; row < rows; row++) {
 		for (let col = 0; col < cols; col++) {
 			if (row < street || row >= rows - street || col < street || col >= cols - street) states[row][col] = 'walkable'
 		}
 	}
+	applyTileBrush(states, brush, Math.min(rect.row0, rect.row1), Math.min(rect.col0, rect.col1), Math.max(rect.row0, rect.row1), Math.max(rect.col0, rect.col1))
 	const walkableGrid = tileStatesToWalkableGrid(states)
 	floor.walkable = { walkableGrid, tileStates: states }
 	return saveBlueprintData()

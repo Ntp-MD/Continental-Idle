@@ -140,7 +140,7 @@ function toggleTransparent() {
 .color {
   display: flex;
   align-items: center;
-  gap: var(--gap-xs);
+  gap: var(--gap-sm);
 }
 
 .color__swatch {

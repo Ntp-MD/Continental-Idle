@@ -1,0 +1,9 @@
+1. ทำ context.md / domain Glossary + Shared Language แบบ Matt Pocock Skills ใส่ไว้ใน /harness
+2 rework task-context.md -> เมื่อได้รับคำสั่งจาก user (save and next) ไม่ต้องโชว์ว่าแก้ไฟล์นี้บน context window chat
+- 1.บันทึกสิ่งที่ user สั่งหรือพูดคุยที่แปลง context window แล้วบันทึกลงไฟล์ task-context.md กลับไปรัน task ปกติ
+- 2.บันสิ่งที่สืบมาได้แล้วว่าเจออะไรสาเหตุอะไร บันทึกลงไฟล์ task-context.md กลับไปรัน task ปกติ
+- 3.ตัวเลือกการตัดสินใจ บันทึกลงไฟล์ task-context.md กลับไปรัน task ปกติ
+- 4.งานเสร็จแล้วค่อย clear slot. รอรับอันใหม่
+(ที่ให้เป็นแบบนี้เพราะ เจอตัดตอน limit เต็มแล้วไฟล์นี้ task-context.md ยังไม่ได้เขียนอะไรสักอย่าง ทำให้จุดประสงค์ของไฟล์นี้ไม่มีประโยชน์)
+3.ขัดเกลา harness ให้ยกออกไปใช้ project อื่่นได้เลยไม่ต้องติดตั้งเยอะ และชัวว่าทุก agent และ provider จะทำงานกับ harness นี้
+4.ทำ cline token limit usage ui maybe import from cline pass

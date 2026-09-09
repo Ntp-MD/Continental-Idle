@@ -19,7 +19,7 @@ import {
 } from './metadata'
 import { saveBlueprintData, syncToGame } from './persistence'
 import { selectedObject, selectedAsset, selectAsset, selectedObjectIds } from './selection'
-import { setMode, setTileBrush, resizeCanvas, setCanvasBgColor, setCanvasLabelColor, setStreetFloor, setStreetWidth, setEditorSettings, resetEditorSettings } from './mode'
+import { setMode, setTileBrush, resizeCanvas, setCanvasBgColor, setCanvasLabelColor, setCanvasWallColor, setStreetFloor, setStreetWidth, setEditorSettings, resetEditorSettings } from './mode'
 import { tagCatalog, globalTags, managedTagSet, addTag, removeTag, ensureTag } from './tags'
 
 export {
@@ -42,7 +42,7 @@ export {
 export { saveBlueprintData, syncToGame } from './persistence'
 export { reloadEditorData } from './state'
 export { selectedObject, selectedAsset, selectAsset, selectedObjectIds } from './selection'
-export { setMode, setTileBrush, resizeCanvas, setCanvasBgColor, setCanvasLabelColor, setStreetFloor, setStreetWidth, setEditorSettings, resetEditorSettings } from './mode'
+export { setMode, setTileBrush, resizeCanvas, setCanvasBgColor, setCanvasLabelColor, setCanvasWallColor, setStreetFloor, setStreetWidth, setEditorSettings, resetEditorSettings } from './mode'
 export { tagCatalog, globalTags, managedTagSet, addTag, removeTag, ensureTag } from './tags'
 export { dragState, startAssetDrag, endAssetDrag } from './state'
 
@@ -68,7 +68,7 @@ export function useAssetsStore() {
 		copySelected, pasteObjects,
 		saveBlueprintData, syncToGame,
 		selectedObject, selectedAsset, selectAsset, selectedObjectIds,
-		setMode, setTileBrush, resizeCanvas, setCanvasBgColor, setCanvasLabelColor, setStreetFloor, setStreetWidth, setEditorSettings, resetEditorSettings,
+		setMode, setTileBrush, resizeCanvas, setCanvasBgColor, setCanvasLabelColor, setCanvasWallColor, setStreetFloor, setStreetWidth, setEditorSettings, resetEditorSettings,
 		tagCatalog, globalTags, managedTagSet, addTag, removeTag, ensureTag,
 	}
 }
