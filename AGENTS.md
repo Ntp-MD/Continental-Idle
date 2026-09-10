@@ -22,6 +22,7 @@ Universal harness companion - ships with `harness/`. Everything here applies eve
 1. `harness/harness.md` - how the loop runs.
 2. `harness/task-context.md` - live state, read first (RESUME). `harness/history.md` is human reference - the agent reads it only on explicit user order, never routinely.
 3. `skill.md` - project domain knowledge, only when the task touches it.
+4. `harness/context.md` - shared language (glossary), when domain terms or wording matter.
 
 ## Workflow
 
@@ -29,7 +30,7 @@ Universal harness companion - ships with `harness/`. Everything here applies eve
 
 ## Canonical patterns
 
-Settled project patterns live in `skill.md` (Layout: Component patterns + Domain). Reuse them; do not introduce a second way. Glossary lives in `skill.md` only - never a second glossary file.
+Settled project patterns live in `skill.md` (Layout: Component patterns + Domain). Reuse them; do not introduce a second way. Glossary lives in `harness/context.md` only - never a second glossary file.
 
 ## Verify
 

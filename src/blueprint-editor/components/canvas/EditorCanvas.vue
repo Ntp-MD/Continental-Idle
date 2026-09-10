@@ -1723,7 +1723,7 @@ async function cancelDrawnOrigin() {
 }
 
 .editor__erase-guide {
-  fill: color-mix(in srgb, var(--accent-red) 45%, transparent);
+  fill: color-mix(in srgb, var(--accent-blue) 45%, transparent);
 }
 
 .editor__ruler--passive {

@@ -1035,5 +1035,70 @@ export const originAssetsData = [
       "maxMembers": 3,
       "admissionDepth": 4
     }
+  },
+  {
+    "id": "elevator-1",
+    "name": "Elevator",
+    "w": 2,
+    "h": 2,
+    "category": "Special",
+    "walkable": false,
+    "defaultFillColor": "#ffffff",
+    "tags": [
+      "portal"
+    ],
+    "origin": "svg-import",
+    "svg": "<rect x=\"1.5\" y=\"1.5\" width=\"27\" height=\"27\" rx=\"2\" fill=\"var(--obj-fill,#ffffff)\" stroke=\"var(--obj-stroke,#ffffff)\" stroke-width=\"1\"/><rect x=\"6\" y=\"4\" width=\"18\" height=\"22\" rx=\"1\" fill=\"var(--obj-fill,none)\" stroke=\"var(--text-secondary)\" stroke-width=\"0.8\"/><line x1=\"15\" y1=\"4\" x2=\"15\" y2=\"26\" stroke=\"var(--text-secondary)\" stroke-width=\"0.6\"/>",
+    "svgViewBox": {
+      "w": 30,
+      "h": 30
+    },
+    "walkableGrid": [
+      [
+        false,
+        false
+      ],
+      [
+        false,
+        false
+      ]
+    ],
+    "tileStates": [
+      [
+        "blocked",
+        "blocked"
+      ],
+      [
+        "blocked",
+        "blocked"
+      ]
+    ],
+    "interactSpots": [
+      {
+        "kind": "stand",
+        "x": 7.5,
+        "y": -7.5
+      },
+      {
+        "kind": "stand",
+        "x": 22.5,
+        "y": -7.5
+      },
+      {
+        "kind": "stand",
+        "x": 7.5,
+        "y": 37.5
+      },
+      {
+        "kind": "stand",
+        "x": 22.5,
+        "y": 37.5
+      }
+    ],
+    "interact": {
+      "capacity": 4,
+      "durationMin": 1,
+      "durationMax": 3
+    }
   }
 ]

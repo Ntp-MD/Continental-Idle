@@ -54,6 +54,8 @@ export class NpcEngine {
 	private readonly reservations = new Map<string, Set<string>>()
 	private readonly reservationKeyByAgent = new Map<string, string>()
 	private readonly interactSpotReservations = new Map<string, string>()
+	private readonly claimedRooms = new Map<string, string>()
+	private readonly claimedRoomByAgent = new Map<string, string>()
 	private readonly queueMembers = new Map<string, string[]>()
 	private readonly queueSlotReservations = new Map<string, string>()
 	private readonly queueArrivalSequence = new Map<string, number>()
@@ -191,6 +193,8 @@ export class NpcEngine {
 		this.cellReservations.clear()
 		this.cellByAgent.clear()
 		this.waypointByAgent.clear()
+		this.claimedRooms.clear()
+		this.claimedRoomByAgent.clear()
 		this.progressWatchdog.clear()
 		this.repathAttempts.clear()
 		this.repathCooldownUntil.clear()
@@ -1217,6 +1221,10 @@ export class NpcEngine {
 		const holders = this.reservations.get(key)
 		if (holders?.has(agentId)) return true
 		if (this.interactSpotReservations.has(interactSpotKey) || (holders?.size ?? 0) >= Math.max(1, Math.floor(target.capacity ?? 1))) return false
+		if (target.roomPrivate && target.roomId) {
+			const holder = this.claimedRooms.get(`${target.floorId}:${target.roomId}`)
+			if (holder !== undefined && holder !== agentId) return false
+		}
 		return !this.reservationKeyByAgent.has(agentId)
 	}
 
@@ -1232,6 +1240,11 @@ export class NpcEngine {
 		this.reservations.set(key, holders)
 		this.reservationKeyByAgent.set(agentId, key)
 		this.interactSpotReservations.set(interactSpotKey, agentId)
+		if (target.roomPrivate && target.roomId) {
+			const roomKey = `${target.floorId}:${target.roomId}`
+			this.claimedRooms.set(roomKey, agentId)
+			this.claimedRoomByAgent.set(agentId, roomKey)
+		}
 		const agent = this.agents.get(agentId)
 		if (agent) {
 			agent.reservationItemId = target.itemId
@@ -1241,6 +1254,11 @@ export class NpcEngine {
 	}
 
 	private releaseReservation(agent: MutableAgent): void {
+		const claimedRoom = this.claimedRoomByAgent.get(agent.id)
+		if (claimedRoom !== undefined) {
+			if (this.claimedRooms.get(claimedRoom) === agent.id) this.claimedRooms.delete(claimedRoom)
+			this.claimedRoomByAgent.delete(agent.id)
+		}
 		if (agent.reservationItemId !== null) {
 			const key = `${agent.floorId}:${agent.reservationItemId}`
 			const interactSpotKey = `${key}:${agent.reservationInteractSpotId ?? ''}`

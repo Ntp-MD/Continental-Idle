@@ -30,6 +30,12 @@ export interface NpcEngineInteractionTarget {
 	destinationPortalKey?: string
 
 	portalEndpointKey?: string
+
+	roomId?: string
+
+	roomType?: string
+
+	roomPrivate?: boolean
 }
 
 export interface NpcEngineQueue {

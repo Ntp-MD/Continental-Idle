@@ -7,149 +7,6 @@ follow it when logging below.
 
 - (empty - first finished task adds the first entry here)
 
-### find old refer outdate - 2026-09-07 17:38 UTC+7 (muse-spark, opencode/muse-spark-1.3-contributor-free)
-- audit repo-wide grep for _archive leftovers left by partial rename
-- fixed eslint.config.js ignore (harness/**/*.md so .mjs scripts still lint)
-- fixed harness/scripts/harness-install.mjs default state-dir _archive -> harness + inline help comment
-- fixed harness/HARNESS.md install command example (was mistakenly noted as INSTALL.md in slot)
-- npx eslint harness/scripts/*.mjs --max-warnings 0 -> clean; npm run lint -> clean; npm run hcheck -> pass
-- orphan _archive/WorldMap.vue (git-tracked, zero refs) flagged for user - destructive per AGENTS.md
-
-### rename ref hygiene rule - 2026-09-08 09:24 UTC+7 (muse-spark, opencode/muse-spark-1.3-contributor-free)
-- autonomous-development skill now mandates git mv + grep old path/basename + same-change consumer updates
-- review gate checks zero old-path refs; hcheck pass, stale grep empty
-
-### block staged restore - 2026-09-08 09:31 UTC+7 (muse-spark, opencode/muse-spark-1.3-contributor-free)
-- AGENTS.md Bans + autonomous skill Step 3 now forbid checkout/restore/reset/stash/clean on tracked files, hand-edit revert only
-- hcheck pass, ban grep 2 hits
-
-### dedupe autonomous skill - 2026-09-08 10:10 UTC+7 (muse-spark, opencode/muse-spark-1.3-contributor-free)
-- Step 4 verify rows now point at AGENTS.md table instead of restating; Step 6 text rules point at ui-layout skill
-- Step 3 helper list kept - no proper home, moving would shift pollution; hcheck pass
-
-### harness skills.md layout - 2026-09-08 10:16 UTC+7 (muse-spark, opencode/muse-spark-1.3-contributor-free)
-- new harness/skills.md: placeholders <agents>/<skills>/<state> only, no self refs; harness connects to project AGENTS.md + SKILL.md via installer
-- wired into HARNESS.md table + README layout; hcheck pass
-
-### self-contained harness ecosystem - 2026-09-08 10:33 UTC+7 (muse-spark, opencode/muse-spark-1.3-contributor-free)
-- 4 skills git-mv to harness/skills/; hpack/AGENTS/agent/HARNESS/README rewired; cross-skill links relative
-- dogfood: .opencode/skills regenerated as identical tracked copies (0 hash mismatches); hpack 14 files green; eslint clean; hcheck pass
-
-### split universal vs project skills - 2026-09-08 10:44 UTC+7 (muse-spark, opencode/muse-spark-1.3-contributor-free)
-- harness/skills keeps 2 universals; normalize-audit + ui-layout project-owned in .opencode, never ship; hpack/installer/docs narrowed
-- autonomous de-stained (generic dirs + patterns pointer); AGENTS.md gains Canonical patterns; hpack 12 files green; hcheck pass
-
-### new harness from scratch - 2026-09-08 11:19 UTC+7 (muse-spark, opencode/muse-spark-1.3-contributor-free)
-- harness/ is now harness.md + task-context.md + history.md + scripts/verify.mjs; root AGENTS.md (slim) + skill.md (project domain)
-- deleted 13 old files (HARNESS/skills.md/templates/skills/4 scripts/agent file/.opencode skills); universals folded into harness.md; no skill-tool discovery, no installer (copy folder = ship)
-- verified: check pass, route prints table via markers, eslint clean, stale refs zero in live files
-
-### simplify harness trio - 2026-09-08 11:35 UTC+7 (muse-spark, opencode/muse-spark-1.3-contributor-free)
-- 8 cuts, zero rules removed: dead sibling-guide ref, GAP dup, pitch noise, Adopt then-Work, merged Land+Read bullets, tightened Router line + history example
-- safety dup (git ban in both files) kept deliberately - emphasis not duplication; check pass, route table intact
-
-### merge data-schema draft - 2026-09-08 11:36 UTC+7 (muse-spark, opencode/muse-spark-1.3-contributor-free)
-- merged into skill.md with anchor verification: FOUR store modules, SVG v2 vars, AssetDef/CanvasConfig checklists, seeded-RNG rule all confirmed in code
-- one fix: canvas settings UI is SettingsModal not Toolbar; sharpened vague store/SVG lines; check pass
-
-### full reference check - 2026-09-08 11:42 UTC+7 (muse-spark, opencode/muse-spark-1.3-contributor-free)
-- 58 paths, 14 exports, CSS tokens/classes, npm scripts, markers all exist on disk
-- fixed 1 stale: injected confirm() -> useConfirm() from @/composables/useConfirm
-- reported not fixed: Decision Timeline pointer dangles (target archived); check pass
-
-### harden for weak models - 2026-09-08 11:52 UTC+7 (muse-spark, opencode/muse-spark-1.3-contributor-free)
-- light loop section in harness.md (+ AGENTS pointer) for single-file fixes
-- done-claim gate in verify.mjs check: all ticked + blank hand-off = fail; fresh/cleared slots still pass
-- gate proven on 3 slot shapes via HARNESS_ROOT; eslint clean; check pass
-
-### history rotation - 2026-09-08 11:58 UTC+7 (muse-spark, opencode/muse-spark-1.3-contributor-free)
-- verify.mjs compact keeps latest 20, archives older monthly; documented in History pattern
-- proven on 25-entry temp fixture (20 kept + 5 archived); live history untouched (12 entries); eslint clean; check pass
-
-### wide door split 1-vs-2 panels - 2026-09-08 14:15 UTC+7 (muse-spark, opencode/muse-spark-1.3-contributor-free)
-- doorPanelsData: >=2 tiles splits into 2 halves (fixed slideDir -1/+1, shared group, max 2); 1-tile stays single with doorSlideDir wall-side
-- useCanvasRuns respects half, useDoorAnimation targets per group (occupancy/transit/approach/cycle)
-- suites green: test:door-animation 22 phases, test:wall-paint, test:door-passage-engine; vue-tsc clean
-
-### canvas door unit fix - 2026-09-08 14:15 UTC+7 (muse-spark, opencode/muse-spark-1.3-contributor-free)
-- useCanvasRuns fed px segments with tileSize 1 so every door split into halves; now passes px-per-tile as unitsPerTile
-- 1-wide doors slide single into wall side again, 2/4-wide split apart; regression test in test-wall-paint
-- test:wall-paint green
-
-### 1x1 wall canonical big-bang - 2026-09-08 16:25 UTC+7 (cline, cline)
-- normalizeWallSegments splits every ingress segment into 1-tile pieces (splitWallSegmentToTiles); MAX_WALL_SEGMENTS 2048->8192 post-split cap
-- doorPanelsData merges collinear door pieces (mergeCollinearWallSegments) before halves computation; 3x1-tile door -> 2 halves shared group
-- doorMode group ops: doorRuns/withDoorRunMode/withoutDoorRun/doorRunLabel in gridEditing; OriginSettingPanel + FloorModal list runs; store setWallDoorMode/removeWallDoor take id arrays; withSegmentDoorMode removed
-- useWallPaint strokes emit N 1-tile wall objects via batched commit; legacy canvas wall objects keep their shape (paint emits 1x1 from now on)
-- suites green: test full matrix + typecheck (3 tsconfigs) + lint:bem + lint:css; verify:assets 21 assets valid
-
-### legacy wall data wipe - 2026-09-08 16:50 UTC+7 (cline, cline)
-- user decision: wipe legacy wall data instead of migrating; removed flattened-2 asset (only wallSegments asset) from originAssets.data.ts
-- removed 146 __canvas-wall__ objects + 3 flattened-2 objects from floorPlan.data.ts seed; no load-time wipe (paint feature stays, walls rebuilt 1x1)
-- suites green: verify:assets (20 assets), test:migrate, test:blueprint-schema, typecheck; temp diagnostics deleted
-
-### canvas wall tool -> cell plot - 2026-09-08 17:20 UTC+7 (cline, cline)
-- useWallPaint reworked: click/drag plots nearest tile edge per cell (edgeAtPoint + mirrorTileEdge canonical keys); stroke mode paint/erase fixed at first edge; immediate floor mutation, one save per stroke
-- EditorCanvas: wallAtEdge via wallRuns + segmentCoversTileEdge (locked walls flagged, plotting no-op); commit = save-only; dashed stroke preview removed
-- test-wall-paint: plot paint/drag/erase/locked scenarios; suites green test:wall-paint, test:door-animation, test:door-passage-engine, typecheck, lint:bem, lint:css
-
-### panel wall mode cleanup - 2026-09-08 17:35 UTC+7 (cline, cline)
-- FloorWalkablePanel wall mode: Outer Walls button removed (plot tool is the way); door mode keeps it (perimeter walls under doors)
-- Clear Walls now persists immediately via replaceCanvasWallSegments(floor, []) (was draft-only until Save); toast + saveBaseline
-- typecheck, lint:bem, lint:css, test:wall-paint green
-
-### floor walkable tile tools - 2026-09-08 18:25 UTC+7 (muse-spark, opencode/muse-spark-1.3-contributor-free)
-- FloorWalkablePanel remade tile-only: Walk/Wall/Door brushes paint tileStates, wallSegments + gridEdges + canvas wall saves dropped
-- floor door tiles persist as TileState door, walkableGrid counts walkable + door per canonical consistency rule
-- verify router suites green: lint:bem + lint:css + typecheck
-
-### edge wall system removed - 2026-09-08 19:40 UTC+7 (muse-spark, opencode/muse-spark-1.3-contributor-free)
-- walls/doors are cell tiles only: deleted gridEditing, useWallPaint, useCanvasWallStyle, useDoorAnimation, 3 wall/door test suites
-- canvas Draw Wall plot, grid Doors tab, floor/asset door lists, wall color/thickness settings removed; engine blockedEdges/doorEdges/door-passage events removed; queues anchor on tile-door cells; entrances derive from ring-crossing door tiles
-- suites green: typecheck (3 configs), lint, lint:bem, lint:css, npc-engine/queue/corridor/arrival/social, blueprint/asset/sync/migrate/settings-completeness, verify:assets
-
-### floor wall/door erase marquee - 2026-09-08 20:22 UTC+7 (cline, cline)
-- FloorWalkablePanel: Walk/Wall/Door/Erase all use ONE shared drag-cover gesture - mousedown starts the marquee, dragging extends it, release commits the rect
-- paint tools fill the covered rect with the brush (click = 1x1); Erase toggles tiles - wall/door -> walkable, walk -> wall (blocked), so painted walk tiles can be unplotted; live dashed preview: walk__cell--cover (accent-primary) paint, walk__cell--erase (accent-red) delete
-- reuses tile editor drag pattern (mousedown start / mouseenter extend / grid mouseup+mouseleave commit); picking any brush clears erase mode; grid user-select none; hint + aria updated
-- verified: typecheck (3 configs), lint:bem, lint:css green
-
-### tile tools moved to toolbar - 2026-09-08 21:15 UTC+7 (cline, cline)
-- Walk/Wall/Door/Erase moved from FloorWalkablePanel (deleted) into main Toolbar.vue as 4 tile-brush buttons; CRUD follows store.state.currentFloorId so actions apply to whichever floor is selected
-- new useCanvasTilePaint composable: window-level drag-cover gesture (mousedown start / mousemove extend / mouseup commit) with live preview rect; brush() from store.state.tileBrush, onCommit -> store.paintFloorTiles(currentFloorId, brush, rect)
-- store: state.tileBrush:TileBrush|null, setTileBrush() in mode.ts (clears selection), paintFloorTiles() in floors.ts (resolves states, clamps to building rect excluding street, applyTileBrush, force street walkable, rebuilds walkableGrid, saves)
-- EditorCanvas: useCanvasTilePaint wired; onSvgMouseDown delegates to tile paint when brush active (skips selection/pan); renderWalkableOverlay shows when tileBrush active; preview rect rendered with editor__tile-preview--{brush} classes
-- domain/types: TileBrush='walkable'|'blocked'|'door'|'erase', applyTileBrush (erase toggles walk<->blocked), resolveFloorTileStates, tileStatesToWalkableGrid
-- FloorModal: no longer references FloorWalkablePanel; streetTiles computed + Edit Walkable button removed
-- verified: typecheck (3 configs), lint:bem, lint:css, verify check pass
-
-### dead ref cleanup after wall removal - 2026-09-08 20:58 UTC+7 (cline, cline)
-- dropped 3 dead npm scripts from package.json (test:wall-paint, test:door-animation, test:door-passage-engine -> deleted test files); all remaining tsx test targets verified to exist
-- skill.md grid parity note no longer references removed edge previews / walkable-grid domain module; aligned to domain types normalize helpers
-- audit confirms no dead wall refs in live src (wall* symbols only in history log + absence-guard tests); svg-role__wall, doorRequired/tileStates door, observe-hotel kept (live features)
-- verified: route clean, npm script target existence check, hcheck pass
-
-### crud reference doc - 2026-09-09 09:35 UTC+7 (cline, cline)
-- new docs/crud-reference.md: every store CRUD grouped by module (floors/objects/assets/tags/npc/mode/clipboard/persistence/selection/state) with function + kind + about, same idea as UiShowcase one-section-per-group
-- skill.md Layout rule 4 extended with CRUD gate: new/changed/removed store CRUD must update docs/crud-reference.md in the same change, so the file stays up to date like UiShowcase
-- verified: route (docs-only, nothing to run), check pass
-
-### harness unified feature lane - 2026-09-09 11:03 UTC+7 (muse-spark, opencode/muse-spark-1.3-contributor-free)
-- folded feature-flow into harness/HARNESS.md: entry router + Phases A-G (Align/Model/Zoom-out/Interface-pick/Tickets/Build-4c-hybrid/Compress-C1-auto) feeding the per-ticket loop; R1 arch scan flag-only in review
-- AGENTS.md workflow points at feature lane; glossary locked to skill.md; verify.mjs header comment only, no logic change
-- deleted untracked docs/matt-migration.md; stale grep 0 in live files; docs/crud-reference.md kept
-- verified: npx eslint harness/scripts/verify.mjs --max-warnings 0 clean; route prints table; check pass
-
-### seal loop-vs-lane seams - 2026-09-09 11:11 UTC+7 (muse-spark, opencode/muse-spark-1.3-contributor-free)
-- HARNESS.md only: 6 boundary lines so each job has one owner - lane outputs are loop inputs (Step 2 plans ticket slice only), one suite two moments (Step 4 = Phase F red/green), arch scan owned by Step 6 (Phase F points at it), caveman is tone while Step 7 stays the report shape
-- verified: HARNESS.md ASCII-only; route (md-only, nothing runnable); check pass
-
-### audit items implemented - 2026-09-09 11:11 UTC+7 (muse-spark, opencode/muse-spark-1.3-contributor-free)
-- docs/crud-reference.md: all 10 table separators fixed to 4 cells; erase-on-door (->walkable) documented; addFloor name/label corrected; lock row lists new panel button
-- ObjectPropertiesForm.vue: new Lock/Unlock toggle (reuses store.toggleObjectLock, title with L hint); Copy->Copy ID; Delete title with shortcut
-- AssetProperties.vue: Copy->Copy ID; FloorModal.vue: both Delete buttons get reason titles when last floor
-- verified: lint:bem + lint:css pass (33 files); typecheck (3 configs) green; eslint verify.mjs clean; check pass
-
 ### history log rule tightened - 2026-09-09 11:11 UTC+7 (muse-spark, opencode/muse-spark-1.3-contributor-free)
 - HARNESS.md History pattern now allowlists loggable work (implemented changes + decisions taken) and bans questions, no-change audits, untaken recommendations, parked ideas
 - user correction: agent was logging every inquiry; persists for the session
@@ -243,3 +100,73 @@ follow it when logging below.
 - verified: lint:bem, lint:css, typecheck (3 configs), test:blueprint-schema
 - follow-up per user feedback: zone border shows only while dragging (tilePaint active gate on preview outline); after release only the selected-cell highlights remain
 
+### harness context slot portability - 2026-09-09 19:04 UTC+7 (cline, cline)
+- new harness/context.md shared-language glossary (22 locked terms from skill.md + player-vocabulary rule); Phase B + AGENTS.md read chain/canonical patterns rewired to point at it
+- slot protocol now write-through + silent: append on user order/context shift, finding/root cause, decision options or landed choice - then resume; clear only when fully done; trigger comment embedded in task-context.md empty shape
+- portability: Adopt section gains glossary-rewrite + agent-pointer steps; one-line .clinerules + .github/copilot-instructions.md pointers added
+- todo #4 (Cline token usage UI) skipped per user choice
+- verified: hcheck pass; route: no code changed - nothing to run
+
+### selection highlight blue - 2026-09-09 19:30 UTC+7 (cline, cline)
+- user-requested: selected-cell highlight (Free tool marquee, editor__erase-guide) blue instead of red - accent-red 45% -> accent-blue 45%, no new class
+- object selection overlay stays accent-primary; dashed erase marquee border left red (not part of the ask)
+- verified: lint:bem, lint:css, typecheck (3 configs)
+
+### hotel ground floor build - 2026-09-09 19:55 UTC+7 (cline, cline)
+- user-picked scope: full ground floor - outer walls + inner walls (A x=38 / E y=30 / F y=44 left, B y=26 / C y=44 right), 9 door gaps (incl. street entrance x52..53 y58), 6 rooms furnished: Lounge, Laundry, WC, Bar-cafe, Gym, Reception hall (desk facing entrance)
+- floorPlan.data.ts: 496 blocked wall tiles + door tiles in tileStates, walkableGrid derived (door=walkable), 61 objects from the 20 existing assets (px, tile-snapped, rotation 0), entrance spawn zone (750,795,75,75); street ring 8 tiles untouched
+- temp generator tests/_hotel.tmp.ts (tsx) with built-in validation: dims, building bounds, wall/door overlap, object-object overlap, BFS connectivity 4038/4038 from spawn + all doors reachable; deleted same session
+- data audit: single boundary floorPlan.data.ts -> normalizeFloorWalkable; dims-matched grids; no gaps, no anti-patterns
+- verified: verify:assets (20 valid), test:blueprint-schema, test:migrate, hcheck pass; eslint n/a (data file in ignore pattern)
+
+### lobby densify 60 npcs - 2026-09-09 20:20 UTC+7 (cline, cline)
+- user-requested: denser furniture + ~60 NPCs in lobby
+- floorPlan.data.ts: 61 -> 127 objects (added tables+chairs rows, sofas, benches, washers row 2, WC row 2, treadmill row 2, bar stools, vending machines); BFS connectivity 3936/3936 from spawn
+- npcSettings.data.ts: pool guest 26->45, chef 9->5, bartender 8->5, receptionist 6->5 = 60 total; fixed stale floorIds floor-6be566f0cf -> floor-f6bc12edb3 x3 (root cause NPCs never spawned - old floor id no longer exists)
+- temp generator v2 deleted same session
+- verified: verify:assets (0 warnings), test:settings-completeness, test:blueprint-schema, test:migrate, stale-ref grep 0
+
+### aligned grid re-layout - 2026-09-09 20:40 UTC+7 (cline, cline)
+- user feedback: furniture not aligned in straight lines - full re-layout on strict grid rules
+- rules applied: same row = same y / same column = same x, uniform pitch (lounge+bar columns pitch 8/6, washers pitch 2, treadmills pitch 4), mirrored pairs exact around room centers (bar/gym center x68, lounge x23, reception x52.5)
+- lounge: sofa row y9 + table/chair rows y14/y22 on columns x13,19,26,32 + bench row y28; laundry: washer grid 2x8 + bench row y38 pitch 4; WC: 2 identical rows y46/y54; bar: counter centered (67,10) + 12 table sets rows y16/y21 + vending corners; gym: 24 treadmills 2 rows x 12 columns + center walkway x65-71; reception: desk (49,48) centered on entrance + mirrored waiting row y55
+- 140 objects, BFS 3935/3935 from spawn; temp generator v3 deleted same session
+- verified: verify:assets (0 warnings), test:blueprint-schema, test:migrate, test:settings-completeness, hcheck pass
+
+### 5 adjacent bathrooms - 2026-09-09 21:00 UTC+7 (cline, cline)
+- user-requested: 5 bathrooms side by side replacing the single WC zone (x9..37, y45..57)
+- walls x14/x20/x26/x32 y45..57 divide 5 rooms (5x13 each); doors on wall F at x11,17,23,29,35 + east door (38,52) kept; 13 doors total
+- identical interior per room: shower y46 / washbasin y49 / toilet y52 on room center column; 151 objects total
+- BFS 3865/3865 from spawn incl. per-bathroom reachability check; temp generator v4 deleted same session
+- verified: verify:assets (0 warnings), test:blueprint-schema, test:migrate, hcheck pass
+
+### room system derive + occupancy gate - 2026-09-09 21:45 UTC+7 (cline, cline)
+- approved plan C refined via Matt Pocock to-spec/to-tickets (vertical tracer-bullet slices, single NpcEngine seam, out-of-scope declared)
+- new ROOM_TYPE_SPECS registry (15 hotel room types incl. dormant ones: bedroom/bathroom/spa private; gym/bar/restaurant/laundry/... open; hall fallback) + resolveRoomType in domain/types - privacy from room type, AssetDef untouched
+- new engine/npc/rooms.ts deriveFloorRooms: flood fill walkable map, door tiles = boundaries (belong to no room), row-major stable ids; buildNpcEngineLayout attaches roomId/roomType/roomPrivate (optional fields) to interaction targets
+- NpcEngine: claimedRooms map; gate in canReserve (occupied private room excluded from chooseTarget via existing filter), claim in reserve, release in releaseReservation (single choke point) + reset; open rooms unchanged
+- permanent regression tests in test-npc-engine.ts (private claim/redirect/release-via-removeAgent, open shared capacity, layout derive 2 walled rooms + door boundary)
+- chain: additive-only; syncedPayload/AssetDef/editor/pathfinding untouched; queueBuild untouched (queue-at-fixture v1; outside-door relocation = follow-up)
+- verified: test:npc-engine green (incl. new 'Room occupancy gate checks passed'), typecheck (3 configs), lint, hcheck pass
+
+### realistic room proportions - 2026-09-09 22:10 UTC+7 (cline, cline)
+- user feedback: room width ratios not realistic -> full re-layout at real-world scale (1 tile = 0.5m, plot 53.5 x 33.5m)
+- new partition per hotel standards: lobby 105m2, restaurant 247m2 (~120 seats), kitchen 86m2, bar-lounge 167m2, gym 53m2, laundry 66m2, staff 25m2, storage 25m2, 5 bathrooms 2x4.5m (9m2 each); 2m-wide main/entrance/service corridors (realistic hotel corridor width), no dead-end rooms
+- walls 652 tiles, 18 door gaps (5 bathrooms + 13 room/street doors), 126 objects re-placed to fit smaller rooms
+- BFS 3799/3799 from entrance + per-room reachability checks; temp generator v5 + debug script deleted same session
+- verified: verify:assets (0 warnings), test:blueprint-schema, test:migrate, hcheck pass
+
+### autopilot mode in harness - 2026-09-09 22:30 UTC+7 (cline, cline)
+- user-requested: mode where agent decides instead of asking
+- new harness.md section: activation via user `autopilot` / `autopilot off`; mode marker `Mode: autopilot` on slot Mission line 1 survives context cutoff (RESUME restores); decide-don't-ask including scope>3 files, new deps, Phase D picks
+- decision rule: reversibility > repo pattern > simplicity; every non-trivial decision logged in history as decision bullet (choice + rejected alternatives + reason); done report opens with decision log for user veto
+- hard stops remain: destructive git, persisted-store deletion, secrets/auth, irreversible outside-repo
+- verified: hcheck pass
+
+### 5-floor hotel build - 2026-09-09 23:05 UTC+7 (cline, cline)
+- autopilot task: 5 floors per user (top = owner's floor, others agent-decided)
+- decision log: [1] 30 guest rooms split F1-F3 x10 (4x11m incl. en-suite bath) over bigger/fewer rooms - program formula ceil(60/2)=30 and floor plate fits 10x(8w+1) exactly; [2] F4 = penthouse (master 176m2 + living 210m2 + office + private dining + kitchenette + powder) over more guest rooms - owner floor per user; [3] new elevator-1 portal asset (21st asset) on all 5 floors over stairs-only - enables real NPC cross-floor travel (guest role already targets 'portal'); [4] guest floor south bands = housekeeping/linen/lounge/storage/mechanical back-of-house over cramming more rooms - realistic hotel programming
+- floors: G lobby (elevator in lobby) + F1-F3 guest (10 rooms each, 30 total = program target) + F4 penthouse
+- room system integration: 30 bedrooms auto-detected (beds tag 'living') -> private 1-occupant rooms; 30 en-suite bathrooms auto-detected private; portals connect all floors
+- per-floor BFS validation 100% (G 127 obj, F1-F3 71, F4 45); temp generator v6 + debug script deleted same session
+- verified: verify:assets (21 valid, 0 warnings), test:blueprint-schema, test:migrate, test:sync-payload (exit 0), test:settings-completeness, test:npc-engine, hcheck pass

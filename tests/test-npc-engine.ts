@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { NpcEngine, NPC_ENGINE_DEFAULT_OPTIONS, buildNpcEngineLayout, createNpcEnginePolicy, findNpcGridPath, selectBestTarget, WanderMemory, type NpcEngineLayout, type NpcEngineInteractionTarget, type NpcEngineFloor, type NpcEngineAgent, type NpcEngineOptions } from '../src/engine/npc'
-import { normalizeAllowedRoleIds, normalizeNpcConfig } from '../src/blueprint-editor/domain/types'
+import { normalizeAllowedRoleIds, normalizeNpcConfig, type TileState } from '../src/blueprint-editor/domain/types'
 import { validatePortalConfiguration, buildAssetMap } from '../src/blueprint-editor/assets/assetUtils'
 import type { AssetDef, FloorData } from '../src/blueprint-editor/domain/types'
 
@@ -1189,3 +1189,87 @@ console.log('Tile door walkability checks passed')
 }
 
 console.log('Shared NPC engine checks passed')
+
+
+// ─── Room occupancy gate: private rooms claim a single occupant ───
+
+{
+	const floor = makeGridFloor('R1', 12, 4)
+	const targets: NpcEngineInteractionTarget[] = [
+		{ floorId: 'R1', itemId: 'toilet-a', interactSpotId: 'a0', x: 2, y: 2, tags: ['hygiene'], capacity: 1, durationMinSeconds: 100, durationMaxSeconds: 100, roomId: 'room-1', roomType: 'bathroom', roomPrivate: true },
+		{ floorId: 'R1', itemId: 'toilet-b', interactSpotId: 'a0', x: 9, y: 2, tags: ['hygiene'], capacity: 1, durationMinSeconds: 2, durationMaxSeconds: 2, roomId: 'room-2', roomType: 'bathroom', roomPrivate: true },
+	]
+	const engine = new NpcEngine({ floors: [floor], interactionTargets: targets }, {
+		...NPC_ENGINE_DEFAULT_OPTIONS,
+		random: rngSeq(),
+		pathfinder: (f, from, to, blocked) => findNpcGridPath(f, from, to, blocked),
+		ticksPerSecond: 10,
+	})
+	engine.addAgent({ id: 'guest-a', floorId: 'R1', x: 1, y: 1, targetX: 1, targetY: 1, speed: 1 })
+	engine.tick(30)
+	const a = engine.getAgents().find(ag => ag.id === 'guest-a')!
+	assert.equal(a.reservationItemId, 'toilet-a', 'room gate: first guest claims toilet-a')
+	engine.addAgent({ id: 'guest-b', floorId: 'R1', x: 3, y: 1, targetX: 3, targetY: 1, speed: 1 })
+	engine.tick(60)
+	const b = engine.getAgents().find(ag => ag.id === 'guest-b')!
+	assert.notEqual(b.reservationItemId, 'toilet-a', 'room gate: second guest never targets an occupied private room')
+	assert.equal(b.reservationItemId, 'toilet-b', 'room gate: second guest redirected to the free private room')
+	engine.removeAgent('guest-a')
+	engine.addAgent({ id: 'guest-c', floorId: 'R1', x: 1, y: 2, targetX: 1, targetY: 2, speed: 1 })
+	engine.tick(30)
+	const c = engine.getAgents().find(ag => ag.id === 'guest-c')!
+	assert.equal(c.reservationItemId, 'toilet-a', 'room gate: freed room becomes claimable again')
+}
+
+{
+	const floor = makeGridFloor('R2', 8, 4)
+	const targets: NpcEngineInteractionTarget[] = [
+		{ floorId: 'R2', itemId: 'treadmill', interactSpotId: 'a0', x: 2, y: 2, tags: ['fitness'], capacity: 2, durationMinSeconds: 100, durationMaxSeconds: 100, roomId: 'room-3', roomType: 'gym', roomPrivate: false },
+		{ floorId: 'R2', itemId: 'treadmill', interactSpotId: 'a1', x: 6, y: 2, tags: ['fitness'], capacity: 2, durationMinSeconds: 100, durationMaxSeconds: 100, roomId: 'room-3', roomType: 'gym', roomPrivate: false },
+	]
+	const engine = new NpcEngine({ floors: [floor], interactionTargets: targets }, {
+		...NPC_ENGINE_DEFAULT_OPTIONS,
+		random: rngSeq(),
+		pathfinder: (f, from, to) => findNpcGridPath(f, from, to),
+		ticksPerSecond: 10,
+	})
+	engine.addAgent({ id: 'gym-1', floorId: 'R2', x: 1, y: 1, targetX: 1, targetY: 1, speed: 1 })
+	engine.addAgent({ id: 'gym-2', floorId: 'R2', x: 7, y: 1, targetX: 7, targetY: 1, speed: 1 })
+	engine.tick(30)
+	const holders = engine.getAgents().filter(ag => ag.reservationItemId === 'treadmill').length
+	assert.equal(holders, 2, 'room gate: open room keeps shared capacity (both occupants reserve)')
+}
+
+// ─── Layout derives rooms: hygiene fixtures in walled rooms flagged private ───
+
+{
+	const toiletAsset: AssetDef = {
+		id: 'toilet-t', name: 'Toilet', w: 1, h: 1, tags: ['hygiene'], walkable: false,
+		tileStates: [['blocked']], interactSpots: [{ x: 0.5, y: 1.5 }],
+	}
+	const cols = 20, rows = 4
+	const states: TileState[][] = Array.from({ length: rows }, () => Array.from({ length: cols }, () => 'walkable' as TileState))
+	for (let y = 0; y < rows; y++) states[y][9] = 'blocked'
+	states[2][9] = 'door'
+	const floorData: FloorData = {
+		id: 'GF', name: 'Test', label: 'T', objects: [
+			{ id: 'o1', type: 'toilet-t', rotation: 0, x: 2, y: 2, w: 1, h: 1 },
+			{ id: 'o2', type: 'toilet-t', rotation: 0, x: 14, y: 2, w: 1, h: 1 },
+		],
+		defaultWalkable: true,
+		walkable: { tileStates: states },
+	}
+	const built = buildNpcEngineLayout(
+		[floorData],
+		{ w: cols, h: rows, tileSize: 1 },
+		type => (type === 'toilet-t' ? toiletAsset : undefined),
+		type => (type === 'toilet-t' ? toiletAsset.tags : undefined),
+	)
+	const toiletTargets = built.layout.interactionTargets.filter(t => t.itemId.startsWith('object:'))
+	assert.equal(toiletTargets.length, 2, 'layout rooms: both fixtures produce targets')
+	assert.ok(toiletTargets.every(t => t.roomPrivate === true), 'layout rooms: hygiene fixtures flagged private')
+	assert.ok(toiletTargets.every(t => t.roomType === 'bathroom'), 'layout rooms: hygiene rooms typed bathroom')
+	assert.equal(new Set(toiletTargets.map(t => t.roomId)).size, 2, 'layout rooms: separated rooms get distinct ids')
+}
+
+console.log('Room occupancy gate checks passed')

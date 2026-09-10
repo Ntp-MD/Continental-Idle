@@ -1,6 +1,7 @@
 import type { AssetDef, FloorData, NpcRole, ObjectData, ResolvedObjectDef } from '../../blueprint-editor/domain/types'
-import { resolveInteractForTarget, resolveObjectDef, spawnZoneAllowsRole, STREET_TILES } from '../../blueprint-editor/domain/types'
+import { resolveInteractForTarget, resolveObjectDef, resolveRoomType, spawnZoneAllowsRole, STREET_TILES } from '../../blueprint-editor/domain/types'
 import { buildNpcQueues } from './queueBuild'
+import { deriveFloorRooms } from './rooms'
 import { getObjectTags, hasMatchingTag } from './tagMatching'
 import type { NpcEngineFloor, NpcEngineInteractionTarget, NpcEngineLayout, NpcEnginePoint } from './types'
 
@@ -96,6 +97,17 @@ export function isStreetTile(tx: number, ty: number, width: number, height: numb
 	const endY = height - streetTiles
 	if (endX <= start || endY <= start) return false
 	return tx < start || tx >= endX || ty < start || ty >= endY
+}
+
+function floorDoorCells(floor: FloorData): Set<string> {
+	const cells = new Set<string>()
+	const states = floor.walkable?.tileStates
+	if (!states) return cells
+	for (let y = 0; y < states.length; y++) {
+		const row = states[y]
+		for (let x = 0; x < row.length; x++) if (row[x] === 'door') cells.add(tileKey(x, y))
+	}
+	return cells
 }
 
 function objectBlocksTile(
@@ -361,7 +373,24 @@ export function buildNpcEngineLayout(
 		const map = buildWalkableMap(floor, canvas, getAssetDef)
 		floorMaps.set(floor.id, map)
 		floorDataMap.set(floor.id, floor)
-		interactionTargets.push(...buildObjectInteractionTargets(floor, map, getAssetTags, getAssetDef))
+		const roomIdByCell = deriveFloorRooms(map, floorDoorCells(floor))
+		const floorTargets = buildObjectInteractionTargets(floor, map, getAssetTags, getAssetDef)
+		const roomFixtureTags = new Map<string, string[][]>()
+		for (const target of floorTargets) {
+			const roomId = roomIdByCell.get(`${target.x},${target.y}`)
+			if (!roomId) continue
+			target.roomId = roomId
+			const sets = roomFixtureTags.get(roomId) ?? []
+			sets.push([...target.tags])
+			roomFixtureTags.set(roomId, sets)
+		}
+		for (const target of floorTargets) {
+			if (!target.roomId) continue
+			const roomType = resolveRoomType(roomFixtureTags.get(target.roomId) ?? [])
+			target.roomType = roomType.id
+			target.roomPrivate = roomType.privacy === 'private'
+		}
+		interactionTargets.push(...floorTargets)
 		engineFloors.push({
 			id: floor.id,
 			width: map.width,

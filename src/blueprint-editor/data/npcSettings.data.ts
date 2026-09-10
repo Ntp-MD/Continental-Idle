@@ -126,27 +126,27 @@ export const npcSettingsData = {
   "pool": [
     {
       "roleId": "role-guest",
-      "count": 26,
+      "count": 45,
       "floorIds": [
-        "floor-6be566f0cf"
+        "floor-f6bc12edb3"
       ]
     },
     {
       "roleId": "role-6dfde6eef0",
-      "count": 9
+      "count": 5
     },
     {
       "roleId": "role-bartender",
-      "count": 8,
+      "count": 5,
       "floorIds": [
-        "floor-6be566f0cf"
+        "floor-f6bc12edb3"
       ]
     },
     {
       "roleId": "role-receptionist",
-      "count": 6,
+      "count": 5,
       "floorIds": [
-        "floor-6be566f0cf"
+        "floor-f6bc12edb3"
       ]
     }
   ],
