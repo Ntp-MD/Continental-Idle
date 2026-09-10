@@ -64,7 +64,7 @@ export function buildSavedLayout(): FloorLayoutData {
 		canvas: blueprintLayout.canvas,
 		floors: blueprintLayout.floors.map(floor => ({
 			...floor,
-			objects: floor.objects.map(object => ({ ...object, w: 0, h: 0 } as ObjectData)),
+			objects: floor.objects.map((object): ObjectData => ({ ...object, w: 0, h: 0 })),
 		})),
 		npcConfig,
 	}

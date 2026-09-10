@@ -1,5 +1,5 @@
 import type { FloorLayoutData, ObjectData, AssetDef } from '../domain/types'
-import { validateLayoutData, validateLayoutIntegrity, normalizeAllowedRoleIds, normalizeNpcSpawnZones, normalizeFloorWalkable, normalizeObjectPlacement, normalizeCornerRx, normalizeNpcConfig, parseCanvasConfig } from '../domain/types'
+import { validateLayoutData, validateLayoutIntegrity, normalizeAllowedRoleIds, normalizeNpcSpawnZones, normalizeFloorWalkable, normalizeObjectPlacement, normalizeNpcConfig, parseCanvasConfig, resolveDefaultWalkable } from '../domain/types'
 import { findAssetCached, buildAssetMap, validatePortalConfiguration } from '../assets/assetUtils'
 import { normalizeObject } from '../domain/geometry'
 import { recalcCollapsed } from '../domain/collision'
@@ -37,22 +37,14 @@ export function migrate(data: unknown, availableAssets: readonly AssetDef[] = or
 						const placement = normalizeObjectPlacement(o)!
 						const base: ObjectData = {
 							...placement,
-							w: typeof o.w === 'number' ? o.w : 0,
-							h: typeof o.h === 'number' ? o.h : 0,
+							w: 0,
+							h: 0,
 						}
-						if (typeof o.radius === 'number' && o.radius > 0) base.radius = o.radius
 						if (typeof o.label === 'string') base.label = o.label
-						if (typeof o.padding === 'number' && o.padding > 0) base.padding = o.padding
-						if (typeof o.labelPadding === 'number' && o.labelPadding > 0) base.labelPadding = o.labelPadding
-						if (typeof o.fillColor === 'string') base.fillColor = o.fillColor
-					if (typeof o.collapsed === 'boolean') base.collapsed = o.collapsed
-
-
-						const rx = normalizeCornerRx(o.rx)
-						if (rx) base.rx = rx
+						if (typeof o.collapsed === 'boolean') base.collapsed = o.collapsed
 						return base
 					}) : [],
-					defaultWalkable: typeof fRec.defaultWalkable === 'boolean' ? fRec.defaultWalkable : true,
+					defaultWalkable: resolveDefaultWalkable(fRec),
 					walkable: normalizeFloorWalkable(fRec.walkable),
 					spawnZones: normalizeNpcSpawnZones(fRec.spawnZones),
 					allowedRoleIds: normalizeAllowedRoleIds(fRec.allowedRoleIds),

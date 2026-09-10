@@ -18,6 +18,7 @@ import { fileURLToPath } from 'node:url'
 
 const root = path.resolve(fileURLToPath(new URL('..', import.meta.url)))
 const srcDir = path.resolve(root, 'src')
+const modCliDir = path.resolve(root, 'mod-cli')
 const TARGET_EXT = new Set(['.vue', '.css'])
 
 function walk(dir, out = []) {
@@ -96,7 +97,7 @@ function findScopedRedefined(items) {
 	return issues
 }
 
-const files = walk(srcDir)
+const files = [srcDir, modCliDir].filter((dir) => fs.existsSync(dir)).flatMap((dir) => walk(dir, []))
 const vueFiles = readAll(files, '.vue')
 const cssFiles = readAll(files, '.css')
 const tsFiles = files.filter((f) => f.endsWith('.ts')).map((f) => ({ rel: toPosix(path.relative(root, f)), content: fs.readFileSync(f, 'utf8') }))

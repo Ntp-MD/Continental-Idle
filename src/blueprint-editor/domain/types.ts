@@ -29,6 +29,11 @@ export function resolveStreetTiles(layout: { streetWidthTiles?: number } | null 
 	return typeof v === 'number' && Number.isInteger(v) && v >= 5 && v <= 20 ? v : STREET_TILES
 }
 
+export function resolveDefaultWalkable(floor: { defaultWalkable?: unknown } | null | undefined): boolean {
+	const v = floor?.defaultWalkable
+	return typeof v === 'boolean' ? v : true
+}
+
 // --- Section 2: SVG & wall types ---
 
 export type SvgRole = 'wall' | 'door' | 'fixture'

@@ -1,7 +1,7 @@
 import { computed } from 'vue'
 import { state, currentFloor, snap, assetMap, dragState, reloadEditorData } from './state'
 import {
-	addFloor, deleteFloor, duplicateFloor, renameFloor,
+	addFloor, clearFloor, deleteFloor, duplicateFloor, renameFloor,
 	reorderFloors, selectFloor, updateFloor, paintFloorTiles,
 } from './floors'
 import {
@@ -23,7 +23,7 @@ import { setMode, setTileBrush, resizeCanvas, setCanvasBgColor, setCanvasLabelCo
 import { tagCatalog, globalTags, managedTagSet, addTag, removeTag, ensureTag } from './tags'
 
 export {
-	addFloor, deleteFloor, duplicateFloor, renameFloor,
+	addFloor, clearFloor, deleteFloor, duplicateFloor, renameFloor,
 	reorderFloors, selectFloor, updateFloor, paintFloorTiles,
 } from './floors'
 export {
@@ -57,7 +57,7 @@ export function useAssetsStore() {
 		snap,
 		assetMap,
 		dragState,
-		addFloor, deleteFloor, duplicateFloor, renameFloor,
+		addFloor, clearFloor, deleteFloor, duplicateFloor, renameFloor,
 		reorderFloors, selectFloor, updateFloor, paintFloorTiles,
 		beginDrawnObject, addObject, canPlaceObject, select, toggleMultiSelect, deleteSelected,
 		moveSelectedTo, commitMove, rotateSelected,

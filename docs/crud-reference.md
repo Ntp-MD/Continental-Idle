@@ -13,6 +13,7 @@ Conventions: every CUD awaits `saveBlueprintData()` (POST `__blueprint-data`, ve
 | `addFloor()` | Create | New empty floor (name `Floor N`, label `F{n}`, `defaultWalkable:true`), save, return it | FloorModal: click `Add Floor` |
 | `deleteFloor(id)` | Delete | Remove floor (block if last); fix `currentFloorId`/`streetFloorId`, clear selection | FloorModal footer: click `Delete` (confirm modal) |
 | `duplicateFloor(id)` | Create | Deep clone + remap `obj.id`/`linkGroupId`, insert after original | FloorModal footer: click `Duplicate` |
+| `clearFloor(id)` | Update | Remove all objects on the floor (floor, tiles, spawn zones kept); clear selection; no save when already empty | FloorModal footer: click `Clear` (confirm modal; disabled when floor has no objects) |
 | `renameFloor(id, name)` | Update | Rename floor | FloorModal: dblclick name → type + `Enter` (blur commit) |
 | `reorderFloors(fromIndex, toIndex)` | Update | Drag-reorder floor list | FloorModal list: drag row (`dragstart`) → drop onto another row (`dragover`/`drop`); hover row dims |
 | `selectFloor(id)` | Update | Switch `state.currentFloorId`, clear selection | FloorModal list: click row; canvas floor-nav: click dropdown → click floor |
@@ -61,7 +62,7 @@ Conventions: every CUD awaits `saveBlueprintData()` (POST `__blueprint-data`, ve
 |---|---|---|---|
 | `updateNpcConfig(config)` | Update | Replace `layout.npcConfig` (roles/tasks/pool/rates) + save | NpcManagerModal: click Roles/Tags-and-Tasks tabs, click role in list, type rename, pick color, click task chips, click Add/Delete role, type new task plus Add, click task x; DeployNpcModal: click role, click minus/plus steppers or type count plus change, checkbox spawn floors, type target tag plus Enter, click tag x, drag speed slider plus change, click Deploy/Cancel (all edits auto-persist debounced) |
 | `mergeNpcConfig(config)` | Read | Prune dangling `taskIds`/`roleIds`, clamp rates 0-100 | No UI: internal normalize used by editor plus sim ingest |
-| `syncNpcConfigToState(config)` | Update | In-memory replace only (no save) | No UI: internal step of updateNpcConfig |
+| `syncNpcConfigToState(config)` | Update | Normalize via `normalizeNpcConfig`, then in-memory replace (no save); falls back to the raw input only when normalization fails | No UI: internal step of updateNpcConfig |
 | `persistNpcConfigToDisk()` | Update | Save current state; throw if not saved | No UI: internal step of updateNpcConfig |
 
 ## Canvas / mode / settings — `src/blueprint-editor/store/mode.ts`

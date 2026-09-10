@@ -1,5 +1,5 @@
 import type { AssetDef, FloorData, NpcRole, ObjectData, ResolvedObjectDef } from '../../blueprint-editor/domain/types'
-import { resolveInteractForTarget, resolveObjectDef, resolveRoomType, spawnZoneAllowsRole, STREET_TILES } from '../../blueprint-editor/domain/types'
+import { resolveInteractForTarget, resolveObjectDef, resolveRoomType, resolveDefaultWalkable, spawnZoneAllowsRole, STREET_TILES } from '../../blueprint-editor/domain/types'
 import { buildNpcQueues } from './queueBuild'
 import { deriveFloorRooms } from './rooms'
 import { getObjectTags, hasMatchingTag } from './tagMatching'
@@ -172,7 +172,7 @@ function isTileWalkable(
 	const walkableAllows = walkableState === 'walkable'
 		|| walkableState === 'door'
 		|| walkable?.walkableGrid?.[ty]?.[tx] === true
-	return walkableAllows || (floor.defaultWalkable ?? true)
+	return walkableAllows || resolveDefaultWalkable(floor)
 }
 
 export function buildWalkableMap(

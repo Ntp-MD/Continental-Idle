@@ -107,6 +107,21 @@ async function onDelete(id: string) {
   if (selectedFloorId.value === id) selectedFloorId.value = floors.value[0]?.id ?? null
 }
 
+async function onClear(id: string) {
+  const floor = floors.value.find((f) => f.id === id)
+  if (!floor || floor.objects.length === 0) return
+  const ok = await confirm({
+    title: 'Clear floor',
+    message: `Remove all ${floor.objects.length} object(s) from "${floor.name}"? The floor, its tiles and spawn zones are kept. This action cannot be undone.`,
+    confirmLabel: 'Clear',
+    cancelLabel: 'Cancel',
+    danger: true,
+  })
+  if (!ok) return
+  const cleared = await store.clearFloor(id)
+  if (!reportSaved(cleared, 'Floor cleared', 'Failed to clear floor')) return
+}
+
 function onDragStart(index: number) {
   floorDragIndex.value = index
 }
@@ -398,6 +413,7 @@ function floorCounts(f: FloorData): string {
     </div>
     <template v-if="selectedFloor" #footer>
       <button @click="onDuplicate(selectedFloor.id)">Duplicate</button>
+      <button class="flag--danger" :title="selectedFloor.objects.length === 0 ? 'No objects to clear' : `Remove all ${selectedFloor.objects.length} object(s) from this floor`" :disabled="selectedFloor.objects.length === 0" @click="onClear(selectedFloor.id)">Clear</button>
       <button class="flag--danger" :title="floors.length <= 1 ? 'Cannot delete the last floor' : 'Delete floor'" :disabled="floors.length <= 1" @click="onDelete(selectedFloor.id)">Delete</button>
     </template>
   </ModalShell>

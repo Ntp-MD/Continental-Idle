@@ -170,3 +170,70 @@ follow it when logging below.
 - room system integration: 30 bedrooms auto-detected (beds tag 'living') -> private 1-occupant rooms; 30 en-suite bathrooms auto-detected private; portals connect all floors
 - per-floor BFS validation 100% (G 127 obj, F1-F3 71, F4 45); temp generator v6 + debug script deleted same session
 - verified: verify:assets (21 valid, 0 warnings), test:blueprint-schema, test:migrate, test:sync-payload (exit 0), test:settings-completeness, test:npc-engine, hcheck pass
+
+### blueprint save 413 fix - 2026-09-10 10:45 UTC+7 (cline, glm)
+
+- vite MAX_REQUEST_BYTES 1MB -> 5MB (floorPlan.data.ts 1.59MB exceeded; response/module caps already 5MB); persistence.ts fails fast on 413, retry loop skipped (payload cannot shrink)
+- user-reported: floor delete threw ErrorBoundary after 3x retry hang; suites green: typecheck, test:blueprint-schema, hcheck
+
+### floor one-click clear - 2026-09-10 10:45 UTC+7 (cline, glm)
+- clearFloor(id) store CRUD (empties objects, keeps floor/tiles/zones, no save when empty) + FloorModal footer Clear button (useConfirm, flag--danger, disabled when empty) + crud-reference row
+- data audit PASS: objects:[] canonical shape, normalizeBlueprintDataFile path unchanged, no gaps; suites green: typecheck, lint:bem, lint:css, test:blueprint-schema, hcheck
+
+### data audit fixes (F1+F2) - 2026-09-10 13:08 UTC+7 (cline, glm)
+- full-project read-only data audit (skill.md Steps 1-5) across 20 boundaries: verdict PASS, 5 minor findings (F1-F5)
+- F1: `syncNpcConfigToState` now runs `normalizeNpcConfig` before storing (fallback raw on failure) - single entry point; both modal callers already pre-normalized, zero behavior change
+- F2: new `resolveDefaultWalkable` (domain/types.ts) replaces 3 inline `?? true` / typeof defaults (syncedPayload, migrate, layoutBuild)
+- docs/crud-reference.md syncNpcConfigToState row updated (CRUD gate); test-blueprint-schema gains resolveDefaultWalkable block
+- suites green: typecheck, test:blueprint-schema, test:migrate, test:sync-payload (EXIT=0), hcheck
+
+### data audit fixes (F3-F5) - 2026-09-10 14:05 UTC+7 (cline, cline)
+- original F3-F5 wording lost with prior agent context; re-derived via fresh skill.md Steps 1-5 pass over the 20 boundaries (same verdict PASS)
+- F3 decision: `buildSyncedObject` now resolves through `resolveObjectDef` (single resolution path) over per-field normalize* calls - the old inline copy duplicated resolveObjectDef and skipped rotation, so a rotated object's walkableGrid/tileStates/interactSpots left the sync DTO un-resolved while its w/h were already rotation-swapped; unrotated objects byte-identical, new rotated-tileStates assertion in test-sync-payload
+- F4 decision: migrate() drops raw `typeof` re-reads of resolution-owned fields (w/h/radius/padding/labelPadding/rx/fillColor) - normalizeObject overwrote them from the asset immediately after; keeps `label`/`collapsed` (instance-owned, resolution does not touch); dropped now-unused normalizeCornerRx import
+- F5: buildSavedLayout replaces `as ObjectData` raw cast with a typed map callback return (plain annotation, no cast)
+- reported-not-fixed: scripts/observe-hotel.ts:38 `floorPlanData as never` raw cast (dev script, not a runtime boundary)
+- suites green: typecheck (3 configs), test:migrate, test:sync-payload, test:blueprint-schema (all EXIT=0), hcheck pass
+
+### cline chat context meter - 2026-09-10 15:14 UTC+7 (cline, cline)
+- ClineChat.vue toolbar ctx chip: context used = input + cacheRead + cacheWrite tokens from the latest CLI `usage` event (run_result `usage.inputTokens` fallback when no usage event arrived); warn >=70%, danger >=90% or when finishReason / done reason is `context_window_exceeded`
+- new settings field "Context limit (tokens)" persisted in cline-chat-settings-v1; chip shows used / limit + % + mini bar; resets on New chat
+- verified: npm run lint:bem (34 files pass), npm run lint:css (34 files pass), npm run typecheck (3 configs) green; live smoke dev server /__cline/config + /__cline/history ok
+
+### cline chat usage strip (day/week/month limits) - 2026-09-10 (cline, cline)
+- usage strip above composer replaces toolbar ctx chip: Session ctx cell (tokens vs context limit) + Day/Week/Month spend cells with live bars, warn >=70%, danger >=90%
+- per-period limits persisted in cline-chat-settings-v1 (dailyLimit/weeklyLimit/monthlyLimit, $ inputs, 0 = off); resets: local midnight / Monday 00:00 / 1st of month; countdown tick every 15s (onUnmounted cleanup)
+- spend tracked from CLI usage-event cost: liveCost accumulates during run, commits to localStorage cline-chat-usage-v1 on run_result (totalCost preferred) or exit; 40-day / 500-record retention; live in-run cost shows on top of committed totals
+- verified: npm run lint:bem (34 pass), npm run lint:css (34 pass), npm run typecheck (3 configs), harness verify check pass (slot cleared)
+
+### cline chat usage gauges in topbar - 2026-09-10 (cline, cline)
+- usage strip moved from above composer into the toolbar, restyled as 4 compact radial SVG gauges (ctx / Day / Week / Month): ring arc = pct of limit, % in dial center, label + value + reset countdown beside; warn >=70% gold arc, danger >=90% red arc (ctx also on context_window_exceeded)
+- fixed latent bug: ctxClass still emitted removed cline-chat__ctx--* modifier names after the strip edit, so ctx cell never got warn/danger colors - now emits gauge modifiers
+- verified: npm run lint:bem (34 pass), npm run lint:css (34 pass), npm run typecheck (3 configs), harness verify check pass (slot cleared)
+
+### mod-cli idea doc - 2026-09-10 17:35 UTC+7 (muse-spark, opencode/muse-spark-1.3-contributor-free)
+- expanded docs/mod-cli.md stub (2 lines) into full idea + REQ-1/2/3 in Thai: IDE-like CLI MVP (chat + diff approve + output first), setup wizard (engine -> model provider -> key -> default model -> test connection), portable-folder first then npm global
+- locked correction: Cline/opencode are agent engines (subprocess/server), OpenRouter is the model provider - mod-cli is shell + router, never a second engine
+- verified: route (docs-only change, nothing runnable for this file), check pass (no secrets)
+
+### mod-cli decouple from harness - 2026-09-10 17:40 UTC+7 (muse-spark, opencode/muse-spark-1.3-contributor-free)
+- user correction (persists): docs/mod-cli.md is a standalone idea, not tied to this project - stripped 3 harness-coupled lines (copy-folder-of-harness, test:<name> gate, test:mod-cli suite) into neutral wording
+- verified: check pass (no secrets); route suites shown belong to prior-task dirt, not this change
+
+### cline chat standalone css - 2026-09-10 16:46 UTC+7 (muse-spark, opencode/muse-spark-1.3-contributor-free)
+- src/dev/ClineChat.vue is now self-contained: cline-chat__* renamed to mod-cli-chat__*, own --mod-cli-* tokens on the root (dark values copied from variables.css), own button/input/select/textarea/label base in scoped style; shared size--*/flag--*/empty deps removed (replaced by __btn/--fit/--active/--danger, __session--active, __empty); storage keys + logic untouched
+- verified: lint:bem pass, lint:css pass, typecheck (3 configs) clean, hcheck pass (22-file scope warning is prior-task dirt, not this change)
+
+### modcli rename - 2026-09-10 16:46 UTC+7 (muse-spark, opencode/muse-spark-1.3-contributor-free)
+- renamed src/dev/ClineChat.vue -> ModCLI.vue + clineBridge.ts -> modCliBridge.ts (plain move, both untracked); all Cline* symbols -> ModCli* (types, fetch/stream/stop fns, clineVersion), brand/placeholder/empty/exit strings -> ModCLI; App.vue now mounts <ModCLI> on ?modcli
+- kept deliberately: /__cline/* endpoints + clineBridgePlugin (provider adapter plumbing), provider default 'cline', cline-chat-settings/usage-v1 keys (no user data loss), datalist ids
+- verified: lint:bem pass, lint:css pass, typecheck (3 configs) clean, hcheck pass (22-file scope warning is prior-task dirt)
+
+### mod-cli package folder - 2026-09-10 16:46 UTC+7 (muse-spark, opencode/muse-spark-1.3-contributor-free)
+- new mod-cli/ package (user-picked option 1): src/ModCLI.vue + src/modCliBridge.ts moved from src/dev, minimal package.json (name mod-cli, peer vue); App.vue imports ../mod-cli/src/ModCLI.vue
+- verify coverage extended, not weakened: tsconfig.app.json include gains mod-cli/**/*.ts|vue (listFilesOnly proves both files in program), lint-bem + lint-css-compliance scan src + mod-cli with existsSync guard
+- verified: lint:bem pass (34 files), lint:css pass (34 files), typecheck (3 configs) clean, hcheck pass (24-file scope warning is prior-task dirt + this approved scope)
+
+### mod-cli handoff brief - 2026-09-10 16:46 UTC+7 (muse-spark, opencode/muse-spark-1.3-contributor-free)
+- new docs/mod-cli-handoff.md: handoff brief for another agent (done-state, file map, 4 remaining tasks in order, hard rules, verify commands, copy-paste prompt)
+- verified: hcheck pass (docs-only, nothing runnable; scope warning is prior-task dirt + approved scope)

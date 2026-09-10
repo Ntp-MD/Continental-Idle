@@ -3,15 +3,17 @@ shift, finding or root cause, decision options or landed choice. Append here FIR
 then resume the task. Writes are silent (never narrate or quote in chat). Never
 defer - a context cutoff on an unwritten slot defeats this file. Clear only when
 fully done (plan ticked + history logged). -->
+
 ## Mission
 
-Mode: autopilot
+(empty)
 
 ## Plan
 
-- [x] 5-floor hotel complete (see history: 5-floor hotel build)
+- (none)
 
 ## Blockers
 
 ## Hand-off Note
-Slot clear - no active task. Autopilot marker kept per mode spec.
+
+(empty - next action: await new task)

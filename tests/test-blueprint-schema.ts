@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { applySvgColorConvention, isSafeSvgMarkup, normalizeBlueprintDataFile, normalizeInteractSpots, normalizeNpcConfig, normalizeObjectPlacement, normalizeOriginAsset, normalizeTag, normalizeTileStates, resolveInteractSpotAnchor, resolveObjectDef, rotateInteractSpots90, snapSpotToEdge, parseCanvasConfig, CANVAS_FIELD_SPECS } from '../src/blueprint-editor/domain/types'
+import { applySvgColorConvention, isSafeSvgMarkup, normalizeBlueprintDataFile, normalizeInteractSpots, normalizeNpcConfig, normalizeObjectPlacement, normalizeOriginAsset, normalizeTag, normalizeTileStates, resolveDefaultWalkable, resolveInteractSpotAnchor, resolveObjectDef, rotateInteractSpots90, snapSpotToEdge, parseCanvasConfig, CANVAS_FIELD_SPECS } from '../src/blueprint-editor/domain/types'
 import { serializeAsset, serializeObject } from '../src/blueprint-editor/assets/assetUtils'
 import { resolvePlacedObject } from '../src/blueprint-editor/domain/geometry'
 import { buildBlueprintData } from '../src/blueprint-editor/store/dataLoader'
@@ -272,5 +272,13 @@ console.log('InteractSpot union + task.post checks passed')
 assert.deepEqual(normalizeTileStates([['walkable', 'door', 'blocked']]), [['walkable', 'door', 'blocked']], 'door tile survives normalize')
 assert.equal(normalizeTileStates([['walkable', 'open']]), undefined, 'unknown tile state rejected')
 console.log('Tile door state checks passed')
+
+// ── resolveDefaultWalkable (single default path for floor walkability) ──
+assert.equal(resolveDefaultWalkable({ defaultWalkable: true }), true)
+assert.equal(resolveDefaultWalkable({ defaultWalkable: false }), false, 'explicit false wins')
+assert.equal(resolveDefaultWalkable({}), true, 'missing field defaults to walkable')
+assert.equal(resolveDefaultWalkable({ defaultWalkable: 'no' }), true, 'non-boolean falls back to walkable')
+assert.equal(resolveDefaultWalkable(null), true)
+console.log('resolveDefaultWalkable checks passed')
 
 console.log('Blueprint schema checks passed')

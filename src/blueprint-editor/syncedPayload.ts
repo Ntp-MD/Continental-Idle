@@ -18,13 +18,10 @@ import type {
 import {
 	normalizeAllowedRoleIds,
 	normalizeFloorWalkable,
-	normalizeInteractConfig,
-	normalizeInteractSpots,
 	normalizeNpcConfig,
-	normalizeNpcQueueConfig,
 	normalizeNpcSpawnZones,
-	normalizeTileStates,
-	normalizeWalkableGrid,
+	resolveDefaultWalkable,
+	resolveObjectDef,
 	resolveStreetTiles,
 } from './domain/types'
 import { assignSyncKey, editorLog } from './store/storeUtils'
@@ -46,7 +43,7 @@ export function buildSyncedPayload(
 			const walkable = normalizeFloorWalkable(floor.walkable)
 			const spawnZones = normalizeNpcSpawnZones(floor.spawnZones)
 			floors[floorId] = {
-				defaultWalkable: floor.defaultWalkable ?? true,
+				defaultWalkable: resolveDefaultWalkable(floor),
 				...(walkable ? { walkable } : {}),
 				...(spawnZones?.length ? { spawnZones } : {}),
 				...(allowedRoleIds ? { allowedRoleIds } : {}),
@@ -81,11 +78,7 @@ function buildSyncedObject(o: ObjectData, assets: ReadonlyMap<string, AssetDef>,
 	const size = hasPositiveSize(o)
 		? { w: o.w, h: o.h }
 		: assetSizeFor(o.type, o.rotation ?? 0, tileSize, assets)
-	const interactSpots = normalizeInteractSpots(asset?.interactSpots)
-	const interact = normalizeInteractConfig(asset?.interact)
-	const queue = normalizeNpcQueueConfig(asset?.queue)
-	const walkableGrid = normalizeWalkableGrid(asset?.walkableGrid)
-	const tileStates = normalizeTileStates(asset?.tileStates)
+	const definition = resolveObjectDef(o.rotation ?? 0, asset, size ?? undefined)
 	const obj: SyncedObject = {
 		id: o.id,
 		type: o.type,
@@ -94,17 +87,17 @@ function buildSyncedObject(o: ObjectData, assets: ReadonlyMap<string, AssetDef>,
 		w: size?.w ?? 0,
 		h: size?.h ?? 0,
 		rotation: o.rotation,
-		walkable: asset?.walkable ?? false,
-		doorRequired: asset?.doorRequired ?? false,
+		walkable: definition.walkable,
+		doorRequired: definition.doorRequired,
 	}
 	if (o.fillColor) obj.fillColor = o.fillColor
 	if (o.strokeColor) obj.strokeColor = o.strokeColor
 	if (o.label) obj.label = o.label
-	if (walkableGrid) obj.walkableGrid = walkableGrid
-	if (tileStates) obj.tileStates = tileStates
-	if (interactSpots?.length) obj.interactSpots = interactSpots
-	if (interact) obj.interact = interact
-	if (queue) obj.queue = queue
+	if (definition.walkableGrid) obj.walkableGrid = definition.walkableGrid
+	if (definition.tileStates) obj.tileStates = definition.tileStates
+	if (definition.interactSpots?.length) obj.interactSpots = definition.interactSpots
+	if (definition.interact) obj.interact = definition.interact
+	if (definition.queue) obj.queue = definition.queue
 	return obj
 }
 

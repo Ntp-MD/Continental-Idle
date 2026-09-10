@@ -1,7 +1,7 @@
-import { toRaw } from 'vue'
 import type { NpcSimulationConfig } from '../domain/types'
-import { clampInt } from '../domain/types'
+import { clampInt, normalizeNpcConfig } from '../domain/types'
 import { state } from './state'
+import { cloneDeepRaw } from './storeUtils'
 import { saveBlueprintData } from './persistence'
 
 export function mergeNpcConfig(config: NpcSimulationConfig): NpcSimulationConfig {
@@ -28,7 +28,8 @@ export function mergeNpcConfig(config: NpcSimulationConfig): NpcSimulationConfig
 }
 
 export function syncNpcConfigToState(config: NpcSimulationConfig): void {
-	state.layout.npcConfig = structuredClone(toRaw(config))
+	const raw = cloneDeepRaw(config)
+	state.layout.npcConfig = normalizeNpcConfig(raw) ?? raw
 }
 
 

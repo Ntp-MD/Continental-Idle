@@ -29,6 +29,15 @@ export async function deleteFloor(id: string): Promise<boolean> {
 	return saveBlueprintData()
 }
 
+export async function clearFloor(id: string): Promise<boolean> {
+	const floor = state.layout.floors.find(f => f.id === id)
+	if (!floor) return false
+	if (floor.objects.length === 0) return true
+	floor.objects = []
+	state.selectionState = { primary: null, items: [] }
+	return saveBlueprintData()
+}
+
 export async function duplicateFloor(id: string): Promise<boolean> {
 	const floor = state.layout.floors.find(f => f.id === id)
 	if (!floor) return false

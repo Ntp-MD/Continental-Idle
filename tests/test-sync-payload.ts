@@ -149,6 +149,24 @@ function makeAsset(over: Partial<AssetDef>): AssetDef {
 	assert.deepEqual(syncedObjects[0].tileStates, [['door', 'blocked']], 'asset tile states sync through')
 	assert.equal('wallSegments' in syncedObjects[0], false, 'no wall segments on synced objects')
 	assert.equal('isWall' in syncedObjects[0], false, 'no wall flag on synced objects')
+// ── Rotated tile states resolve through the shared definition path ──
+{
+	const wall = makeAsset({ id: 'a-wall', name: 'Wall', w: 2, h: 1, walkable: false, tileStates: [['blocked', 'door']] })
+	const payload = buildSyncedPayload(makeLayout({
+		floors: [{
+			id: 'f1',
+			name: 'Ground',
+			label: 'G',
+			objects: [
+				{ id: 'o1', type: wall.id, x: 100, y: 100, w: 50, h: 25, rotation: 90 },
+			],
+		}],
+	}), buildAssetMap([wall]), undefined)!
+	const synced = payload.floors.G!.objects[0]
+	assert.deepEqual(synced.tileStates, [['blocked'], ['door']], 'rotation 90 rotates tileStates to match the swapped w/h')
+}
+
+// ── Canvas + npcConfig ──
 }
 
 // ── Canvas + npcConfig ──

@@ -10,7 +10,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const root = path.resolve(fileURLToPath(new URL('..', import.meta.url)))
-const srcDir = path.resolve(root, 'src')
+const scanDirs = [path.resolve(root, 'src'), path.resolve(root, 'mod-cli')]
 
 const TARGET_EXT = new Set(['.vue', '.css'])
 const MAX_SEPARATORS = 2
@@ -53,7 +53,7 @@ function countSeparators(name) {
 	return (name.match(/__/g) ?? []).length
 }
 
-const files = walk(srcDir)
+const files = scanDirs.filter((dir) => fs.existsSync(dir)).flatMap((dir) => walk(dir, []))
 const violations = []
 
 for (const file of files) {

@@ -7,6 +7,7 @@ import { normalizeBlueprintDataFile } from '../domain/types'
 import { buildSyncedPayload } from '../syncedPayload'
 
 const MAX_SAVE_RETRIES = 3
+class PayloadTooLargeError extends Error { }
 let isSavingBlueprintData = false
 
 async function saveBlueprintDataLocked(): Promise<boolean> {
@@ -21,6 +22,7 @@ async function saveBlueprintDataLocked(): Promise<boolean> {
 					headers: { 'Content-Type': 'application/json', 'X-Blueprint-Client': '1', 'X-Blueprint-Save': '1' },
 					body,
 				})
+				if (res.status === 413) throw new PayloadTooLargeError()
 				if (!res.ok || !res.headers.get('content-type')?.toLowerCase().startsWith('application/json')) throw new Error(`HTTP ${res.status}`)
 				const response: unknown = await res.json()
 				if (!response || typeof response !== 'object') throw new Error('Persistence verification response was invalid')
@@ -30,7 +32,7 @@ async function saveBlueprintDataLocked(): Promise<boolean> {
 				return true
 			} catch (error) {
 				editorLog.error(`saveBlueprintData attempt ${attempt}`, error)
-				if (attempt === MAX_SAVE_RETRIES) throw error
+				if (error instanceof PayloadTooLargeError || attempt === MAX_SAVE_RETRIES) throw error
 				await new Promise(resolve => setTimeout(resolve, 1000 * (attempt + 1)))
 			}
 		}
