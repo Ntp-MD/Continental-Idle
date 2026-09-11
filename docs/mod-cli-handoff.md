@@ -12,7 +12,8 @@
 - [x] `mod-cli/src/ModCLI.vue` — standalone CSS (`mod-cli-chat__*`, tokens `--mod-cli-*` ของตัวเอง, ไม่พึ่ง CSS host)
 - [x] Rename `ClineChat` → `ModCLI`, `clineBridge` → `modCliBridge` (symbols `ModCli*`, brand ModCLI)
 - [x] Package folder `mod-cli/` (`src/ModCLI.vue` + `src/modCliBridge.ts` + `package.json`) + verify ครอบคลุม
-- `src/App.vue` เปิดด้วย `?modcli` (ของเดิม `?cline` เลิกใช้แล้ว)
+- [x] Adapter Vue+Vite route `/mod-cli` (`mod-cli/src/modCliViteAdapter.ts` + wiring ใน `vite.config.ts`) — dev URL คือ `http://localhost:5173/mod-cli`
+- `src/App.vue` mount `<ModCLI>` ด้วย route `/mod-cli` (`?modcli` และ `?cline` เลิกใช้แล้ว)
 
 ## 3. แผนที่ไฟล์
 
@@ -27,10 +28,18 @@ docs/mod-cli.md              # สเปก
 
 ## 4. งานที่เหลือ (ทำตามลำดับ)
 
-1. **Adapter Vue+Vite mount route `/mod-cli`** — แทน `?modcli` ชั่วคราวใน `App.vue`
-2. **หน้า Settings (BYO API Key)** — เลือก provider → ใส่ key → Test Connection, เก็บแบบเดียวกับ CLI
-3. **Provider connector** — ตอนนี้ default `cline` อย่างเดียว, โครงต้องสลับ provider ได้โดย UI เดิม (สลับ = session ใหม่)
+1. [x] **Adapter Vue+Vite mount route `/mod-cli`** — เสร็จแล้ว (ดู §2)
+2. **หน้า Settings (BYO API Key)** — เลือก provider → ใส่ key → Test Connection, เก็บแบบเดียวกับ CLI (ยังไม่มีจริงเลย: `ModCLI.vue` ไม่มีหน้า Settings/input key/ปุ่ม Test Connection, `StoredSettings` ไม่มี field `apiKey` — ต้องได้ shape `{provider, apiKey, model, projectPath}` ตามสเปก)
+3. **Provider connector** — ตอนนี้ default `cline` อย่างเดียว, โครงต้องสลับ provider ได้โดย UI เดิม (สลับ = session ใหม่) (ยังไม่ได้ทำ: `providerOptions` hardcode `['cline']`, ฝั่ง server spawn cline CLI อย่างเดียว, ลิสต์ model ดึงจาก history session ไม่ใช่จาก CLI, reasoning ไม่มีลิสต์ให้เลือก)
 4. **ทดสอบยกไป 2-3 project Node** (copy folder แล้ว `npm run dev` → `/mod-cli`)
+
+## 4a. สถานะจาก audit (2026-09-11) — อ่านก่อนเริ่มงาน
+
+- งาน 4.1 **ยังไม่ commit**: `git status` = M `src/App.vue` / `vite.config.ts` / `tsconfig.node.json` / `docs/mod-cli-handoff.md` / `harness/*` + untracked `mod-cli/src/modCliViteAdapter.ts` — ถือว่า baseline ปัจจุบันคืองานนี้ (user เป็นคน commit เอง)
+- **ไม่มี approve/reject + diff UI** ตามสเปกข้อ 2 และ run ปัจจุบัน auto-approve อยู่: client ไม่ส่ง `autoApprove` → server (`vite.config.ts` ~L424 `body.autoApprove !== false`) ตีเป็น true → ไม่ push `--auto-approve false` เข้า cline
+- `docs/mod-cli.md` หัว "Next Step" ยังไม่ tick ข้อแรก (`[ ] ทำ route /mod-cli`) ทั้งที่เสร็จแล้ว — sync เอกสารด้วยเมื่อแตะงาน
+- แนวทาง 4.2 ที่สอดคล้องกฎ §5: key ไปที่เดียวกับที่ CLI อ่าน (ส่งต่อเป็น env ของ child process ที่ spawn ใน `/__cline/run`), จุดทดสอบ (Test Connection) เพิ่ม route ใหม่แบบ additive ใต้ `/__cline/*` (ห้ามแก้ URL/behavior ของ route เดิม), เก็บ field เพิ่มใน `cline-chat-settings-v1` โดยไม่เปลี่ยนชื่อ key
+- ไฟล์ที่จะแตะตอนทำ 4.2 = `mod-cli/src/ModCLI.vue` + `mod-cli/src/modCliBridge.ts` + `vite.config.ts` = พอดี 3 ไฟล์ (ไม่ต้องถามก่อน)
 
 ## 5. กฎเหล็ก (ห้ามแหก)
 
@@ -49,8 +58,8 @@ npm run typecheck   # ถ้าแตะ .vue/.ts
 npm run hcheck      # ก่อนรายงานเสร็จทุกครั้ง
 ```
 
-dev: `npm run dev` → `http://localhost:5173/?modcli`
+dev: `npm run dev` → `http://localhost:5173/mod-cli`
 
 ## 7. Prompt สำเร็จรูป (copy ไปแปะ)
 
-> อ่าน `docs/mod-cli-handoff.md` + `docs/mod-cli.md` ก่อน แล้วทำข้อ 4.1 (Adapter Vue+Vite mount route `/mod-cli` แทน `?modcli`) กฎตามข้อ 5 verify ตามข้อ 6 รายงานสั้นๆ แบบ claim/changed/assumption/verified
+> อ่าน `docs/mod-cli-handoff.md` (รวม §4a) + `docs/mod-cli.md` ก่อน แล้วทำข้อ 4.2 (หน้า Settings BYO API Key: เลือก provider → ใส่ key → Test Connection → เก็บแบบเดียวกับ CLI) กฎตามข้อ 5 verify ตามข้อ 6 รายงานสั้นๆ แบบ claim/changed/assumption/verified

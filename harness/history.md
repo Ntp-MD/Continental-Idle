@@ -237,3 +237,9 @@ follow it when logging below.
 ### mod-cli handoff brief - 2026-09-10 16:46 UTC+7 (muse-spark, opencode/muse-spark-1.3-contributor-free)
 - new docs/mod-cli-handoff.md: handoff brief for another agent (done-state, file map, 4 remaining tasks in order, hard rules, verify commands, copy-paste prompt)
 - verified: hcheck pass (docs-only, nothing runnable; scope warning is prior-task dirt + approved scope)
+
+### mod-cli route adapter - 2026-09-10 19:51 UTC+7 (cline, cline)
+- new mod-cli/src/modCliViteAdapter.ts (MOD_CLI_ROUTE + isModCliRoute + modCliPlugin: dev middleware rewrites GET/HEAD /mod-cli* -> /index.html); wired modCliPlugin() in vite.config.ts plugins
+- App.vue mounts <ModCLI> on isModCliRoute(window.location.pathname); ?modcli removed (deprecated alongside ?cline); handoff doc state synced (4.1 done, dev URL /mod-cli)
+- tsconfig.node.json include gains mod-cli/src/modCliViteAdapter.ts (TS6307 composite rule; mirrors existing types.ts dual-membership)
+- verified: lint:bem pass, lint:css pass, typecheck (3 configs) clean, hcheck pass; live dev smoke :5199 /mod-cli, /mod-cli/, /mod-cli?x=1, / all 200 html-ok

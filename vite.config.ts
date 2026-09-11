@@ -9,6 +9,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { BLUEPRINT_DATA_SCHEMA, BLUEPRINT_DATA_VERSION, normalizeBlueprintDataFile } from './src/blueprint-editor/domain/types.js'
 import type { BlueprintDataFile } from './src/blueprint-editor/domain/types.js'
+import { modCliPlugin } from './mod-cli/src/modCliViteAdapter.js'
 
 export function isPrivateLanIpv4(hostname: string): boolean {
 	const parts = hostname.split('.')
@@ -529,6 +530,7 @@ export default defineConfig({
 		vue(),
 		blueprintDataPlugin(),
 		clineBridgePlugin(),
+		modCliPlugin(),
 		...(process.env.BUNDLE_REPORT ? [visualizer({ filename: 'dist/bundle-report.html', gzipSize: true, brotliSize: true, template: 'treemap' })] : []),
 	],
 	resolve: {
