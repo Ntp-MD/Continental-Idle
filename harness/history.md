@@ -243,3 +243,127 @@ follow it when logging below.
 - App.vue mounts <ModCLI> on isModCliRoute(window.location.pathname); ?modcli removed (deprecated alongside ?cline); handoff doc state synced (4.1 done, dev URL /mod-cli)
 - tsconfig.node.json include gains mod-cli/src/modCliViteAdapter.ts (TS6307 composite rule; mirrors existing types.ts dual-membership)
 - verified: lint:bem pass, lint:css pass, typecheck (3 configs) clean, hcheck pass; live dev smoke :5199 /mod-cli, /mod-cli/, /mod-cli?x=1, / all 200 html-ok
+
+### mod-cli 4.2 settings BYO API Key - 2026-09-11 09:29 UTC+7 (muse-spark, opencode/muse-spark-1.3-contributor-free)
+- Settings panel in ModCLI.vue (provider -> key -> Test Connection -> Clear; auto-opens when no key stored); apiKey additive in cline-chat-settings-v1 (key name unchanged); per-run fwd via cline -k; additive POST /__cline/test-connection (reachability + key-shape probe, never persists/echoes key); provider/model/reasoning change starts a new session
+- verified: lint:bem pass (34 files), lint:css pass (34 files), typecheck clean, hcheck pass; live smoke :5173 test-connection 200 ok / bad-provider 400 / run-bad-key 400 / history unchanged 200
+
+### mod-cli adapter module hijack fix - 2026-09-11 09:44 UTC+7 (muse-spark, opencode/muse-spark-1.3-contributor-free)
+- root cause: modCliPlugin rewrote every GET under /mod-cli* to /index.html, so the browser's own module fetch /mod-cli/src/ModCLI.vue got HTML back -> vite import-analysis .html parse error; page never booted (4.1 curl-only smoke missed it)
+- fix in mod-cli/src/modCliViteAdapter.ts: rewrite only navigations (no Accept header or accepts text/html); module/static fetches (Accept */*) pass through
+- verified: live :5173 /mod-cli -> text/html, /mod-cli/src/ModCLI.vue + /mod-cli/src/modCliBridge.ts -> text/javascript; typecheck clean, hcheck pass
+
+### mod-cli settings connected-status - 2026-09-11 09:55 UTC+7 (muse-spark, opencode/muse-spark-1.3-contributor-free)
+- Settings panel now always shows what is connected: provider / model / masked key (••••tail) + last test result with timestamp, persisted as additive lastTest in cline-chat-settings-v1; retest hint when inputs drift from tested values; Clear key drops the record
+- verified: lint:bem pass, lint:css pass, typecheck clean, hcheck pass (single file: mod-cli/src/ModCLI.vue, classes reused)
+
+### mod-cli style extract - 2026-09-11 10:05 UTC+7 (muse-spark, opencode/muse-spark-1.3-contributor-free)
+- new mod-cli/style/ModCLI.css (verbatim move of the SFC <style>); ModCLI.vue keeps <style scoped src="../style/ModCLI.css"> so scoping is unchanged
+- note: docs/mod-cli-handoff.md was found deleted in working tree (not by this task) - map sync skipped, flagged in report
+- verified: lint:bem pass (35 files), lint:css pass (35 files), typecheck clean, hcheck pass; live :5173 ModCLI.vue -> text/javascript with scoped id + css import
+
+### mod-cli remove limits - 2026-09-11 10:15 UTC+7 (muse-spark, opencode/muse-spark-1.3-contributor-free)
+- removed context/day/week/month limit inputs + limit state + settings persistence; gauges now show actual usage values only (ctx tokens, day/week/month spend), dial/pct/--warn css dropped; ctx still turns red on context-window-exceeded
+- verified: lint:bem pass, lint:css pass, typecheck clean, hcheck pass; live :5173 module recompiles with scoped id, no limit refs (single file ModCLI.vue + ModCLI.css)
+
+### mod-cli remove period gauges - 2026-09-11 10:22 UTC+7 (muse-spark, opencode/muse-spark-1.3-contributor-free)
+- toolbar keeps ctx gauge only; removed period display chain (costSince/liveAdd/day-week-month/usageCells/date helpers/formatCost/formatRemaining/nowMs/15s timer); usage recording + stream logic untouched
+- verified: lint:bem pass, lint:css pass, typecheck clean, hcheck pass; live :5173 module ok, no period refs
+
+### mod-cli ctx usage fix - 2026-09-11 10:40 UTC+7 (muse-spark, opencode/muse-spark-1.3-contributor-free)
+- root cause (user report true): --json wire has no usage/run_result (docs: say/ask only), so ctx gauge could never fill; usage lives in history entry metadata instead (proven via raw history --json)
+- fix (3 files): vite.config.ts passes normalized usage through /history projection (top-level + metadata fallback); modCliBridge.ts ModCliUsage + parse; ModCLI.vue applies session usage after run (guarded by usageEventSeen/runResultUsageSeen/liveCommitted) + on resume
+- verified: typecheck clean, lint:bem/css pass, hcheck pass; live :5173 /history now carries usage {4118/112/$0.0003}; client apply pending one live UI run
+
+### mod-cli ctx tube - 2026-09-11 11:08 UTC+7 (muse-spark, opencode/muse-spark-1.3-contributor-free)
+- ctx gauge now a horizontal in/out tube (no window size stored by CLI, so composition bar from session tokens: blue in / green out + exact tooltip); tracks contextOut alongside contextUsed (live events, run_result, history-apply, resume; reset on new chat)
+- verified: lint:bem pass, lint:css pass, typecheck clean, hcheck pass; live :5173 module has tube markup
+
+### mod-cli window pct - 2026-09-11 11:32 UTC+7 (muse-spark, opencode/muse-spark-1.3-contributor-free)
+- ctx tube now % of model max window, read live from CLI's own @cline/llms catalog (getGeneratedModelsForProvider, cached import, null-safe) via additive POST /__cline/model-info; no hardcode; unknown model falls back to in/out composition; M-format + warn band back
+- verified: typecheck clean, lint:bem/css pass, hcheck pass; live model-info 1310720 for glm-5.3-flash / null for unknown; module compiles
+
+### mod-cli live test T1-T3 - 2026-09-11 12:35 UTC+7 (muse-spark, opencode/muse-spark-1.3-contributor-free)
+- T1 PASS fresh run: exit 0, text ok, usage+session events flow, history carries usage ($0.0062); wire = agent_event/content_*/usage/done/run_result (no say/ask here)
+- T2 PASS cancel: /stop kills mid-story (exit -1), session resolvable, no residue
+- T3 FAIL = real CLI bug: --id ignores argv prompt AND stdin unread -> resume impossible; server now 400s sessionId plainly, client drops continuation pretense (resume restores model/provider/usage only, sessionId cleared after runs); spec limitation noted
+- verified: typecheck clean, hcheck pass; live sessionId 400 pre-spawn; total test spend ~$0.02
+
+### mod-cli spec refresh - 2026-09-11 12:47 UTC+7 (muse-spark, opencode/muse-spark-1.3-contributor-free)
+- spec moved to mod-cli/mod-cli.md (docs/ copy deleted by user); rewrote to current truth: path providers, no-continue limit, no delete/persist-log, usage-from-history, window-from-catalog, folder-drop needs 2 wiring edits, proven CLI quirks section, refreshed Next Step
+- verified: hcheck pass (docs-only)
+
+### mod-cli lock fix - 2026-09-11 12:52 UTC+7 (muse-spark, opencode/muse-spark-1.3-contributor-free)
+- user report: model locked after connect; no bridge run in flight; found real stuck-lock path (saveSettings threw outside try -> running stays true) - moved inside try
+- verified: typecheck clean, hcheck pass; live module compiles
+
+### mod-cli settings below composer - 2026-09-11 11:41 UTC+7 (muse-spark, opencode/muse-spark-1.3-contributor-free)
+- moved .mod-cli-chat__settings row below the composer footer (toolbar -> connect -> log -> composer -> settings); border-bottom swapped to border-top
+- verified: lint:bem pass, lint:css pass, typecheck clean, hcheck pass; live :5173 module compiles
+
+### mod-cli provider dot - 2026-09-11 12:06 UTC+7 (muse-spark, opencode/muse-spark-1.3-contributor-free)
+- Connection indicator first in settings section: dot green (tested ok, unchanged) / yellow (testing, untested key, or drifted) / red (failed) / gray (never connected) + provider · model label; toolbar dot stays as server/bridge layer
+- verified: lint:bem pass, lint:css pass, typecheck clean, hcheck pass; live :5173 module has dot markup
+
+### mod-cli cancel note - 2026-09-11 12:14 UTC+7 (muse-spark, opencode/muse-spark-1.3-contributor-free)
+- Stop (=cancel) now confirms session kept + continue hint; works even before runId arrives; removed duplicate AbortError note (single file ModCLI.vue)
+- verified: typecheck clean, hcheck pass; live :5173 module compiles
+
+### mod-cli model list - 2026-09-11 13:05 UTC+7 (muse-spark, opencode/muse-spark-1.3-contributor-free)
+- POST /__cline/models returns catalog models (id/name/window, cap 300) via shared cached import; datalist merges current + catalog + history; loads on mount + test-ok
+- verified: typecheck clean, lint:bem/css pass, hcheck pass; live cline-pass 18 models; module compiles
+
+### mod-cli provider routes - 2026-09-11 12:28 UTC+7 (muse-spark, opencode/muse-spark-1.3-contributor-free)
+- /mod-cli/cline + /mod-cli/opencode (bare -> cline, unknown -> cline); App passes :initial-provider; ModCLI locks provider from path (free input + datalist removed, stored provider only applies without prop)
+- verified: typecheck clean, lint:bem/css pass, hcheck pass; live all 3 routes 200 html; getModCliProvider unit-checked 9 paths via tsx
+
+### mod-cli single-word prompt guard - 2026-09-11 11:58 UTC+7 (muse-spark, opencode/muse-spark-1.3-contributor-free)
+- why (user report true): cline 3.0.61 rejects single-word prompts (Unknown command or unquoted prompt) - reproduced: hi fails, hi there passes parsing; resolver forwards argv cleanly so quirk is CLI-side
+- fix (2 files): /run 400 on <2-word prompts with plain message; bridgeFetch now surfaces server error text instead of bare status
+- verified: typecheck clean, hcheck pass; live single-word 400 pre-spawn, two-word passes validation (probe run exited clean, no residue)
+
+### mod-cli worktree toggle - 2026-09-11 10:58 UTC+7 (muse-spark, opencode/muse-spark-1.3-contributor-free)
+- docs/mod-cli.md: spec + Next Step updated (worktree / TODO / approve-needs-ACP-spike)
+- Worktree (isolated) checkbox -> bridge worktree flag -> /run appends cline --worktree; persisted in settings; changing it starts a new session
+- incident: restart kill matched user processes too (their :5174 server + npm wrappers dead; terminals survive, restart npm run dev to restore); :5173 relaunched fresh
+- verified: typecheck clean, lint:bem/css pass, hcheck pass; validation 400 pre-spawn ok; live --worktree spawn NOT tested (costs tokens, creates worktree)
+
+### mod-cli ux layout pass - 2026-09-11 13:20 UTC+7 (muse-spark, opencode/muse-spark-1.3-contributor-free)
+- audit fixes: toolbar wraps, status ellipsis works in flex, composer wraps, empty-state has 3 clickable multi-word samples (fills composer + focuses)
+- noted not fixed: connect-text/settings-dot redundancy, no session delete, log not persisted, narrow drawer
+- verified: lint:bem pass, lint:css pass, typecheck clean, hcheck pass; live module has samples
+
+### mod-cli sidebar layout - 2026-09-11 13:33 UTC+7 (muse-spark, opencode/muse-spark-1.3-contributor-free)
+- settings moved to right sidebar (260px, own scroll, Settings title) next to log+composer column; stacks below on <720px; grow-field override for column layout
+- verified: lint:bem pass, lint:css pass, typecheck clean, hcheck pass; live module has content wrappers
+
+### mod-cli native model select - 2026-09-11 14:12 UTC+7 (muse-spark, opencode/muse-spark-1.3-contributor-free)
+- model is a native select (provider default + catalog + history); custom picker/datalist/combo removed (net negative code)
+- verified: lint:bem pass, lint:css pass, typecheck clean, hcheck pass; live module compiles
+
+### mod-cli delete-session 500 fix - 2026-09-11 16:31 UTC+7 (muse-spark, cline 3.0.61 CLI probe)
+- user report: `Cline could not delete that session` (500); verified on the wire - `cline history delete --session-id <gone-id>` exits nonzero with `Session <id> not found`, bridge mapped any nonzero to a bare 500 and the drawer never refreshed on failure so stale entries stuck
+- vite.config.ts deleteClineSession: idempotent delete (not found = success, drawer refresh + chat unbind) + cline's own stderr surfaced in the 500; single caller updated, scope 1 file
+- verified: typecheck green (tsconfig.node covers vite.config.ts); live `npm run dev` restart required to take effect (user's foreground terminal - not restarted by agent)
+
+### mod-cli custom model picker - 2026-09-11 14:02 UTC+7 (muse-spark, opencode/muse-spark-1.3-contributor-free)
+- replaced native datalist (popup never opens in user browser) with custom toggle list (Esc/select close, scrollable, empty state); datalist removed
+- verified: lint:bem pass, lint:css pass, typecheck clean, hcheck pass; live module has picker, no datalist
+
+### mod-cli model picker button - 2026-09-11 13:47 UTC+7 (muse-spark, opencode/muse-spark-1.3-contributor-free)
+- model input wrapped in combo row with explicit v button (showPicker + focus fallback, disabled while running); 1 new css class
+- verified: lint:bem pass, lint:css pass, typecheck clean, hcheck pass; live module has combo
+
+### slot cleared on user order - 2026-09-11 17:20 UTC+7 (cline, model id n/a)
+- CLI-settings-catalog plan (approved, zero items implemented) dropped from the slot; no code written for it - approved plan text recoverable only from this entry's date window if ever revived
+- blockers surfaced to user in chat: docs/mod-cli-handoff.md restore-vs-drop call; publish + real-world trials need the user's license decision
+- verified: slot headers intact, empty shape; history appended
+
+
+### mod-cli unknown-session heal - 2026-09-11 18:05 UTC+7 (cline, model id n/a)
+- user report: every message looped `Cannot persist messages for unknown session 1789121986426_syd75`; verified - client rebinds the dead sessionId after each run (ModCLI.vue applyStreamLine session event) and bridge session/load succeeded while cline's prompt-side store no longer knew the session, so session/prompt rejected forever
+- vite.config.ts startAcpRun: config-apply block extracted to applyRunConfig(sessionId, session) helper (dedupe, both paths); session/prompt now wrapped in a one-shot heal - resumed-session rejection matching /unknown session/i spawns a fresh session, re-applies provider/model/plan/auto-approve, rebinds via bridge session event + note, and re-prompts once; non-resume or non-unknown errors still throw
+- prior-task dirt cleanup same file (unblocked the typecheck gate): removed dead asConfigOptionsBody + ModCliAgentOptionPayload + CLINE_MAX_OPTION_BYTES/CLINE_MAX_OPTION_COUNT/HAND_WIRED_CONFIG_IDS (zero usages, TS6133 pre-existing)
+- immediate user workaround remains valid: New chat clears the stale binding
+- verified: npm run typecheck green (all 3 configs), harness check pass
+

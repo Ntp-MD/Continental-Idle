@@ -1,5 +1,5 @@
 import { defineConfig, type ViteDevServer } from 'vite'
-import { fileURLToPath, URL } from 'node:url'
+import { fileURLToPath, pathToFileURL, URL } from 'node:url'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { execFile, execFileSync, spawn, type ChildProcess } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
@@ -251,24 +251,134 @@ function blueprintDataPlugin() {
 }
 
 const CLINE_THINKING_LEVELS = new Set(['none', 'low', 'medium', 'high', 'xhigh'])
-const CLINE_ID_PATTERN = /^[\w./:@+-]+$/
+const CLINE_ID_PATTERN = /^[\w./:@~+-]+$/
 const CLINE_SESSION_PATTERN = /^[\w-]+$/
 const CLINE_MAX_PROMPT_BYTES = 64 * 1024
+const CLINE_MAX_KEY_BYTES = 4096
 const CLINE_RUN_TIMEOUT_MS = 30 * 60 * 1000
 
 interface ClineRunBody {
 	prompt?: unknown
 	model?: unknown
 	provider?: unknown
+	providerAccount?: unknown
+	apiKey?: unknown
 	thinking?: unknown
 	plan?: unknown
+	worktree?: unknown
 	autoApprove?: unknown
+	configOptions?: unknown
 	sessionId?: unknown
 	runId?: unknown
+	permissionId?: unknown
+	optionId?: unknown
 }
 
-function resolveClineEntry(): string | null {
+
+function asApiKey(value: unknown): string | null {
+	if (typeof value !== 'string') return null
+	const key = value.trim()
+	if (!key || Buffer.byteLength(key, 'utf8') > CLINE_MAX_KEY_BYTES) return null
+	if (/[\x00-\x1F\x7F]/.test(key)) return null
+	return key
+}
+
+interface ClineModelCatalog {
+	getGeneratedModelsForProvider?: (providerId: string) => unknown
+}
+
+let clineModelsModule: ClineModelCatalog | null = null
+let clineModelsFailed = false
+
+function clineLlmsModelsPath(entry: string): string | null {
+	const candidate = path.join(path.dirname(path.dirname(entry)), 'node_modules', '@cline', 'llms', 'dist', 'models.js')
+	try {
+		if (fs.statSync(candidate).isFile()) return candidate
+	} catch { /* catalog is unavailable */ }
+	return null
+}
+
+async function ensureClineModels(entry: string): Promise<ClineModelCatalog | null> {
+	if (clineModelsModule || clineModelsFailed) return clineModelsModule
+	const catalogPath = clineLlmsModelsPath(entry)
+	if (!catalogPath) {
+		clineModelsFailed = true
+		return null
+	}
+	try {
+		clineModelsModule = (await import(pathToFileURL(catalogPath).href)) as ClineModelCatalog
+	} catch {
+		clineModelsFailed = true
+		return null
+	}
+	return clineModelsModule
+}
+
+interface ModCliAuthProviderOption {
+	id: string
+	name: string
+	currentValue: string
+	options: Array<{ value: string; name: string }>
+}
+
+function asModelEntry(value: unknown): { id: string; name: string; contextWindow: number | null } | null {
+	if (typeof value !== 'object' || value === null) return null
+	const raw = value as Record<string, unknown>
+	if (typeof raw.id !== 'string' || !raw.id) return null
+	const contextWindow = raw.contextWindow
+	return {
+		id: raw.id,
+		name: typeof raw.name === 'string' && raw.name ? raw.name : raw.id,
+		contextWindow: typeof contextWindow === 'number' && Number.isFinite(contextWindow) && contextWindow > 0 ? Math.floor(contextWindow) : null,
+	}
+}
+
+async function getModelContextWindow(entry: string, provider: string, model: string): Promise<number | null> {
+	if (!provider || !model) return null
+	const catalog = await ensureClineModels(entry)
+	const lookup = catalog?.getGeneratedModelsForProvider
+	if (typeof lookup !== 'function') return null
+	let list: unknown
+	try {
+		list = lookup.call(catalog, provider)
+	} catch {
+		return null
+	}
+	const models = Array.isArray(list) ? list : Object.values((typeof list === 'object' && list !== null ? list : {}) as Record<string, unknown>)
+	const want = model.toLowerCase()
+	const prefix = `${provider.toLowerCase()}/`
+	const match = models.find((item) => {
+		const entry = asModelEntry(item)
+		if (!entry) return false
+		const low = entry.id.toLowerCase()
+		return low === want || low === `${prefix}${want}` || low.endsWith(`/${want}`)
+	})
+	return match ? (asModelEntry(match)?.contextWindow ?? null) : null
+}
+
+async function getProviderModelList(entry: string, provider: string): Promise<Array<{ id: string; name: string; contextWindow: number | null }>> {
+	const catalog = await ensureClineModels(entry)
+	const lookup = catalog?.getGeneratedModelsForProvider
+	if (typeof lookup !== 'function') return []
+	let list: unknown
+	try {
+		list = lookup.call(catalog, provider)
+	} catch {
+		return []
+	}
+	const models = Array.isArray(list) ? list : Object.values((typeof list === 'object' && list !== null ? list : {}) as Record<string, unknown>)
+	const entries: Array<{ id: string; name: string; contextWindow: number | null }> = []
+	for (const item of models) {
+		const parsed = asModelEntry(item)
+		if (parsed) entries.push(parsed)
+		if (entries.length >= 300) break
+	}
+	return entries
+}
+
+function resolveClineEntry(projectRoot?: string): string | null {
 	const candidates: string[] = []
+	if (projectRoot) candidates.push(path.join(projectRoot, 'node_modules', 'cline', 'bin', 'cline'))
 	if (process.env.APPDATA) candidates.push(path.join(process.env.APPDATA, 'npm', 'node_modules', 'cline', 'bin', 'cline'))
 	try {
 		const globalRoot = execFileSync('npm', ['root', '-g'], { encoding: 'utf-8' }).trim()
@@ -311,47 +421,713 @@ function readClineHistoryRaw(entry: string, limit: number): Promise<unknown> {
 	})
 }
 
-function resolveClineSessionId(entry: string, prompt: string, startedAtMs: number): Promise<string | null> {
-	return readClineHistoryRaw(entry, 5).then((raw) => {
-		if (!Array.isArray(raw)) return null
-		for (const item of raw) {
-			if (typeof item !== 'object' || item === null) continue
-			const session = item as Record<string, unknown>
-			const sessionId = typeof session.sessionId === 'string' ? session.sessionId : ''
-			if (!sessionId) continue
-			const startedAt = Date.parse(typeof session.startedAt === 'string' ? session.startedAt : '')
-			if (!Number.isNaN(startedAt) && startedAt < startedAtMs - 5000) continue
-			const sessionPrompt = typeof session.prompt === 'string' ? session.prompt : ''
-			if (sessionPrompt.includes(prompt.trim())) return sessionId
-		}
-		return null
+type ModCliProviderId = 'cline' | 'opencode'
+const MOD_CLI_PROVIDER_IDS: ModCliProviderId[] = ['cline', 'opencode']
+const ACP_CLIENT_CAPABILITIES = { protocolVersion: 1, clientCapabilities: { fs: { readTextFile: true, writeTextFile: true } } }
+
+function asString(value: unknown): string {
+	return typeof value === 'string' ? value : ''
+}
+
+function asProviderId(value: unknown): ModCliProviderId | null {
+	const id = asString(value).trim().toLowerCase()
+	return (MOD_CLI_PROVIDER_IDS as string[]).includes(id) ? (id as ModCliProviderId) : null
+}
+
+function getOpencodeVersion(entry: string): Promise<string | null> {
+	return new Promise((resolve) => {
+		execFile(entry, ['--version'], { timeout: 15000, windowsHide: true }, (error, stdout) => {
+			resolve(error ? null : stdout.trim() || null)
+		})
 	})
+}
+
+function resolveOpencodeEntry(): string | null {
+	const candidates: string[] = []
+	const home = process.env.USERPROFILE ?? process.env.HOME
+	if (home) {
+		candidates.push(path.join(home, '.opencode', 'opencode.exe'))
+		candidates.push(path.join(home, '.opencode', 'bin', 'opencode.exe'))
+	}
+	try {
+		const locator = process.platform === 'win32' ? 'where' : 'which'
+		const hits = execFileSync(locator, ['opencode'], { encoding: 'utf-8' })
+		for (const hit of hits.split(/\r?\n/)) if (hit.trim()) candidates.push(hit.trim())
+	} catch { /* opencode is not on PATH */ }
+	for (const candidate of candidates) {
+		try {
+			if (fs.statSync(candidate).isFile()) return candidate
+		} catch { /* try next candidate */ }
+	}
+	return null
+}
+
+interface AgentDescriptor {
+	id: ModCliProviderId
+	cmd: string
+	args: string[]
+	version: () => Promise<string | null>
+}
+
+function resolveAgent(projectRoot: string, provider: ModCliProviderId): AgentDescriptor | null {
+	if (provider === 'cline') {
+		const entry = resolveClineEntry(projectRoot)
+		if (!entry) return null
+		return { id: provider, cmd: process.execPath, args: [entry, '--acp'], version: () => getClineVersion(entry) }
+	}
+	const entry = resolveOpencodeEntry()
+	if (!entry) return null
+	return { id: provider, cmd: entry, args: ['acp'], version: () => getOpencodeVersion(entry) }
+}
+
+interface AcpRequestWaiter {
+	resolve: (value: Record<string, unknown>) => void
+	reject: (error: Error) => void
+	timer: NodeJS.Timeout | null
+}
+
+interface AcpConnection {
+	request(method: string, params: Record<string, unknown>, timeoutMs?: number): Promise<Record<string, unknown>>
+	reply(id: number, result: Record<string, unknown>): void
+	replyError(id: number, code: number, message: string): void
+	notify(method: string, params: Record<string, unknown>): void
+	sink(handlers: {
+		onRequest: (method: string, params: Record<string, unknown>, id: number) => void
+		onNotification: (method: string, params: Record<string, unknown>) => void
+	}): void
+	destroy(): void
+}
+
+function connectAcp(child: ChildProcess): AcpConnection {
+	const waiters = new Map<number, AcpRequestWaiter>()
+	let nextId = 0
+	let disposed = false
+	let streamBuffer = ''
+	let requestSink: ((method: string, params: Record<string, unknown>, id: number) => void) | null = null
+	let notificationSink: ((method: string, params: Record<string, unknown>) => void) | null = null
+	const write = (payload: Record<string, unknown>): boolean => {
+		if (disposed || !child.stdin?.writable) return false
+		child.stdin.write(`${JSON.stringify(payload)}\n`)
+		return true
+	}
+	const failAll = (error: Error): void => {
+		for (const [, waiter] of waiters) {
+			if (waiter.timer) clearTimeout(waiter.timer)
+			waiter.reject(error)
+		}
+		waiters.clear()
+	}
+	child.on('error', (error: Error) => {
+		disposed = true
+		failAll(error)
+	})
+	child.stdout?.setEncoding('utf-8')
+	child.stdout?.on('data', (chunk: string) => {
+		streamBuffer += chunk
+		let index = streamBuffer.indexOf('\n')
+		while (index >= 0) {
+			const line = streamBuffer.slice(0, index).trim()
+			streamBuffer = streamBuffer.slice(index + 1)
+			index = streamBuffer.indexOf('\n')
+			if (!line) continue
+			let message: Record<string, unknown>
+			try {
+				message = JSON.parse(line) as Record<string, unknown>
+			} catch { continue }
+			const id = typeof message.id === 'number' ? message.id : null
+			if (id !== null && typeof message.method === 'string') {
+				requestSink?.(message.method, (message.params ?? {}) as Record<string, unknown>, id)
+				continue
+			}
+			if (id !== null) {
+				const waiter = waiters.get(id)
+				if (!waiter) continue
+				waiters.delete(id)
+				if (waiter.timer) clearTimeout(waiter.timer)
+				if (message.error && typeof message.error === 'object' && message.error !== null) {
+					const raw = message.error as Record<string, unknown>
+					waiter.reject(new Error(asString(raw.message) || 'ACP request failed'))
+				} else {
+					waiter.resolve((message.result && typeof message.result === 'object' ? message.result : {}) as Record<string, unknown>)
+				}
+				continue
+			}
+			if (typeof message.method === 'string') notificationSink?.(message.method, (message.params ?? {}) as Record<string, unknown>)
+		}
+	})
+	return {
+		request(method, params, timeoutMs = 20000) {
+			return new Promise<Record<string, unknown>>((resolve, reject) => {
+				const id = ++nextId
+				const timer =
+					timeoutMs > 0
+						? setTimeout(() => {
+								waiters.delete(id)
+								reject(new Error(`${method} timed out`))
+							}, timeoutMs)
+						: null
+				waiters.set(id, { resolve, reject, timer })
+				if (!write({ jsonrpc: '2.0', id, method, params })) {
+					waiters.delete(id)
+					if (timer) clearTimeout(timer)
+					reject(new Error('The agent stdin is closed'))
+				}
+			})
+		},
+		reply(id, result) {
+			write({ jsonrpc: '2.0', id, result })
+		},
+		replyError(id, code, message) {
+			write({ jsonrpc: '2.0', id, error: { code, message } })
+		},
+		notify(method, params) {
+			write({ jsonrpc: '2.0', method, params })
+		},
+		sink(handlers) {
+			requestSink = handlers.onRequest
+			notificationSink = handlers.onNotification
+		},
+		destroy() {
+			disposed = true
+			failAll(new Error('ACP connection closed'))
+		},
+	}
+}
+
+function asAcpArray(value: unknown): Record<string, unknown>[] {
+	return Array.isArray(value) ? value.filter((item): item is Record<string, unknown> => typeof item === 'object' && item !== null) : []
+}
+
+function findConfigOption(options: Record<string, unknown>[], id: string): Record<string, unknown> | null {
+	return options.find((option) => option.id === id) ?? null
+}
+
+function pickModeValue(modeOption: Record<string, unknown> | null, plan: boolean): string | null {
+	if (!modeOption) return null
+	const values = asAcpArray(modeOption.options).map((option) => asString(option.value)).filter(Boolean)
+	if (!values.length) return null
+	if (plan) return values.find((value) => /plan/i.test(value)) ?? null
+	return values.find((value) => !/plan/i.test(value)) ?? null
+}
+
+function pickModelValue(session: Record<string, unknown>, wanted: string): string | null {
+	const configOptions = asAcpArray(session.configOptions)
+	const modelOption = findConfigOption(configOptions, 'model')
+	const candidates = modelOption
+		? asAcpArray(modelOption.options).map((option) => asString(option.value))
+		: asAcpArray((session.models as Record<string, unknown> | undefined)?.availableModels).map((model) => asString(model.modelId))
+	const filtered = candidates.filter(Boolean)
+	const want = wanted.toLowerCase()
+	return filtered.find((value) => value.toLowerCase() === want) ?? filtered.find((value) => value.toLowerCase().endsWith(`/${want}`)) ?? null
+}
+
+function asAcpUsage(update: Record<string, unknown>): {
+	inputTokens: number
+	outputTokens: number
+	cacheReadTokens: number
+	cacheWriteTokens: number
+	totalCost: number
+	contextWindow: number | null
+} {
+	const num = (value: unknown): number => (typeof value === 'number' && Number.isFinite(value) ? value : 0)
+	const cost = typeof update.cost === 'object' && update.cost !== null ? (update.cost as Record<string, unknown>) : {}
+	const inputTokens = num(update.inputTokens)
+	const size = num(update.size)
+	return {
+		inputTokens: inputTokens || num(update.used),
+		outputTokens: num(update.outputTokens),
+		cacheReadTokens: num(update.cacheReadTokens),
+		cacheWriteTokens: num(update.cacheWriteTokens),
+		totalCost: num(update.totalCost) || num(cost.amount),
+		contextWindow: size > 0 ? Math.floor(size) : null,
+	}
+}
+
+interface AcpPermissionOption {
+	optionId: string
+	name: string
+	kind: string
+}
+
+function asPermissionOptions(value: unknown): AcpPermissionOption[] {
+	const options: AcpPermissionOption[] = []
+	for (const item of asAcpArray(value)) {
+		const optionId = asString(item.optionId)
+		if (!optionId) continue
+		options.push({ optionId, name: asString(item.name) || optionId, kind: asString(item.kind) })
+	}
+	return options
+}
+
+function withinDirectory(root: string, candidate: string): boolean {
+	const relative = path.relative(root, candidate)
+	return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative))
 }
 
 function clineBridgePlugin() {
 	const projectRoot = path.resolve(fileURLToPath(new URL('.', import.meta.url)))
 	const runRegistry = new Map<string, ChildProcess>()
-	const asString = (value: unknown): string => (typeof value === 'string' ? value : '')
+	const acpRuns = new Map<
+		string,
+		{
+			connection: AcpConnection
+			child: ChildProcess
+			pendingPermissions: Map<string, number>
+			sessionId: string
+			promptSettled: boolean
+			cancelled: boolean
+		}
+	>()
+	const modelsCache = new Map<ModCliProviderId, { at: number; models: Array<{ id: string; name: string; contextWindow: number | null }>; currentModel: string; providerOption: ModCliAuthProviderOption | null }>()
+	const modelsCacheTtlMs = 5 * 60 * 1000
+	let opencodeHistory: { at: number; sessions: unknown[] } | null = null
+	const asUsage = (value: unknown): { inputTokens: number; outputTokens: number; cacheReadTokens: number; cacheWriteTokens: number; totalCost: number } | null => {
+		if (typeof value !== 'object' || value === null) return null
+		const raw = value as Record<string, unknown>
+		const num = (key: string): number => (typeof raw[key] === 'number' && Number.isFinite(raw[key]) ? (raw[key] as number) : 0)
+		return {
+			inputTokens: num('inputTokens'),
+			outputTokens: num('outputTokens'),
+			cacheReadTokens: num('cacheReadTokens'),
+			cacheWriteTokens: num('cacheWriteTokens'),
+			totalCost: num('totalCost'),
+		}
+	}
+
+	const openAcpAgent = async (agent: AgentDescriptor): Promise<{ child: ChildProcess; connection: AcpConnection; dispose: () => void }> => {
+		const child = spawn(agent.cmd, agent.args, { cwd: projectRoot, windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] })
+		const connection = connectAcp(child)
+		const dispose = (): void => {
+			connection.destroy()
+			if (!child.killed) child.kill()
+		}
+		try {
+			await connection.request('initialize', ACP_CLIENT_CAPABILITIES, 30000)
+			return { child, connection, dispose }
+		} catch (error) {
+			dispose()
+			throw error
+		}
+	}
+
+	const harvestModels = async (provider: ModCliProviderId): Promise<{ models: Array<{ id: string; name: string; contextWindow: number | null }>; currentModel: string; providerOption: ModCliAuthProviderOption | null }> => {
+		const cached = modelsCache.get(provider)
+		if (cached && Date.now() - cached.at < modelsCacheTtlMs) return { models: cached.models, currentModel: cached.currentModel, providerOption: cached.providerOption }
+		const agent = resolveAgent(projectRoot, provider)
+		if (!agent) throw new Error(`${provider === 'cline' ? 'Cline' : 'OpenCode'} CLI is not available`)
+		const handle = await openAcpAgent(agent)
+		try {
+			const session = await handle.connection.request('session/new', { cwd: projectRoot, mcpServers: [] }, 30000)
+			const harvestSessionId = asString(session.sessionId)
+			let configOptions = asAcpArray(session.configOptions)
+			const collected = new Map<string, { id: string; name: string }>()
+			const collectFrom = (options: Record<string, unknown>[]): void => {
+				const modelOption = findConfigOption(options, 'model')
+				const rawModels = modelOption
+					? asAcpArray(modelOption.options)
+					: asAcpArray((session.models as Record<string, unknown> | undefined)?.availableModels)
+				for (const item of rawModels) {
+					const id = asString(item.value) || asString(item.modelId)
+					if (!id || collected.has(id)) continue
+					collected.set(id, { id, name: asString(item.name) || id })
+				}
+			}
+			collectFrom(configOptions)
+			// cline scopes its model list to the selected auth provider - sweep every
+			// provider option so the dropdown shows all models the CLI can actually run.
+			const providerOption = findConfigOption(configOptions, 'provider')
+			const authProviderOptions = asAcpArray(providerOption?.options)
+				.map((item) => ({ value: asString(item.value), name: asString(item.name) || asString(item.value) }))
+				.filter((item) => item.value)
+			const providerValues = authProviderOptions.map((item) => item.value).slice(0, 5)
+			for (const value of providerValues) {
+				if (value === asString(providerOption?.currentValue)) continue
+				try {
+					const switched = await handle.connection.request('session/set_config_option', { sessionId: harvestSessionId, configId: 'provider', value }, 15000)
+					configOptions = asAcpArray(switched.configOptions)
+					collectFrom(configOptions)
+				} catch { /* provider not switchable on this agent - skip its list */ }
+			}
+			const authProvider: ModCliAuthProviderOption | null = providerOption
+				? {
+					id: asString(providerOption.id),
+					name: asString(providerOption.name),
+					currentValue: asString(providerOption.currentValue),
+					options: authProviderOptions,
+				}
+				: null
+			const models: Array<{ id: string; name: string; contextWindow: number | null }> = [...collected.values()].map((entry) => ({ ...entry, contextWindow: null }))
+			const modelOption = findConfigOption(asAcpArray(session.configOptions), 'model')
+			const currentModel = asString(modelOption?.currentValue)
+			if (provider === 'cline') {
+				const entry = resolveClineEntry(projectRoot)
+				if (entry) {
+					const catalog = await getProviderModelList(entry, 'cline')
+					const byId = new Map(catalog.map((item) => [item.id.toLowerCase(), item.contextWindow] as const))
+					for (const model of models) {
+						const direct = byId.get(model.id.toLowerCase())
+						if (direct !== undefined) {
+							model.contextWindow = direct
+							continue
+						}
+						for (const [id, window] of byId) {
+							if (id.endsWith(`/${model.id.toLowerCase()}`)) {
+								model.contextWindow = window
+								break
+							}
+						}
+					}
+					if (harvestSessionId) {
+						execFile(process.execPath, [entry, 'history', 'delete', '--session-id', harvestSessionId], { timeout: 20000, windowsHide: true }, () => {})
+					}
+				}
+			} else if (harvestSessionId) {
+				await handle.connection.request('session/close', { sessionId: harvestSessionId }, 10000).catch(() => {})
+			}
+			modelsCache.set(provider, { at: Date.now(), models, currentModel, providerOption: authProvider })
+			return { models, currentModel, providerOption: authProvider }
+		} finally {
+			handle.dispose()
+		}
+	}
+
+	const listOpencodeSessions = async (): Promise<unknown[]> => {
+		if (opencodeHistory && Date.now() - opencodeHistory.at < 15000) return opencodeHistory.sessions
+		const agent = resolveAgent(projectRoot, 'opencode')
+		if (!agent) throw new Error('OpenCode CLI is not available')
+		const handle = await openAcpAgent(agent)
+		try {
+			const result = await handle.connection.request('session/list', { cwd: projectRoot }, 30000)
+			const sessions = Array.isArray(result.sessions) ? result.sessions : []
+			opencodeHistory = { at: Date.now(), sessions }
+			return sessions
+		} finally {
+			handle.dispose()
+		}
+	}
+
+	const deleteOpencodeSession = async (sessionId: string): Promise<void> => {
+		const agent = resolveAgent(projectRoot, 'opencode')
+		if (!agent) throw new Error('OpenCode CLI is not available')
+		const handle = await openAcpAgent(agent)
+		try {
+			await handle.connection.request('session/close', { sessionId }, 15000)
+			opencodeHistory = null
+		} finally {
+			handle.dispose()
+		}
+	}
+
+	const deleteClineSession = (entry: string, sessionId: string): Promise<string | null> =>
+		new Promise((resolve) => {
+			execFile(process.execPath, [entry, 'history', 'delete', '--session-id', sessionId], { timeout: 20000, windowsHide: true }, (error, stdout, stderr) => {
+				if (!error) {
+					resolve(null)
+					return
+				}
+				const output = `${stdout}\n${stderr}`
+				if (/Session .* not found/.test(output)) {
+					resolve(null)
+					return
+				}
+				resolve(output.trim() || 'cline exited nonzero')
+			})
+		})
+
+	const startAcpRun = (
+		agent: AgentDescriptor,
+		body: ClineRunBody,
+		runId: string,
+		prompt: string,
+		res: ServerResponse,
+		writeLine: (payload: Record<string, unknown>) => void,
+	): void => {
+		const child = spawn(agent.cmd, agent.args, { cwd: projectRoot, windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] })
+		runRegistry.set(runId, child)
+		const connection = connectAcp(child)
+		const pendingPermissions = new Map<string, number>()
+		const record = { connection, child, pendingPermissions, sessionId: '', promptSettled: false, promptFailed: false, cancelled: false }
+		acpRuns.set(runId, record)
+		const emitEvent = (event: Record<string, unknown>): void => writeLine({ type: 'agent_event', event })
+		const startedAt = Date.now()
+		const usage = { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0, totalCost: 0 }
+		let contextWindow: number | null = null
+		let stderrTail = ''
+		child.stderr?.setEncoding('utf-8')
+		child.stderr?.on('data', (chunk: string) => {
+			stderrTail = (stderrTail + chunk).slice(-4000)
+		})
+		child.on('close', (code) => {
+			clearTimeout(runTimeout)
+			runRegistry.delete(runId)
+			acpRuns.delete(runId)
+			connection.destroy()
+			for (const [, rpcId] of pendingPermissions) connection.reply(rpcId, { outcome: { outcome: 'cancelled' } })
+			pendingPermissions.clear()
+			writeLine({
+				type: 'bridge',
+				event: 'exit',
+				code: record.promptSettled || record.promptFailed || record.cancelled ? 0 : code ?? -1,
+				...(stderrTail.trim() ? { stderr: stderrTail.trim() } : {}),
+			})
+			res.end()
+		})
+		connection.sink({
+			onRequest: (method, params, rpcId) => {
+				if (method === 'session/request_permission') {
+					const permissionId = randomUUID()
+					pendingPermissions.set(permissionId, rpcId)
+					const toolCall = typeof params.toolCall === 'object' && params.toolCall !== null ? (params.toolCall as Record<string, unknown>) : {}
+					writeLine({
+						type: 'bridge',
+						event: 'permission',
+						permissionId,
+						options: asPermissionOptions(params.options),
+						...(asString(toolCall.toolCallId) ? { toolCallId: asString(toolCall.toolCallId) } : {}),
+						...(asString(toolCall.title) ? { title: asString(toolCall.title) } : {}),
+					})
+					return
+				}
+				if (method === 'fs/read_text_file' || method === 'fs/write_text_file') {
+					const requestedPath = asString(params.path)
+					const target = path.resolve(projectRoot, requestedPath)
+					if (!requestedPath || !withinDirectory(projectRoot, target)) {
+						connection.replyError(rpcId, -32602, 'Path is outside the project root')
+						return
+					}
+					if (method === 'fs/read_text_file') {
+						fs.promises.readFile(target, 'utf-8').then(
+							(content) => connection.reply(rpcId, { content }),
+							(error: NodeJS.ErrnoException) => connection.replyError(rpcId, -32602, error.message || 'Read failed'),
+						)
+					} else {
+						fs.promises.writeFile(target, asString(params.content), 'utf-8').then(
+							() => connection.reply(rpcId, {}),
+							(error: NodeJS.ErrnoException) => connection.replyError(rpcId, -32602, error.message || 'Write failed'),
+						)
+					}
+					return
+				}
+				connection.replyError(rpcId, -32601, `Unsupported request: ${method}`)
+			},
+			onNotification: (method, params) => {
+				if (method !== 'session/update') return
+				const update = typeof params.update === 'object' && params.update !== null ? (params.update as Record<string, unknown>) : {}
+				const updateKind = asString(update.sessionUpdate)
+				if (updateKind === 'agent_message_chunk' || updateKind === 'agent_thought_chunk') {
+					// ACP content may be a single block or an array of blocks.
+					const parts = Array.isArray(update.content) ? update.content : [update.content]
+					const content = asAcpArray(parts)
+						.map((part) => asString(part.text))
+						.join('')
+					if (content) emitEvent({ type: 'content_start', contentType: updateKind === 'agent_thought_chunk' ? 'thinking' : 'text', text: content })
+					return
+				}
+				if (updateKind === 'tool_call' || updateKind === 'tool_call_update') {
+					const toolCallId = asString(update.toolCallId)
+					if (!toolCallId) return
+					emitEvent({
+						type: 'tool_call',
+						toolCallId,
+						title: asString(update.title),
+						kind: asString(update.kind),
+						status: asString(update.status),
+						...(update.rawInput !== undefined ? { rawInput: update.rawInput } : {}),
+						...(update.rawOutput !== undefined ? { rawOutput: update.rawOutput } : {}),
+					})
+					return
+				}
+				if (updateKind === 'usage_update') {
+					const normalized = asAcpUsage(update)
+					usage.inputTokens = normalized.inputTokens
+					usage.outputTokens = normalized.outputTokens
+					usage.cacheReadTokens = normalized.cacheReadTokens
+					usage.cacheWriteTokens = normalized.cacheWriteTokens
+					usage.totalCost = normalized.totalCost
+					if (normalized.contextWindow && contextWindow === null) contextWindow = normalized.contextWindow
+					emitEvent({
+						type: 'usage',
+						inputTokens: normalized.inputTokens,
+						outputTokens: normalized.outputTokens,
+						cacheReadTokens: normalized.cacheReadTokens,
+						cacheWriteTokens: normalized.cacheWriteTokens,
+						totalCost: normalized.totalCost,
+						...(normalized.contextWindow ? { contextWindow: normalized.contextWindow } : {}),
+					})
+					return
+				}
+				if (updateKind === 'plan') emitEvent({ type: 'plan', entries: Array.isArray(update.entries) ? update.entries : [] })
+			},
+		})
+		writeLine({ type: 'bridge', event: 'start', runId })
+		const runTimeout = setTimeout(() => {
+			if (!child.killed) child.kill()
+		}, CLINE_RUN_TIMEOUT_MS)
+		void (async () => {
+			try {
+				await connection.request('initialize', ACP_CLIENT_CAPABILITIES, 30000)
+				let session: Record<string, unknown> | null = null
+				const wantedSessionId = asString(body.sessionId).trim()
+				if (wantedSessionId && CLINE_SESSION_PATTERN.test(wantedSessionId)) {
+					try {
+						session = await connection.request('session/load', { sessionId: wantedSessionId, cwd: projectRoot, mcpServers: [] }, 30000)
+					} catch {
+						emitEvent({ type: 'note', text: 'Could not resume that session - starting a new one.' })
+					}
+				}
+				if (!session) session = await connection.request('session/new', { cwd: projectRoot, mcpServers: [] }, 30000)
+				const sessionId = asString(session.sessionId) || wantedSessionId
+				if (!sessionId) throw new Error('The agent did not return a session id')
+				record.sessionId = sessionId
+				writeLine({ type: 'bridge', event: 'session', sessionId })
+				const applyRunConfig = async (runSessionId: string, runSession: Record<string, unknown>): Promise<string> => {
+					let configOptions = asAcpArray(runSession.configOptions)
+					const trySetConfig = async (configId: string, value: string): Promise<boolean> => {
+						if (!findConfigOption(configOptions, configId)) return false
+						try {
+							const updated = await connection.request('session/set_config_option', { sessionId: runSessionId, configId, value }, 15000)
+							configOptions = asAcpArray(updated.configOptions)
+							return true
+						} catch {
+							return false
+						}
+					}
+					const modeValue = pickModeValue(findConfigOption(configOptions, 'mode'), body.plan === true)
+					if (modeValue) await trySetConfig('mode', modeValue)
+					// An explicit auth provider (cline usage-billing / cline-pass / openai-codex)
+					// is authoritative: switch it before the model so the model applies under it.
+					const providerAccount = asString(body.providerAccount).trim()
+					const providerOption = findConfigOption(configOptions, 'provider')
+					const providerValues = asAcpArray(providerOption?.options).map((item) => asString(item.value)).filter(Boolean)
+					const providerAccountSet = Boolean(providerAccount) && providerValues.includes(providerAccount)
+					if (providerAccountSet) await trySetConfig('provider', providerAccount)
+					const modelWanted = asString(body.model).trim()
+					let appliedModel = ''
+					if (modelWanted) {
+						if (providerAccountSet) {
+							const modelValue = pickModelValue({ configOptions }, modelWanted)
+							if (modelValue) {
+								await trySetConfig('model', modelValue)
+								appliedModel = modelValue
+							}
+						} else {
+							// cline model ids carry their auth provider as prefix - when the prefix
+							// names a provider config option, switch provider before the model.
+							const slash = modelWanted.indexOf('/')
+							const wantedProvider = slash > 0 ? modelWanted.slice(0, slash) : ''
+							if (wantedProvider && providerValues.includes(wantedProvider)) {
+								await trySetConfig('provider', wantedProvider)
+								appliedModel = modelWanted
+								await trySetConfig('model', modelWanted)
+							} else {
+								const modelValue = pickModelValue(runSession, modelWanted)
+								if (modelValue) {
+									await trySetConfig('model', modelValue)
+									appliedModel = modelValue
+								}
+							}
+						}
+					}
+					if (findConfigOption(configOptions, 'auto_approve')) await trySetConfig('auto_approve', String(body.autoApprove !== false))
+					const modelOption = findConfigOption(configOptions, 'model')
+					return appliedModel || (modelOption ? asString(modelOption.currentValue) : '')
+				}
+				let currentModelId = await applyRunConfig(sessionId, session)
+				let promptResult: Record<string, unknown>
+				try {
+					promptResult = await connection.request('session/prompt', { sessionId, prompt: [{ type: 'text', text: prompt }] }, 0)
+				} catch (promptError) {
+					const promptMessage = promptError instanceof Error ? promptError.message : String(promptError)
+					// A resumed session the agent no longer knows cannot be persisted
+					// into - heal once by continuing in a fresh session instead of
+					// failing every message while the stale id stays bound.
+					if (!wantedSessionId || !/unknown session/i.test(promptMessage)) throw promptError
+					const fresh = await connection.request('session/new', { cwd: projectRoot, mcpServers: [] }, 30000)
+					const freshId = asString(fresh.sessionId)
+					if (!freshId) throw promptError
+					record.sessionId = freshId
+					writeLine({ type: 'bridge', event: 'session', sessionId: freshId })
+					emitEvent({ type: 'note', text: `Session ${wantedSessionId} is no longer known - continued in a fresh session.` })
+					currentModelId = await applyRunConfig(freshId, fresh)
+					promptResult = await connection.request('session/prompt', { sessionId: freshId, prompt: [{ type: 'text', text: prompt }] }, 0)
+				}
+				record.promptSettled = true
+				writeLine({
+					type: 'run_result',
+					finishReason: asString(promptResult.stopReason) || 'end_turn',
+					durationMs: Date.now() - startedAt,
+					...(currentModelId ? { model: { id: currentModelId } } : {}),
+					usage: { ...usage },
+					aggregateUsage: { ...usage },
+				})
+			} catch (error) {
+				if (!record.promptSettled) {
+					record.promptFailed = true
+					emitEvent({ type: 'error', message: error instanceof Error ? error.message : String(error) })
+				}
+			} finally {
+				if (!child.killed) child.kill()
+			}
+		})()
+	}
 
 	return {
 		name: 'cline-bridge',
 		configureServer(server: ViteDevServer) {
 			server.middlewares.use('/__cline', async (req: IncomingMessage, res: ServerResponse) => {
-				const entry = resolveClineEntry()
 				const route = (req.url ?? '').split('?')[0]
 				if (route === '/config') {
 					if (!isSafeClientRequest(req, res, false)) return
-					const version = entry ? await getClineVersion(entry) : null
-					sendJson(res, 200, { ok: true, available: Boolean(entry), version, cwd: projectRoot })
+					const agents = MOD_CLI_PROVIDER_IDS.map((id) => ({ id, agent: resolveAgent(projectRoot, id) }))
+					const probed = await Promise.all(agents.map(async ({ id, agent }) => ({ id, present: Boolean(agent), version: agent ? await agent.version() : null })))
+					const providers: Record<string, { available: boolean; version: string | null }> = {}
+					for (const { id, present, version } of probed) providers[id] = { available: present, version }
+					sendJson(res, 200, {
+						ok: true,
+						available: providers.cline?.available === true,
+						version: providers.cline?.version ?? null,
+						cwd: projectRoot,
+						providers,
+					})
 					return
 				}
 				if (route === '/history') {
 					if (!isSafeClientRequest(req, res, false)) return
-					if (!entry) {
-						sendError(res, 503, 'Cline CLI is not available')
+					const query = new URL(req.url ?? '/__cline/history', 'http://localhost').searchParams
+					const provider = asProviderId(query.get('provider')) ?? 'cline'
+					const agent = resolveAgent(projectRoot, provider)
+					if (!agent) {
+						sendError(res, 503, `${provider === 'cline' ? 'Cline' : 'OpenCode'} CLI is not available`)
 						return
 					}
-					const raw = await readClineHistoryRaw(entry, 30)
+					if (provider === 'opencode') {
+						try {
+							const raw = await listOpencodeSessions()
+							const sessions = raw.flatMap((item) => {
+								if (typeof item !== 'object' || item === null) return []
+								const session = item as Record<string, unknown>
+								const sessionId = asString(session.sessionId)
+								if (!sessionId) return []
+								return [
+									{
+										sessionId,
+										title: asString(session.title),
+										prompt: '',
+										provider: 'opencode',
+										model: '',
+										status: '',
+										startedAt: asString(session.updatedAt),
+										endedAt: '',
+									},
+								]
+							})
+							sendJson(res, 200, { ok: true, sessions })
+						} catch {
+							sendError(res, 500, 'OpenCode sessions are unavailable')
+						}
+						return
+					}
+					const raw = await readClineHistoryRaw(agent.args[0] ?? '', 30)
 					if (!Array.isArray(raw)) {
 						sendError(res, 500, 'Cline history is unavailable')
 						return
@@ -361,6 +1137,10 @@ function clineBridgePlugin() {
 						const session = item as Record<string, unknown>
 						const sessionId = asString(session.sessionId)
 						if (!sessionId) return []
+						const meta = (typeof session.metadata === 'object' && session.metadata !== null
+							? session.metadata
+							: {}) as Record<string, unknown>
+						const usage = asUsage(session.usage) ?? asUsage(session.aggregateUsage) ?? asUsage(meta.usage) ?? asUsage(meta.aggregateUsage)
 						return [{
 							sessionId,
 							title: asString(session.title),
@@ -370,6 +1150,7 @@ function clineBridgePlugin() {
 							status: asString(session.status),
 							startedAt: asString(session.startedAt),
 							endedAt: asString(session.endedAt),
+							...(usage ? { usage } : {}),
 						}]
 					})
 					sendJson(res, 200, { ok: true, sessions })
@@ -390,16 +1171,148 @@ function clineBridgePlugin() {
 					}
 					const stopRunId = asString(body.runId)
 					const child = runRegistry.get(stopRunId)
-					if (child && !child.killed) child.kill()
-					sendJson(res, 200, { ok: true, stopped: Boolean(child) })
+					const record = acpRuns.get(stopRunId)
+					if (!child) {
+						sendJson(res, 200, { ok: true, stopped: false })
+						return
+					}
+					if (record) {
+						record.cancelled = true
+						record.connection.notify('session/cancel', { sessionId: record.sessionId })
+					}
+					setTimeout(() => {
+						if (!child.killed) child.kill()
+					}, 3000)
+					sendJson(res, 200, { ok: true, stopped: true })
 					return
 				}
-				if (route === '/run') {
+				if (route === '/test-connection') {
 					if (!isSafeClientRequest(req, res, false)) return
+					if (!isJsonContentType(getHeader(req.headers['content-type']))) {
+						sendError(res, 415, 'Content-Type must be application/json')
+						return
+					}
+					let body: ClineRunBody
+					try {
+						body = JSON.parse(await readRequestBody(req)) as ClineRunBody
+					} catch (error) {
+						if (error instanceof PayloadTooLargeError) {
+							sendError(res, 413, 'Payload too large')
+							return
+						}
+						sendError(res, 400, 'Invalid request body')
+						return
+					}
+					const testProvider = asProviderId(body.provider) ?? 'cline'
+					const testModel = asString(body.model).trim()
+					if (body.provider !== undefined && body.provider !== '' && asProviderId(body.provider) === null) {
+						sendError(res, 400, 'Invalid provider id')
+						return
+					}
+					if (testModel && !CLINE_ID_PATTERN.test(testModel)) {
+						sendError(res, 400, 'Invalid model id')
+						return
+					}
+					const testKey = body.apiKey === undefined ? undefined : asApiKey(body.apiKey)
+					if (testKey === null) {
+						sendError(res, 400, 'Invalid API key')
+						return
+					}
+					const agent = resolveAgent(projectRoot, testProvider)
+					if (!agent) {
+						sendError(res, 503, `${testProvider === 'cline' ? 'Cline' : 'OpenCode'} CLI is not available`)
+						return
+					}
+					const probeVersion = await agent.version()
+					if (!probeVersion) {
+						sendError(res, 500, `${testProvider === 'cline' ? 'Cline' : 'OpenCode'} CLI probe failed`)
+						return
+					}
+					if (testProvider === 'cline') {
+						const entry = resolveClineEntry(projectRoot)
+						const probeHistory = entry ? await readClineHistoryRaw(entry, 1) : null
+						if (probeHistory === null || !Array.isArray(probeHistory)) {
+							sendError(res, 500, 'Cline CLI probe failed')
+							return
+						}
+					}
+					sendJson(res, 200, {
+						ok: true,
+						available: true,
+						version: probeVersion,
+						keyPresent: testKey !== undefined,
+						provider: testProvider,
+					})
+					return
+				}
+				if (route === '/model-info') {
+					if (!isSafeClientRequest(req, res, false)) return
+					if (!isJsonContentType(getHeader(req.headers['content-type']))) {
+						sendError(res, 415, 'Content-Type must be application/json')
+						return
+					}
+					let body: ClineRunBody
+					try {
+						body = JSON.parse(await readRequestBody(req)) as ClineRunBody
+					} catch (error) {
+						if (error instanceof PayloadTooLargeError) {
+							sendError(res, 413, 'Payload too large')
+							return
+						}
+						sendError(res, 400, 'Invalid request body')
+						return
+					}
+					const infoProvider = asString(body.provider).trim()
+					const infoModel = asString(body.model).trim()
+					if (infoProvider && !CLINE_ID_PATTERN.test(infoProvider)) {
+						sendError(res, 400, 'Invalid provider id')
+						return
+					}
+					if (infoModel && !CLINE_ID_PATTERN.test(infoModel)) {
+						sendError(res, 400, 'Invalid model id')
+						return
+					}
+					const entry = resolveClineEntry(projectRoot)
 					if (!entry) {
 						sendError(res, 503, 'Cline CLI is not available')
 						return
 					}
+					const contextWindow = await getModelContextWindow(entry, infoProvider, infoModel)
+					sendJson(res, 200, { ok: true, provider: infoProvider, model: infoModel, contextWindow })
+					return
+				}
+				if (route === '/models') {
+					if (!isSafeClientRequest(req, res, false)) return
+					if (!isJsonContentType(getHeader(req.headers['content-type']))) {
+						sendError(res, 415, 'Content-Type must be application/json')
+						return
+					}
+					let body: ClineRunBody
+					try {
+						body = JSON.parse(await readRequestBody(req)) as ClineRunBody
+					} catch (error) {
+						if (error instanceof PayloadTooLargeError) {
+							sendError(res, 413, 'Payload too large')
+							return
+						}
+						sendError(res, 400, 'Invalid request body')
+						return
+					}
+					const listProvider = asProviderId(body.provider)
+					if (!listProvider) {
+						sendError(res, 400, 'Provider is required (cline or opencode)')
+						return
+					}
+					try {
+						const harvested = await harvestModels(listProvider)
+						sendJson(res, 200, { ok: true, provider: listProvider, models: harvested.models, currentModel: harvested.currentModel, providerOption: harvested.providerOption })
+					} catch {
+						sendJson(res, 200, { ok: true, provider: listProvider, models: [], currentModel: '' })
+					}
+					return
+				}
+				if (route === '/run') {
+					if (!isSafeClientRequest(req, res, false)) return
 					if (!isJsonContentType(getHeader(req.headers['content-type']))) {
 						sendError(res, 415, 'Content-Type must be application/json')
 						return
@@ -417,11 +1330,10 @@ function clineBridgePlugin() {
 					}
 					const prompt = asString(body.prompt).trim()
 					const model = asString(body.model).trim()
-					const provider = asString(body.provider).trim()
+					const provider = asProviderId(body.provider) ?? 'cline'
+					const providerAccount = asString(body.providerAccount).trim()
 					const thinking = asString(body.thinking).trim()
 					const sessionId = asString(body.sessionId).trim()
-					const plan = body.plan === true
-					const autoApprove = body.autoApprove !== false
 					if (!prompt) {
 						sendError(res, 400, 'Prompt is required')
 						return
@@ -434,34 +1346,28 @@ function clineBridgePlugin() {
 						sendError(res, 400, 'Invalid model id')
 						return
 					}
-					if (provider && !CLINE_ID_PATTERN.test(provider)) {
-						sendError(res, 400, 'Invalid provider id')
-						return
-					}
-					if (sessionId && !CLINE_SESSION_PATTERN.test(sessionId)) {
-						sendError(res, 400, 'Invalid session id')
+					if (providerAccount && !CLINE_ID_PATTERN.test(providerAccount)) {
+						sendError(res, 400, 'Invalid provider account')
 						return
 					}
 					if (thinking && thinking !== 'default' && !CLINE_THINKING_LEVELS.has(thinking)) {
 						sendError(res, 400, 'Invalid thinking level')
 						return
 					}
-					const args = ['--json']
-					if (sessionId) args.push('--id', sessionId)
-					if (provider) args.push('-P', provider)
-					if (model) args.push('-m', model)
-					if (thinking && thinking !== 'default') args.push('--thinking', thinking)
-					if (plan) args.push('-p')
-					if (!autoApprove) args.push('--auto-approve', 'false')
-					args.push('-c', projectRoot, '--', prompt)
-					const child = spawn(process.execPath, [entry, ...args], {
-						cwd: projectRoot,
-						windowsHide: true,
-						stdio: ['ignore', 'pipe', 'pipe'],
-					})
+					if (sessionId && !CLINE_SESSION_PATTERN.test(sessionId)) {
+						sendError(res, 400, 'Invalid session id')
+						return
+					}
+					if (body.worktree === true) {
+						sendError(res, 400, 'Worktree is not supported by the ACP wire')
+						return
+					}
+					const agent = resolveAgent(projectRoot, provider)
+					if (!agent) {
+						sendError(res, 503, `${provider === 'cline' ? 'Cline' : 'OpenCode'} CLI is not available`)
+						return
+					}
 					const runId = randomUUID()
-					const startedAtMs = Date.now()
-					runRegistry.set(runId, child)
 					res.writeHead(200, {
 						'Content-Type': 'application/x-ndjson; charset=utf-8',
 						'Cache-Control': 'no-store',
@@ -472,51 +1378,95 @@ function clineBridgePlugin() {
 					const writeLine = (payload: Record<string, unknown>): void => {
 						if (!res.writableEnded) res.write(`${JSON.stringify(payload)}\n`)
 					}
-					const forwardLine = (line: string): void => {
-						const trimmed = line.trim()
-						if (!trimmed) return
-						try {
-							const parsed = JSON.parse(trimmed) as unknown
-							if (parsed && typeof parsed === 'object') {
-								writeLine(parsed as Record<string, unknown>)
-								return
-							}
-						} catch { /* non-JSON CLI output */ }
-						writeLine({ type: 'bridge', event: 'raw', line: trimmed })
-					}
-					writeLine({ type: 'bridge', event: 'start', runId })
-					let stdoutBuffer = ''
-					let stderrTail = ''
-					child.stdout?.setEncoding('utf-8')
-					child.stdout?.on('data', (chunk: string) => {
-						stdoutBuffer += chunk
-						let index = stdoutBuffer.indexOf('\n')
-						while (index >= 0) {
-							forwardLine(stdoutBuffer.slice(0, index))
-							stdoutBuffer = stdoutBuffer.slice(index + 1)
-							index = stdoutBuffer.indexOf('\n')
-						}
-					})
-					child.stderr?.setEncoding('utf-8')
-					child.stderr?.on('data', (chunk: string) => {
-						stderrTail = (stderrTail + chunk).slice(-4000)
-					})
+					startAcpRun(agent, body, runId, prompt, res, writeLine)
 					res.on('close', () => {
-						if (!child.killed) child.kill()
+						const child = runRegistry.get(runId)
+						if (child && !child.killed) child.kill()
 					})
-					const runTimeout = setTimeout(() => {
-						if (!child.killed) child.kill()
-					}, CLINE_RUN_TIMEOUT_MS)
-					child.on('close', (code) => {
-						clearTimeout(runTimeout)
-						runRegistry.delete(runId)
-						if (stdoutBuffer.trim()) forwardLine(stdoutBuffer)
-						void resolveClineSessionId(entry, prompt, startedAtMs).then((resolvedSessionId) => {
-							if (resolvedSessionId) writeLine({ type: 'bridge', event: 'session', sessionId: resolvedSessionId })
-							writeLine({ type: 'bridge', event: 'exit', code: code ?? -1, ...(stderrTail ? { stderr: stderrTail.trim() } : {}) })
-							res.end()
-						})
-					})
+					return
+				}
+				if (route === '/permission') {
+					if (!isSafeClientRequest(req, res, false)) return
+					if (!isJsonContentType(getHeader(req.headers['content-type']))) {
+						sendError(res, 415, 'Content-Type must be application/json')
+						return
+					}
+					let body: ClineRunBody
+					try {
+						body = JSON.parse(await readRequestBody(req)) as ClineRunBody
+					} catch (error) {
+						if (error instanceof PayloadTooLargeError) {
+							sendError(res, 413, 'Payload too large')
+							return
+						}
+						sendError(res, 400, 'Invalid request body')
+						return
+					}
+					const runId = asString(body.runId)
+					const permissionId = asString(body.permissionId)
+					const optionId = asString(body.optionId)
+					if (!runId || !permissionId || !optionId) {
+						sendError(res, 400, 'runId, permissionId and optionId are required')
+						return
+					}
+					const record = acpRuns.get(runId)
+					const rpcId = record?.pendingPermissions.get(permissionId)
+					if (!record || rpcId === undefined) {
+						sendError(res, 404, 'That permission is no longer pending')
+						return
+					}
+					record.pendingPermissions.delete(permissionId)
+					record.connection.reply(rpcId, { outcome: { outcome: 'selected', optionId } })
+					sendJson(res, 200, { ok: true })
+					return
+				}
+				if (route === '/delete-session') {
+					if (!isSafeClientRequest(req, res, false)) return
+					if (!isJsonContentType(getHeader(req.headers['content-type']))) {
+						sendError(res, 415, 'Content-Type must be application/json')
+						return
+					}
+					let body: ClineRunBody
+					try {
+						body = JSON.parse(await readRequestBody(req)) as ClineRunBody
+					} catch (error) {
+						if (error instanceof PayloadTooLargeError) {
+							sendError(res, 413, 'Payload too large')
+							return
+						}
+						sendError(res, 400, 'Invalid request body')
+						return
+					}
+					const provider = asProviderId(body.provider) ?? 'cline'
+					const sessionId = asString(body.sessionId).trim()
+					if (!sessionId) {
+						sendError(res, 400, 'sessionId is required')
+						return
+					}
+					if (!CLINE_SESSION_PATTERN.test(sessionId)) {
+						sendError(res, 400, 'Invalid session id')
+						return
+					}
+					if (provider === 'cline') {
+						const entry = resolveClineEntry(projectRoot)
+						if (!entry) {
+							sendError(res, 503, 'Cline CLI is not available')
+							return
+						}
+						const deleteError = await deleteClineSession(entry, sessionId)
+						if (deleteError) {
+							sendError(res, 500, `Cline could not delete that session - ${deleteError}`)
+							return
+						}
+						sendJson(res, 200, { ok: true, deleted: true })
+						return
+					}
+					try {
+						await deleteOpencodeSession(sessionId)
+						sendJson(res, 200, { ok: true, deleted: true })
+					} catch {
+						sendError(res, 500, 'OpenCode could not delete that session')
+					}
 					return
 				}
 				sendError(res, 404, 'Not Found')

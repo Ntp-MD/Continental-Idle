@@ -1,8 +1,29 @@
 {
   "name": "mod-cli",
-  "version": "0.0.0",
+  "version": "0.1.0",
+  "description": "A portable chat-first AI IDE that wraps coding CLIs (cline, opencode) behind a real UI over the ACP wire",
   "private": true,
   "type": "module",
+  "keywords": [
+    "acp",
+    "agent-client-protocol",
+    "cline",
+    "opencode",
+    "ai-ide",
+    "chat-ui",
+    "vite"
+  ],
+  "files": [
+    "src",
+    "style",
+    "mod-cli.md"
+  ],
+  "exports": {
+    ".": "./src/ModCLI.vue",
+    "./bridge": "./src/modCliBridge.ts",
+    "./vite": "./src/modCliViteAdapter.ts",
+    "./style.css": "./style/ModCLI.css"
+  },
   "peerDependencies": {
     "vue": "^3.5.0"
   }

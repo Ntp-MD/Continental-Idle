@@ -28,6 +28,8 @@ Universal harness companion - ships with `harness/`. Everything here applies eve
 
 `inspect -> plan -> implement -> test -> fix -> review -> done` per `harness/harness.md` (feature lane for ideas/PRDs/issues, light loop for single-file routine fixes). The live slot must be current (or cleared + logged in `history.md`) - a task with a stale slot is not finished.
 
+`mod-cli/` is standalone/portable - work touching only `mod-cli/` files skips the harness slot (`harness/task-context.md`) and `harness/history.md` entirely: no slot writes, no history logging.
+
 ## Canonical patterns
 
 Settled project patterns live in `skill.md` (Layout: Component patterns + Domain). Reuse them; do not introduce a second way. Glossary lives in `harness/context.md` only - never a second glossary file.
