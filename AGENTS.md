@@ -28,7 +28,7 @@ Universal harness companion - ships with `harness/`. Everything here applies eve
 
 `inspect -> plan -> implement -> test -> fix -> review -> done` per `harness/harness.md` (feature lane for ideas/PRDs/issues, light loop for single-file routine fixes). The live slot must be current (or cleared + logged in `history.md`) - a task with a stale slot is not finished.
 
-`mod-cli/` is standalone/portable - work touching only `mod-cli/` files skips the harness slot (`harness/task-context.md`) and `harness/history.md` entirely: no slot writes, no history logging.
+`mod-cli/` is archived at `_archive/mod-cli/` - it is disconnected from the host (no bridge, no route) and excluded from typecheck/lint/tests. Do not import from it; work touching only files there skips the harness slot and history entirely.
 
 ## Canonical patterns
 

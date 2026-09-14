@@ -1,3 +1,5 @@
+import { MOD_CLI_CLIENT_HEADERS, MOD_CLI_SAVE_HEADER, MOD_CLI_SAVE_HEADER_VALUE } from './modCliViteAdapter'
+
 export type ModCliThinking = 'default' | 'none' | 'low' | 'medium' | 'high' | 'xhigh'
 
 export interface ModCliRunRequest {
@@ -111,6 +113,7 @@ export interface ModCliModelEntry {
   id: string
   name: string
   contextWindow: number | null
+  reasoning: string[]
 }
 
 export interface ModCliConfigOptionChoice {
@@ -133,10 +136,8 @@ export interface ModCliModelsResult {
   providerOption: ModCliConfigOption | null
 }
 
-const CLIENT_HEADERS: Record<string, string> = { 'x-blueprint-client': '1' }
-
 async function bridgeFetch(url: string, init?: RequestInit): Promise<Response> {
-  const response = await fetch(url, { ...init, headers: { ...CLIENT_HEADERS, ...(init?.headers ?? {}) } })
+  const response = await fetch(url, { ...init, headers: { ...MOD_CLI_CLIENT_HEADERS, ...(init?.headers ?? {}) } })
   if (!response.ok) {
     let detail = ''
     try {
@@ -181,6 +182,33 @@ export async function deleteModCliSession(provider: string, sessionId: string): 
   })
 }
 
+export interface ModCliClearResult {
+  ok: boolean
+  provider: string
+  total: number
+  deleted: number
+  failed: number
+}
+
+// The one destructive call: the bridge walks the CLI's own per-session delete,
+// so it runs a second per session and sends the host's save marker.
+export async function clearModCliSessions(provider: string): Promise<ModCliClearResult> {
+  const response = await bridgeFetch('/__cline/clear-sessions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', [MOD_CLI_SAVE_HEADER]: MOD_CLI_SAVE_HEADER_VALUE },
+    body: JSON.stringify({ provider }),
+  })
+  const payload = (await response.json()) as Record<string, unknown>
+  const num = (key: string): number => (typeof payload[key] === 'number' ? (payload[key] as number) : 0)
+  return {
+    ok: payload.ok === true,
+    provider: typeof payload.provider === 'string' ? payload.provider : provider,
+    total: num('total'),
+    deleted: num('deleted'),
+    failed: num('failed'),
+  }
+}
+
 export async function testModCliConnection(test: ModCliConnectionTest): Promise<ModCliConnectionResult> {
   const response = await bridgeFetch('/__cline/test-connection', {
     method: 'POST',
@@ -223,11 +251,11 @@ function parseModCliConfigOption(value: unknown): ModCliConfigOption | null {
   }
 }
 
-export async function fetchModCliModels(provider: string): Promise<ModCliModelsResult> {
+export async function fetchModCliModels(provider: string, providerAccount?: string): Promise<ModCliModelsResult> {
   const response = await bridgeFetch('/__cline/models', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ provider }),
+    body: JSON.stringify(providerAccount ? { provider, providerAccount } : { provider }),
   })
   const payload = (await response.json()) as { provider?: unknown; models?: unknown; currentModel?: unknown; providerOption?: unknown }
   const models: ModCliModelEntry[] = []
@@ -237,10 +265,15 @@ export async function fetchModCliModels(provider: string): Promise<ModCliModelsR
       const raw = item as Record<string, unknown>
       if (typeof raw.id !== 'string' || !raw.id) continue
       const contextWindow = raw.contextWindow
+      const reasoning: string[] = []
+      if (Array.isArray(raw.reasoning)) {
+        for (const value of raw.reasoning) if (typeof value === 'string' && value) reasoning.push(value)
+      }
       models.push({
         id: raw.id,
         name: typeof raw.name === 'string' && raw.name ? raw.name : raw.id,
         contextWindow: typeof contextWindow === 'number' && Number.isFinite(contextWindow) && contextWindow > 0 ? contextWindow : null,
+        reasoning,
       })
     }
   }

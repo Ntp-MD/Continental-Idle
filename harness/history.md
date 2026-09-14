@@ -367,3 +367,132 @@ follow it when logging below.
 - immediate user workaround remains valid: New chat clears the stale binding
 - verified: npm run typecheck green (all 3 configs), harness check pass
 
+### mod-cli provider selector smoke test - 2026-09-11 19:30 UTC+7 (cline, model id n/a)
+- runtime smoke of the explicit auth/billing provider selector (code landed in the prior task, runtime-unverified): live dev :5173 POST /__cline/models returns providerOption id "provider" with the 3 probed choices (cline "Cline Usage-Billing" / cline-pass "ClinePass" / openai-codex "OpenAI ChatGPT Subscription"); POST /__cline/run with a non-id providerAccount -> 400 "Invalid provider account"
+- live ACP acceptance (cline 3.0.61; only providerAccount differs between the two runs): "cline" -> run_result finishReason end_turn, model anthropic/claude-sonnet-5, exit 0; "cline-pass" -> agent_event error "Authentication required: Unauthorized" (the CLI is not signed into ClinePass) - proves the option is applied over the wire, the failure is the CLI's own sign-in state, not the selector
+- mod-cli/mod-cli.md synced: Features "Providers & models" gains the explicit auth/billing selector bullet; Configuration sample gains providerAccount; 2 limitation bullets added (model list stays merged across providers + the explicit pick wins over a model-id prefix; unauthenticated selector values fail with the CLI's own Unauthorized)
+- not verified (browser-only, left to the user): Settings Provider select visual + refresh persistence (handoff step 3)
+- verified: node harness/scripts/verify.mjs route (clean tree - a .md change routes to no suite), npm run hcheck, live curl smoke as above
+
+### mod-cli provider/model/reasoning integrity - 2026-09-11 20:14 UTC+7 (cline, model id n/a)
+- user report verified true, and the real failure found: the Model dropdown never followed the Provider selector (client sent {provider} only; harvestModels swept + merged every auth provider) AND a model that does not belong to the active provider returns an EMPTY turn with no error, so the chat just showed a blank bubble; run_result also proved a requested model silently fell back (requested cline-pass/deepseek-v4.1-flash, applied cline-pass/glm-5.3-flash)
+- vite.config.ts: harvestModels(provider, providerAccount) - naming an account harvests only that provider (no sweep) and caches under provider:account; /models validates + forwards providerAccount; per-model reasoning levels resolved from the CLI's own @cline/llms catalog (getProviderIds -> reasoningOptions, filtered to the levels cline --thinking accepts); run_result now reports the applied provider+model; notes emitted when the requested model/provider was not the one applied; startAcpRun spawns cline with --thinking <level> for a non-default level
+- mod-cli/src/modCliBridge.ts: fetchModCliModels(provider, providerAccount?) + ModCliModelEntry.reasoning
+- mod-cli/src/ModCLI.vue: provider change refetches the list and resets the model; Reasoning effort offers only that model's own levels (with a hint, and a clamp when unsupported); run_result status shows the applied provider/model; a turn that yields no content now pushes an error instead of rendering blank
+- reasoning effort is NOT an ACP config option (probe: session options = provider/model/mode/auto_approve) but cline takes it as a spawn flag - measured over ACP: thinking=high 25 thought chunks vs thinking=none 9 on cline-pass/glm-5.3-flash
+- mod-cli/mod-cli.md synced (Providers & models, Configuration thinking, 3 limitation bullets rewritten)
+- verified: npm run lint:bem (35 files pass), npm run lint:css (35 files pass), npm run typecheck (3 configs clean), npm run hcheck pass; live :5173 /models 312 (CLI default) vs 18 (cline-pass) each carrying per-model reasoning, run_result model {id: cline-pass/glm-5.3-flash, provider: cline-pass}, mismatch note fired
+- user action required: an OpenRouter API key was printed into the chat while reading %USERPROFILE%\.cline\data\settings\providers.json (stored plaintext there, outside this repo) - rotate it
+
+### mod-cli session visibility - 2026-09-11 20:28 UTC+7 (cline, model id n/a)
+- user question "how do we know which session this is" verified against the CLI: cline stores NO session title (`cline history --json` carries no title key; every value empty) so the sessions drawer fell back to the raw stored prompt, which still had its `<user_input mode="act">...</user_input>` wrapper; the toolbar showed no session at all, and a session only exists after the first send (New chat clears it)
+- vite.config.ts: asReadablePrompt() - collapses whitespace, strips the leading/trailing tag wrapper, bounds to a limit; cline /history now sets title = CLI title || asReadablePrompt(prompt, 80) (the prompt field itself is unchanged)
+- mod-cli/src/ModCLI.vue: sessionLabel/sessionTooltip computed + a second toolbar <output data-session> reading "session <last 8> - <title cut to 40>" (short id only until history knows it); full id + title live in the title attribute; hidden while no session exists
+- mod-cli/mod-cli.md: Chat & sessions bullet for the chip; the UI-gap line rewritten (cline stores no title)
+- verified: npm run lint:bem (35 files pass), npm run lint:css (35 files pass), npm run typecheck (3 configs clean), npm run hcheck pass; live /history titles now "A farmer has 17 sheep; all but 9 run away. How many are left? Answer with just t" and "Reply with the single word ready"
+- not verified (browser-only): the chip's visual placement in the toolbar
+
+### mod-cli audit + hardening - 2026-09-11 20:57 UTC+7 (cline, model id n/a)
+- read-only audit of mod-cli (package sources + host bridge + package.json/docs/CSS, repo gates + live cross-checks), findings reported; user approved fixing 3 of them
+- S1 (security): the bridge had no real authentication - isTrustedDevOrigin(undefined) returned true and a private-LAN IPv4 origin was trusted unconditionally, while start-lan.bat serves :5173 on 0.0.0.0 with auto-approve on by default, so a LAN peer could drive the agent (which writes files inside the project). Fix: a private-LAN origin is trusted only with MOD_CLI_ALLOW_LAN=1 (loopback unchanged); start-lan.bat sets it for its dev window; documented as trusted-not-authenticated
+- B1 (trap): modelOptions merged every session's model, so the provider-scoped list leaked cross-provider models back in; refreshModels now resets a model the selected provider does not offer (note emitted, guarded on a non-empty list) and resumeSession revalidates
+- B2+B3 (duplication): MOD_CLI_PROVIDER_IDS + MOD_CLI_CLIENT_HEADER/_VALUE/_HEADERS single-sourced in modCliViteAdapter.ts (the module both halves already import); vite.config.ts imports them and derives ModCliProviderId from the tuple
+- mod-cli/mod-cli.md: model-reset behaviour + the LAN opt-in / trusted-not-authenticated caveat
+- not fixed, reported only: P1 no license field / P2 exports raw .ts+.vue with no dist (packaging), B4 dead UsageGauge.reset, B5 duplicate sessionLabel/sessionTooltip lookup, B6 the 1257-line single component, B7 no package tests, docs "AI IDE" / "drop one folder" wording
+- verified: npm run lint:bem (35) pass, npm run lint:css (35) pass, npm run typecheck (3 configs) clean, npm run lint (eslint --max-warnings 0) exit=0, node harness/scripts/verify.mjs route exit=0, hcheck pass; live :5173 loopback+header 200 / LAN-origin+header 403 (was 200) / no-header 403, and /models cline-pass still 18 models (17 with reasoning)
+
+### remove LAN starter - 2026-09-11 21:37 UTC+7 (cline, model id n/a)
+- deleted start-lan.bat (tracked) on user order: the LAN starter is no longer used; recoverable with `git restore start-lan.bat` if that changes
+- it was the only in-repo setter of MOD_CLI_ALLOW_LAN, so the two live references dropped the file name while keeping the env opt-in documented (the isTrustedDevOrigin comment in vite.config.ts, the Data & privacy bullet in mod-cli/mod-cli.md) - the S1 guard itself is byte-for-byte unchanged
+- deliberately left: the earlier history entry that names start-lan.bat (a dated record of that task), and qr-app.png / qr-prompt.png (untracked artifacts the bat produced - the user's to remove)
+- verified: repo-wide grep finds no live start-lan reference outside the harness files, npm run lint:bem (35) pass, npm run lint:css (35) pass, npm run typecheck (3 configs) clean, npm run lint exit=0, git status shows ` D start-lan.bat`
+
+### mod-cli clear-all-sessions - 2026-09-11 21:42 UTC+7 (cline, model id n/a)
+- new "Clear all" button in the sessions drawer + POST /__cline/clear-sessions: the CLI deletes only one session per call (`cline history delete --session-id`, no bulk flag), so the bridge walks every session this project owns and returns { total, deleted, failed }; the UI confirms first (stating the ~1s per session cost), disables the drawer while it runs, then starts a fresh chat and reports the outcome
+- scoping: cline's history is machine-wide, so clearableSessionIds filters on each session's own cwd (normalizePath folds backslashes vs forward slashes and trailing slashes) - proven to match this project's 32 sessions in all 3 real path forms while rejecting near-miss paths, other projects and empty
+- guard: this is the only route requiring the host's save marker (isSafeClientRequest(req, res, true), same as the blueprint store write); MOD_CLI_SAVE_HEADER/_VALUE joined MOD_CLI_CLIENT_HEADER(_VALUE) as single-sourced constants in modCliViteAdapter.ts and vite.config reads them
+- mod-cli/mod-cli.md: Clear all bullet + the new endpoint row
+- verified: npm run lint:bem (35) pass, npm run lint:css (35) pass, npm run typecheck (3 configs) clean, npm run lint exit=0; live 403 without the save header, 415 on a non-JSON body, 404 for an unknown route, /history still 200
+- deliberately NOT verified: the deletion loop itself - running it would wipe the user's 32 real sessions, so that stays with the user's own button press
+
+
+### mod-cli UX layout pass - 2026-09-12 06:57 UTC+7 (cline, claude sonnet 4.5)
+- settings panel collapsible (API-key connect moved inside), assistant card + turn spacing, smart autoscroll + jump button, toolbar main/actions groups, settings width clamp, composer autogrow + char count, a11y labels
+- lint:bem/lint:css pass (35 files), typecheck clean, eslint exit=0
+
+### mod-cli dark dashboard + theme editor - 2026-09-12 07:54 UTC+7 (cline, model id n/a)
+- token refresh (ModCLI.css): raised surface scale (primary #0b0e13 / panel #11151c / surface #1a2029 - the assistant bubble was invisible at the old near-identical values), text brightened #d7dde5, border #262c36, green #3fb950; thin inherited scrollbars on the root
+- theme editor in Settings: Accent/Background/Panel/Surface/Text color inputs + Corners range + Reset theme; overrides written as inline `--mod-cli-*` custom props on the root (unlayered-safe; hosts keep working when no override is set), stored as additive `theme` field in the existing settings store, only known tokens accepted, picking a token's own default clears its override
+- zero-duplicate: `.mod-cli-chat__connect` renamed `__section`, reused by the theme group (no second group class)
+- mod-cli/mod-cli.md: Theme editor bullet + `theme` config field
+- verified: npm run lint:bem (35) pass, npm run lint:css (35) pass, npm run typecheck (3 configs) clean, node harness/scripts/verify.mjs check pass; browser rendering of the editor itself not verified (no dev server run this session)
+
+### mod-cli theme editor removed + layout width pass - 2026-09-12 08:00 UTC+7 (cline, model id n/a)
+- user order: no theme setting - the whole editor is gone (constants, state, computeds, handlers, save/load/watch, template section, root :style, color/range input CSS, doc bullet + config field); a lint:css orphan-class fail caught the one template leftover (`__section` div), renamed back to `__connect`
+- layout width pass (ModCLI.css, no markup change): sessions sidebar 30% -> clamp(260px, 26vw, 360px), todos 240px -> clamp(230px, 18vw, 300px), settings clamp(260px, 20vw, 340px); log + composer share a centered 900px reading column (padding-inline max() trick, zero elements added); user prompts are right-aligned cards (bg-secondary, blue right edge, max 88ch), assistant replies shrink-to-fit at max 92ch, thinking/event details capped at 110ch; empty state vertically centered (margin-block auto); scrollbar-gutter stable on the log
+- verified: npm run lint:bem (35) pass, npm run lint:css (35) pass, npm run typecheck (3 configs) clean; browser rendering not verified (no dev server run this session)
+
+### mod-cli agent-state chip - 2026-09-12 08:12 UTC+7 (cline, model id n/a)
+- new toolbar chip `<output :data-state>`: Idle / Asking / Questioning / Thinking / Planning / Tasking, from an agentState computed over existing wire state only (pending permission card -> asking; question-y title or in-progress question tool -> questioning; streaming thought or ACP think-kind tool -> thinking; planMode -> planning; else tasking; no run -> idle) - hover hint per state
+- CSS: pill + ::before dot (idle green, thinking/tasking blue with mod-cli-pulse, planning/asking/questioning gold), prefers-reduced-motion disables the pulse
+- typecheck fail fixed: static + bound `data-state` duplicate attribute on the same element
+- mod-cli/mod-cli.md: live agent state chip bullet
+- verified: npm run lint:bem (35) pass, npm run lint:css (35) pass, npm run typecheck (3 configs) clean; browser rendering not verified (no dev server run this session)
+
+
+### mod-cli presets - 2026-09-12 08:16 UTC+7 (cline, model id n/a)
+- Presets section in Settings: save current Provider + Model + Reasoning effort under a name (upsert), apply from a dropdown, Set default / Delete; the default preset re-applies on every load
+- apply order matters: providerAccount first (its watch resets the model + refetches), model re-set on nextTick so the reset cannot wipe the preset's model; a model the provider does not offer still gets the existing reset-with-note guard
+- storage: additive `presets` + `defaultPreset` fields in the existing SETTINGS_KEY, load-time validated; arrays always reassigned so the non-deep settings watch persists them
+- cline 3.0.61 `cline config` is read-only (no set subcommand), so the CLI itself cannot store a default model - presets live in mod-cli's browser store
+- `.mod-cli-chat__connect` renamed `__section`, now shared by the connect + presets groups (2 same-role call sites)
+- mod-cli/mod-cli.md: Presets bullet + config fields
+
+### mod-cli agent-state sim test - 2026-09-12 08:29 UTC+7 (cline, model id n/a)
+- extracted the chip decision table to mod-cli/src/agentState.ts (pure resolveAgentState(running, planMode, items)) so the sim drives the exact logic the component computes; ModCLI.vue now imports it, labels/hints stay in the component
+- sim test tests/_agent-state-sim.tmp.ts (tsx + node:assert, deleted same session): 23 scenarios - idle variants, prompt-sent tasking, thinking (stream + think-kind tool), tool running/done tasking, permission -> asking, question title -> questioning, question-kind tool -> questioning, answered card -> tasking, plan mode drafting/thinking/blocked, plus a full-run walk sampled at every stream event - all pass
+- first run caught one test-scenario bug (pushed a second permission card instead of answering in place - impossible over ACP, which blocks a second request while one is pending); fixed the sim, logic unchanged
+- typecheck caught a real gap tsx missed: AgentStateItem lacked toolCallId - added
+- verified: npx tsx sim 23/23 pass, temp file deleted; npm run lint:bem (35) pass, npm run lint:css (35) pass, npm run typecheck (3 configs) clean, npm run lint exit=0
+- verified: npm run lint:bem (35) pass, npm run lint:css (35) pass, npm run typecheck (3 configs) clean; browser rendering not verified (no dev server run this session)
+
+### mod-cli question choice cards - 2026-09-12 08:59 UTC+7 (cline, model id n/a)
+- when an agent card is a question (AskFollowupQuestion arrives as request_permission with the suggestions as options - already forwarded by the bridge), it now renders as a choice card: gold-tinted panel, bolder summary without the "- tool call" suffix, options stacked as full-width left-aligned buttons with gold hover; approval cards keep the inline look
+- zero-duplication: the question heuristic is exported from agentState.ts as isQuestionCard and drives BOTH the state chip (resolveAgentState) and the card presentation (cardIsQuestion in ModCLI.vue)
+- answer path unchanged: clicking a choice posts /__cline/permission with that optionId; free text is impossible over the ACP permission round-trip (choices only), documented in mod-cli.md
+- sanity re-check after the refactor: tsx eval - question pending -> questioning, plain pending -> asking, plan blocked -> questioning, answered falls through -> tasking (all pass)
+- verified: npm run lint:bem (35) pass, npm run lint:css (35) pass, npm run typecheck (3 configs) clean, npm run lint exit=0; browser rendering not verified (no dev server run this session)
+
+### mod-cli suggested-pick badge - 2026-09-12 09:16 UTC+7 (cline, model id n/a)
+- question choice cards now mark the agent's primary pick: the first option carries a "Suggested" pill (gold, hover hint "The agent lists its primary pick first"); badge shows on question cards with 2+ options only - approval kinds (allow/reject) are semantics, not preference, and a lone suggestion needs no marking
+- wire facts driving it (verified in vite.config.ts asPermissionOptions): each choice forwards { optionId, name, kind } only - kind is the allow/reject semantic, the ACP permission round-trip carries no recommended flag and no per-option why; the one real signal is that cline maps AskFollowupQuestion.suggestions in the agent's own preference order (pick first), and the agent's reasoning, when written, is embedded in the question text (card summary)
+- a hint line under the choices states the ordering + where the reasoning lives; no "why" per option is invented
+- process note: plan slot not written before implementing this turn (work went inspect -> implement directly); headers still clean on the harness check
+- verified: npm run lint:bem (35) pass, npm run lint:css (35) pass, npm run typecheck (3 configs) clean, npm run lint exit=0; browser rendering not verified (no dev server run this session)
+
+### mod-cli gap-closing sweep - 2026-09-12 09:43 UTC+7 (cline, model id n/a)
+- plan written to the task slot BEFORE implementing (process slip from last turn corrected); one plan item DROPPED after inspection: the planned storage.ts module was unnecessary - usage/todos/settings-load were already try-guarded, the one real miss was saveSettings (guarded in place)
+- HANG FIX: answerPermission now reverts the optimistic lock on POST failure (re-clickable choice; a locked card + unanswered wire was a permanent-run-hang mode) - ModCLI.vue
+- DEAD-RUN FIX: `sawRunResult` tracks whether the bridge settled the run; a stream that ends without a run_result (dev-server restart / CLI death) pushes an explanatory note instead of ending silently - review correction: the chip's running state was NEVER stuck (finally always reset it); the real gap was the silent end, now fixed
+- LEAK FIX: bridge plugin now evicts ACP children on server close (`closeServer` hook) and on process exit/SIGINT/SIGTERM - verified `process.on` never existed before, orphaned `cline --acp` children were real
+- REVIEW CORRECTIONS (verified, no code - the honest non-gaps): DNS-rebinding is already covered (isSafeClientRequest requires the unforgeable client marker header + Origin/Referer/Sec-Fetch-Site - a Host check would be redundant); storage guards were in place except saveSettings; apiKey surface was already clearly labelled in the field and the connection summary; the repo already has a permanent test convention (tests/test-*.ts) - the earlier "no permanent test suite" claim was wrong, mod-cli simply was not wired into it
+- ROBUSTNESS: isQuestionCard wording widened (choose / pick one / select one / which) with the asymmetry rationale (mis-bucketing an approval as a question is cosmetic; the reverse styles an unanswerable prompt as an approval); ChatItem now extends AgentStateItem (one shared shape - chip table + transcript can never drift)
+- OPENCODE DEFENSE: a question card with zero choices renders the no-choices note (answer in the CLI / restart) instead of dead buttons - opencode's request_permission shape stays unverified (cline-only verified, documented)
+- PERMANENT TEST: tests/test-mod-cli-agent-state.ts (repo tsx convention) - chip idle/live/pending-priority/newest-card-wins + heuristic wording matrix; wired as test:mod-cli-agent-state into package.json and the test aggregate; first run caught a wrong test expectation (bare toolCallId q-123 never claimed to match) - logic unchanged, test fixed
+- DOC: mod-cli.md security-posture section (verified origin guard, dev-tool trust, child eviction), choice-card answer-retry + no-choices, dead-run note, honest remaining gaps (ModCLI.vue extraction planned pre-publish, heuristic wording limit, opencode shape unverified)
+- REMAINING (too large this turn): ModCLI.vue monolith extraction into composables - the last big gap, documented in the UI-gaps section
+- verified: npm run test:mod-cli-agent-state (all pass), npm run typecheck (3 configs clean), npm run lint:bem (35 pass), npm run lint:css (35 pass), npm run lint (exit 0); full npm test aggregate not run (all members untouched except the new one); browser rendering not verified (no dev server run)
+
+### mod-cli Unauthorized diagnosis - 2026-09-12 10:30 UTC+7 (cline, model id n/a)
+- user hit the documented Unauthorized failure live - instead of leaving it a raw error bubble, the bridge now diagnoses it in chat: on a prompt failure matching /authentication required|unauthorized/i a note names the requested vs applied auth provider and the exact fix (auth command per agent - "cline auth [provider]" / "opencode auth login" - runs use the CLI's own stored sign-in, or switch the auth/billing Provider in Settings)
+- implemented at the bridge /run prompt catch (single point, zero-duplication; it knows the applied provider, the UI does not until a run_result that never comes on this failure)
+- TS2304 fixed: `applied` was try-block-scoped, invisible to the sibling catch - hoisted `lastAppliedProvider` to the IIFE head, set after both applyRunConfig calls
+- plan DROPPED after inspection: /config authProvider exposure + selector availability marking would require a read-only spawn per probe for sign-in state the CLI does not expose cheaply - the error-time note is the honest fix; the every-value-offered limitation stands documented
+- what actually resolves the user's error stays the same: cline auth in a terminal / selector back to a signed-in provider / check the default preset's providerAccount
+- verified: npm run typecheck (3 configs clean), npm run lint (exit 0), npm run test:mod-cli-agent-state (pass), npm run lint:bem (35 pass), npm run lint:css (35 pass); live run not re-triggered (would need an unauthenticated provider run) - the note path matches the same message shape captured in the 2026-09-11 live smoke
+
+### mod-cli streamed text ragged fix - 2026-09-12 10:51 UTC+7 (cline, model id n/a)
+- user screenshot: thinking text rendered one short line per streamed chunk (box wide, text wrapping at ~2 words) - root cause: appendItem joined every streamed chunk with a forced `\n`, but ACP sends agent_thought_chunk/message_chunk as arbitrary small splits of one continuous text, so each split became its own line
+- fix: streamed chunks concatenate directly (`item.text + text`); real newlines arrive inside chunk text and are preserved; block separation stays via iteration_start/end resetting the active items (new item + flex gap, no gluing across blocks); content_end replace path unchanged
+- verified: npm run typecheck (3 configs clean), npm run lint (exit 0 - first lint run returned an ambiguous shell-integration timeout, re-run confirmed clean), npm run test:mod-cli-agent-state (pass); visual confirmation is browser-side (user refreshes and streams continuous prose)
+- note: the thinking/details max-width caps (92ch/110ch) were NOT the cause - the box was wide; only the forced per-chunk newlines were

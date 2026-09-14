@@ -2,6 +2,7 @@
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import {
   answerModCliPermission,
+  clearModCliSessions,
   deleteModCliSession,
   fetchModCliConfig,
   fetchModCliHistory,
@@ -17,18 +18,17 @@ import {
   type ModCliStreamLine,
   type ModCliThinking,
 } from './modCliBridge'
+import { isQuestionCard, resolveAgentState, type AgentState, type AgentStateItem } from './agentState'
 
-interface ChatItem {
+// UI-only fields extend the shared agent-state item so the chip's decision
+// table and the transcript never drift apart on shape.
+interface ChatItem extends AgentStateItem {
   id: number
   kind: 'user' | 'assistant' | 'thinking' | 'event' | 'error' | 'note' | 'tool' | 'permission'
   text: string
   open: boolean
-  toolCallId?: string
-  toolStatus?: string
-  toolKind?: string
   permissionId?: string
   permOptions?: ModCliPermissionOption[]
-  answered?: string | null
 }
 
 interface StoredSettings {
@@ -40,6 +40,8 @@ interface StoredSettings {
   thinking?: unknown
   planMode?: unknown
   autoApprove?: unknown
+  presets?: unknown
+  defaultPreset?: unknown
 }
 
 interface TodoItem {
@@ -51,6 +53,13 @@ interface TodoItem {
 interface StoredTodos {
   sessionId?: unknown
   items?: unknown
+}
+
+interface PresetEntry {
+  name: string
+  providerAccount: string
+  model: string
+  thinking: ModCliThinking
 }
 
 type ConnState = 'idle' | 'testing' | 'ok' | 'error'
@@ -92,6 +101,10 @@ const providerAccount = ref('')
 const thinking = ref<ModCliThinking>('default')
 const planMode = ref(false)
 const autoApprove = ref(true)
+const presets = ref<PresetEntry[]>([])
+const defaultPreset = ref('')
+const selectedPreset = ref('')
+const presetName = ref('')
 const contextUsed = ref<number | null>(null)
 const contextOut = ref<number | null>(null)
 const contextWindow = ref<number | null>(null)
@@ -119,6 +132,7 @@ const boundModel = ref('')
 const boundProviderAccount = ref('')
 const boundThinking = ref<ModCliThinking>('default')
 const historyLoading = ref(false)
+const clearing = ref(false)
 const sessions = ref<ModCliSessionSummary[]>([])
 const todos = ref<TodoItem[]>([])
 const todoText = ref('')
@@ -128,16 +142,18 @@ const cliModels = ref<ModCliModelEntry[]>([])
 const cliProviderOption = ref<ModCliConfigOption | null>(null)
 const logElement = ref<HTMLElement | null>(null)
 const composerInput = ref<HTMLTextAreaElement | null>(null)
+const stickToBottom = ref(true)
+const showJump = ref(false)
 
 let itemSeq = 0
 let todoSeq = 0
 let abortController: AbortController | null = null
 let activeAssistant: ChatItem | null = null
 let activeThinking: ChatItem | null = null
-let notedThinking: ModCliThinking | null = null
 let assistantSeen = false
 let usageEventSeen = false
 let runResultUsageSeen = false
+let sawRunResult = false
 
 const pushItem = (kind: ChatItem['kind'], text: string, open = false): ChatItem => {
   const item: ChatItem = { id: itemSeq++, kind, text, open }
@@ -147,7 +163,10 @@ const pushItem = (kind: ChatItem['kind'], text: string, open = false): ChatItem 
 
 const appendItem = (item: ChatItem | null, kind: ChatItem['kind'], text: string): ChatItem => {
   if (item) {
-    item.text = item.text ? `${item.text}\n${text}` : text
+    // Streamed chunks are arbitrary splits of one continuous text - joining
+    // with a newline turned every fragment into its own short line. Concatenate
+    // directly; real newlines arrive inside the chunk text and are kept.
+    item.text = `${item.text}${text}`
     return item
   }
   return pushItem(kind, text)
@@ -376,13 +395,67 @@ const dotState = computed(() => {
   return 'idle'
 })
 
+// Live agent state for the toolbar chip, derived only from what the wire
+// already reports (permission cards, streamed items, tool kinds, plan mode) -
+// no new bridge signal. The decision table lives in agentState.ts as a pure
+// function so it can be sim-tested without mounting the component.
+const agentState = computed<AgentState>(() => resolveAgentState(running.value, planMode.value, items.value))
+
+const AGENT_STATE_LABELS: Record<AgentState, string> = {
+  idle: 'Idle',
+  asking: 'Asking',
+  questioning: 'Questioning',
+  thinking: 'Thinking',
+  planning: 'Planning',
+  tasking: 'Tasking',
+}
+
+const agentStateLabel = computed(() => AGENT_STATE_LABELS[agentState.value])
+
+const agentStateHint = computed(() => {
+  switch (agentState.value) {
+    case 'asking':
+      return 'Waiting for your approval - answer the card in the chat.'
+    case 'questioning':
+      return 'The agent asked a question - answer it in the chat.'
+    case 'thinking':
+      return 'Streaming reasoning.'
+    case 'planning':
+      return 'Plan mode - the agent drafts a plan before touching anything.'
+    case 'tasking':
+      return 'Executing the task.'
+    default:
+      return 'Ready for the next prompt.'
+  }
+})
+
+// A session only exists after the first message, and cline stores no title of
+// its own - the label is the short id plus whatever the CLI history named it.
+const sessionLabel = computed(() => {
+  const id = sessionId.value
+  if (!id) return ''
+  const title = sessions.value.find((item) => item.sessionId === id)?.title?.trim()
+  if (!title) return `session ${id.slice(-8)}`
+  const short = title.length > 40 ? `${title.slice(0, 39).trimEnd()}...` : title
+  return `session ${id.slice(-8)} - ${short}`
+})
+
+const sessionTooltip = computed(() => {
+  const id = sessionId.value
+  if (!id) return ''
+  const title = sessions.value.find((item) => item.sessionId === id)?.title?.trim()
+  return title ? `${id} - ${title}` : id
+})
+
 const canSend = computed(() => !running.value && activeConfig.value.available && composer.value.trim().length > 0)
 
+// Strictly the selected provider's own list. A model offered from another
+// auth/billing provider is exactly what makes the CLI answer with an empty turn,
+// so the session history is never merged back in here.
 const modelOptions = computed(() => {
   const found = new Set<string>()
   if (model.value.trim()) found.add(model.value.trim())
   for (const entry of cliModels.value) found.add(entry.id)
-  for (const session of sessions.value) if (session.model) found.add(session.model)
   return [...found]
 })
 
@@ -390,28 +463,85 @@ const providerAccountOptions = computed(() => cliProviderOption.value?.options ?
 
 const refreshModels = async (): Promise<void> => {
   const wanted = provider.value.trim()
+  const wantedAccount = providerAccount.value.trim()
   if (!wanted) {
     cliModels.value = []
     cliProviderOption.value = null
     return
   }
   try {
-    const result = await fetchModCliModels(wanted)
-    if (provider.value.trim() !== wanted) return
+    const result = await fetchModCliModels(wanted, wantedAccount || undefined)
+    if (provider.value.trim() !== wanted || providerAccount.value.trim() !== wantedAccount) return
     cliModels.value = result.models
     cliProviderOption.value = result.providerOption
+    // A model left over from another auth/billing provider is absent from this
+    // list, and the CLI would silently fall back to its own default - so drop it
+    // and say why, instead of offering a choice that cannot run.
+    const chosen = model.value.trim()
+    if (result.models.length && chosen && !result.models.some((entry) => entry.id === chosen)) {
+      model.value = ''
+      pushItem('note', `${chosen} is not offered by ${wantedAccount || 'the CLI default provider'} - reset to its default model.`)
+    }
     if (!model.value.trim() && result.currentModel) model.value = result.currentModel
   } catch {
-    if (provider.value.trim() === wanted) {
+    if (provider.value.trim() === wanted && providerAccount.value.trim() === wantedAccount) {
       cliModels.value = []
       cliProviderOption.value = null
     }
   }
 }
 
+// The auth/billing provider owns its own model list, so a change refetches and
+// drops the model with it - the CLI answers with an empty turn otherwise.
+watch(providerAccount, () => {
+  model.value = ''
+  void refreshModels()
+  void refreshWindow()
+})
+
+const selectedModelEntry = computed(() => cliModels.value.find((entry) => entry.id === model.value.trim()) ?? null)
+
+// Reasoning effort is a per-model capability in the CLI's own catalog. The ACP
+// wire has no reasoning config option, so the chosen level travels as a spawn
+// flag and only the model's own levels are offered.
+const reasoningChoices = computed<string[]>(() => {
+  const entry = selectedModelEntry.value
+  return entry ? ['default', ...entry.reasoning] : [...THINKING_OPTIONS]
+})
+
+const reasoningHint = computed(() => {
+  const entry = selectedModelEntry.value
+  if (!entry) return ''
+  if (!entry.reasoning.length) return 'This model exposes no reasoning effort - the provider default applies.'
+  return `Supported here: ${entry.reasoning.join(', ')}.`
+})
+
+const isNearBottom = (): boolean => {
+  const log = logElement.value
+  if (!log) return true
+  return log.scrollHeight - log.scrollTop - log.clientHeight <= 96
+}
+
+const onLogScroll = (): void => {
+  const log = logElement.value
+  stickToBottom.value = isNearBottom()
+  showJump.value = !!log && log.scrollHeight - log.scrollTop - log.clientHeight > 160
+}
+
+const scrollToLatest = (): void => {
+  stickToBottom.value = true
+  void nextTick(() => {
+    const log = logElement.value
+    if (log) log.scrollTop = log.scrollHeight
+  })
+}
+
 watch(
   items,
   () => {
+    // A run streams many chunks - only follow the tail while the reader is
+    // already near it, so reading back up is never yanked away mid-run.
+    if (!stickToBottom.value) return
     void nextTick(() => {
       const log = logElement.value
       if (log) log.scrollTop = log.scrollHeight
@@ -420,27 +550,118 @@ watch(
   { deep: true },
 )
 
+// One turn = a user prompt plus everything the agent streamed back for it.
+// Notes pushed before the first prompt have no turn of their own yet and ride
+// along as a leaderless turn so nothing is dropped from the transcript.
+interface ChatTurn {
+  id: number
+  prompt: ChatItem | null
+  replies: ChatItem[]
+}
+
+const chatTurns = computed<ChatTurn[]>(() => {
+  const turns: ChatTurn[] = []
+  let current: ChatTurn | null = null
+  for (const item of items.value) {
+    if (item.kind === 'user') {
+      current = { id: item.id, prompt: item, replies: [] }
+      turns.push(current)
+    } else {
+      if (!current) {
+        current = { id: item.id, prompt: null, replies: [] }
+        turns.push(current)
+      }
+      current.replies.push(item)
+    }
+  }
+  return turns
+})
+
+const composerCount = computed(() => composer.value.length)
+
+const growComposer = (): void => {
+  const el = composerInput.value
+  if (!el) return
+  el.style.height = 'auto'
+  el.style.height = `${Math.min(el.scrollHeight, 240)}px`
+}
+
+watch(composer, () => {
+  void nextTick(growComposer)
+})
+
 const saveSettings = (): void => {
-  localStorage.setItem(
-    SETTINGS_KEY,
-    JSON.stringify({
-      provider: provider.value,
-      apiKey: apiKey.value,
-      model: model.value,
-      providerAccount: providerAccount.value,
-      lastTest: lastTest.value,
-      thinking: thinking.value,
-      planMode: planMode.value,
-      autoApprove: autoApprove.value,
-    }),
-  )
+  try {
+    localStorage.setItem(
+      SETTINGS_KEY,
+      JSON.stringify({
+        provider: provider.value,
+        apiKey: apiKey.value,
+        model: model.value,
+        providerAccount: providerAccount.value,
+        lastTest: lastTest.value,
+        thinking: thinking.value,
+        planMode: planMode.value,
+        autoApprove: autoApprove.value,
+        presets: presets.value,
+        defaultPreset: defaultPreset.value,
+      }),
+    )
+  } catch { /* storage full or unavailable - settings stay in memory */ }
 }
 
 // Persist every settings change immediately - a change followed by a page
 // refresh must survive without requiring a run or a connection test first.
-watch([provider, apiKey, model, providerAccount, thinking, planMode, autoApprove], () => {
+watch([provider, apiKey, model, providerAccount, thinking, planMode, autoApprove, presets, defaultPreset], () => {
   saveSettings()
 })
+
+// Presets: named provider + model + reasoning bundles saved with the other
+// settings. The default preset re-applies on load, so every visit starts with
+// the marked run configuration without touching the CLI's own sign-in.
+const savePreset = (): void => {
+  if (running.value) return
+  const name = presetName.value.trim()
+  if (!name) return
+  const entry: PresetEntry = {
+    name,
+    providerAccount: providerAccount.value.trim(),
+    model: model.value.trim(),
+    thinking: thinking.value,
+  }
+  const existing = presets.value.findIndex((preset) => preset.name === name)
+  presets.value = existing >= 0 ? presets.value.map((preset, i) => (i === existing ? entry : preset)) : [...presets.value, entry]
+  selectedPreset.value = name
+}
+
+// Provider account first (its own watch refetches the model list), then model
+// on the next tick so that watch's reset cannot wipe the preset's model.
+const applyPreset = (name: string): void => {
+  if (running.value) return
+  const preset = presets.value.find((item) => item.name === name)
+  if (!preset) return
+  providerAccount.value = preset.providerAccount
+  thinking.value = preset.thinking
+  void nextTick(() => {
+    model.value = preset.model
+  })
+}
+
+watch(selectedPreset, (name) => {
+  if (name) applyPreset(name)
+})
+
+const setDefaultPreset = (): void => {
+  if (running.value || !selectedPreset.value) return
+  defaultPreset.value = selectedPreset.value
+}
+
+const deletePreset = (): void => {
+  if (running.value || !selectedPreset.value) return
+  presets.value = presets.value.filter((preset) => preset.name !== selectedPreset.value)
+  if (defaultPreset.value === selectedPreset.value) defaultPreset.value = ''
+  selectedPreset.value = ''
+}
 
 const bindSession = (): void => {
   boundProvider.value = provider.value.trim()
@@ -477,6 +698,28 @@ const loadSettings = (): void => {
     }
     if (typeof parsed.planMode === 'boolean') planMode.value = parsed.planMode
     if (typeof parsed.autoApprove === 'boolean') autoApprove.value = parsed.autoApprove
+    if (Array.isArray(parsed.presets)) {
+      const loaded: PresetEntry[] = []
+      for (const item of parsed.presets) {
+        if (typeof item !== 'object' || item === null) continue
+        const rec = item as Record<string, unknown>
+        const name = typeof rec.name === 'string' ? rec.name.trim() : ''
+        if (!name) continue
+        loaded.push({
+          name,
+          providerAccount: typeof rec.providerAccount === 'string' ? rec.providerAccount : '',
+          model: typeof rec.model === 'string' ? rec.model : '',
+          thinking:
+            typeof rec.thinking === 'string' && THINKING_OPTIONS.includes(rec.thinking as ModCliThinking)
+              ? (rec.thinking as ModCliThinking)
+              : 'default',
+        })
+      }
+      presets.value = loaded
+    }
+    if (typeof parsed.defaultPreset === 'string' && presets.value.some((preset) => preset.name === parsed.defaultPreset)) {
+      defaultPreset.value = parsed.defaultPreset
+    }
   } catch {
     localStorage.removeItem(SETTINGS_KEY)
   }
@@ -512,6 +755,7 @@ const applyStreamLine = (line: ModCliStreamLine): void => {
     return
   }
   if (line.type === 'run_result') {
+    sawRunResult = true
     const usage = line.aggregateUsage ?? line.usage
     const usedTokens = toNumber(usage?.inputTokens) + toNumber(usage?.cacheReadTokens) + toNumber(usage?.cacheWriteTokens)
     // The ACP wire may report all-zero usage (cline's carries none) - only treat
@@ -533,13 +777,26 @@ const applyStreamLine = (line: ModCliStreamLine): void => {
       if (out > 0 || used > 0) contextOut.value = out
     }
     if (line.finishReason === 'context_window_exceeded') contextExceeded.value = true
+    const appliedModel = typeof line.model?.id === 'string' ? line.model.id : ''
+    const appliedProvider = typeof line.model?.provider === 'string' ? line.model.provider : ''
     if (!assistantSeen) {
       // Some agents (cline's ACP wire) stream only thought blocks and never a
-      // message chunk - surface the last thinking item instead of hiding it.
+      // message chunk - surface the last thinking item instead. A run with no
+      // content at all is the CLI's own empty turn (a model that does not belong
+      // to the active provider) and must not pass as a silent success.
       const lastThinking = [...items.value].reverse().find((item) => item.kind === 'thinking')
       if (lastThinking) lastThinking.open = true
+      else
+        pushItem(
+          'error',
+          `The agent returned no reply for ${appliedModel || 'this model'}${
+            appliedProvider ? ` under ${appliedProvider}` : ''
+          }. The CLI answers with an empty turn when the model does not belong to the active provider - pick a model from this provider's list.`,
+        )
     }
-    statusText.value = `${line.model?.id ?? 'model'} - ${line.finishReason ?? 'done'} (${line.durationMs ?? 0}ms)`
+    statusText.value = `${appliedProvider ? `${appliedProvider} / ` : ''}${appliedModel || 'model'} - ${line.finishReason ?? 'done'} (${
+      line.durationMs ?? 0
+    }ms)`
     return
   }
   const event = line.event
@@ -647,17 +904,20 @@ const send = async (): Promise<void> => {
     sessionId.value = ''
     pushItem('note', 'Provider, model, or reasoning changed - started a new session.')
   }
-  if (thinking.value !== 'default' && notedThinking !== thinking.value) {
-    notedThinking = thinking.value
-    pushItem('note', 'Reasoning effort is not settable over the ACP wire - the provider default applies.')
+  if (thinking.value !== 'default' && !reasoningChoices.value.includes(thinking.value)) {
+    pushItem('note', `Reasoning effort "${thinking.value}" is not supported by ${model.value.trim() || 'this model'} - reset to the provider default.`)
+    thinking.value = 'default'
   }
   if (!sessionId.value) bindSession()
   pushItem('user', prompt)
+  stickToBottom.value = true
+  showJump.value = false
   running.value = true
   usageLabel.value = ''
   statusText.value = ''
   usageEventSeen = false
   runResultUsageSeen = false
+  sawRunResult = false
   contextExceeded.value = false
   liveCost.value = 0
   liveCommitted.value = false
@@ -682,6 +942,12 @@ const send = async (): Promise<void> => {
     )) {
       applyStreamLine(line)
     }
+    // Stream ended without a result line - the bridge never settled the run
+    // (dev server restart or CLI death). The running flag resets below, but
+    // a silent end reads as "did nothing", so say what likely happened.
+    if (!sawRunResult) {
+      pushItem('note', 'The stream ended without a result - the dev server or CLI likely stopped. Resume from the sessions drawer.')
+    }
   } catch (error) {
     if (!(error instanceof DOMException && error.name === 'AbortError')) {
       pushItem('error', error instanceof Error ? error.message : String(error))
@@ -701,6 +967,10 @@ const answerPermission = async (item: ChatItem, option: ModCliPermissionOption):
   try {
     await answerModCliPermission(runId.value, item.permissionId, option.optionId)
   } catch (error) {
+    // The optimistic lock is reverted - the wire never answered, so the agent
+    // is still waiting and the choice stays re-clickable (a locked card would
+    // hang the run forever).
+    if (item.answered === option.optionId) item.answered = null
     pushItem('error', error instanceof Error ? error.message : String(error))
   }
 }
@@ -717,6 +987,18 @@ const toolGlyph = (status?: string): string => {
   if (status === 'in_progress') return '▸'
   return '·'
 }
+
+// The same heuristic the state chip uses decides which card presentation a
+// permission gets - a question renders as a choice card, an approval stays
+// inline.
+// The agent's suggestions arrive in its own preference order - the first
+// entry is the pick it would answer itself. Only question cards carry
+// suggestions; approval kinds (allow/reject) are semantics, not preference,
+// and a lone suggestion needs no marking.
+const suggestedOptionIndex = (item: ChatItem): number =>
+  item.kind === 'permission' && cardIsQuestion(item) && (item.permOptions?.length ?? 0) > 1 ? 0 : -1
+
+const cardIsQuestion = (item: ChatItem): boolean => isQuestionCard(item.text, item.toolCallId)
 
 const stopRun = async (): Promise<void> => {
   if (!running.value) return
@@ -742,7 +1024,7 @@ const loadHistory = async (): Promise<void> => {
 }
 
 const deleteSession = async (session: ModCliSessionSummary): Promise<void> => {
-  if (running.value) return
+  if (running.value || clearing.value) return
   const label = session.title || session.prompt || session.sessionId
   if (!window.confirm(`Delete this session? "${label}"`)) return
   try {
@@ -758,6 +1040,29 @@ const deleteSession = async (session: ModCliSessionSummary): Promise<void> => {
   void loadHistory()
 }
 
+// The CLI deletes one session per invocation, so this is slow and deliberate:
+// confirm, run, then report what actually happened and start a clean chat.
+const clearAllSessions = async (): Promise<void> => {
+  if (running.value || clearing.value || !sessions.value.length) return
+  const listed = sessions.value.length
+  const ok = window.confirm(
+    `Delete every session of this project?\n\nThe CLI deletes one session at a time (about a second each, ~${listed}s) and this cannot be undone.`,
+  )
+  if (!ok) return
+  clearing.value = true
+  try {
+    const result = await clearModCliSessions(provider.value.trim() || 'cline')
+    newChat()
+    if (result.failed) pushItem('error', `Cleared ${result.deleted} of ${result.total} sessions - ${result.failed} could not be deleted.`)
+    else pushItem('note', `Cleared ${result.deleted} session${result.deleted === 1 ? '' : 's'} - this project has no CLI history left.`)
+  } catch (error) {
+    pushItem('error', error instanceof Error ? error.message : String(error))
+  } finally {
+    clearing.value = false
+    void loadHistory()
+  }
+}
+
 const resumeSession = (session: ModCliSessionSummary): void => {
   if (running.value) return
   sessionId.value = session.sessionId
@@ -767,6 +1072,9 @@ const resumeSession = (session: ModCliSessionSummary): void => {
   bindSession()
   bindTodoSession(session.sessionId)
   void refreshWindow()
+  // The resumed model must be checked against the provider's own list, or the
+  // next message silently runs a different model.
+  void refreshModels()
   void loadHistory()
   if (session.usage) {
     const used = toNumber(session.usage.inputTokens) + toNumber(session.usage.cacheReadTokens) + toNumber(session.usage.cacheWriteTokens)
@@ -823,10 +1131,14 @@ const connectSummary = computed(() => {
     if (tested.ok) return `Connected - ${what} (tested ${when}${tested.version ? `, cline ${tested.version}` : ''}).${stale}`
     return `Last test failed - ${what}.${stale}`
   }
-  if (apiKey.value.trim()) {
-    return `Key ${maskKeyTail(apiKey.value)} saved in this browser for ${provider.value.trim() || 'cline'} - note: the agents' ACP wire does not accept API keys yet, runs use the CLI's own sign-in.`
-  }
-  return 'Not connected yet - press Test Connection to verify the CLI is reachable.'
+  const name = provider.value.trim() || 'cline'
+  const keyNote = apiKey.value.trim()
+    ? `Key ${maskKeyTail(apiKey.value)} is stored in this browser - the ACP wire ignores keys, so runs use the CLI's own sign-in.`
+    : "No API key needed - runs use the CLI's own sign-in."
+  if (configAvailable.value === null) return 'Checking the CLI...'
+  if (!activeConfig.value.available) return `${name} CLI is not available - install it or check its path.`
+  const version = activeConfig.value.version ? ` ${activeConfig.value.version}` : ''
+  return `${name} CLI${version} is reachable. ${keyNote} Press Test Connection to record a check.`
 })
 
 const connectTone = computed(() => {
@@ -835,11 +1147,14 @@ const connectTone = computed(() => {
   if (!connMessage.value && lastTest.value) {
     return lastTest.value.ok ? 'ok' : 'error'
   }
+  if (configAvailable.value === false) return 'error'
   return ''
 })
 
 type ProviderState = 'ok' | 'warn' | 'err' | 'idle'
 
+// The connection dot reports the CLI's real reachability, never whether a key
+// happens to be stored - a stored key has no bearing on a run.
 const providerState = computed<ProviderState>(() => {
   if (connState.value === 'testing') return 'warn'
   if (connState.value === 'error') return 'err'
@@ -848,7 +1163,8 @@ const providerState = computed<ProviderState>(() => {
     if (!tested.ok) return 'err'
     return settingsChanged.value ? 'warn' : 'ok'
   }
-  return apiKey.value.trim() ? 'warn' : 'idle'
+  if (configAvailable.value === null) return 'idle'
+  return activeConfig.value.available ? 'ok' : 'err'
 })
 
 const providerConn = computed(() => providerState.value)
@@ -856,15 +1172,16 @@ const providerConn = computed(() => providerState.value)
 const providerStatusText = computed(() => {
   const name = provider.value.trim() || 'cline'
   const modelName = model.value.trim()
+  const suffix = modelName ? ` · ${modelName}` : ''
   switch (providerState.value) {
     case 'ok':
-      return `${name}${modelName ? ` · ${modelName}` : ''} · connected`
+      return lastTest.value?.ok ? `${name}${suffix} · connected` : `${name}${suffix} · ready`
     case 'warn':
       return connState.value === 'testing' ? 'Testing connection...' : `${name} · check settings`
     case 'err':
-      return `${name} · connection failed`
+      return lastTest.value && !lastTest.value.ok ? `${name} · connection failed` : `${name} · CLI unavailable`
     default:
-      return `${name} · not connected`
+      return `${name} · checking`
   }
 })
 
@@ -928,9 +1245,11 @@ const onToggle = (item: ChatItem, event: Event): void => {
 
 onMounted(() => {
   loadSettings()
+  if (defaultPreset.value) selectedPreset.value = defaultPreset.value
   if (!apiKey.value.trim()) settingsOpen.value = true
   loadUsage()
   loadTodos()
+  void nextTick(growComposer)
   void (async () => {
     try {
       const config = await fetchModCliConfig()
@@ -951,6 +1270,14 @@ onMounted(() => {
     <aside v-if="drawerOpen" class="mod-cli-chat__sidebar">
       <div>
         <h2>Sessions</h2>
+        <button
+          type="button"
+          data-tone="danger"
+          :disabled="running || clearing || !sessions.length"
+          @click="clearAllSessions"
+        >
+          {{ clearing ? 'Clearing...' : 'Clear all' }}
+        </button>
         <button type="button" @click="drawerOpen = false">Close</button>
       </div>
       <div class="mod-cli-chat__session-list">
@@ -968,69 +1295,56 @@ onMounted(() => {
               {{ session.model || 'default model' }} - {{ formatWhen(session.startedAt) }} - {{ session.status }}
             </span>
           </button>
-          <button type="button" title="Delete session" :disabled="running" @click="deleteSession(session)">x</button>
+          <button type="button" title="Delete session" aria-label="Delete session" :disabled="running || clearing" @click="deleteSession(session)">x</button>
         </div>
       </div>
     </aside>
     <div class="mod-cli-chat__main">
       <header class="mod-cli-chat__toolbar">
-        <strong>ModCLI</strong>
-        <span :data-dot="dotState"></span>
-        <output>{{ statusLabel }}</output>
-        <div
-          v-for="gauge in usageGauges"
-          :key="gauge.key"
-          class="mod-cli-chat__gauge"
-          :data-tone="gauge.tone || undefined"
-          :title="gauge.title"
-        >
-          <div>
-            <span>{{ gauge.label }}</span>
-            <span>{{ gauge.value }}</span>
-            <span v-if="gauge.key === 'ctx' && ctxHasData" class="mod-cli-chat__tube">
-              <span v-if="ctxWindowPct !== null" :style="{ width: `${ctxWindowPct}%` }"></span>
-              <template v-else>
-                <span :style="{ width: `${ctxInPct}%` }"></span>
-                <span :style="{ width: `${100 - ctxInPct}%` }"></span>
-              </template>
-            </span>
-            <span v-if="gauge.reset">{{ gauge.reset }}</span>
+        <div data-side="main">
+          <strong>ModCLI</strong>
+          <span :data-dot="dotState"></span>
+          <output :data-state="agentState" :title="agentStateHint">{{ agentStateLabel }}</output>
+          <output>{{ statusLabel }}</output>
+          <output v-if="sessionLabel" data-session :title="sessionTooltip">{{ sessionLabel }}</output>
+        </div>
+        <div data-side="actions">
+          <div
+            v-for="gauge in usageGauges"
+            :key="gauge.key"
+            class="mod-cli-chat__gauge"
+            :data-tone="gauge.tone || undefined"
+            :title="gauge.title"
+          >
+            <div>
+              <span>{{ gauge.label }}</span>
+              <span>{{ gauge.value }}</span>
+              <span v-if="gauge.key === 'ctx' && ctxHasData" class="mod-cli-chat__tube">
+                <span v-if="ctxWindowPct !== null" :style="{ width: `${ctxWindowPct}%` }"></span>
+                <template v-else>
+                  <span :style="{ width: `${ctxInPct}%` }"></span>
+                  <span :style="{ width: `${100 - ctxInPct}%` }"></span>
+                </template>
+              </span>
+              <span v-if="gauge.reset">{{ gauge.reset }}</span>
+            </div>
           </div>
+          <button type="button" :data-active="settingsOpen" @click="settingsOpen = !settingsOpen">
+            Settings
+          </button>
+          <button type="button" :data-active="drawerOpen" @click="drawerOpen = !drawerOpen">
+            Sessions
+          </button>
+          <button type="button" :data-active="todoOpen" @click="todoOpen = !todoOpen">
+            TODO<span v-if="openTodoCount"> {{ openTodoCount }}</span>
+          </button>
+          <button type="button" :disabled="running" @click="newChat">New chat</button>
         </div>
-        <button type="button" :data-active="settingsOpen" @click="settingsOpen = !settingsOpen">
-          Settings
-        </button>
-        <button type="button" :data-active="drawerOpen" @click="drawerOpen = !drawerOpen">
-          Sessions
-        </button>
-        <button type="button" :data-active="todoOpen" @click="todoOpen = !todoOpen">
-          TODO<span v-if="openTodoCount"> {{ openTodoCount }}</span>
-        </button>
-        <button type="button" :disabled="running" @click="newChat">New chat</button>
       </header>
-      <section v-if="settingsOpen" class="mod-cli-chat__connect">
-        <div>
-          <label>
-            <span>API key (stored in this browser only)</span>
-            <input
-              v-model="apiKey"
-              type="password"
-              placeholder="Paste provider API key"
-              autocomplete="off"
-              :disabled="running || connState === 'testing'"
-              spellcheck="false"
-            />
-          </label>
-          <button type="button" :disabled="running || connState === 'testing'" @click="testConnection">Test Connection</button>
-          <button type="button" :disabled="running || connState === 'testing' || !apiKey" @click="clearApiKey">Clear key</button>
-        </div>
-        <p :data-tone="connectTone || undefined">
-          {{ connectSummary }}
-        </p>
-      </section>
       <div class="mod-cli-chat__content">
         <div class="mod-cli-chat__center">
-      <div ref="logElement" class="mod-cli-chat__log">
+        <div data-logwrap>
+      <div ref="logElement" class="mod-cli-chat__log" role="log" aria-live="polite" aria-label="Conversation log" @scroll.passive="onLogScroll">
         <div v-if="!items.length">
           <p>Start a task - pick a sample or type below (2+ words).</p>
           <div>
@@ -1045,9 +1359,10 @@ onMounted(() => {
             </button>
           </div>
         </div>
-        <template v-for="item in items" v-else :key="item.id">
-          <p v-if="item.kind === 'user'" data-kind="user">{{ item.text }}</p>
-          <p v-else-if="item.kind === 'assistant'" data-kind="assistant">{{ item.text }}</p>
+        <template v-for="turn in chatTurns" v-else :key="turn.id">
+          <p v-if="turn.prompt" data-kind="user">{{ turn.prompt.text }}</p>
+          <template v-for="item in turn.replies" :key="item.id">
+          <p v-if="item.kind === 'assistant'" data-kind="assistant">{{ item.text }}</p>
           <p v-else-if="item.kind === 'error'" data-kind="error">{{ item.text }}</p>
           <p v-else-if="item.kind === 'note'" data-kind="note">{{ item.text }}</p>
           <p v-else-if="item.kind === 'tool'" data-kind="tool" :data-status="item.toolStatus || undefined" :data-tool-kind="item.toolKind || undefined">
@@ -1057,14 +1372,15 @@ onMounted(() => {
           <details
             v-else-if="item.kind === 'permission'"
             data-kind="permission"
+            :data-question="cardIsQuestion(item) || undefined"
             :open="item.open"
             @toggle="onToggle(item, $event)"
           >
-            <summary>{{ item.text }}{{ item.toolCallId ? ' - tool call' : '' }}</summary>
+            <summary>{{ item.text }}{{ !cardIsQuestion(item) && item.toolCallId ? ' - tool call' : '' }}</summary>
             <div>
               <div>
                 <button
-                  v-for="option in item.permOptions"
+                  v-for="(option, index) in item.permOptions"
                   :key="option.optionId"
                   type="button"
                   :data-option-kind="option.kind || undefined"
@@ -1072,8 +1388,21 @@ onMounted(() => {
                   @click="answerPermission(item, option)"
                 >
                   {{ option.name }}
+                  <span
+                    v-if="index === suggestedOptionIndex(item)"
+                    data-role="suggested"
+                    title="The agent lists its primary pick first"
+                  >Suggested</span>
                 </button>
               </div>
+              <p
+                v-if="cardIsQuestion(item) && !(item.permOptions?.length ?? 0)"
+                data-role="no-choices"
+              >The question arrived without choices - answer in the CLI itself or restart the run.</p>
+              <p
+                v-if="suggestedOptionIndex(item) >= 0"
+                data-role="suggest-hint"
+              >Suggestions come in the agent's preference order - its pick is first; the reasoning, when the agent wrote one, is in the question text.</p>
               <p v-if="item.answered !== null">{{ permissionAnswerLabel(item) }}</p>
             </div>
           </details>
@@ -1086,24 +1415,51 @@ onMounted(() => {
             <summary>{{ item.kind === 'thinking' ? 'Thinking' : 'Event' }}</summary>
             <pre>{{ item.text }}</pre>
           </details>
+          </template>
         </template>
       </div>
+        <button v-if="showJump" type="button" data-jump aria-label="Jump to latest" @click="scrollToLatest">
+          ↓ latest
+        </button>
+        </div>
       <footer class="mod-cli-chat__composer">
         <textarea
           ref="composerInput"
           v-model="composer"
           rows="3"
+          aria-label="Message"
           placeholder="Message ModCLI... (Enter to send, Shift+Enter for a newline)"
           @keydown.enter.exact.prevent="send"
         ></textarea>
         <div>
+          <span v-if="composerCount" data-count>{{ composerCount }}</span>
           <button v-if="running" type="button" data-tone="danger" @click="stopRun">Stop</button>
           <button v-else type="button" :disabled="!canSend" @click="send">Send</button>
         </div>
       </footer>
         </div>
-      <div class="mod-cli-chat__settings">
+      <div v-if="settingsOpen" class="mod-cli-chat__settings">
         <h2>Settings</h2>
+        <div class="mod-cli-chat__section">
+          <div>
+            <label>
+              <span>API key (stored in this browser only)</span>
+              <input
+                v-model="apiKey"
+                type="password"
+                placeholder="Paste provider API key"
+                autocomplete="off"
+                :disabled="running || connState === 'testing'"
+                spellcheck="false"
+              />
+            </label>
+            <button type="button" :disabled="running || connState === 'testing'" @click="testConnection">Test Connection</button>
+            <button type="button" :disabled="running || connState === 'testing' || !apiKey" @click="clearApiKey">Clear key</button>
+          </div>
+          <p :data-tone="connectTone || undefined">
+            {{ connectSummary }}
+          </p>
+        </div>
         <div>
           <span>Connection</span>
           <span>
@@ -1132,11 +1488,34 @@ onMounted(() => {
         <label>
           <span>Reasoning effort</span>
           <select v-model="thinking" :disabled="running">
-            <option v-for="option in THINKING_OPTIONS" :key="option" :value="option">
+            <option v-for="option in reasoningChoices" :key="option" :value="option">
               {{ option === 'default' ? 'provider default' : option }}
             </option>
           </select>
         </label>
+        <p v-if="reasoningHint">{{ reasoningHint }}</p>
+        <div class="mod-cli-chat__section">
+          <div>
+            <label>
+              <span>Save current as preset</span>
+              <input v-model="presetName" placeholder="Preset name" spellcheck="false" :disabled="running" />
+            </label>
+            <button type="button" :disabled="running || !presetName.trim()" @click="savePreset">Save</button>
+          </div>
+          <div>
+            <label>
+              <span>Presets</span>
+              <select v-model="selectedPreset" :disabled="running || !presets.length">
+                <option value="">(none)</option>
+                <option v-for="preset in presets" :key="preset.name" :value="preset.name">
+                  {{ preset.name }}{{ preset.name === defaultPreset ? ' - default' : '' }}
+                </option>
+              </select>
+            </label>
+            <button type="button" :disabled="running || !selectedPreset" @click="setDefaultPreset">Set default</button>
+            <button type="button" :disabled="running || !selectedPreset" @click="deletePreset">Delete</button>
+          </div>
+        </div>
         <div>
           <span>Mode</span>
           <div>
