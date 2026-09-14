@@ -10,8 +10,9 @@ Universal harness companion - ships with `harness/`. Everything here applies eve
 - Expand terse prompts into scoped, actionable output without asking first; build forward toward a usable implementation, not a literal restatement.
 - Land on the relevant code and read before writing: navigate to the parts actually needed, check neighbors + existing impl before choosing a library or pattern. Verify the dependency is already used.
 - Zero-duplication: never create a second way to do the same thing. No duplicate impls, facades, or wrappers.
-- DO directly: in-scope edits, local refactors, obvious wiring. STOP + ask: destructive (rm/migrate/drop), scope >3 files, new dependency/infra, secrets/auth change.
+- DO directly: in-scope edits, local refactors, obvious wiring. STOP + ask: destructive (rm/migrate/drop), scope growth past 3 files beyond what was asked, new dependency/infra, secrets/auth change. A requested change that itself spans over 3 files is pre-authorized - the gate covers unrequested scope creep, not the asked work.
 - Rule: confidence >80% and reversible -> do it, state assumption in report. Else ask.
+- Safe iteration is pre-authorized: run the routed verify suite, fix failures caused by the requested change, and rerun without asking for approval at each step.
 - Ask with options: whenever stopping to ask, present numbered options (2-4) each with pros/cons, then state which option is recommended and why.
 - Claim then impact: user-reported bug/request -> verify against code first and state what is actually true; assess impact + pros/cons before implementing.
 - Engineering standard: for every choice, pick the efficient / best-practice / higher-performance / cleaner-code option first; when alternatives exist, state briefly in the report why the chosen path won.
@@ -19,14 +20,15 @@ Universal harness companion - ships with `harness/`. Everything here applies eve
 
 ## Read chain
 
-1. `harness/harness.md` - how the loop runs.
+1. `harness/HARNESS.md` - how the loop runs.
 2. `harness/task-context.md` - live state, read first (RESUME). `harness/history.md` is human reference - the agent reads it only on explicit user order, never routinely.
 3. `skill.md` - project domain knowledge, only when the task touches it.
 4. `harness/context.md` - shared language (glossary), when domain terms or wording matter.
+5. `harness/skills/` - our skill procedures (adapted from `mattpocock/skills`, MIT - see `harness/skills/NOTICE.md`). Rules for when to read which + name resolution live in `harness/HARNESS.md` Read chain - always through that gate, never wholesale.
 
 ## Workflow
 
-`inspect -> plan -> implement -> test -> fix -> review -> done` per `harness/harness.md` (feature lane for ideas/PRDs/issues, light loop for single-file routine fixes). The live slot must be current (or cleared + logged in `history.md`) - a task with a stale slot is not finished.
+`inspect -> plan -> implement -> test -> fix -> review -> done` per `harness/HARNESS.md` (feature lane for ideas/PRDs/issues, light loop for single-file routine fixes). The live slot must be current (or cleared + logged in `history.md`) - a task with a stale slot is not finished.
 
 `mod-cli/` is archived at `_archive/mod-cli/` - it is disconnected from the host (no bridge, no route) and excluded from typecheck/lint/tests. Do not import from it; work touching only files there skips the harness slot and history entirely.
 
@@ -40,13 +42,17 @@ Run ONLY the suite matching the change, never the full matrix.
 
 PROJECT ADAPTER - the rows and banned names below are this project's values. A new project keeps the table shape and markers, fills its own rows.
 <!-- verify:start -->
-| Changed                                      | Run                                                          |
-| -------------------------------------------- | ------------------------------------------------------------ |
-| Template/markup/CSS/class (`*.vue`, `*.css`) | `lint:bem` + `lint:css` (+ `typecheck` if a Vue SFC changed) |
-| Engine/domain TS                             | the single matching `test:<name>`                            |
-| Schema/persistence/sync                      | the single matching schema suite                             |
+| Changed (globs)                                                                                                                     | Run                                                                      |
+| ----------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| Template/markup (`*.vue`)                                                                                                           | `lint:bem` + `lint:css` + `typecheck`                                    |
+| CSS (`src/**/*.css`)                                                                                                                | `lint:bem` + `lint:css`                                                  |
+| Harness scripts (`harness/scripts/*.mjs`)                                                                                           | `lint`                                                                   |
+| Config TS (`vite.config.ts`, `vitest.config.ts`)                                                                                    | `typecheck`                                                              |
+| Repo tests (`tests/*.ts`)                                                                                                           | the single matching `test:<name>` or `npx tsx tests/<file>` (human pick) |
+| Engine/domain TS (`src/engine/**`, `**/domain/**`, `**/assets/**`)                                                                  | the single matching `test:<name>` (human pick)                           |
+| Schema/persistence/sync (`**/*schema*`, `**/*migrat*`, `**/*persist*`, `**/*sync*`, `**/*payload*`, `src/blueprint-editor/data/**`) | the single matching schema suite (human pick)                            |
 
-Router: `node harness/scripts/verify.mjs` (route/run/check) maps `git status` to the row above; engine/schema rows stay human-pick.
+Router: `node harness/scripts/verify.mjs` (route/run/check) parses THIS table - backticked globs in Changed match `git status` (no-slash globs match basenames, slash globs match paths), backticked npm scripts in Run are the route; a row with no concrete script is human-pick (the router lists the project's `test:` scripts, never auto-runs). The table is the only routing source - the harness ships no suite names.
 
 Bans: no `verify` / `test` matrix unless asked. Never `test:npc-perf`, `test:npc-scale`, `test:behavior`, `observe:hotel` unless asked. Never `git checkout --`, `git restore`, `git reset`, `git stash`, or `git clean` on tracked/staged files - revert only by hand-editing; read-only `git status` / `git diff` / `git log` allowed. Temp diagnostics go in `tests/_*.tmp.ts`, deleted same session, never committed.
 <!-- verify:end -->

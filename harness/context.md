@@ -3,7 +3,7 @@
 One canonical name per concept. This file decodes the project's jargon so chat,
 slot, and code all speak the same words - "door halves split", not a paragraph
 re-deriving them. The harness ships the shape; the words are project-owned.
-Rewrite the glossary on adoption (see `harness.md` - Adopt in a new project).
+Rewrite the glossary on adoption (see `harness/HARNESS.md` - Adopt in a new project).
 
 ## Usage rules
 

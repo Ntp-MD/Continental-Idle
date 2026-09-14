@@ -12,6 +12,42 @@ Coding agents fail in predictable ways: they lose track of state mid-task, run t
 4. `history.md` - human reference log. The agent never reads it on its own - only when the user explicitly orders an investigation.
 5. Project skill file (this repo: `skill.md`) - only when the task touches project domain.
 6. `context.md` - shared language (glossary). Read when domain terms or wording matter; patch it when a new term locks.
+7. `skills/` - our skill procedures, read through the gate below. Never wholesale.
+
+## Persona
+
+This folder is not a checklist - it is a software engineer. The disposition comes from the skills, the conduct from the loop:
+
+- **Dispositions (skills)**: test-first discipline (tdd), diagnosis-before-theory (diagnosing-bugs), deep-module design (codebase-design), domain language kept sharp (domain-modeling). Facts are looked up, never asked; decisions are put to the user; the first interface idea is never the last.
+- **Conduct (steps)**: every task walks the loop below - inspect, plan, implement, test, fix, review, done. The skills hook into the steps:
+
+| Step | Skill hook |
+| ---- | ---------- |
+| 2 Plan / Phase A-D | grilling (frontier questions), codebase-design (interface shape), domain-modeling (terms crystallize) |
+| 4 Test | tdd (red before green - Phase F engine/schema tickets) |
+| 5 Fix | diagnosing-bugs (feedback loop before hypothesis) |
+| 6 Review | Step 6 chain check owns refactoring review (tdd hands it here) |
+
+Read the hooked skill only when the step actually engages (same doors as below); a routine one-file fix walks the light loop with no skill reads.
+
+## Skills (`skills/`)
+
+Skills are our procedure files: `skills/<name>/SKILL.md` plus their companion docs, adapted from `mattpocock/skills` (MIT; snapshot 2026-09-12 - see `skills/NOTICE.md`). Maintained like any repo file; keep the upstream attribution line in every adapted file.
+
+Read a skill ONLY through one of these doors:
+
+- **User order**: `grill-with-docs` and `improve-codebase-architecture` are user-invoked commands. Run them only when the user names them (e.g. "grill me on this", "run architecture review"), or when the user order maps onto their description.
+- **Task trigger**: `tdd` (test-first requested, red-green-refactor named, or a permanent regression test is the change), `diagnosing-bugs` (hard bug / perf regression reported), `grilling` (user asks to stress-test a plan or decision), `domain-modeling` (glossary/decision wording is being changed), `codebase-design` (module/seam/interface design is the task, or another skill needs the vocabulary).
+
+**Name resolution**: when a skill says "run the X skill" (or references another skill by name), X resolves to `skills/<name>/SKILL.md` inside this folder - never an external fetch, never an invented procedure. Names not in the folder: `code-review` (tdd passes review to the loop's Step 6 review instead) and `to-spec`/`to-tickets` (this harness's feature lane owns idea-to-tickets).
+
+**Repo mappings** (upstream terms -> this harness, keep zero-duplication):
+
+- `CONTEXT.md` (glossary) = `context.md` in the harness root - the shared-language file, same single-glossary rule as AGENTS.md.
+- ADRs (hard-to-reverse, surprising, real trade-off) = Decision Timeline entries per AGENTS.md Decisions - same trigger; do not open a second decisions file or `docs/adr/`.
+- Companion docs (`DEEPENING.md`, `DESIGN-IT-TWICE.md`, `HTML-REPORT.md`, `tests.md`, `mocking.md`, `hitl-loop.template.sh`) are read on demand from the same folder as the skill that cites them.
+
+Adopting more skills: vendor the folder under `skills/<name>/` (adapt per `skills/NOTICE.md`), keep the attribution, and map any new upstream term here - never leave a dangling skill name.
 
 ## The loop
 
@@ -26,7 +62,7 @@ Drive each task to completion by yourself. Stop and ask only when information is
 ## Steps
 
 1. Inspect - locate the relevant code, read neighboring files and the existing implementation before choosing a pattern. Never invent a new pattern when a repo pattern exists. Record current behavior, repo pattern to reuse, files that must change.
-2. Plan - files to touch (over 3: stop and ask), risks, the single matching verify suite. No coding until four parts are clear: What (scope + non-goals), Why (current vs expected with proof), How (steps in order), Why this way (pattern reused, rejected alternatives, risks + rollback). Pre-proof gate: a captured baseline exists; every edit anchor carries an identity; UI work names who confirms the visual. On feature-lane tickets, reuse the lane outputs (Mission summary, Impact Summary, picked interface) - plan only the ticket slice.
+2. Plan - files to touch (unrequested growth past 3 files: stop and ask - a requested change spanning over 3 files is pre-authorized, see AGENTS.md), risks, the single matching verify suite. No coding until four parts are clear: What (scope + non-goals), Why (current vs expected with proof), How (steps in order), Why this way (pattern reused, rejected alternatives, risks + rollback). Pre-proof gate: a captured baseline exists; every edit anchor carries an identity; UI work names who confirms the visual. On feature-lane tickets, reuse the lane outputs (Mission summary, Impact Summary, picked interface) - plan only the ticket slice.
 3. Implement - follow file-local conventions and the project's canonical patterns. Never add a second way. ASCII-only source, imports at top, no code comments unless requested. Never commit unless asked.
 4. Test - run ONLY the suite matching the change (`verify.mjs route` prints it). Never the full matrix unless asked. When Phase F wrote the failing case first, this run is that same suite - one suite, two moments (red before, green after), never a second suite.
 5. Fix - diagnose the root cause from the failing output, fix the smallest in-scope change, re-run. Pre-existing unrelated failures are reported separately, never fixed silently.
@@ -79,7 +115,7 @@ The agent decides instead of the user. Activation: user says `autopilot` (or `au
 
 Behavior while active:
 
-1. Decide, don't ask. Everything that would normally trigger "stop and ask with options" is decided by the agent - including scope over 3 files, new dependencies, and interface picks (Phase D).
+1. Decide, don't ask. Everything that would normally trigger "stop and ask with options" is decided by the agent - including unrequested scope growth past 3 files, new dependencies, and interface picks (Phase D).
 2. Decision rule, in order: most reversible option > closest to an existing repo pattern > simplest. State the assumption in the done report.
 3. Decision log: every non-trivial decision is logged in `history.md` as `- decision: <choice> (over: <rejected alternatives> - because <reason>)`. The done report opens with the decision log so the user can veto any single decision - a veto is a normal follow-up task, not an error.
 4. Batch checkpoints: don't pause for approval mid-task. Report at the end (or at a phase boundary for feature-lane work). Slot is written through as usual.
@@ -97,14 +133,16 @@ Behavior while active:
 
 ## Verify routing
 
-- `node harness/scripts/verify.mjs route` prints ONLY the matching suites for the current working tree. `run` executes them and stops at the first failure. Engine/domain and schema rows stay human-pick by design.
-- `node harness/scripts/verify.mjs check` gates slot headers, secrets, and scope. Run it before reporting done.
-- Temp diagnostics go in `tests/_*.tmp.ts`, deleted same session, never committed.
+- The verify table in `AGENTS.md` (between `verify` markers) is the ONLY routing source - the harness ships no suite names. Row format: backticked globs in the Changed cell, backticked npm scripts in the Run cell; a row with no concrete script is a human-pick row.
+- `node harness/scripts/verify.mjs route` matches the working tree against the table and prints ONLY the matching suites (`npm run <script>`). No-slash globs (`*.vue`) match basenames anywhere; slash globs (`src/**/*.css`) match paths. Pick rows list the project's `test:` scripts (read from package.json) for the human to choose - the router never chooses.
+- `run` executes the matched suites and stops at the first failure; a matched pick row always refuses to auto-run.
+- `check` gates slot headers, secrets, and scope. Run it before reporting done.
+- Harness-owned conventions (not project suites): temp diagnostics go in `tests/_*.tmp.ts`, deleted same session, never committed - the router filters them out.
 
 ## History pattern
 
 - Entry shape: `### <doing> - <finished> (<agent>, <exact-model-id>)` followed by `- <detail>` bullets (what changed + how verified, no essays).
-- Stamp: `YYYY-MM-DD HH:MM UTC+7` (adjust the zone per project, consistently everywhere).
+- Stamp: `YYYY-MM-DD HH:MM UTC+7` (adjust the zone per project - any `UTC±H[:MM]` works; compact reads the offset from each stamp itself, never hardcodes one - pick one zone per project and keep every stamp consistent).
 - Log only when done, never in advance. Log only what changed or what was decided: implemented changes (code/docs/config) and direction decisions taken. Never log questions asked, read-only audits with no change, recommendations not taken, or parked/abandoned ideas - those leave no trace. No essays.
 - Over 20 entries: run `node harness/scripts/verify.mjs compact` (keeps the latest 20, archives older into monthly `history-YYYY-MM.md` files).
 - Example: `### door delete fix - 2026-09-07 17:38 UTC+7 (muse-spark, opencode/...)` + `- dual-side mirror` + `- suites green`.
@@ -113,12 +151,14 @@ Behavior while active:
 
 - Never `checkout`, `restore`, `reset`, `stash`, or `clean` tracked files - revert only by hand-editing.
 - Move or rename with `git mv`, then grep the old path AND the old basename repo-wide and update every consumer in the same change.
-- Stop and ask with options when: destructive action, scope over 3 files, new dependency/infra, secrets/auth change. Autopilot mode (see above) converts these to decide-and-log - except secrets/auth and irreversible outside-repo actions, which still stop.
+- Stop and ask with options when: destructive action, unrequested scope growth past 3 files beyond what was asked (a requested multi-file change is pre-authorized - see AGENTS.md), new dependency/infra, secrets/auth change. Autopilot mode (see above) converts these to decide-and-log - except secrets/auth and irreversible outside-repo actions, which still stop.
 
 ## Adopt in a new project
 
-1. Copy this folder to the target.
-2. Write the target's instruction file (rules, verify table between `verify` markers, bans) and its domain skill file.
-3. Rewrite the `context.md` glossary with the target's vocabulary (shape stays, words go).
-4. Add one-line agent pointers for every agent the target uses (e.g. `.clinerules`, `.github/copilot-instructions.md`): "Follow `AGENTS.md`" plus the read-chain paths.
-5. Empty `task-context.md`, start `history.md` fresh.
+Automated (recommended): `node <source-repo>/harness/scripts/adopt.mjs <targetRoot>` - copies the harness folder into the target, resets the carried state (slot -> empty shape, history -> preamble only, history-*.md archives dropped, glossary words wiped with the shape kept), writes the AGENTS.md scaffold (read chain + verify markers) and the agent pointers (.clinerules, .github/copilot-instructions.md) when missing, then smoke-runs `verify.mjs check` in the target and prints the remaining manual steps. Then:
+
+1. Fill the <TODO> sections of the AGENTS.md scaffold: verify-table rows (backticked globs -> backticked npm scripts) and bans.
+2. Write the target's domain skill file (`skill.md` at the repo root).
+3. Pick ONE history stamp zone (any `UTC±H[:MM]`) - compact reads it from the stamps.
+
+Manual (equivalent): copy this folder to the target, reset `task-context.md` to the empty slot shape and `history.md` to its preamble, rewrite the `context.md` glossary with the target's vocabulary (shape stays, words go), write the AGENTS.md scaffold + one-line agent pointers for every agent the target uses (e.g. `.clinerules`, `.github/copilot-instructions.md`): "Follow `AGENTS.md`" plus the read-chain paths.

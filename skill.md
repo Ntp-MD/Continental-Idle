@@ -4,7 +4,7 @@ This project only. Never ships with the harness. Read the matching section befor
 
 ## Data audit
 
-Run this procedure before implementing a feature that touches any data flow (migration, loaders, persistence, sync, validation, engine adapters, UI saves), and report findings as a table. Do not skip steps. Read-only audit: propose fixes, do not modify code during the audit.
+Run this procedure before implementing a feature that touches any data flow (migration, loaders, persistence, sync, validation, engine adapters, UI saves), and report findings as a table. Follow the steps in order - a step may be skipped only with a stated reason (e.g. no boundary of that kind touched). Read-only audit: propose fixes, do not modify code during the audit.
 
 ### Step 1 - Inventory data boundaries
 
@@ -190,7 +190,7 @@ Canonical form/markup/CSS/class patterns for `src/blueprint-editor/` UI.
 
 ### Rules
 
-1. Reuse first, approval to add. Grep `src/styles/components.css` plus neighboring components for a class covering the role; extend with a modifier carrying only the delta. A new class, component, token, or UI label needs explicit user approval first.
+1. Reuse first, approval to add. Grep `src/styles/components.css` plus neighboring components for a class covering the role; extend with a modifier carrying only the delta. A new shared class, component, or token needs explicit user approval first. A scoped delta-only modifier or a new UI label does not - use player vocabulary and note it in the report.
 2. Two-section rows use `.form__row.form--start > div { flex: 1; }`: one row, plain `div` groups, never a `form__row` nested inside a `form__row`. Nesting is only for horizontal controls whose children are not `div`s. Groups stack as `form__col`; sections separate with `form__col form--section`.
 3. Tabs use shared `.tabs__bar` / `.tabs__tab` with `role="tablist"`; the bar stays fixed while only the panel scrolls. Never per-component tab classes. Selection uses `flag--active` like every other UI control.
 4. Showcase gate: a new UI primitive or wrapper must appear in `src/dev/UiShowcase.vue` in the same change. CRUD gate: a new/changed/removed store CRUD function must update `docs/crud-reference.md` in the same change. Static SVG samples need no CSS and no extra entry. Feature panels reachable through an already-showcased modal need no extra entry.
@@ -208,9 +208,9 @@ Canonical form/markup/CSS/class patterns for `src/blueprint-editor/` UI.
 
 - Shared semantic class -> shared/global stylesheet. Subsystem-shared -> subsystem stylesheet. Single-component -> scoped style. Never cross these lines.
 - A base class owns its full declaration set; an extending class declares only the delta. Zero-delta classes are dead code.
-- Layers, base first: `reset.css` -> `components.css` -> `layout.css` -> scoped styles. Never re-declare a property + value the lower layer already provides without explicit user approval in the same change.
+- Layers, base first: `reset.css` -> `components.css` -> `layout.css` -> scoped styles. Never re-declare a property + value the lower layer already provides; a deliberate override needs no pre-approval - note it in the report.
 - Inputs size to their value by default (`field-sizing: content`, `min-width: 5ch` floor); never cap with `max-width`. `select` and `textarea` fill their row. Sizing is explicit per element (`size--fit` / `size--fill` / `size--stretch`).
-- Buttons follow the `reset.css` padding; custom padding needs approval (except structural controls: grid-cell buttons, icon-only close/remove, hidden overlay inputs).
+- Buttons follow the `reset.css` padding; deliberate custom padding needs no pre-approval - use sparingly and note it in the report (except structural controls: grid-cell buttons, icon-only close/remove, hidden overlay inputs).
 
 ### Grid editor parity
 
@@ -228,4 +228,4 @@ Canonical form/markup/CSS/class patterns for `src/blueprint-editor/` UI.
 
 ### Compliance check before completion
 
-After touching markup, styles, or classes, verify project-wide: no dead selectors, no orphan classes, no shared class redefined in scoped styles, every class in its scope's file, no stale references, every shared class has 3+ call sites, no zero-delta classes, no unmerged same-role pairs, no merged differing-role pairs, no redundant inherited declarations, no layer duplicates without approval, zero new classes without an approval reference.
+After touching markup, styles, or classes, verify project-wide: no dead selectors, no orphan classes, no shared class redefined in scoped styles, every class in its scope's file, no stale references, every shared class has 3+ call sites, no zero-delta classes, no unmerged same-role pairs, no merged differing-role pairs, no redundant inherited declarations, no layer duplicates without approval, zero new shared classes without an approval reference (scoped delta-only modifiers and UI labels are noted in the report instead).

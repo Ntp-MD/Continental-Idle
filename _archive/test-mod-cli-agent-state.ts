@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { isQuestionCard, resolveAgentState, type AgentStateItem } from '../mod-cli/src/agentState'
+import { isQuestionCard, resolveAgentState, type AgentStateItem } from './mod-cli/src/agentState'
 
 // Chip: not running is idle, no matter what is on the transcript.
 {

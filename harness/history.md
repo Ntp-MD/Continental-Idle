@@ -1,204 +1,11 @@
 # History - shared cross-agent intent log
 
-Entries only. Pattern lives in `harness/harness.md` (History pattern) -
+Entries only. Pattern lives in `harness/HARNESS.md` (History pattern) -
 follow it when logging below.
 
 ## Entries (Doing - Finished (Agent, Model) + Detail Bullets)
 
 - (empty - first finished task adds the first entry here)
-
-### history log rule tightened - 2026-09-09 11:11 UTC+7 (muse-spark, opencode/muse-spark-1.3-contributor-free)
-- HARNESS.md History pattern now allowlists loggable work (implemented changes + decisions taken) and bans questions, no-change audits, untaken recommendations, parked ideas
-- user correction: agent was logging every inquiry; persists for the session
-- verified: route (md-only change, nothing runnable; bem/css/typecheck rows belong to prior-task dirt, proven green); check pass
-
-### prune history noise - 2026-09-09 11:11 UTC+7 (muse-spark, opencode/muse-spark-1.3-contributor-free)
-- removed 4 no-change audit/parked entries per the tightened log rule; verified: entry headers intact; check pass
-
-### canvas wall color preference - 2026-09-09 13:23 UTC+7 (muse-spark, opencode/muse-spark-1.3-contributor-free)
-- CanvasConfig.wallColor (optional color) + CANVAS_FIELD_SPECS + setCanvasWallColor + SettingsModal Walls row; EditorCanvas blocked tiles use it with CSS fallback; editor-only like labelColor, no sync mirror
-- suites green: lint:bem, lint:css, typecheck (3 configs), test:blueprint-schema, test:migrate
-
-### settings apply bottom-align - 2026-09-09 13:26 UTC+7 (muse-spark, opencode/muse-spark-1.3-contributor-free)
-- SettingsModal Canvas Size Apply button gets scoped settings__apply--bottom (margin-top auto), bottom-aligns with inputs in the top-aligned row
-- suites green: lint:bem, lint:css, typecheck (3 configs)
-
-### object tile orphan fix - 2026-09-09 13:35 UTC+7 (muse-spark, opencode/muse-spark-1.3-contributor-free)
-- EditorCanvas object-grid overlay reused floor editor__tile--walkable/blocked (orphan obj- prefix dropped) + wallColor style override + v-memo dep; zero new classes
-- suites green: lint:bem, lint:css, typecheck (3 configs)
-
-### ring paint wins - 2026-09-09 13:45 UTC+7 (muse-spark, opencode/muse-spark-1.3-contributor-free)
-- paintFloorTiles: street-ring walkable forcing moved before brush so explicit wall/door/erase paint sticks in the ring (also unblocks ring-crossing entrance doors); crud-reference row updated
-- verified: temp ring-paint probe green (deleted same session), test:blueprint-schema + test:sync-payload green, typecheck clean
-
-### review chain rule - 2026-09-09 13:50 UTC+7 (muse-spark, opencode/muse-spark-1.3-contributor-free)
-- harness.md Step 6 Review gains chain check: each changed function lists direct callers/callees with touched-or-unaffected verdict; deeper hops only on contract change
-- verified: check pass
-
-### lan save 403 fix - 2026-09-09 14:05 UTC+7 (muse-spark, opencode/muse-spark-1.3-contributor-free)
-- vite.config.ts origin guard now trusts private-LAN IPv4 (10/8, 172.16/12, 192.168/16); LAN saves no longer 403-revert every paint; internet origins still blocked
-- verified: temp origin test green (deleted same session), typecheck (3 configs) clean, eslint clean
-
-### wall door visibility toggles - 2026-09-09 14:15 UTC+7 (muse-spark, opencode/muse-spark-1.3-contributor-free)
-- editor__controls gains Walls/Doors buttons (showWallTiles/showDoorTiles in viewToggles, persisted); floor overlay renders visibleWalkableRuns, object blocked cells hide with Walls off; no new classes
-- verified: lint:bem, lint:css green, typecheck (3 configs) clean
-
-### wall door overlay decoupling - 2026-09-09 14:25 UTC+7 (muse-spark, opencode/muse-spark-1.3-contributor-free)
-- wall/door tiles now render on their own toggles (renderWallOverlay/renderDoorOverlay); Walk master gates walkable fills only; brush-active still shows all while painting
-- verified: lint:bem, lint:css green, typecheck (3 configs) clean
-
-### erase select-delete rework - 2026-09-09 14:40 UTC+7 (muse-spark, opencode/muse-spark-1.3-contributor-free)
-- erase brush marquees a persistent selection (no release commit); Delete clears it to walkable via paintFloorTiles, Esc cancels; paint brushes unchanged; crud-reference erase rows updated
-- verified: temp defer-mode test green (deleted same session), lint:bem, lint:css green, typecheck clean
-
-### erase button rename - 2026-09-09 14:45 UTC+7 (muse-spark, opencode/muse-spark-1.3-contributor-free)
-- Toolbar Erase label becomes Erase wall&door (+ matching aria-label); verified: lint:bem, lint:css, typecheck clean
-
-### wall preview color - 2026-09-09 14:55 UTC+7 (muse-spark, opencode/muse-spark-1.3-contributor-free)
-- editor__tile-preview--blocked fill/stroke red to accent-primary; erase preview + committed fill stay red
-- verified: lint:bem, lint:css green, typecheck clean
-
-### erase selection lifecycle fix - 2026-09-09 15:20 UTC+7 (cline, cline)
-- chain review found: erase selection survived floor switch (Delete erased wrong floor) and resurrected after brush cycle; dead `streetTiles` opt left after clamp removal
-- EditorCanvas watches `currentFloorId` + `tileBrush` -> clearTileSelection; `streetTiles` opt removed from useCanvasTilePaint + wiring; crud-reference erase row updated
-- street-ring paint vs engine (`isTileWalkable` ignores ring tileStates) accepted for now: ring tiles stay cosmetic/blocked per current contract - revisit if ring walls/doors must gate NPCs
-- verified: lint:bem, lint:css, typecheck (3 configs)
-
-### door tile animation - 2026-09-09 16:05 UTC+7 (cline, cline)
-- cell door animation (replaces deleted edge-system animation): groupDoorCells pure helper in domain/types groups connected door cells into slide halves (slideDir -1/+1, axis = longest bbox side)
-- new useDoorTileAnimation: NPC dot within group bbox + 1 tile pad opens the group; auto-closes 500ms after NPCs leave; transient only - not persisted, not synced, engine pass-through unchanged
-- EditorCanvas: floor door cells render in their own non-memo group with CSS transform/opacity transition (220ms); visibleWalkableRuns drops door runs; v-memo deps updated; zero new classes
-- object tileStates door cells (queue anchors) intentionally not animated
-- verified: temp door-group test green (deleted same session), lint:bem, lint:css, typecheck (3 configs)
-
-### tile resize rescales walkable grids - 2026-09-09 16:40 UTC+7 (cline, cline)
-- user-reported: changing tileSize left tileStates/walkableGrid at old grid dims (resizeCanvas only snapped objects) - overlays/engine read stale indices at wrong pixel positions
-- new rescaleFloorWalkable pure helper in domain/types: nearest-cell mapping old grid -> new rows/cols, rebuilds walkableGrid via tileStatesToWalkableGrid, no-op when dims match or no data; handles legacy grid-only floors
-- resizeCanvas computes rows/cols from new w/h/tileSize and applies rescale to every floor before object snapping
-- verified: temp rescale test green (deleted same session), lint:bem, lint:css, typecheck (3 configs), test:blueprint-schema, test:migrate
-
-### npc dot size setting - 2026-09-09 17:05 UTC+7 (cline, cline)
-- user-requested: NPC dot size split from tile size - new npcDotSize EditorSettings field (spec min 2 max 12, default 4, normalize/auto-UI via EDITOR_FIELD_SPECS)
-- useNpcOverlayDraw takes dotSize source: dot radius + proportional stuck-cross/lost-badge; EditorCanvas wires editorSettings.npcDotSize
-- SettingsModal Display > Overlay Sizes gains "NPC dot radius" row; editor-only setting, no sync payload impact
-- verified: temp npc-dot-size test green (deleted same session), lint:bem, lint:css, typecheck (3 configs), test:settings-completeness, test:blueprint-schema
-
-### settings tab consolidation - 2026-09-09 17:30 UTC+7 (cline, cline)
-- user-approved option A: street ratios (dash/gap/sidewalk) moved from Scene tab into Canvas tab Street section next to ring controls; Ruler group moved Scene -> Display; Scene tab removed (4 tabs remain)
-- street ratio rows bind editor draft + applyEditorField (immediate apply, min/max from EDITOR_FIELD_SPECS); no new classes, zero data changes
-- verified: lint:bem, lint:css, typecheck (3 configs)
-
-### erase marquee cell guide - 2026-09-09 17:55 UTC+7 (cline, cline)
-- user-requested guide back for zone-based erase: wall/door cells inside the erase marquee highlight red (45% accent) while dragging and while selection persists
-- eraseGuideRects computed intersects walkableRuns (blocked+door) with tilePaintPreview rect (live drag or stored selection); rendered in own non-memo group before preview outline
-- scoped class editor__erase-guide added (single component, user-approved); crud-reference erase row updated
-- follow-up per user feedback: erase preview fill removed (fill: none) - dashed border + selected-cell highlights only
-- user-requested erase/select coexistence: while Erase brush is active, mousedown on an object selects it (existing box-select flow); mousedown on empty tile starts the erase marquee; Walk/Wall/Door brushes stay exclusive
-- objectAtLocalPoint hit-test (topmost object contains point) in EditorCanvas.onSvgMouseDown; crud-reference erase row updated
-- user-requested: Select mode now selects wall/door tiles too - box marquee with no object hits sets the erase-selection (reuse setSelection from useCanvasTilePaint, brush-match guard relaxed; mousedown clears prior selection via onBoxSelectStart) - highlight + Delete work without the Erase brush
-- user-approved: Erase button removed from Toolbar, Select renamed "Free tool" - tile marquee/delete lives in Free tool only; deferCommit opt + erase branch + objectAtLocalPoint deleted (dead code); paint commit now clears stale tile selection; internal 'erase' TileBrush marker kept for selection semantics
-- verified: lint:bem, lint:css, typecheck (3 configs), test:blueprint-schema
-- follow-up per user feedback: zone border shows only while dragging (tilePaint active gate on preview outline); after release only the selected-cell highlights remain
-
-### harness context slot portability - 2026-09-09 19:04 UTC+7 (cline, cline)
-- new harness/context.md shared-language glossary (22 locked terms from skill.md + player-vocabulary rule); Phase B + AGENTS.md read chain/canonical patterns rewired to point at it
-- slot protocol now write-through + silent: append on user order/context shift, finding/root cause, decision options or landed choice - then resume; clear only when fully done; trigger comment embedded in task-context.md empty shape
-- portability: Adopt section gains glossary-rewrite + agent-pointer steps; one-line .clinerules + .github/copilot-instructions.md pointers added
-- todo #4 (Cline token usage UI) skipped per user choice
-- verified: hcheck pass; route: no code changed - nothing to run
-
-### selection highlight blue - 2026-09-09 19:30 UTC+7 (cline, cline)
-- user-requested: selected-cell highlight (Free tool marquee, editor__erase-guide) blue instead of red - accent-red 45% -> accent-blue 45%, no new class
-- object selection overlay stays accent-primary; dashed erase marquee border left red (not part of the ask)
-- verified: lint:bem, lint:css, typecheck (3 configs)
-
-### hotel ground floor build - 2026-09-09 19:55 UTC+7 (cline, cline)
-- user-picked scope: full ground floor - outer walls + inner walls (A x=38 / E y=30 / F y=44 left, B y=26 / C y=44 right), 9 door gaps (incl. street entrance x52..53 y58), 6 rooms furnished: Lounge, Laundry, WC, Bar-cafe, Gym, Reception hall (desk facing entrance)
-- floorPlan.data.ts: 496 blocked wall tiles + door tiles in tileStates, walkableGrid derived (door=walkable), 61 objects from the 20 existing assets (px, tile-snapped, rotation 0), entrance spawn zone (750,795,75,75); street ring 8 tiles untouched
-- temp generator tests/_hotel.tmp.ts (tsx) with built-in validation: dims, building bounds, wall/door overlap, object-object overlap, BFS connectivity 4038/4038 from spawn + all doors reachable; deleted same session
-- data audit: single boundary floorPlan.data.ts -> normalizeFloorWalkable; dims-matched grids; no gaps, no anti-patterns
-- verified: verify:assets (20 valid), test:blueprint-schema, test:migrate, hcheck pass; eslint n/a (data file in ignore pattern)
-
-### lobby densify 60 npcs - 2026-09-09 20:20 UTC+7 (cline, cline)
-- user-requested: denser furniture + ~60 NPCs in lobby
-- floorPlan.data.ts: 61 -> 127 objects (added tables+chairs rows, sofas, benches, washers row 2, WC row 2, treadmill row 2, bar stools, vending machines); BFS connectivity 3936/3936 from spawn
-- npcSettings.data.ts: pool guest 26->45, chef 9->5, bartender 8->5, receptionist 6->5 = 60 total; fixed stale floorIds floor-6be566f0cf -> floor-f6bc12edb3 x3 (root cause NPCs never spawned - old floor id no longer exists)
-- temp generator v2 deleted same session
-- verified: verify:assets (0 warnings), test:settings-completeness, test:blueprint-schema, test:migrate, stale-ref grep 0
-
-### aligned grid re-layout - 2026-09-09 20:40 UTC+7 (cline, cline)
-- user feedback: furniture not aligned in straight lines - full re-layout on strict grid rules
-- rules applied: same row = same y / same column = same x, uniform pitch (lounge+bar columns pitch 8/6, washers pitch 2, treadmills pitch 4), mirrored pairs exact around room centers (bar/gym center x68, lounge x23, reception x52.5)
-- lounge: sofa row y9 + table/chair rows y14/y22 on columns x13,19,26,32 + bench row y28; laundry: washer grid 2x8 + bench row y38 pitch 4; WC: 2 identical rows y46/y54; bar: counter centered (67,10) + 12 table sets rows y16/y21 + vending corners; gym: 24 treadmills 2 rows x 12 columns + center walkway x65-71; reception: desk (49,48) centered on entrance + mirrored waiting row y55
-- 140 objects, BFS 3935/3935 from spawn; temp generator v3 deleted same session
-- verified: verify:assets (0 warnings), test:blueprint-schema, test:migrate, test:settings-completeness, hcheck pass
-
-### 5 adjacent bathrooms - 2026-09-09 21:00 UTC+7 (cline, cline)
-- user-requested: 5 bathrooms side by side replacing the single WC zone (x9..37, y45..57)
-- walls x14/x20/x26/x32 y45..57 divide 5 rooms (5x13 each); doors on wall F at x11,17,23,29,35 + east door (38,52) kept; 13 doors total
-- identical interior per room: shower y46 / washbasin y49 / toilet y52 on room center column; 151 objects total
-- BFS 3865/3865 from spawn incl. per-bathroom reachability check; temp generator v4 deleted same session
-- verified: verify:assets (0 warnings), test:blueprint-schema, test:migrate, hcheck pass
-
-### room system derive + occupancy gate - 2026-09-09 21:45 UTC+7 (cline, cline)
-- approved plan C refined via Matt Pocock to-spec/to-tickets (vertical tracer-bullet slices, single NpcEngine seam, out-of-scope declared)
-- new ROOM_TYPE_SPECS registry (15 hotel room types incl. dormant ones: bedroom/bathroom/spa private; gym/bar/restaurant/laundry/... open; hall fallback) + resolveRoomType in domain/types - privacy from room type, AssetDef untouched
-- new engine/npc/rooms.ts deriveFloorRooms: flood fill walkable map, door tiles = boundaries (belong to no room), row-major stable ids; buildNpcEngineLayout attaches roomId/roomType/roomPrivate (optional fields) to interaction targets
-- NpcEngine: claimedRooms map; gate in canReserve (occupied private room excluded from chooseTarget via existing filter), claim in reserve, release in releaseReservation (single choke point) + reset; open rooms unchanged
-- permanent regression tests in test-npc-engine.ts (private claim/redirect/release-via-removeAgent, open shared capacity, layout derive 2 walled rooms + door boundary)
-- chain: additive-only; syncedPayload/AssetDef/editor/pathfinding untouched; queueBuild untouched (queue-at-fixture v1; outside-door relocation = follow-up)
-- verified: test:npc-engine green (incl. new 'Room occupancy gate checks passed'), typecheck (3 configs), lint, hcheck pass
-
-### realistic room proportions - 2026-09-09 22:10 UTC+7 (cline, cline)
-- user feedback: room width ratios not realistic -> full re-layout at real-world scale (1 tile = 0.5m, plot 53.5 x 33.5m)
-- new partition per hotel standards: lobby 105m2, restaurant 247m2 (~120 seats), kitchen 86m2, bar-lounge 167m2, gym 53m2, laundry 66m2, staff 25m2, storage 25m2, 5 bathrooms 2x4.5m (9m2 each); 2m-wide main/entrance/service corridors (realistic hotel corridor width), no dead-end rooms
-- walls 652 tiles, 18 door gaps (5 bathrooms + 13 room/street doors), 126 objects re-placed to fit smaller rooms
-- BFS 3799/3799 from entrance + per-room reachability checks; temp generator v5 + debug script deleted same session
-- verified: verify:assets (0 warnings), test:blueprint-schema, test:migrate, hcheck pass
-
-### autopilot mode in harness - 2026-09-09 22:30 UTC+7 (cline, cline)
-- user-requested: mode where agent decides instead of asking
-- new harness.md section: activation via user `autopilot` / `autopilot off`; mode marker `Mode: autopilot` on slot Mission line 1 survives context cutoff (RESUME restores); decide-don't-ask including scope>3 files, new deps, Phase D picks
-- decision rule: reversibility > repo pattern > simplicity; every non-trivial decision logged in history as decision bullet (choice + rejected alternatives + reason); done report opens with decision log for user veto
-- hard stops remain: destructive git, persisted-store deletion, secrets/auth, irreversible outside-repo
-- verified: hcheck pass
-
-### 5-floor hotel build - 2026-09-09 23:05 UTC+7 (cline, cline)
-- autopilot task: 5 floors per user (top = owner's floor, others agent-decided)
-- decision log: [1] 30 guest rooms split F1-F3 x10 (4x11m incl. en-suite bath) over bigger/fewer rooms - program formula ceil(60/2)=30 and floor plate fits 10x(8w+1) exactly; [2] F4 = penthouse (master 176m2 + living 210m2 + office + private dining + kitchenette + powder) over more guest rooms - owner floor per user; [3] new elevator-1 portal asset (21st asset) on all 5 floors over stairs-only - enables real NPC cross-floor travel (guest role already targets 'portal'); [4] guest floor south bands = housekeeping/linen/lounge/storage/mechanical back-of-house over cramming more rooms - realistic hotel programming
-- floors: G lobby (elevator in lobby) + F1-F3 guest (10 rooms each, 30 total = program target) + F4 penthouse
-- room system integration: 30 bedrooms auto-detected (beds tag 'living') -> private 1-occupant rooms; 30 en-suite bathrooms auto-detected private; portals connect all floors
-- per-floor BFS validation 100% (G 127 obj, F1-F3 71, F4 45); temp generator v6 + debug script deleted same session
-- verified: verify:assets (21 valid, 0 warnings), test:blueprint-schema, test:migrate, test:sync-payload (exit 0), test:settings-completeness, test:npc-engine, hcheck pass
-
-### blueprint save 413 fix - 2026-09-10 10:45 UTC+7 (cline, glm)
-
-- vite MAX_REQUEST_BYTES 1MB -> 5MB (floorPlan.data.ts 1.59MB exceeded; response/module caps already 5MB); persistence.ts fails fast on 413, retry loop skipped (payload cannot shrink)
-- user-reported: floor delete threw ErrorBoundary after 3x retry hang; suites green: typecheck, test:blueprint-schema, hcheck
-
-### floor one-click clear - 2026-09-10 10:45 UTC+7 (cline, glm)
-- clearFloor(id) store CRUD (empties objects, keeps floor/tiles/zones, no save when empty) + FloorModal footer Clear button (useConfirm, flag--danger, disabled when empty) + crud-reference row
-- data audit PASS: objects:[] canonical shape, normalizeBlueprintDataFile path unchanged, no gaps; suites green: typecheck, lint:bem, lint:css, test:blueprint-schema, hcheck
-
-### data audit fixes (F1+F2) - 2026-09-10 13:08 UTC+7 (cline, glm)
-- full-project read-only data audit (skill.md Steps 1-5) across 20 boundaries: verdict PASS, 5 minor findings (F1-F5)
-- F1: `syncNpcConfigToState` now runs `normalizeNpcConfig` before storing (fallback raw on failure) - single entry point; both modal callers already pre-normalized, zero behavior change
-- F2: new `resolveDefaultWalkable` (domain/types.ts) replaces 3 inline `?? true` / typeof defaults (syncedPayload, migrate, layoutBuild)
-- docs/crud-reference.md syncNpcConfigToState row updated (CRUD gate); test-blueprint-schema gains resolveDefaultWalkable block
-- suites green: typecheck, test:blueprint-schema, test:migrate, test:sync-payload (EXIT=0), hcheck
-
-### data audit fixes (F3-F5) - 2026-09-10 14:05 UTC+7 (cline, cline)
-- original F3-F5 wording lost with prior agent context; re-derived via fresh skill.md Steps 1-5 pass over the 20 boundaries (same verdict PASS)
-- F3 decision: `buildSyncedObject` now resolves through `resolveObjectDef` (single resolution path) over per-field normalize* calls - the old inline copy duplicated resolveObjectDef and skipped rotation, so a rotated object's walkableGrid/tileStates/interactSpots left the sync DTO un-resolved while its w/h were already rotation-swapped; unrotated objects byte-identical, new rotated-tileStates assertion in test-sync-payload
-- F4 decision: migrate() drops raw `typeof` re-reads of resolution-owned fields (w/h/radius/padding/labelPadding/rx/fillColor) - normalizeObject overwrote them from the asset immediately after; keeps `label`/`collapsed` (instance-owned, resolution does not touch); dropped now-unused normalizeCornerRx import
-- F5: buildSavedLayout replaces `as ObjectData` raw cast with a typed map callback return (plain annotation, no cast)
-- reported-not-fixed: scripts/observe-hotel.ts:38 `floorPlanData as never` raw cast (dev script, not a runtime boundary)
-- suites green: typecheck (3 configs), test:migrate, test:sync-payload, test:blueprint-schema (all EXIT=0), hcheck pass
-
-### cline chat context meter - 2026-09-10 15:14 UTC+7 (cline, cline)
-- ClineChat.vue toolbar ctx chip: context used = input + cacheRead + cacheWrite tokens from the latest CLI `usage` event (run_result `usage.inputTokens` fallback when no usage event arrived); warn >=70%, danger >=90% or when finishReason / done reason is `context_window_exceeded`
-- new settings field "Context limit (tokens)" persisted in cline-chat-settings-v1; chip shows used / limit + % + mini bar; resets on New chat
-- verified: npm run lint:bem (34 files pass), npm run lint:css (34 files pass), npm run typecheck (3 configs) green; live smoke dev server /__cline/config + /__cline/history ok
 
 ### cline chat usage strip (day/week/month limits) - 2026-09-10 (cline, cline)
 - usage strip above composer replaces toolbar ctx chip: Session ctx cell (tokens vs context limit) + Day/Week/Month spend cells with live bars, warn >=70%, danger >=90%
@@ -211,222 +18,6 @@ follow it when logging below.
 - fixed latent bug: ctxClass still emitted removed cline-chat__ctx--* modifier names after the strip edit, so ctx cell never got warn/danger colors - now emits gauge modifiers
 - verified: npm run lint:bem (34 pass), npm run lint:css (34 pass), npm run typecheck (3 configs), harness verify check pass (slot cleared)
 
-### mod-cli idea doc - 2026-09-10 17:35 UTC+7 (muse-spark, opencode/muse-spark-1.3-contributor-free)
-- expanded docs/mod-cli.md stub (2 lines) into full idea + REQ-1/2/3 in Thai: IDE-like CLI MVP (chat + diff approve + output first), setup wizard (engine -> model provider -> key -> default model -> test connection), portable-folder first then npm global
-- locked correction: Cline/opencode are agent engines (subprocess/server), OpenRouter is the model provider - mod-cli is shell + router, never a second engine
-- verified: route (docs-only change, nothing runnable for this file), check pass (no secrets)
-
-### mod-cli decouple from harness - 2026-09-10 17:40 UTC+7 (muse-spark, opencode/muse-spark-1.3-contributor-free)
-- user correction (persists): docs/mod-cli.md is a standalone idea, not tied to this project - stripped 3 harness-coupled lines (copy-folder-of-harness, test:<name> gate, test:mod-cli suite) into neutral wording
-- verified: check pass (no secrets); route suites shown belong to prior-task dirt, not this change
-
-### cline chat standalone css - 2026-09-10 16:46 UTC+7 (muse-spark, opencode/muse-spark-1.3-contributor-free)
-- src/dev/ClineChat.vue is now self-contained: cline-chat__* renamed to mod-cli-chat__*, own --mod-cli-* tokens on the root (dark values copied from variables.css), own button/input/select/textarea/label base in scoped style; shared size--*/flag--*/empty deps removed (replaced by __btn/--fit/--active/--danger, __session--active, __empty); storage keys + logic untouched
-- verified: lint:bem pass, lint:css pass, typecheck (3 configs) clean, hcheck pass (22-file scope warning is prior-task dirt, not this change)
-
-### modcli rename - 2026-09-10 16:46 UTC+7 (muse-spark, opencode/muse-spark-1.3-contributor-free)
-- renamed src/dev/ClineChat.vue -> ModCLI.vue + clineBridge.ts -> modCliBridge.ts (plain move, both untracked); all Cline* symbols -> ModCli* (types, fetch/stream/stop fns, clineVersion), brand/placeholder/empty/exit strings -> ModCLI; App.vue now mounts <ModCLI> on ?modcli
-- kept deliberately: /__cline/* endpoints + clineBridgePlugin (provider adapter plumbing), provider default 'cline', cline-chat-settings/usage-v1 keys (no user data loss), datalist ids
-- verified: lint:bem pass, lint:css pass, typecheck (3 configs) clean, hcheck pass (22-file scope warning is prior-task dirt)
-
-### mod-cli package folder - 2026-09-10 16:46 UTC+7 (muse-spark, opencode/muse-spark-1.3-contributor-free)
-- new mod-cli/ package (user-picked option 1): src/ModCLI.vue + src/modCliBridge.ts moved from src/dev, minimal package.json (name mod-cli, peer vue); App.vue imports ../mod-cli/src/ModCLI.vue
-- verify coverage extended, not weakened: tsconfig.app.json include gains mod-cli/**/*.ts|vue (listFilesOnly proves both files in program), lint-bem + lint-css-compliance scan src + mod-cli with existsSync guard
-- verified: lint:bem pass (34 files), lint:css pass (34 files), typecheck (3 configs) clean, hcheck pass (24-file scope warning is prior-task dirt + this approved scope)
-
-### mod-cli handoff brief - 2026-09-10 16:46 UTC+7 (muse-spark, opencode/muse-spark-1.3-contributor-free)
-- new docs/mod-cli-handoff.md: handoff brief for another agent (done-state, file map, 4 remaining tasks in order, hard rules, verify commands, copy-paste prompt)
-- verified: hcheck pass (docs-only, nothing runnable; scope warning is prior-task dirt + approved scope)
-
-### mod-cli route adapter - 2026-09-10 19:51 UTC+7 (cline, cline)
-- new mod-cli/src/modCliViteAdapter.ts (MOD_CLI_ROUTE + isModCliRoute + modCliPlugin: dev middleware rewrites GET/HEAD /mod-cli* -> /index.html); wired modCliPlugin() in vite.config.ts plugins
-- App.vue mounts <ModCLI> on isModCliRoute(window.location.pathname); ?modcli removed (deprecated alongside ?cline); handoff doc state synced (4.1 done, dev URL /mod-cli)
-- tsconfig.node.json include gains mod-cli/src/modCliViteAdapter.ts (TS6307 composite rule; mirrors existing types.ts dual-membership)
-- verified: lint:bem pass, lint:css pass, typecheck (3 configs) clean, hcheck pass; live dev smoke :5199 /mod-cli, /mod-cli/, /mod-cli?x=1, / all 200 html-ok
-
-### mod-cli 4.2 settings BYO API Key - 2026-09-11 09:29 UTC+7 (muse-spark, opencode/muse-spark-1.3-contributor-free)
-- Settings panel in ModCLI.vue (provider -> key -> Test Connection -> Clear; auto-opens when no key stored); apiKey additive in cline-chat-settings-v1 (key name unchanged); per-run fwd via cline -k; additive POST /__cline/test-connection (reachability + key-shape probe, never persists/echoes key); provider/model/reasoning change starts a new session
-- verified: lint:bem pass (34 files), lint:css pass (34 files), typecheck clean, hcheck pass; live smoke :5173 test-connection 200 ok / bad-provider 400 / run-bad-key 400 / history unchanged 200
-
-### mod-cli adapter module hijack fix - 2026-09-11 09:44 UTC+7 (muse-spark, opencode/muse-spark-1.3-contributor-free)
-- root cause: modCliPlugin rewrote every GET under /mod-cli* to /index.html, so the browser's own module fetch /mod-cli/src/ModCLI.vue got HTML back -> vite import-analysis .html parse error; page never booted (4.1 curl-only smoke missed it)
-- fix in mod-cli/src/modCliViteAdapter.ts: rewrite only navigations (no Accept header or accepts text/html); module/static fetches (Accept */*) pass through
-- verified: live :5173 /mod-cli -> text/html, /mod-cli/src/ModCLI.vue + /mod-cli/src/modCliBridge.ts -> text/javascript; typecheck clean, hcheck pass
-
-### mod-cli settings connected-status - 2026-09-11 09:55 UTC+7 (muse-spark, opencode/muse-spark-1.3-contributor-free)
-- Settings panel now always shows what is connected: provider / model / masked key (••••tail) + last test result with timestamp, persisted as additive lastTest in cline-chat-settings-v1; retest hint when inputs drift from tested values; Clear key drops the record
-- verified: lint:bem pass, lint:css pass, typecheck clean, hcheck pass (single file: mod-cli/src/ModCLI.vue, classes reused)
-
-### mod-cli style extract - 2026-09-11 10:05 UTC+7 (muse-spark, opencode/muse-spark-1.3-contributor-free)
-- new mod-cli/style/ModCLI.css (verbatim move of the SFC <style>); ModCLI.vue keeps <style scoped src="../style/ModCLI.css"> so scoping is unchanged
-- note: docs/mod-cli-handoff.md was found deleted in working tree (not by this task) - map sync skipped, flagged in report
-- verified: lint:bem pass (35 files), lint:css pass (35 files), typecheck clean, hcheck pass; live :5173 ModCLI.vue -> text/javascript with scoped id + css import
-
-### mod-cli remove limits - 2026-09-11 10:15 UTC+7 (muse-spark, opencode/muse-spark-1.3-contributor-free)
-- removed context/day/week/month limit inputs + limit state + settings persistence; gauges now show actual usage values only (ctx tokens, day/week/month spend), dial/pct/--warn css dropped; ctx still turns red on context-window-exceeded
-- verified: lint:bem pass, lint:css pass, typecheck clean, hcheck pass; live :5173 module recompiles with scoped id, no limit refs (single file ModCLI.vue + ModCLI.css)
-
-### mod-cli remove period gauges - 2026-09-11 10:22 UTC+7 (muse-spark, opencode/muse-spark-1.3-contributor-free)
-- toolbar keeps ctx gauge only; removed period display chain (costSince/liveAdd/day-week-month/usageCells/date helpers/formatCost/formatRemaining/nowMs/15s timer); usage recording + stream logic untouched
-- verified: lint:bem pass, lint:css pass, typecheck clean, hcheck pass; live :5173 module ok, no period refs
-
-### mod-cli ctx usage fix - 2026-09-11 10:40 UTC+7 (muse-spark, opencode/muse-spark-1.3-contributor-free)
-- root cause (user report true): --json wire has no usage/run_result (docs: say/ask only), so ctx gauge could never fill; usage lives in history entry metadata instead (proven via raw history --json)
-- fix (3 files): vite.config.ts passes normalized usage through /history projection (top-level + metadata fallback); modCliBridge.ts ModCliUsage + parse; ModCLI.vue applies session usage after run (guarded by usageEventSeen/runResultUsageSeen/liveCommitted) + on resume
-- verified: typecheck clean, lint:bem/css pass, hcheck pass; live :5173 /history now carries usage {4118/112/$0.0003}; client apply pending one live UI run
-
-### mod-cli ctx tube - 2026-09-11 11:08 UTC+7 (muse-spark, opencode/muse-spark-1.3-contributor-free)
-- ctx gauge now a horizontal in/out tube (no window size stored by CLI, so composition bar from session tokens: blue in / green out + exact tooltip); tracks contextOut alongside contextUsed (live events, run_result, history-apply, resume; reset on new chat)
-- verified: lint:bem pass, lint:css pass, typecheck clean, hcheck pass; live :5173 module has tube markup
-
-### mod-cli window pct - 2026-09-11 11:32 UTC+7 (muse-spark, opencode/muse-spark-1.3-contributor-free)
-- ctx tube now % of model max window, read live from CLI's own @cline/llms catalog (getGeneratedModelsForProvider, cached import, null-safe) via additive POST /__cline/model-info; no hardcode; unknown model falls back to in/out composition; M-format + warn band back
-- verified: typecheck clean, lint:bem/css pass, hcheck pass; live model-info 1310720 for glm-5.3-flash / null for unknown; module compiles
-
-### mod-cli live test T1-T3 - 2026-09-11 12:35 UTC+7 (muse-spark, opencode/muse-spark-1.3-contributor-free)
-- T1 PASS fresh run: exit 0, text ok, usage+session events flow, history carries usage ($0.0062); wire = agent_event/content_*/usage/done/run_result (no say/ask here)
-- T2 PASS cancel: /stop kills mid-story (exit -1), session resolvable, no residue
-- T3 FAIL = real CLI bug: --id ignores argv prompt AND stdin unread -> resume impossible; server now 400s sessionId plainly, client drops continuation pretense (resume restores model/provider/usage only, sessionId cleared after runs); spec limitation noted
-- verified: typecheck clean, hcheck pass; live sessionId 400 pre-spawn; total test spend ~$0.02
-
-### mod-cli spec refresh - 2026-09-11 12:47 UTC+7 (muse-spark, opencode/muse-spark-1.3-contributor-free)
-- spec moved to mod-cli/mod-cli.md (docs/ copy deleted by user); rewrote to current truth: path providers, no-continue limit, no delete/persist-log, usage-from-history, window-from-catalog, folder-drop needs 2 wiring edits, proven CLI quirks section, refreshed Next Step
-- verified: hcheck pass (docs-only)
-
-### mod-cli lock fix - 2026-09-11 12:52 UTC+7 (muse-spark, opencode/muse-spark-1.3-contributor-free)
-- user report: model locked after connect; no bridge run in flight; found real stuck-lock path (saveSettings threw outside try -> running stays true) - moved inside try
-- verified: typecheck clean, hcheck pass; live module compiles
-
-### mod-cli settings below composer - 2026-09-11 11:41 UTC+7 (muse-spark, opencode/muse-spark-1.3-contributor-free)
-- moved .mod-cli-chat__settings row below the composer footer (toolbar -> connect -> log -> composer -> settings); border-bottom swapped to border-top
-- verified: lint:bem pass, lint:css pass, typecheck clean, hcheck pass; live :5173 module compiles
-
-### mod-cli provider dot - 2026-09-11 12:06 UTC+7 (muse-spark, opencode/muse-spark-1.3-contributor-free)
-- Connection indicator first in settings section: dot green (tested ok, unchanged) / yellow (testing, untested key, or drifted) / red (failed) / gray (never connected) + provider · model label; toolbar dot stays as server/bridge layer
-- verified: lint:bem pass, lint:css pass, typecheck clean, hcheck pass; live :5173 module has dot markup
-
-### mod-cli cancel note - 2026-09-11 12:14 UTC+7 (muse-spark, opencode/muse-spark-1.3-contributor-free)
-- Stop (=cancel) now confirms session kept + continue hint; works even before runId arrives; removed duplicate AbortError note (single file ModCLI.vue)
-- verified: typecheck clean, hcheck pass; live :5173 module compiles
-
-### mod-cli model list - 2026-09-11 13:05 UTC+7 (muse-spark, opencode/muse-spark-1.3-contributor-free)
-- POST /__cline/models returns catalog models (id/name/window, cap 300) via shared cached import; datalist merges current + catalog + history; loads on mount + test-ok
-- verified: typecheck clean, lint:bem/css pass, hcheck pass; live cline-pass 18 models; module compiles
-
-### mod-cli provider routes - 2026-09-11 12:28 UTC+7 (muse-spark, opencode/muse-spark-1.3-contributor-free)
-- /mod-cli/cline + /mod-cli/opencode (bare -> cline, unknown -> cline); App passes :initial-provider; ModCLI locks provider from path (free input + datalist removed, stored provider only applies without prop)
-- verified: typecheck clean, lint:bem/css pass, hcheck pass; live all 3 routes 200 html; getModCliProvider unit-checked 9 paths via tsx
-
-### mod-cli single-word prompt guard - 2026-09-11 11:58 UTC+7 (muse-spark, opencode/muse-spark-1.3-contributor-free)
-- why (user report true): cline 3.0.61 rejects single-word prompts (Unknown command or unquoted prompt) - reproduced: hi fails, hi there passes parsing; resolver forwards argv cleanly so quirk is CLI-side
-- fix (2 files): /run 400 on <2-word prompts with plain message; bridgeFetch now surfaces server error text instead of bare status
-- verified: typecheck clean, hcheck pass; live single-word 400 pre-spawn, two-word passes validation (probe run exited clean, no residue)
-
-### mod-cli worktree toggle - 2026-09-11 10:58 UTC+7 (muse-spark, opencode/muse-spark-1.3-contributor-free)
-- docs/mod-cli.md: spec + Next Step updated (worktree / TODO / approve-needs-ACP-spike)
-- Worktree (isolated) checkbox -> bridge worktree flag -> /run appends cline --worktree; persisted in settings; changing it starts a new session
-- incident: restart kill matched user processes too (their :5174 server + npm wrappers dead; terminals survive, restart npm run dev to restore); :5173 relaunched fresh
-- verified: typecheck clean, lint:bem/css pass, hcheck pass; validation 400 pre-spawn ok; live --worktree spawn NOT tested (costs tokens, creates worktree)
-
-### mod-cli ux layout pass - 2026-09-11 13:20 UTC+7 (muse-spark, opencode/muse-spark-1.3-contributor-free)
-- audit fixes: toolbar wraps, status ellipsis works in flex, composer wraps, empty-state has 3 clickable multi-word samples (fills composer + focuses)
-- noted not fixed: connect-text/settings-dot redundancy, no session delete, log not persisted, narrow drawer
-- verified: lint:bem pass, lint:css pass, typecheck clean, hcheck pass; live module has samples
-
-### mod-cli sidebar layout - 2026-09-11 13:33 UTC+7 (muse-spark, opencode/muse-spark-1.3-contributor-free)
-- settings moved to right sidebar (260px, own scroll, Settings title) next to log+composer column; stacks below on <720px; grow-field override for column layout
-- verified: lint:bem pass, lint:css pass, typecheck clean, hcheck pass; live module has content wrappers
-
-### mod-cli native model select - 2026-09-11 14:12 UTC+7 (muse-spark, opencode/muse-spark-1.3-contributor-free)
-- model is a native select (provider default + catalog + history); custom picker/datalist/combo removed (net negative code)
-- verified: lint:bem pass, lint:css pass, typecheck clean, hcheck pass; live module compiles
-
-### mod-cli delete-session 500 fix - 2026-09-11 16:31 UTC+7 (muse-spark, cline 3.0.61 CLI probe)
-- user report: `Cline could not delete that session` (500); verified on the wire - `cline history delete --session-id <gone-id>` exits nonzero with `Session <id> not found`, bridge mapped any nonzero to a bare 500 and the drawer never refreshed on failure so stale entries stuck
-- vite.config.ts deleteClineSession: idempotent delete (not found = success, drawer refresh + chat unbind) + cline's own stderr surfaced in the 500; single caller updated, scope 1 file
-- verified: typecheck green (tsconfig.node covers vite.config.ts); live `npm run dev` restart required to take effect (user's foreground terminal - not restarted by agent)
-
-### mod-cli custom model picker - 2026-09-11 14:02 UTC+7 (muse-spark, opencode/muse-spark-1.3-contributor-free)
-- replaced native datalist (popup never opens in user browser) with custom toggle list (Esc/select close, scrollable, empty state); datalist removed
-- verified: lint:bem pass, lint:css pass, typecheck clean, hcheck pass; live module has picker, no datalist
-
-### mod-cli model picker button - 2026-09-11 13:47 UTC+7 (muse-spark, opencode/muse-spark-1.3-contributor-free)
-- model input wrapped in combo row with explicit v button (showPicker + focus fallback, disabled while running); 1 new css class
-- verified: lint:bem pass, lint:css pass, typecheck clean, hcheck pass; live module has combo
-
-### slot cleared on user order - 2026-09-11 17:20 UTC+7 (cline, model id n/a)
-- CLI-settings-catalog plan (approved, zero items implemented) dropped from the slot; no code written for it - approved plan text recoverable only from this entry's date window if ever revived
-- blockers surfaced to user in chat: docs/mod-cli-handoff.md restore-vs-drop call; publish + real-world trials need the user's license decision
-- verified: slot headers intact, empty shape; history appended
-
-
-### mod-cli unknown-session heal - 2026-09-11 18:05 UTC+7 (cline, model id n/a)
-- user report: every message looped `Cannot persist messages for unknown session 1789121986426_syd75`; verified - client rebinds the dead sessionId after each run (ModCLI.vue applyStreamLine session event) and bridge session/load succeeded while cline's prompt-side store no longer knew the session, so session/prompt rejected forever
-- vite.config.ts startAcpRun: config-apply block extracted to applyRunConfig(sessionId, session) helper (dedupe, both paths); session/prompt now wrapped in a one-shot heal - resumed-session rejection matching /unknown session/i spawns a fresh session, re-applies provider/model/plan/auto-approve, rebinds via bridge session event + note, and re-prompts once; non-resume or non-unknown errors still throw
-- prior-task dirt cleanup same file (unblocked the typecheck gate): removed dead asConfigOptionsBody + ModCliAgentOptionPayload + CLINE_MAX_OPTION_BYTES/CLINE_MAX_OPTION_COUNT/HAND_WIRED_CONFIG_IDS (zero usages, TS6133 pre-existing)
-- immediate user workaround remains valid: New chat clears the stale binding
-- verified: npm run typecheck green (all 3 configs), harness check pass
-
-### mod-cli provider selector smoke test - 2026-09-11 19:30 UTC+7 (cline, model id n/a)
-- runtime smoke of the explicit auth/billing provider selector (code landed in the prior task, runtime-unverified): live dev :5173 POST /__cline/models returns providerOption id "provider" with the 3 probed choices (cline "Cline Usage-Billing" / cline-pass "ClinePass" / openai-codex "OpenAI ChatGPT Subscription"); POST /__cline/run with a non-id providerAccount -> 400 "Invalid provider account"
-- live ACP acceptance (cline 3.0.61; only providerAccount differs between the two runs): "cline" -> run_result finishReason end_turn, model anthropic/claude-sonnet-5, exit 0; "cline-pass" -> agent_event error "Authentication required: Unauthorized" (the CLI is not signed into ClinePass) - proves the option is applied over the wire, the failure is the CLI's own sign-in state, not the selector
-- mod-cli/mod-cli.md synced: Features "Providers & models" gains the explicit auth/billing selector bullet; Configuration sample gains providerAccount; 2 limitation bullets added (model list stays merged across providers + the explicit pick wins over a model-id prefix; unauthenticated selector values fail with the CLI's own Unauthorized)
-- not verified (browser-only, left to the user): Settings Provider select visual + refresh persistence (handoff step 3)
-- verified: node harness/scripts/verify.mjs route (clean tree - a .md change routes to no suite), npm run hcheck, live curl smoke as above
-
-### mod-cli provider/model/reasoning integrity - 2026-09-11 20:14 UTC+7 (cline, model id n/a)
-- user report verified true, and the real failure found: the Model dropdown never followed the Provider selector (client sent {provider} only; harvestModels swept + merged every auth provider) AND a model that does not belong to the active provider returns an EMPTY turn with no error, so the chat just showed a blank bubble; run_result also proved a requested model silently fell back (requested cline-pass/deepseek-v4.1-flash, applied cline-pass/glm-5.3-flash)
-- vite.config.ts: harvestModels(provider, providerAccount) - naming an account harvests only that provider (no sweep) and caches under provider:account; /models validates + forwards providerAccount; per-model reasoning levels resolved from the CLI's own @cline/llms catalog (getProviderIds -> reasoningOptions, filtered to the levels cline --thinking accepts); run_result now reports the applied provider+model; notes emitted when the requested model/provider was not the one applied; startAcpRun spawns cline with --thinking <level> for a non-default level
-- mod-cli/src/modCliBridge.ts: fetchModCliModels(provider, providerAccount?) + ModCliModelEntry.reasoning
-- mod-cli/src/ModCLI.vue: provider change refetches the list and resets the model; Reasoning effort offers only that model's own levels (with a hint, and a clamp when unsupported); run_result status shows the applied provider/model; a turn that yields no content now pushes an error instead of rendering blank
-- reasoning effort is NOT an ACP config option (probe: session options = provider/model/mode/auto_approve) but cline takes it as a spawn flag - measured over ACP: thinking=high 25 thought chunks vs thinking=none 9 on cline-pass/glm-5.3-flash
-- mod-cli/mod-cli.md synced (Providers & models, Configuration thinking, 3 limitation bullets rewritten)
-- verified: npm run lint:bem (35 files pass), npm run lint:css (35 files pass), npm run typecheck (3 configs clean), npm run hcheck pass; live :5173 /models 312 (CLI default) vs 18 (cline-pass) each carrying per-model reasoning, run_result model {id: cline-pass/glm-5.3-flash, provider: cline-pass}, mismatch note fired
-- user action required: an OpenRouter API key was printed into the chat while reading %USERPROFILE%\.cline\data\settings\providers.json (stored plaintext there, outside this repo) - rotate it
-
-### mod-cli session visibility - 2026-09-11 20:28 UTC+7 (cline, model id n/a)
-- user question "how do we know which session this is" verified against the CLI: cline stores NO session title (`cline history --json` carries no title key; every value empty) so the sessions drawer fell back to the raw stored prompt, which still had its `<user_input mode="act">...</user_input>` wrapper; the toolbar showed no session at all, and a session only exists after the first send (New chat clears it)
-- vite.config.ts: asReadablePrompt() - collapses whitespace, strips the leading/trailing tag wrapper, bounds to a limit; cline /history now sets title = CLI title || asReadablePrompt(prompt, 80) (the prompt field itself is unchanged)
-- mod-cli/src/ModCLI.vue: sessionLabel/sessionTooltip computed + a second toolbar <output data-session> reading "session <last 8> - <title cut to 40>" (short id only until history knows it); full id + title live in the title attribute; hidden while no session exists
-- mod-cli/mod-cli.md: Chat & sessions bullet for the chip; the UI-gap line rewritten (cline stores no title)
-- verified: npm run lint:bem (35 files pass), npm run lint:css (35 files pass), npm run typecheck (3 configs clean), npm run hcheck pass; live /history titles now "A farmer has 17 sheep; all but 9 run away. How many are left? Answer with just t" and "Reply with the single word ready"
-- not verified (browser-only): the chip's visual placement in the toolbar
-
-### mod-cli audit + hardening - 2026-09-11 20:57 UTC+7 (cline, model id n/a)
-- read-only audit of mod-cli (package sources + host bridge + package.json/docs/CSS, repo gates + live cross-checks), findings reported; user approved fixing 3 of them
-- S1 (security): the bridge had no real authentication - isTrustedDevOrigin(undefined) returned true and a private-LAN IPv4 origin was trusted unconditionally, while start-lan.bat serves :5173 on 0.0.0.0 with auto-approve on by default, so a LAN peer could drive the agent (which writes files inside the project). Fix: a private-LAN origin is trusted only with MOD_CLI_ALLOW_LAN=1 (loopback unchanged); start-lan.bat sets it for its dev window; documented as trusted-not-authenticated
-- B1 (trap): modelOptions merged every session's model, so the provider-scoped list leaked cross-provider models back in; refreshModels now resets a model the selected provider does not offer (note emitted, guarded on a non-empty list) and resumeSession revalidates
-- B2+B3 (duplication): MOD_CLI_PROVIDER_IDS + MOD_CLI_CLIENT_HEADER/_VALUE/_HEADERS single-sourced in modCliViteAdapter.ts (the module both halves already import); vite.config.ts imports them and derives ModCliProviderId from the tuple
-- mod-cli/mod-cli.md: model-reset behaviour + the LAN opt-in / trusted-not-authenticated caveat
-- not fixed, reported only: P1 no license field / P2 exports raw .ts+.vue with no dist (packaging), B4 dead UsageGauge.reset, B5 duplicate sessionLabel/sessionTooltip lookup, B6 the 1257-line single component, B7 no package tests, docs "AI IDE" / "drop one folder" wording
-- verified: npm run lint:bem (35) pass, npm run lint:css (35) pass, npm run typecheck (3 configs) clean, npm run lint (eslint --max-warnings 0) exit=0, node harness/scripts/verify.mjs route exit=0, hcheck pass; live :5173 loopback+header 200 / LAN-origin+header 403 (was 200) / no-header 403, and /models cline-pass still 18 models (17 with reasoning)
-
-### remove LAN starter - 2026-09-11 21:37 UTC+7 (cline, model id n/a)
-- deleted start-lan.bat (tracked) on user order: the LAN starter is no longer used; recoverable with `git restore start-lan.bat` if that changes
-- it was the only in-repo setter of MOD_CLI_ALLOW_LAN, so the two live references dropped the file name while keeping the env opt-in documented (the isTrustedDevOrigin comment in vite.config.ts, the Data & privacy bullet in mod-cli/mod-cli.md) - the S1 guard itself is byte-for-byte unchanged
-- deliberately left: the earlier history entry that names start-lan.bat (a dated record of that task), and qr-app.png / qr-prompt.png (untracked artifacts the bat produced - the user's to remove)
-- verified: repo-wide grep finds no live start-lan reference outside the harness files, npm run lint:bem (35) pass, npm run lint:css (35) pass, npm run typecheck (3 configs) clean, npm run lint exit=0, git status shows ` D start-lan.bat`
-
-### mod-cli clear-all-sessions - 2026-09-11 21:42 UTC+7 (cline, model id n/a)
-- new "Clear all" button in the sessions drawer + POST /__cline/clear-sessions: the CLI deletes only one session per call (`cline history delete --session-id`, no bulk flag), so the bridge walks every session this project owns and returns { total, deleted, failed }; the UI confirms first (stating the ~1s per session cost), disables the drawer while it runs, then starts a fresh chat and reports the outcome
-- scoping: cline's history is machine-wide, so clearableSessionIds filters on each session's own cwd (normalizePath folds backslashes vs forward slashes and trailing slashes) - proven to match this project's 32 sessions in all 3 real path forms while rejecting near-miss paths, other projects and empty
-- guard: this is the only route requiring the host's save marker (isSafeClientRequest(req, res, true), same as the blueprint store write); MOD_CLI_SAVE_HEADER/_VALUE joined MOD_CLI_CLIENT_HEADER(_VALUE) as single-sourced constants in modCliViteAdapter.ts and vite.config reads them
-- mod-cli/mod-cli.md: Clear all bullet + the new endpoint row
-- verified: npm run lint:bem (35) pass, npm run lint:css (35) pass, npm run typecheck (3 configs) clean, npm run lint exit=0; live 403 without the save header, 415 on a non-JSON body, 404 for an unknown route, /history still 200
-- deliberately NOT verified: the deletion loop itself - running it would wipe the user's 32 real sessions, so that stays with the user's own button press
-
-
-### mod-cli UX layout pass - 2026-09-12 06:57 UTC+7 (cline, claude sonnet 4.5)
-- settings panel collapsible (API-key connect moved inside), assistant card + turn spacing, smart autoscroll + jump button, toolbar main/actions groups, settings width clamp, composer autogrow + char count, a11y labels
-- lint:bem/lint:css pass (35 files), typecheck clean, eslint exit=0
-
-### mod-cli dark dashboard + theme editor - 2026-09-12 07:54 UTC+7 (cline, model id n/a)
-- token refresh (ModCLI.css): raised surface scale (primary #0b0e13 / panel #11151c / surface #1a2029 - the assistant bubble was invisible at the old near-identical values), text brightened #d7dde5, border #262c36, green #3fb950; thin inherited scrollbars on the root
-- theme editor in Settings: Accent/Background/Panel/Surface/Text color inputs + Corners range + Reset theme; overrides written as inline `--mod-cli-*` custom props on the root (unlayered-safe; hosts keep working when no override is set), stored as additive `theme` field in the existing settings store, only known tokens accepted, picking a token's own default clears its override
-- zero-duplicate: `.mod-cli-chat__connect` renamed `__section`, reused by the theme group (no second group class)
-- mod-cli/mod-cli.md: Theme editor bullet + `theme` config field
-- verified: npm run lint:bem (35) pass, npm run lint:css (35) pass, npm run typecheck (3 configs) clean, node harness/scripts/verify.mjs check pass; browser rendering of the editor itself not verified (no dev server run this session)
-
 ### mod-cli theme editor removed + layout width pass - 2026-09-12 08:00 UTC+7 (cline, model id n/a)
 - user order: no theme setting - the whole editor is gone (constants, state, computeds, handlers, save/load/watch, template section, root :style, color/range input CSS, doc bullet + config field); a lint:css orphan-class fail caught the one template leftover (`__section` div), renamed back to `__connect`
 - layout width pass (ModCLI.css, no markup change): sessions sidebar 30% -> clamp(260px, 26vw, 360px), todos 240px -> clamp(230px, 18vw, 300px), settings clamp(260px, 20vw, 340px); log + composer share a centered 900px reading column (padding-inline max() trick, zero elements added); user prompts are right-aligned cards (bg-secondary, blue right edge, max 88ch), assistant replies shrink-to-fit at max 92ch, thinking/event details capped at 110ch; empty state vertically centered (margin-block auto); scrollbar-gutter stable on the log
@@ -438,7 +29,6 @@ follow it when logging below.
 - typecheck fail fixed: static + bound `data-state` duplicate attribute on the same element
 - mod-cli/mod-cli.md: live agent state chip bullet
 - verified: npm run lint:bem (35) pass, npm run lint:css (35) pass, npm run typecheck (3 configs) clean; browser rendering not verified (no dev server run this session)
-
 
 ### mod-cli presets - 2026-09-12 08:16 UTC+7 (cline, model id n/a)
 - Presets section in Settings: save current Provider + Model + Reasoning effort under a name (upsert), apply from a dropdown, Set default / Delete; the default preset re-applies on every load
@@ -496,3 +86,83 @@ follow it when logging below.
 - fix: streamed chunks concatenate directly (`item.text + text`); real newlines arrive inside chunk text and are preserved; block separation stays via iteration_start/end resetting the active items (new item + flex gap, no gluing across blocks); content_end replace path unchanged
 - verified: npm run typecheck (3 configs clean), npm run lint (exit 0 - first lint run returned an ambiguous shell-integration timeout, re-run confirmed clean), npm run test:mod-cli-agent-state (pass); visual confirmation is browser-side (user refreshes and streams continuous prose)
 - note: the thinking/details max-width caps (92ch/110ch) were NOT the cause - the box was wide; only the forced per-chunk newlines were
+
+### mod-cli disconnect + archive - 2026-09-12 11:14 UTC+7 (cline, model id n/a)
+- user order: mod-cli is no longer wanted - disconnected from the host and moved to _archive/
+- host wiring removed: vite.config.ts dropped from 1712 to ~270 lines (the whole clineBridgePlugin + cline helpers 256-1712; guard headers renamed to their blueprint names - BLUEPRINT_CLIENT/SAVE_HEADER(_VALUE) - since isSafeClientRequest is shared with the blueprint-data plugin and the literals are x-blueprint-*); modCliPlugin + clineBridgePlugin out of the plugins array; unused imports cleaned (spawn/execFile/ChildProcess/pathToFileURL)
+- src/App.vue: ModCLI async mount + route detection removed (app now serves showcase or BlueprintEditor only)
+- config: tsconfig.app include drops mod-cli globs, tsconfig.node drops modCliViteAdapter, package.json drops test:mod-cli-agent-state + its aggregate entry, eslint ignores gains _archive/** (archived code out of lint, matching the typecheck exclusion)
+- move: git mv failed twice (OS handle lock on mod-cli files - stuck git processes killed, stale index.lock removed, VS Code watcher holds the dir); fallback robocopy /E /MOVE (Failed 0) + git add -A - git status shows clean R renames for every mod-cli file; tests/test-mod-cli-agent-state.ts -> _archive/test-mod-cli-agent-state.ts with its import fixed to ./mod-cli/src/agentState
+- AGENTS.md: the mod-cli standalone rule now states it is archived at _archive/mod-cli/ (disconnected, excluded from typecheck/lint/tests, do not import)
+- leftover grep: zero live references outside AGENTS.md note + harness/history.md log (src/, vite.config.ts, package.json, tsconfigs, eslint config all clean)
+- not done (intentional): localStorage keys in past browsers (cline-chat-*) are inert leftovers, harmless; _archive remains git-tracked so the code stays recoverable
+- verified: npm run typecheck (3 configs clean), npm run lint (exit 0), npm run lint:bem + lint:css (33 files pass, down from 35 with mod-cli out of the scan), test:arrival-latch sanity pass, node harness/scripts/verify.mjs check pass; dev server not run (bridge removal verified by typecheck + grep)
+
+### dead asset cleanup (public/) - 2026-09-12 11:45 UTC+7 (cline, model id n/a)
+- user order: delete dead files found by the import-graph audit - removed public/Continental-Idle-logo.png, public/favicon.svg, public/icons.svg (git rm, staged D)
+- audit method (read-only, temp script deleted same session): BFS import graph from index.html + vite.config + vitest.config + scripts/ + tests/, resolving relative/@-alias//root paths with .ts/.vue/.css/index.ts extension tries + dynamic import() - all 96 src files reachable at runtime; only these 3 public assets had zero string/path references repo-wide (case-insensitive grep re-checked after deletion)
+- favicon in use is /Continental-Idle-fav.png (index.html) - favicon.svg was a stale duplicate; no <use href="/icons.svg#"> consumer anywhere
+- verified: repo-wide grep for all 3 basenames = 0 live references; node harness/scripts/verify.mjs check pass; no suite matches a pure asset deletion
+
+### vendored pocock skills + read chain gate - 2026-09-12 12:20 UTC+7 (cline, model id n/a)
+- user order: tier 1+2 skills from mattpocock/skills vendored into harness/skills/pocock/ (22 files, full upstream fidelity, zero edits): grill-with-docs, tdd (+tests.md +mocking.md), diagnosing-bugs (+hitl-loop.template.sh), improve-codebase-architecture (+HTML-REPORT.md), plus the 3 helpers their chain requires: grilling, domain-modeling (+CONTEXT-FORMAT.md +ADR-FORMAT.md), codebase-design (+DEEPENING.md +DESIGN-IT-TWICE.md); agents/openai.yaml metadata kept for Codex-compat
+- chain wiring: AGENTS.md read chain gains step 5 (harness/skills/, gated); harness/HARNESS.md gains the Vendored skills gate - two doors only (user-invoked: grill-with-docs, improve-codebase-architecture; task-trigger: tdd, diagnosing-bugs, grilling, domain-modeling, codebase-design), Skill-tool name resolution to vendored files, repo mappings (CONTEXT.md = harness/context.md glossary, ADR = Decision Timeline per AGENTS.md Decisions - no docs/adr/, no second decisions file)
+- non-vendored names documented as owned by existing harness parts: code-review -> loop Step 6; to-spec/to-tickets -> feature lane (zero-duplication)
+- .clinerules pointer synced (read chain mention + gate reference)
+- verified: node harness/scripts/verify.mjs check pass; 22/22 vendored files byte-match upstream (raw.githubusercontent.com main); no suite matches a docs/config change
+
+### pocock skills converted to native - 2026-09-12 12:50 UTC+7 (cline, model id n/a)
+- user order (goal: harness = one software engineer whose disposition comes from the skills and whose conduct follows the steps): converted skills/pocock/ -> native harness skills - moved 7 skill folders to harness/skills/<name>/ (source level removed)
+- adaptation (13 files now): 7 SKILL.md rewritten in place - frontmatter gates + Skill-tool invocations removed (gate in harness.md owns invocation; user-invoked pair restated in-file), Skill-tool references -> read skills/<name>/SKILL.md, CONTEXT.md -> harness/context.md, ADR/docs/adr -> Decision Timeline per AGENTS.md (domain-modeling File structure section rewritten to the harness layout), sub-agent dispatch -> in-session sequential (grilling fact-finding, architecture walk, DESIGN-IT-TWICE parallel designs -> rotating sequential constraints), code-review ref -> loop Step 6
+- removed: agents/openai.yaml x7 (Codex metadata), ADR-FORMAT.md + CONTEXT-FORMAT.md (mapped shapes own them); kept companions tests.md mocking.md hitl-loop.template.sh HTML-REPORT.md (ADR callout -> Decision Timeline callout) DEEPENING.md DESIGN-IT-TWICE.md
+- license: mattpocock/skills is MIT (Copyright (c) 2026 Matt Pocock) - attribution kept via skills/NOTICE.md (full MIT text + adaptation list) and a per-file header line in every adapted SKILL.md
+- persona wiring: new harness.md Persona section (dispositions from skills + step-hook table: Step 2/A-D -> grilling/codebase-design/domain-modeling, Step 4 -> tdd, Step 5 -> diagnosing-bugs, Step 6 owns review refactor); gate renamed "Skills (skills/)" - skills are ours, maintained like any repo file
+- AGENTS.md read chain step 5 + HARNESS.md read chain item 7 reworded (no pocock source); .clinerules already points at the gate (no source name - unchanged)
+- verified: leftover grep over skills/ = only mapped references + negations (no Skill tool / frontmatter / ADR / docs/adr / CONTEXT-MAP / openai.yaml); node harness/scripts/verify.mjs check pass; 13 files remain (7 SKILL + 5 companions + hitl script) + NOTICE.md
+
+### portability audit + case-path fix - 2026-09-12 13:10 UTC+7 (cline, model id n/a)
+- user question: is harness/ plug-and-play portable for any project - full audit of folder + verify.mjs + cross-file references
+- FIXED (portability defect): 8 references to `harness/harness.md` (lowercase) across AGENTS.md x3, .clinerules x2, harness/history.md x2, .github/copilot-instructions.md x1 vs the actual file HARNESS.md - fine on Windows case-insensitive FS, 404s on Linux/macOS (case-sensitive); all normalized to harness/HARNESS.md via literal replace (first attempt no-op'd: PowerShell -ne is case-insensitive by default - redone with -cne)
+- audit verdict (reported, not fixed): verify.mjs check/compact are generic (node-only) but route/run hardcode THIS repo's suite conventions (.vue->lint:bem/lint:css/typecheck, engine/domain/assets pick, schema regex, tests/*.ts -> tsx) - the AGENTS.md verify table is display-only, not the routing source, so a new project with different suites gets wrong routes; compact hardcodes UTC+7 offset + Asia/Bangkok monthKey (History pattern says adjust zone per project but the script cannot without edits); hitl-loop.template.sh needs bash on Windows (last-resort tool, acceptable); AGENTS.md/skill.md live outside the folder by design (adopt steps 2-4 cover, "copy + documented setup" not zero-touch)
+- verified: Select-String -CaseSensitive = 0 lowercase refs left / 8 uppercase; git diff confirms 3 root files + history; node harness/scripts/verify.mjs check pass
+
+### router-from-table - project suites out of harness - 2026-09-12 13:35 UTC+7 (cline, model id n/a)
+- user order: separate the project's lint/suites out of harness/ (portability defect #1 from the audit) - verify.mjs no longer knows any suite name
+- verify.mjs route/run rewritten table-driven: tableRows() parses the AGENTS.md verify markers - backticked globs in the Changed cell, backticked npm scripts in the Run cell; no-slash globs match basenames, slash globs match paths; a row with no concrete script = human-pick (router lists the project's test: scripts from package.json, never auto-runs - runPlan refuses on any pick match); hardcoded route branches deleted (.vue->lint:bem/lint:css/typecheck, engine/domain/assets pick, schema regex, tests/*.ts -> tsx, harness-scripts eslint special case)
+- AGENTS.md verify table (project adapter zone) rewritten machine-parseable: 7 rows - Template/markup `*.vue` (lint:bem+lint:css+typecheck), CSS `src/**/*.css`, Harness scripts `harness/scripts/*.mjs` (lint), Config TS `vite.config.ts`+`vitest.config.ts` (typecheck), Repo tests `tests/*.ts` (pick), Engine/domain TS (pick), Schema/persistence/sync (pick) - prior behavior preserved (incl. the old tests/* tsx suggestion now as a pick row)
+- HARNESS.md Verify routing + Adopt step 2 document the row format; the harness now ships zero suite names - a new project only fills its own table
+- globRegex bug caught by temp test on first run: multi-pass replace re-scanned inserted tokens (trailing `**` and `*schema*` false) - fixed with single-pass alternation callback; case-sensitivity of globs confirmed intentional (matches repo file naming)
+- verified: temp router test 25/25 PASS then deleted same session; live `verify.mjs route` on the dirty tree routes exactly lint:bem+lint:css+typecheck+lint (no picks - correct for this tree); all 4 suites green (lint:bem 33 pass, lint:css 33 pass, eslint exit 0, typecheck 3 configs exit 0); check pass
+
+### zone-from-stamp in compact - portability defect #2 closed - 2026-09-12 13:50 UTC+7 (cline, model id n/a)
+- user order: fix per the audit list (item 1 router-from-table landed prior turn) - item 2: compact no longer hardcodes UTC+7/Asia/Bangkok
+- verify.mjs: parseZone reads the UTC offset from each stamp itself (UTC+7 / UTC-05:30 / bare UTC, bogus falls back 0); header regex accepts any `UTC±H[:MM]`; parseStampDate subtracts the parsed zone; monthKey is pure arithmetic on epoch+zone (Intl/timezone dependency deleted - no machine-zone leakage, archive month follows the stamp zone)
+- item 3 (minor, documented not fixed): diagnosing-bugs HITL bullet gains the Windows note (bash required - Git Bash/WSL); HARNESS.md History pattern now states any `UTC±H[:MM]` stamp works and one zone per project stays consistent
+- portability verdict: all 3 audit defects closed - harness/ ships zero project suites (router reads the AGENTS.md table) and zero hardcoded zones (compact reads the stamp); hitl bash remains the one accepted minor with its note
+- verified: temp zone test 14/14 PASS (zone parse incl. half-hour + negative offsets, epoch equality across zones, monthKey month-boundary flip, header regex variants) then deleted same session; live `compact --dry-run` parses every UTC+7 stamp in history (71 would archive to history-2026-09.md, 22 kept, 2 undated kept by design); check pass
+
+### gpt-6 astra prompt audit fixes - 2026-09-14 20:28 UTC+7 (muse-spark, opencode/muse-spark-1.3-contributor-free)
+- user order: apply all improvements from the GPT-6 Astra article audit (options 1+2)
+- AGENTS.md scope gate now covers unrequested scope growth past 3 files; a requested change spanning over 3 files is pre-authorized (article: decision boundaries vs tentative stopping)
+- skill.md Layout Rule 1 + compliance check: approval gate kept for new shared classes/components/tokens; scoped delta-only modifiers and UI labels need only a report note
+- verified: route (own change is md-only lines, nothing runnable; lint:bem/lint:css/typecheck/lint rows belong to prior-task dirt, left untouched per no-revert rule); check pass
+
+### gpt-6 astra audit round 2 - 2026-09-14 20:32 UTC+7 (muse-spark, opencode/muse-spark-1.3-contributor-free)
+- user order: apply all 4 remaining options from the deep audit
+- HARNESS.md:65/:153 scope gates mirrored to the clarified wording (unrequested growth past 3 files; requested multi-file work pre-authorized, see AGENTS.md); :118 autopilot wording aligned - closes the duplication the deep audit caught
+- skill.md:211/:213 micro-gates softened (deliberate layer override / button padding need no pre-approval, noted in report); Data audit "Do not skip steps" becomes follow-in-order with stated-reason skips
+- AGENTS.md gains safe-iteration permission line (run routed suite, fix, rerun without per-step approval - the article's fixture example)
+- verified: route (own change is md-only lines, nothing runnable; routed suites belong to prior-task dirt, untouched); check pass
+
+### harness standalone audit - domain refs + case-path fix round 2 - 2026-09-14 21:10 UTC+7 (cline, model id n/a)
+- user order: harness/ is standalone and must not refer to the domain project - full audit (domain words, suite names, zones, case-broken refs across all md/mjs/sh)
+- 6 live lowercase `harness.md` refs normalized to `harness/HARNESS.md` (verify.mjs comment, grill-with-docs + improve-codebase-architecture + tdd SKILL.md, NOTICE.md, context.md) - the earlier portability fix missed the skills converted later; 5 refs inside dated history records left untouched (a log record of a past task must not be rewritten)
+- audit verdict: scripts + skills + HARNESS.md are domain-free (verify.mjs fully table-driven, adopt.mjs names only the by-design adapter files AGENTS.md/skill.md that live outside the folder); the only domain-project words left are context.md glossary + history.md entries - project-owned runtime state that adopt.mjs resets on adoption by design
+- verified: case-sensitive grep = 0 live refs outside history records, npm run lint exit 0, node harness/scripts/verify.mjs check pass
+
+### decision: domain words in harness state stay as-is - 2026-09-14 22:18 UTC+7 (cline, model id n/a)
+- Decision Timeline entry (Problem / Final solution / Trade-off / Revisit trigger) - Problem: the harness-standalone directive left domain-project words only in context.md glossary + history.md entries; do they break portability?
+- Final solution: keep as-is - both files are project-owned runtime state, not harness logic; adopt.mjs resets them on adoption (glossary -> empty shape, history -> preamble, history-*.md dropped), so portability is guaranteed by the adoption path rather than by scrubbing live state
+- Trade-off: a raw copy of harness/ carries this project's words until adopted (cosmetic, zero logic impact) - accepted over rewriting a log/glossary whose content exists only for this project (rewriting dated history records would falsify them)
+- Revisit trigger: adopt.mjs stops resetting context.md/history.md, or domain words leak into harness scripts/skills/HARNESS.md
+

@@ -1,9 +1,11 @@
 // verify - slot check + verify router for the harness.
 // check: validate task-context.md headers, secrets, scope.
-// route: read the working tree and print ONLY the matching suites plus the
-// project's verify table (marked block in the instruction file).
-// run: execute the runnable suites, stop at the first failure.
-// Covers both lanes in harness.md: light loop (single-file fix) and feature
+// route: match the working tree against the project's verify table (AGENTS.md
+// verify markers) and print ONLY the matching suites - the harness ships no
+// suite names; suites live in the project's table + package.json only.
+// run: execute the matched suites, stop at the first failure; pick rows
+// (rows with no concrete script) always refuse to auto-run.
+// Covers both lanes in HARNESS.md: light loop (single-file fix) and feature
 // lane (per-ticket loop) - routing is per changed file either way.
 //
 // Run with: node harness/scripts/verify.mjs [check|route|run|compact]
@@ -143,52 +145,67 @@ function testScripts() {
   }
 }
 
-function route(files) {
-  const suites = []
-  const push = (cmd) => {
-    if (!suites.includes(cmd)) suites.push(cmd)
-  }
-  let needsEnginePick = false
-  let needsSchemaPick = false
-  const eslintFiles = []
-  for (const file of files) {
-    if (file.endsWith('.vue') || (file.endsWith('.css') && file.startsWith('src/'))) {
-      push('lint:bem')
-      push('lint:css')
-      if (file.endsWith('.vue')) push('typecheck')
-    } else if (
-      file.endsWith('.ts') &&
-      (file.startsWith('src/engine/') || file.includes('/domain/') || file.includes('/assets/'))
-    ) {
-      needsEnginePick = true
-    } else if (file.endsWith('.ts') && (/schema|migrat|persist|sync|payload/i.test(file) || file.includes('/data/'))) {
-      needsSchemaPick = true
-    } else if (
-      file.startsWith('harness/scripts/') &&
-      file.endsWith('.mjs') &&
-      fs.existsSync(path.join(root, file))
-    ) {
-      eslintFiles.push(file)
-    } else if (file.startsWith('tests/') && file.endsWith('.ts')) {
-      push(`tsx ${file}`)
-    } else if (file.endsWith('.ts') || file.endsWith('.vue')) {
-      push('typecheck')
-    }
-  }
-  const available = testScripts()
-  return { suites, needsEnginePick, needsSchemaPick, eslintFiles, available }
+function globRegex(glob) {
+  const escaped = glob.replace(/[.+^${}()|[\]\\]/g, '\\$&')
+  // single pass - inserted tokens (e.g. "(?:.*/)?") must never be rescanned
+  const body = escaped.replace(/\*\*\/|\*\*|\*|\?/g, (m) =>
+    m === '**/' ? '(?:.*/)?' : m === '**' ? '.*' : m === '?' ? '[^/]' : '[^/]*'
+  )
+  return glob.includes('/') ? new RegExp(`^${body}$`) : new RegExp(`^(?:.*/)?${body}$`)
 }
 
-function tableBlock() {
+// The verify table in AGENTS.md (between verify markers) is the only routing
+// source. Row format: backticked globs in the Changed cell, backticked npm
+// scripts in the Run cell; a row with no concrete script is a human-pick row
+// (the router lists the project's test: scripts instead of choosing).
+function tableRows() {
+  let text
   try {
-    const text = fs.readFileSync(agentsPath, 'utf8')
-    const start = text.indexOf('<!-- verify:start -->')
-    const end = text.indexOf('<!-- verify:end -->')
-    if (start < 0 || end <= start) return null
-    return text.slice(start + '<!-- verify:start -->'.length, end).trim()
+    text = fs.readFileSync(agentsPath, 'utf8')
   } catch {
-    return null
+    return []
   }
+  const start = text.indexOf('<!-- verify:start -->')
+  const end = text.indexOf('<!-- verify:end -->')
+  if (start < 0 || end <= start) return []
+  const rows = []
+  for (const line of text.slice(start + '<!-- verify:start -->'.length, end).split('\n')) {
+    const trimmed = line.trim()
+    if (!trimmed.startsWith('|')) continue
+    const cells = trimmed
+      .replace(/^\|/, '')
+      .replace(/\|$/, '')
+      .split('|')
+      .map((cell) => cell.trim())
+    if (cells.length < 2) continue
+    if (/^[-\s:]+$/.test(cells[0])) continue
+    if (/^changed\b/i.test(cells[0])) continue
+    const globs = [...cells[0].matchAll(/`([^`]+)`/g)].map((m) => m[1])
+    const scripts = [...cells[1].matchAll(/`([^`]+)`/g)]
+      .map((m) => m[1])
+      .filter((token) => /^[A-Za-z0-9_:@.-]+$/.test(token) && !token.includes('/') && !token.includes('*'))
+    rows.push({ label: cells[0], globs, scripts, pick: scripts.length === 0, runText: cells[1] })
+  }
+  return rows
+}
+
+function route(files) {
+  const suites = []
+  const picks = []
+  for (const row of tableRows()) {
+    if (!row.globs.length) continue
+    const regexes = row.globs.map(globRegex)
+    const matched = files.some((file) => regexes.some((regex) => regex.test(file.replace(/\\/g, '/'))))
+    if (!matched) continue
+    if (row.pick) {
+      if (!picks.some((existing) => existing.label === row.label)) picks.push(row)
+    } else {
+      for (const script of row.scripts) {
+        if (!suites.includes(script)) suites.push(script)
+      }
+    }
+  }
+  return { suites, picks, available: testScripts() }
 }
 
 function report(files, plan) {
@@ -198,52 +215,25 @@ function report(files, plan) {
   }
   console.log('verify: changed files:')
   for (const file of files) console.log(`  ${file}`)
-  if (!plan.suites.length && !plan.needsEnginePick && !plan.needsSchemaPick && !plan.eslintFiles.length) {
-    console.log('verify: no code changed - nothing to run')
+  if (!plan.suites.length && !plan.picks.length) {
+    console.log('verify: no verify-table row matched - nothing to run')
   }
   if (plan.suites.length) {
-    console.log('verify: run ONLY these, in order:')
-    for (const suite of plan.suites) {
-      if (suite.startsWith('tsx ')) console.log(`  npx ${suite}`)
-      else console.log(`  npm run ${suite}`)
-    }
+    console.log('verify: run ONLY these, in order (AGENTS.md verify table):')
+    for (const suite of plan.suites) console.log(`  npm run ${suite}`)
   }
-  if (plan.eslintFiles.length) {
-    console.log(`  npx eslint ${plan.eslintFiles.join(' ')} --max-warnings 0   (repo lint covers scripts)`)
-  }
-  if (plan.needsEnginePick) {
-    console.log('verify: engine/domain TS changed - pick the SINGLE matching test:<name> (human pick required):')
+  if (plan.picks.length) {
+    console.log('verify: pick-required rows matched - choose the SINGLE matching suite (human pick required):')
+    for (const row of plan.picks) console.log(`  row: ${row.label} -> ${row.runText}`)
     for (const name of plan.available) console.log(`  npm run ${name}`)
-  }
-  if (plan.needsSchemaPick) {
-    console.log('verify: schema/persistence/sync changed - pick the SINGLE matching schema suite (human pick required):')
-    for (const name of plan.available.filter((suite) => /schema|migrate|sync|payload/.test(suite)))
-      console.log(`  npm run ${name}`)
-  }
-  const table = tableBlock()
-  if (table) {
-    console.log('--- project verify table (AGENTS.md) ---')
-    console.log(table)
-  } else {
-    console.log('verify: no verify markers in AGENTS.md')
   }
 }
 
 function runPlan(plan) {
-  const commands = []
-  for (const suite of plan.suites) {
-    if (suite.startsWith('tsx ')) commands.push({ label: `npx ${suite}`, argv: ['npx', ...suite.split(' ')] })
-    else commands.push({ label: `npm run ${suite}`, argv: ['npm', 'run', suite] })
+  if (plan.picks.length) {
+    fail('refusing to run - a pick-required row matched (see: verify route)')
   }
-  if (plan.eslintFiles.length) {
-    commands.push({
-      label: `npx eslint ${plan.eslintFiles.join(' ')}`,
-      argv: ['npx', 'eslint', ...plan.eslintFiles, '--max-warnings', '0'],
-    })
-  }
-  if (plan.needsEnginePick || plan.needsSchemaPick) {
-    fail('refusing to run - engine/schema change needs a human suite pick (see: verify route)')
-  }
+  const commands = plan.suites.map((suite) => ({ label: `npm run ${suite}`, argv: ['npm', 'run', suite] }))
   if (!commands.length) {
     console.log('verify: nothing runnable')
     return
@@ -259,20 +249,26 @@ function runPlan(plan) {
   console.log('verify: all green')
 }
 
-function parseStampDate(text) {
+function parseStampDate(text, zone) {
   const match = text.match(/^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2})$/)
   if (!match) return null
-  return Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3]), Number(match[4]) - 7, Number(match[5]))
+  return (
+    Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3]), Number(match[4]), Number(match[5])) - zone
+  )
 }
 
-function monthKey(epoch) {
-  const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Bangkok', year: 'numeric', month: '2-digit' })
-    .formatToParts(new Date(epoch))
-    .reduce((acc, part) => {
-      acc[part.type] = part.value
-      return acc
-    }, {})
-  return `${parts.year}-${parts.month}`
+// The UTC offset is read from each stamp itself (e.g. "UTC+7", "UTC-05:30", "UTC") -
+// no per-project hardcode; a project picks one zone and keeps every stamp consistent.
+function parseZone(text) {
+  const match = text.match(/^UTC([+-])(\d{1,2})(?::(\d{2}))?$/)
+  if (!match) return 0
+  const minutes = Number(match[2]) * 60 + Number(match[3] ?? 0)
+  return (match[1] === '-' ? -minutes : minutes) * 60000
+}
+
+function monthKey(epoch, zone) {
+  const shifted = new Date(epoch + zone)
+  return `${String(shifted.getUTCFullYear()).padStart(4, '0')}-${String(shifted.getUTCMonth() + 1).padStart(2, '0')}`
 }
 
 function parseHistoryEntries(text) {
@@ -287,12 +283,16 @@ function parseHistoryEntries(text) {
   for (const line of lines.slice(firstEntry < 0 ? lines.length : firstEntry)) {
     if (line.startsWith('### ')) {
       push()
-      const header = line.match(/^### (.*)\s*-\s*(\d{4}-\d{2}-\d{2} \d{2}:\d{2}) UTC\+7 \((.*)\)\s*$/)
+      const header = line.match(
+        /^### (.*)\s*-\s*(\d{4}-\d{2}-\d{2} \d{2}:\d{2}) (UTC(?:[+-]\d{1,2}(?::\d{2})?)?) \((.*)\)\s*$/
+      )
+      const zone = header ? parseZone(header[3]) : 0
       current = {
         lines: [line],
         title: header ? header[1].trim() : line.slice(4).trim(),
-        stamp: header ? `${header[2]} UTC+7` : '',
-        date: header ? parseStampDate(header[2]) : null,
+        stamp: header ? `${header[2]} ${header[3]}` : '',
+        zone,
+        date: header ? parseStampDate(header[2], zone) : null,
       }
     } else if (current) {
       current.lines.push(line)
@@ -329,7 +329,7 @@ function cmdCompact(args) {
   }
   const groups = new Map()
   for (const entry of move) {
-    const key = monthKey(entry.date)
+    const key = monthKey(entry.date, entry.zone)
     if (!groups.has(key)) groups.set(key, [])
     groups.get(key).push(entry)
   }
