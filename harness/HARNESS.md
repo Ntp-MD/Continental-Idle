@@ -12,42 +12,19 @@ Coding agents fail in predictable ways: they lose track of state mid-task, run t
 4. `history.md` - human reference log. The agent never reads it on its own - only when the user explicitly orders an investigation.
 5. Project skill file (this repo: `skill.md`) - only when the task touches project domain.
 6. `context.md` - shared language (glossary). Read when domain terms or wording matter; patch it when a new term locks.
-7. `skills/` - our skill procedures, read through the gate below. Never wholesale.
 
 ## Persona
+This folder is not a checklist - it is a software engineer. Facts are looked up, never asked; decisions are put to the user; the first interface idea is never the last.
 
-This folder is not a checklist - it is a software engineer. The disposition comes from the skills, the conduct from the loop:
-
-- **Dispositions (skills)**: test-first discipline (tdd), diagnosis-before-theory (diagnosing-bugs), deep-module design (codebase-design), domain language kept sharp (domain-modeling). Facts are looked up, never asked; decisions are put to the user; the first interface idea is never the last.
-- **Conduct (steps)**: every task walks the loop below - inspect, plan, implement, test, fix, review, done. The skills hook into the steps:
-
-| Step | Skill hook |
-| ---- | ---------- |
-| 2 Plan / Phase A-D | grilling (frontier questions), codebase-design (interface shape), domain-modeling (terms crystallize) |
-| 4 Test | tdd (red before green - Phase F engine/schema tickets) |
-| 5 Fix | diagnosing-bugs (feedback loop before hypothesis) |
-| 6 Review | Step 6 chain check owns refactoring review (tdd hands it here) |
-
-Read the hooked skill only when the step actually engages (same doors as below); a routine one-file fix walks the light loop with no skill reads.
+Every task walks the loop below - inspect, plan, implement, test, fix, review, done. A routine one-file fix walks the light loop with no extra reads.
 
 ## Skills (`skills/`)
 
-Skills are our procedure files: `skills/<name>/SKILL.md` plus their companion docs, adapted from `mattpocock/skills` (MIT; snapshot 2026-09-12 - see `skills/NOTICE.md`). Maintained like any repo file; keep the upstream attribution line in every adapted file.
+Owner-authored guardrails for weaker models. Each skill carries standard frontmatter (`name` + `description`) so external agents can discover it. Read a skill ONLY through its door, never wholesale:
 
-Read a skill ONLY through one of these doors:
+- **Task trigger**: `edit-minimal` (before editing an existing file), `verify-external` (before citing anything outside the repo), `finish-complete` (before reporting any implementation done), `report-gaps` (when writing the done report).
 
-- **User order**: `grill-with-docs` and `improve-codebase-architecture` are user-invoked commands. Run them only when the user names them (e.g. "grill me on this", "run architecture review"), or when the user order maps onto their description.
-- **Task trigger**: `tdd` (test-first requested, red-green-refactor named, or a permanent regression test is the change), `diagnosing-bugs` (hard bug / perf regression reported), `grilling` (user asks to stress-test a plan or decision), `domain-modeling` (glossary/decision wording is being changed), `codebase-design` (module/seam/interface design is the task, or another skill needs the vocabulary).
-
-**Name resolution**: when a skill says "run the X skill" (or references another skill by name), X resolves to `skills/<name>/SKILL.md` inside this folder - never an external fetch, never an invented procedure. Names not in the folder: `code-review` (tdd passes review to the loop's Step 6 review instead) and `to-spec`/`to-tickets` (this harness's feature lane owns idea-to-tickets).
-
-**Repo mappings** (upstream terms -> this harness, keep zero-duplication):
-
-- `CONTEXT.md` (glossary) = `context.md` in the harness root - the shared-language file, same single-glossary rule as AGENTS.md.
-- ADRs (hard-to-reverse, surprising, real trade-off) = Decision Timeline entries per AGENTS.md Decisions - same trigger; do not open a second decisions file or `docs/adr/`.
-- Companion docs (`DEEPENING.md`, `DESIGN-IT-TWICE.md`, `HTML-REPORT.md`, `tests.md`, `mocking.md`, `hitl-loop.template.sh`) are read on demand from the same folder as the skill that cites them.
-
-Adopting more skills: vendor the folder under `skills/<name>/` (adapt per `skills/NOTICE.md`), keep the attribution, and map any new upstream term here - never leave a dangling skill name.
+**Name resolution**: when a skill references another skill by name, it resolves to `skills/<name>/SKILL.md` inside this folder - never an external fetch, never an invented procedure.
 
 ## The loop
 
@@ -62,7 +39,7 @@ Drive each task to completion by yourself. Stop and ask only when information is
 ## Steps
 
 1. Inspect - locate the relevant code, read neighboring files and the existing implementation before choosing a pattern. Never invent a new pattern when a repo pattern exists. Record current behavior, repo pattern to reuse, files that must change.
-2. Plan - files to touch (unrequested growth past 3 files: stop and ask - a requested change spanning over 3 files is pre-authorized, see AGENTS.md), risks, the single matching verify suite. No coding until four parts are clear: What (scope + non-goals), Why (current vs expected with proof), How (steps in order), Why this way (pattern reused, rejected alternatives, risks + rollback). Pre-proof gate: a captured baseline exists; every edit anchor carries an identity; UI work names who confirms the visual. On feature-lane tickets, reuse the lane outputs (Mission summary, Impact Summary, picked interface) - plan only the ticket slice.
+2. Plan - files to touch (unrequested growth past 3 files: proceed only if reversible, else stop and ask - a requested change spanning over 3 files is pre-authorized, see AGENTS.md), risks, the single matching verify suite. No coding until four parts are clear: What (scope + non-goals), Why (current vs expected with proof), How (steps in order), Why this way (pattern reused, rejected alternatives, risks + rollback). Pre-proof gate: a captured baseline exists; every edit anchor carries an identity; UI work names who confirms the visual. On feature-lane tickets, reuse the lane outputs (Mission summary, Impact Summary, picked interface) - plan only the ticket slice.
 3. Implement - follow file-local conventions and the project's canonical patterns. Never add a second way. ASCII-only source, imports at top, no code comments unless requested. Never commit unless asked.
 4. Test - run ONLY the suite matching the change (`verify.mjs route` prints it). Never the full matrix unless asked. When Phase F wrote the failing case first, this run is that same suite - one suite, two moments (red before, green after), never a second suite.
 5. Fix - diagnose the root cause from the failing output, fix the smallest in-scope change, re-run. Pre-existing unrelated failures are reported separately, never fixed silently.
@@ -151,7 +128,7 @@ Behavior while active:
 
 - Never `checkout`, `restore`, `reset`, `stash`, or `clean` tracked files - revert only by hand-editing.
 - Move or rename with `git mv`, then grep the old path AND the old basename repo-wide and update every consumer in the same change.
-- Stop and ask with options when: destructive action, unrequested scope growth past 3 files beyond what was asked (a requested multi-file change is pre-authorized - see AGENTS.md), new dependency/infra, secrets/auth change. Autopilot mode (see above) converts these to decide-and-log - except secrets/auth and irreversible outside-repo actions, which still stop.
+- Stop and ask with options when: destructive action, new dependency/infra, secrets/auth change. Unrequested scope growth past 3 files: proceed if fully reversible (log the assumption), else stop and ask - a requested multi-file change is pre-authorized, see AGENTS.md. Autopilot mode (see above) converts these to decide-and-log - except secrets/auth and irreversible outside-repo actions, which still stop.
 
 ## Adopt in a new project
 
