@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch, inject, type Ref } from 'vue'
 import { useAssetsStore, dragState, endAssetDrag } from '../../blueprintStore'
-import { svgColorVarStyle, isGuestRoleId } from '../../assets/assetUtils'
+import { svgColorVarStyle } from '../../assets/assetUtils'
+import { isGuestRoleId } from '../../assets/validation'
 import { svgTransform as svgTransformGeo, roundedRectPath, buildingArea } from '../../domain/geometry'
 import {
   resolveStreetTiles,
@@ -393,7 +394,6 @@ const dd = useCanvasDragDrop({
 const {
   paletteValid,
   paletteGhost,
-  paletteGhostParts,
   paletteGhostRect,
   onWindowMouseMoveForDrag,
   onWindowMouseUpForDrag,
@@ -831,7 +831,7 @@ async function cancelDrawnOrigin() {
           <path
             :d="`M ${canvas.tileSize} 0 L 0 0 0 ${canvas.tileSize}`"
             fill="none"
-            stroke="var(--border-dim)"
+            :stroke="canvas.gridColor || 'var(--border-dim)'"
             stroke-width="0.5"
           />
         </pattern>
@@ -1386,21 +1386,7 @@ async function cancelDrawnOrigin() {
         stroke-dasharray="4 3"
       />
 
-      <g v-if="dragState.assetId && paletteGhost && paletteGhostParts">
-        <rect
-          v-for="(p, i) in paletteGhostParts"
-          :key="'ghost_part_' + i"
-          :x="p.x"
-          :y="p.y"
-          :width="p.w"
-          :height="p.h"
-          fill="color-mix(in srgb, var(--accent-blue) 15%, transparent)"
-          stroke="var(--accent-blue)"
-          stroke-width="1.5"
-          stroke-dasharray="4 3"
-        />
-      </g>
-      <g v-else-if="dragState.assetId && paletteGhost && paletteGhostRect">
+      <g v-if="dragState.assetId && paletteGhost && paletteGhostRect">
         <rect
           :x="paletteGhostRect.x"
           :y="paletteGhostRect.y"

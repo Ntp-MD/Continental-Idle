@@ -57,6 +57,13 @@ export async function setCanvasWallColor(wallColor: string | undefined): Promise
 	return saveBlueprintData()
 }
 
+export async function setCanvasGridColor(gridColor: string | undefined): Promise<boolean> {
+	if (gridColor !== undefined && !isValidColor(gridColor)) return false
+	if (gridColor) state.layout.canvas.gridColor = gridColor
+	else delete state.layout.canvas.gridColor
+	return saveBlueprintData()
+}
+
 export async function setStreetFloor(floorId: string | null): Promise<boolean> {
 	if (floorId !== null && !state.layout.floors.some(f => f.id === floorId)) return false
 	if (floorId) state.layout.streetFloorId = floorId

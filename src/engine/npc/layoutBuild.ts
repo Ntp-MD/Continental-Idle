@@ -4,6 +4,7 @@ import { buildNpcQueues } from './queueBuild'
 import { deriveFloorRooms } from './rooms'
 import { getObjectTags, hasMatchingTag } from './tagMatching'
 import type { NpcEngineFloor, NpcEngineInteractionTarget, NpcEngineLayout, NpcEnginePoint } from './types'
+import { interactionTargetKey } from './keys'
 
 const PORTAL_TAG = 'portal'
 const INTERACT_SPOT_SEARCH_RADIUS = 5
@@ -47,10 +48,6 @@ export function pixelToCell(value: number, tileSize: number): number {
 
 export function cellToPixel(value: number, tileSize: number): number {
 	return (value + 0.5) * cellSizeOf(tileSize)
-}
-
-export function interactionTargetKey(target: Pick<NpcEngineInteractionTarget, 'floorId' | 'itemId' | 'interactSpotId'>): string {
-	return `${target.floorId}:${target.itemId}:${target.interactSpotId}`
 }
 
 export function toEngineWalkablePoints(tiles: ReadonlySet<string>): NpcEnginePoint[] {

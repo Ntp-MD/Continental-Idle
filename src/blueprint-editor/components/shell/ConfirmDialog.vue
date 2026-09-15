@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useConfirm } from '@/composables/useConfirm'
-import ModalShell from '../../blueprint-editor/components/shell/ModalShell.vue'
+import ModalShell from './ModalShell.vue'
 
 const { pending, resolve } = useConfirm()
 

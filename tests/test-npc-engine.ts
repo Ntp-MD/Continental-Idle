@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict'
 import { NpcEngine, NPC_ENGINE_DEFAULT_OPTIONS, buildNpcEngineLayout, createNpcEnginePolicy, findNpcGridPath, selectBestTarget, WanderMemory, type NpcEngineLayout, type NpcEngineInteractionTarget, type NpcEngineFloor, type NpcEngineAgent, type NpcEngineOptions } from '../src/engine/npc'
 import { normalizeAllowedRoleIds, normalizeNpcConfig, type TileState } from '../src/blueprint-editor/domain/types'
-import { validatePortalConfiguration, buildAssetMap } from '../src/blueprint-editor/assets/assetUtils'
+import { buildAssetMap } from '../src/blueprint-editor/assets/assetUtils'
+import { validatePortalConfiguration } from '../src/blueprint-editor/assets/validation'
 import type { AssetDef, FloorData } from '../src/blueprint-editor/domain/types'
 
 function makeElevatorAsset(): AssetDef {

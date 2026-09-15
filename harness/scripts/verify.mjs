@@ -1,5 +1,5 @@
 // verify - slot check + verify router for the harness.
-// check: validate task-context.md headers, secrets, scope.
+// check: validate state/task-context.md headers, secrets, scope.
 // route: match the working tree against the project's verify table (AGENTS.md
 // verify markers) and print ONLY the matching suites - the harness ships no
 // suite names; suites live in the project's table + package.json only.
@@ -8,7 +8,7 @@
 // Covers both lanes in HARNESS.md: light loop (single-file fix) and feature
 // lane (per-ticket loop) - routing is per changed file either way.
 //
-// Run with: node harness/scripts/verify.mjs [check|route|run|compact]
+// Run with: node harness/scripts/verify.mjs [check|table|route|run|compact]
 // Exit code: 0 = ok, 1 = check failure / suite failure / usage error
 import fs from 'node:fs'
 import path from 'node:path'
@@ -18,7 +18,7 @@ import { fileURLToPath } from 'node:url'
 const root = process.env.HARNESS_ROOT
   ? path.resolve(process.env.HARNESS_ROOT)
   : path.resolve(fileURLToPath(new URL('../..', import.meta.url)))
-const slotPath = path.join(root, 'harness', 'task-context.md')
+const slotPath = path.join(root, 'harness', 'state', 'task-context.md')
 const agentsPath = path.join(root, 'AGENTS.md')
 
 const HEADERS = [
@@ -80,7 +80,7 @@ function gitScope() {
 }
 
 function cmdCheck() {
-  if (!fs.existsSync(slotPath)) fail('slot file missing (harness/task-context.md)')
+  if (!fs.existsSync(slotPath)) fail('slot file missing (harness/state/task-context.md)')
   const text = fs.readFileSync(slotPath, 'utf8')
   const sections = parseSections(text)
   const names = sections.map((section) => section.header)
@@ -105,11 +105,13 @@ function cmdCheck() {
   if (left === 0 && !handoffText) {
     fail('all Plan boxes ticked but Hand-off Note is blank - name the exact next action (or clear the slot if done)')
   }
+  const tableIssues = tableProblems()
+  if (tableIssues.length) fail(`verify table invalid:\n  - ${tableIssues.join('\n  - ')}`)
   const scope = gitScope()
   if (scope !== null && scope.length > 3) {
     console.log(`verify: scope warning - ${scope.length} files changed (stop + ask per instruction file)`)
   }
-  console.log(`verify: check pass (4 headers, no secrets, ${left} unchecked box(es))`)
+  console.log(`verify: check pass (4 headers, no secrets, ${left} unchecked box(es), table valid)`)
 }
 
 function changedFiles() {
@@ -187,6 +189,37 @@ function tableRows() {
     rows.push({ label: cells[0], globs, scripts, pick: scripts.length === 0, runText: cells[1] })
   }
   return rows
+}
+
+function tableScripts() {
+  try {
+    const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'))
+    return new Set(Object.keys(pkg.scripts ?? {}))
+  } catch {
+    return null
+  }
+}
+
+// Validate the verify table against package.json: every backticked token in a Run
+// cell that looks like a concrete npm script must exist, and a Changed cell with
+// no backticked glob can never route. Catches stale/typo rows before they fail
+// silently. No package.json -> script existence is not checked.
+function tableProblems() {
+  const problems = []
+  const scripts = tableScripts()
+  for (const row of tableRows()) {
+    if (!row.globs.length) {
+      problems.push(`no backticked glob in Changed cell: ${row.label}`)
+      continue
+    }
+    for (const token of [...row.runText.matchAll(/`([^`]+)`/g)].map((m) => m[1])) {
+      const looksLikeScript = /^[A-Za-z0-9_:@.-]+$/.test(token) && !token.includes('/') && !token.includes('*')
+      if (scripts && looksLikeScript && !scripts.has(token)) {
+        problems.push(`unknown npm script "${token}" in Run cell: ${row.label}`)
+      }
+    }
+  }
+  return problems
 }
 
 function route(files) {
@@ -305,7 +338,7 @@ function parseHistoryEntries(text) {
 function cmdCompact(args) {
   const keep = args.keep === undefined ? 20 : Number(args.keep)
   if (!Number.isInteger(keep) || keep < 1) fail('usage: verify.mjs compact [--keep N] [--dry-run]')
-  const historyPath = path.join(root, 'harness', 'history.md')
+  const historyPath = path.join(root, 'harness', 'state', 'history.md')
   const text = fs.existsSync(historyPath) ? fs.readFileSync(historyPath, 'utf8') : null
   if (text === null) fail('history file missing')
   const { preamble, entries } = parseHistoryEntries(text)
@@ -336,12 +369,12 @@ function cmdCompact(args) {
   if (args['dry-run']) {
     console.log(`verify: would move ${move.length} entr${move.length === 1 ? 'y' : 'ies'}, keep ${kept.length}:`)
     for (const [month, group] of [...groups.entries()].sort()) {
-      console.log(`  harness/history-${month}.md <- ${group.length} entr${group.length === 1 ? 'y' : 'ies'}`)
+      console.log(`  harness/state/history-${month}.md <- ${group.length} entr${group.length === 1 ? 'y' : 'ies'}`)
     }
     return
   }
   for (const [month, group] of [...groups.entries()].sort()) {
-    const archive = path.join(root, 'harness', `history-${month}.md`)
+    const archive = path.join(root, 'harness', 'state', `history-${month}.md`)
     let out = fs.existsSync(archive) ? fs.readFileSync(archive, 'utf8') : `# History archive - ${month}\n`
     if (!out.endsWith('\n')) out += '\n'
     out += group.map((entry) => `\n${entry.lines.join('\n').replace(/\s+$/, '')}\n`).join('')
@@ -358,7 +391,11 @@ function cmdCompact(args) {
 function main() {
   const mode = process.argv[2] ?? 'route'
   if (mode === 'check') cmdCheck()
-  else if (mode === 'compact') {
+  else if (mode === 'table') {
+    const issues = tableProblems()
+    if (issues.length) fail(`verify table invalid:\n  - ${issues.join('\n  - ')}`)
+    console.log(`verify: table ok (${tableRows().length} rows)`)
+  } else if (mode === 'compact') {
     const args = {}
     const rest = process.argv.slice(3)
     for (let i = 0; i < rest.length; i++) {
@@ -379,7 +416,7 @@ function main() {
     report(files, plan)
     if (mode === 'run') runPlan(plan)
   } else {
-    fail('usage: node harness/scripts/verify.mjs [check|route|run|compact]')
+    fail('usage: node harness/scripts/verify.mjs [check|table|route|run|compact]')
   }
 }
 

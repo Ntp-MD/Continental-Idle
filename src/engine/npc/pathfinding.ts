@@ -1,12 +1,7 @@
 import type { NpcEngineFloor, NpcEnginePoint } from './types'
+import { octileDistance } from './distance'
 
 const SQRT2 = Math.SQRT2
-
-function octileDistance(ax: number, ay: number, bx: number, by: number): number {
-	const dx = Math.abs(ax - bx)
-	const dy = Math.abs(ay - by)
-	return (dx + dy) + (SQRT2 - 2) * Math.min(dx, dy)
-}
 
 interface FloorIndex {
 	width: number
@@ -195,9 +190,9 @@ export function findNpcGridPath(
 			const nx = cx + CARDINAL_DX[d]
 			const ny = cy + CARDINAL_DY[d]
 			if (nx < 0 || ny < 0 || nx >= width || ny >= height) continue
-		const nextId = walkGrid[ny * width + nx] - 1
-		if (nextId < 0) continue
-		if (transientMark[ny * width + nx] !== 0) continue
+			const nextId = walkGrid[ny * width + nx] - 1
+			if (nextId < 0) continue
+			if (transientMark[ny * width + nx] !== 0) continue
 			const nextScore = currentG + 1
 			if (nextScore >= bestG(nextId)) continue
 			parent[nextId] = currentNode
@@ -219,9 +214,9 @@ export function findNpcGridPath(
 			const side1 = walkGrid[s1y * width + s1x] - 1
 			const side2 = walkGrid[s2y * width + s2x] - 1
 			if (side1 < 0 || side2 < 0) continue
-		const nextId = walkGrid[ny * width + nx] - 1
-		if (nextId < 0) continue
-		if (transientMark[s1y * width + s1x] !== 0 || transientMark[s2y * width + s2x] !== 0) continue
+			const nextId = walkGrid[ny * width + nx] - 1
+			if (nextId < 0) continue
+			if (transientMark[s1y * width + s1x] !== 0 || transientMark[s2y * width + s2x] !== 0) continue
 			if (transientMark[ny * width + nx] !== 0) continue
 			const nextScore = currentG + SQRT2
 			if (nextScore >= bestG(nextId)) continue

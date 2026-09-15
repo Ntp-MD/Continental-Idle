@@ -1,6 +1,7 @@
 import type { FloorLayoutData, ObjectData, AssetDef } from '../domain/types'
 import { validateLayoutData, validateLayoutIntegrity, normalizeAllowedRoleIds, normalizeNpcSpawnZones, normalizeFloorWalkable, normalizeObjectPlacement, normalizeNpcConfig, parseCanvasConfig, resolveDefaultWalkable } from '../domain/types'
-import { findAssetCached, buildAssetMap, validatePortalConfiguration } from '../assets/assetUtils'
+import { findAssetCached, buildAssetMap } from '../assets/assetUtils'
+import { validatePortalConfiguration } from '../assets/validation'
 import { normalizeObject } from '../domain/geometry'
 import { recalcCollapsed } from '../domain/collision'
 import { EDITOR_CONFIG } from '../editorConfig'
@@ -8,6 +9,24 @@ import { originAssets, buildSavedLayout } from './dataLoader'
 import { editorLog, genId, emptyNpcConfig } from './storeUtils'
 
 const LAYOUT_VERSION = EDITOR_CONFIG.layoutVersion
+
+function migrateObjects(raw: unknown[], floorLabel: unknown): ObjectData[] {
+	const label = typeof floorLabel === 'string' ? floorLabel : '?'
+	const out: ObjectData[] = []
+	for (const o of raw) {
+		const placement = normalizeObjectPlacement(o)
+		if (!placement) continue
+		const rec = (o ?? {}) as Record<string, unknown>
+		const base: ObjectData = { ...placement, w: 0, h: 0 }
+		if (typeof rec.label === 'string') base.label = rec.label
+		if (typeof rec.collapsed === 'boolean') base.collapsed = rec.collapsed
+		out.push(base)
+	}
+	if (out.length < raw.length) {
+		editorLog.warn('Migration', `dropped ${raw.length - out.length} invalid object(s) from floor "${label}"`)
+	}
+	return out
+}
 
 export function migrate(data: unknown, availableAssets: readonly AssetDef[] = originAssets): { layout: FloorLayoutData } {
 	if (!data || typeof data !== 'object' || Array.isArray(data)) throw new Error('Cannot migrate invalid layout data')
@@ -26,24 +45,7 @@ export function migrate(data: unknown, availableAssets: readonly AssetDef[] = or
 					name: typeof fRec.name === 'string' ? fRec.name : 'Unnamed',
 					label: typeof fRec.label === 'string' ? fRec.label : 'F?',
 					labelColor: typeof fRec.labelColor === 'string' ? fRec.labelColor : undefined,
-					objects: Array.isArray(fRec.objects) ? fRec.objects.filter(
-						(o: unknown): o is Record<string, unknown> => {
-							const rec = o as Record<string, unknown>
-							return typeof rec?.id === 'string' && typeof rec?.type === 'string'
-								&& typeof rec?.x === 'number' && isFinite(rec.x as number)
-								&& typeof rec?.y === 'number' && isFinite(rec.y as number)
-						}
-					).map((o) => {
-						const placement = normalizeObjectPlacement(o)!
-						const base: ObjectData = {
-							...placement,
-							w: 0,
-							h: 0,
-						}
-						if (typeof o.label === 'string') base.label = o.label
-						if (typeof o.collapsed === 'boolean') base.collapsed = o.collapsed
-						return base
-					}) : [],
+					objects: Array.isArray(fRec.objects) ? migrateObjects(fRec.objects, fRec.label) : [],
 					defaultWalkable: resolveDefaultWalkable(fRec),
 					walkable: normalizeFloorWalkable(fRec.walkable),
 					spawnZones: normalizeNpcSpawnZones(fRec.spawnZones),

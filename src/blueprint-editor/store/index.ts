@@ -5,11 +5,11 @@ import {
 	reorderFloors, selectFloor, updateFloor, paintFloorTiles,
 } from './floors'
 import {
-	beginDrawnObject, addObject, canPlaceObject, select, toggleMultiSelect, deleteSelected,
+	beginDrawnObject, addObject, canPlaceObject, deleteSelected,
 	moveSelectedTo, commitMove, rotateSelected,
-	flattenToSvgAsset,
 	linkObjects, unlinkObject, toggleObjectLock,
 } from './objects'
+import { flattenToSvgAsset } from './flatten'
 import {
 	addSvgAsset, updateAsset, deleteAsset, duplicateAsset, refreshOriginInstances,
 } from './assets'
@@ -18,8 +18,8 @@ import {
 	copySelected, pasteObjects,
 } from './metadata'
 import { saveBlueprintData, syncToGame } from './persistence'
-import { selectedObject, selectedAsset, selectAsset, selectedObjectIds } from './selection'
-import { setMode, setTileBrush, resizeCanvas, setCanvasBgColor, setCanvasLabelColor, setCanvasWallColor, setStreetFloor, setStreetWidth, setEditorSettings, resetEditorSettings } from './mode'
+import { selectedObject, selectedAsset, selectAsset, selectedObjectIds, select, toggleMultiSelect } from './selection'
+import { setMode, setTileBrush, resizeCanvas, setCanvasBgColor, setCanvasLabelColor, setCanvasWallColor, setCanvasGridColor, setStreetFloor, setStreetWidth, setEditorSettings, resetEditorSettings } from './mode'
 import { tagCatalog, globalTags, managedTagSet, addTag, removeTag, ensureTag } from './tags'
 
 export {
@@ -27,11 +27,11 @@ export {
 	reorderFloors, selectFloor, updateFloor, paintFloorTiles,
 } from './floors'
 export {
-	beginDrawnObject, addObject, canPlaceObject, select, toggleMultiSelect, deleteSelected,
+	beginDrawnObject, addObject, canPlaceObject, deleteSelected,
 	moveSelectedTo, commitMove, rotateSelected,
-	flattenToSvgAsset,
 	linkObjects, unlinkObject, toggleObjectLock,
 } from './objects'
+export { flattenToSvgAsset } from './flatten'
 export {
 	addSvgAsset, updateAsset, deleteAsset, duplicateAsset, refreshOriginInstances,
 } from './assets'
@@ -41,8 +41,8 @@ export {
 } from './metadata'
 export { saveBlueprintData, syncToGame } from './persistence'
 export { reloadEditorData } from './state'
-export { selectedObject, selectedAsset, selectAsset, selectedObjectIds } from './selection'
-export { setMode, setTileBrush, resizeCanvas, setCanvasBgColor, setCanvasLabelColor, setCanvasWallColor, setStreetFloor, setStreetWidth, setEditorSettings, resetEditorSettings } from './mode'
+export { selectedObject, selectedAsset, selectAsset, selectedObjectIds, select, toggleMultiSelect } from './selection'
+export { setMode, setTileBrush, resizeCanvas, setCanvasBgColor, setCanvasLabelColor, setCanvasWallColor, setCanvasGridColor, setStreetFloor, setStreetWidth, setEditorSettings, resetEditorSettings } from './mode'
 export { tagCatalog, globalTags, managedTagSet, addTag, removeTag, ensureTag } from './tags'
 export { dragState, startAssetDrag, endAssetDrag } from './state'
 
@@ -68,7 +68,7 @@ export function useAssetsStore() {
 		copySelected, pasteObjects,
 		saveBlueprintData, syncToGame,
 		selectedObject, selectedAsset, selectAsset, selectedObjectIds,
-		setMode, setTileBrush, resizeCanvas, setCanvasBgColor, setCanvasLabelColor, setCanvasWallColor, setStreetFloor, setStreetWidth, setEditorSettings, resetEditorSettings,
+		setMode, setTileBrush, resizeCanvas, setCanvasBgColor, setCanvasLabelColor, setCanvasWallColor, setCanvasGridColor, setStreetFloor, setStreetWidth, setEditorSettings, resetEditorSettings,
 		tagCatalog, globalTags, managedTagSet, addTag, removeTag, ensureTag,
 	}
 }

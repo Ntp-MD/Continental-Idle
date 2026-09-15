@@ -1,12 +1,11 @@
 import type { FloorData, NpcRole, NpcSimulationConfig } from '../../blueprint-editor/domain/types'
-import { buildRoleWalkableMap, interactionTargetKey, tileKey, toEngineWalkablePoints, type GetAssetTags, type NpcWalkableMap } from './layoutBuild'
+import { buildRoleWalkableMap, tileKey, toEngineWalkablePoints, type GetAssetTags, type NpcWalkableMap } from './layoutBuild'
+import { interactionTargetKey } from './keys'
 import { findNpcGridPath } from './pathfinding'
 import { selectBestTarget } from './targetScoring'
 import { getRoleFocusTags, hasMatchingTag, hasPostTag } from './tagMatching'
 import { WanderMemory } from './wanderMemory'
 import type { NpcEngineAgent, NpcEngineFloor, NpcEngineInteractionTarget, NpcEngineOptions, NpcEnginePoint } from './types'
-
-
 
 export interface NpcPolicyContext {
 	getConfig: () => NpcSimulationConfig
@@ -34,215 +33,263 @@ interface RoleContext {
 	roleMap: NpcWalkableMap
 }
 
-export function createNpcEnginePolicy(context: NpcPolicyContext): NpcEnginePolicy {
-	const random = context.random ?? Math.random
-	const roleMapCache = new Map<string, NpcWalkableMap>()
-	const roleFloorCache = new Map<string, NpcEngineFloor>()
-	const baseFloorCache = new Map<string, NpcEngineFloor>()
-	const roleWanderCandidateCache = new Map<string, NpcEnginePoint[]>()
-	const wanderMemoryByAgent = new Map<string, WanderMemory>()
-	const targetLastSelectedTick = new Map<string, number>()
-	const furnishedTileCache = new Map<string, Set<string>>()
-	let wanderAvoidTick = -1
-	const wanderAvoidByFloor = new Map<string, NpcEnginePoint[]>()
-	let wanderMemoryCalls = 0
+interface PolicyState {
+	roleMapCache: Map<string, NpcWalkableMap>
+	roleFloorCache: Map<string, NpcEngineFloor>
+	baseFloorCache: Map<string, NpcEngineFloor>
+	roleWanderCandidateCache: Map<string, NpcEnginePoint[]>
+	wanderMemoryByAgent: Map<string, WanderMemory>
+	targetLastSelectedTick: Map<string, number>
+	furnishedTileCache: Map<string, Set<string>>
+	wanderAvoidByFloor: Map<string, NpcEnginePoint[]>
+	wanderAvoidTick: number
+	wanderMemoryCalls: number
+}
 
-	function resolveRole(roleId: string | undefined): NpcRole | undefined {
-		const config = context.getConfig()
-		return config.roles.find(role => role.id === roleId)
-			?? config.roles.find(role => role.id === config.defaultRoleId)
-			?? config.roles[0]
+function resolveRole(config: NpcSimulationConfig, roleId: string | undefined): NpcRole | undefined {
+	return config.roles.find(role => role.id === roleId)
+		?? config.roles.find(role => role.id === config.defaultRoleId)
+		?? config.roles[0]
+}
+
+function resolveRoleContext(
+	context: NpcPolicyContext,
+	state: PolicyState,
+	roleId: string | undefined,
+	floorId: string,
+): RoleContext | null {
+	const role = resolveRole(context.getConfig(), roleId)
+	const map = context.floorMaps.get(floorId)
+	const floor = context.floorDataMap.get(floorId)
+	if (!role || !map || !floor) return null
+	const cacheKey = `${role.id}:${floorId}:${JSON.stringify(role.restrictedTags)}`
+	let roleMap = state.roleMapCache.get(cacheKey)
+	if (!roleMap) {
+		roleMap = buildRoleWalkableMap(map, floor, role, context.getAssetTags)
+		state.roleMapCache.set(cacheKey, roleMap)
 	}
+	return { role, map, floor, roleMap }
+}
 
-	function resolveRoleContext(roleId: string | undefined, floorId: string): RoleContext | null {
-		const role = resolveRole(roleId)
-		const map = context.floorMaps.get(floorId)
-		const floor = context.floorDataMap.get(floorId)
-		if (!role || !map || !floor) return null
-		const cacheKey = `${role.id}:${floorId}:${JSON.stringify(role.restrictedTags)}`
-		let roleMap = roleMapCache.get(cacheKey)
-		if (!roleMap) {
-			roleMap = buildRoleWalkableMap(map, floor, role, context.getAssetTags)
-			roleMapCache.set(cacheKey, roleMap)
+function resolveRoleFloor(state: PolicyState, engineFloor: NpcEngineFloor, roleContext: RoleContext): NpcEngineFloor {
+	if (!roleContext.role.restrictedTags.length) return engineFloor
+	const cacheKey = `${roleContext.role.id}:${engineFloor.id}:${JSON.stringify(roleContext.role.restrictedTags)}`
+	let roleFloor = state.roleFloorCache.get(cacheKey)
+	if (!roleFloor) {
+		roleFloor = { ...engineFloor, walkable: toEngineWalkablePoints(roleContext.roleMap.tiles) }
+		state.roleFloorCache.set(cacheKey, roleFloor)
+	}
+	return roleFloor
+}
+
+function resolveBaseFloor(context: NpcPolicyContext, state: PolicyState, floorId: string): NpcEngineFloor | undefined {
+	let floor = state.baseFloorCache.get(floorId)
+	if (!floor) {
+		floor = context.floors.find(candidate => candidate.id === floorId)
+		if (!floor) return undefined
+		state.baseFloorCache.set(floorId, floor)
+	}
+	return floor
+}
+
+function resolveWanderCandidates(state: PolicyState, roleContext: RoleContext, floorId: string): NpcEnginePoint[] {
+	const cacheKey = `${roleContext.role.id}:${floorId}:${JSON.stringify(roleContext.role.restrictedTags)}`
+	let candidates = state.roleWanderCandidateCache.get(cacheKey)
+	if (!candidates) {
+		candidates = toEngineWalkablePoints(roleContext.roleMap.tiles)
+		state.roleWanderCandidateCache.set(cacheKey, candidates)
+	}
+	return candidates
+}
+
+function resolveWanderMemory(
+	context: NpcPolicyContext,
+	state: PolicyState,
+	random: () => number,
+	agentId: string,
+): WanderMemory {
+	let memory = state.wanderMemoryByAgent.get(agentId)
+	if (!memory) {
+		const cfg = context.getConfig()
+		memory = new WanderMemory(cfg.wanderMemorySize, cfg.wanderSmallMapThreshold, random)
+		state.wanderMemoryByAgent.set(agentId, memory)
+	}
+	return memory
+}
+
+function resolveFocusTags(context: NpcPolicyContext, role: NpcRole): string[] {
+	return getRoleFocusTags(context.getConfig(), role, context.getManagedTags?.())
+}
+
+function isReachableByRole(target: NpcEngineInteractionTarget, roleContext: RoleContext): boolean {
+	return roleContext.roleMap.tiles.has(tileKey(target.x, target.y))
+}
+
+function selectPostTarget(
+	context: NpcPolicyContext,
+	roleContext: RoleContext,
+	agent: NpcEngineAgent,
+	targets: readonly NpcEngineInteractionTarget[],
+): NpcEngineInteractionTarget | null {
+	const config = context.getConfig()
+	const claims: { assetId: string; post?: string }[] = []
+	for (const taskId of roleContext.role.taskIds) {
+		const post = config.tasks.find(task => task.id === taskId)?.post
+		if (post) claims.push(post)
+	}
+	if (!claims.length) return null
+	const floorData = context.floorDataMap.get(agent.floorId)
+	const heldByOthers = new Set<string>()
+	for (const other of context.listAgents()) {
+		if (other.id === agent.id || other.floorId !== agent.floorId) continue
+		if (other.reservationItemId !== null && other.reservationInteractSpotId !== null) {
+			heldByOthers.add(`${other.floorId}:${other.reservationItemId}:${other.reservationInteractSpotId}`)
 		}
-		return { role, map, floor, roleMap }
 	}
-
-	function resolveRoleFloor(engineFloor: NpcEngineFloor, roleContext: RoleContext): NpcEngineFloor {
-		if (!roleContext.role.restrictedTags.length) return engineFloor
-		const cacheKey = `${roleContext.role.id}:${engineFloor.id}:${JSON.stringify(roleContext.role.restrictedTags)}`
-		let roleFloor = roleFloorCache.get(cacheKey)
-		if (!roleFloor) {
-			roleFloor = { ...engineFloor, walkable: toEngineWalkablePoints(roleContext.roleMap.tiles) }
-			roleFloorCache.set(cacheKey, roleFloor)
+	let best: NpcEngineInteractionTarget | null = null
+	let bestDistance = Number.POSITIVE_INFINITY
+	let bestKey = ''
+	for (const target of targets) {
+		if (target.floorId !== agent.floorId || target.transitionToFloorId) continue
+		const key = interactionTargetKey(target)
+		if (heldByOthers.has(key)) continue
+		const objectType = floorData?.objects.find(object => `object:${object.id}` === target.itemId)?.type
+		if (!objectType) continue
+		const claimed = claims.some(claim => claim.assetId === objectType && (!claim.post || target.tags.includes(`post:${claim.post}`)))
+		if (!claimed) continue
+		if (!isReachableByRole(target, roleContext)) continue
+		const distance = Math.abs(target.x - agent.x) + Math.abs(target.y - agent.y)
+		if (distance < bestDistance || (distance === bestDistance && (bestKey === '' || key < bestKey))) {
+			best = target
+			bestDistance = distance
+			bestKey = key
 		}
-		return roleFloor
 	}
+	return best
+}
 
-	function resolveBaseFloor(floorId: string): NpcEngineFloor | undefined {
-		let floor = baseFloorCache.get(floorId)
-		if (!floor) {
-			floor = context.floors.find(candidate => candidate.id === floorId)
-			if (!floor) return undefined
-			baseFloorCache.set(floorId, floor)
-		}
-		return floor
+function selectScoredTarget(
+	context: NpcPolicyContext,
+	state: PolicyState,
+	agent: NpcEngineAgent,
+	targets: readonly NpcEngineInteractionTarget[],
+	random: () => number,
+): NpcEngineInteractionTarget | null {
+	const selected = selectBestTarget({
+		agent,
+		targets,
+		currentTick: context.getTickNumber(),
+		targetLastSelectedTick: state.targetLastSelectedTick,
+		random,
+	})
+	if (selected) state.targetLastSelectedTick.set(interactionTargetKey(selected), context.getTickNumber())
+	return selected
+}
+
+function resolveTriggeredTags(
+	config: NpcSimulationConfig,
+	ticksPerSecond: number,
+	random: () => number,
+	tags: readonly string[],
+): string[] {
+	const triggerRates = config.tagTriggerRates ?? {}
+	const ticksPerPeriod = ticksPerSecond * config.triggerRatePeriodSeconds
+	const triggered: string[] = []
+	for (const tag of tags) {
+		const ratePerPeriod = triggerRates[tag] ?? 0
+		if (ratePerPeriod <= 0) continue
+		if (random() < ratePerPeriod / ticksPerPeriod) triggered.push(tag)
 	}
+	return triggered
+}
 
-	function resolveWanderCandidates(roleContext: RoleContext, floorId: string): NpcEnginePoint[] {
-		const cacheKey = `${roleContext.role.id}:${floorId}:${JSON.stringify(roleContext.role.restrictedTags)}`
-		let candidates = roleWanderCandidateCache.get(cacheKey)
-		if (!candidates) {
-			candidates = toEngineWalkablePoints(roleContext.roleMap.tiles)
-			roleWanderCandidateCache.set(cacheKey, candidates)
-		}
-		return candidates
-	}
+function hasTriggerRates(config: NpcSimulationConfig): boolean {
+	return Object.keys(config.tagTriggerRates ?? {}).length > 0
+}
 
-	function resolveWanderMemory(agentId: string): WanderMemory {
-		let memory = wanderMemoryByAgent.get(agentId)
-		if (!memory) {
-			const cfg = context.getConfig()
-			memory = new WanderMemory(
-				cfg.wanderMemorySize,
-				cfg.wanderSmallMapThreshold,
-				random,
-			)
-			wanderMemoryByAgent.set(agentId, memory)
-		}
-		return memory
-	}
+function pickNearestFloorTarget(
+	targets: readonly NpcEngineInteractionTarget[],
+	currentFloorId: string,
+	floors: readonly NpcEngineFloor[],
+): NpcEngineInteractionTarget | null {
+	if (!targets.length) return null
+	const floorIds = floors.map(floor => floor.id)
+	const currentIndex = floorIds.indexOf(currentFloorId)
+	return targets.reduce((best, target) =>
+		Math.abs(floorIds.indexOf(target.floorId) - currentIndex) < Math.abs(floorIds.indexOf(best.floorId) - currentIndex)
+			? target
+			: best,
+	)
+}
 
-	function resolveFocusTags(role: NpcRole): string[] {
-		return getRoleFocusTags(context.getConfig(), role, context.getManagedTags?.())
-	}
-
-	function isReachableByRole(target: NpcEngineInteractionTarget, roleContext: RoleContext): boolean {
-		return roleContext.roleMap.tiles.has(tileKey(target.x, target.y))
-	}
-
-	function selectPostTarget(
-		agent: NpcEngineAgent,
-		roleContext: RoleContext,
-		targets: readonly NpcEngineInteractionTarget[],
-	): NpcEngineInteractionTarget | null {
-		const config = context.getConfig()
-		const claims: { assetId: string; post?: string }[] = []
-		for (const taskId of roleContext.role.taskIds) {
-			const post = config.tasks.find(task => task.id === taskId)?.post
-			if (post) claims.push(post)
-		}
-		if (!claims.length) return null
-		const floorData = context.floorDataMap.get(agent.floorId)
-		const heldByOthers = new Set<string>()
-		for (const other of context.listAgents()) {
-			if (other.id === agent.id || other.floorId !== agent.floorId) continue
-			if (other.reservationItemId !== null && other.reservationInteractSpotId !== null) {
-				heldByOthers.add(`${other.floorId}:${other.reservationItemId}:${other.reservationInteractSpotId}`)
-			}
-		}
-		let best: NpcEngineInteractionTarget | null = null
-		let bestDistance = Number.POSITIVE_INFINITY
-		let bestKey = ''
+function resolveFurnishedTiles(context: NpcPolicyContext, state: PolicyState, floorId: string): Set<string> | null {
+	const targets = context.interactionTargets
+	if (!targets?.length) return null
+	let furnished = state.furnishedTileCache.get(floorId)
+	if (furnished) return furnished
+	furnished = new Set<string>()
+	const cellSize = context.floorMaps.get(floorId)?.cellSize
+	const floor = context.floorDataMap.get(floorId)
+	if (cellSize && floor) {
 		for (const target of targets) {
-			if (target.floorId !== agent.floorId || target.transitionToFloorId) continue
-			const key = interactionTargetKey(target)
-			if (heldByOthers.has(key)) continue
-			const objectType = floorData?.objects.find(object => `object:${object.id}` === target.itemId)?.type
-			if (!objectType) continue
-			const claimed = claims.some(claim => claim.assetId === objectType && (!claim.post || target.tags.includes(`post:${claim.post}`)))
-			if (!claimed) continue
-			if (!isReachableByRole(target, roleContext)) continue
-			const distance = Math.abs(target.x - agent.x) + Math.abs(target.y - agent.y)
-			if (distance < bestDistance || (distance === bestDistance && (bestKey === '' || key < bestKey))) {
-				best = target
-				bestDistance = distance
-				bestKey = key
+			if (target.floorId !== floorId || !target.itemId.startsWith('object:')) continue
+			const object = floor.objects.find(candidate => `object:${candidate.id}` === target.itemId)
+			if (!object || !(object.w > 0) || !(object.h > 0)) continue
+			for (let y = Math.floor(object.y / cellSize); y < Math.ceil((object.y + object.h) / cellSize); y++) {
+				for (let x = Math.floor(object.x / cellSize); x < Math.ceil((object.x + object.w) / cellSize); x++) {
+					furnished.add(tileKey(x, y))
+				}
 			}
 		}
-		return best
 	}
+	state.furnishedTileCache.set(floorId, furnished)
+	return furnished
+}
 
-	function selectScoredTarget(
-		agent: NpcEngineAgent,
-		targets: readonly NpcEngineInteractionTarget[],
-	): NpcEngineInteractionTarget | null {
-		const selected = selectBestTarget({
-			agent,
-			targets,
-			currentTick: context.getTickNumber(),
-			targetLastSelectedTick,
-			random,
-		})
-		if (selected) targetLastSelectedTick.set(interactionTargetKey(selected), context.getTickNumber())
-		return selected
-	}
-
-	function resolveTriggeredTags(tags: readonly string[]): string[] {
-		const triggerRates = context.getConfig().tagTriggerRates ?? {}
-		const ticksPerPeriod = context.ticksPerSecond * context.getConfig().triggerRatePeriodSeconds
-		const triggered: string[] = []
-		for (const tag of tags) {
-			const ratePerPeriod = triggerRates[tag] ?? 0
-			if (ratePerPeriod <= 0) continue
-			if (random() < ratePerPeriod / ticksPerPeriod) triggered.push(tag)
-		}
-		return triggered
-	}
-
-	function hasTriggerRates(): boolean {
-		return Object.keys(context.getConfig().tagTriggerRates ?? {}).length > 0
-	}
-
-	function pickNearestFloorTarget(
-		targets: readonly NpcEngineInteractionTarget[],
-		currentFloorId: string,
-		floors: readonly NpcEngineFloor[],
-	): NpcEngineInteractionTarget | null {
-		if (!targets.length) return null
-		const floorIds = floors.map(floor => floor.id)
-		const currentIndex = floorIds.indexOf(currentFloorId)
-		return targets.reduce((best, target) =>
-			Math.abs(floorIds.indexOf(target.floorId) - currentIndex) < Math.abs(floorIds.indexOf(best.floorId) - currentIndex)
-				? target
-				: best,
-		)
-	}
-
-	const pathfinder: NpcEnginePolicy['pathfinder'] = (engineFloor, agent, to, blockedCells) => {
-		const roleContext = resolveRoleContext(agent.roleId, engineFloor.id)
+function makePathfinder(context: NpcPolicyContext, state: PolicyState): NpcEnginePolicy['pathfinder'] {
+	return (engineFloor, agent, to, blockedCells) => {
+		const roleContext = resolveRoleContext(context, state, agent.roleId, engineFloor.id)
 		if (!roleContext) return findNpcGridPath(engineFloor, agent, to, blockedCells)
-		return findNpcGridPath(resolveRoleFloor(engineFloor, roleContext), agent, to, blockedCells)
+		return findNpcGridPath(resolveRoleFloor(state, engineFloor, roleContext), agent, to, blockedCells)
 	}
+}
 
-	const targetSelector: NpcEnginePolicy['targetSelector'] = (agent, targets) => {
-		const roleContext = resolveRoleContext(agent.roleId, agent.floorId)
+function makeTargetSelector(
+	context: NpcPolicyContext,
+	state: PolicyState,
+	random: () => number,
+): NpcEnginePolicy['targetSelector'] {
+	return (agent, targets) => {
+		const roleContext = resolveRoleContext(context, state, agent.roleId, agent.floorId)
 		if (!roleContext) return null
-		const posted = selectPostTarget(agent, roleContext, targets)
+		const posted = selectPostTarget(context, roleContext, agent, targets)
 		if (posted) return posted
 		const openTargets = targets.filter(target => !hasPostTag(target.tags))
-		const tags = resolveFocusTags(roleContext.role)
+		const tags = resolveFocusTags(context, roleContext.role)
 		if (!tags.length) {
 			const reachable = openTargets.filter(target => isReachableByRole(target, roleContext))
-			return reachable.length ? selectScoredTarget(agent, reachable) : null
+			return reachable.length ? selectScoredTarget(context, state, agent, reachable, random) : null
 		}
 
-		if (!hasTriggerRates()) {
+		const config = context.getConfig()
+		if (!hasTriggerRates(config)) {
 			if (roleContext.role.focusChance <= 0 || random() * 100 >= roleContext.role.focusChance) return null
 			const matching = openTargets.filter(target => hasMatchingTag(target.tags, tags) && isReachableByRole(target, roleContext))
-			return matching.length ? selectScoredTarget(agent, matching) : null
+			return matching.length ? selectScoredTarget(context, state, agent, matching, random) : null
 		}
 
-		const triggered = resolveTriggeredTags(tags)
+		const triggered = resolveTriggeredTags(config, context.ticksPerSecond, random, tags)
 		if (!triggered.length) return null
 		const matching = openTargets.filter(target => hasMatchingTag(target.tags, triggered) && isReachableByRole(target, roleContext))
-		return matching.length ? selectScoredTarget(agent, matching) : null
+		return matching.length ? selectScoredTarget(context, state, agent, matching, random) : null
 	}
+}
 
-	const queueSelector: NpcEnginePolicy['queueSelector'] = (agent, targets, availableTargets, queues) => {
-		const roleContext = resolveRoleContext(agent.roleId, agent.floorId)
+function makeQueueSelector(context: NpcPolicyContext, state: PolicyState): NpcEnginePolicy['queueSelector'] {
+	return (agent, targets, availableTargets, queues) => {
+		const roleContext = resolveRoleContext(context, state, agent.roleId, agent.floorId)
 		if (!roleContext) return null
-		const tags = resolveFocusTags(roleContext.role)
+		const tags = resolveFocusTags(context, roleContext.role)
 		const availableKeys = new Set(availableTargets.map(interactionTargetKey))
 		const openTargets = targets.filter(target => !hasPostTag(target.tags))
 
@@ -258,7 +305,7 @@ export function createNpcEnginePolicy(context: NpcPolicyContext): NpcEnginePolic
 			)
 		if (!matchingTargets.length) return null
 
-		const baseFloor = resolveBaseFloor(agent.floorId)
+		const baseFloor = resolveBaseFloor(context, state, agent.floorId)
 		if (!baseFloor) return null
 		const matchingKeys = new Set(matchingTargets.map(interactionTargetKey))
 		const candidates = queues.filter(queue => queue.targetKeys.some(key => matchingKeys.has(key)))
@@ -293,14 +340,19 @@ export function createNpcEnginePolicy(context: NpcPolicyContext): NpcEnginePolic
 			.sort((a, b) => (distanceByQueue.get(a.key) ?? Number.POSITIVE_INFINITY) - (distanceByQueue.get(b.key) ?? Number.POSITIVE_INFINITY))[0]
 			?? null
 	}
+}
 
-	const socialSelector: NpcEnginePolicy['socialSelector'] = (agent, candidates) => {
-		const role = resolveRole(agent.roleId)
-		const tags = role ? resolveFocusTags(role) : []
+function makeSocialSelector(
+	context: NpcPolicyContext,
+	random: () => number,
+): NpcEnginePolicy['socialSelector'] {
+	return (agent, candidates) => {
+		const role = resolveRole(context.getConfig(), agent.roleId)
+		const tags = role ? resolveFocusTags(context, role) : []
 		if (hasMatchingTag(tags, ['soc-loner'])) return null
 		const open = candidates.filter(candidate => {
-			const partnerRole = resolveRole(candidate.roleId)
-			const partnerTags = partnerRole ? resolveFocusTags(partnerRole) : []
+			const partnerRole = resolveRole(context.getConfig(), candidate.roleId)
+			const partnerTags = partnerRole ? resolveFocusTags(context, partnerRole) : []
 			return !hasMatchingTag(partnerTags, ['soc-loner'])
 		})
 		if (!open.length) return null
@@ -313,69 +365,75 @@ export function createNpcEnginePolicy(context: NpcPolicyContext): NpcEnginePolic
 		if (!hasMatchingTag(tags, ['soc-chatty']) && random() >= 0.4) return null
 		return best
 	}
+}
 
-	const crossFloorSelector: NpcEnginePolicy['crossFloorSelector'] = (agent, candidates, floors) => {
-		const role = resolveRole(agent.roleId)
+function makeCrossFloorSelector(context: NpcPolicyContext): NpcEnginePolicy['crossFloorSelector'] {
+	return (agent, candidates, floors) => {
+		const role = resolveRole(context.getConfig(), agent.roleId)
 		if (!role) return null
-		const tags = resolveFocusTags(role)
+		const tags = resolveFocusTags(context, role)
 		if (!tags.length) return null
 		const matching = candidates.filter(target => !hasPostTag(target.tags) && hasMatchingTag(target.tags, tags))
 		if (!matching.length) return null
 		return pickNearestFloorTarget(matching, agent.floorId, floors)
 	}
+}
 
-	function resolveFurnishedTiles(floorId: string): Set<string> | null {
-		const targets = context.interactionTargets
-		if (!targets?.length) return null
-		let furnished = furnishedTileCache.get(floorId)
-		if (furnished) return furnished
-		furnished = new Set<string>()
-		const cellSize = context.floorMaps.get(floorId)?.cellSize
-		const floor = context.floorDataMap.get(floorId)
-		if (cellSize && floor) {
-			for (const target of targets) {
-				if (target.floorId !== floorId || !target.itemId.startsWith('object:')) continue
-				const object = floor.objects.find(candidate => `object:${candidate.id}` === target.itemId)
-				if (!object || !(object.w > 0) || !(object.h > 0)) continue
-				for (let y = Math.floor(object.y / cellSize); y < Math.ceil((object.y + object.h) / cellSize); y++) {
-					for (let x = Math.floor(object.x / cellSize); x < Math.ceil((object.x + object.w) / cellSize); x++) {
-						furnished.add(tileKey(x, y))
-					}
-				}
-			}
-		}
-		furnishedTileCache.set(floorId, furnished)
-		return furnished
-	}
-
-	const wanderSelector: NpcEnginePolicy['wanderSelector'] = agent => {
-		if (++wanderMemoryCalls % 1024 === 0 && wanderMemoryByAgent.size > 0) {
+function makeWanderSelector(
+	context: NpcPolicyContext,
+	state: PolicyState,
+	random: () => number,
+): NpcEnginePolicy['wanderSelector'] {
+	return agent => {
+		if (++state.wanderMemoryCalls % 1024 === 0 && state.wanderMemoryByAgent.size > 0) {
 			const live = new Set<string>()
 			for (const other of context.listAgents()) live.add(other.id)
-			for (const id of wanderMemoryByAgent.keys()) if (!live.has(id)) wanderMemoryByAgent.delete(id)
+			for (const id of state.wanderMemoryByAgent.keys()) if (!live.has(id)) state.wanderMemoryByAgent.delete(id)
 		}
-		const roleContext = resolveRoleContext(agent.roleId, agent.floorId)
+		const roleContext = resolveRoleContext(context, state, agent.roleId, agent.floorId)
 		if (!roleContext) return null
-		const candidates = resolveWanderCandidates(roleContext, agent.floorId)
+		const candidates = resolveWanderCandidates(state, roleContext, agent.floorId)
 		if (!candidates.length) return null
 		const tick = context.getTickNumber()
-		if (tick !== wanderAvoidTick) {
-			wanderAvoidTick = tick
-			wanderAvoidByFloor.clear()
+		if (tick !== state.wanderAvoidTick) {
+			state.wanderAvoidTick = tick
+			state.wanderAvoidByFloor.clear()
 			for (const other of context.listAgents()) {
 				if (other.status !== 'walking' && other.status !== 'queued') continue
-				const list = wanderAvoidByFloor.get(other.floorId) ?? []
+				const list = state.wanderAvoidByFloor.get(other.floorId) ?? []
 				list.push({ x: other.targetX, y: other.targetY })
-				wanderAvoidByFloor.set(other.floorId, list)
+				state.wanderAvoidByFloor.set(other.floorId, list)
 			}
 		}
-		const memory = resolveWanderMemory(agent.id)
-		const furnished = resolveFurnishedTiles(agent.floorId)
+		const memory = resolveWanderMemory(context, state, random, agent.id)
+		const furnished = resolveFurnishedTiles(context, state, agent.floorId)
 		const pool = furnished ? candidates.filter(point => !furnished.has(tileKey(point.x, point.y))) : candidates
-		const selected = memory.selectWanderTile(pool.length ? pool : candidates, agent, wanderAvoidByFloor.get(agent.floorId) ?? [])
+		const selected = memory.selectWanderTile(pool.length ? pool : candidates, agent, state.wanderAvoidByFloor.get(agent.floorId) ?? [])
 		if (selected) memory.recordVisit(selected, context.getTickNumber())
 		return selected
 	}
+}
 
-	return { pathfinder, targetSelector, queueSelector, crossFloorSelector, wanderSelector, socialSelector }
+export function createNpcEnginePolicy(context: NpcPolicyContext): NpcEnginePolicy {
+	const random = context.random ?? Math.random
+	const state: PolicyState = {
+		roleMapCache: new Map(),
+		roleFloorCache: new Map(),
+		baseFloorCache: new Map(),
+		roleWanderCandidateCache: new Map(),
+		wanderMemoryByAgent: new Map(),
+		targetLastSelectedTick: new Map(),
+		furnishedTileCache: new Map(),
+		wanderAvoidByFloor: new Map(),
+		wanderAvoidTick: -1,
+		wanderMemoryCalls: 0,
+	}
+	return {
+		pathfinder: makePathfinder(context, state),
+		targetSelector: makeTargetSelector(context, state, random),
+		queueSelector: makeQueueSelector(context, state),
+		crossFloorSelector: makeCrossFloorSelector(context),
+		wanderSelector: makeWanderSelector(context, state, random),
+		socialSelector: makeSocialSelector(context, random),
+	}
 }

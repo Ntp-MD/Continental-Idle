@@ -24,6 +24,7 @@ const tileInput = ref(store.state.layout.canvas.tileSize)
 const bgColorInput = ref(store.state.layout.canvas.bgColor)
 const labelColorInput = ref(store.state.layout.canvas.labelColor)
 const wallColorInput = ref(store.state.layout.canvas.wallColor)
+const gridColorInput = ref(store.state.layout.canvas.gridColor)
 
 watch(
   () => [props.open, store.state.layout.canvas] as const,
@@ -35,6 +36,7 @@ watch(
       bgColorInput.value = c.bgColor
       labelColorInput.value = c.labelColor
       wallColorInput.value = c.wallColor
+      gridColorInput.value = c.gridColor
     }
   },
   { immediate: true },
@@ -86,6 +88,15 @@ async function applyWallColor(value: string | undefined) {
     if (!saved) toast.error('Failed to set wall color')
   } catch {
     toast.error('Failed to set wall color')
+  }
+}
+
+async function applyGridColor(value: string | undefined) {
+  try {
+    const saved = await run(() => store.setCanvasGridColor(value))
+    if (!saved) toast.error('Failed to set grid color')
+  } catch {
+    toast.error('Failed to set grid color')
   }
 }
 
@@ -366,6 +377,21 @@ async function resetEditorAll() {
           />
         </div>
         <div class="form__hint">Color for wall tiles.</div>
+      </div>
+
+      <div class="form__col form--section">
+        <div>Grid</div>
+        <div class="form__row">
+          <label for="canvas__gridcolor">Line color</label>
+          <ColorInput
+            v-model="gridColorInput"
+            allow-transparent
+            placeholder="#RRGGBB (empty = theme default)"
+            aria-label="Grid line color"
+            @commit="applyGridColor"
+          />
+        </div>
+        <div class="form__hint">Color for the canvas tile grid lines.</div>
       </div>
 
       <div class="form__col form--section">

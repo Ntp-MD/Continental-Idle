@@ -18,6 +18,9 @@ qr-*.png
 # Test output
 test-output.txt
 
+# Zed local config (personal settings/agent keys - the theme bundle is not ignored)
+.zed/theme/settings.json
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

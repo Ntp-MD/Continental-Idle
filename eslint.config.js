@@ -38,7 +38,7 @@ export default tseslint.config(
     },
   },
   {
-    files: ['scripts/**/*.mjs', 'harness/scripts/**/*.mjs', 'vite.config.ts'],
+    files: ['scripts/**/*.mjs', 'harness/scripts/**/*.mjs', '.zed/**/*.mjs', 'vite.config.ts'],
     languageOptions: {
       globals: { ...globals.node },
     },
@@ -51,7 +51,30 @@ export default tseslint.config(
     },
   },
   {
-    ignores: ['dist/**', 'node_modules/**', '_archive/**', 'src/blueprint-editor/data/*.data.ts', 'harness/**/*.md', 'eslint.config.js', 'src/engine/**'],
+    files: ['src/engine/**/*.ts'],
+    rules: {
+      'no-restricted-imports': ['error', {
+        patterns: [
+          {
+            group: [
+              '**/blueprint-editor/store/**',
+              '**/blueprint-editor/components/**',
+              '**/blueprint-editor/composables/**',
+              '**/blueprint-editor/assets/**',
+              '**/blueprint-editor/blueprintStore',
+              '**/blueprint-editor/syncedPayload',
+              '@/composables/**',
+              'vue',
+              'vue/*',
+            ],
+            message: 'src/engine must stay framework- and UI-independent - import only the pure domain kernel (blueprint-editor/domain).',
+          },
+        ],
+      }],
+    },
+  },
+  {
+    ignores: ['dist/**', 'node_modules/**', '_archive/**', 'src/blueprint-editor/data/*.data.ts', 'harness/**/*.md', 'eslint.config.js'],
   },
   prettier,
 )

@@ -1,5 +1,5 @@
 import { toRaw } from 'vue'
-import type { NpcSimulationConfig, NpcTask } from '../domain/types'
+import { NPC_DEFAULT_SPEED, NPC_OPTION_DEFAULTS, NPC_FRAME_DEFAULTS, type NpcSimulationConfig, type NpcTask } from '../domain/types'
 
 export function genId(prefix: string): string {
 	const arr = new Uint8Array(5)
@@ -27,27 +27,33 @@ function deepToRaw<T>(value: T): T {
 	return raw
 }
 
+export function deepEqualRaw(a: unknown, b: unknown): boolean {
+	if (a === b) return true
+	if (a === null || b === null || typeof a !== 'object' || typeof b !== 'object') return false
+	if (Array.isArray(a) || Array.isArray(b)) {
+		if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) return false
+		for (let i = 0; i < a.length; i++) if (!deepEqualRaw(a[i], b[i])) return false
+		return true
+	}
+	const aRec = a as Record<string, unknown>
+	const bRec = b as Record<string, unknown>
+	const aKeys = Object.keys(aRec)
+	if (aKeys.length !== Object.keys(bRec).length) return false
+	for (const key of aKeys) {
+		if (!Object.prototype.hasOwnProperty.call(bRec, key) || !deepEqualRaw(aRec[key], bRec[key])) return false
+	}
+	return true
+}
+
 export function emptyNpcConfig(): NpcSimulationConfig {
 	return {
-		speed: 0.2,
+		speed: NPC_DEFAULT_SPEED,
 		defaultRoleId: '',
 		roles: [],
 		tasks: [],
 		pool: [],
-		crossFloorCooldownSeconds: 30,
-		progressWatchdogTicks: 120,
-		maxRepathAttempts: 4,
-		repathCooldownSeconds: 2,
-		repathCooldownExponent: 1.5,
-		pathBudgetMinPerTick: 2,
-		pathBudgetAgentsPerCall: 100,
-		chooseTargetMinPerTick: 8,
-		chooseTargetAgentsPerSlot: 20,
-		wanderMemorySize: 32,
-		wanderSmallMapThreshold: 8,
-		triggerRatePeriodSeconds: 60,
-		frameSimBudgetMs: 6,
-		maxSimulationSteps: 8,
+		...NPC_OPTION_DEFAULTS,
+		...NPC_FRAME_DEFAULTS,
 	}
 }
 
@@ -64,17 +70,7 @@ export function genAssetId(prefix: string, name: string, isTaken: (candidate: st
 	return `${base}-${n}`
 }
 
-export const editorLog = {
-	error(context: string, error: unknown) {
-		console.error(`[BlueprintEditor] ${context}:`, error)
-	},
-	warn(context: string, ...args: unknown[]) {
-		console.warn(`[BlueprintEditor] ${context}:`, ...args)
-	},
-	info(context: string, ...args: unknown[]) {
-		console.info(`[BlueprintEditor] ${context}:`, ...args)
-	},
-}
+export { editorLog } from '../domain/logger'
 
 export function assignSyncKey(label: string, index: number, usedKeys: Set<string>): string {
 	const canonical = editorFloorLabelToFloorId(label)

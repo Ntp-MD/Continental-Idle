@@ -95,6 +95,19 @@ const result5 = migrate(withObject, originAssets)
 assert.equal(result5.layout.floors[0].objects.length, 1, 'object with unknown asset type should be filtered out')
 assert.equal(result5.layout.floors[0].objects[0].id, 'obj-1')
 
+const withInvalidPlacement = makeLayout({
+	floors: [makeFloor({
+		objects: [
+			{ id: 'obj-ok', type: validAsset.id, x: 0, y: 0, rotation: 0, w: 50, h: 25 },
+			{ id: '', type: validAsset.id, x: 0, y: 0, rotation: 0, w: 50, h: 25 },
+			{ id: 'obj-far', type: validAsset.id, x: 1e9, y: 0, rotation: 0, w: 50, h: 25 },
+		],
+	})],
+})
+const result8 = migrate(withInvalidPlacement, originAssets)
+assert.equal(result8.layout.floors[0].objects.length, 1, 'objects with unusable placement are dropped, not corrupted')
+assert.equal(result8.layout.floors[0].objects[0].id, 'obj-ok', 'surviving objects keep a valid id')
+
 const withLegacyWall = makeLayout({
 	floors: [makeFloor({
 		objects: [

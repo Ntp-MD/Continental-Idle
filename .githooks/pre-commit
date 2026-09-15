@@ -1,0 +1,8 @@
+#!/bin/sh
+# Harness gate - block commits that break the slot protocol, leak secrets, or
+# carry an invalid verify table. Enable once per clone:
+#   git config core.hooksPath .githooks
+node harness/scripts/verify.mjs check || {
+  echo "pre-commit: harness check failed (slot / secrets / verify table) - fix it, then retry (bypass: git commit --no-verify)"
+  exit 1
+}

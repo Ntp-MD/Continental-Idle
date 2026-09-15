@@ -2,7 +2,7 @@ import { state, toast, isStateLocked, withStateLock, assetMap, updateLastSavedSn
 import { editorLog } from './storeUtils'
 import { EDITOR_CONFIG } from '../editorConfig'
 import { buildBlueprintData } from './dataLoader'
-import { validateSettingsCompleteness } from '../assets/assetUtils'
+import { validateSettingsCompleteness } from '../assets/validation'
 import { normalizeBlueprintDataFile } from '../domain/types'
 import { buildSyncedPayload } from '../syncedPayload'
 

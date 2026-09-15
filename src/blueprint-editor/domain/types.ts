@@ -17,6 +17,8 @@
 //  13. Shared internal helpers     (isRecord, normalizeText, normalizeIdentifier)
 // ============================================================================
 
+import { editorLog } from './logger'
+
 // --- Section 1: Editor primitives ---
 
 export type EditorMode = 'object' | 'draw' | 'move' | 'npc-preview'
@@ -939,6 +941,28 @@ export interface NpcDeploymentPool {
 	floorIds?: string[]
 }
 
+export const NPC_DEFAULT_SPEED = 0.2
+
+export const NPC_OPTION_DEFAULTS = {
+	crossFloorCooldownSeconds: 30,
+	progressWatchdogTicks: 120,
+	maxRepathAttempts: 4,
+	repathCooldownSeconds: 2,
+	repathCooldownExponent: 1.5,
+	pathBudgetMinPerTick: 2,
+	pathBudgetAgentsPerCall: 100,
+	chooseTargetMinPerTick: 8,
+	chooseTargetAgentsPerSlot: 20,
+	wanderMemorySize: 32,
+	wanderSmallMapThreshold: 8,
+	triggerRatePeriodSeconds: 60,
+} as const
+
+export const NPC_FRAME_DEFAULTS = {
+	frameSimBudgetMs: 6,
+	maxSimulationSteps: 8,
+} as const
+
 export interface NpcSimulationConfig {
 	speed: number
 	defaultRoleId: string
@@ -1134,6 +1158,7 @@ export interface CanvasConfig {
 	bgColor?: string
 	labelColor?: string
 	wallColor?: string
+	gridColor?: string
 }
 
 export interface CanvasFieldSpec {
@@ -1150,6 +1175,7 @@ export const CANVAS_FIELD_SPECS = {
 	bgColor: { kind: 'color' },
 	labelColor: { kind: 'color' },
 	wallColor: { kind: 'color' },
+	gridColor: { kind: 'color' },
 } as const satisfies Record<keyof CanvasConfig, CanvasFieldSpec>
 
 export function parseCanvasConfig(raw: unknown, strict: boolean): CanvasConfig | null {
@@ -1460,7 +1486,7 @@ export function normalizeNpcConfig(value: unknown): NpcSimulationConfig | undefi
 		if (droppedRoles > 0) parts.push(`${droppedRoles} role(s)`)
 		if (droppedTasks > 0) parts.push(`${droppedTasks} task(s)`)
 		if (droppedPool > 0) parts.push(`${droppedPool} pool entr(y/ies)`)
-		console.warn(`[BlueprintEditor] NPC config salvage: dropped ${parts.join(', ')} during normalization`)
+		editorLog.warn('NPC config salvage', `dropped ${parts.join(', ')} during normalization`)
 	}
 	if (roles.length === 0) return undefined
 	const taskIds = new Set(tasks.map(task => task.id.trim()))
@@ -1499,20 +1525,20 @@ export function normalizeNpcConfig(value: unknown): NpcSimulationConfig | undefi
 			count: clampInt(entry.count, 0, 1000),
 			...(entry.floorIds?.length ? { floorIds: [...new Set(entry.floorIds.map(id => id.trim()).filter(Boolean))] } : {}),
 		})),
-		crossFloorCooldownSeconds: isFiniteNumber(c.crossFloorCooldownSeconds) && c.crossFloorCooldownSeconds > 0 ? c.crossFloorCooldownSeconds : 30,
-		progressWatchdogTicks: isFiniteNumber(c.progressWatchdogTicks) && c.progressWatchdogTicks > 0 ? Math.floor(c.progressWatchdogTicks) : 120,
-		maxRepathAttempts: isFiniteNumber(c.maxRepathAttempts) && c.maxRepathAttempts > 0 ? Math.floor(c.maxRepathAttempts) : 4,
-		repathCooldownSeconds: isFiniteNumber(c.repathCooldownSeconds) && c.repathCooldownSeconds > 0 ? c.repathCooldownSeconds : 2,
-		repathCooldownExponent: isFiniteNumber(c.repathCooldownExponent) && c.repathCooldownExponent > 0 ? c.repathCooldownExponent : 1.5,
-		pathBudgetMinPerTick: isFiniteNumber(c.pathBudgetMinPerTick) && c.pathBudgetMinPerTick > 0 ? Math.floor(c.pathBudgetMinPerTick) : 2,
-		pathBudgetAgentsPerCall: isFiniteNumber(c.pathBudgetAgentsPerCall) && c.pathBudgetAgentsPerCall > 0 ? Math.floor(c.pathBudgetAgentsPerCall) : 100,
-		chooseTargetMinPerTick: isFiniteNumber(c.chooseTargetMinPerTick) && c.chooseTargetMinPerTick > 0 ? Math.floor(c.chooseTargetMinPerTick) : 8,
-		chooseTargetAgentsPerSlot: isFiniteNumber(c.chooseTargetAgentsPerSlot) && c.chooseTargetAgentsPerSlot > 0 ? Math.floor(c.chooseTargetAgentsPerSlot) : 20,
-		wanderMemorySize: isFiniteNumber(c.wanderMemorySize) && c.wanderMemorySize > 0 ? Math.floor(c.wanderMemorySize) : 32,
-		wanderSmallMapThreshold: isFiniteNumber(c.wanderSmallMapThreshold) && c.wanderSmallMapThreshold > 0 ? Math.floor(c.wanderSmallMapThreshold) : 8,
-		triggerRatePeriodSeconds: isFiniteNumber(c.triggerRatePeriodSeconds) && c.triggerRatePeriodSeconds > 0 ? c.triggerRatePeriodSeconds : 60,
-		frameSimBudgetMs: isFiniteNumber(c.frameSimBudgetMs) && c.frameSimBudgetMs > 0 ? c.frameSimBudgetMs : 6,
-		maxSimulationSteps: isFiniteNumber(c.maxSimulationSteps) && c.maxSimulationSteps > 0 ? Math.floor(c.maxSimulationSteps) : 8,
+		crossFloorCooldownSeconds: isFiniteNumber(c.crossFloorCooldownSeconds) && c.crossFloorCooldownSeconds > 0 ? c.crossFloorCooldownSeconds : NPC_OPTION_DEFAULTS.crossFloorCooldownSeconds,
+		progressWatchdogTicks: isFiniteNumber(c.progressWatchdogTicks) && c.progressWatchdogTicks > 0 ? Math.floor(c.progressWatchdogTicks) : NPC_OPTION_DEFAULTS.progressWatchdogTicks,
+		maxRepathAttempts: isFiniteNumber(c.maxRepathAttempts) && c.maxRepathAttempts > 0 ? Math.floor(c.maxRepathAttempts) : NPC_OPTION_DEFAULTS.maxRepathAttempts,
+		repathCooldownSeconds: isFiniteNumber(c.repathCooldownSeconds) && c.repathCooldownSeconds > 0 ? c.repathCooldownSeconds : NPC_OPTION_DEFAULTS.repathCooldownSeconds,
+		repathCooldownExponent: isFiniteNumber(c.repathCooldownExponent) && c.repathCooldownExponent > 0 ? c.repathCooldownExponent : NPC_OPTION_DEFAULTS.repathCooldownExponent,
+		pathBudgetMinPerTick: isFiniteNumber(c.pathBudgetMinPerTick) && c.pathBudgetMinPerTick > 0 ? Math.floor(c.pathBudgetMinPerTick) : NPC_OPTION_DEFAULTS.pathBudgetMinPerTick,
+		pathBudgetAgentsPerCall: isFiniteNumber(c.pathBudgetAgentsPerCall) && c.pathBudgetAgentsPerCall > 0 ? Math.floor(c.pathBudgetAgentsPerCall) : NPC_OPTION_DEFAULTS.pathBudgetAgentsPerCall,
+		chooseTargetMinPerTick: isFiniteNumber(c.chooseTargetMinPerTick) && c.chooseTargetMinPerTick > 0 ? Math.floor(c.chooseTargetMinPerTick) : NPC_OPTION_DEFAULTS.chooseTargetMinPerTick,
+		chooseTargetAgentsPerSlot: isFiniteNumber(c.chooseTargetAgentsPerSlot) && c.chooseTargetAgentsPerSlot > 0 ? Math.floor(c.chooseTargetAgentsPerSlot) : NPC_OPTION_DEFAULTS.chooseTargetAgentsPerSlot,
+		wanderMemorySize: isFiniteNumber(c.wanderMemorySize) && c.wanderMemorySize > 0 ? Math.floor(c.wanderMemorySize) : NPC_OPTION_DEFAULTS.wanderMemorySize,
+		wanderSmallMapThreshold: isFiniteNumber(c.wanderSmallMapThreshold) && c.wanderSmallMapThreshold > 0 ? Math.floor(c.wanderSmallMapThreshold) : NPC_OPTION_DEFAULTS.wanderSmallMapThreshold,
+		triggerRatePeriodSeconds: isFiniteNumber(c.triggerRatePeriodSeconds) && c.triggerRatePeriodSeconds > 0 ? c.triggerRatePeriodSeconds : NPC_OPTION_DEFAULTS.triggerRatePeriodSeconds,
+		frameSimBudgetMs: isFiniteNumber(c.frameSimBudgetMs) && c.frameSimBudgetMs > 0 ? c.frameSimBudgetMs : NPC_FRAME_DEFAULTS.frameSimBudgetMs,
+		maxSimulationSteps: isFiniteNumber(c.maxSimulationSteps) && c.maxSimulationSteps > 0 ? Math.floor(c.maxSimulationSteps) : NPC_FRAME_DEFAULTS.maxSimulationSteps,
 	}
 	config.tagTriggerRates = normalizeTagTriggerRates(c.tagTriggerRates)
 	if (!config.roles.some(role => role.id === config.defaultRoleId)) config.defaultRoleId = config.roles[0]?.id ?? ''
@@ -1650,20 +1676,8 @@ export function normalizeNpcConfigForPersistence(value: unknown): NpcSimulationC
 			roles: [],
 			tasks: [],
 			pool: [],
-			crossFloorCooldownSeconds: 30,
-			progressWatchdogTicks: 120,
-			maxRepathAttempts: 4,
-			repathCooldownSeconds: 2,
-			repathCooldownExponent: 1.5,
-			pathBudgetMinPerTick: 2,
-			pathBudgetAgentsPerCall: 100,
-			chooseTargetMinPerTick: 8,
-			chooseTargetAgentsPerSlot: 20,
-			wanderMemorySize: 32,
-			wanderSmallMapThreshold: 8,
-			triggerRatePeriodSeconds: 60,
-			frameSimBudgetMs: 6,
-			maxSimulationSteps: 8,
+			...NPC_OPTION_DEFAULTS,
+			...NPC_FRAME_DEFAULTS,
 			...(tagTriggerRates ? { tagTriggerRates } : {}),
 		}
 	}

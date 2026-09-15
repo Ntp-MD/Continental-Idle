@@ -153,9 +153,9 @@ assert.equal(conv('<rect fill="none" stroke="#abc" fill="none"/>'), '<rect fill=
 console.log('SVG color convention checks passed')
 
 const canvasKeys = Object.keys(CANVAS_FIELD_SPECS).sort()
-assert.deepEqual(canvasKeys, ['bgColor', 'height', 'labelColor', 'tileSize', 'wallColor', 'width'])
+assert.deepEqual(canvasKeys, ['bgColor', 'gridColor', 'height', 'labelColor', 'tileSize', 'wallColor', 'width'])
 
-const sampleCanvas: Required<CanvasConfig> = { width: 100, height: 50, tileSize: 25, bgColor: '#000000', labelColor: '#cccccc', wallColor: '#ff0000' }
+const sampleCanvas: Required<CanvasConfig> = { width: 100, height: 50, tileSize: 25, bgColor: '#000000', labelColor: '#cccccc', wallColor: '#ff0000', gridColor: '#333333' }
 const roundTrip = parseCanvasConfig(sampleCanvas, true)
 assert.deepEqual(roundTrip, sampleCanvas)
 

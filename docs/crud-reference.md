@@ -1,8 +1,8 @@
 # CRUD Reference
 
-Every store CRUD in this project, grouped by module — same idea as `src/dev/UiShowcase.vue` (one section per group, real function names, real file paths). All functions are exposed through `useAssetsStore()` in `src/blueprint-editor/store/index.ts`.
+Every store CRUD in this project, grouped by module — same idea as `src/dev/UiShowcase.vue` (one section per group, real function names, real file paths). Most functions are exposed through `useAssetsStore()` in `src/blueprint-editor/store/index.ts`; snapshot/lock guards and `editorLog` are imported from `store/state.ts` / `store/storeUtils.ts` directly.
 
-> Keep-up-to-date gate (`skill.md` Layout rule 4): a new/changed/removed store CRUD function must update this file in the same change.
+> Keep-up-to-date gate (`docs/skill/ui-layout.md` rule 4): a new/changed/removed store CRUD function must update this file in the same change.
 
 Conventions: every CUD awaits `saveBlueprintData()` (POST `__blueprint-data`, verify read-back, revert to last-saved snapshot on fail) under `withStateLock`. Reads never mutate.
 
@@ -34,6 +34,7 @@ Conventions: every CUD awaits `saveBlueprintData()` (POST `__blueprint-data`, ve
 | `rotateSelected()` | Update | Rotate 90 deg (`w/h` swap); block if `locked`/`linked`/overlap | Object panel: click `Rotate`; canvas: `R` key |
 | `linkObjects(ids)` | Update | Group-move via shared `linkGroupId` | PropertiesPanel multi-select: click `Link Objects` (needs 2+ selected); canvas: `Ctrl/Cmd+L` |
 | `unlinkObject(id)` | Update | Remove one member; dissolve small groups | Object panel: click `Unlink`; multi-select: click `Unlink`; canvas: `Ctrl/Cmd+Shift+L` |
+| `getLinkedObjects(obj)` | Read | Other objects on the current floor sharing `obj.linkGroupId` | No UI: internal to link-group move/delete |
 | `toggleObjectLock(id)` | Update | Lock = undeletable/unmovable | Canvas: `L` key on selected object; Object panel: click `Lock`/`Unlock` |
 | `flattenToSvgAsset(name?)` | Create+Delete | Merge N objects into one `flattened` SVG asset + single object; drops edge spots | PropertiesPanel multi-select: type name + click `Flatten` (confirm, needs 2+ selected, blocked if locked) |
 
@@ -72,7 +73,7 @@ Conventions: every CUD awaits `saveBlueprintData()` (POST `__blueprint-data`, ve
 | `setMode(mode)` | Update | `object`/`draw`/`move`/`npc-preview`; clears `tileBrush` + selection | Toolbar: click Free tool/Draw/Move; Deploy NPCs enters npc-preview; PropertiesPanel Exit/Clear returns to move |
 | `setTileBrush(brush\|null)` | Update | `walkable`/`blocked`/`door`; clears selection | Toolbar: click Walk/Wall/Door (click active brush again for off) |
 | `resizeCanvas(w, h, tileSize)` | Update | Resize + renormalize/reclamp all objects | SettingsModal Canvas tab: type W/H/Tile numbers plus click Apply Size (confirm when objects placed) |
-| `setCanvasBgColor(c)` / `setCanvasLabelColor(c)` / `setCanvasWallColor(c)` | Update | Canvas colors (validated, deletable via `undefined`) | SettingsModal Canvas tab: pick color on commit, click Reset to clear |
+| `setCanvasBgColor(c)` / `setCanvasLabelColor(c)` / `setCanvasWallColor(c)` / `setCanvasGridColor(c)` | Update | Canvas colors (validated, deletable via `undefined`) | SettingsModal Canvas tab: pick color on commit, click Reset to clear |
 | `setStreetFloor(id\|null)` | Update | Which floor owns the street ring | SettingsModal Street row: select dropdown on change |
 | `setStreetWidth(tiles\|null)` | Update | 5-20 tiles, else default 8 | SettingsModal Street row: select ring width on change |
 | `setEditorSettings(patch)` | Update | Validated via `EDITOR_FIELD_SPECS` | SettingsModal editor tabs: type number plus change per field, or click Apply All |
@@ -113,8 +114,10 @@ Conventions: every CUD awaits `saveBlueprintData()` (POST `__blueprint-data`, ve
 | `reloadEditorData()` | Update | Re-fetch disk via `migrate()`, replace state + snapshots | No button: BlueprintEditor mount plus UiShowcase mount |
 | `migrate(data, assets?)` | Update | Normalize canvas/floors/objects/NPC/street; drop unknown asset types | No UI: internal step of reload |
 | `loadInitial()` | Read | Clone of `buildSavedLayout()` for boot | No UI: boot default |
+| `initAssetFields(asset)` | Update | Lazily fill derived asset fields (`svgRoles`, `walkableGrid`, `tileStates`, `walkable`/`doorRequired` defaults) | No UI: internal, runs when an asset enters the registry |
 | `assetMap()` / `currentFloor` / `snap()` / `clamp()` | Read | Cached asset map, active floor, grid snap, building-area clamp | No UI: every place/move path uses them |
 | `withStateLock(fn)` / `isStateLocked()` | Guard | One mutation at a time; warn + reject on overlap | No UI: wraps every CUD |
 | `startAssetDrag` / `endAssetDrag` / `dragState` | Update | Palette drag state | AssetToolbar row mousedown starts drag with ghost on hover; canvas mouseup drop or Esc ends |
 | `initLastSavedSnapshot` / `updateLastSavedSnapshot` / `revertToLastSavedSnapshot` | Guard | Save-point capture + rollback on failed save | No UI: internal to save flow |
 | `genId` / `genAssetId` / `cloneDeepRaw` / `emptyNpcConfig` / `taskMatchesQuery` / `assignSyncKey` | Util | Id gen, deep-clone via `toRaw`, empty NPC defaults, search, sync-key assign | NpcManagerModal search box reads taskMatchesQuery; rest internal |
+| `editorLog` | Util | `info`/`warn`/`error` console diagnostics wrapper | No UI: used by store/migration/portal code |

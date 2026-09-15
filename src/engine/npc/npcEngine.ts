@@ -10,6 +10,7 @@ import type {
 	NpcEngineWaitReason,
 } from './types'
 import { hasPostTag } from './tagMatching'
+import { interactionTargetKey } from './keys'
 import { NPC_ENGINE_DEFAULT_OPTIONS, type NpcEngineResolvedOptions } from './config'
 
 const EPSILON = 0.000001
@@ -101,7 +102,7 @@ export class NpcEngine {
 		}
 		for (const queue of layout.queues ?? []) this.queueByKey.set(queue.key, queue)
 		for (const target of layout.interactionTargets) {
-			this.targetsByKey.set(this.targetKey(target), target)
+			this.targetsByKey.set(interactionTargetKey(target), target)
 			if (target.portalEndpointKey) this.portalEndpointsByKey.set(target.portalEndpointKey, target)
 		}
 	}
@@ -921,7 +922,7 @@ export class NpcEngine {
 		if (this.pathBudgetExceeded()) return
 		const sameFloorTargets = this.getSameFloorTargets(agent.floorId)
 		const blocked = this.blockedTargets.get(agent.id)
-		const available = sameFloorTargets.filter(target => this.canReserve(target, agent.id) && (blocked?.get(this.targetKey(target)) ?? 0) <= this.tickCount)
+		const available = sameFloorTargets.filter(target => this.canReserve(target, agent.id) && (blocked?.get(interactionTargetKey(target)) ?? 0) <= this.tickCount)
 		let selected = this.options.targetSelector
 			? this.options.targetSelector(agent, available)
 			: this.defaultTarget(agent, available)
@@ -933,7 +934,7 @@ export class NpcEngine {
 				!t.transitionToFloorId &&
 				this.canReserve(t, agent.id) &&
 				this.isRoleAllowedOnFloor(agent, t.floorId) &&
-				(blocked?.get(this.targetKey(t)) ?? 0) <= this.tickCount,
+				(blocked?.get(interactionTargetKey(t)) ?? 0) <= this.tickCount,
 			)
 			if (crossCandidates.length > 0) {
 				const dest = this.options.crossFloorSelector(agent, crossCandidates, this.layout.floors)
@@ -948,7 +949,7 @@ export class NpcEngine {
 			const queue = this.getQueue(agent.queueKey)
 			if (queue) {
 				const queueTargetKeys = new Set(queue.targetKeys)
-				selected = available.find(target => queueTargetKeys.has(this.targetKey(target)) && !hasPostTag(target.tags)) ?? null
+				selected = available.find(target => queueTargetKeys.has(interactionTargetKey(target)) && !hasPostTag(target.tags)) ?? null
 			}
 		if (!selected) {
 			if (queue) {
@@ -1109,11 +1110,7 @@ export class NpcEngine {
 		this.emit({ type: 'interaction-start', agentId: agent.id, floorId: agent.floorId, itemId: target.itemId, interactSpotId: target.interactSpotId })
 	}
 
-	private targetKey(target: NpcEngineInteractionTarget): string {
-		return `${target.floorId}:${target.itemId}:${target.interactSpotId}`
-	}
-
-	private setWaiting(agent: MutableAgent, emitItemId: string | undefined, reason: NpcEngineWaitReason): void {
+		private setWaiting(agent: MutableAgent, emitItemId: string | undefined, reason: NpcEngineWaitReason): void {
 		if (agent.queueKey) this.leaveQueue(agent)
 		agent.queuePendingKey = null
 		if (agent.reservationItemId !== null) this.releaseReservation(agent)
@@ -1175,7 +1172,7 @@ export class NpcEngine {
 		if (!target) return
 		const blocked = this.blockedTargets.get(agent.id) ?? new Map<string, number>()
 		for (const [key, until] of blocked) if (until <= this.tickCount) blocked.delete(key)
-		blocked.set(this.targetKey(target), this.tickCount + this.ticksPerSecond * 2)
+		blocked.set(interactionTargetKey(target), this.tickCount + this.ticksPerSecond * 2)
 		this.blockedTargets.set(agent.id, blocked)
 	}
 
@@ -1217,7 +1214,7 @@ export class NpcEngine {
 
 	private canReserve(target: NpcEngineInteractionTarget, agentId: string): boolean {
 		const key = `${target.floorId}:${target.itemId}`
-		const interactSpotKey = `${key}:${target.interactSpotId}`
+		const interactSpotKey = interactionTargetKey(target)
 		const holders = this.reservations.get(key)
 		if (holders?.has(agentId)) return true
 		if (this.interactSpotReservations.has(interactSpotKey) || (holders?.size ?? 0) >= Math.max(1, Math.floor(target.capacity ?? 1))) return false
@@ -1230,7 +1227,7 @@ export class NpcEngine {
 
 	private reserve(target: NpcEngineInteractionTarget, agentId: string): boolean {
 		const key = `${target.floorId}:${target.itemId}`
-		const interactSpotKey = `${key}:${target.interactSpotId}`
+		const interactSpotKey = interactionTargetKey(target)
 		const holders = this.reservations.get(key) ?? new Set<string>()
 		const capacity = Math.max(1, Math.floor(target.capacity ?? 1))
 		if (holders.has(agentId)) return true
@@ -1301,7 +1298,7 @@ export class NpcEngine {
 			this.portalRoutesByPair.set(pairKey, routes)
 		}
 		const blocked = this.blockedTargets.get(agentId)
-		return routes.find(t => this.canReserve(t, agentId) && (blocked?.get(this.targetKey(t)) ?? 0) <= this.tickCount) ?? null
+		return routes.find(t => this.canReserve(t, agentId) && (blocked?.get(interactionTargetKey(t)) ?? 0) <= this.tickCount) ?? null
 	}
 
 	private emit(event: Omit<NpcEngineEvent, 'tick'>): void {

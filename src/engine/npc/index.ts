@@ -13,7 +13,6 @@ export {
 	filterNpcSpawnTiles,
 	cellSizeOf,
 	cellToPixel,
-	interactionTargetKey,
 	pixelToCell,
 	tileKey,
 	toEngineWalkablePoints,
@@ -25,6 +24,7 @@ export type {
 	NpcLayoutBuildResult,
 	NpcWalkableMap,
 } from './layoutBuild'
+export { interactionTargetKey } from './keys'
 export { chatPairKey, resolveChatExchange } from './socialLines'
 export { createNpcEnginePolicy } from './policy'
 export type { NpcEnginePolicy, NpcPolicyContext } from './policy'

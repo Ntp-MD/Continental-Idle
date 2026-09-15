@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { ARRIVAL_MARK_LIVE_CAP, ARRIVAL_MARK_MAX_AGE_TICKS, latchArrivalEvent, pruneArrivalMarks } from '../src/composables/useNpcSimulationCore'
+import { ARRIVAL_MARK_LIVE_CAP, ARRIVAL_MARK_MAX_AGE_TICKS, latchArrivalEvent, pruneArrivalMarks } from '../src/blueprint-editor/composables/useNpcSimulationCore'
 import type { NpcEngineEvent } from '../src/engine/npc/types'
 
 const PREFIX = 'npc-sim-'

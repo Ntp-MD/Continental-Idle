@@ -1,4 +1,6 @@
-import type { NpcEngineAgent, NpcEngineInteractionTarget, NpcEnginePoint } from './types'
+import type { NpcEngineAgent, NpcEngineInteractionTarget } from './types'
+import { interactionTargetKey } from './keys'
+import { octileDistance } from './distance'
 
 export interface TargetScoringOptions {
 	maxDistanceWeight?: number
@@ -15,26 +17,16 @@ export interface TargetScoringContext {
 	random?: () => number
 }
 
-function targetIdentity(target: NpcEngineInteractionTarget): string {
-	return `${target.floorId}:${target.itemId}:${target.interactSpotId}`
-}
-
-function octileDistance(a: NpcEnginePoint, b: NpcEnginePoint): number {
-	const dx = Math.abs(a.x - b.x)
-	const dy = Math.abs(a.y - b.y)
-	return (dx + dy) + (Math.SQRT2 - 2) * Math.min(dx, dy)
-}
-
 function scoreTarget(target: NpcEngineInteractionTarget, ctx: TargetScoringContext): number {
 	const maxWeight = ctx.options?.maxDistanceWeight ?? 10
 	const noveltyBonus = ctx.options?.noveltyBonus ?? 2
 	const ageDecay = ctx.options?.ageDecayPerTick ?? 0.01
 
-	const distance = octileDistance(ctx.agent, target)
+	const distance = octileDistance(ctx.agent.x, ctx.agent.y, target.x, target.y)
 	const distanceWeight = maxWeight / (1 + distance)
 
-	const lastTick = ctx.targetLastSelectedTick?.get(targetIdentity(target))
-	let ageBonus = 0
+	const lastTick = ctx.targetLastSelectedTick?.get(interactionTargetKey(target))
+	let ageBonus: number
 	if (lastTick !== undefined) {
 		const age = ctx.currentTick - lastTick
 		ageBonus = Math.min(noveltyBonus, age * ageDecay)
@@ -56,7 +48,7 @@ export function selectBestTarget(ctx: TargetScoringContext): NpcEngineInteractio
 
 	for (const target of ctx.targets) {
 		const score = scoreTarget(target, ctx)
-		const id = targetIdentity(target)
+		const id = interactionTargetKey(target)
 		if (score > bestScore) {
 			best = target
 			bestScore = score

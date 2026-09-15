@@ -1,6 +1,6 @@
 ---
 name: edit-minimal
-description: Minimal exact-match file edits that leave untouched lines alone. Apply when editing any existing file.
+description: Smallest exact-match edit that leaves untouched lines alone. Apply when editing an existing file.
 ---
 
 # Surgical Edits

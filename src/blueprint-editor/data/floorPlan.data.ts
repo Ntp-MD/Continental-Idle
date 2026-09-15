@@ -4,9 +4,10 @@ export const floorPlanData = {
     "width": 1605,
     "height": 1005,
     "tileSize": 15,
-    "bgColor": "#000000",
+    "bgColor": "#212121",
     "labelColor": "#cfcfcf",
-    "wallColor": "#ffffff"
+    "wallColor": "#ffffff",
+    "gridColor": "#4d4d56"
   },
   "floors": [
     {

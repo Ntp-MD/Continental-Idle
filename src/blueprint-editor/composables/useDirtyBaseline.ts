@@ -1,17 +1,14 @@
 import { computed, shallowRef } from 'vue'
-
-function snapshot<T>(value: T): T {
-  return JSON.parse(JSON.stringify(value)) as T
-}
+import { cloneDeepRaw, deepEqualRaw } from '../store/storeUtils'
 
 export function useDirtyBaseline<T>(current: () => T) {
-  const baseline = shallowRef<T>(snapshot(current()))
+  const baseline = shallowRef<T>(cloneDeepRaw(current()))
 
   function saveBaseline(): void {
-    baseline.value = snapshot(current())
+    baseline.value = cloneDeepRaw(current())
   }
 
-  const dirty = computed(() => JSON.stringify(current()) !== JSON.stringify(baseline.value))
+  const dirty = computed(() => !deepEqualRaw(current(), baseline.value))
 
   return { dirty, saveBaseline }
 }

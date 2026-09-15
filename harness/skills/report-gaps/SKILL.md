@@ -1,6 +1,6 @@
 ---
 name: report-gaps
-description: Report unfinished, skipped, and out-of-scope items alongside results. Apply when writing the done report for any task.
+description: Report unfinished, skipped, and out-of-scope items alongside results. Apply when writing the done report.
 ---
 
 # Honest Done

@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Zed theme map (generated)</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #010409; color: #c9d1d9; font: 14px/1.55 -apple-system, "Segoe UI", sans-serif; }
+  header { position: sticky; top: 0; z-index: 10; background: rgba(1,4,9,.92); backdrop-filter: blur(6px); border-bottom: 1px solid #21262d; padding: 14px 28px; display: flex; align-items: center; gap: 18px; flex-wrap: wrap; }
+  header h1 { font-size: 15px; font-weight: 600; }
+  header h1 code { color: #79c0ff; font-weight: 400; font-size: 12px; }
+  nav { display: flex; gap: 4px; flex-wrap: wrap; }
+  nav a { color: #8b949e; text-decoration: none; font-size: 12px; padding: 4px 10px; border-radius: 6px; }
+  nav a:hover { background: #161b22; color: #f0f6fc; }
+  #q { margin-left: auto; background: #0d1117; border: 1px solid #30363d; color: #f0f6fc; border-radius: 6px; padding: 6px 10px; font-size: 12px; width: 200px; }
+  main { max-width: 1100px; margin: 0 auto; padding: 26px 28px 60px; }
+  section { margin-bottom: 40px; scroll-margin-top: 70px; }
+  section > h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: #8b949e; margin-bottom: 4px; }
+  section > p.d { color: #6e7681; font-size: 12px; margin-bottom: 14px; }
+  .win { border: 1px solid #30363d; border-radius: 10px; overflow: hidden; box-shadow: 0 12px 40px rgba(0,0,0,.5); }
+  .titlebar { background: #0d1117; padding: 10px 16px; color: #8b949e; font-size: 12px; border-bottom: 1px solid #30363d; display: flex; justify-content: space-between; }
+  .tabs { display: flex; background: #010409; border-bottom: 1px solid #30363d; }
+  .tab { padding: 9px 20px; color: #8b949e; font-size: 12px; background: #010409; border-right: 1px solid #30363d; cursor: pointer; }
+  .hot { cursor: pointer; border-radius: 3px; }
+  .hot:hover { outline: 1px dashed #1f6feb; outline-offset: 1px; }
+  .tabnote { margin-left: auto; align-self: center; font-size: 11px; color: #6e7681; padding-right: 12px; }
+  @keyframes flash { 0%,100% { box-shadow: none; } 25%,75% { box-shadow: 0 0 0 2px #1f6feb; } }
+  .flash { animation: flash 1s ease 2; border-radius: 8px; }
+  .tab.on { background: #0d1117; color: #a0a5ac; box-shadow: inset 0 2px 0 #1f6feb; }
+  .tab .dotmod { color: #1f6feb; }
+  .crumb { background: #0d1117; border-bottom: 1px solid #30363d; padding: 5px 16px; font-size: 11.5px; color: #8b949e; }
+  .curline { background: rgba(38,79,120,.28); display: block; margin: 0 -16px; padding: 0 16px; }
+  .cursor { display: inline-block; width: 7px; height: 14px; background: #1f6feb; vertical-align: -2px; }
+  .gadd { color: #3fb950; } .gmod { color: #1f6feb; }
+  .minimap { width: 46px; flex-shrink: 0; background: #0d1117; border-left: 1px solid #21262d; padding: 12px 8px; }
+  .minimap i { display: block; height: 3px; border-radius: 2px; margin-bottom: 4px; }
+  .botpanel { border-top: 1px solid #30363d; background: #0d1117; }
+  .botpanel .btabs { display: flex; gap: 2px; padding: 6px 12px 0; font-size: 11.5px; }
+  .botpanel .btab { padding: 4px 12px; color: #8b949e; border-radius: 6px 6px 0 0; }
+  .botpanel .btab.on { background: #0d1117; color: #a0a5ac; }
+  .term { background: #0d1117; font-family: Consolas, monospace; font-size: 12px; line-height: 1.7; padding: 8px 16px 12px; color: #6e7681; }
+  .mid { display: flex; min-height: 260px; }
+  .panel { width: 270px; flex-shrink: 0; background: #0d1117; border-right: 1px solid #30363d; padding: 12px 14px; font-size: 12.5px; }
+  .panel .ph { font-size: 10.5px; text-transform: uppercase; letter-spacing: .08em; color: #b0b2b5; margin: 8px 0 4px; }
+  .panel div.f { padding: 2.5px 0; }
+  .ed { flex: 1; background: #0d1117; display: flex; min-width: 0; }
+  .gut { background: #0d1117; color: #6e7681; text-align: right; padding: 12px 10px; user-select: none; font-family: Consolas, monospace; font-size: 12.5px; border-right: 1px solid #21262d; }
+  .gut .act { color: #b8bcc1; }
+  .code { padding: 12px 16px; color: #6e7681; font-family: Consolas, monospace; font-size: 13px; white-space: pre; overflow-x: auto; }
+  .code .sel { background: #264f78; border-radius: 2px; }
+  .status { background: #0d1117; border-top: 1px solid #30363d; padding: 7px 16px; color: #8b949e; font-size: 12px; display: flex; gap: 18px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 12px; }
+  .card { background: #161b22; border: 1px solid #21262d; border-radius: 8px; padding: 12px 14px; transition: border-color .15s; }
+  .card:hover { border-color: #30363d; }
+  .card.hide { display: none; }
+  .chead { display: flex; align-items: center; gap: 8px; }
+  .dot { width: 14px; height: 14px; border-radius: 4px; border: 1px solid rgba(255,255,255,.18); flex-shrink: 0; }
+  .card code { color: #f0f6fc; font-size: 12px; word-break: break-all; }
+  .hex { font-family: Consolas, monospace; font-size: 11px; color: #8b949e; margin-top: 2px; }
+  .card p { color: #8b949e; font-size: 12px; margin-top: 6px; }
+  .card .prev { font-family: Consolas, monospace; font-size: 13px; background: #0d1117; border: 1px solid #21262d; border-radius: 6px; padding: 8px 10px; margin-top: 10px; overflow-x: auto; white-space: nowrap; }
+  .row { display: flex; gap: 8px; margin-top: 10px; align-items: center; }
+  .row input[type=color] { width: 34px; height: 26px; border: 1px solid #30363d; border-radius: 6px; background: #0d1117; padding: 2px; cursor: pointer; }
+  .row button, .hbtn { background: #161b22; color: #c9d1d9; border: 1px solid #30363d; border-radius: 6px; padding: 5px 12px; font-size: 12px; cursor: pointer; }
+  .row button:hover, .hbtn:hover { background: #21262d; color: #f0f6fc; }
+  .ansi { display: grid; grid-template-columns: repeat(8, 1fr); gap: 8px; }
+  .ansi div { border-radius: 6px; padding: 12px 4px; font-size: 10.5px; text-align: center; color: #010409; font-family: Consolas, monospace; }
+  @media (max-width: 760px) { .mid { flex-direction: column; } .panel { width: auto; border-right: 0; border-bottom: 1px solid #30363d; } .ansi { grid-template-columns: repeat(4, 1fr); } }
+</style>
+</head>
+<body>
+<header>
+  <h1>Zed theme map <code>experimental.theme_overrides</code></h1>
+  <nav><a href="#live">Live window</a><a href="#editor">Editor</a><a href="#ui">UI text</a><a href="#syntax">Syntax</a><a href="#git">Git status</a><a href="#term">Terminal</a></nav>
+  <input id="q" type="search" placeholder="Filter keys..." oninput="document.querySelectorAll('.card').forEach(el=>el.classList.toggle('hide',!el.dataset.key.includes(this.value.trim())))">
+  <button class="hbtn" onclick="copyAll()">Copy full overrides JSON</button>
+  <button class="hbtn" id="savebtn" onclick="saveAll()" style="display:none">Save to settings.json</button>
+</header>
+<main>
+<section id="live">
+  <h2>Live window</h2>
+  <p class="d">Full mock rendered in your exact colors. Regenerate with <code>node sync-theme-map.mjs</code>.</p>
+  <div class="win" data-goto="border" onclick="if(event.target===this)goto(this)">
+    <div class="titlebar" data-goto="title_bar.background" onclick="if(event.target===this)goto(this)"><span class="hot" data-goto="title_bar.background" onclick="goto(this)">Continental-Idle - Zed</span><span>- o x</span></div>
+    <div class="tabs" data-goto="tab.inactive_background" onclick="if(event.target===this)goto(this)"><div class="tab on" onclick="showTab(event,'t-vue')">App.vue <span class="dotmod hot" data-goto="modified" onclick="event.stopPropagation();goto(this)">●</span></div><div class="tab" onclick="showTab(event,'t-json')">settings.json</div><div class="tab" onclick="showTab(event,'t-md')">history.md <span style="color:#8b949e">×</span></div><div class="tab" onclick="showTab(event,'t-ts')">types.ts <span class="dotmod hot" data-goto="modified" onclick="event.stopPropagation();goto(this)">●</span></div><div class="tab" onclick="showTab(event,'t-css')">layout.css</div><div class="tab" onclick="showTab(event,'t-html')">index.html</div><span class="hot tabnote" data-goto="tab.active_background" onclick="goto(this)">tabs →</span></div>
+    <div class="crumb" data-goto="tab.active_background" onclick="if(event.target===this)goto(this)"><span class="hot" data-goto="text" onclick="goto(this)">src</span> <span class="hot" data-goto="text.disabled" onclick="goto(this)" style="color:#484f58">›</span> <span class="hot" data-goto="text" onclick="goto(this)">App.vue</span> <span class="hot" data-goto="text.disabled" onclick="goto(this)" style="color:#484f58">›</span> <span class="hot" data-goto="text" onclick="goto(this)" style="color:#a0a5ac">setup()</span></div>
+    <div class="mid">
+      <div class="panel" data-goto="panel.background" onclick="if(event.target===this)goto(this)">
+        <div class="ph hot" data-goto="text.muted" onclick="goto(this)">Explorer</div>
+        <div class="f hot" data-goto="text.muted" onclick="goto(this)" style="color:#b0b2b5">src/</div>
+        <div class="f hot" data-goto="created" onclick="goto(this)" style="color:#3fb950">+ NewFile.vue</div>
+        <div class="f hot" data-goto="modified" onclick="goto(this)" style="color:#1f6feb">o main.ts</div>
+        <div class="f hot" data-goto="deleted" onclick="goto(this)" style="color:#d29922">- Old.vue</div>
+        <div class="f hot" data-goto="conflict" onclick="goto(this)" style="color:#d32222">! Clash.vue</div>
+        <div class="f hot" data-goto="ignored" onclick="goto(this)" style="color:#484f58">node_modules/</div>
+        <div class="f hot" data-goto="renamed" onclick="goto(this)" style="color:#9da1a7">~ Moved.vue</div>
+        <div class="ph hot" data-goto="text.muted" onclick="goto(this)">Outline</div>
+        <div class="f hot" data-goto="text.muted" onclick="goto(this)" style="color:#b0b2b5">App · setup() · 128 refs</div>
+      </div>
+      <div class="ed" data-goto="editor.background" onclick="if(event.target===this)goto(this)">
+        <div class="gut" data-goto="editor.gutter.background" onclick="if(event.target===this)goto(this)"><span class="hot" data-goto="editor.line_number" onclick="goto(this)">1<br>2<br></span><span class="act hot" data-goto="editor.active_line_number" onclick="goto(this)">3</span><span class="hot" data-goto="editor.line_number" onclick="goto(this)"><br>4<br>5</span><br><span class="gadd hot" data-goto="created" onclick="goto(this)">+</span><br><span class="gmod hot" data-goto="modified" onclick="goto(this)">~</span></div>
+        <div class="code" id="t-vue" data-goto="editor.foreground" onclick="if(event.target===this)goto(this)"><span class="hot" data-goto="syntax.keyword" onclick="goto(this)" style="color:#ff7b72;font-weight:bold">import</span> { ref } <span class="hot" data-goto="syntax.keyword" onclick="goto(this)" style="color:#ff7b72;font-weight:bold">from</span> <span class="hot" data-goto="syntax.string" onclick="goto(this)" style="color:#7ee787">'vue'</span>
+<span class="hot" data-goto="syntax.keyword" onclick="goto(this)" style="color:#ff7b72;font-weight:bold">const</span> <span class="hot" data-goto="syntax.variable" onclick="goto(this)" style="color:#f0f6fc">count</span><span class="cursor hot" data-goto="text.accent" onclick="goto(this)"></span> <span class="hot" data-goto="syntax.operator" onclick="goto(this)" style="color:#ffa657">=</span> <span class="hot" data-goto="syntax.function" onclick="goto(this)" style="color:#d2a8ff;font-weight:bold">ref</span><span class="hot" data-goto="syntax.punctuation" onclick="goto(this)" style="color:#6e7681">(0)</span> <span class="sel hot" data-goto="editor.selection" onclick="goto(this)">selected</span>
+<span class="hot" data-goto="syntax.comment" onclick="goto(this)" style="color:#6e7681;font-weight:normal;font-style:italic">// click any token to jump to its card</span>
+<span class="curline" data-goto="editor.selection" onclick="if(event.target===this)goto(this)"><span class="hot" data-goto="syntax.keyword" onclick="goto(this)" style="color:#ff7b72;font-weight:bold">interface</span> <span class="hot" data-goto="syntax.type" onclick="goto(this)" style="color:#ffa657">Props</span> <span class="hot" data-goto="syntax.property" onclick="goto(this)" style="color:#79c0ff">{ title: string }</span></span></div>
+        <div class="code" id="t-json" data-goto="editor.foreground" onclick="if(event.target===this)goto(this)" style="display:none"><span class="hot" data-goto="syntax.punctuation" onclick="goto(this)" style="color:#6e7681">{</span>
+  <span class="hot" data-goto="syntax.property" onclick="goto(this)" style="color:#79c0ff">"editor.foreground"</span><span class="hot" data-goto="syntax.operator" onclick="goto(this)" style="color:#ffa657">:</span> <span class="hot" data-goto="syntax.string" onclick="goto(this)" style="color:#7ee787">"#6e7681"</span><span class="hot" data-goto="syntax.punctuation" onclick="goto(this)" style="color:#6e7681">,</span>
+  <span class="hot" data-goto="syntax.property" onclick="goto(this)" style="color:#79c0ff">"keyword"</span><span class="hot" data-goto="syntax.operator" onclick="goto(this)" style="color:#ffa657">:</span> <span class="hot" data-goto="syntax.type" onclick="goto(this)" style="color:#ffa657">{ "color": "#ff7b72" }</span>
+<span class="hot" data-goto="syntax.punctuation" onclick="goto(this)" style="color:#6e7681">}</span></div>
+        <div class="code" id="t-md" data-goto="editor.foreground" onclick="if(event.target===this)goto(this)" style="display:none"><span class="hot" data-goto="syntax.title" onclick="goto(this)" style="color:#b8bcc1;font-weight:bold"># History</span>
+<span class="hot" data-goto="syntax.punctuation.list_marker" onclick="goto(this)" style="color:#ffffff">-</span> <span class="hot" data-goto="editor.foreground" onclick="goto(this)" style="color:#6e7681">plain text</span>
+<span class="hot" data-goto="syntax.comment" onclick="goto(this)" style="color:#6e7681;font-weight:normal;font-style:italic">// a comment</span> <span class="hot" data-goto="syntax.link_text" onclick="goto(this)" style="color:#1f6feb;font-weight:bold">[link](https://...)</span></div>
+        <div class="code" id="t-ts" data-goto="editor.foreground" onclick="if(event.target===this)goto(this)" style="display:none"><span class="hot" data-goto="syntax.keyword" onclick="goto(this)" style="color:#ff7b72;font-weight:bold">export</span> <span class="hot" data-goto="syntax.keyword" onclick="goto(this)" style="color:#ff7b72;font-weight:bold">interface</span> <span class="hot" data-goto="syntax.type" onclick="goto(this)" style="color:#ffa657">Tile</span> <span class="hot" data-goto="syntax.punctuation" onclick="goto(this)" style="color:#6e7681">{</span>
+  <span class="hot" data-goto="syntax.property" onclick="goto(this)" style="color:#79c0ff">walkable</span><span class="hot" data-goto="syntax.operator" onclick="goto(this)" style="color:#ffa657">:</span> <span class="hot" data-goto="syntax.type.builtin" onclick="goto(this)" style="color:#ffa657;font-weight:bold">boolean</span><span class="hot" data-goto="syntax.punctuation" onclick="goto(this)" style="color:#6e7681">;</span>
+  <span class="hot" data-goto="syntax.property" onclick="goto(this)" style="color:#79c0ff">state</span><span class="hot" data-goto="syntax.operator" onclick="goto(this)" style="color:#ffa657">:</span> <span class="hot" data-goto="syntax.string" onclick="goto(this)" style="color:#7ee787">'wall' | 'door'</span> <span class="hot" data-goto="syntax.operator" onclick="goto(this)" style="color:#ffa657">|</span> <span class="hot" data-goto="syntax.constant.builtin" onclick="goto(this)" style="color:#79c0ff;font-weight:bold">null</span>
+<span class="hot" data-goto="syntax.punctuation" onclick="goto(this)" style="color:#6e7681">}</span>
+<span class="hot" data-goto="syntax.keyword" onclick="goto(this)" style="color:#ff7b72;font-weight:bold">export</span> <span class="hot" data-goto="syntax.keyword" onclick="goto(this)" style="color:#ff7b72;font-weight:bold">const</span> <span class="hot" data-goto="syntax.constant" onclick="goto(this)" style="color:#79c0ff">SCALE</span> <span class="hot" data-goto="syntax.operator" onclick="goto(this)" style="color:#ffa657">=</span> <span class="hot" data-goto="syntax.number" onclick="goto(this)" style="color:#79c0ff">0.5</span> <span class="hot" data-goto="syntax.keyword" onclick="goto(this)" style="color:#ff7b72;font-weight:bold">as</span> <span class="hot" data-goto="syntax.keyword" onclick="goto(this)" style="color:#ff7b72;font-weight:bold">const</span></div>
+        <div class="code" id="t-css" data-goto="editor.foreground" onclick="if(event.target===this)goto(this)" style="display:none"><span class="hot" data-goto="syntax.tag" onclick="goto(this)" style="color:#7ee787">.editor</span> <span class="hot" data-goto="syntax.punctuation" onclick="goto(this)" style="color:#6e7681">{</span>
+  <span class="hot" data-goto="syntax.attribute" onclick="goto(this)" style="color:#79c0ff">color</span><span class="hot" data-goto="syntax.operator" onclick="goto(this)" style="color:#ffa657">:</span> <span class="hot" data-goto="syntax.number" onclick="goto(this)" style="color:#79c0ff">#6e7681</span><span class="hot" data-goto="syntax.punctuation" onclick="goto(this)" style="color:#6e7681">;</span>
+  <span class="hot" data-goto="syntax.attribute" onclick="goto(this)" style="color:#79c0ff">font-weight</span><span class="hot" data-goto="syntax.operator" onclick="goto(this)" style="color:#ffa657">:</span> <span class="hot" data-goto="syntax.type" onclick="goto(this)" style="color:#ffa657">bold</span><span class="hot" data-goto="syntax.punctuation" onclick="goto(this)" style="color:#6e7681">;</span>
+<span class="hot" data-goto="syntax.punctuation" onclick="goto(this)" style="color:#6e7681">}</span></div>
+        <div class="code" id="t-html" data-goto="editor.foreground" onclick="if(event.target===this)goto(this)" style="display:none"><span class="hot" data-goto="syntax.tag.doctype" onclick="goto(this)" style="color:#8b949e;font-weight:normal;font-style:italic"><!DOCTYPE></span>
+<span class="hot" data-goto="syntax.tag" onclick="goto(this)" style="color:#7ee787"><</span><span class="hot" data-goto="syntax.tag" onclick="goto(this)" style="color:#7ee787">html</span> <span class="hot" data-goto="syntax.attribute" onclick="goto(this)" style="color:#79c0ff">lang</span><span class="hot" data-goto="syntax.operator" onclick="goto(this)" style="color:#ffa657">=</span><span class="hot" data-goto="syntax.string" onclick="goto(this)" style="color:#7ee787">"en"</span><span class="hot" data-goto="syntax.tag" onclick="goto(this)" style="color:#7ee787">></span>
+  <span class="hot" data-goto="syntax.comment" onclick="goto(this)" style="color:#6e7681;font-weight:normal;font-style:italic"><!-- page root --></span>
+  <span class="hot" data-goto="syntax.tag" onclick="goto(this)" style="color:#7ee787"><</span><span class="hot" data-goto="syntax.tag" onclick="goto(this)" style="color:#7ee787">div</span> <span class="hot" data-goto="syntax.attribute" onclick="goto(this)" style="color:#79c0ff">id</span><span class="hot" data-goto="syntax.operator" onclick="goto(this)" style="color:#ffa657">=</span><span class="hot" data-goto="syntax.string" onclick="goto(this)" style="color:#7ee787">"app"</span><span class="hot" data-goto="syntax.tag" onclick="goto(this)" style="color:#7ee787">></span><span class="hot" data-goto="editor.foreground" onclick="goto(this)" style="color:#6e7681">Hello</span><span class="hot" data-goto="syntax.tag" onclick="goto(this)" style="color:#7ee787"></</span><span class="hot" data-goto="syntax.tag" onclick="goto(this)" style="color:#7ee787">div</span><span class="hot" data-goto="syntax.tag" onclick="goto(this)" style="color:#7ee787">></span>
+<span class="hot" data-goto="syntax.tag" onclick="goto(this)" style="color:#7ee787"></</span><span class="hot" data-goto="syntax.tag" onclick="goto(this)" style="color:#7ee787">html</span><span class="hot" data-goto="syntax.tag" onclick="goto(this)" style="color:#7ee787">></span></div>
+      </div>
+      <div class="minimap" data-goto="editor.background" onclick="if(event.target===this)goto(this)"><i class="hot" data-goto="syntax.keyword" onclick="goto(this)" style="background:#ff7b72"></i><i class="hot" data-goto="syntax.string" onclick="goto(this)" style="background:#7ee787"></i><i class="hot" data-goto="syntax.type" onclick="goto(this)" style="background:#ffa657"></i><i class="hot" data-goto="syntax.function" onclick="goto(this)" style="background:#d2a8ff"></i><i class="hot" data-goto="syntax.comment" onclick="goto(this)" style="background:#6e7681"></i><i class="hot" data-goto="syntax.variable" onclick="goto(this)" style="background:#f0f6fc"></i><i class="hot" data-goto="syntax.operator" onclick="goto(this)" style="background:#ffa657"></i><i class="hot" data-goto="syntax.property" onclick="goto(this)" style="background:#79c0ff"></i><i class="hot" data-goto="syntax.number" onclick="goto(this)" style="background:#79c0ff"></i><i class="hot" data-goto="syntax.punctuation" onclick="goto(this)" style="background:#6e7681"></i></div>
+    </div>
+    <div class="botpanel" data-goto="panel.background" onclick="if(event.target===this)goto(this)">
+      <div class="btabs"><div class="btab on hot" data-goto="tab.active_background" onclick="goto(this)">Terminal</div><div class="btab hot" data-goto="tab.active_background" onclick="goto(this)">Problems <span class="hot" data-goto="text.accent" onclick="event.stopPropagation();goto(this)" style="color:#1f6feb">3</span></div><div class="btab hot" data-goto="tab.active_background" onclick="goto(this)">Output</div></div>
+      <div class="term" data-goto="editor.background" onclick="if(event.target===this)goto(this)">
+        <div><span class="hot" data-goto="terminal.ansi.green" onclick="goto(this)" style="color:#3fb950">➜</span> <span class="hot" data-goto="terminal.ansi.cyan" onclick="goto(this)" style="color:#39c5cf">Continental-Idle</span> <span class="hot" data-goto="editor.foreground" onclick="goto(this)" style="color:#6e7681">npm run check</span></div>
+        <div><span class="hot" data-goto="terminal.ansi.green" onclick="goto(this)" style="color:#3fb950">✓</span> <span class="hot" data-goto="terminal.ansi.green" onclick="goto(this)" style="color:#3fb950">success</span> <span class="hot" data-goto="editor.foreground" onclick="goto(this)" style="color:#6e7681">check passed</span></div>
+        <div><span class="hot" data-goto="terminal.ansi.yellow" onclick="goto(this)" style="color:#d29922">⚠</span> <span class="hot" data-goto="terminal.ansi.yellow" onclick="goto(this)" style="color:#d29922">warning</span> <span class="hot" data-goto="editor.foreground" onclick="goto(this)" style="color:#6e7681">2 deprecated keys</span></div>
+        <div><span class="hot" data-goto="terminal.ansi.red" onclick="goto(this)" style="color:#f85149">✗</span> <span class="hot" data-goto="terminal.ansi.red" onclick="goto(this)" style="color:#f85149">error</span> <span class="hot" data-goto="editor.foreground" onclick="goto(this)" style="color:#6e7681">3 tests failed</span></div>
+      </div>
+    </div>
+    <div class="status" data-goto="status_bar.background" onclick="if(event.target===this)goto(this)"><span class="hot" data-goto="status_bar.background" onclick="goto(this)">main* ✓ check pass</span><span style="color:#1f6feb" class="hot" data-goto="text.accent" onclick="goto(this)">3 problems</span><span style="color:#484f58" class="hot" data-goto="text.disabled" onclick="goto(this)">UTF-8</span></div>
+  </div>
+</section>
+<section id="editor">
+  <h2>Editor</h2>
+  <p class="d">Colors inside the code area.</p>
+  <div class="grid">
+    <div class="card" data-key="editor.foreground" data-color="#6e7681"><div class="chead"><span class="dot" style="background:#6e7681"></span><code>editor.foreground</code></div><div class="hex">#6e7681</div><p>Default code text color.</p><div class="prev" data-live style="color:#6e7681">code</div><div class="row"><input type="color" value="#6e7681" oninput="pick(this)"><button onclick="copyJSON(this)">Copy JSON</button></div></div>
+    <div class="card" data-key="editor.background" data-color="#0d1117"><div class="chead"><span class="dot" style="background:#0d1117"></span><code>editor.background</code></div><div class="hex">#0d1117</div><p>Code area background.</p><div class="prev" data-livebg style="background:#0d1117;color:#a0a5ac">bg</div><div class="row"><input type="color" value="#0d1117" oninput="pick(this)"><button onclick="copyJSON(this)">Copy JSON</button></div></div>
+    <div class="card" data-key="editor.line_number" data-color="#6e7681"><div class="chead"><span class="dot" style="background:#6e7681"></span><code>editor.line_number</code></div><div class="hex">#6e7681</div><p>Gutter numbers.</p><div class="prev" data-live style="color:#6e7681">3</div><div class="row"><input type="color" value="#6e7681" oninput="pick(this)"><button onclick="copyJSON(this)">Copy JSON</button></div></div>
+    <div class="card" data-key="editor.active_line_number" data-color="#b8bcc1"><div class="chead"><span class="dot" style="background:#b8bcc1"></span><code>editor.active_line_number</code></div><div class="hex">#b8bcc1</div><p>Number of the line your cursor is on.</p><div class="prev"><span style="color:#6e7681">2 </span><span data-live style="color:#b8bcc1">3</span><span style="color:#6e7681"> 4</span></div><div class="row"><input type="color" value="#b8bcc1" oninput="pick(this)"><button onclick="copyJSON(this)">Copy JSON</button></div></div>
+    <div class="card" data-key="editor.selection" data-color="#264f78"><div class="chead"><span class="dot" style="background:#264f78"></span><code>editor.selection</code></div><div class="hex">#264f78</div><p>Highlight behind selected text.</p><div class="prev"><span data-livebg style="background:#264f78">selected</span></div><div class="row"><input type="color" value="#264f78" oninput="pick(this)"><button onclick="copyJSON(this)">Copy JSON</button></div></div>
+    <div class="card" data-key="editor.gutter.background" data-color="#0d1117"><div class="chead"><span class="dot" style="background:#0d1117"></span><code>editor.gutter.background</code></div><div class="hex">#0d1117</div><p>Background of the line-number column.</p><div class="prev" data-livebg style="background:#0d1117;color:#a0a5ac">3</div><div class="row"><input type="color" value="#0d1117" oninput="pick(this)"><button onclick="copyJSON(this)">Copy JSON</button></div></div>
+  </div>
+</section>
+<section id="ui">
+  <h2>UI text &amp; surfaces</h2>
+  <p class="d">Panel names, tabs, bars, popups.</p>
+  <div class="grid">
+    <div class="card" data-key="text" data-color="#a0a5ac"><div class="chead"><span class="dot" style="background:#a0a5ac"></span><code>text</code></div><div class="hex">#a0a5ac</div><p>Main UI text: panel names, tabs, menus.</p><div class="prev" data-live style="color:#a0a5ac">App.vue</div><div class="row"><input type="color" value="#a0a5ac" oninput="pick(this)"><button onclick="copyJSON(this)">Copy JSON</button></div></div>
+    <div class="card" data-key="text.muted" data-color="#b0b2b5"><div class="chead"><span class="dot" style="background:#b0b2b5"></span><code>text.muted</code></div><div class="hex">#b0b2b5</div><p>Muted UI text + project panel file/folder names.</p><div class="prev" data-live style="color:#b0b2b5">128 files</div><div class="row"><input type="color" value="#b0b2b5" oninput="pick(this)"><button onclick="copyJSON(this)">Copy JSON</button></div></div>
+    <div class="card" data-key="text.accent" data-color="#1f6feb"><div class="chead"><span class="dot" style="background:#1f6feb"></span><code>text.accent</code></div><div class="hex">#1f6feb</div><p>Links, badges, active highlights.</p><div class="prev" data-live style="color:#1f6feb">Learn more</div><div class="row"><input type="color" value="#1f6feb" oninput="pick(this)"><button onclick="copyJSON(this)">Copy JSON</button></div></div>
+    <div class="card" data-key="text.disabled" data-color="#484f58"><div class="chead"><span class="dot" style="background:#484f58"></span><code>text.disabled</code></div><div class="hex">#484f58</div><p>Greyed-out, unavailable items.</p><div class="prev" data-live style="color:#484f58">Unavailable</div><div class="row"><input type="color" value="#484f58" oninput="pick(this)"><button onclick="copyJSON(this)">Copy JSON</button></div></div>
+    <div class="card" data-key="panel.background" data-color="#0d1117"><div class="chead"><span class="dot" style="background:#0d1117"></span><code>panel.background</code></div><div class="hex">#0d1117</div><p>Side panel background.</p><div class="prev" data-livebg style="background:#0d1117;color:#a0a5ac">panel swatch</div><div class="row"><input type="color" value="#0d1117" oninput="pick(this)"><button onclick="copyJSON(this)">Copy JSON</button></div></div>
+    <div class="card" data-key="tab.active_background" data-color="#0d1117"><div class="chead"><span class="dot" style="background:#0d1117"></span><code>tab.active_background</code></div><div class="hex">#0d1117</div><p>Active tab background.</p><div class="prev" data-livebg style="background:#0d1117;color:#a0a5ac">active tab</div><div class="row"><input type="color" value="#0d1117" oninput="pick(this)"><button onclick="copyJSON(this)">Copy JSON</button></div></div>
+    <div class="card" data-key="tab.inactive_background" data-color="#010409"><div class="chead"><span class="dot" style="background:#010409"></span><code>tab.inactive_background</code></div><div class="hex">#010409</div><p>Inactive tab background.</p><div class="prev" data-livebg style="background:#010409;color:#a0a5ac">inactive tab</div><div class="row"><input type="color" value="#010409" oninput="pick(this)"><button onclick="copyJSON(this)">Copy JSON</button></div></div>
+    <div class="card" data-key="status_bar.background" data-color="#0d1117"><div class="chead"><span class="dot" style="background:#0d1117"></span><code>status_bar.background</code></div><div class="hex">#0d1117</div><p>Status bar background.</p><div class="prev" data-livebg style="background:#0d1117;color:#a0a5ac">status swatch</div><div class="row"><input type="color" value="#0d1117" oninput="pick(this)"><button onclick="copyJSON(this)">Copy JSON</button></div></div>
+    <div class="card" data-key="title_bar.background" data-color="#0d1117"><div class="chead"><span class="dot" style="background:#0d1117"></span><code>title_bar.background</code></div><div class="hex">#0d1117</div><p>Title bar background.</p><div class="prev" data-livebg style="background:#0d1117;color:#a0a5ac">title swatch</div><div class="row"><input type="color" value="#0d1117" oninput="pick(this)"><button onclick="copyJSON(this)">Copy JSON</button></div></div>
+    <div class="card" data-key="toolbar.background" data-color="#0d1117"><div class="chead"><span class="dot" style="background:#0d1117"></span><code>toolbar.background</code></div><div class="hex">#0d1117</div><p>Toolbar background.</p><div class="prev" data-livebg style="background:#0d1117;color:#a0a5ac">toolbar swatch</div><div class="row"><input type="color" value="#0d1117" oninput="pick(this)"><button onclick="copyJSON(this)">Copy JSON</button></div></div>
+    <div class="card" data-key="border" data-color="#30363d"><div class="chead"><span class="dot" style="background:#30363d"></span><code>border</code></div><div class="hex">#30363d</div><p>Lines between panels, tabs, edges.</p><div class="prev" style="border:2px solid #30363d;color:#6e7681">framed box</div><div class="row"><input type="color" value="#30363d" oninput="pick(this)"><button onclick="copyJSON(this)">Copy JSON</button></div></div>
+    <div class="card" data-key="element.background" data-color="#161b22"><div class="chead"><span class="dot" style="background:#161b22"></span><code>element.background</code></div><div class="hex">#161b22</div><p>Cards, popups, menus, pickers.</p><div class="prev" data-livebg style="background:#161b22;color:#a0a5ac">popup card</div><div class="row"><input type="color" value="#161b22" oninput="pick(this)"><button onclick="copyJSON(this)">Copy JSON</button></div></div>
+  </div>
+</section>
+<section id="syntax">
+  <h2>Syntax · 43 captures</h2>
+  <p class="d">Every token type Zed can paint, with a live preview in your style.</p>
+  <div class="grid">
+    <div class="card" data-key="syntax.keyword" data-color="#ff7b72" data-style="bold"><div class="chead"><span class="dot" style="background:#ff7b72"></span><code>syntax.keyword</code></div><div class="hex">#ff7b72 · bold</div><p>import, from, const, if, return...</p><div class="prev"><span data-live style="color:#ff7b72;font-weight:bold">import return if const</span></div><div class="row"><input type="color" value="#ff7b72" oninput="pick(this)"><button onclick="copyJSON(this)">Copy JSON</button></div></div>
+    <div class="card" data-key="syntax.function" data-color="#d2a8ff" data-style="bold"><div class="chead"><span class="dot" style="background:#d2a8ff"></span><code>syntax.function</code></div><div class="hex">#d2a8ff · bold</div><p>Function names when called.</p><div class="prev"><span data-live style="color:#d2a8ff;font-weight:bold">fetchData() render()</span></div><div class="row"><input type="color" value="#d2a8ff" oninput="pick(this)"><button onclick="copyJSON(this)">Copy JSON</button></div></div>
+    <div class="card" data-key="syntax.string" data-color="#7ee787"><div class="chead"><span class="dot" style="background:#7ee787"></span><code>syntax.string</code></div><div class="hex">#7ee787</div><p>'quoted text'.</p><div class="prev"><span data-live style="color:#7ee787">'hello world' "vue"</span></div><div class="row"><input type="color" value="#7ee787" oninput="pick(this)"><button onclick="copyJSON(this)">Copy JSON</button></div></div>
+    <div class="card" data-key="syntax.comment" data-color="#6e7681" data-style="italic"><div class="chead"><span class="dot" style="background:#6e7681"></span><code>syntax.comment</code></div><div class="hex">#6e7681 · italic</div><p>// comments.</p><div class="prev"><span data-live style="color:#6e7681;font-weight:normal;font-style:italic">// fix this later</span></div><div class="row"><input type="color" value="#6e7681" oninput="pick(this)"><button onclick="copyJSON(this)">Copy JSON</button></div></div>
+    <div class="card" data-key="syntax.comment.doc" data-color="#8b949e" data-style="italic"><div class="chead"><span class="dot" style="background:#8b949e"></span><code>syntax.comment.doc</code></div><div class="hex">#8b949e · italic</div><p>Doc comments.</p><div class="prev"><span data-live style="color:#8b949e;font-weight:normal;font-style:italic">/** docs */</span></div><div class="row"><input type="color" value="#8b949e" oninput="pick(this)"><button onclick="copyJSON(this)">Copy JSON</button></div></div>
+    <div class="card" data-key="syntax.type" data-color="#ffa657"><div class="chead"><span class="dot" style="background:#ffa657"></span><code>syntax.type</code></div><div class="hex">#ffa657</div><p>Class / interface / type names.</p><div class="prev"><span data-live style="color:#ffa657">Props User Order</span></div><div class="row"><input type="color" value="#ffa657" oninput="pick(this)"><button onclick="copyJSON(this)">Copy JSON</button></div></div>
+    <div class="card" data-key="syntax.type.builtin" data-color="#ffa657" data-style="bold"><div class="chead"><span class="dot" style="background:#ffa657"></span><code>syntax.type.builtin</code></div><div class="hex">#ffa657 · bold</div><p>Built-in types.</p><div class="prev"><span data-live style="color:#ffa657;font-weight:bold">string number</span></div><div class="row"><input type="color" value="#ffa657" oninput="pick(this)"><button onclick="copyJSON(this)">Copy JSON</button></div></div>
+    <div class="card" data-key="syntax.number" data-color="#79c0ff"><div class="chead"><span class="dot" style="background:#79c0ff"></span><code>syntax.number</code></div><div class="hex">#79c0ff</div><p>Numeric literals.</p><div class="prev"><span data-live style="color:#79c0ff">42 3.14 0xFF</span></div><div class="row"><input type="color" value="#79c0ff" oninput="pick(this)"><button onclick="copyJSON(this)">Copy JSON</button></div></div>
+    <div class="card" data-key="syntax.boolean" data-color="#79c0ff"><div class="chead"><span class="dot" style="background:#79c0ff"></span><code>syntax.boolean</code></div><div class="hex">#79c0ff</div><p>true / false.</p><div class="prev"><span data-live style="color:#79c0ff">true false</span></div><div class="row"><input type="color" value="#79c0ff" oninput="pick(this)"><button onclick="copyJSON(this)">Copy JSON</button></div></div>
+    <div class="card" data-key="syntax.operator" data-color="#ffa657"><div class="chead"><span class="dot" style="background:#ffa657"></span><code>syntax.operator</code></div><div class="hex">#ffa657</div><p>= + - > && ...</p><div class="prev"><span data-live style="color:#ffa657">= + - > && !==</span></div><div class="row"><input type="color" value="#ffa657" oninput="pick(this)"><button onclick="copyJSON(this)">Copy JSON</button></div></div>
+    <div class="card" data-key="syntax.variable" data-color="#f0f6fc"><div class="chead"><span class="dot" style="background:#f0f6fc"></span><code>syntax.variable</code></div><div class="hex">#f0f6fc</div><p>Variable names you declared.</p><div class="prev"><span data-live style="color:#f0f6fc">count userName items</span></div><div class="row"><input type="color" value="#f0f6fc" oninput="pick(this)"><button onclick="copyJSON(this)">Copy JSON</button></div></div>
+    <div class="card" data-key="syntax.variable.special" data-color="#f0f6fc" data-style="bold"><div class="chead"><span class="dot" style="background:#f0f6fc"></span><code>syntax.variable.special</code></div><div class="hex">#f0f6fc · bold</div><p>this, self, ...</p><div class="prev"><span data-live style="color:#f0f6fc;font-weight:bold">this self</span></div><div class="row"><input type="color" value="#f0f6fc" oninput="pick(this)"><button onclick="copyJSON(this)">Copy JSON</button></div></div>
+    <div class="card" data-key="syntax.variable.parameter" data-color="#ffa657" data-style="italic"><div class="chead"><span class="dot" style="background:#ffa657"></span><code>syntax.variable.parameter</code></div><div class="hex">#ffa657 · italic</div><p>Function parameters.</p><div class="prev"><span data-live style="color:#ffa657;font-weight:normal;font-style:italic">(props, emit)</span></div><div class="row"><input type="color" value="#ffa657" oninput="pick(this)"><button onclick="copyJSON(this)">Copy JSON</button></div></div>
+    <div class="card" data-key="syntax.property" data-color="#79c0ff"><div class="chead"><span class="dot" style="background:#79c0ff"></span><code>syntax.property</code></div><div class="hex">#79c0ff</div><p>obj.key after the dot.</p><div class="prev"><span data-live style="color:#79c0ff">user.name items.length</span></div><div class="row"><input type="color" value="#79c0ff" oninput="pick(this)"><button onclick="copyJSON(this)">Copy JSON</button></div></div>
+    <div class="card" data-key="syntax.punctuation" data-color="#6e7681"><div class="chead"><span class="dot" style="background:#6e7681"></span><code>syntax.punctuation</code></div><div class="hex">#6e7681</div><p>Brackets, commas, semicolons.</p><div class="prev"><span data-live style="color:#6e7681">{ } ( ) [ ] ; ,</span></div><div class="row"><input type="color" value="#6e7681" oninput="pick(this)"><button onclick="copyJSON(this)">Copy JSON</button></div></div>
+    <div class="card" data-key="syntax.punctuation.bracket" data-color="#6e7681"><div class="chead"><span class="dot" style="background:#6e7681"></span><code>syntax.punctuation.bracket</code></div><div class="hex">#6e7681</div><p>Brackets only.</p><div class="prev"><span data-live style="color:#6e7681">{ } ( ) [ ]</span></div><div class="row"><input type="color" value="#6e7681" oninput="pick(this)"><button onclick="copyJSON(this)">Copy JSON</button></div></div>
+    <div class="card" data-key="syntax.punctuation.delimiter" data-color="#6e7681"><div class="chead"><span class="dot" style="background:#6e7681"></span><code>syntax.punctuation.delimiter</code></div><div class="hex">#6e7681</div><p>Delimiters.</p><div class="prev"><span data-live style="color:#6e7681">, ; :</span></div><div class="row"><input type="color" value="#6e7681" oninput="pick(this)"><button onclick="copyJSON(this)">Copy JSON</button></div></div>
+    <div class="card" data-key="syntax.punctuation.list_marker" data-color="#ffffff"><div class="chead"><span class="dot" style="background:#ffffff"></span><code>syntax.punctuation.list_marker</code></div><div class="hex">#ffffff</div><p>Markdown list markers.</p><div class="prev"><span data-live style="color:#ffffff">- * 1.</span></div><div class="row"><input type="color" value="#ffffff" oninput="pick(this)"><button onclick="copyJSON(this)">Copy JSON</button></div></div>
+    <div class="card" data-key="syntax.punctuation.special" data-color="#9da1a7"><div class="chead"><span class="dot" style="background:#9da1a7"></span><code>syntax.punctuation.special</code></div><div class="hex">#9da1a7</div><p>Special punctuation.</p><div class="prev"><span data-live style="color:#9da1a7">#{} ${}</span></div><div class="row"><input type="color" value="#9da1a7" oninput="pick(this)"><button onclick="copyJSON(this)">Copy JSON</button></div></div>
+    <div class="card" data-key="syntax.attribute" data-color="#79c0ff"><div class="chead"><span class="dot" style="background:#79c0ff"></span><code>syntax.attribute</code></div><div class="hex">#79c0ff</div><p>HTML/Vue attributes, decorators.</p><div class="prev"><span data-live style="color:#79c0ff">:open @close v-if</span></div><div class="row"><input type="color" value="#79c0ff" oninput="pick(this)"><button onclick="copyJSON(this)">Copy JSON</button></div></div>
+    <div class="card" data-key="syntax.constant" data-color="#79c0ff"><div class="chead"><span class="dot" style="background:#79c0ff"></span><code>syntax.constant</code></div><div class="hex">#79c0ff</div><p>UPPER_CASE constants.</p><div class="prev"><span data-live style="color:#79c0ff">MAX_SIZE null</span></div><div class="row"><input type="color" value="#79c0ff" oninput="pick(this)"><button onclick="copyJSON(this)">Copy JSON</button></div></div>
+    <div class="card" data-key="syntax.constant.builtin" data-color="#79c0ff" data-style="bold"><div class="chead"><span class="dot" style="background:#79c0ff"></span><code>syntax.constant.builtin</code></div><div class="hex">#79c0ff · bold</div><p>Built-in constants.</p><div class="prev"><span data-live style="color:#79c0ff;font-weight:bold">undefined NaN</span></div><div class="row"><input type="color" value="#79c0ff" oninput="pick(this)"><button onclick="copyJSON(this)">Copy JSON</button></div></div>
+    <div class="card" data-key="syntax.constructor" data-color="#ffa657"><div class="chead"><span class="dot" style="background:#ffa657"></span><code>syntax.constructor</code></div><div class="hex">#ffa657</div><p>new ClassName().</p><div class="prev"><span data-live style="color:#ffa657">new Date() new Map()</span></div><div class="row"><input type="color" value="#ffa657" oninput="pick(this)"><button onclick="copyJSON(this)">Copy JSON</button></div></div>
+    <div class="card" data-key="syntax.enum" data-color="#ffa657"><div class="chead"><span class="dot" style="background:#ffa657"></span><code>syntax.enum</code></div><div class="hex">#ffa657</div><p>Enum members.</p><div class="prev"><span data-live style="color:#ffa657">Color.Red Size.L</span></div><div class="row"><input type="color" value="#ffa657" oninput="pick(this)"><button onclick="copyJSON(this)">Copy JSON</button></div></div>
+    <div class="card" data-key="syntax.variant" data-color="#ffa657"><div class="chead"><span class="dot" style="background:#ffa657"></span><code>syntax.variant</code></div><div class="hex">#ffa657</div><p>Variant values.</p><div class="prev"><span data-live style="color:#ffa657">Some Ok</span></div><div class="row"><input type="color" value="#ffa657" oninput="pick(this)"><button onclick="copyJSON(this)">Copy JSON</button></div></div>
+    <div class="card" data-key="syntax.preproc" data-color="#ff7b72"><div class="chead"><span class="dot" style="background:#ff7b72"></span><code>syntax.preproc</code></div><div class="hex">#ff7b72</div><p>Preprocessor directives.</p><div class="prev"><span data-live style="color:#ff7b72">#include #define</span></div><div class="row"><input type="color" value="#ff7b72" oninput="pick(this)"><button onclick="copyJSON(this)">Copy JSON</button></div></div>
+    <div class="card" data-key="syntax.tag" data-color="#7ee787"><div class="chead"><span class="dot" style="background:#7ee787"></span><code>syntax.tag</code></div><div class="hex">#7ee787</div><p>HTML/XML tags.</p><div class="prev"><span data-live style="color:#7ee787">&lt;div&gt;</span></div><div class="row"><input type="color" value="#7ee787" oninput="pick(this)"><button onclick="copyJSON(this)">Copy JSON</button></div></div>
+    <div class="card" data-key="syntax.tag.doctype" data-color="#8b949e" data-style="italic"><div class="chead"><span class="dot" style="background:#8b949e"></span><code>syntax.tag.doctype</code></div><div class="hex">#8b949e · italic</div><p>Doctypes.</p><div class="prev"><span data-live style="color:#8b949e;font-weight:normal;font-style:italic">&lt;!DOCTYPE&gt;</span></div><div class="row"><input type="color" value="#8b949e" oninput="pick(this)"><button onclick="copyJSON(this)">Copy JSON</button></div></div>
+    <div class="card" data-key="syntax.string.escape" data-color="#56d4dd"><div class="chead"><span class="dot" style="background:#56d4dd"></span><code>syntax.string.escape</code></div><div class="hex">#56d4dd</div><p>Escapes in strings.</p><div class="prev"><span data-live style="color:#56d4dd">\n \t \"</span></div><div class="row"><input type="color" value="#56d4dd" oninput="pick(this)"><button onclick="copyJSON(this)">Copy JSON</button></div></div>
+    <div class="card" data-key="syntax.string.regex" data-color="#56d4dd"><div class="chead"><span class="dot" style="background:#56d4dd"></span><code>syntax.string.regex</code></div><div class="hex">#56d4dd</div><p>Regular expressions.</p><div class="prev"><span data-live style="color:#56d4dd">/\d+/g</span></div><div class="row"><input type="color" value="#56d4dd" oninput="pick(this)"><button onclick="copyJSON(this)">Copy JSON</button></div></div>
+    <div class="card" data-key="syntax.string.special" data-color="#7ee787"><div class="chead"><span class="dot" style="background:#7ee787"></span><code>syntax.string.special</code></div><div class="hex">#7ee787</div><p>Special strings.</p><div class="prev"><span data-live style="color:#7ee787">sql`...`</span></div><div class="row"><input type="color" value="#7ee787" oninput="pick(this)"><button onclick="copyJSON(this)">Copy JSON</button></div></div>
+    <div class="card" data-key="syntax.string.special.symbol" data-color="#79c0ff"><div class="chead"><span class="dot" style="background:#79c0ff"></span><code>syntax.string.special.symbol</code></div><div class="hex">#79c0ff</div><p>Symbols.</p><div class="prev"><span data-live style="color:#79c0ff">:ok</span></div><div class="row"><input type="color" value="#79c0ff" oninput="pick(this)"><button onclick="copyJSON(this)">Copy JSON</button></div></div>
+    <div class="card" data-key="syntax.link_text" data-color="#1f6feb" data-style="bold"><div class="chead"><span class="dot" style="background:#1f6feb"></span><code>syntax.link_text</code></div><div class="hex">#1f6feb · bold</div><p>Link text.</p><div class="prev"><span data-live style="color:#1f6feb;font-weight:bold">[click here]</span></div><div class="row"><input type="color" value="#1f6feb" oninput="pick(this)"><button onclick="copyJSON(this)">Copy JSON</button></div></div>
+    <div class="card" data-key="syntax.link_uri" data-color="#1f6feb"><div class="chead"><span class="dot" style="background:#1f6feb"></span><code>syntax.link_uri</code></div><div class="hex">#1f6feb</div><p>Link targets.</p><div class="prev"><span data-live style="color:#1f6feb">https://...</span></div><div class="row"><input type="color" value="#1f6feb" oninput="pick(this)"><button onclick="copyJSON(this)">Copy JSON</button></div></div>
+    <div class="card" data-key="syntax.title" data-color="#b8bcc1" data-style="bold"><div class="chead"><span class="dot" style="background:#b8bcc1"></span><code>syntax.title</code></div><div class="hex">#b8bcc1 · bold</div><p>Markdown headings.</p><div class="prev"><span data-live style="color:#b8bcc1;font-weight:bold"># Big heading</span></div><div class="row"><input type="color" value="#b8bcc1" oninput="pick(this)"><button onclick="copyJSON(this)">Copy JSON</button></div></div>
+    <div class="card" data-key="syntax.label" data-color="#79c0ff"><div class="chead"><span class="dot" style="background:#79c0ff"></span><code>syntax.label</code></div><div class="hex">#79c0ff</div><p>Labels, keys.</p><div class="prev"><span data-live style="color:#79c0ff">label: key:</span></div><div class="row"><input type="color" value="#79c0ff" oninput="pick(this)"><button onclick="copyJSON(this)">Copy JSON</button></div></div>
+    <div class="card" data-key="syntax.embedded" data-color="#6e7681"><div class="chead"><span class="dot" style="background:#6e7681"></span><code>syntax.embedded</code></div><div class="hex">#6e7681</div><p>Embedded language chunks.</p><div class="prev"><span data-live style="color:#6e7681">css`...`</span></div><div class="row"><input type="color" value="#6e7681" oninput="pick(this)"><button onclick="copyJSON(this)">Copy JSON</button></div></div>
+    <div class="card" data-key="syntax.emphasis" data-color="#9da1a7" data-style="italic"><div class="chead"><span class="dot" style="background:#9da1a7"></span><code>syntax.emphasis</code></div><div class="hex">#9da1a7 · italic</div><p>Emphasized text.</p><div class="prev"><span data-live style="color:#9da1a7;font-weight:normal;font-style:italic">*soft*</span></div><div class="row"><input type="color" value="#9da1a7" oninput="pick(this)"><button onclick="copyJSON(this)">Copy JSON</button></div></div>
+    <div class="card" data-key="syntax.emphasis.strong" data-color="#b8bcc1" data-style="bold"><div class="chead"><span class="dot" style="background:#b8bcc1"></span><code>syntax.emphasis.strong</code></div><div class="hex">#b8bcc1 · bold</div><p>Strong text.</p><div class="prev"><span data-live style="color:#b8bcc1;font-weight:bold">**loud**</span></div><div class="row"><input type="color" value="#b8bcc1" oninput="pick(this)"><button onclick="copyJSON(this)">Copy JSON</button></div></div>
+    <div class="card" data-key="syntax.hint" data-color="#484f58" data-style="italic"><div class="chead"><span class="dot" style="background:#484f58"></span><code>syntax.hint</code></div><div class="hex">#484f58 · italic</div><p>Inlay hints.</p><div class="prev"><span data-live style="color:#484f58;font-weight:normal;font-style:italic">: string</span></div><div class="row"><input type="color" value="#484f58" oninput="pick(this)"><button onclick="copyJSON(this)">Copy JSON</button></div></div>
+    <div class="card" data-key="syntax.predictive" data-color="#484f58" data-style="italic"><div class="chead"><span class="dot" style="background:#484f58"></span><code>syntax.predictive</code></div><div class="hex">#484f58 · italic</div><p>Ghost / predictive text.</p><div class="prev"><span data-live style="color:#484f58;font-weight:normal;font-style:italic">…suggestion</span></div><div class="row"><input type="color" value="#484f58" oninput="pick(this)"><button onclick="copyJSON(this)">Copy JSON</button></div></div>
+    <div class="card" data-key="syntax.primary" data-color="#b8bcc1"><div class="chead"><span class="dot" style="background:#b8bcc1"></span><code>syntax.primary</code></div><div class="hex">#b8bcc1</div><p>Primary elements.</p><div class="prev"><span data-live style="color:#b8bcc1">primary</span></div><div class="row"><input type="color" value="#b8bcc1" oninput="pick(this)"><button onclick="copyJSON(this)">Copy JSON</button></div></div>
+    <div class="card" data-key="syntax.text.literal" data-color="#6e7681"><div class="chead"><span class="dot" style="background:#6e7681"></span><code>syntax.text.literal</code></div><div class="hex">#6e7681</div><p>Literal text blocks.</p><div class="prev"><span data-live style="color:#6e7681">`code`</span></div><div class="row"><input type="color" value="#6e7681" oninput="pick(this)"><button onclick="copyJSON(this)">Copy JSON</button></div></div>
+  </div>
+</section>
+<section id="git">
+  <h2>Git status</h2>
+  <p class="d">File/folder tint in the panel by version-control state.</p>
+  <div class="grid">
+    <div class="card" data-key="created" data-color="#3fb950"><div class="chead"><span class="dot" style="background:#3fb950"></span><code>created</code></div><div class="hex">#3fb950</div><p>Files that are added.</p><div class="prev" data-live style="font-family:inherit;color:#3fb950">example.vue (created)</div><div class="row"><input type="color" value="#3fb950" oninput="pick(this)"><button onclick="copyJSON(this)">Copy JSON</button></div></div>
+    <div class="card" data-key="modified" data-color="#1f6feb"><div class="chead"><span class="dot" style="background:#1f6feb"></span><code>modified</code></div><div class="hex">#1f6feb</div><p>Files that are changed.</p><div class="prev" data-live style="font-family:inherit;color:#1f6feb">example.vue (modified)</div><div class="row"><input type="color" value="#1f6feb" oninput="pick(this)"><button onclick="copyJSON(this)">Copy JSON</button></div></div>
+    <div class="card" data-key="deleted" data-color="#d29922"><div class="chead"><span class="dot" style="background:#d29922"></span><code>deleted</code></div><div class="hex">#d29922</div><p>Files that are removed.</p><div class="prev" data-live style="font-family:inherit;color:#d29922">example.vue (deleted)</div><div class="row"><input type="color" value="#d29922" oninput="pick(this)"><button onclick="copyJSON(this)">Copy JSON</button></div></div>
+    <div class="card" data-key="conflict" data-color="#d32222"><div class="chead"><span class="dot" style="background:#d32222"></span><code>conflict</code></div><div class="hex">#d32222</div><p>Files that are conflict.</p><div class="prev" data-live style="font-family:inherit;color:#d32222">example.vue (conflict)</div><div class="row"><input type="color" value="#d32222" oninput="pick(this)"><button onclick="copyJSON(this)">Copy JSON</button></div></div>
+    <div class="card" data-key="ignored" data-color="#484f58"><div class="chead"><span class="dot" style="background:#484f58"></span><code>ignored</code></div><div class="hex">#484f58</div><p>Files that are ignored.</p><div class="prev" data-live style="font-family:inherit;color:#484f58">example.vue (ignored)</div><div class="row"><input type="color" value="#484f58" oninput="pick(this)"><button onclick="copyJSON(this)">Copy JSON</button></div></div>
+    <div class="card" data-key="renamed" data-color="#9da1a7"><div class="chead"><span class="dot" style="background:#9da1a7"></span><code>renamed</code></div><div class="hex">#9da1a7</div><p>Files that are moved.</p><div class="prev" data-live style="font-family:inherit;color:#9da1a7">example.vue (renamed)</div><div class="row"><input type="color" value="#9da1a7" oninput="pick(this)"><button onclick="copyJSON(this)">Copy JSON</button></div></div>
+  </div>
+</section>
+<section id="term">
+  <h2>Terminal ANSI · 16 colors</h2>
+  <p class="d">Integrated terminal palette. Covered by Save like every other card.</p>
+  <div class="grid">
+    <div class="card" data-key="terminal.ansi.black" data-color="#484f58"><div class="chead"><span class="dot" style="background:#484f58"></span><code>terminal.ansi.black</code></div><div class="hex">#484f58</div><p>Terminal black.</p><div class="prev" data-livebg style="background:#484f58;color:#010409">black</div><div class="row"><input type="color" value="#484f58" oninput="pick(this)"><button onclick="copyJSON(this)">Copy JSON</button></div></div>
+    <div class="card" data-key="terminal.ansi.red" data-color="#f85149"><div class="chead"><span class="dot" style="background:#f85149"></span><code>terminal.ansi.red</code></div><div class="hex">#f85149</div><p>Terminal red.</p><div class="prev" data-livebg style="background:#f85149;color:#010409">red</div><div class="row"><input type="color" value="#f85149" oninput="pick(this)"><button onclick="copyJSON(this)">Copy JSON</button></div></div>
+    <div class="card" data-key="terminal.ansi.green" data-color="#3fb950"><div class="chead"><span class="dot" style="background:#3fb950"></span><code>terminal.ansi.green</code></div><div class="hex">#3fb950</div><p>Terminal green.</p><div class="prev" data-livebg style="background:#3fb950;color:#010409">green</div><div class="row"><input type="color" value="#3fb950" oninput="pick(this)"><button onclick="copyJSON(this)">Copy JSON</button></div></div>
+    <div class="card" data-key="terminal.ansi.yellow" data-color="#d29922"><div class="chead"><span class="dot" style="background:#d29922"></span><code>terminal.ansi.yellow</code></div><div class="hex">#d29922</div><p>Terminal yellow.</p><div class="prev" data-livebg style="background:#d29922;color:#010409">yellow</div><div class="row"><input type="color" value="#d29922" oninput="pick(this)"><button onclick="copyJSON(this)">Copy JSON</button></div></div>
+    <div class="card" data-key="terminal.ansi.blue" data-color="#58a6ff"><div class="chead"><span class="dot" style="background:#58a6ff"></span><code>terminal.ansi.blue</code></div><div class="hex">#58a6ff</div><p>Terminal blue.</p><div class="prev" data-livebg style="background:#58a6ff;color:#010409">blue</div><div class="row"><input type="color" value="#58a6ff" oninput="pick(this)"><button onclick="copyJSON(this)">Copy JSON</button></div></div>
+    <div class="card" data-key="terminal.ansi.magenta" data-color="#bc8cff"><div class="chead"><span class="dot" style="background:#bc8cff"></span><code>terminal.ansi.magenta</code></div><div class="hex">#bc8cff</div><p>Terminal magenta.</p><div class="prev" data-livebg style="background:#bc8cff;color:#010409">magenta</div><div class="row"><input type="color" value="#bc8cff" oninput="pick(this)"><button onclick="copyJSON(this)">Copy JSON</button></div></div>
+    <div class="card" data-key="terminal.ansi.cyan" data-color="#39c5cf"><div class="chead"><span class="dot" style="background:#39c5cf"></span><code>terminal.ansi.cyan</code></div><div class="hex">#39c5cf</div><p>Terminal cyan.</p><div class="prev" data-livebg style="background:#39c5cf;color:#010409">cyan</div><div class="row"><input type="color" value="#39c5cf" oninput="pick(this)"><button onclick="copyJSON(this)">Copy JSON</button></div></div>
+    <div class="card" data-key="terminal.ansi.white" data-color="#b1bac4"><div class="chead"><span class="dot" style="background:#b1bac4"></span><code>terminal.ansi.white</code></div><div class="hex">#b1bac4</div><p>Terminal white.</p><div class="prev" data-livebg style="background:#b1bac4;color:#010409">white</div><div class="row"><input type="color" value="#b1bac4" oninput="pick(this)"><button onclick="copyJSON(this)">Copy JSON</button></div></div>
+    <div class="card" data-key="terminal.ansi.bright_black" data-color="#6e7681"><div class="chead"><span class="dot" style="background:#6e7681"></span><code>terminal.ansi.bright_black</code></div><div class="hex">#6e7681</div><p>Terminal bright black.</p><div class="prev" data-livebg style="background:#6e7681;color:#010409">bright_black</div><div class="row"><input type="color" value="#6e7681" oninput="pick(this)"><button onclick="copyJSON(this)">Copy JSON</button></div></div>
+    <div class="card" data-key="terminal.ansi.bright_red" data-color="#ff7b72"><div class="chead"><span class="dot" style="background:#ff7b72"></span><code>terminal.ansi.bright_red</code></div><div class="hex">#ff7b72</div><p>Terminal bright red.</p><div class="prev" data-livebg style="background:#ff7b72;color:#010409">bright_red</div><div class="row"><input type="color" value="#ff7b72" oninput="pick(this)"><button onclick="copyJSON(this)">Copy JSON</button></div></div>
+    <div class="card" data-key="terminal.ansi.bright_green" data-color="#7ee787"><div class="chead"><span class="dot" style="background:#7ee787"></span><code>terminal.ansi.bright_green</code></div><div class="hex">#7ee787</div><p>Terminal bright green.</p><div class="prev" data-livebg style="background:#7ee787;color:#010409">bright_green</div><div class="row"><input type="color" value="#7ee787" oninput="pick(this)"><button onclick="copyJSON(this)">Copy JSON</button></div></div>
+    <div class="card" data-key="terminal.ansi.bright_yellow" data-color="#ffa657"><div class="chead"><span class="dot" style="background:#ffa657"></span><code>terminal.ansi.bright_yellow</code></div><div class="hex">#ffa657</div><p>Terminal bright yellow.</p><div class="prev" data-livebg style="background:#ffa657;color:#010409">bright_yellow</div><div class="row"><input type="color" value="#ffa657" oninput="pick(this)"><button onclick="copyJSON(this)">Copy JSON</button></div></div>
+    <div class="card" data-key="terminal.ansi.bright_blue" data-color="#79c0ff"><div class="chead"><span class="dot" style="background:#79c0ff"></span><code>terminal.ansi.bright_blue</code></div><div class="hex">#79c0ff</div><p>Terminal bright blue.</p><div class="prev" data-livebg style="background:#79c0ff;color:#010409">bright_blue</div><div class="row"><input type="color" value="#79c0ff" oninput="pick(this)"><button onclick="copyJSON(this)">Copy JSON</button></div></div>
+    <div class="card" data-key="terminal.ansi.bright_magenta" data-color="#d2a8ff"><div class="chead"><span class="dot" style="background:#d2a8ff"></span><code>terminal.ansi.bright_magenta</code></div><div class="hex">#d2a8ff</div><p>Terminal bright magenta.</p><div class="prev" data-livebg style="background:#d2a8ff;color:#010409">bright_magenta</div><div class="row"><input type="color" value="#d2a8ff" oninput="pick(this)"><button onclick="copyJSON(this)">Copy JSON</button></div></div>
+    <div class="card" data-key="terminal.ansi.bright_cyan" data-color="#56d4dd"><div class="chead"><span class="dot" style="background:#56d4dd"></span><code>terminal.ansi.bright_cyan</code></div><div class="hex">#56d4dd</div><p>Terminal bright cyan.</p><div class="prev" data-livebg style="background:#56d4dd;color:#010409">bright_cyan</div><div class="row"><input type="color" value="#56d4dd" oninput="pick(this)"><button onclick="copyJSON(this)">Copy JSON</button></div></div>
+    <div class="card" data-key="terminal.ansi.bright_white" data-color="#f0f6fc"><div class="chead"><span class="dot" style="background:#f0f6fc"></span><code>terminal.ansi.bright_white</code></div><div class="hex">#f0f6fc</div><p>Terminal bright white.</p><div class="prev" data-livebg style="background:#f0f6fc;color:#010409">bright_white</div><div class="row"><input type="color" value="#f0f6fc" oninput="pick(this)"><button onclick="copyJSON(this)">Copy JSON</button></div></div>
+  </div>
+</section>
+</main>
+<script>
+function showTab(e, id) {  document.querySelectorAll('.tabs .tab').forEach(t => t.classList.remove('on'));
+  e.currentTarget.classList.add('on');
+  ['t-vue', 't-json', 't-md', 't-ts', 't-css', 't-html'].forEach(t => document.getElementById(t).style.display = t === id ? '' : 'none');
+}
+function goto(el) {
+  const card = document.querySelector('.card[data-key="' + el.dataset.goto + '"]');
+  if (!card) return;
+  card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  card.classList.remove('flash');
+  void card.offsetWidth;
+  card.classList.add('flash');
+}
+function pick(el) {
+  const card = el.closest('.card');
+  card.dataset.color = el.value;
+  card.querySelector('.dot').style.background = el.value;
+  card.querySelector('.hex').textContent = el.value + (card.dataset.style ? ' · ' + card.dataset.style : '');
+  card.querySelectorAll('[data-live]').forEach(n => n.style.color = el.value);
+  card.querySelectorAll('[data-livebg]').forEach(n => n.style.background = el.value);
+  try { localStorage.setItem('ztm:' + card.dataset.key, el.value); } catch (e) {}
+}
+function restorePicks() {
+  document.querySelectorAll('.card[data-key]').forEach(card => {
+    let v = null;
+    try { v = localStorage.getItem('ztm:' + card.dataset.key); } catch (e) {}
+    if (!v) return;
+    card.dataset.color = v;
+    const input = card.querySelector('input[type=color]');
+    if (input) input.value = v;
+    card.querySelector('.dot').style.background = v;
+    card.querySelector('.hex').textContent = v + (card.dataset.style ? ' · ' + card.dataset.style : '');
+    card.querySelectorAll('[data-live]').forEach(n => n.style.color = v);
+    card.querySelectorAll('[data-livebg]').forEach(n => n.style.background = v);
+  });
+}
+function copyJSON(btn) {
+  const card = btn.closest('.card');
+  const key = card.dataset.key;
+  const short = key.startsWith('syntax.') ? key.slice(7) : key;
+  const style = card.dataset.style === 'bold' ? ', "font_weight": 700' : (card.dataset.style ? ', "font_style": "' + card.dataset.style + '"' : '');
+  const out = key.startsWith('syntax.')
+    ? '"' + short + '": { "color": "' + card.dataset.color + '"' + style + ' }'
+    : '"' + short + '": "' + card.dataset.color + '"';
+  navigator.clipboard.writeText(out);
+  btn.textContent = 'Copied!';
+  setTimeout(() => btn.textContent = 'Copy JSON', 1200);
+}
+function copyAll() {
+  const syn = [], top = [];
+  document.querySelectorAll('.card[data-key]').forEach(el => {
+    const st = el.dataset.style === 'bold' ? ', "font_weight": 700' : (el.dataset.style ? ', "font_style": "' + el.dataset.style + '"' : '');
+    if (el.dataset.key.startsWith('syntax.')) syn.push('      "' + el.dataset.key.slice(7) + '": { "color": "' + el.dataset.color + '"' + st + ' }');
+    else top.push('    "' + el.dataset.key + '": "' + el.dataset.color + '"');
+  });
+  navigator.clipboard.writeText('"experimental.theme_overrides": {\n' + top.join(',\n') + ',\n    "syntax": {\n' + syn.join(',\n') + '\n    }\n  }');
+}
+function collectOverrides() {
+  const syn = {}, top = {};
+  document.querySelectorAll('.card[data-key]').forEach(el => {
+    if (el.dataset.key.startsWith('syntax.')) {
+      const val = { color: el.dataset.color };
+      if (el.dataset.style === 'bold') val.font_weight = 700;
+      else if (el.dataset.style) val.font_style = el.dataset.style;
+      syn[el.dataset.key.slice(7)] = val;
+    } else {
+      top[el.dataset.key] = el.dataset.color;
+    }
+  });
+  const out = {};
+  Object.keys(top).forEach(k => out[k] = top[k]);
+  out.syntax = syn;
+  return out;
+}
+async function saveAll() {
+  const btn = document.getElementById('savebtn');
+  btn.textContent = 'Saving...';
+  try {
+    const res = await fetch('/api/save', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ experimental: collectOverrides() }) });
+    const out = await res.json();
+    btn.textContent = out.ok ? 'Saved!' : 'Failed';
+  } catch (e) {
+    btn.textContent = 'Failed';
+  }
+  setTimeout(() => btn.textContent = 'Save to settings.json', 1500);
+}
+restorePicks();
+document.querySelectorAll('.hot[data-goto]').forEach(el => el.title = '→ ' + el.dataset.goto);
+const SAMPLES = {
+  't-vue': { lang: 'typescript', code: "import { ref } from 'vue'\nconst count = ref(0)\n// click any token to jump to its card\ninterface Props { title: string }" },
+  't-json': { lang: 'json', code: '{\n  "editor.foreground": "#6e7681",\n  "keyword": { "color": "#ff7b72" }\n}' },
+  't-ts': { lang: 'typescript', code: "export interface Tile {\n  walkable: boolean;\n  state: 'wall' | 'door' | null\n}\nexport const SCALE = 0.5 as const" },
+  't-css': { lang: 'css', code: '.editor {\n  color: #6e7681;\n  font-weight: bold;\n}' },
+  't-html': { lang: 'html', code: '<!DOCTYPE>\n<html lang="en">\n  <!-- page root -->\n  <div id="app">Hello</div>\n</html>' },
+};
+async function paintLive() {
+  for (const [id, s] of Object.entries(SAMPLES)) {
+    try {
+      const res = await fetch('/api/highlight', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(s) });
+      const out = await res.json();
+      if (out.ok && out.html) document.getElementById(id).innerHTML = out.html;
+    } catch (e) { /* fallback spans stay */ }
+  }
+}
+if (location.protocol.startsWith('http')) {
+  document.getElementById('savebtn').style.display = '';
+  paintLive();
+  const es = new EventSource('/api/events');
+  es.onmessage = (e) => { if (e.data === 'reload') location.reload(); };
+}
+</script>
+</body>
+</html>

@@ -1,6 +1,6 @@
 ---
 name: finish-complete
-description: Forbid TODOs, stubs, and fake implementations in delivered work. Apply before reporting any implementation task done.
+description: No TODOs, stubs, or fake implementations in delivered work. Apply before reporting implementation done.
 ---
 
 # No Placeholders

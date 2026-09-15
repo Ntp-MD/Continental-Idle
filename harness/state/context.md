@@ -36,7 +36,7 @@ Rewrite the glossary on adoption (see `harness/HARNESS.md` - Adopt in a new proj
 | Asset SVG v2 | Body shapes via `--obj-fill`/`--obj-stroke` vars; no hardcoded colors, no backing plate. | inline hex art |
 | Dirty baseline | `useDirtyBaseline`: one snapshot + a `dirty` computed. | dirty flags, JSON stringify diff |
 | State lock / async action | `withStateLock` (store mutations) vs `useAsyncAction` (UI pending). One guard per layer. | boolean guards |
-| Tile scale | 1 tile = 0.5 m. Plot 107x67 tiles = 53.5 x 33.5 m; building interior x9..97, y9..57 (45.5 x 25.5 m). | pixel size, grid size |
+| Tile scale | 1 tile = 0.5 m. Plot 107x67 tiles = 53.5 x 33.5 m; building interior x8..98, y8..58 (91x51 tiles, 45.5 x 25.5 m). | pixel size, grid size |
 
 ## Player vocabulary
 

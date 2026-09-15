@@ -9,7 +9,7 @@ import TagChip from '@/blueprint-editor/components/inputs/TagChip.vue'
 import TagPicker from '@/blueprint-editor/components/inputs/TagPicker.vue'
 import SearchInput from '@/blueprint-editor/components/inputs/SearchInput.vue'
 import ToastContainer from '@/blueprint-editor/components/shell/ToastContainer.vue'
-import ConfirmDialog from '@/components/overlays/ConfirmDialog.vue'
+import ConfirmDialog from '@/blueprint-editor/components/shell/ConfirmDialog.vue'
 import ErrorBoundary from '@/components/overlays/ErrorBoundary.vue'
 
 const AssetPickerModal = defineAsyncComponent(() => import('@/blueprint-editor/components/modals/AssetPickerModal.vue'))

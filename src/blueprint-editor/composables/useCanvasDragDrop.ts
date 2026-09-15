@@ -11,7 +11,6 @@ export interface DragDropState {
 	mousePos: Ref<{ x: number; y: number }>
 	paletteValid: Ref<boolean>
 	paletteGhost: ComputedRef<{ w: number; h: number } | null>
-	paletteGhostParts: ComputedRef<null>
 	paletteGhostRect: ComputedRef<{ x: number; y: number; w: number; h: number } | null>
 	onWindowMouseMoveForDrag: (e: MouseEvent) => void
 	onWindowMouseUpForDrag: (e: MouseEvent) => void
@@ -39,8 +38,6 @@ export function useCanvasDragDrop(
 		const { w, h } = assetPixelSize(asset, t)
 		return { w: opts.store.snap(w), h: opts.store.snap(h) }
 	})
-
-	const paletteGhostParts = computed(() => null as null)
 
 	const paletteGhostRect = computed(() => {
 		const ghost = paletteGhost.value
@@ -97,5 +94,5 @@ export function useCanvasDragDrop(
 		window.removeEventListener('mouseup', onWindowMouseUpForDrag)
 	})
 
-	return { mousePos, paletteValid, paletteGhost, paletteGhostParts, paletteGhostRect, onWindowMouseMoveForDrag, onWindowMouseUpForDrag }
+	return { mousePos, paletteValid, paletteGhost, paletteGhostRect, onWindowMouseMoveForDrag, onWindowMouseUpForDrag }
 }

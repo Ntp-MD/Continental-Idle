@@ -21,20 +21,19 @@ Universal harness companion - ships with `harness/`. Everything here applies eve
 ## Read chain
 
 1. `harness/HARNESS.md` - how the loop runs.
-2. `harness/task-context.md` - live state, read first (RESUME). `harness/history.md` is human reference - the agent reads it only on explicit user order, never routinely.
-3. `skill.md` - project domain knowledge, only when the task touches it.
-4. `harness/context.md` - shared language (glossary), when domain terms or wording matter.
-5. `harness/skills/` - our skill procedures (adapted from `mattpocock/skills`, MIT - see `harness/skills/NOTICE.md`). Rules for when to read which + name resolution live in `harness/HARNESS.md` Read chain - always through that gate, never wholesale.
+2. `harness/state/task-context.md` - live state, read first (RESUME). `harness/state/history.md` is human reference - the agent reads it only on explicit user order, never routinely.
+3. `skill.md` (domain router) then the matching `docs/skill/*.md`, only when the task touches that domain.
+4. `harness/state/context.md` - shared language (glossary), when domain terms or wording matter.
 
 ## Workflow
 
-`inspect -> plan -> implement -> test -> fix -> review -> done` per `harness/HARNESS.md` (feature lane for ideas/PRDs/issues, light loop for single-file routine fixes). The live slot must be current (or cleared + logged in `history.md`) - a task with a stale slot is not finished.
+`inspect -> plan -> implement -> test -> fix -> review -> done` per `harness/HARNESS.md` (feature lane for ideas/PRDs/issues, light loop for single-file routine fixes). The live slot must be current (or cleared + logged in `harness/state/history.md`) - a task with a stale slot is not finished.
 
 `mod-cli/` is archived at `_archive/mod-cli/` - it is disconnected from the host (no bridge, no route) and excluded from typecheck/lint/tests. Do not import from it; work touching only files there skips the harness slot and history entirely.
 
 ## Canonical patterns
 
-Settled project patterns live in `skill.md` (Layout: Component patterns + Domain). Reuse them; do not introduce a second way. Glossary lives in `harness/context.md` only - never a second glossary file.
+Settled project patterns live in `skill.md` (router) + `docs/skill/*.md` (Component patterns + Domain). Reuse them; do not introduce a second way. Glossary lives in `harness/state/context.md` only - never a second glossary file.
 
 ## Verify
 
@@ -42,23 +41,27 @@ Run ONLY the suite matching the change, never the full matrix.
 
 PROJECT ADAPTER - the rows and banned names below are this project's values. A new project keeps the table shape and markers, fills its own rows.
 <!-- verify:start -->
+
 | Changed (globs)                                                                                                                     | Run                                                                      |
 | ----------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
 | Template/markup (`*.vue`)                                                                                                           | `lint:bem` + `lint:css` + `typecheck`                                    |
 | CSS (`src/**/*.css`)                                                                                                                | `lint:bem` + `lint:css`                                                  |
 | Harness scripts (`harness/scripts/*.mjs`)                                                                                           | `lint`                                                                   |
 | Config TS (`vite.config.ts`, `vitest.config.ts`)                                                                                    | `typecheck`                                                              |
+| Unit tests (`tests/unit/**/*.test.ts`)                                                                                              | `test:unit`                                                              |
+| Store (`src/blueprint-editor/store/**`)                                                                                             | the single matching `test:<name>` (human pick)                          |
+| Project scripts (`scripts/*.mjs`)                                                                                                   | `lint`                                                                   |
 | Repo tests (`tests/*.ts`)                                                                                                           | the single matching `test:<name>` or `npx tsx tests/<file>` (human pick) |
 | Engine/domain TS (`src/engine/**`, `**/domain/**`, `**/assets/**`)                                                                  | the single matching `test:<name>` (human pick)                           |
-| Schema/persistence/sync (`**/*schema*`, `**/*migrat*`, `**/*persist*`, `**/*sync*`, `**/*payload*`, `src/blueprint-editor/data/**`) | the single matching schema suite (human pick)                            |
+| Schema/persistence/sync (`**/*schema*`, `**/*migrat*`, `**/*persist*`, `**/*sync*`, `**/*payload*`, `**/*Payload*`, `src/blueprint-editor/data/**`) | the single matching schema suite (human pick)                            |
 
 Router: `node harness/scripts/verify.mjs` (route/run/check) parses THIS table - backticked globs in Changed match `git status` (no-slash globs match basenames, slash globs match paths), backticked npm scripts in Run are the route; a row with no concrete script is human-pick (the router lists the project's `test:` scripts, never auto-runs). The table is the only routing source - the harness ships no suite names.
 
-Bans: no `verify` / `test` matrix unless asked. Never `test:npc-perf`, `test:npc-scale`, `test:behavior`, `observe:hotel` unless asked. Never `git checkout --`, `git restore`, `git reset`, `git stash`, or `git clean` on tracked/staged files - revert only by hand-editing; read-only `git status` / `git diff` / `git log` allowed. Temp diagnostics go in `tests/_*.tmp.ts`, deleted same session, never committed.
+Bans: no `verify` / `test` matrix unless asked. Never `test:npc-perf`, `test:npc-scale`, `test:behavior`, `observe:hotel` unless asked. Never `git checkout --`, `git restore`, `git reset`, `git stash`, or `git clean` on tracked/staged files - revert only by hand-editing; read-only `git status` / `git log` allowed, never `git diff` (use targeted `read` on the file instead); Temp diagnostics go in `tests/_*.tmp.ts`, deleted same session, never committed.
 <!-- verify:end -->
 
 Report: claim verdict (which part of the report was true), what changed, assumption made, impact/trade-offs, how verified (quote the exact verify command run - an unrelated suite run must be visible here, never hidden). Short, no essay. Report unrelated failures separately, never fix silently.
 
 ## Decisions
 
-Direction-level decisions only (Problem / Final solution / Trade-off / Revisit trigger) go in the Decision Timeline. Routine fixes, refactors, cleanups are not recorded.
+Direction-level decisions only (Problem / Final solution / Trade-off / Revisit trigger) go in `harness/state/history.md` as a `- decision:` bullet - the history log IS the Decision Timeline, there is no separate decisions file. Routine fixes, refactors, cleanups are not recorded.

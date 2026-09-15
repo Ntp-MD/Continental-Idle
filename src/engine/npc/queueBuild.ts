@@ -1,6 +1,7 @@
 import type { AssetDef, FloorData, ObjectData, TileState } from '../../blueprint-editor/domain/types'
 import { resolveObjectDef, resolveQueueForTarget } from '../../blueprint-editor/domain/types'
 import type { NpcEngineFloor, NpcEngineInteractionTarget, NpcEnginePoint, NpcEngineQueue } from './types'
+import { interactionTargetKey } from './keys'
 
 interface Direction {
 	dr: number
@@ -23,7 +24,7 @@ function objectTargetKeys(objectId: string, targets: readonly NpcEngineInteracti
 	const itemId = `object:${objectId}`
 	return targets
 		.filter(target => target.itemId === itemId && !target.transitionToFloorId)
-		.map(target => `${target.floorId}:${target.itemId}:${target.interactSpotId}`)
+		.map(interactionTargetKey)
 }
 
 function objectCell(object: ObjectData, row: number, col: number, tileSize: number): NpcEnginePoint {

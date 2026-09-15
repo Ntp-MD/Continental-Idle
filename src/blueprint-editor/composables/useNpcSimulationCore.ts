@@ -1,7 +1,8 @@
-import { ref, shallowRef } from 'vue'
+import { ref, shallowRef, type Ref, type ShallowRef } from 'vue'
 import {
 	NpcEngine,
 	NPC_ENGINE_DEFAULT_AGENT_CLEARANCE,
+	NPC_ENGINE_DEFAULT_OPTIONS,
 	NPC_ENGINE_TICKS_PER_SECOND,
 	buildNpcEngineLayout,
 	buildRoleWalkableMap,
@@ -14,10 +15,17 @@ import {
 	type NpcEngineEvent,
 } from '@/engine/npc'
 import type { AssetDef, FloorData, NpcRole, NpcSimDot, NpcSimulationConfig } from '@/blueprint-editor/domain/types'
-import { isNpcConfig, clampInt } from '@/blueprint-editor/domain/types'
+import {
+	isNpcConfig,
+	clampInt,
+	NPC_DEFAULT_SPEED,
+	NPC_OPTION_DEFAULTS,
+	NPC_FRAME_DEFAULTS,
+} from '@/blueprint-editor/domain/types'
 import { mergeNpcConfig, editorLog, cloneDeepRaw } from '@/blueprint-editor/blueprintStore'
 
 const MAX_ROLE_SPAWN_COUNT = 100
+const SYNC_INTERVAL_MS = 250
 
 export interface NpcSimulationCoreHost {
 	getConfig(): NpcSimulationConfig | undefined
@@ -62,90 +70,89 @@ export function pruneArrivalMarks(marks: Map<string, number>, currentTick: numbe
 	for (const [agentId] of byAge.slice(0, byAge.length - ARRIVAL_MARK_LIVE_CAP)) marks.delete(agentId)
 }
 
-export function useNpcSimulationCore(host: NpcSimulationCoreHost) {
-	const npcs = shallowRef<NpcSimDot[]>([])
-	const socialEvents = shallowRef<NpcEngineEvent[]>([])
-	const isPaused = ref(false)
-	const simSpeed = ref(1)
-	const config = ref<NpcSimulationConfig>({
-		speed: 1 / 30, defaultRoleId: '', roles: [], tasks: [], pool: [],
-		crossFloorCooldownSeconds: 30, progressWatchdogTicks: 120, maxRepathAttempts: 4,
-		repathCooldownSeconds: 2, repathCooldownExponent: 1.5, pathBudgetMinPerTick: 2,
-		pathBudgetAgentsPerCall: 100, chooseTargetMinPerTick: 8, chooseTargetAgentsPerSlot: 20,
-		wanderMemorySize: 32, wanderSmallMapThreshold: 8, triggerRatePeriodSeconds: 60,
-		frameSimBudgetMs: 6, maxSimulationSteps: 8,
-	})
+interface NpcSimCoreState {
+	npcs: ShallowRef<NpcSimDot[]>
+	socialEvents: ShallowRef<NpcEngineEvent[]>
+	isPaused: Ref<boolean>
+	simSpeed: Ref<number>
+	config: Ref<NpcSimulationConfig>
+	animationId: number | null
+	engine: NpcEngine | null
+	deploymentActive: boolean
+	nextId: number
+	spawnFloorOverride: string | null
+	tickCostEma: number
+	floorMaps: Map<string, NpcWalkableMap>
+	floorDataMap: Map<string, FloorData>
+	currentCanvas: NpcCanvasBounds | null
+	viewFloorId: string | null
+	lastSyncAt: number
+	frameDots: Map<string, NpcSimDot>
+	waitReasons: Map<string, string>
+	arrived: Set<string>
+	arrivalMarks: Map<string, number>
+	seenAgentIds: Set<string>
+	dotRoleColors: Map<string, string>
+}
 
-	let animationId: number | null = null
-	let engine: NpcEngine | null = null
-	let deploymentActive = false
-	let nextId = 1
-	let spawnFloorOverride: string | null = null
-	let tickCostEma = 0
-	let floorMaps = new Map<string, NpcWalkableMap>()
-	let floorDataMap = new Map<string, FloorData>()
-	let currentCanvas: NpcCanvasBounds | null = null
-	let viewFloorId: string | null = host.getViewFloorId()
+function getAssetTagsSafe(host: NpcSimulationCoreHost): ((type: string) => string[] | undefined) | undefined {
+	return host.getAssetTags ? (type: string) => host.getAssetTags!(type) : undefined
+}
 
-	const SYNC_INTERVAL_MS = 250
-	let lastSyncAt = 0
-	const frameDots = new Map<string, NpcSimDot>()
-	const waitReasons = new Map<string, string>()
-	const arrived = new Set<string>()
-	const arrivalMarks = new Map<string, number>()
-	const seenAgentIds = new Set<string>()
-	const dotRoleColors = new Map<string, string>()
+function getAssetDefSafe(host: NpcSimulationCoreHost): ((type: string) => AssetDef | undefined) | undefined {
+	return host.getAssetDef ? (type: string) => host.getAssetDef!(type) : undefined
+}
 
-	function isRoleAllowedOnFloor(roleId: string, floorId: string): boolean {
-		const floor = floorDataMap.get(floorId)
-		if (!floor?.allowedRoleIds?.length) return true
-		return floor.allowedRoleIds.includes(roleId)
+function isRoleAllowedOnFloor(state: NpcSimCoreState, roleId: string, floorId: string): boolean {
+	const floor = state.floorDataMap.get(floorId)
+	if (!floor?.allowedRoleIds?.length) return true
+	return floor.allowedRoleIds.includes(roleId)
+}
+
+function dotColorFor(state: NpcSimCoreState, requestedRoleId: string): string {
+	let color = state.dotRoleColors.get(requestedRoleId)
+	if (color === undefined) {
+		color = resolveRole(state.config.value, requestedRoleId)?.color ?? '#8ecae6'
+		state.dotRoleColors.set(requestedRoleId, color)
 	}
+	return color
+}
 
-	function dotColorFor(requestedRoleId: string): string {
-		let color = dotRoleColors.get(requestedRoleId)
-		if (color === undefined) {
-			color = resolveRole(config.value, requestedRoleId)?.color ?? '#8ecae6'
-			dotRoleColors.set(requestedRoleId, color)
+function syncAgents(state: NpcSimCoreState): void {
+	const currentEngine = state.engine
+	if (!currentEngine) return
+	const agents = currentEngine.listAgents()
+	state.seenAgentIds.clear()
+	for (const agent of agents) {
+		const map = state.floorMaps.get(agent.floorId)
+		if (!map) continue
+		const cs = map.cellSize
+		state.seenAgentIds.add(agent.id)
+		const existing = state.frameDots.get(agent.id)
+		const dot: NpcSimDot = existing ?? {
+			id: agent.id,
+			floorId: agent.floorId,
+			type: agent.roleId ?? '',
+			x: 0,
+			y: 0,
+			targetX: 0,
+			targetY: 0,
+			speed: 0,
+			color: '#8ecae6',
+			status: 'idle',
+			pauseTimer: 0,
+			pathIdx: 0,
+			path: [],
+			interactTargetKey: null,
+			interactSpotKey: null,
+			interactDurationMin: 0,
+			interactDurationMax: 0,
 		}
-		return color
-	}
-
-	function syncAgents(): void {
-		const currentEngine = engine
-		if (!currentEngine) return
-		const agents = currentEngine.listAgents()
-		seenAgentIds.clear()
-		for (const agent of agents) {
-			const map = floorMaps.get(agent.floorId)
-			if (!map) continue
-			const cs = map.cellSize
-			seenAgentIds.add(agent.id)
-			const existing = frameDots.get(agent.id)
-			const dot: NpcSimDot = existing ?? {
-				id: agent.id,
-				floorId: agent.floorId,
-				type: agent.roleId ?? '',
-				x: 0,
-				y: 0,
-				targetX: 0,
-				targetY: 0,
-				speed: 0,
-				color: '#8ecae6',
-				status: 'idle',
-				pauseTimer: 0,
-				pathIdx: 0,
-				path: [],
-				interactTargetKey: null,
-				interactSpotKey: null,
-				interactDurationMin: 0,
-				interactDurationMax: 0,
-			}
-			frameDots.set(agent.id, dot)
-			dot.floorId = agent.floorId
-			dot.type = agent.roleId ?? ''
-			dot.x = cellToPixel(agent.x, cs)
-			dot.y = cellToPixel(agent.y, cs)
+		state.frameDots.set(agent.id, dot)
+		dot.floorId = agent.floorId
+		dot.type = agent.roleId ?? ''
+		dot.x = cellToPixel(agent.x, cs)
+		dot.y = cellToPixel(agent.y, cs)
 		dot.targetX = cellToPixel(agent.targetX, cs)
 		dot.targetY = cellToPixel(agent.targetY, cs)
 		dot.status = agent.status
@@ -156,263 +163,288 @@ export function useNpcSimulationCore(host: NpcSimulationCoreHost) {
 			dot.interactTargetKey = null
 			dot.interactSpotKey = null
 		}
-			if (dot.path.length !== agent.path.length || agent.pathIndex < dot.pathIdx) {
-				dot.path = agent.path.map(point => [cellToPixel(point.x, cs), cellToPixel(point.y, cs)] as [number, number])
-			}
-			dot.pathIdx = agent.pathIndex
-			dot.color = dotColorFor(agent.roleId ?? '')
+		if (dot.path.length !== agent.path.length || agent.pathIndex < dot.pathIdx) {
+			dot.path = agent.path.map(point => [cellToPixel(point.x, cs), cellToPixel(point.y, cs)] as [number, number])
 		}
-		if (frameDots.size > seenAgentIds.size) {
-			for (const id of frameDots.keys()) {
-				if (!seenAgentIds.has(id)) frameDots.delete(id)
-			}
-		}
-		for (const id of waitReasons.keys()) {
-			const dot = frameDots.get(id)
-			if (!dot || (dot.status !== 'waiting' && dot.status !== 'queued')) waitReasons.delete(id)
-		}
-		const now = performance.now()
-		if (now - lastSyncAt >= SYNC_INTERVAL_MS && !isPaused.value) {
-			lastSyncAt = now
-			npcs.value = [...frameDots.values()].filter(dot => dot.floorId === viewFloorId)
+		dot.pathIdx = agent.pathIndex
+		dot.color = dotColorFor(state, agent.roleId ?? '')
+	}
+	if (state.frameDots.size > state.seenAgentIds.size) {
+		for (const id of state.frameDots.keys()) {
+			if (!state.seenAgentIds.has(id)) state.frameDots.delete(id)
 		}
 	}
+	for (const id of state.waitReasons.keys()) {
+		const dot = state.frameDots.get(id)
+		if (!dot || (dot.status !== 'waiting' && dot.status !== 'queued')) state.waitReasons.delete(id)
+	}
+	const now = performance.now()
+	if (now - state.lastSyncAt >= SYNC_INTERVAL_MS && !state.isPaused.value) {
+		state.lastSyncAt = now
+		state.npcs.value = [...state.frameDots.values()].filter(dot => dot.floorId === state.viewFloorId)
+	}
+}
 
-	function spawnAgents(floors: readonly FloorData[], canvas: NpcCanvasBounds): void {
-		if (!engine) return
-		const rand = host.random ?? Math.random
-		npcs.value = []
-		const occupiedSpawnKeys = new Set<string>()
-		let spawnCursor = 0
-		const skipped = new Map<string, number>()
-		const skip = (reason: string, count: number) => { skipped.set(reason, (skipped.get(reason) ?? 0) + count) }
-		let spawned = 0
+function spawnAgents(state: NpcSimCoreState, host: NpcSimulationCoreHost, floors: readonly FloorData[], canvas: NpcCanvasBounds): void {
+	if (!state.engine) return
+	const rand = host.random ?? Math.random
+	state.npcs.value = []
+	const occupiedSpawnKeys = new Set<string>()
+	let spawnCursor = 0
+	const skipped = new Map<string, number>()
+	const skip = (reason: string, count: number) => { skipped.set(reason, (skipped.get(reason) ?? 0) + count) }
+	let spawned = 0
 
-		for (const entry of config.value.pool) {
-			const count = clampInt(entry.count || 0, 0, MAX_ROLE_SPAWN_COUNT)
-			const role = resolveRole(config.value, entry.roleId)
-			if (!role) { skip('unknown-role', count * floors.length); continue }
-			for (const floor of floors) {
-				if (spawnFloorOverride && floor.id !== spawnFloorOverride) { skip('floor-override', count); continue }
-				const allowedFloorIds = entry.floorIds ?? []
-				if (allowedFloorIds.length > 0 && !allowedFloorIds.includes(floor.id)) { skip('floor-id-filter', count); continue }
-				if (!isRoleAllowedOnFloor(role.id, floor.id)) { skip('role-floor-restriction', count); continue }
-				if (!floorMatchesTargetTags(floor, role.spawnRule?.targetTags ?? [], getAssetTagsSafe())) { skip('target-tags', count); continue }
-				const map = floorMaps.get(floor.id)
-				if (!map) { skip('no-floor-map', count); continue }
-				const roleMap = buildRoleWalkableMap(map, floor, role, getAssetTagsSafe())
-				const keys = [...filterNpcSpawnTiles(roleMap, floor, role.id)]
-				if (!keys.length) { skip('no-spawn-cells', count); continue }
-				const centerX = canvas.w / 2 / map.cellSize
-				const centerY = canvas.h / 2 / map.cellSize
-				const keyPts = keys.map(k => {
-					const sep = k.indexOf(',')
-					const x = Number(k.slice(0, sep))
-					const y = Number(k.slice(sep + 1))
-					return { k, d: Math.hypot(x - centerX, y - centerY) }
-				})
-				keyPts.sort((a, b) => a.d - b.d)
-				for (let i = 0; i < keys.length; i++) keys[i] = keyPts[i].k
-				const spawnOffset = Math.floor(rand() * Math.max(1, keys.length))
-				for (let i = 0; i < count; i++) {
-					let spawnIndex = (spawnCursor + spawnOffset + i) % keys.length
-					let attempts = 0
-					while (attempts < keys.length && occupiedSpawnKeys.has(`${floor.id}:${keys[spawnIndex]}`)) {
-						spawnIndex = (spawnIndex + 1) % keys.length
-						attempts++
-					}
-					if (attempts >= keys.length) { skip('occupied-cells', count - i); break }
-					const spawnKey = keys[spawnIndex]
-					occupiedSpawnKeys.add(`${floor.id}:${spawnKey}`)
-					const [x, y] = spawnKey.split(',').map(Number)
-					const id = `${host.idPrefix}${nextId++}`
-					const speed = Math.max(0.01, config.value.speed || 1 / 30) + (rand() - 0.5) * 0.02
-					engine.addAgent({ id, roleId: role.id, floorId: floor.id, x, y, targetX: x, targetY: y, speed: speed * NPC_ENGINE_TICKS_PER_SECOND / map.cellSize })
-					spawned++
+	for (const entry of state.config.value.pool) {
+		const count = clampInt(entry.count || 0, 0, MAX_ROLE_SPAWN_COUNT)
+		const role = resolveRole(state.config.value, entry.roleId)
+		if (!role) { skip('unknown-role', count * floors.length); continue }
+		for (const floor of floors) {
+			if (state.spawnFloorOverride && floor.id !== state.spawnFloorOverride) { skip('floor-override', count); continue }
+			const allowedFloorIds = entry.floorIds ?? []
+			if (allowedFloorIds.length > 0 && !allowedFloorIds.includes(floor.id)) { skip('floor-id-filter', count); continue }
+			if (!isRoleAllowedOnFloor(state, role.id, floor.id)) { skip('role-floor-restriction', count); continue }
+			if (!floorMatchesTargetTags(floor, role.spawnRule?.targetTags ?? [], getAssetTagsSafe(host))) { skip('target-tags', count); continue }
+			const map = state.floorMaps.get(floor.id)
+			if (!map) { skip('no-floor-map', count); continue }
+			const roleMap = buildRoleWalkableMap(map, floor, role, getAssetTagsSafe(host))
+			const keys = [...filterNpcSpawnTiles(roleMap, floor, role.id)]
+			if (!keys.length) { skip('no-spawn-cells', count); continue }
+			const centerX = canvas.w / 2 / map.cellSize
+			const centerY = canvas.h / 2 / map.cellSize
+			const keyPts = keys.map(k => {
+				const sep = k.indexOf(',')
+				const x = Number(k.slice(0, sep))
+				const y = Number(k.slice(sep + 1))
+				return { k, d: Math.hypot(x - centerX, y - centerY) }
+			})
+			keyPts.sort((a, b) => a.d - b.d)
+			for (let i = 0; i < keys.length; i++) keys[i] = keyPts[i].k
+			const spawnOffset = Math.floor(rand() * Math.max(1, keys.length))
+			for (let i = 0; i < count; i++) {
+				let spawnIndex = (spawnCursor + spawnOffset + i) % keys.length
+				let attempts = 0
+				while (attempts < keys.length && occupiedSpawnKeys.has(`${floor.id}:${keys[spawnIndex]}`)) {
+					spawnIndex = (spawnIndex + 1) % keys.length
+					attempts++
 				}
-				spawnCursor = (spawnCursor + count) % keys.length
+				if (attempts >= keys.length) { skip('occupied-cells', count - i); break }
+				const spawnKey = keys[spawnIndex]
+				occupiedSpawnKeys.add(`${floor.id}:${spawnKey}`)
+				const [x, y] = spawnKey.split(',').map(Number)
+				const id = `${host.idPrefix}${state.nextId++}`
+				const speed = Math.max(0.01, state.config.value.speed || 1 / 30) + (rand() - 0.5) * 0.02
+				state.engine.addAgent({ id, roleId: role.id, floorId: floor.id, x, y, targetX: x, targetY: y, speed: speed * NPC_ENGINE_TICKS_PER_SECOND / map.cellSize })
+				spawned++
 			}
-		}
-		const attempted = spawned + [...skipped.values()].reduce((a, b) => a + b, 0)
-		if (attempted > 0 || skipped.size > 0) {
-			editorLog.info('NpcSpawn', { attempted, spawned, skipped: Object.fromEntries(skipped) })
+			spawnCursor = (spawnCursor + count) % keys.length
 		}
 	}
-
-	function getAssetTagsSafe(): ((type: string) => string[] | undefined) | undefined {
-		return host.getAssetTags ? (type: string) => host.getAssetTags!(type) : undefined
+	const attempted = spawned + [...skipped.values()].reduce((a, b) => a + b, 0)
+	if (attempted > 0 || skipped.size > 0) {
+		editorLog.info('NpcSpawn', { attempted, spawned, skipped: Object.fromEntries(skipped) })
 	}
+}
 
-	function getAssetDefSafe(): ((type: string) => AssetDef | undefined) | undefined {
-		return host.getAssetDef ? (type: string) => host.getAssetDef!(type) : undefined
-	}
+function buildEngine(state: NpcSimCoreState, host: NpcSimulationCoreHost, floors: readonly FloorData[], canvas: NpcCanvasBounds): void {
+	state.currentCanvas = canvas
+	const built = buildNpcEngineLayout(floors, canvas, getAssetDefSafe(host), getAssetTagsSafe(host))
+	state.floorMaps = built.floorMaps
+	state.floorDataMap = built.floorDataMap
 
-	function buildEngine(floors: readonly FloorData[], canvas: NpcCanvasBounds): void {
-		currentCanvas = canvas
-		const built = buildNpcEngineLayout(floors, canvas, getAssetDefSafe(), getAssetTagsSafe())
-		floorMaps = built.floorMaps
-		floorDataMap = built.floorDataMap
+	const policy = createNpcEnginePolicy({
+		getConfig: () => state.config.value,
+		floors: built.layout.floors,
+		floorMaps: state.floorMaps,
+		floorDataMap: state.floorDataMap,
+		interactionTargets: built.layout.interactionTargets,
+		ticksPerSecond: NPC_ENGINE_TICKS_PER_SECOND,
+		getTickNumber: () => state.engine?.tickNumber ?? 0,
+		listAgents: () => state.engine?.listAgents() ?? [],
+		getAssetTags: getAssetTagsSafe(host),
+		getManagedTags: host.getManagedTags,
+		random: host.random,
+	})
 
-		const policy = createNpcEnginePolicy({
-			getConfig: () => config.value,
-			floors: built.layout.floors,
-			floorMaps,
-			floorDataMap,
-			interactionTargets: built.layout.interactionTargets,
-			ticksPerSecond: NPC_ENGINE_TICKS_PER_SECOND,
-			getTickNumber: () => engine?.tickNumber ?? 0,
-			listAgents: () => engine?.listAgents() ?? [],
-			getAssetTags: getAssetTagsSafe(),
-			getManagedTags: host.getManagedTags,
-			random: host.random,
-		})
+	const cfg = host.getConfig()
+	state.engine = new NpcEngine(built.layout, {
+		ticksPerSecond: NPC_ENGINE_TICKS_PER_SECOND,
+		agentClearance: NPC_ENGINE_DEFAULT_AGENT_CLEARANCE,
+		random: host.random,
+		crossFloorCooldownSeconds: cfg?.crossFloorCooldownSeconds ?? NPC_ENGINE_DEFAULT_OPTIONS.crossFloorCooldownSeconds,
+		progressWatchdogTicks: cfg?.progressWatchdogTicks ?? NPC_ENGINE_DEFAULT_OPTIONS.progressWatchdogTicks,
+		maxRepathAttempts: cfg?.maxRepathAttempts ?? NPC_ENGINE_DEFAULT_OPTIONS.maxRepathAttempts,
+		repathCooldownSeconds: cfg?.repathCooldownSeconds ?? NPC_ENGINE_DEFAULT_OPTIONS.repathCooldownSeconds,
+		repathCooldownExponent: cfg?.repathCooldownExponent ?? NPC_ENGINE_DEFAULT_OPTIONS.repathCooldownExponent,
+		pathBudgetMinPerTick: cfg?.pathBudgetMinPerTick ?? NPC_ENGINE_DEFAULT_OPTIONS.pathBudgetMinPerTick,
+		pathBudgetAgentsPerCall: cfg?.pathBudgetAgentsPerCall ?? NPC_ENGINE_DEFAULT_OPTIONS.pathBudgetAgentsPerCall,
+		chooseTargetMinPerTick: cfg?.chooseTargetMinPerTick ?? NPC_ENGINE_DEFAULT_OPTIONS.chooseTargetMinPerTick,
+		chooseTargetAgentsPerSlot: cfg?.chooseTargetAgentsPerSlot ?? NPC_ENGINE_DEFAULT_OPTIONS.chooseTargetAgentsPerSlot,
+		wanderMemorySize: cfg?.wanderMemorySize ?? NPC_ENGINE_DEFAULT_OPTIONS.wanderMemorySize,
+		wanderSmallMapThreshold: cfg?.wanderSmallMapThreshold ?? NPC_ENGINE_DEFAULT_OPTIONS.wanderSmallMapThreshold,
+		triggerRatePeriodSeconds: cfg?.triggerRatePeriodSeconds ?? NPC_ENGINE_DEFAULT_OPTIONS.triggerRatePeriodSeconds,
+		socialRadius: 2,
+		socialCooldownSeconds: 45,
+		socialChatDurationMinSeconds: 3,
+		socialChatDurationMaxSeconds: 8,
+		...policy,
+	})
 
+	spawnAgents(state, host, floors, canvas)
+	syncAgents(state)
+}
+
+function frame(state: NpcSimCoreState, host: NpcSimulationCoreHost): void {
+	if (!state.isPaused.value && state.engine) {
 		const cfg = host.getConfig()
-		engine = new NpcEngine(built.layout, {
-			ticksPerSecond: NPC_ENGINE_TICKS_PER_SECOND,
-			agentClearance: NPC_ENGINE_DEFAULT_AGENT_CLEARANCE,
-			random: host.random,
-			crossFloorCooldownSeconds: cfg?.crossFloorCooldownSeconds ?? 30,
-			progressWatchdogTicks: cfg?.progressWatchdogTicks ?? 120,
-			maxRepathAttempts: cfg?.maxRepathAttempts ?? 4,
-			repathCooldownSeconds: cfg?.repathCooldownSeconds ?? 2,
-			repathCooldownExponent: cfg?.repathCooldownExponent ?? 1.5,
-			pathBudgetMinPerTick: cfg?.pathBudgetMinPerTick ?? 2,
-			pathBudgetAgentsPerCall: cfg?.pathBudgetAgentsPerCall ?? 100,
-			chooseTargetMinPerTick: cfg?.chooseTargetMinPerTick ?? 8,
-			chooseTargetAgentsPerSlot: cfg?.chooseTargetAgentsPerSlot ?? 20,
-			wanderMemorySize: cfg?.wanderMemorySize ?? 32,
-			wanderSmallMapThreshold: cfg?.wanderSmallMapThreshold ?? 8,
-			triggerRatePeriodSeconds: cfg?.triggerRatePeriodSeconds ?? 60,
-			socialRadius: 2,
-			socialCooldownSeconds: 45,
-			socialChatDurationMinSeconds: 3,
-			socialChatDurationMaxSeconds: 8,
-			...policy,
-		})
-
-		spawnAgents(floors, canvas)
-		syncAgents()
-	}
-
-	function frame(): void {
-		if (!isPaused.value && engine) {
-			const cfg = host.getConfig()
-			const maxSteps = cfg?.maxSimulationSteps ?? 8
-			const budgetMs = cfg?.frameSimBudgetMs ?? 6
-			const desired = Math.max(1, Math.min(maxSteps, Math.round(simSpeed.value)))
-			let steps = desired
-			if (tickCostEma > 0) {
-				steps = Math.max(1, Math.min(desired, Math.floor(budgetMs / tickCostEma)))
-			}
-			const t0 = performance.now()
-			engine.tick(steps)
-			tickCostEma = tickCostEma === 0 ? (performance.now() - t0) / steps : tickCostEma * 0.85 + ((performance.now() - t0) / steps) * 0.15
-			syncAgents()
-			const events = engine.drainEvents()
-			pruneArrivalMarks(arrivalMarks, engine.tickNumber)
-			if (events.length > 0) {
-				const chatEvents = events.filter(e => e.type === 'chatting-start' || e.type === 'chatting-end')
-				if (chatEvents.length > 0 || socialEvents.value.length > 0) socialEvents.value = chatEvents
-				for (const event of events) {
-					if (event.type === 'waiting' && event.reason) {
-						const dot = frameDots.get(event.agentId)
-						if (dot && (dot.status === 'waiting' || dot.status === 'queued')) waitReasons.set(event.agentId, event.reason)
-					}
-					latchArrivalEvent(arrived, arrivalMarks, event, host.idPrefix)
-				}
-			} else {
-				if (socialEvents.value.length > 0) socialEvents.value = []
-			}
+		const maxSteps = cfg?.maxSimulationSteps ?? 8
+		const budgetMs = cfg?.frameSimBudgetMs ?? 6
+		const desired = Math.max(1, Math.min(maxSteps, Math.round(state.simSpeed.value)))
+		let steps = desired
+		if (state.tickCostEma > 0) {
+			steps = Math.max(1, Math.min(desired, Math.floor(budgetMs / state.tickCostEma)))
 		}
-		animationId = requestAnimationFrame(frame)
+		const t0 = performance.now()
+		state.engine.tick(steps)
+		state.tickCostEma = state.tickCostEma === 0 ? (performance.now() - t0) / steps : state.tickCostEma * 0.85 + ((performance.now() - t0) / steps) * 0.15
+		syncAgents(state)
+		const events = state.engine.drainEvents()
+		pruneArrivalMarks(state.arrivalMarks, state.engine.tickNumber)
+		if (events.length > 0) {
+			const chatEvents = events.filter(e => e.type === 'chatting-start' || e.type === 'chatting-end')
+			if (chatEvents.length > 0 || state.socialEvents.value.length > 0) state.socialEvents.value = chatEvents
+			for (const event of events) {
+				if (event.type === 'waiting' && event.reason) {
+					const dot = state.frameDots.get(event.agentId)
+					if (dot && (dot.status === 'waiting' || dot.status === 'queued')) state.waitReasons.set(event.agentId, event.reason)
+				}
+				latchArrivalEvent(state.arrived, state.arrivalMarks, event, host.idPrefix)
+			}
+		} else {
+			if (state.socialEvents.value.length > 0) state.socialEvents.value = []
+		}
+	}
+	state.animationId = requestAnimationFrame(() => frame(state, host))
+}
+
+function applyConfigSpeedToAgents(state: NpcSimCoreState): void {
+	const speed = Math.max(0.01, state.config.value.speed || 1 / 30)
+	if (!state.engine) return
+	for (const agent of state.engine.listAgents()) {
+		agent.speed = speed * NPC_ENGINE_TICKS_PER_SECOND / Math.max(1, state.floorMaps.get(agent.floorId)?.cellSize ?? 1)
+	}
+}
+
+function ingestConfig(state: NpcSimCoreState, raw: NpcSimulationConfig | undefined): boolean {
+	if (!raw || !isNpcConfig(raw)) return false
+	state.config.value = mergeNpcConfig(cloneDeepRaw(raw))
+	state.dotRoleColors.clear()
+	applyConfigSpeedToAgents(state)
+	return true
+}
+
+export function useNpcSimulationCore(host: NpcSimulationCoreHost) {
+	const state: NpcSimCoreState = {
+		npcs: shallowRef<NpcSimDot[]>([]),
+		socialEvents: shallowRef<NpcEngineEvent[]>([]),
+		isPaused: ref(false),
+		simSpeed: ref(1),
+		config: ref<NpcSimulationConfig>({
+			speed: NPC_DEFAULT_SPEED,
+			defaultRoleId: '',
+			roles: [],
+			tasks: [],
+			pool: [],
+			...NPC_OPTION_DEFAULTS,
+			...NPC_FRAME_DEFAULTS,
+		}),
+		animationId: null,
+		engine: null,
+		deploymentActive: false,
+		nextId: 1,
+		spawnFloorOverride: null,
+		tickCostEma: 0,
+		floorMaps: new Map(),
+		floorDataMap: new Map(),
+		currentCanvas: null,
+		viewFloorId: host.getViewFloorId(),
+		lastSyncAt: 0,
+		frameDots: new Map(),
+		waitReasons: new Map(),
+		arrived: new Set(),
+		arrivalMarks: new Map(),
+		seenAgentIds: new Set(),
+		dotRoleColors: new Map(),
 	}
 
-	function start(): void {
-		if (animationId === null) animationId = requestAnimationFrame(frame)
+	function startLoop(): void {
+		if (state.animationId === null) state.animationId = requestAnimationFrame(() => frame(state, host))
 	}
 
 	function stopLoop(): void {
-		if (animationId !== null) cancelAnimationFrame(animationId)
-		animationId = null
-		isPaused.value = false
-	}
-
-	/** Merge raw external config into working config; returns true when applied. */
-	function ingestConfig(raw: NpcSimulationConfig | undefined): boolean {
-		if (!raw || !isNpcConfig(raw)) return false
-		config.value = mergeNpcConfig(cloneDeepRaw(raw))
-		dotRoleColors.clear()
-		applyConfigSpeedToAgents()
-		return true
-	}
-
-	function applyConfigSpeedToAgents(): void {
-		const speed = Math.max(0.01, config.value.speed || 1 / 30)
-		if (!engine) return
-		for (const agent of engine.listAgents()) {
-			agent.speed = speed * NPC_ENGINE_TICKS_PER_SECOND / Math.max(1, floorMaps.get(agent.floorId)?.cellSize ?? 1)
-		}
+		if (state.animationId !== null) cancelAnimationFrame(state.animationId)
+		state.animationId = null
+		state.isPaused.value = false
 	}
 
 	return {
-		npcs,
-		frameDots,
-		waitReasons,
-		arrivalMarks,
-		socialEvents,
-		isPaused,
-		simSpeed,
-		config,
-		ingestConfig,
+		npcs: state.npcs,
+		frameDots: state.frameDots,
+		waitReasons: state.waitReasons,
+		arrivalMarks: state.arrivalMarks,
+		socialEvents: state.socialEvents,
+		isPaused: state.isPaused,
+		simSpeed: state.simSpeed,
+		config: state.config,
+		ingestConfig: (raw: NpcSimulationConfig | undefined) => ingestConfig(state, raw),
 		deploy(floors: readonly FloorData[], canvas: NpcCanvasBounds, newViewFloorId: string, spawnFloorId?: string): void {
 			stopLoop()
-			ingestConfig(host.getConfig())
-			spawnFloorOverride = spawnFloorId ?? null
-			tickCostEma = 0
-			deploymentActive = true
-			waitReasons.clear()
-			arrived.clear()
-			arrivalMarks.clear()
-			viewFloorId = newViewFloorId
-			buildEngine(floors, canvas)
-			start()
+			ingestConfig(state, host.getConfig())
+			state.spawnFloorOverride = spawnFloorId ?? null
+			state.tickCostEma = 0
+			state.deploymentActive = true
+			state.waitReasons.clear()
+			state.arrived.clear()
+			state.arrivalMarks.clear()
+			state.viewFloorId = newViewFloorId
+			buildEngine(state, host, floors, canvas)
+			startLoop()
 		},
 		refresh(): void {
-			if (!deploymentActive || !currentCanvas) return
-			ingestConfig(host.getConfig())
+			if (!state.deploymentActive || !state.currentCanvas) return
+			ingestConfig(state, host.getConfig())
 			const floors = host.getFloors()
-			if (floors.length) buildEngine(floors, currentCanvas)
+			if (floors.length) buildEngine(state, host, floors, state.currentCanvas)
 		},
 		setViewFloorId(floorId: string): void {
-			viewFloorId = floorId
-			if (deploymentActive) syncAgents()
+			state.viewFloorId = floorId
+			if (state.deploymentActive) syncAgents(state)
 		},
 		reset(): void {
 			stopLoop()
-			engine = null
-			floorMaps = new Map()
-			floorDataMap = new Map()
-			frameDots.clear()
-			waitReasons.clear()
-			arrived.clear()
-			arrivalMarks.clear()
-			dotRoleColors.clear()
-			currentCanvas = null
-			viewFloorId = null
-			deploymentActive = false
-			spawnFloorOverride = null
-			tickCostEma = 0
-			npcs.value = []
-			socialEvents.value = []
+			state.engine = null
+			state.floorMaps = new Map()
+			state.floorDataMap = new Map()
+			state.frameDots.clear()
+			state.waitReasons.clear()
+			state.arrived.clear()
+			state.arrivalMarks.clear()
+			state.dotRoleColors.clear()
+			state.currentCanvas = null
+			state.viewFloorId = null
+			state.deploymentActive = false
+			state.spawnFloorOverride = null
+			state.tickCostEma = 0
+			state.npcs.value = []
+			state.socialEvents.value = []
 		},
-		start,
+		start: startLoop,
 		stopLoop,
 		isDeploymentActive(): boolean {
-			return deploymentActive
+			return state.deploymentActive
 		},
 		getViewFloorId(): string | null {
-			return viewFloorId
+			return state.viewFloorId
 		},
 	}
 }

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { collectFloorEntrances, isGuestRoleId, validateSettingsCompleteness } from '../src/blueprint-editor/assets/assetUtils'
+import { collectFloorEntrances, isGuestRoleId, validateSettingsCompleteness } from '../src/blueprint-editor/assets/validation'
 import type { FloorLayoutData, NpcSimulationConfig, ObjectData, TileState } from '../src/blueprint-editor/domain/types'
 
 const STREET_HINT_SNIPPET = 'need a street-side spawn zone'

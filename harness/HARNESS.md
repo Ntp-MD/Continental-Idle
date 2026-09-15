@@ -1,6 +1,6 @@
 # Harness
 
-Single-folder agent ops: one doc, one slot, one log, one script. No services, no dependencies beyond node. Copy this folder into any project, write the project's instruction file, and work.
+Single-folder agent ops: one doc, one slot, one log, one script folder. No services, no dependencies beyond node. Copy this folder into any project, write the project's instruction file, and work.
 
 Coding agents fail in predictable ways: they lose track of state mid-task, run the wrong (or every) test suite, and declare victory early.
 
@@ -8,10 +8,10 @@ Coding agents fail in predictable ways: they lose track of state mid-task, run t
 
 1. Project instruction file first (this repo: `AGENTS.md`) - rules, verify table, bans.
 2. This file - how the loop runs.
-3. `task-context.md` - live slot, current state. Read it at task start.
-4. `history.md` - human reference log. The agent never reads it on its own - only when the user explicitly orders an investigation.
+3. `state/task-context.md` - live slot, current state. Read it at task start.
+4. `state/history.md` - human reference log. The agent never reads it on its own - only when the user explicitly orders an investigation.
 5. Project skill file (this repo: `skill.md`) - only when the task touches project domain.
-6. `context.md` - shared language (glossary). Read when domain terms or wording matter; patch it when a new term locks.
+6. `state/context.md` - shared language (glossary). Read when domain terms or wording matter; patch it when a new term locks.
 
 ## Persona
 This folder is not a checklist - it is a software engineer. Facts are looked up, never asked; decisions are put to the user; the first interface idea is never the last.
@@ -20,9 +20,9 @@ Every task walks the loop below - inspect, plan, implement, test, fix, review, d
 
 ## Skills (`skills/`)
 
-Owner-authored guardrails for weaker models. Each skill carries standard frontmatter (`name` + `description`) so external agents can discover it. Read a skill ONLY through its door, never wholesale:
+Owner-authored guardrails, not itineraries: the floor for a weaker model, which a stronger one may override with judgment. Repository skills also steer other contributors' agents on other models, so keep every description short and every trigger narrow - over-prescription costs as much as omission. Each skill carries standard frontmatter (`name` + `description`) so external agents can discover it. Read a skill ONLY through its door, never wholesale:
 
-- **Task trigger**: `edit-minimal` (before editing an existing file), `verify-external` (before citing anything outside the repo), `finish-complete` (before reporting any implementation done), `report-gaps` (when writing the done report).
+- **Task trigger**: `edit-minimal` (editing an existing file), `verify-external` (citing anything outside the repo), `finish-complete` (before reporting any implementation done), `report-gaps` (writing the done report), `wire-paths` (before a move/rename, or any structural change that touches path references).
 
 **Name resolution**: when a skill references another skill by name, it resolves to `skills/<name>/SKILL.md` inside this folder - never an external fetch, never an invented procedure.
 
@@ -34,7 +34,7 @@ inspect -> plan (slot) -> implement -> verify route -> fix -> review -> done
                 ^ tick the slot as you go (it is the progress bar) ^
 ```
 
-Drive each task to completion by yourself. Stop and ask only when information is genuinely missing, approval is required, or the task is blocked. If the approach is invalid, revise the plan and continue from the current state.
+Drive each task to completion by yourself. Define completion in the plan and treat the first implementation as a draft: completion means the change is running, inspected, and fixed. Stop and ask only when information is genuinely missing, approval is required, or the task is blocked. If the approach is invalid, revise the plan and continue from the current state.
 
 ## Steps
 
@@ -43,7 +43,7 @@ Drive each task to completion by yourself. Stop and ask only when information is
 3. Implement - follow file-local conventions and the project's canonical patterns. Never add a second way. ASCII-only source, imports at top, no code comments unless requested. Never commit unless asked.
 4. Test - run ONLY the suite matching the change (`verify.mjs route` prints it). Never the full matrix unless asked. When Phase F wrote the failing case first, this run is that same suite - one suite, two moments (red before, green after), never a second suite.
 5. Fix - diagnose the root cause from the failing output, fix the smallest in-scope change, re-run. Pre-existing unrelated failures are reported separately, never fixed silently.
-6. Review - correctness, regressions, chain (each changed function lists its direct callers + callees with a touched-or-unaffected verdict per edge; one hop mandatory, deeper only when an edge contract changed), correspondence (zero references to removed things), scope (no files beyond the plan), architecture scan (list introduced complexity as candidates, never fix silently - the scope rule applies).
+6. Review - correctness, regressions, chain (each changed function lists its direct callers + callees with a touched-or-unaffected verdict per edge; one hop mandatory, deeper only when an edge contract changed), correspondence (zero references to removed things; load `wire-paths` only when paths moved), scope (no files beyond the plan), architecture scan (list introduced complexity as candidates, never fix silently - the scope rule applies).
 7. Done - report short: claim verdict (which part of the request was true), what changed, assumption made, impact/trade-offs, how verified.
 
 ## Feature lane (idea -> tickets -> per-ticket loop)
@@ -62,7 +62,7 @@ Entry router - detect first, print one status line (e.g. "Starting from: raw ide
 
 A. Align - interview before any code: problem, who/when, edge cases, what done looks like, what must NOT change. Output: Alignment Summary (bullet list, <=10 items) into slot Mission. Skip when a PRD/spec/issue already covers it.
 
-B. Model/Language - load `context.md` (shared language) plus `skill.md`. For each new term: check glossary conflicts, pick a canonical name, patch `context.md`. The glossary lives in `harness/context.md` only - never a second glossary file, never `docs/adr/`. For contested terms wait for user confirmation before locking. Skip when no new terms.
+B. Model/Language - load `state/context.md` (shared language) plus `skill.md`. For each new term: check glossary conflicts, pick a canonical name, patch `state/context.md`. The glossary lives in `harness/state/context.md` only - never a second glossary file, never `docs/adr/`. For contested terms wait for user confirmation before locking. Skip when no new terms.
 
 C. Zoom-out - locate touched modules, place the feature in the current architecture, flag risky coupling. Output: Codebase Impact Summary (files/modules, risk level) into slot Plan. If a large refactor must come first, stop and ask before slicing tickets.
 
@@ -94,7 +94,7 @@ Behavior while active:
 
 1. Decide, don't ask. Everything that would normally trigger "stop and ask with options" is decided by the agent - including unrequested scope growth past 3 files, new dependencies, and interface picks (Phase D).
 2. Decision rule, in order: most reversible option > closest to an existing repo pattern > simplest. State the assumption in the done report.
-3. Decision log: every non-trivial decision is logged in `history.md` as `- decision: <choice> (over: <rejected alternatives> - because <reason>)`. The done report opens with the decision log so the user can veto any single decision - a veto is a normal follow-up task, not an error.
+3. Decision log: every non-trivial decision is logged in `harness/state/history.md` as `- decision: <choice> (over: <rejected alternatives> - because <reason>)`. The done report opens with the decision log so the user can veto any single decision - a veto is a normal follow-up task, not an error.
 4. Batch checkpoints: don't pause for approval mid-task. Report at the end (or at a phase boundary for feature-lane work). Slot is written through as usual.
 5. Still hard-stopped, even in autopilot: destructive git commands (already banned), deleting/rewriting persisted store content without an explicit user order, secrets/auth changes, and anything irreversible outside the repo. For these, leave a Blockers entry and end the report with the question.
 
@@ -102,18 +102,18 @@ Behavior while active:
 
 ## Slot protocol
 
-- `task-context.md` is the single live slot - the only state file, never a second one per topic (4 sections: Mission / Plan / Blockers / Hand-off Note). Never delete the headers.
+- `state/task-context.md` is the single live slot - the only state file, never a second one per topic (4 sections: Mission / Plan / Blockers / Hand-off Note). Never delete the headers.
 - Update the slot after every meaningful step - disk must always hold the latest state. Write-through triggers (append, then resume the task): user order or context shift, a finding or root cause, decision options or a landed choice. Slot writes are silent - never narrate, quote, or summarize them in chat. Never defer to later - a context cutoff on an unwritten slot defeats the file.
 - RESUME at task start: read the slot first, verify against working-tree status. Start from the first unchecked Plan item / Hand-off Note.
 - Hand-off Note always names the exact next action, so any snapshot is resumable on its own.
-- Finish: tick every Plan box, log the entry in `history.md`, clear the slot back to the empty shape. A task is NOT done while the slot is stale.
+- Finish: tick every Plan box, log the entry in `state/history.md`, clear the slot back to the empty shape. A task is NOT done while the slot is stale. Empty shape: `(empty)` under Mission and Hand-off, `- (none)` under Plan and Blockers (see `adopt.mjs` `EMPTY_SLOT`).
 
 ## Verify routing
 
 - The verify table in `AGENTS.md` (between `verify` markers) is the ONLY routing source - the harness ships no suite names. Row format: backticked globs in the Changed cell, backticked npm scripts in the Run cell; a row with no concrete script is a human-pick row.
 - `node harness/scripts/verify.mjs route` matches the working tree against the table and prints ONLY the matching suites (`npm run <script>`). No-slash globs (`*.vue`) match basenames anywhere; slash globs (`src/**/*.css`) match paths. Pick rows list the project's `test:` scripts (read from package.json) for the human to choose - the router never chooses.
 - `run` executes the matched suites and stops at the first failure; a matched pick row always refuses to auto-run.
-- `check` gates slot headers, secrets, and scope. Run it before reporting done.
+- `table` validates the verify table against `package.json` (every concrete npm script in a Run cell exists; every Changed cell has a backticked glob). `check` gates slot headers, secrets, scope, and runs the table validation. Run it before reporting done.
 - Harness-owned conventions (not project suites): temp diagnostics go in `tests/_*.tmp.ts`, deleted same session, never committed - the router filters them out.
 
 ## History pattern
@@ -121,7 +121,8 @@ Behavior while active:
 - Entry shape: `### <doing> - <finished> (<agent>, <exact-model-id>)` followed by `- <detail>` bullets (what changed + how verified, no essays).
 - Stamp: `YYYY-MM-DD HH:MM UTC+7` (adjust the zone per project - any `UTC±H[:MM]` works; compact reads the offset from each stamp itself, never hardcodes one - pick one zone per project and keep every stamp consistent).
 - Log only when done, never in advance. Log only what changed or what was decided: implemented changes (code/docs/config) and direction decisions taken. Never log questions asked, read-only audits with no change, recommendations not taken, or parked/abandoned ideas - those leave no trace. No essays.
-- Over 20 entries: run `node harness/scripts/verify.mjs compact` (keeps the latest 20, archives older into monthly `history-YYYY-MM.md` files).
+- Direction decisions (Problem / Final solution / Trade-off / Revisit trigger) are logged as a `- decision:` bullet inside that entry - the history log IS the Decision Timeline; there is no separate decisions file.
+- Over 20 entries: run `node harness/scripts/verify.mjs compact` (keeps the latest 20, archives older into monthly `state/history-YYYY-MM.md` files).
 - Example: `### door delete fix - 2026-09-07 17:38 UTC+7 (muse-spark, opencode/...)` + `- dual-side mirror` + `- suites green`.
 
 ## Safety
@@ -130,12 +131,22 @@ Behavior while active:
 - Move or rename with `git mv`, then grep the old path AND the old basename repo-wide and update every consumer in the same change.
 - Stop and ask with options when: destructive action, new dependency/infra, secrets/auth change. Unrequested scope growth past 3 files: proceed if fully reversible (log the assumption), else stop and ask - a requested multi-file change is pre-authorized, see AGENTS.md. Autopilot mode (see above) converts these to decide-and-log - except secrets/auth and irreversible outside-repo actions, which still stop.
 
+## Enforcement
+
+The loop is instruction-based except for one hard gate: `.githooks/pre-commit` runs `verify.mjs check` on every commit (slot headers, secrets, unchecked Plan boxes, verify-table validity). Enable it once per clone - it is not auto-enabled:
+
+```
+git config core.hooksPath .githooks
+```
+
+Run the same check by hand anytime with `node harness/scripts/verify.mjs check`. `git commit --no-verify` bypasses the hook for an emergency commit.
+
 ## Adopt in a new project
 
-Automated (recommended): `node <source-repo>/harness/scripts/adopt.mjs <targetRoot>` - copies the harness folder into the target, resets the carried state (slot -> empty shape, history -> preamble only, history-*.md archives dropped, glossary words wiped with the shape kept), writes the AGENTS.md scaffold (read chain + verify markers) and the agent pointers (.clinerules, .github/copilot-instructions.md) when missing, then smoke-runs `verify.mjs check` in the target and prints the remaining manual steps. Then:
+Automated (recommended): `node <source-repo>/harness/scripts/adopt.mjs <targetRoot>` - copies the harness folder into the target, resets the carried state (state/ slot -> empty shape, history -> preamble only, history-*.md archives dropped, glossary words wiped with the shape kept), writes the AGENTS.md scaffold (read chain + verify markers) and the agent pointers only for clients named via `--agents=` (canonical text + provider map in `harness/agents/`) when missing, then smoke-runs `verify.mjs check` in the target and prints the remaining manual steps. Then:
 
 1. Fill the <TODO> sections of the AGENTS.md scaffold: verify-table rows (backticked globs -> backticked npm scripts) and bans.
 2. Write the target's domain skill file (`skill.md` at the repo root).
 3. Pick ONE history stamp zone (any `UTC±H[:MM]`) - compact reads it from the stamps.
 
-Manual (equivalent): copy this folder to the target, reset `task-context.md` to the empty slot shape and `history.md` to its preamble, rewrite the `context.md` glossary with the target's vocabulary (shape stays, words go), write the AGENTS.md scaffold + one-line agent pointers for every agent the target uses (e.g. `.clinerules`, `.github/copilot-instructions.md`): "Follow `AGENTS.md`" plus the read-chain paths.
+Manual (equivalent): copy this folder to the target, reset `state/task-context.md` to the empty slot shape and `state/history.md` to its preamble, rewrite the `state/context.md` glossary with the target's vocabulary (shape stays, words go), write the AGENTS.md scaffold, then add a pointer for every agent the target uses by copying `harness/agents/pointer.txt` to that provider's root path (map in `harness/agents/README.md`).
