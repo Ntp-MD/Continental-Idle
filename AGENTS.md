@@ -5,7 +5,7 @@ Repo instructions for AI agents. Read the matching section before touching an ar
 Universal harness companion - ships with `harness/`. Everything here applies everywhere EXCEPT the PROJECT ADAPTER zones (verify rows, banned suite names, patterns pointer), which each project fills with its own values.
 
 ## Operating mode
-
+- familiarize yourself with the project
 - Infer intent, not literal. Short prompt = incomplete spec: find the matching repo pattern first, fill gaps with repo convention, never invent a new one.
 - Expand terse prompts into scoped, actionable output without asking first; build forward toward a usable implementation, not a literal restatement.
 - Land on the relevant code and read before writing: navigate to the parts actually needed, check neighbors + existing impl before choosing a library or pattern. Verify the dependency is already used.
@@ -48,7 +48,7 @@ PROJECT ADAPTER - the rows and banned names below are this project's values. A n
 | CSS (`src/**/*.css`)                                                                                                                | `lint:bem` + `lint:css`                                                  |
 | Harness scripts (`harness/scripts/*.mjs`)                                                                                           | `lint`                                                                   |
 | Config TS (`vite.config.ts`, `vitest.config.ts`)                                                                                    | `typecheck`                                                              |
-| Unit tests (`tests/unit/**/*.test.ts`)                                                                                              | `test:unit`                                                              |
+| Unit + component tests (`tests/**/*.test.ts`)                                                                                       | `test:unit`                                                              |
 | Store (`src/blueprint-editor/store/**`)                                                                                             | the single matching `test:<name>` (human pick)                          |
 | Project scripts (`scripts/*.mjs`)                                                                                                   | `lint`                                                                   |
 | Repo tests (`tests/*.ts`)                                                                                                           | the single matching `test:<name>` or `npx tsx tests/<file>` (human pick) |

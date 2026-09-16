@@ -1,11 +1,22 @@
 <script setup lang="ts">
 import { defineAsyncComponent } from 'vue'
 import ErrorBoundary from '@/components/overlays/ErrorBoundary.vue'
+import {
+  createBlueprintStore, provideBlueprintStore, defaultSeed,
+  createHttpPersistencePort, createWindowSyncPort,
+} from '@/blueprint-editor/blueprintStore'
 
 const BlueprintEditor = defineAsyncComponent(() => import('@/blueprint-editor/BlueprintEditor.vue'))
 const UiShowcase = defineAsyncComponent(() => import('@/dev/UiShowcase.vue'))
 
-const isShowcase = new URLSearchParams(window.location.search).has('showcase')
+const store = createBlueprintStore({
+  persistence: createHttpPersistencePort(),
+  sync: createWindowSyncPort(),
+  seed: defaultSeed(),
+})
+provideBlueprintStore(store)
+
+const isShowcase = import.meta.env.DEV && new URLSearchParams(window.location.search).has('showcase')
 </script>
 
 <template>

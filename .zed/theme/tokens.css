@@ -1,0 +1,43 @@
+:root {
+  /* structural chrome (fixed - not from theme_overrides) */
+  --map-bg: #010409;
+  --map-fg: #c9d1d9;
+  --map-bright: #f0f6fc;
+  --map-heading: #8b949e;
+  --map-dim: #6e7681;
+  --map-line: #21262d;
+  --map-edge: #30363d;
+  --map-raised: #161b22;
+  --map-accent: #1f6feb;
+  --map-accent-soft: rgba(38, 79, 120, 0.28);
+  --map-header-bg: rgba(1, 4, 9, 0.92);
+  --map-shadow: rgba(0, 0, 0, 0.5);
+  --map-dot-border: rgba(255, 255, 255, 0.18);
+  --map-sky: #79c0ff;
+
+  /* fonts */
+  --map-font-sans: -apple-system, "Segoe UI", sans-serif;
+  --map-font-mono: Consolas, monospace;
+
+  /* sizes */
+  --map-text-h: 15px;
+  --map-text-base: 14px;
+  --map-text-code: 13px;
+  --map-text-sm: 12px;
+  --map-text-xs: 11px;
+
+  /* gaps */
+  --map-gap-xs: 4px;
+  --map-gap-sm: 8px;
+  --map-gap-md: 14px;
+  --map-gap-lg: 28px;
+  --map-gap-xl: 40px;
+
+  /* shape + layout */
+  --map-radius-xs: 3px;
+  --map-radius-sm: 6px;
+  --map-radius-md: 8px;
+  --map-max-width: 1100px;
+  --map-panel: 270px;
+  --map-minimap: 46px;
+}

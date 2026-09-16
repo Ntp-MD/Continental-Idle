@@ -1,8 +1,7 @@
 import type { NpcSimulationConfig } from '../domain/types'
 import { clampInt, normalizeNpcConfig } from '../domain/types'
-import { state } from './state'
+import type { BlueprintStore } from './state'
 import { cloneDeepRaw } from './storeUtils'
-import { saveBlueprintData } from './persistence'
 
 export function mergeNpcConfig(config: NpcSimulationConfig): NpcSimulationConfig {
 	const roleIds = new Set(config.roles.map(role => role.id))
@@ -27,18 +26,26 @@ export function mergeNpcConfig(config: NpcSimulationConfig): NpcSimulationConfig
 	}
 }
 
-export function syncNpcConfigToState(config: NpcSimulationConfig): void {
-	const raw = cloneDeepRaw(config)
-	state.layout.npcConfig = normalizeNpcConfig(raw) ?? raw
+export function createNpcCommands(store: BlueprintStore) {
+	const state = store.state
+	const saveBlueprintData = () => store.save()
+
+	function syncNpcConfigToState(config: NpcSimulationConfig): void {
+		const raw = cloneDeepRaw(config)
+		state.layout.npcConfig = normalizeNpcConfig(raw) ?? raw
+	}
+
+	async function persistNpcConfigToDisk(): Promise<void> {
+		const saved = await saveBlueprintData()
+		if (!saved) throw new Error('NPC configuration was not saved')
+	}
+
+	async function updateNpcConfig(config: NpcSimulationConfig): Promise<void> {
+		syncNpcConfigToState(config)
+		await persistNpcConfigToDisk()
+	}
+
+	return { syncNpcConfigToState, persistNpcConfigToDisk, updateNpcConfig }
 }
 
-
-export async function persistNpcConfigToDisk(): Promise<void> {
-	const saved = await saveBlueprintData()
-	if (!saved) throw new Error('NPC configuration was not saved')
-}
-
-export async function updateNpcConfig(config: NpcSimulationConfig): Promise<void> {
-	syncNpcConfigToState(config)
-	await persistNpcConfigToDisk()
-}
+export type NpcCommands = ReturnType<typeof createNpcCommands>

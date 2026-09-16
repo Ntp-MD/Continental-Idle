@@ -17,6 +17,18 @@ const store = useAssetsStore()
 const toast = useToast()
 const confirm = useConfirm().confirm
 const { pending, run } = useAsyncAction()
+const status = ref('')
+const statusTone = ref<'' | 'warn' | 'fail'>('')
+
+watch(
+  () => props.open,
+  (open) => {
+    if (open) {
+      status.value = ''
+      statusTone.value = ''
+    }
+  },
+)
 
 const widthInput = ref(store.state.layout.canvas.width)
 const heightInput = ref(store.state.layout.canvas.height)
@@ -217,25 +229,34 @@ async function applyEditorField(key: FieldKey) {
   const range = fieldRange(key)
   const v = draft.value[key]
   if (typeof v !== 'number' || !Number.isFinite(v)) {
-    toast.error('Invalid value')
+    status.value = 'Enter a valid number'
+    statusTone.value = 'warn'
     draft.value[key] = currentEditor.value[key]
     return
   }
   if (range.min !== undefined && v < range.min) {
-    toast.error(`Value must be >= ${range.min}`)
+    status.value = `Value must be >= ${range.min}`
+    statusTone.value = 'warn'
     draft.value[key] = currentEditor.value[key]
     return
   }
   if (range.max !== undefined && v > range.max) {
-    toast.error(`Value must be <= ${range.max}`)
+    status.value = `Value must be <= ${range.max}`
+    statusTone.value = 'warn'
     draft.value[key] = currentEditor.value[key]
     return
   }
+  status.value = ''
+  statusTone.value = ''
   try {
     const saved = await run(() => store.setEditorSettings({ [key]: v }))
-    if (!saved) toast.error('Failed to save setting')
+    if (!saved) {
+      status.value = 'Failed to save setting'
+      statusTone.value = 'fail'
+    }
   } catch {
-    toast.error('Failed to save setting')
+    status.value = 'Failed to save setting'
+    statusTone.value = 'fail'
   }
 }
 
@@ -249,12 +270,16 @@ async function applyEditorAll() {
   try {
     const saved = await run(() => store.setEditorSettings(patch))
     if (!saved) {
-      toast.error('Some values out of range')
+      status.value = 'Some values out of range'
+      statusTone.value = 'warn'
       return
     }
+    status.value = ''
+    statusTone.value = ''
     toast.success('Editor settings saved')
   } catch {
-    toast.error('Failed to save editor settings')
+    status.value = 'Failed to save editor settings'
+    statusTone.value = 'fail'
   }
 }
 
@@ -458,7 +483,9 @@ async function resetEditorAll() {
             @change="applyEditorField('sidewalkTileRatio')"
           />
         </div>
-        <div class="form__hint">Ring width drives placement boundary and NPC walkable zone; ratios style dash/gap/sidewalk.</div>
+        <div class="form__hint">
+          Ring width drives placement boundary and NPC walkable zone; ratios style dash/gap/sidewalk.
+        </div>
       </div>
     </div>
 

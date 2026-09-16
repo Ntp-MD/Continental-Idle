@@ -2,7 +2,7 @@ import { ref, computed, watch, onUnmounted, type Ref, type ComputedRef } from 'v
 import { dragState, endAssetDrag } from '../blueprintStore'
 import { findAssetCached } from '../assets/assetUtils'
 import { assetPixelSize } from '../domain/types'
-import { buildingArea } from '../domain/geometry'
+import { resolveBuildingArea } from '../domain/geometry'
 import { useToast } from '@/composables/useToast'
 import type { FloorData } from '../domain/types'
 import type { AssetsStore } from '../store/index'
@@ -20,8 +20,6 @@ export function useCanvasDragDrop(
 	opts: {
 		svgRef: Ref<SVGSVGElement | null>
 		localPoint: (e: MouseEvent) => { x: number; y: number } | null
-		canvasWidth: () => number
-		canvasHeight: () => number
 		floor: ComputedRef<FloorData | undefined>
 		store: AssetsStore
 		tileSize: () => number
@@ -42,7 +40,7 @@ export function useCanvasDragDrop(
 	const paletteGhostRect = computed(() => {
 		const ghost = paletteGhost.value
 		if (!ghost) return null
-		const b = buildingArea(opts.canvasWidth(), opts.canvasHeight(), opts.tileSize())
+		const b = resolveBuildingArea(opts.store.state.layout)
 		let x = opts.store.snap(mousePos.value.x - ghost.w / 2)
 		let y = opts.store.snap(mousePos.value.y - ghost.h / 2)
 		x -= Math.max(0, x + ghost.w - (b.x + b.w))

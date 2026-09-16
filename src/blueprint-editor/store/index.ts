@@ -1,76 +1,24 @@
-import { computed } from 'vue'
-import { state, currentFloor, snap, assetMap, dragState, reloadEditorData } from './state'
-import {
-	addFloor, clearFloor, deleteFloor, duplicateFloor, renameFloor,
-	reorderFloors, selectFloor, updateFloor, paintFloorTiles,
-} from './floors'
-import {
-	beginDrawnObject, addObject, canPlaceObject, deleteSelected,
-	moveSelectedTo, commitMove, rotateSelected,
-	linkObjects, unlinkObject, toggleObjectLock,
-} from './objects'
-import { flattenToSvgAsset } from './flatten'
-import {
-	addSvgAsset, updateAsset, deleteAsset, duplicateAsset, refreshOriginInstances,
-} from './assets'
-import { updateNpcConfig } from './npcDefault'
-import {
-	copySelected, pasteObjects,
-} from './metadata'
-import { saveBlueprintData, syncToGame } from './persistence'
-import { selectedObject, selectedAsset, selectAsset, selectedObjectIds, select, toggleMultiSelect } from './selection'
-import { setMode, setTileBrush, resizeCanvas, setCanvasBgColor, setCanvasLabelColor, setCanvasWallColor, setCanvasGridColor, setStreetFloor, setStreetWidth, setEditorSettings, resetEditorSettings } from './mode'
-import { tagCatalog, globalTags, managedTagSet, addTag, removeTag, ensureTag } from './tags'
+import { inject, provide, type InjectionKey } from 'vue'
+import type { BlueprintStore } from './state'
+import { createBlueprintStore, defaultSeed } from './createStore'
 
-export {
-	addFloor, clearFloor, deleteFloor, duplicateFloor, renameFloor,
-	reorderFloors, selectFloor, updateFloor, paintFloorTiles,
-} from './floors'
-export {
-	beginDrawnObject, addObject, canPlaceObject, deleteSelected,
-	moveSelectedTo, commitMove, rotateSelected,
-	linkObjects, unlinkObject, toggleObjectLock,
-} from './objects'
-export { flattenToSvgAsset } from './flatten'
-export {
-	addSvgAsset, updateAsset, deleteAsset, duplicateAsset, refreshOriginInstances,
-} from './assets'
-export { updateNpcConfig } from './npcDefault'
-export {
-	copySelected, pasteObjects,
-} from './metadata'
-export { saveBlueprintData, syncToGame } from './persistence'
-export { reloadEditorData } from './state'
-export { selectedObject, selectedAsset, selectAsset, selectedObjectIds, select, toggleMultiSelect } from './selection'
-export { setMode, setTileBrush, resizeCanvas, setCanvasBgColor, setCanvasLabelColor, setCanvasWallColor, setCanvasGridColor, setStreetFloor, setStreetWidth, setEditorSettings, resetEditorSettings } from './mode'
-export { tagCatalog, globalTags, managedTagSet, addTag, removeTag, ensureTag } from './tags'
+export { createBlueprintStore, defaultSeed }
+export type { BlueprintStoreDeps, BlueprintStoreSeed } from './createStore'
+export type { BlueprintStore, EditorState, AssetPatch, FloorPatch } from './state'
 export { dragState, startAssetDrag, endAssetDrag } from './state'
+export { createHttpPersistencePort, createWindowSyncPort } from './httpPorts'
+export type { PersistencePort, SyncPort } from './ports'
 
-export const isNpcPreview = computed(() => state.mode === 'npc-preview')
+export type AssetsStore = BlueprintStore
 
-export function useAssetsStore() {
-	return {
-		state,
-		isNpcPreview,
-		reloadEditorData,
-		currentFloor,
-		snap,
-		assetMap,
-		dragState,
-		addFloor, clearFloor, deleteFloor, duplicateFloor, renameFloor,
-		reorderFloors, selectFloor, updateFloor, paintFloorTiles,
-		beginDrawnObject, addObject, canPlaceObject, select, toggleMultiSelect, deleteSelected,
-		moveSelectedTo, commitMove, rotateSelected,
-		flattenToSvgAsset,
-		linkObjects, unlinkObject, toggleObjectLock,
-		addSvgAsset, updateAsset, deleteAsset, duplicateAsset, refreshOriginInstances,
-		updateNpcConfig,
-		copySelected, pasteObjects,
-		saveBlueprintData, syncToGame,
-		selectedObject, selectedAsset, selectAsset, selectedObjectIds,
-		setMode, setTileBrush, resizeCanvas, setCanvasBgColor, setCanvasLabelColor, setCanvasWallColor, setCanvasGridColor, setStreetFloor, setStreetWidth, setEditorSettings, resetEditorSettings,
-		tagCatalog, globalTags, managedTagSet, addTag, removeTag, ensureTag,
-	}
+const STORE_KEY = Symbol('blueprintStore') as InjectionKey<BlueprintStore>
+
+export function provideBlueprintStore(store: BlueprintStore): void {
+	provide(STORE_KEY, store)
 }
 
-export type AssetsStore = ReturnType<typeof useAssetsStore>
+export function useAssetsStore(): BlueprintStore {
+	const store = inject(STORE_KEY)
+	if (!store) throw new Error('No BlueprintStore provided - call provideBlueprintStore() at the app root')
+	return store
+}

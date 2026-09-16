@@ -2,6 +2,11 @@
 
 Project domain facts for authoring hotel floor plans. `AGENTS.md` states the rules; `skill.md` routes here.
 
+## Activation
+
+- Use: hand-authoring or generating any hotel floor plan, room geometry, or fixture layout.
+- Don't use: UI markup/CSS, data-flow refactors, or NPC behavior tuning with no geometry change. Do not re-derive the numbers below.
+
 Scale and rules for authoring any hotel floor plan (hand edit or temp generator). Every floor layout follows this - do not re-derive the numbers.
 
 ## Scale (see glossary: Tile scale)
@@ -30,6 +35,10 @@ Scale and rules for authoring any hotel floor plan (hand edit or temp generator)
 4. Spawn zone sits just inside the street entrance on the entry corridor.
 
 ## Generator validation checklist (temp `tests/_*.tmp.ts`, deleted same session)
+
+## Verify
+
+After any floor write, run in order: `verify:assets`, `test:blueprint-schema`, `test:migrate` (concrete: `npm run verify:assets`, `npm run test:blueprint-schema`, `npm run test:migrate`); keep NPC pool consistent with floor count. Generator temp files live in `tests/_*.tmp.ts` and are deleted same session, never committed.
 
 1. Grid dims + furniture inside building interior + furniture never on wall/door tiles + zero object overlap.
 2. BFS from spawn: 100% of interior walkable tiles reachable + every door tile + per-room sample tiles.

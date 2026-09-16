@@ -4,11 +4,12 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import Parser from 'web-tree-sitter'
+import { resolveSettingsPath } from './resolve-settings.mjs'
 
 const dir = path.dirname(fileURLToPath(import.meta.url))
 const wasmDir = path.join(dir, 'node_modules', 'tree-sitter-wasms', 'out')
 const queryDir = path.join(dir, 'queries')
-const settingsPath = path.join(dir, 'settings.json')
+const settingsPath = resolveSettingsPath(dir)
 
 await Parser.init()
 

@@ -2,6 +2,11 @@
 
 Project domain facts for `src/blueprint-editor/` UI form, markup, CSS, and class patterns. `AGENTS.md` states the rules; `skill.md` routes here.
 
+## Activation
+
+- Use: any change under `src/blueprint-editor/` touching markup, CSS, classes, components, store CRUD, or modals.
+- Don't use: pure engine/domain logic, floor geometry, or migration code with no UI surface. Read only this doc for UI tasks (plus glossary for labels).
+
 Canonical form/markup/CSS/class patterns for `src/blueprint-editor/` UI.
 
 ## Rules
@@ -42,6 +47,7 @@ Canonical form/markup/CSS/class patterns for `src/blueprint-editor/` UI.
 - Declarative schemas: canvas/editor settings are parsed via `CANVAS_FIELD_SPECS` / `EDITOR_FIELD_SPECS`. Never enumerate their keys by hand elsewhere.
 - Confirmation: `useConfirm().confirm` from `@/composables/useConfirm`, never `window.confirm`. User feedback: `useToast` for visible messages, `editorLog` for console diagnostics. Never `alert` / `console.log` for user-facing state.
 
-## Compliance check before completion
+## Verify (compliance check before completion)
 
-After touching markup, styles, or classes, verify project-wide: no dead selectors, no orphan classes, no shared class redefined in scoped styles, every class in its scope's file, no stale references, every shared class has 3+ call sites, no zero-delta classes, no unmerged same-role pairs, no merged differing-role pairs, no redundant inherited declarations, no layer duplicates without approval, zero new shared classes without an approval reference (scoped delta-only modifiers and UI labels are noted in the report instead).
+- Run the routed suite for the change: `*.vue` -> `npm run lint:bem && npm run lint:css`; CSS-only (`src/**/*.css`) -> same two; store changes -> the single matching `test:<name>` (human pick via `node harness/scripts/verify.mjs route`).
+- Project-wide class audit after touching markup, styles, or classes: no dead selectors, no orphan classes, no shared class redefined in scoped styles, every class in its scope's file, no stale references, every shared class has 3+ call sites, no zero-delta classes, no unmerged same-role pairs, no merged differing-role pairs, no redundant inherited declarations, no layer duplicates without approval, zero new shared classes without an approval reference (scoped delta-only modifiers and UI labels are noted in the report instead).

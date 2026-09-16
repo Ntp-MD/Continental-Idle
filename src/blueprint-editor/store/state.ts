@@ -1,13 +1,24 @@
-import { reactive, computed } from 'vue'
-import type { BlueprintTagDefinition, FloorLayoutData, AssetDef, FloorData, EditorMode, SelectionState, Rect, TileBrush } from '../domain/types'
-import { buildAssetMap, parseSvgRoles, buildWalkableGrid } from '../assets/assetUtils'
-import { snap as _snap, clamp as _clamp, buildingArea } from '../domain/geometry'
-import { originAssets, blueprintTagDefinitions, fetchBlueprintDataFromDisk, buildBlueprintData } from './dataLoader'
-import { useToast } from '@/composables/useToast'
-import { loadInitial, migrate } from './migrate'
-import { editorLog, cloneDeepRaw } from './storeUtils'
+import { reactive, type ComputedRef } from 'vue'
+import type {
+	AssetDef,
+	BlueprintTagDefinition,
+	EditorMode,
+	EditorSettings,
+	EntityRef,
+	FloorData,
+	FloorLayoutData,
+	NpcSimulationConfig,
+	ObjectData,
+	Rect,
+	SelectionState,
+	TileBrush,
+} from '../domain/types'
+import type { TagCatalog } from '../assets/tagCatalog'
+import { parseSvgRoles, buildWalkableGrid } from '../assets/assetUtils'
+import type { PersistencePort, SyncPort } from './ports'
+import type { useToast } from '@/composables/useToast'
 
-interface EditorState {
+export interface EditorState {
 	layout: FloorLayoutData
 	currentFloorId: string
 	mode: EditorMode
@@ -18,23 +29,149 @@ interface EditorState {
 	tagDefinitions: BlueprintTagDefinition[]
 }
 
-export const toast = useToast()
+export type ToastApi = ReturnType<typeof useToast>
 
-let stateLock = false
-export function isStateLocked(): boolean {
-	return stateLock
+export interface AssetPatch {
+	name?: string
+	defaultPadding?: number
+	defaultRx?: { tl: number; tr: number; br: number; bl: number }
+	defaultFillColor?: string
+	defaultStrokeColor?: string
+	defaultLabel?: string
+	defaultRadius?: number
+	defaultLabelPadding?: number
+	defaultLocked?: boolean
+	doorRequired?: boolean
+	tags?: string[]
+	interactSpots?: AssetDef['interactSpots']
+	interact?: AssetDef['interact']
+	queue?: AssetDef['queue']
+	walkable?: boolean
+	walkableGrid?: AssetDef['walkableGrid']
+	tileStates?: AssetDef['tileStates']
 }
-export async function withStateLock<T>(fn: () => Promise<T>): Promise<T> {
-	if (stateLock) {
-		toast.warning('Operation in progress')
-		return Promise.reject(new Error('Operation in progress'))
+
+export interface FloorPatch {
+	allowedRoleIds?: FloorData['allowedRoleIds']
+	defaultWalkable?: boolean
+	name?: string
+	label?: string
+	walkable?: FloorData['walkable']
+	spawnZones?: FloorData['spawnZones']
+}
+
+export interface BlueprintStore {
+	readonly state: EditorState
+	readonly persistence: PersistencePort
+	readonly sync: SyncPort
+	readonly toast: ToastApi
+	readonly currentFloor: ComputedRef<FloorData | undefined>
+	readonly isNpcPreview: ComputedRef<boolean>
+	readonly tagCatalog: ComputedRef<TagCatalog>
+	readonly globalTags: ComputedRef<string[]>
+	readonly managedTagSet: ComputedRef<Set<string>>
+	readonly selectedAsset: ComputedRef<AssetDef | null>
+
+	assetMap(): Map<string, AssetDef>
+	snap(value: number, tileSize?: number): number
+	clamp(rect: Rect): Rect
+	initAssetFields(asset: AssetDef): void
+	runExclusive<T>(fn: () => Promise<T>): Promise<T>
+	save(): Promise<boolean>
+	reloadEditorData(): Promise<void>
+
+	addFloor(): Promise<FloorData | null>
+	clearFloor(id: string): Promise<boolean>
+	deleteFloor(id: string): Promise<boolean>
+	duplicateFloor(id: string): Promise<boolean>
+	renameFloor(id: string, name: string): Promise<boolean>
+	reorderFloors(fromIndex: number, toIndex: number): Promise<boolean>
+	selectFloor(id: string): void
+	updateFloor(id: string, patch: FloorPatch): Promise<boolean>
+	paintFloorTiles(floorId: string, brush: TileBrush, rect: { row0: number; col0: number; row1: number; col1: number }): Promise<boolean>
+
+	beginDrawnObject(name: string, w: number, h: number, x: number, y: number): Promise<{ asset: AssetDef; object: ObjectData } | null>
+	addObject(type: string, x: number, y: number): Promise<ObjectData | null>
+	canPlaceObject(type: string, x: number, y: number): boolean
+	deleteSelected(): Promise<void>
+	moveSelectedTo(x: number, y: number): void
+	commitMove(): Promise<void>
+	rotateSelected(): Promise<void>
+	linkObjects(ids: string[]): Promise<boolean>
+	unlinkObject(id: string): Promise<boolean>
+	toggleObjectLock(id: string): Promise<void>
+	getLinkedObjects(obj: ObjectData): ObjectData[]
+	dissolveGroupsIfSmall(floor: FloorData, groupIds: ReadonlySet<string>): void
+
+	flattenToSvgAsset(name?: string): Promise<string | null>
+
+	addSvgAsset(name: string, w: number, h: number, svgString: string): Promise<AssetDef | null>
+	updateAsset(id: string, patch: AssetPatch): Promise<void>
+	deleteAsset(id: string): Promise<boolean>
+	duplicateAsset(id: string): Promise<AssetDef | null>
+	refreshOriginInstances(): Promise<number>
+
+	updateNpcConfig(config: NpcSimulationConfig): Promise<void>
+
+	copySelected(): void
+	pasteObjects(): Promise<void>
+
+	syncToGame(): boolean
+
+	select(ref: EntityRef | null): void
+	selectAsset(id: string | null): void
+	clearSelection(): void
+	selectedObject(): ObjectData | undefined
+	selectedObjectIds(): string[]
+	toggleMultiSelect(id: string): void
+
+	setMode(mode: EditorMode): void
+	setTileBrush(brush: TileBrush | null): void
+	resizeCanvas(width: number, height: number, tileSize: number): Promise<boolean>
+	setCanvasBgColor(color: string | undefined): Promise<boolean>
+	setCanvasLabelColor(color: string | undefined): Promise<boolean>
+	setCanvasWallColor(color: string | undefined): Promise<boolean>
+	setCanvasGridColor(color: string | undefined): Promise<boolean>
+	setStreetFloor(floorId: string | null): Promise<boolean>
+	setStreetWidth(tiles: number | null): Promise<boolean>
+	setEditorSettings(patch: Partial<EditorSettings>): Promise<boolean>
+	resetEditorSettings(): Promise<boolean>
+
+	addTag(tag: string): Promise<void>
+	removeTag(tag: string): Promise<boolean>
+	ensureTag(tag: string): void
+}
+
+export function initAssetFields(asset: AssetDef): void {
+	if (asset.svg) {
+		if (!asset.svgRoles) asset.svgRoles = parseSvgRoles(asset.svg)
+		if (!asset.walkableGrid) {
+			const { walkableGrid, tileStates } = buildWalkableGrid(asset.w, asset.h, asset.svgRoles)
+			asset.walkableGrid = walkableGrid
+			asset.tileStates = tileStates
+		}
 	}
-	stateLock = true
-	try {
-		return await fn()
-	} finally {
-		stateLock = false
-	}
+	if (asset.walkable === undefined) asset.walkable = false
+	if (asset.doorRequired === undefined) asset.doorRequired = false
+}
+
+export function createEditorState(seed: {
+	layout: FloorLayoutData
+	assetRegistry: AssetDef[]
+	tagDefinitions: BlueprintTagDefinition[]
+}): EditorState {
+	const assetRegistry = seed.assetRegistry.map(asset => structuredClone(asset))
+	for (const asset of assetRegistry) initAssetFields(asset)
+	return reactive<EditorState>({
+		layout: seed.layout,
+		currentFloorId: seed.layout.floors[0]?.id ?? '',
+		mode: 'object',
+		tileBrush: null,
+		selectionState: { primary: null, items: [] },
+		selectedAssetId: null,
+		assetRegistry,
+		tagDefinitions: seed.tagDefinitions.map(tag => ({ ...tag })),
+	})
 }
 
 export const dragState = reactive<{ assetId: string | null }>({ assetId: null })
@@ -42,131 +179,7 @@ export const dragState = reactive<{ assetId: string | null }>({ assetId: null })
 export function startAssetDrag(assetId: string) {
 	dragState.assetId = assetId
 }
+
 export function endAssetDrag() {
 	dragState.assetId = null
-}
-const initial = loadInitial()
-const initialBlueprintData = buildBlueprintData(initial.layout, originAssets, initial.layout.npcConfig, blueprintTagDefinitions)
-
-export const state = reactive<EditorState>({
-	layout: initial.layout,
-	currentFloorId: '',
-	mode: 'object',
-	tileBrush: null,
-	selectionState: { primary: null, items: [] },
-	selectedAssetId: null,
-	assetRegistry: originAssets.map(asset => structuredClone(asset)),
-	tagDefinitions: initialBlueprintData.tags.map(tag => ({ ...tag })),
-})
-
-for (const asset of state.assetRegistry) initAssetFields(asset)
-
-
-export async function reloadEditorData(): Promise<void> {
-	const combined = await fetchBlueprintDataFromDisk()
-	if (!combined) return
-	const migrated = migrate(combined.layout, combined.originAssets)
-	state.layout = migrated.layout
-	state.layout.npcConfig = structuredClone(combined.npcConfig)
-	state.assetRegistry = combined.originAssets.map(asset => structuredClone(asset))
-	state.tagDefinitions = combined.tags.map(tag => ({ ...tag }))
-	for (const asset of state.assetRegistry) initAssetFields(asset)
-	if (!state.layout.floors.some((f: FloorData) => f.id === state.currentFloorId)) {
-		state.currentFloorId = state.layout.floors[0]?.id ?? ''
-	}
-	initLastSavedSnapshot()
-}
-
-export function initAssetFields(asset: AssetDef): void {
-	if (asset.svg) {
-		if (!asset.svgRoles) {
-			asset.svgRoles = parseSvgRoles(asset.svg)
-		}
-		if (!asset.walkableGrid) {
-			const { walkableGrid, tileStates } = buildWalkableGrid(asset.w, asset.h, asset.svgRoles)
-			asset.walkableGrid = walkableGrid
-			asset.tileStates = tileStates
-		}
-		if (asset.walkable === undefined) {
-			asset.walkable = false
-		}
-		if (asset.doorRequired === undefined) {
-			asset.doorRequired = false
-		}
-	} else {
-		if (asset.walkable === undefined) {
-			asset.walkable = false
-		}
-		if (asset.doorRequired === undefined) {
-			asset.doorRequired = false
-		}
-	}
-}
-
-if (!state.layout.floors.some((f: FloorData) => f.id === state.currentFloorId)) {
-	state.currentFloorId = state.layout.floors[0]?.id ?? ''
-}
-
-interface StateSnapshot {
-	layout: FloorLayoutData
-	assetRegistry: AssetDef[]
-	tagDefinitions: BlueprintTagDefinition[]
-}
-
-function captureStateSnapshot(): StateSnapshot {
-	return {
-		layout: cloneDeepRaw(state.layout),
-		assetRegistry: cloneDeepRaw(state.assetRegistry),
-		tagDefinitions: cloneDeepRaw(state.tagDefinitions),
-	}
-}
-
-function restoreStateSnapshot(snapshot: StateSnapshot): void {
-	state.layout = snapshot.layout
-	state.assetRegistry = snapshot.assetRegistry
-	state.tagDefinitions = snapshot.tagDefinitions
-	for (const asset of state.assetRegistry) initAssetFields(asset)
-	if (!state.layout.floors.some((f: FloorData) => f.id === state.currentFloorId)) {
-		state.currentFloorId = state.layout.floors[0]?.id ?? ''
-	}
-}
-
-let lastSavedSnapshot: StateSnapshot | null = null
-
-export function initLastSavedSnapshot(): void {
-	lastSavedSnapshot = captureStateSnapshot()
-}
-
-export function updateLastSavedSnapshot(): void {
-	lastSavedSnapshot = captureStateSnapshot()
-}
-
-export function revertToLastSavedSnapshot(): boolean {
-	if (!lastSavedSnapshot) return false
-	try {
-		restoreStateSnapshot(lastSavedSnapshot)
-		return true
-	} catch (error) {
-		editorLog.error('Failed to revert state after save failure', error)
-		return false
-	}
-}
-
-const _assetMap = computed(() => buildAssetMap(state.assetRegistry))
-export function assetMap(): Map<string, AssetDef> {
-	return _assetMap.value
-}
-
-export const currentFloor = computed<FloorData | undefined>(() =>
-	state.layout.floors.find((f: FloorData) => f.id === state.currentFloorId)
-)
-
-export function snap(value: number, tileSize?: number): number {
-	return _snap(value, tileSize ?? state.layout.canvas.tileSize)
-}
-
-export function clamp(rect: Rect): Rect {
-	const c = state.layout.canvas
-	const b = buildingArea(c.width, c.height, c.tileSize)
-	return _clamp(rect, b.x + b.w, b.y + b.h, b.x, b.y)
 }

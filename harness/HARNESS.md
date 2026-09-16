@@ -18,6 +18,19 @@ This folder is not a checklist - it is a software engineer. Facts are looked up,
 
 Every task walks the loop below - inspect, plan, implement, test, fix, review, done. A routine one-file fix walks the light loop with no extra reads.
 
+## Thinking budget (sweet spot)
+
+| Step | Budget | Stop when |
+| ---- | ------ | --------- |
+| Inspect | 2 | pattern + files-to-touch identified |
+| Plan | 2 | What / Why / How / Why-this-way all four filled |
+| Implement | 1 | matches plan, no invented pattern |
+| Test / Fix | 1 + rerun | green, or logged as unrelated failure |
+| Review | 2 | re-read verdict holds + chain/scope checked |
+| Done | 1 | verdict per item + verify quote present |
+
+Stop rules (apply everywhere): evidence complete -> stop. Two passes agree -> stop. Reversible choice -> decide now, log assumption, no third pass. Budget spent and still unsure -> mark UNCERTAIN and escalate, never add a silent third pass. Deterministic work (grep, route, checklist ticks) costs 0 thinking - run once, record result.
+
 ## Skills (`skills/`)
 
 Owner-authored guardrails, not itineraries: the floor for a weaker model, which a stronger one may override with judgment. Repository skills also steer other contributors' agents on other models, so keep every description short and every trigger narrow - over-prescription costs as much as omission. Each skill carries standard frontmatter (`name` + `description`) so external agents can discover it. Read a skill ONLY through its door, never wholesale:
@@ -38,12 +51,12 @@ Drive each task to completion by yourself. Define completion in the plan and tre
 
 ## Steps
 
-1. Inspect - locate the relevant code, read neighboring files and the existing implementation before choosing a pattern. Never invent a new pattern when a repo pattern exists. Record current behavior, repo pattern to reuse, files that must change.
+1. Inspect - locate the relevant code, read neighboring files and the existing implementation before choosing a pattern. Never invent a new pattern when a repo pattern exists. Grep `state/lessons.md` with the touched file/surface name first - a hit means the failure happened before, apply the recorded fix. Record current behavior, repo pattern to reuse, files that must change.
 2. Plan - files to touch (unrequested growth past 3 files: proceed only if reversible, else stop and ask - a requested change spanning over 3 files is pre-authorized, see AGENTS.md), risks, the single matching verify suite. No coding until four parts are clear: What (scope + non-goals), Why (current vs expected with proof), How (steps in order), Why this way (pattern reused, rejected alternatives, risks + rollback). Pre-proof gate: a captured baseline exists; every edit anchor carries an identity; UI work names who confirms the visual. On feature-lane tickets, reuse the lane outputs (Mission summary, Impact Summary, picked interface) - plan only the ticket slice.
 3. Implement - follow file-local conventions and the project's canonical patterns. Never add a second way. ASCII-only source, imports at top, no code comments unless requested. Never commit unless asked.
 4. Test - run ONLY the suite matching the change (`verify.mjs route` prints it). Never the full matrix unless asked. When Phase F wrote the failing case first, this run is that same suite - one suite, two moments (red before, green after), never a second suite.
 5. Fix - diagnose the root cause from the failing output, fix the smallest in-scope change, re-run. Pre-existing unrelated failures are reported separately, never fixed silently.
-6. Review - correctness, regressions, chain (each changed function lists its direct callers + callees with a touched-or-unaffected verdict per edge; one hop mandatory, deeper only when an edge contract changed), correspondence (zero references to removed things; load `wire-paths` only when paths moved), scope (no files beyond the plan), architecture scan (list introduced complexity as candidates, never fix silently - the scope rule applies).
+6. Review - correctness, regressions, chain (each changed function lists its direct callers + callees with a touched-or-unaffected verdict per edge; one hop mandatory, deeper only when an edge contract changed), correspondence (zero references to removed things; load `wire-paths` only when paths moved), scope (no files beyond the plan), architecture scan (list introduced complexity as candidates, never fix silently - the scope rule applies). Uncertainty gate: re-read each judged verdict (audit calls, boundary mappings) once against its quoted evidence; a verdict that flips between passes is marked UNCERTAIN and escalated, never silently picked. A verdict without a `file:line` evidence quote does not count.
 7. Done - report short: claim verdict (which part of the request was true), what changed, assumption made, impact/trade-offs, how verified.
 
 ## Feature lane (idea -> tickets -> per-ticket loop)
@@ -125,11 +138,14 @@ Behavior while active:
 - Over 20 entries: run `node harness/scripts/verify.mjs compact` (keeps the latest 20, archives older into monthly `state/history-YYYY-MM.md` files).
 - Example: `### door delete fix - 2026-09-07 17:38 UTC+7 (muse-spark, opencode/...)` + `- dual-side mirror` + `- suites green`.
 
+## Calibration loop
+
+- Whenever variance hits (audit verdict flips, fix takes 2+ rounds, scope grows unplanned), append one line to the history entry: which step's budget held or broke. A repeat of an already-logged variance gets promoted to `state/lessons.md` as one line (symptom | cause | fix | evidence).
+- Every `compact` run, scan the variance lines: the step with the most UNCERTAIN/broken-budget hits gets a tighter evidence rule next. The harness improves itself; no separate tracking file.
+
 ## Safety
 
-- Never `checkout`, `restore`, `reset`, `stash`, or `clean` tracked files - revert only by hand-editing.
-- Move or rename with `git mv`, then grep the old path AND the old basename repo-wide and update every consumer in the same change.
-- Stop and ask with options when: destructive action, new dependency/infra, secrets/auth change. Unrequested scope growth past 3 files: proceed if fully reversible (log the assumption), else stop and ask - a requested multi-file change is pre-authorized, see AGENTS.md. Autopilot mode (see above) converts these to decide-and-log - except secrets/auth and irreversible outside-repo actions, which still stop.
+Single source is `AGENTS.md` (scope, git bans, destructive gates) - this section adds nothing new, only the harness-specific reminder: move/rename with `git mv`, then grep old path AND old basename repo-wide per `wire-paths`. Autopilot converts stop-and-ask into decide-and-log, except secrets/auth and irreversible outside-repo actions, which still stop.
 
 ## Enforcement
 
@@ -143,10 +159,4 @@ Run the same check by hand anytime with `node harness/scripts/verify.mjs check`.
 
 ## Adopt in a new project
 
-Automated (recommended): `node <source-repo>/harness/scripts/adopt.mjs <targetRoot>` - copies the harness folder into the target, resets the carried state (state/ slot -> empty shape, history -> preamble only, history-*.md archives dropped, glossary words wiped with the shape kept), writes the AGENTS.md scaffold (read chain + verify markers) and the agent pointers only for clients named via `--agents=` (canonical text + provider map in `harness/agents/`) when missing, then smoke-runs `verify.mjs check` in the target and prints the remaining manual steps. Then:
-
-1. Fill the <TODO> sections of the AGENTS.md scaffold: verify-table rows (backticked globs -> backticked npm scripts) and bans.
-2. Write the target's domain skill file (`skill.md` at the repo root).
-3. Pick ONE history stamp zone (any `UTC±H[:MM]`) - compact reads it from the stamps.
-
-Manual (equivalent): copy this folder to the target, reset `state/task-context.md` to the empty slot shape and `state/history.md` to its preamble, rewrite the `state/context.md` glossary with the target's vocabulary (shape stays, words go), write the AGENTS.md scaffold, then add a pointer for every agent the target uses by copying `harness/agents/pointer.txt` to that provider's root path (map in `harness/agents/README.md`).
+Full procedure lives in `harness/scripts/adopt.md` (read once per project, never per task). Summary: `node <source-repo>/harness/scripts/adopt.mjs <targetRoot>` copies the harness, resets state, writes the AGENTS.md scaffold + agent pointers, smoke-runs `verify.mjs check`. Then fill the scaffold TODOs (verify rows, bans), write the target `skill.md`, pick one history stamp zone.

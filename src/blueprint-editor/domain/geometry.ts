@@ -1,5 +1,5 @@
-import type { AssetDef, ObjectData, ObjectPlacement, ResolvedObject, Rotation, Rect } from './types'
-import { resolveObjectDef, STREET_TILES, assetPixelSize } from './types'
+import type { AssetDef, CanvasConfig, ObjectData, ObjectPlacement, ResolvedObject, Rotation, Rect } from './types'
+import { resolveObjectDef, assetPixelSize, resolveStreetTiles } from './types'
 import { findAsset, findAssetCached } from '../assets/assetUtils'
 
 export function assetSizeFor(
@@ -136,7 +136,8 @@ export function clamp(rect: Rect, maxWidth: number, maxHeight: number, minX = 0,
 	return { x, y, w, h }
 }
 
-export function buildingArea(width: number, height: number, tileSize: number, streetTiles: number = STREET_TILES): Rect {
-	const inset = streetTiles * tileSize
-	return { x: inset, y: inset, w: Math.max(0, width - inset * 2), h: Math.max(0, height - inset * 2) }
+export function resolveBuildingArea(layout: { canvas: CanvasConfig; streetWidthTiles?: number }): Rect {
+	const { canvas } = layout
+	const inset = resolveStreetTiles(layout) * canvas.tileSize
+	return { x: inset, y: inset, w: Math.max(0, canvas.width - inset * 2), h: Math.max(0, canvas.height - inset * 2) }
 }

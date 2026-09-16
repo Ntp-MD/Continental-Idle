@@ -11,10 +11,10 @@ import ErrorBoundary from '@/components/overlays/ErrorBoundary.vue'
 import type { AssetDef } from '../../domain/types'
 import TagPicker from '../inputs/TagPicker.vue'
 const AssetEditModal = defineAsyncComponent(() => import('../modals/AssetEditModal.vue'))
-import { managedTagSet } from '../../blueprintStore'
 
 const props = defineProps<{ asset: AssetDef }>()
 const store = useAssetsStore()
+const { managedTagSet } = store
 const confirm = useConfirm().confirm
 const { pending, run } = useAsyncAction()
 const { copyId } = useClipboardCopy()

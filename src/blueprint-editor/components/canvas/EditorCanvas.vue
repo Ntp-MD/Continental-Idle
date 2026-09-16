@@ -3,11 +3,8 @@ import { ref, computed, onMounted, onUnmounted, watch, inject, type Ref } from '
 import { useAssetsStore, dragState, endAssetDrag } from '../../blueprintStore'
 import { svgColorVarStyle } from '../../assets/assetUtils'
 import { isGuestRoleId } from '../../assets/validation'
-import { svgTransform as svgTransformGeo, roundedRectPath, buildingArea } from '../../domain/geometry'
-import {
-  resolveStreetTiles,
-  normalizeEditorSettings,
-} from '../../domain/types'
+import { svgTransform as svgTransformGeo, roundedRectPath, resolveBuildingArea } from '../../domain/geometry'
+import { resolveStreetTiles, normalizeEditorSettings } from '../../domain/types'
 import { useConfirm } from '@/composables/useConfirm'
 import { useToast } from '@/composables/useToast'
 import type { ObjectData, EntityRef, AssetDef } from '../../domain/types'
@@ -129,12 +126,15 @@ function toggleView(key: string) {
 }
 
 const isInteracting = computed(() => !!panning.value || !!moving.value || zooming.value)
-const renderWalkableOverlay = computed(() => (showWalkableOverlay.value || !!store.state.tileBrush) && !isInteracting.value)
+const renderWalkableOverlay = computed(
+  () => (showWalkableOverlay.value || !!store.state.tileBrush) && !isInteracting.value,
+)
 const renderWallOverlay = computed(() => (showWallTiles.value || !!store.state.tileBrush) && !isInteracting.value)
 const renderDoorOverlay = computed(() => (showDoorTiles.value || !!store.state.tileBrush) && !isInteracting.value)
 const visibleWalkableRuns = computed(() =>
   walkableRuns.value.filter(
-    (run) => (run.state === 'walkable' && renderWalkableOverlay.value) || (run.state === 'blocked' && renderWallOverlay.value),
+    (run) =>
+      (run.state === 'walkable' && renderWalkableOverlay.value) || (run.state === 'blocked' && renderWallOverlay.value),
   ),
 )
 const renderInteractSpots = computed(() => showInteractSpots.value && !isInteracting.value)
@@ -166,6 +166,15 @@ const modeBadgeClass = computed(() => {
 })
 
 const modeHint = computed(() => {
+  const brush = store.state.tileBrush
+  if (brush) {
+    const brushHints: Record<string, string> = {
+      walkable: 'Walk brush - click or drag tiles to mark them walkable',
+      blocked: 'Wall brush - click or drag tiles to mark them blocked',
+      door: 'Door brush - click or drag tiles to place doors',
+    }
+    return brushHints[brush] ?? ''
+  }
   const hints: Record<string, string> = {
     object: 'Drag an asset from the palette onto the canvas - drag empty space to select objects',
     draw: 'Drag a rectangle, then save it as an origin asset',
@@ -175,9 +184,7 @@ const modeHint = computed(() => {
   return hints[store.state.mode] ?? ''
 })
 
-const buildingAreaRect = computed(() =>
-  buildingArea(canvas.value.width, canvas.value.height, canvas.value.tileSize, streetTotalTiles.value),
-)
+const buildingAreaRect = computed(() => resolveBuildingArea(store.state.layout))
 const editorSettings = computed(() => normalizeEditorSettings(store.state.layout.editorSettings))
 const streetSidewalkTiles = computed(() =>
   Math.max(1, Math.floor(streetTotalTiles.value * editorSettings.value.sidewalkTileRatio)),
@@ -312,9 +319,11 @@ const sel = useCanvasSelection({
     const t = canvas.value.tileSize
     const hit = walkableRuns.value.some(
       (run) =>
-        (run.state === 'blocked' || run.state === 'door')
-        && run.x < rect.x + rect.w && run.x + run.w > rect.x
-        && run.y < rect.y + rect.h && run.y + run.h > rect.y,
+        (run.state === 'blocked' || run.state === 'door') &&
+        run.x < rect.x + rect.w &&
+        run.x + run.w > rect.x &&
+        run.y < rect.y + rect.h &&
+        run.y + run.h > rect.y,
     )
     if (!hit) return
     setTilePaintSelection({
@@ -338,7 +347,14 @@ const tilePaint = useCanvasTilePaint({
     void store.paintFloorTiles(store.state.currentFloorId, brush, rect)
   },
 })
-const { active: tilePaintDragging, preview: tilePaintPreview, selection: tileEraseSelection, onMouseDown: onTilePaintMouseDown, clearSelection: clearTileSelection, setSelection: setTilePaintSelection } = tilePaint
+const {
+  active: tilePaintDragging,
+  preview: tilePaintPreview,
+  selection: tileEraseSelection,
+  onMouseDown: onTilePaintMouseDown,
+  clearSelection: clearTileSelection,
+  setSelection: setTilePaintSelection,
+} = tilePaint
 
 const eraseGuideRects = computed(() => {
   const preview = tilePaintPreview.value
@@ -356,8 +372,14 @@ const eraseGuideRects = computed(() => {
   }
   return rects
 })
-watch(() => store.state.currentFloorId, () => clearTileSelection())
-watch(() => store.state.tileBrush, () => clearTileSelection())
+watch(
+  () => store.state.currentFloorId,
+  () => clearTileSelection(),
+)
+watch(
+  () => store.state.tileBrush,
+  () => clearTileSelection(),
+)
 
 const { cells: doorCells, openKeys: doorOpenKeys } = useDoorTileAnimation({
   tileStates: () => floor.value?.walkable?.tileStates,
@@ -385,19 +407,11 @@ function onSvgMouseDown(e: MouseEvent) {
 const dd = useCanvasDragDrop({
   svgRef,
   localPoint,
-  canvasWidth: () => canvas.value.width,
-  canvasHeight: () => canvas.value.height,
   floor,
   store: store,
   tileSize: () => canvas.value.tileSize,
 })
-const {
-  paletteValid,
-  paletteGhost,
-  paletteGhostRect,
-  onWindowMouseMoveForDrag,
-  onWindowMouseUpForDrag,
-} = dd
+const { paletteValid, paletteGhost, paletteGhostRect, onWindowMouseMoveForDrag, onWindowMouseUpForDrag } = dd
 
 const selectedRotation = computed<number | null>(() => {
   if (store.state.selectionState.primary?.type !== 'object') return null
@@ -810,6 +824,7 @@ async function cancelDrawnOrigin() {
       'editor__canvas--dragging': !!panning,
       'editor__canvas--draw': store.state.mode === 'draw',
       'editor__canvas--move': store.state.mode === 'move',
+      'editor__canvas--brush': !!store.state.tileBrush,
     }"
     @wheel="onWheel"
     @mousedown="onPanMouseDown"
@@ -1261,7 +1276,17 @@ async function cancelDrawnOrigin() {
             />
             <template
               v-if="(renderWalkableOverlay || renderWallOverlay) && objDef(obj).walkableGrid"
-              v-memo="[obj.id, obj.x, obj.y, obj.w, obj.h, renderWalkableOverlay, renderWallOverlay, objDef(obj).walkableGrid, canvas.wallColor]"
+              v-memo="[
+                obj.id,
+                obj.x,
+                obj.y,
+                obj.w,
+                obj.h,
+                renderWalkableOverlay,
+                renderWallOverlay,
+                objDef(obj).walkableGrid,
+                canvas.wallColor,
+              ]"
             >
               <template v-for="(row, gr) in objDef(obj).walkableGrid" :key="'wg_' + obj.id + '-' + gr">
                 <template v-for="(cell, gc) in row" :key="'wgc_' + obj.id + '-' + gr + '-' + gc">
@@ -1456,85 +1481,88 @@ async function cancelDrawnOrigin() {
     </div>
 
     <div class="editor__controls">
-      <button title="Zoom Out (-)" aria-label="Zoom out" @click="zoomBy(1 / 1.25)">-</button>
-      <span class="editor__zoom" aria-label="Zoom level">{{ zoomPercent }}%</span>
-      <button title="Zoom In (+)" aria-label="Zoom in" @click="zoomBy(1.25)">+</button>
-      <button title="Fit to Screen (Ctrl+0)" aria-label="Fit to screen" @click="fitToScreen">
-        Fit
-      </button>
-      <button title="Center View" aria-label="Center view" @click="centerView">Center</button>
-      <button
-        :class="{ 'flag--active': showGrid }"
-        title="Toggle Grid"
-        aria-label="Toggle grid"
-        @click="toggleView('showGrid')"
-      >
-        Grid
-      </button>
-      <button
-        :class="{ 'flag--active': showLabels }"
-        title="Toggle Labels"
-        aria-label="Toggle labels"
-        @click="toggleView('showLabels')"
-      >
-        Labels
-      </button>
-      <button
-        :class="{ 'flag--active': showWalkableOverlay }"
-        title="Toggle Walkable"
-        aria-label="Toggle walkable view"
-        @click="toggleView('showWalkableOverlay')"
-      >
-        Walk
-      </button>
-      <button
-        :class="{ 'flag--active': showWallTiles }"
-        title="Toggle Wall Tiles"
-        aria-label="Toggle wall tiles"
-        @click="toggleView('showWallTiles')"
-      >
-        Walls
-      </button>
-      <button
-        :class="{ 'flag--active': showDoorTiles }"
-        title="Toggle Door Tiles"
-        aria-label="Toggle door tiles"
-        @click="toggleView('showDoorTiles')"
-      >
-        Doors
-      </button>
-      <button
-        :class="{ 'flag--active': showInteractSpots }"
-        title="Toggle Interact Spots"
-        aria-label="Toggle interact spots"
-        @click="toggleView('showInteractSpots')"
-      >
-        Interact
-      </button>
-      <button
-        :class="{ 'flag--active': showObjectHighlights }"
-        title="Toggle object highlights"
-        aria-label="Toggle object highlights"
-        @click="toggleView('showObjectHighlights')"
-      >
-        Highlight
-      </button>
-      <button
-        :class="{ 'flag--active': showBuildingBounds }"
-        title="Toggle building area boundary (placement limit against the street)"
-        aria-label="Toggle building bounds"
-        @click="toggleView('showBuildingBounds')"
-      >
-        Bounds
-      </button>
-      <button
-        :class="{ 'flag--active': showNpcGuides }"
-        title="Toggle NPC path guides (only in NPC Preview)"
-        aria-label="Toggle NPC path guides"
-        @click="toggleView('showNpcGuides')"
-      >
-        Guides
-      </button>
+      <div class="form__row right--border">
+        <button title="Zoom Out (-)" aria-label="Zoom out" @click="zoomBy(1 / 1.25)">-</button>
+        <span class="editor__zoom" aria-label="Zoom level">{{ zoomPercent }}%</span>
+        <button title="Zoom In (+)" aria-label="Zoom in" @click="zoomBy(1.25)">+</button>
+        <button title="Fit to Screen (Ctrl+0)" aria-label="Fit to screen" @click="fitToScreen">Fit</button>
+        <button title="Center View" aria-label="Center view" @click="centerView">Center</button>
+      </div>
+      <div class="form__row">
+        <span class="form__hint">View</span>
+        <button
+          :class="{ 'flag--active': showGrid }"
+          title="Toggle Grid"
+          aria-label="Toggle grid"
+          @click="toggleView('showGrid')"
+        >
+          Grid
+        </button>
+        <button
+          :class="{ 'flag--active': showLabels }"
+          title="Toggle Labels"
+          aria-label="Toggle labels"
+          @click="toggleView('showLabels')"
+        >
+          Labels
+        </button>
+        <button
+          :class="{ 'flag--active': showWalkableOverlay }"
+          title="Toggle Walkable"
+          aria-label="Toggle walkable view"
+          @click="toggleView('showWalkableOverlay')"
+        >
+          Walkable
+        </button>
+        <button
+          :class="{ 'flag--active': showWallTiles }"
+          title="Toggle Wall Tiles"
+          aria-label="Toggle wall tiles"
+          @click="toggleView('showWallTiles')"
+        >
+          Walls
+        </button>
+        <button
+          :class="{ 'flag--active': showDoorTiles }"
+          title="Toggle Door Tiles"
+          aria-label="Toggle door tiles"
+          @click="toggleView('showDoorTiles')"
+        >
+          Doors
+        </button>
+        <button
+          :class="{ 'flag--active': showInteractSpots }"
+          title="Toggle Interact Spots"
+          aria-label="Toggle interact spots"
+          @click="toggleView('showInteractSpots')"
+        >
+          Interact
+        </button>
+        <button
+          :class="{ 'flag--active': showObjectHighlights }"
+          title="Toggle object highlights"
+          aria-label="Toggle object highlights"
+          @click="toggleView('showObjectHighlights')"
+        >
+          Highlight
+        </button>
+        <button
+          :class="{ 'flag--active': showBuildingBounds }"
+          title="Toggle building area boundary (placement limit against the street)"
+          aria-label="Toggle building bounds"
+          @click="toggleView('showBuildingBounds')"
+        >
+          Bounds
+        </button>
+        <button
+          :class="{ 'flag--active': showNpcGuides }"
+          title="Toggle NPC path guides (only in NPC Preview)"
+          aria-label="Toggle NPC path guides"
+          @click="toggleView('showNpcGuides')"
+        >
+          Guides
+        </button>
+      </div>
     </div>
 
     <ModalShell
@@ -1604,7 +1632,8 @@ async function cancelDrawnOrigin() {
   cursor: grabbing;
 }
 
-.editor__canvas--draw .editor__svg {
+.editor__canvas--draw .editor__svg,
+.editor__canvas--brush .editor__svg {
   cursor: crosshair;
 }
 
@@ -1675,7 +1704,9 @@ async function cancelDrawnOrigin() {
 .editor__tile--door {
   fill: color-mix(in srgb, var(--accent-blue) 30%, transparent);
   stroke: color-mix(in srgb, var(--accent-green) 20%, transparent);
-  transition: transform 220ms ease, opacity 220ms ease;
+  transition:
+    transform 220ms ease,
+    opacity 220ms ease;
 }
 
 .editor__tile--blocked {

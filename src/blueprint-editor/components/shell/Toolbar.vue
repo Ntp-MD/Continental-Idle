@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, inject, defineAsyncComponent } from 'vue'
+import { ref, computed, inject, onMounted, onUnmounted, defineAsyncComponent } from 'vue'
 import { useAssetsStore } from '../../blueprintStore'
 import { useToast } from '@/composables/useToast'
 import { useAsyncAction } from '../../composables/useAsyncAction'
@@ -8,6 +8,7 @@ const NpcManagerModal = defineAsyncComponent(() => import('../modals/NpcManagerM
 const FloorModal = defineAsyncComponent(() => import('../modals/FloorModal.vue'))
 const DeployNpcModal = defineAsyncComponent(() => import('../modals/DeployNpcModal.vue'))
 const SettingsModal = defineAsyncComponent(() => import('../modals/SettingsModal.vue'))
+const ShortcutsModal = defineAsyncComponent(() => import('./ShortcutsModal.vue'))
 import { useNpcSimulation } from '../../composables/useNpcSimulation'
 
 const store = useAssetsStore()
@@ -19,6 +20,18 @@ const showNpcManager = ref(false)
 const showFloorModal = ref(false)
 const showDeployModal = ref(false)
 const showSettings = ref(false)
+const showShortcuts = ref(false)
+
+function onHelpKey(e: KeyboardEvent) {
+  if (e.key !== '?') return
+  const el = e.target as HTMLElement | null
+  if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || el.isContentEditable))
+    return
+  showShortcuts.value = true
+}
+
+onMounted(() => window.addEventListener('keydown', onHelpKey))
+onUnmounted(() => window.removeEventListener('keydown', onHelpKey))
 
 function onNpcManager() {
   showNpcManager.value = true
@@ -103,89 +116,112 @@ function onSyncToGame() {
       </svg>
     </button>
 
-    <button
-      :disabled="previewActive"
-      :class="{ 'flag--active': store.state.mode === 'object' }"
-      aria-label="Switch to free tool mode - select objects and wall/door tiles"
-      @click="onSwitchMode('object')"
-    >
-      Free tool
-    </button>
-    <button
-      :disabled="previewActive"
-      :class="{ 'flag--active': store.state.mode === 'draw' }"
-      aria-label="Switch to draw mode"
-      @click="onSwitchMode('draw')"
-    >
-      Draw Object
-    </button>
-    <button
-      :class="{ 'flag--active': store.state.mode === 'move' }"
-      aria-label="Switch to move mode"
-      @click="onSwitchMode('move')"
-    >
-      Move
-    </button>
-    <button
-      :disabled="previewActive"
-      :class="{ 'flag--active': store.state.tileBrush === 'walkable' }"
-      aria-label="Paint walkable tiles on the current floor"
-      @click="onTileBrush('walkable')"
-    >
-      Walk
-    </button>
-    <button
-      :disabled="previewActive"
-      :class="{ 'flag--active': store.state.tileBrush === 'blocked' }"
-      aria-label="Paint wall tiles on the current floor"
-      @click="onTileBrush('blocked')"
-    >
-      Wall
-    </button>
-    <button
-      :disabled="previewActive"
-      :class="{ 'flag--active': store.state.tileBrush === 'door' }"
-      aria-label="Paint door tiles on the current floor"
-      @click="onTileBrush('door')"
-    >
-      Door
-    </button>
-    <button title="Configure NPC roles and tags" aria-label="Open NPC manager" :disabled="previewActive" @click="onNpcManager">
-      NPC Manager
-    </button>
-    <button
-      :disabled="pending || previewActive"
-      title="Re-resolve every placed object from its origin asset and rebuild walkable layout"
-      aria-label="Refresh all placed objects from origins"
-      @click="onSyncOrigins"
-    >
-      Refresh Objects
-    </button>
-    <button
-      :disabled="previewActive"
-      title="Manage floors: add, delete, reorder, role restrictions"
-      aria-label="Open floor manager"
-      @click="onFloorManager"
-    >
-      Floor Manager
-    </button>
-    <button
-      :disabled="previewActive"
-      title="Open UI showcase (all primitives and components)"
-      aria-label="Open UI showcase"
-      @click="onOpenShowcase"
-    >
-      UI Showcase
-    </button>
+    <button title="Keyboard shortcuts" aria-label="Keyboard shortcuts" @click="showShortcuts = true">?</button>
 
-    <button
-      :disabled="previewActive"
-      :class="{ 'flag--active': store.state.mode === 'npc-preview' }"
-      title="Deploy NPCs on current floor (configure roles first)"
-      @click="onDeployNpc"
-    >
-      Deploy NPCs
-    </button>
+    <div class="form__row right--border">
+      <span class="form__hint">Tools</span>
+      <button
+        :disabled="previewActive"
+        :class="{ 'flag--active': store.state.mode === 'object' }"
+        aria-label="Switch to free tool mode - select objects and wall/door tiles"
+        @click="onSwitchMode('object')"
+      >
+        Free tool
+      </button>
+      <button
+        :disabled="previewActive"
+        :class="{ 'flag--active': store.state.mode === 'draw' }"
+        aria-label="Switch to draw mode"
+        @click="onSwitchMode('draw')"
+      >
+        Draw Object
+      </button>
+      <button
+        :class="{ 'flag--active': store.state.mode === 'move' }"
+        aria-label="Switch to move mode"
+        @click="onSwitchMode('move')"
+      >
+        Move
+      </button>
+    </div>
+
+    <div class="form__row right--border">
+      <span class="form__hint">Floor paint</span>
+      <button
+        :disabled="previewActive"
+        :class="{ 'flag--active': store.state.tileBrush === 'walkable' }"
+        aria-label="Paint walkable tiles on the current floor"
+        @click="onTileBrush('walkable')"
+      >
+        Walk
+      </button>
+      <button
+        :disabled="previewActive"
+        :class="{ 'flag--active': store.state.tileBrush === 'blocked' }"
+        aria-label="Paint wall tiles on the current floor"
+        @click="onTileBrush('blocked')"
+      >
+        Wall
+      </button>
+      <button
+        :disabled="previewActive"
+        :class="{ 'flag--active': store.state.tileBrush === 'door' }"
+        aria-label="Paint door tiles on the current floor"
+        @click="onTileBrush('door')"
+      >
+        Door
+      </button>
+    </div>
+
+    <div class="form__row right--border">
+      <span class="form__hint">Manage</span>
+      <button
+        title="Configure NPC roles and tags"
+        aria-label="Open NPC manager"
+        :disabled="previewActive"
+        @click="onNpcManager"
+      >
+        NPC Manager
+      </button>
+      <button
+        :disabled="pending || previewActive"
+        title="Re-resolve every placed object from its origin asset and rebuild walkable layout"
+        aria-label="Refresh all placed objects from origins"
+        @click="onSyncOrigins"
+      >
+        Refresh Objects
+      </button>
+      <button
+        :disabled="previewActive"
+        title="Manage floors: add, delete, reorder, role restrictions"
+        aria-label="Open floor manager"
+        @click="onFloorManager"
+      >
+        Floor Manager
+      </button>
+      <button
+        v-if="import.meta.env.DEV"
+        :disabled="previewActive"
+        title="Open UI showcase (all primitives and components)"
+        aria-label="Open UI showcase"
+        @click="onOpenShowcase"
+      >
+        UI Showcase
+      </button>
+    </div>
+
+    <div class="form__row right--border">
+      <span class="form__hint">Preview</span>
+
+      <button
+        :disabled="previewActive"
+        :class="{ 'flag--active': store.state.mode === 'npc-preview' }"
+        title="Deploy NPCs on current floor (configure roles first)"
+        @click="onDeployNpc"
+      >
+        Deploy NPCs
+      </button>
+    </div>
 
     <button
       :disabled="previewActive"
@@ -202,6 +238,7 @@ function onSyncToGame() {
       <FloorModal :open="showFloorModal" @close="showFloorModal = false" />
       <DeployNpcModal :open="showDeployModal" @close="showDeployModal = false" @deploy="onConfirmDeploy" />
       <SettingsModal :open="showSettings" @close="showSettings = false" />
+      <ShortcutsModal :open="showShortcuts" @close="showShortcuts = false" />
     </ErrorBoundary>
   </div>
 </template>

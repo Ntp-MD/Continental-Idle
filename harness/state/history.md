@@ -60,3 +60,62 @@ mod-cli records, no harness-meta records.
 - decision: `npcEngine.ts` left whole (over: splitting - it is one cohesive class, ~80 `this`-bound methods; a real size cut needs a base/mixin class split, not a file move)
 - decision: `EditorCanvas.vue` left whole (over: splitting - no component tests exist; `@vue/test-utils`+jsdom are configured but unused, so an SFC split would be unguarded)
 - verified: `npm run verify` (typecheck + lint + lint:bem + lint:css + guard:data-restore + test:unit + all tsx suites + verify:assets) pass; `npm run build` pass
+
+### editor UX/UI pass - 2026-09-16 15:04 UTC+7 (opencode, cline-pass/deepseek-v4.1-flash)
+- T1 dev-only gate: UI Showcase button + `?showcase` route behind `import.meta.env.DEV` (`shell/Toolbar.vue`, `App.vue`)
+- T2 `[role="button"]:focus-visible` added to `styles/reset.css` (span/div list rows were unfocusable-styled)
+- T3 `useToast`: `dismiss(id)` + per-type durations (error persists, warning 6s); `ToastContainer.vue` close button (reuses `.card__item--remove`), toast `pointer-events`, `role=alert/status` + `aria-atomic`
+- T4 `EditorCanvas.vue`: `modeHint` names active `tileBrush`; `.editor__canvas--brush` crosshair cursor
+- T5 grouped Toolbar controls and canvas view toggles with `.form__row` + `.right--border` + `.form__hint`; canvas toggle "Walk" -> "Walkable"; added new `shell/ShortcutsModal.vue` (ModalShell, `.badge` rows) triggered by a `?` button and `?` key
+- T7 `ImportSvgModal` primary action moved to `#footer` + inline `ModalShell` status; `SettingsModal`/`DeployNpcModal` validation inline via `:status`/`:status-tone` (was toast); `AssetEditModal` has no actions (unchanged)
+- T8 `DeployNpcModal` role rows `role=button` + tabindex + Enter/Space (`NpcRoleList` already compliant)
+- T9 `PropertiesPanel` sections via `.form--section` + editor wrapper
+- T10 Deploy wrapped in `useAsyncAction` (`pending` disables button); Sync Game is synchronous so no pending needed (audit assumption corrected)
+- verified: `npm run typecheck` + `npm run lint:bem` + `npm run lint:css` pass (routed suite for `*.vue`). Unrelated: `npm run lint` fails only on pre-existing `.zed/theme/*.js|mjs` errors (untouched)
+
+### store grill + street-width clamp fix - 2026-09-16 17:17 UTC+7 (opencode, cline-pass/deepseek-v4.1-flash)
+- user order: learn the project, find parts needing more rigor, then grill them
+- added `tests/test-store-crud.ts` (17 checks: store CRUD, tile pipeline, geometry) + `test:store-crud` npm script, wired into the `test` chain
+- fixed defect found by the grill: object bounds used a hardcoded 8-tile street inset while the canvas draws `resolveStreetTiles(layout)` - `store/state.ts` clamp, `store/objects.ts` moveMembersTo, `useCanvasDragDrop.ts` ghost now pass the resolved street width
+- decision: derive the street inset from `resolveStreetTiles(state.layout)` at the clamp callsite (over: passing the width through every signature - because the layout is the single source)
+- open finding (not fixed - needs a product choice): `pasteObjects` offsets a copy by one tile, so any object wider than one tile overlaps its source and the whole paste is rejected
+- open finding: `paintFloorTiles` forces the street ring walkable then applies the brush, so a brush can still overwrite the ring
+- verified: `npx tsx tests/test-store-crud.ts` 17/17; `npm run typecheck:test`; `npx eslint` on the 3 changed src files + new suite; routed `lint:bem` + `lint:css` + `typecheck` pass. Unrelated: `npm run lint` fails only on pre-existing `.zed/theme/*.js|mjs` errors
+
+### store/persistence foundation plan (decision) - 2026-09-16 17:29 UTC+7 (opencode, cline-pass/deepseek-v4.1-flash)
+- decision: store boundary = option B `createBlueprintStore({ persistence, sync, seed })` factory (over: A keep singleton + inject port - leaves global state; C command bus/event-sourced - single-writer over-engineering, future debt)
+- decision: #2 (store purity) and #1 (storage contract) are ONE foundation phase, not sequential tickets - the boundary and the storage format must be designed together or the store stays shaky
+- decision: foundation = factory + PersistencePort + SyncPort + single-writer `commit` (replaces `withStateLock`); #5/#7 fall out of the boundary, #6 is the boundary identity rule
+- decision: #8 test guard lands before any production change; #10 process recap deferred until 1-9 done
+- plan written to slot (T0-T6, order T0 -> T1 -> T2 -> T3 -> T4 -> T5 -> T6); open: T3 storage format (JSON file + dev middleware vs generated TS vs SQLite)
+- no code changed in this entry
+
+### T3 storage format decision - 2026-09-16 17:29 UTC+7 (opencode, cline-pass/deepseek-v4.1-flash)
+- decision: canonical store = one `src/blueprint-editor/data/blueprint-data.json` in the existing `BlueprintDataFile` shape (over: generated TS from JSON - keeps data-as-code + stale artifact; SQLite - native dep/portability/diff review, overkill for 4 collections single-writer)
+- why this wins: the dev middleware already validates with `normalizeBlueprintDataFile` and writes atomically (temp + rename retry) at vite.config.ts:141-200; only the fragile `readDataModule` string-slice at vite.config.ts:131-139 changes; `server.watch.ignored` already lists `data/*.json`; the persisted artifact becomes identical to the domain DTO
+- the four `.data.ts` demote to a one-time seed/migration input; `PersistencePort` = GET load / POST save; `guard:data-restore` retires with T3
+- reversible: hidden behind `PersistencePort`, so a future DB swap needs no core change
+- no code changed in this entry
+
+### T0 (#4) single building-area resolver - 2026-09-16 17:35 UTC+7 (opencode, cline-pass/deepseek-v4.1-flash)
+- replaced `buildingArea(width,height,tileSize, streetTiles = STREET_TILES)` with `resolveBuildingArea(layout)` in `domain/geometry.ts` - the inset now derives from `resolveStreetTiles(layout)` inside one function, no default arg (kills the drift class that caused the street-width bug)
+- routed all callsites through it: `store/state.ts` clamp, `store/objects.ts` moveMembersTo, `composables/useCanvasDragDrop.ts` ghost, `components/canvas/EditorCanvas.vue` buildingAreaRect
+- dropped the now-dead `canvasWidth`/`canvasHeight` opts from `useCanvasDragDrop` + its `EditorCanvas` call
+- updated `tests/test-store-crud.ts` to the new resolver; `rg '\bbuildingArea\b'` now returns 0 non-resolver hits
+- verified: `npx tsx tests/test-store-crud.ts` 17/17; `npm run typecheck`; `npx eslint` on the 5 changed src files + the suite; routed `lint:bem` + `lint:css`; `npm run test:blueprint-schema` (matching domain suite) all pass. Unrelated: `npm run lint` still fails only on pre-existing `.zed/theme/*.js|mjs`
+
+### T1 (#8) test guard, option C - 2026-09-16 17:42 UTC+7 (opencode, cline-pass/deepseek-v4.1-flash)
+- decision: T1 = option C hybrid (target end state = vitest single runner; keep legacy tsx suites behind a temporary runner and migrate file-by-file) - over A (keeps two runners permanently) and B (big-bang migration with no guard yet)
+- added `scripts/run-tests.mjs` as the single aggregate; `npm test` now runs vitest + the 14 tsx suites + verify:assets with one explicit exit code (16/16 green)
+- first UI test: `tests/component/EditorCanvas.test.ts` mounts EditorCanvas (stubbed injected `npcSimulation`) and pins the building outline rect to `resolveBuildingArea` for default + changed street width; `tests/setup.ts` polyfills ResizeObserver/matchMedia
+- `vitest.config.ts` include now covers `tests/component/**`; AGENTS verify row widened to `tests/**/*.test.ts` -> `test:unit`; coverage report wired (`test:coverage`, v8)
+- remaining (ongoing): migrate the legacy tsx suites into vitest one at a time, then retire the runner
+- verified: `npm test` 16/16; `npm run typecheck`; `npm run test:coverage` (report ok); `npx eslint` on runner/setup/component test/vitest.config; `node harness/scripts/verify.mjs table` ok. Unrelated: `npm run lint` still fails only on pre-existing `.zed/theme/*.js|mjs`
+
+### T2 store factory (IN PROGRESS) - decisions - 2026-09-16 17:54 UTC+7 (opencode, cline-pass/deepseek-v4.1-flash)
+- decision: store consumption shape = A (instance `store.state` reactive + commands as methods + `provideBlueprintStore`/`useAssetsStore` inject) over B free functions / C read-model only - because UI template churn is near-zero, it matches the existing `npcSimulation` provide/inject pattern, and single-writer `commit` is still enforced
+- decision: each command module becomes a factory closing over `store`, with local aliases (`state`, `toast`, `snap`, `saveBlueprintData`, ...) so function bodies stay byte-identical (over editing every body or a class conversion) - least-risk mechanical path
+- decision: `runExclusive` serialized queue replaces `withStateLock` reject - removes the "Operation in progress" failure (#5); one write path
+- decision: HTTP retry/413/verify moved into `createHttpPersistencePort`; the store owns the snapshot/revert + serialized `save()` - persistence boundary is typed (#7 SyncPort replaces `CustomEvent` string), store owns transaction semantics
+- decision: `App.vue` creates + provides the store (over `BlueprintEditor.vue`) - because the `?showcase` UiShowcase mounts under App without BlueprintEditor
+- status: src refactor complete and `npm run typecheck` clean (only 3 test files fail); T2 not ticked yet. Hand-off in `harness/state/task-context.md` (rewrite test-store-crud/test-persistence/EditorCanvas.test, then `npm test`)

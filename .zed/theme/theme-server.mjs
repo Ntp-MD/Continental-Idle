@@ -6,10 +6,16 @@ import http from 'node:http'
 import path from 'node:path'
 import { execFile } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
-import { highlight } from './highlight.mjs'
+import { resolveSettingsPath } from './resolve-settings.mjs'
+
+let highlightFn = null
+async function getHighlight() {
+  if (!highlightFn) highlightFn = (await import('./highlight.mjs')).highlight
+  return highlightFn
+}
 
 const dir = path.dirname(fileURLToPath(import.meta.url))
-const settingsPath = path.join(dir, 'settings.json')
+const settingsPath = resolveSettingsPath(dir)
 const PORT = 18751
 const clients = new Set()
 
@@ -24,12 +30,18 @@ function regenerate() {
 }
 
 let timer = null
-fs.watch(settingsPath, () => {
-  clearTimeout(timer)
-  timer = setTimeout(regenerate, 300)
-})
+console.log('watching ' + settingsPath)
+try {
+  fs.watch(path.dirname(settingsPath), (event, filename) => {
+    if (filename && filename !== path.basename(settingsPath)) return
+    clearTimeout(timer)
+    timer = setTimeout(regenerate, 300)
+  })
+} catch (error) {
+  console.error('watch failed:', error.message)
+}
 
-const MIME = { '.html': 'text/html; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8', '.json': 'application/json; charset=utf-8' }
+const MIME = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8', '.json': 'application/json; charset=utf-8' }
 
 // Replace only the experimental.theme_overrides block, byte-preserving the rest.
 function applyOverrides(text, overrides) {  const key = '"experimental.theme_overrides"'
@@ -105,6 +117,7 @@ const server = http.createServer((req, res) => {
     req.on('end', async () => {
       try {
         const { lang, code } = JSON.parse(body)
+        const highlight = await getHighlight()
         const html = await highlight(lang, String(code ?? '').slice(0, 20000))
         res.writeHead(200, { 'Content-Type': 'application/json' })
         res.end(JSON.stringify({ ok: true, html }))

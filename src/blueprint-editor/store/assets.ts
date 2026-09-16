@@ -1,13 +1,10 @@
-import type { AssetDef, WalkableGrid, TileState } from '../domain/types'
+import type { AssetDef, Rect } from '../domain/types'
 import { isSafeSvgMarkup, isValidColor, normalizeOriginAsset, applySvgColorConvention } from '../domain/types'
 import { recalcCollapsed } from '../domain/collision'
 import { assetSizeFor, normalizeObject } from '../domain/geometry'
 import { parseSvgViewBox, serializeAsset } from '../assets/assetUtils'
-import {
-	state, toast, clamp, withStateLock, initAssetFields, assetMap,
-} from './state'
+import type { BlueprintStore, AssetPatch } from './state'
 import { genAssetId } from './storeUtils'
-import { saveBlueprintData } from './persistence'
 
 const FURNITURE_COLOR_MAP: Record<string, string> = {
 	'#f4f8fc': 'var(--text-primary)',
@@ -31,7 +28,7 @@ function convertFurnitureColors(svg: string): string {
 	const styleConvertRe = /style-convert__(fill|stroke)="([^"]*)"/gi
 	result = result.replace(/<(\w+)([^>]*?)>/gi, (tag, name: string, attrs: string) => {
 		const conversions: { prop: string; value: string }[] = []
-		let cleaned = attrs.replace(styleConvertRe, (_m, prop: string, value: string) => {
+		const cleaned = attrs.replace(styleConvertRe, (_m, prop: string, value: string) => {
 			conversions.push({ prop, value })
 			return ''
 		})
@@ -40,186 +37,195 @@ function convertFurnitureColors(svg: string): string {
 
 		const existingStyleMatch = cleaned.match(/\sstyle\s*=\s*["']([^"']*)["']/i)
 		let styleParts: string[] = []
+		let cleanedAttrs = cleaned
 		if (existingStyleMatch) {
 			styleParts = existingStyleMatch[1].split(';').map(s => s.trim()).filter(Boolean)
-			cleaned = cleaned.replace(/\sstyle\s*=\s*["'][^"']*["']/i, '')
+			cleanedAttrs = cleaned.replace(/\sstyle\s*=\s*["'][^"']*["']/i, '')
 		}
 		for (const c of conversions) {
 			styleParts.push(`${c.prop}: ${c.value}`)
 		}
-		return `<${name}${cleaned} style="${styleParts.join('; ')}">`
+		return `<${name}${cleanedAttrs} style="${styleParts.join('; ')}">`
 	})
 
 	return result
 }
 
-export async function addSvgAsset(name: string, w: number, h: number, svgString: string): Promise<AssetDef | null> {
-	return withStateLock(async () => {
-		const safeName = name.trim()
-		if (!safeName || safeName.length > 512) { toast.warning('Asset name is invalid'); return null }
-		if (!Number.isFinite(w) || !Number.isFinite(h) || w <= 0 || h <= 0 || w > 10_000 || h > 10_000) { toast.warning('Asset dimensions are invalid'); return null }
-		const safeW = Math.floor(w)
-		const safeH = Math.floor(h)
-		const trimmed = svgString.trim()
-		if (!trimmed) { toast.warning('SVG content cannot be empty'); return null }
-		const viewBox = parseSvgViewBox(trimmed)
-		if (!viewBox) { toast.warning('SVG must have a valid viewBox attribute'); return null }
-		const vbW = viewBox.w
-		const vbH = viewBox.h
-		const innerMatch = trimmed.match(/<svg[^>]*>([\s\S]*)<\/svg>/i)
-		const rawSvg = innerMatch ? innerMatch[1].trim() : trimmed
-		const innerSvg = convertFurnitureColors(rawSvg)
-		if (!innerSvg || !isSafeSvgMarkup(innerSvg) || !/<(?:rect|circle|ellipse|line|path|polyline|polygon|g|text|tspan)\b/i.test(innerSvg)) {
-			toast.warning('SVG contains no valid drawable elements after sanitization')
-			return null
-		}
-		const themedSvg = applySvgColorConvention(innerSvg)
-		const asset: AssetDef = {
-			origin: 'svg-import',
-			id: genAssetId('custom', safeName, c => state.assetRegistry.some(a => a.id === c)), name: safeName,
-			w: safeW, h: safeH,
-			defaultFillColor: '#ffffff',
-			svg: themedSvg,
-			svgViewBox: { w: vbW, h: vbH },
-		}
-		initAssetFields(asset)
-		state.assetRegistry.push(asset)
-		await saveBlueprintData()
-		return asset
-	})
-}
+export function createAssetCommands(store: BlueprintStore) {
+	const state = store.state
+	const toast = store.toast
+	const clamp = (rect: Rect) => store.clamp(rect)
+	const withStateLock = <T>(fn: () => Promise<T>) => store.runExclusive(fn)
+	const initAssetFields = (asset: AssetDef) => store.initAssetFields(asset)
+	const assetMap = () => store.assetMap()
+	const saveBlueprintData = () => store.save()
 
-export async function updateAsset(id: string, patch: Partial<Pick<AssetDef, 'name' | 'defaultPadding' | 'defaultRx' | 'defaultFillColor' | 'defaultStrokeColor' | 'defaultLabel' | 'defaultRadius' | 'defaultLabelPadding' | 'defaultLocked' | 'doorRequired' | 'tags' | 'interactSpots' | 'interact' | 'queue'>> & { walkable?: boolean; walkableGrid?: WalkableGrid; tileStates?: TileState[][] }): Promise<void> {
-	return withStateLock(async () => {
-		const asset = state.assetRegistry.find(a => a.id === id)
-		if (!asset) {
-			toast.warning('Asset not found')
-			return
-		}
-		const sizeKeys = ['w', 'h', 'pxW', 'pxH', 'usePx']
-		if (sizeKeys.some(key => key in (patch as Record<string, unknown>))) {
-			toast.warning('Origin asset dimensions are immutable after creation')
-			return
-		}
-		if (patch.defaultFillColor !== undefined && patch.defaultFillColor !== '' && !isValidColor(patch.defaultFillColor)) {
-			toast.warning('Fill color must be a hex code')
-			return
-		}
-		if (patch.defaultStrokeColor !== undefined && patch.defaultStrokeColor !== '' && !isValidColor(patch.defaultStrokeColor)) {
-			toast.warning('Outline color must be a hex code')
-			return
-		}
-
-
-		const candidateInput: Record<string, unknown> = { ...asset, ...(patch as Record<string, unknown>) }
-		for (const [key, value] of Object.entries(patch as Record<string, unknown>)) {
-			if (value === undefined || (typeof value === 'string' && value === '') || (Array.isArray(value) && value.length === 0 && ['tags', 'interactSpots', 'svgRoles'].includes(key))) delete candidateInput[key]
-		}
-		const normalizedAsset = normalizeOriginAsset(candidateInput)
-		if (!normalizedAsset) {
-			toast.warning('Asset update contains invalid data')
-			return
-		}
-		for (const key of Object.keys(asset)) delete (asset as unknown as Record<string, unknown>)[key]
-		Object.assign(asset, normalizedAsset)
-
-		const t = state.layout.canvas.tileSize
-		const assets = assetMap()
-
-		for (const floor of state.layout.floors) {
-			for (const obj of floor.objects) {
-				if (obj.type !== id) continue
-				const size = assetSizeFor(obj.type, obj.rotation, t, assets)
-				if (!size) continue
-				obj.w = size.w
-				obj.h = size.h
-				const clamped = clamp({ x: obj.x, y: obj.y, w: size.w, h: size.h })
-				obj.x = clamped.x
-				obj.y = clamped.y
-				if (asset.defaultPadding && asset.defaultPadding > 0) {
-					obj.padding = asset.defaultPadding
-				} else if (obj.padding !== undefined && patch.defaultPadding !== undefined) {
-					obj.padding = undefined
-				}
-				if (patch.defaultRx !== undefined) {
-					obj.rx = asset.defaultRx ? { ...asset.defaultRx } : undefined
-				}
-				if (patch.defaultLabel !== undefined) obj.label = asset.defaultLabel
-				if (patch.defaultRadius !== undefined) obj.radius = asset.defaultRadius
-				if (patch.defaultLabelPadding !== undefined) obj.labelPadding = asset.defaultLabelPadding
-				if (patch.defaultLocked !== undefined) obj.locked = asset.defaultLocked
+	async function addSvgAsset(name: string, w: number, h: number, svgString: string): Promise<AssetDef | null> {
+		return withStateLock(async () => {
+			const safeName = name.trim()
+			if (!safeName || safeName.length > 512) { toast.warning('Asset name is invalid'); return null }
+			if (!Number.isFinite(w) || !Number.isFinite(h) || w <= 0 || h <= 0 || w > 10_000 || h > 10_000) { toast.warning('Asset dimensions are invalid'); return null }
+			const safeW = Math.floor(w)
+			const safeH = Math.floor(h)
+			const trimmed = svgString.trim()
+			if (!trimmed) { toast.warning('SVG content cannot be empty'); return null }
+			const viewBox = parseSvgViewBox(trimmed)
+			if (!viewBox) { toast.warning('SVG must have a valid viewBox attribute'); return null }
+			const vbW = viewBox.w
+			const vbH = viewBox.h
+			const innerMatch = trimmed.match(/<svg[^>]*>([\s\S]*)<\/svg>/i)
+			const rawSvg = innerMatch ? innerMatch[1].trim() : trimmed
+			const innerSvg = convertFurnitureColors(rawSvg)
+			if (!innerSvg || !isSafeSvgMarkup(innerSvg) || !/<(?:rect|circle|ellipse|line|path|polyline|polygon|g|text|tspan)\b/i.test(innerSvg)) {
+				toast.warning('SVG contains no valid drawable elements after sanitization')
+				return null
 			}
-			recalcCollapsed(floor, assets)
-		}
-		const collapsedIds = state.layout.floors.flatMap(floor => floor.objects.filter(o => o.type === id && o.collapsed).map(o => o.id))
-
-		if (collapsedIds.length > 0) {
-			toast.error(`${collapsedIds.length} object(s) collapsed due to overlap - shown in red`)
-		}
-		await saveBlueprintData()
-	}).catch(e => {
-		if (e instanceof Error && e.message === 'Operation in progress') {
-			toast.warning('Operation in progress')
-			return
-		}
-		throw e
-	})
-}
-
-
-export async function refreshOriginInstances(): Promise<number> {
-	return withStateLock(async () => {
-		const tileSize = state.layout.canvas.tileSize
-		const assets = assetMap()
-		let refreshedCount = 0
-		for (const floor of state.layout.floors) {
-			for (const object of floor.objects) {
-				if (!assets.has(object.type)) continue
-				normalizeObject(object, tileSize, assets)
-				refreshedCount++
+			const themedSvg = applySvgColorConvention(innerSvg)
+			const asset: AssetDef = {
+				origin: 'svg-import',
+				id: genAssetId('custom', safeName, c => state.assetRegistry.some(a => a.id === c)), name: safeName,
+				w: safeW, h: safeH,
+				defaultFillColor: '#ffffff',
+				svg: themedSvg,
+				svgViewBox: { w: vbW, h: vbH },
 			}
-			recalcCollapsed(floor, assets)
-		}
-		await saveBlueprintData()
-		return refreshedCount
-	})
-}
+			initAssetFields(asset)
+			state.assetRegistry.push(asset)
+			await saveBlueprintData()
+			return asset
+		})
+	}
 
-export async function duplicateAsset(id: string): Promise<AssetDef | null> {
-	return withStateLock(async () => {
-		const source = state.assetRegistry.find(a => a.id === id)
-		if (!source) {
+	async function updateAsset(id: string, patch: AssetPatch): Promise<void> {
+		return withStateLock(async () => {
+			const asset = state.assetRegistry.find(a => a.id === id)
+			if (!asset) {
+				toast.warning('Asset not found')
+				return
+			}
+			const sizeKeys = ['w', 'h', 'pxW', 'pxH', 'usePx']
+			if (sizeKeys.some(key => key in (patch as Record<string, unknown>))) {
+				toast.warning('Origin asset dimensions are immutable after creation')
+				return
+			}
+			if (patch.defaultFillColor !== undefined && patch.defaultFillColor !== '' && !isValidColor(patch.defaultFillColor)) {
+				toast.warning('Fill color must be a hex code')
+				return
+			}
+			if (patch.defaultStrokeColor !== undefined && patch.defaultStrokeColor !== '' && !isValidColor(patch.defaultStrokeColor)) {
+				toast.warning('Outline color must be a hex code')
+				return
+			}
+
+
+			const candidateInput: Record<string, unknown> = { ...asset, ...(patch as Record<string, unknown>) }
+			for (const [key, value] of Object.entries(patch as Record<string, unknown>)) {
+				if (value === undefined || (typeof value === 'string' && value === '') || (Array.isArray(value) && value.length === 0 && ['tags', 'interactSpots', 'svgRoles'].includes(key))) delete candidateInput[key]
+			}
+			const normalizedAsset = normalizeOriginAsset(candidateInput)
+			if (!normalizedAsset) {
+				toast.warning('Asset update contains invalid data')
+				return
+			}
+			for (const key of Object.keys(asset)) delete (asset as unknown as Record<string, unknown>)[key]
+			Object.assign(asset, normalizedAsset)
+
+			const t = state.layout.canvas.tileSize
+			const assets = assetMap()
+
+			for (const floor of state.layout.floors) {
+				for (const obj of floor.objects) {
+					if (obj.type !== id) continue
+					const size = assetSizeFor(obj.type, obj.rotation, t, assets)
+					if (!size) continue
+					obj.w = size.w
+					obj.h = size.h
+					const clamped = clamp({ x: obj.x, y: obj.y, w: size.w, h: size.h })
+					obj.x = clamped.x
+					obj.y = clamped.y
+					if (asset.defaultPadding && asset.defaultPadding > 0) {
+						obj.padding = asset.defaultPadding
+					} else if (obj.padding !== undefined && patch.defaultPadding !== undefined) {
+						obj.padding = undefined
+					}
+					if (patch.defaultRx !== undefined) {
+						obj.rx = asset.defaultRx ? { ...asset.defaultRx } : undefined
+					}
+					if (patch.defaultLabel !== undefined) obj.label = asset.defaultLabel
+					if (patch.defaultRadius !== undefined) obj.radius = asset.defaultRadius
+					if (patch.defaultLabelPadding !== undefined) obj.labelPadding = asset.defaultLabelPadding
+					if (patch.defaultLocked !== undefined) obj.locked = asset.defaultLocked
+				}
+				recalcCollapsed(floor, assets)
+			}
+			const collapsedIds = state.layout.floors.flatMap(floor => floor.objects.filter(o => o.type === id && o.collapsed).map(o => o.id))
+
+			if (collapsedIds.length > 0) {
+				toast.error(`${collapsedIds.length} object(s) collapsed due to overlap - shown in red`)
+			}
+			await saveBlueprintData()
+		})
+	}
+
+
+	async function refreshOriginInstances(): Promise<number> {
+		return withStateLock(async () => {
+			const tileSize = state.layout.canvas.tileSize
+			const assets = assetMap()
+			let refreshedCount = 0
+			for (const floor of state.layout.floors) {
+				for (const object of floor.objects) {
+					if (!assets.has(object.type)) continue
+					normalizeObject(object, tileSize, assets)
+					refreshedCount++
+				}
+				recalcCollapsed(floor, assets)
+			}
+			await saveBlueprintData()
+			return refreshedCount
+		})
+	}
+
+	async function duplicateAsset(id: string): Promise<AssetDef | null> {
+		return withStateLock(async () => {
+			const source = state.assetRegistry.find(a => a.id === id)
+			if (!source) {
+				toast.warning('Asset not found')
+				return null
+			}
+			const copy: AssetDef = {
+				...serializeAsset(source),
+				id: genAssetId('custom', `${source.name} copy`, c => state.assetRegistry.some(a => a.id === c)),
+				name: `${source.name} copy`,
+				origin: 'drawn',
+			}
+
+			if (!copy.defaultFillColor) copy.defaultFillColor = '#ffffff'
+			state.assetRegistry.push(copy)
+			await saveBlueprintData()
+			toast.success(`Duplicated "${source.name}" -> "${copy.name}"`)
+			return copy
+		})
+	}
+
+	async function deleteAsset(id: string): Promise<boolean> {
+		const inUse = state.layout.floors.some(f => f.objects.some(o => o.type === id))
+		if (inUse) {
+			toast.warning('Cannot delete - asset is placed on floors. Remove instances first.')
+			return false
+		}
+		const idx = state.assetRegistry.findIndex(a => a.id === id)
+		if (idx === -1) {
 			toast.warning('Asset not found')
-			return null
+			return false
 		}
-		const copy: AssetDef = {
-			...serializeAsset(source),
-			id: genAssetId('custom', `${source.name} copy`, c => state.assetRegistry.some(a => a.id === c)),
-			name: `${source.name} copy`,
-			origin: 'drawn',
-		}
-
-		if (!copy.defaultFillColor) copy.defaultFillColor = '#ffffff'
-		state.assetRegistry.push(copy)
+		state.assetRegistry.splice(idx, 1)
+		if (state.selectedAssetId === id) state.selectedAssetId = null
 		await saveBlueprintData()
-		toast.success(`Duplicated "${source.name}" -> "${copy.name}"`)
-		return copy
-	})
+		return true
+	}
+
+	return { addSvgAsset, updateAsset, refreshOriginInstances, duplicateAsset, deleteAsset }
 }
 
-export async function deleteAsset(id: string): Promise<boolean> {
-	const inUse = state.layout.floors.some(f => f.objects.some(o => o.type === id))
-	if (inUse) {
-		toast.warning('Cannot delete - asset is placed on floors. Remove instances first.')
-		return false
-	}
-	const idx = state.assetRegistry.findIndex(a => a.id === id)
-	if (idx === -1) {
-		toast.warning('Asset not found')
-		return false
-	}
-	state.assetRegistry.splice(idx, 1)
-	if (state.selectedAssetId === id) state.selectedAssetId = null
-	await saveBlueprintData()
-	return true
-}
+export type AssetCommands = ReturnType<typeof createAssetCommands>

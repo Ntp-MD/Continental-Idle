@@ -128,7 +128,7 @@ async function doFlatten() {
     </div>
     <div class="form__col">
       <!-- NPC preview controls -->
-      <div v-if="previewActive">
+      <div v-if="previewActive" class="form__col form--section">
         <div class="form__col">
           <h3>NPC Preview</h3>
           <div class="form__row">
@@ -186,7 +186,7 @@ async function doFlatten() {
         </div>
       </div>
 
-      <div v-if="!object && !asset && store.state.selectionState.items.length === 0">
+      <div v-if="!object && !asset && store.state.selectionState.items.length === 0" class="form__col form--section">
         <div class="form__col">
           <div class="empty">Select an object or asset to edit properties.</div>
           <div>
@@ -197,11 +197,9 @@ async function doFlatten() {
       </div>
 
       <!-- Multi-selection -->
-      <div v-if="store.state.selectionState.items.length >= 2">
+      <div v-if="store.state.selectionState.items.length >= 2" class="form__col form--section">
         <div class="form__col">
-          <h3>
-            {{ selectedItems.length }} object{{ selectedItems.length === 1 ? '' : 's' }} selected
-          </h3>
+          <h3>{{ selectedItems.length }} object{{ selectedItems.length === 1 ? '' : 's' }} selected</h3>
           <div class="form__row">
             <ul class="multi-select__list">
               <li v-for="obj in selectedItems" :key="obj.id" class="multi-select__item">
@@ -225,14 +223,11 @@ async function doFlatten() {
         </div>
       </div>
 
-      <!-- Asset editor -->
-      <AssetProperties v-if="asset" :key="asset.id" :asset="asset" />
-
-      <!-- Object editor (single selection only) -->
-      <ObjectPropertiesForm
-        v-else-if="object && store.state.selectionState.items.length === 1"
-        :object="object"
-      />
+      <!-- Asset / object editor -->
+      <div v-if="asset || (object && store.state.selectionState.items.length === 1)" class="form__col form--section">
+        <AssetProperties v-if="asset" :key="asset.id" :asset="asset" />
+        <ObjectPropertiesForm v-else-if="object && store.state.selectionState.items.length === 1" :object="object" />
+      </div>
     </div>
   </div>
 </template>

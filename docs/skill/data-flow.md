@@ -2,6 +2,11 @@
 
 Project domain facts for data boundaries, persistence, definitions/instances, tags, canonical helpers, field-change checklists, and engines. `AGENTS.md` states the rules; `skill.md` routes here.
 
+## Activation
+
+- Use: task touches migration, loaders, persistence, sync, validation, engine adapters, UI saves, definition fields, tags, or `src/blueprint-editor/data/` modules.
+- Don't use: pure markup/CSS reflow, hotel floor geometry, or engine-internal algorithm tuning with no boundary crossed. If no boundary is touched, report "No data boundaries touched" and exit.
+
 ## Data audit
 
 Run this procedure before implementing a feature that touches any data flow (migration, loaders, persistence, sync, validation, engine adapters, UI saves), and report findings as a table. Follow the steps in order - a step may be skipped only with a stated reason (e.g. no boundary of that kind touched). Read-only audit: propose fixes, do not modify code during the audit.
@@ -28,6 +33,8 @@ For each boundary, name the specific normalization helper from the types module.
 A boundary with no matching helper is **GAP - needs new helper**.
 
 ### Step 3 - Detect anti-patterns
+
+Decision rule: reuse the canonical helper when it covers the shape without changing its contract; create a new helper only when no helper covers the shape (mark GAP). Never inline the logic at the call site.
 
 - Inline defaults: reading optional fields with `??` fallbacks outside the engine resolution helper.
 - Raw cast at migration: type assertions (`as <DefinitionType>`) bypassing normalization.
@@ -129,3 +136,8 @@ Same change must update all of the following:
 - Convert persisted units to engine units only inside the runtime adapter.
 - Never duplicate engine behavior in UI components or adapters.
 - Tests pass explicit `random` (seeded or constant) in every engine options object; never rely on the `Math.random` fallback.
+
+## Verify
+
+- Route via `node harness/scripts/verify.mjs route`; run the single matching suite (schema/persistence/sync changes: the matching `test:<name>`; engine changes: the matching `test:<name>`; never the full matrix).
+- Field-checklist changes: all 5 AssetDef (or 4 CanvasConfig) items updated in the same change, plus the routed suite green.

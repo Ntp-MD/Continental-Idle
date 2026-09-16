@@ -1,20 +1,32 @@
 ---
 name: wire-paths
-description: Keep path references consistent across a move, rename, or structural change. Apply before moving or renaming a referenced file, and again after.
+description: Keep path references consistent across a move, rename, or structural change. Use before and after moving/renaming.
 ---
 
 # Wire Paths
 
-A moved file with stale references is a broken harness. Every path lives in two places: on disk and in the heads of its consumers (docs, pointers, scripts, gates). Move one without the other and the next agent follows a dead link.
+Purpose: a moved file must not leave dead references in docs, scripts, or gates.
+
+## Use when / Don't use
+
+- Use: before + after any move/rename, or structural change touching path references.
+- Don't use: content-only edits with no path change. Dated log entries in `harness/state/history*.md` are never rewired.
 
 ## Rules
 
-- **Move tracked files with `git mv`** (force only on explicit order when unstaged edits block it). Untracked files move with the filesystem, then get staged.
-- **Grep both the old path AND the old basename repo-wide.** Consumers reference either form; one grep is half the job.
-- **Update every consumer in the same change**: docs, agent pointers, scripts (path constants, messages, comments), scaffold templates, and the skill gate itself.
-- **Never rewrite dated logs.** History entries record the paths as they were - they are evidence, not wiring.
-- **One move, one verification.** After rewiring, run the check command plus whatever suite the touched files route to.
+- Move tracked files with `git mv` (force only on explicit user order).
+- Grep repo-wide for BOTH old path AND old basename; consumers use either form.
+- Update every live consumer in the same change: docs, agent pointers, scripts (constants, messages, comments), templates, skill gates, verify table.
+- One move, one verification (check command + routed suite).
 
-## Done-check
+## Workflow
 
-Search the repo for the old path and the old basename. The only acceptable survivors are dated log entries. Everything else must point at the new home.
+1. Before move: grep old path + basename; list consumers.
+2. `git mv` old new.
+3. Update all consumers from step 1.
+4. Re-grep; confirm zero live hits.
+
+## Verify
+
+- `rg -F "<old-path>"` and `rg -F "<old-basename>"` return hits only in dated history logs.
+- `node harness/scripts/verify.mjs check` passes.

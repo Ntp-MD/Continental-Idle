@@ -20,6 +20,8 @@ const svgName = ref('')
 const svgW = ref(1)
 const svgH = ref(1)
 const svgContent = ref('')
+const status = ref('')
+const statusTone = ref<'' | 'warn' | 'fail'>('')
 
 const parseSvgContent = useDebouncedCallback((val: string) => {
   if (!val) return
@@ -34,6 +36,8 @@ watch(svgContent, (val) => parseSvgContent(val))
 watch(
   () => props.open,
   (open) => {
+    status.value = ''
+    statusTone.value = ''
     if (!open) {
       svgName.value = ''
       svgContent.value = ''
@@ -45,23 +49,37 @@ watch(
 
 async function submit() {
   if (!svgName.value.trim()) {
-    toast.warning('Asset name cannot be empty')
+    status.value = 'Asset name cannot be empty'
+    statusTone.value = 'warn'
     return
   }
   if (!svgContent.value.trim()) {
-    toast.warning('SVG content cannot be empty')
+    status.value = 'SVG content cannot be empty'
+    statusTone.value = 'warn'
     return
   }
+  status.value = ''
+  statusTone.value = ''
   const result = await run(() => store.addSvgAsset(svgName.value.trim(), svgW.value, svgH.value, svgContent.value))
   if (result) {
     toast.success('SVG asset imported')
     emit('close')
+  } else {
+    status.value = 'Failed to import SVG'
+    statusTone.value = 'fail'
   }
 }
 </script>
 
 <template>
-  <ModalShell :open="open" modal-id="modal-import-svg" title="Import SVG Asset" @close="emit('close')">
+  <ModalShell
+    :open="open"
+    modal-id="modal-import-svg"
+    title="Import SVG Asset"
+    :status="status"
+    :status-tone="statusTone"
+    @close="emit('close')"
+  >
     <div class="form__col">
       <div class="form__row">
         <label for="importsvg__name">Asset name</label>
@@ -100,8 +118,11 @@ async function submit() {
         rows="6"
         aria-label="SVG content"
       ></textarea>
-      <button class="flag--active size--fill" :disabled="pending" @click="submit">Import SVG</button>
     </div>
+    <template #footer>
+      <button type="button" @click="emit('close')">Cancel</button>
+      <button class="flag--active" type="button" :disabled="pending" @click="submit">Import SVG</button>
+    </template>
   </ModalShell>
 </template>
 

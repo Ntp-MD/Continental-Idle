@@ -1,19 +1,30 @@
 ---
 name: report-gaps
-description: Report unfinished, skipped, and out-of-scope items alongside results. Apply when writing the done report.
+description: Report unfinished, skipped, and out-of-scope items alongside results. Use when writing the done report.
 ---
 
 # Honest Done
 
-The report must make it impossible to mistake partial work for finished work. A weaker agent quietly narrows scope: the hard part gets skipped, the report describes only what went well, and nobody notices until later.
+Purpose: make partial work impossible to mistake for finished work.
+
+## Use when / Don't use
+
+- Use: every done report, even when everything succeeded (then state "none").
+- Don't use: interim progress notes (still track them in the slot instead).
 
 ## Rules
 
-- **Claim verdict per part.** For each piece of the request, state: done, partially done, or not done - with the reason in the same line.
-- **Mandatory Not-done section.** Every done report names what was unfinished, skipped, or left as a known limitation - even if the answer is "none". Silence is not evidence of completeness.
-- **Never upgrade language.** "Implemented" means verified working. If it is written but unverified, say "written, unverified". If it is verified only by reading, say so.
-- **Unrelated failures stay visible.** A failing check you did not cause gets reported separately with its exact command - never fixed silently, never hidden.
+- Claim verdict per request item in the same line: done / partially done / not done + reason.
+- Mandatory Not-done section, even if the answer is "none". Silence is not completeness.
+- Never upgrade language: "implemented" = verified working. Otherwise say "written, unverified" or "verified by reading only".
+- Unrelated failures: report separately with the exact command run; never fix silently, never hide.
 
-## Done-check
+## Workflow
 
-Re-read your report as a skeptic: could a reader tell exactly what remains for someone else to pick up? If yes, the report is honest. If the remaining work takes detective work to find, rewrite it.
+1. List each requested item -> verdict + reason.
+2. List unfinished/skipped/limitations (or "none").
+3. State verify evidence: exact command + result. Quote unrelated-suite runs visibly.
+
+## Verify
+
+- A skeptic reading only the report can state exactly what remains and who should pick it up. If not, rewrite.

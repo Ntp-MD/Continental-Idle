@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { useToast } from '@/composables/useToast'
 
-const { toasts } = useToast()
+const { toasts, dismiss } = useToast()
 
 const icons: Record<string, string> = {
   success: 'OK',
@@ -20,10 +20,18 @@ const classMap: Record<string, string> = {
 
 <template>
   <Teleport to="body">
-    <div class="toasts" aria-live="polite">
-      <div v-for="t in toasts" :key="t.id" class="toast" :class="classMap[t.type]">
+    <div class="toasts">
+      <div
+        v-for="t in toasts"
+        :key="t.id"
+        class="toast"
+        :class="classMap[t.type]"
+        :role="t.type === 'error' || t.type === 'warning' ? 'alert' : 'status'"
+        aria-atomic="true"
+      >
         <span class="toast__icon">{{ icons[t.type] }}</span>
         <span class="toast__msg">{{ t.message }}</span>
+        <button class="card__item--remove" aria-label="Dismiss notification" @click="dismiss(t.id)">x</button>
       </div>
     </div>
   </Teleport>
@@ -55,6 +63,7 @@ const classMap: Record<string, string> = {
   -webkit-backdrop-filter: blur(12px);
   animation: toastIn var(--duration-normal) var(--ease-out);
   border-left: 3px solid;
+  pointer-events: auto;
 }
 
 .toast__icon {

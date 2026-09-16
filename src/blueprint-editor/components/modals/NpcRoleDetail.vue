@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import type { NpcRole, NpcTask } from '../../domain/types'
-import { managedTagSet, taskMatchesQuery } from '../../blueprintStore'
+import { taskMatchesQuery, useAssetsStore } from '../../blueprintStore'
 import ColorInput from '../inputs/ColorInput.vue'
 import TagChip from '../inputs/TagChip.vue'
 import SearchInput from '../inputs/SearchInput.vue'
@@ -13,6 +13,9 @@ const props = defineProps<{
   triggerRates: Record<string, number> | undefined
   isDefault: boolean
 }>()
+
+const store = useAssetsStore()
+const { managedTagSet } = store
 
 const emit = defineEmits<{
   (e: 'rename', value: string): void

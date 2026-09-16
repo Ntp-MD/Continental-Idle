@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import type { NpcTask } from '../../domain/types'
-import { managedTagSet } from '../../blueprintStore'
+import { useAssetsStore } from '../../blueprintStore'
 import TagChip from '../inputs/TagChip.vue'
 
 export interface TaskStationAsset {
@@ -15,6 +15,9 @@ const props = defineProps<{
   usageCount: number
   assets: TaskStationAsset[]
 }>()
+
+const store = useAssetsStore()
+const { managedTagSet } = store
 
 const emit = defineEmits<{
   (e: 'rename', value: string): void

@@ -9,18 +9,28 @@ export interface Toast {
 const toasts = ref<Toast[]>([])
 let nextId = 0
 
-function show(message: string, type: Toast['type'] = 'info', duration = 3000) {
+const DURATION: Record<Toast['type'], number> = {
+  success: 3000,
+  info: 3000,
+  warning: 6000,
+  error: 0,
+}
+
+function dismiss(id: number) {
+  toasts.value = toasts.value.filter((t) => t.id !== id)
+}
+
+function show(message: string, type: Toast['type'] = 'info', duration = DURATION[type]) {
   const id = nextId++
   if (toasts.value.length >= 5) toasts.value.shift()
   toasts.value.push({ id, message, type })
-  setTimeout(() => {
-    toasts.value = toasts.value.filter(t => t.id !== id)
-  }, duration)
+  if (duration > 0) setTimeout(() => dismiss(id), duration)
 }
 
 export function useToast() {
   return {
     toasts,
+    dismiss,
     success: (msg: string) => show(msg, 'success'),
     warning: (msg: string) => show(msg, 'warning'),
     error: (msg: string) => show(msg, 'error'),
