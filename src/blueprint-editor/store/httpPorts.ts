@@ -1,6 +1,7 @@
 import type { BlueprintDataFile, SyncedLayoutPayload } from '../domain/types'
 import { normalizeBlueprintDataFile } from '../domain/types'
 import { EDITOR_CONFIG } from '../editorConfig'
+import { MAX_PAYLOAD_BYTES } from '../limits'
 import { editorLog } from './storeUtils'
 import type { PersistencePort, SyncPort } from './ports'
 
@@ -24,6 +25,10 @@ export function createHttpPersistencePort(): PersistencePort {
 
 		async save(data: BlueprintDataFile): Promise<boolean> {
 			const body = JSON.stringify(data, null, 2) + '\n'
+			if (new TextEncoder().encode(body).length > MAX_PAYLOAD_BYTES) {
+				editorLog.error('httpPersistencePort.save', `payload exceeds the ${MAX_PAYLOAD_BYTES} byte cap`)
+				throw new PayloadTooLargeError()
+			}
 			for (let attempt = 1; attempt <= MAX_SAVE_RETRIES; attempt++) {
 				try {
 					const res = await fetch(EDITOR_CONFIG.blueprintDataEndpoint, {

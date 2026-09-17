@@ -7,6 +7,7 @@ import { visualizer } from 'rollup-plugin-visualizer'
 import fs from 'node:fs'
 import path from 'node:path'
 import { normalizeBlueprintDataFile } from './src/blueprint-editor/domain/types.js'
+import { MAX_PAYLOAD_BYTES } from './src/blueprint-editor/limits.js'
 import type { BlueprintDataFile } from './src/blueprint-editor/domain/types.js'
 const BLUEPRINT_CLIENT_HEADER = 'x-blueprint-client'
 const BLUEPRINT_CLIENT_HEADER_VALUE = '1'
@@ -41,9 +42,9 @@ export function isTrustedDevOrigin(value: string | undefined): boolean {
 	}
 }
 
-const MAX_REQUEST_BYTES = 5 * 1024 * 1024
-const MAX_RESPONSE_BYTES = 5 * 1024 * 1024
-const MAX_DATA_MODULE_BYTES = 5 * 1024 * 1024
+const MAX_REQUEST_BYTES = MAX_PAYLOAD_BYTES
+const MAX_RESPONSE_BYTES = MAX_PAYLOAD_BYTES
+const MAX_DATA_MODULE_BYTES = MAX_PAYLOAD_BYTES
 const ALLOWED_FETCH_SITES = new Set(['same-origin', 'same-site', 'none'])
 
 class PayloadTooLargeError extends Error { }

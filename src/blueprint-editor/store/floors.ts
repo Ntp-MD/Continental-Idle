@@ -2,12 +2,14 @@ import type { FloorData, TileBrush } from '../domain/types'
 import { applyTileBrush, normalizeAllowedRoleIds, normalizeFloorWalkable, normalizeNpcSpawnZones, resolveFloorTileStates, resolveStreetTiles, tileStatesToWalkableGrid } from '../domain/types'
 import type { BlueprintStore, FloorPatch } from './state'
 import { genId, cloneDeepRaw } from './storeUtils'
+import { MAX_FLOORS } from '../limits'
 
 export function createFloorCommands(store: BlueprintStore) {
 	const state = store.state
 	const saveBlueprintData = () => store.save()
 
 	async function addFloor(): Promise<FloorData | null> {
+		if (state.layout.floors.length >= MAX_FLOORS) return null
 		const existing = new Set(state.layout.floors.map(f => f.label))
 		let n = 1
 		while (existing.has(`F${n}`)) n++
@@ -42,6 +44,7 @@ export function createFloorCommands(store: BlueprintStore) {
 	}
 
 	async function duplicateFloor(id: string): Promise<boolean> {
+		if (state.layout.floors.length >= MAX_FLOORS) return false
 		const floor = state.layout.floors.find(f => f.id === id)
 		if (!floor) return false
 		const copy: FloorData = cloneDeepRaw(floor)

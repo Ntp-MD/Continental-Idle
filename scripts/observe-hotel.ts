@@ -14,10 +14,9 @@ import assert from 'node:assert/strict'
 import { buildNpcEngineLayout } from '../src/engine/npc/layoutBuild'
 import { createNpcEnginePolicy } from '../src/engine/npc/policy'
 import { NpcEngine } from '../src/engine/npc'
-import { buildSyncedPayload } from '../src/blueprint-editor/syncedPayload'
+import { buildSyncedPayload, loadSyncedPayload } from '../src/blueprint-editor/syncedPayload'
 import { buildAssetMap } from '../src/blueprint-editor/assets/assetUtils'
 import { normalizeOriginAssetFile, normalizeNpcConfig, normalizeNpcSpawnZones } from '../src/blueprint-editor/domain/types'
-import type { FloorData } from '../src/blueprint-editor/domain/types'
 import { originAssetsData } from '../src/blueprint-editor/data/originAssets.data'
 import { floorPlanData } from '../src/blueprint-editor/data/floorPlan.data'
 import { npcSettingsData } from '../src/blueprint-editor/data/npcSettings.data'
@@ -36,18 +35,8 @@ function mulberry32(seed: number): () => number {
 const assetMap = buildAssetMap(normalizeOriginAssetFile({ $schema: 'origin-assets.v1.json', version: 1, originAssets: originAssetsData })!.originAssets)
 const npcConfig = normalizeNpcConfig(npcSettingsData)!
 const payload = buildSyncedPayload(floorPlanData as never, assetMap, npcConfig)!
-const floorKeys = Object.keys(payload.floors).sort((a, b) => (a === 'G' ? -1 : b === 'G' ? 1 : Number(a) - Number(b)))
-const floors: FloorData[] = floorKeys.map(id => ({
-	id,
-	name: id,
-	label: id,
-	objects: payload.floors[id].objects.map(o => ({ id: o.id, type: o.type, x: o.x!, y: o.y!, w: o.w!, h: o.h!, rotation: o.rotation })),
-	defaultWalkable: payload.floors[id].defaultWalkable,
-	walkable: payload.floors[id].walkable,
-	spawnZones: payload.floors[id].spawnZones,
-	allowedRoleIds: payload.floors[id].allowedRoleIds,
-}))
-const canvas = { w: payload.canvas.width, h: payload.canvas.height, tileSize: payload.canvas.tileSize, streetTiles: payload.canvas.streetWidthTiles, streetFloorId: payload.canvas.streetFloorId }
+const { floors, canvas } = loadSyncedPayload(payload)
+const floorKeys = floors.map(floor => floor.id)
 
 const random = mulberry32(20260825)
 const built = buildNpcEngineLayout(floors, canvas, type => assetMap.get(type), type => assetMap.get(type)?.tags)

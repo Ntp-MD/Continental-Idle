@@ -1,11 +1,10 @@
 import type { FloorLayoutData, ObjectData, AssetDef } from '../domain/types'
-import { validateLayoutData, validateLayoutIntegrity, normalizeAllowedRoleIds, normalizeNpcSpawnZones, normalizeFloorWalkable, normalizeObjectPlacement, normalizeNpcConfig, parseCanvasConfig, resolveDefaultWalkable } from '../domain/types'
+import { validateLayoutData, validateLayoutIntegrity, normalizeAllowedRoleIds, normalizeNpcSpawnZones, normalizeFloorWalkable, normalizeObjectPlacement, normalizeNpcConfig, parseCanvasConfig, resolveDefaultWalkable, canvasWithinGridCaps } from '../domain/types'
 import { findAssetCached, buildAssetMap } from '../assets/assetUtils'
 import { validatePortalConfiguration } from '../assets/validation'
 import { normalizeObject } from '../domain/geometry'
 import { recalcCollapsed } from '../domain/collision'
 import { EDITOR_CONFIG } from '../editorConfig'
-import { originAssets } from './dataLoader'
 import { editorLog, genId, emptyNpcConfig } from './storeUtils'
 
 const LAYOUT_VERSION = EDITOR_CONFIG.layoutVersion
@@ -28,11 +27,12 @@ function migrateObjects(raw: unknown[], floorLabel: unknown): ObjectData[] {
 	return out
 }
 
-export function migrate(data: unknown, availableAssets: readonly AssetDef[] = originAssets): { layout: FloorLayoutData } {
+export function migrate(data: unknown, availableAssets: readonly AssetDef[]): { layout: FloorLayoutData } {
 	if (!data || typeof data !== 'object' || Array.isArray(data)) throw new Error('Cannot migrate invalid layout data')
 	const d = data as Record<string, unknown>
 	const parsedCanvas = parseCanvasConfig(d.canvas, false)
-	const canvas = { ...EDITOR_CONFIG.defaultCanvas, ...(parsedCanvas ?? {}) }
+	const mergedCanvas = { ...EDITOR_CONFIG.defaultCanvas, ...(parsedCanvas ?? {}) }
+	const canvas = canvasWithinGridCaps(mergedCanvas) ? mergedCanvas : { ...EDITOR_CONFIG.defaultCanvas }
 
 	const migrated: FloorLayoutData = {
 		version: LAYOUT_VERSION,

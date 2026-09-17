@@ -13,6 +13,7 @@ import { useNpcSimulation } from '../../composables/useNpcSimulation'
 
 const store = useAssetsStore()
 const toast = useToast()
+const isDev = import.meta.env.DEV
 const previewActive = computed(() => store.state.mode === 'npc-preview')
 const { pending, run } = useAsyncAction()
 const npcSimulation = inject('npcSimulation') as ReturnType<typeof useNpcSimulation>
@@ -200,7 +201,7 @@ function onSyncToGame() {
         Floor Manager
       </button>
       <button
-        v-if="import.meta.env.DEV"
+        v-if="isDev"
         :disabled="previewActive"
         title="Open UI showcase (all primitives and components)"
         aria-label="Open UI showcase"

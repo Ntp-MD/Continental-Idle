@@ -96,7 +96,10 @@ Conventions: every CUD awaits `store.save()` inside the store's `runExclusive()`
 | `PersistencePort.load()` | Read | `createHttpPersistencePort`: GET + normalize, `null` on failure | No UI: step of `reloadEditorData()` |
 | `PersistencePort.save(data)` | Update | `createHttpPersistencePort`: POST + verify read-back, 3 attempts, 413 stops immediately | No UI: the port behind `store.save()` |
 | `SyncPort.emit(payload)` | Update | `createWindowSyncPort`: dispatch the `blueprint:sync` event | No UI: step of `syncToGame()` |
-| `buildSavedLayout()` | Read | Default layout from `floorPlan.data` + `npcSettings.data` | No UI: seed fallback |
+| `buildSyncedPayload(layout, assets, npcConfig)` | Read | Egress DTO: floors keyed by stable sync key + canvas + npcConfig | No UI: step of `syncToGame()` |
+| `loadSyncedPayload(payload)` | Read | Ingress loader: normalize payload -> runtime `FloorData[]` + canvas (game boot) | No UI: runtime boot + `observe:hotel` |
+| `assignSyncKeys(floors)` / `compareFloorKeys(a, b)` | Read | Stable floor sync keys (canonical label, else id order) + G-first runtime floor order | No UI: internal to both payload functions |
+| `buildSavedLayout(layout, config)` | Read | Pure: runtime layout from a `BlueprintLayoutFile` + npc config | No UI: internal to the seed module |
 
 ## Selection — `src/blueprint-editor/store/selection.ts`
 
@@ -115,11 +118,12 @@ Conventions: every CUD awaits `store.save()` inside the store's `runExclusive()`
 |---|---|---|---|
 | `reloadEditorData()` | Update | `PersistencePort.load()` via `migrate()`, replace state + snapshots | No button: BlueprintEditor mount plus UiShowcase mount |
 | `migrate(data, assets?)` | Update | Normalize canvas/floors/objects/NPC/street; drop unknown asset types | No UI: internal step of reload |
-| `defaultSeed()` | Read | Fresh layout (`buildSavedLayout()` clone) + origin assets + tag definitions, for the factory | No UI: boot default in `App.vue` |
+| `emptySeed()` | Read | Empty boot seed (default canvas, no floors/assets/tags) for `App.vue`; real data arrives via `reloadEditorData()` | No UI: boot default in `App.vue` |
+| `defaultSeed()` (`store/seed.ts`) | Read | Test/fixture seed built from the four `*.data.ts` modules; not imported by the app bundle | No UI: tests only |
 | `initAssetFields(asset)` | Update | Lazily fill derived asset fields (`svgRoles`, `walkableGrid`, `tileStates`, `walkable`/`doorRequired` defaults) | No UI: internal, runs when an asset enters the registry |
 | `assetMap()` / `currentFloor` / `snap()` / `clamp()` | Read | Cached asset map, active floor, grid snap, building-area clamp | No UI: every place/move path uses them |
 | `runExclusive(fn)` | Guard | Single-writer queue: overlapping mutations run one after another, never rejected | No UI: wraps every CUD |
 | `startAssetDrag` / `endAssetDrag` / `dragState` | Update | Palette drag state | AssetToolbar row mousedown starts drag with ghost on hover; canvas mouseup drop or Esc ends |
 | `captureSnapshot` / `restoreSnapshot` | Guard | Save-point capture + rollback on failed save (rollback installs clones, so live state never aliases the save point) | No UI: internal to `createStore.ts` |
-| `genId` / `genAssetId` / `cloneDeepRaw` / `emptyNpcConfig` / `taskMatchesQuery` / `assignSyncKey` | Util | Id gen, deep-clone via `toRaw`, empty NPC defaults, search, sync-key assign | NpcManagerModal search box reads taskMatchesQuery; rest internal |
+| `genId` / `genAssetId` / `cloneDeepRaw` / `emptyNpcConfig` / `taskMatchesQuery` | Util | Id gen, deep-clone via `toRaw`, empty NPC defaults, search | NpcManagerModal search box reads taskMatchesQuery; rest internal |
 | `editorLog` | Util | `info`/`warn`/`error` console diagnostics wrapper | No UI: used by store/migration/portal code |

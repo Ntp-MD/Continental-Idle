@@ -1,5 +1,5 @@
 import type { EditorMode, EditorSettings, Rect, TileBrush } from '../domain/types'
-import { isValidColor, normalizeEditorSettings, EDITOR_FIELD_SPECS, rescaleFloorWalkable } from '../domain/types'
+import { isValidColor, normalizeEditorSettings, EDITOR_FIELD_SPECS, rescaleFloorWalkable, canvasWithinGridCaps } from '../domain/types'
 import type { BlueprintStore } from './state'
 import { normalizeObject } from '../domain/geometry'
 
@@ -22,8 +22,10 @@ export function createModeCommands(store: BlueprintStore) {
 
 	async function resizeCanvas(width: number, height: number, tileSize: number): Promise<boolean> {
 		const t = tileSize > 0 ? tileSize : state.layout.canvas.tileSize
+		if (!Number.isFinite(t) || t <= 0) return false
 		const w = Math.max(t, Math.round(width / t) * t)
 		const h = Math.max(t, Math.round(height / t) * t)
+		if (!canvasWithinGridCaps({ width: w, height: h, tileSize: t })) return false
 		state.layout.canvas = { ...state.layout.canvas, width: w, height: h, tileSize: t }
 		const rows = Math.max(1, Math.ceil(h / t))
 		const cols = Math.max(1, Math.ceil(w / t))

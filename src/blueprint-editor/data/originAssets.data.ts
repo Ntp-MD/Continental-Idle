@@ -12,7 +12,7 @@ export const originAssetsData = [
       "br": 4,
       "bl": 4
     },
-    "defaultFillColor": "#ffffff",
+    "defaultFillColor": "#8a6f4d",
     "defaultStrokeColor": "#ffffff",
     "tags": [
       "lounge"
@@ -66,7 +66,7 @@ export const originAssetsData = [
       "br": 4,
       "bl": 4
     },
-    "defaultFillColor": "#ffffff",
+    "defaultFillColor": "#7f8fa6",
     "tags": [
       "lounge"
     ],
@@ -171,7 +171,8 @@ export const originAssetsData = [
     "queue": {
       "maxMembers": 3,
       "admissionDepth": 4
-    }
+    },
+    "defaultFillColor": "#8a6f4d"
   },
   {
     "id": "double-bed-1",
@@ -180,12 +181,12 @@ export const originAssetsData = [
     "h": 2,
     "category": "Special",
     "walkable": true,
-    "defaultFillColor": "#ffffff",
+    "defaultFillColor": "#6d7f9c",
     "tags": [
       "living"
     ],
     "origin": "svg-import",
-    "svg": "<rect x=\"1.5\" y=\"1.5\" width=\"47\" height=\"47\" rx=\"2\" fill=\"var(--obj-fill,#ffffff)\" stroke=\"var(--obj-stroke,#ffffff)\" stroke-width=\"1\"/><rect x=\"1.5\" y=\"1.5\" width=\"47\" height=\"6\" rx=\"1.5\" fill=\"var(--obj-fill,none)\" stroke=\"var(--text-secondary)\" stroke-width=\"0.7\"/><rect x=\"6\" y=\"10\" width=\"17\" height=\"9\" rx=\"2.5\" fill=\"var(--obj-fill,none)\" stroke=\"var(--text-secondary)\" stroke-width=\"0.6\"/><rect x=\"27\" y=\"10\" width=\"17\" height=\"9\" rx=\"2.5\" fill=\"var(--obj-fill,none)\" stroke=\"var(--text-secondary)\" stroke-width=\"0.6\"/><line x1=\"1.5\" y1=\"31\" x2=\"48.5\" y2=\"31\" stroke=\"var(--text-secondary)\" stroke-width=\"0.5\"/><line x1=\"25\" y1=\"31\" x2=\"25\" y2=\"48\" stroke=\"var(--text-secondary)\" stroke-width=\"0.45\"/>",
+    "svg": "<rect x=\"1.5\" y=\"1.5\" width=\"47\" height=\"47\" rx=\"2\" fill=\"var(--obj-fill,#ffffff)\" stroke=\"var(--obj-stroke,#ffffff)\" stroke-width=\"1\"/><rect x=\"1.5\" y=\"1.5\" width=\"47\" height=\"6\" rx=\"1.5\" fill=\"none\" stroke=\"var(--text-secondary)\" stroke-width=\"0.7\"/><rect x=\"6\" y=\"10\" width=\"17\" height=\"9\" rx=\"2.5\" fill=\"none\" stroke=\"var(--text-secondary)\" stroke-width=\"0.6\"/><rect x=\"27\" y=\"10\" width=\"17\" height=\"9\" rx=\"2.5\" fill=\"none\" stroke=\"var(--text-secondary)\" stroke-width=\"0.6\"/><line x1=\"1.5\" y1=\"31\" x2=\"48.5\" y2=\"31\" stroke=\"var(--text-secondary)\" stroke-width=\"0.5\"/><line x1=\"25\" y1=\"31\" x2=\"25\" y2=\"48\" stroke=\"var(--text-secondary)\" stroke-width=\"0.45\"/>",
     "svgViewBox": {
       "w": 50,
       "h": 50
@@ -239,9 +240,9 @@ export const originAssetsData = [
     "h": 1,
     "category": "Special",
     "walkable": false,
-    "defaultFillColor": "#ffffff",
+    "defaultFillColor": "#7a8794",
     "origin": "svg-import",
-    "svg": "<rect x=\"2\" y=\"2\" width=\"21\" height=\"21\" rx=\"2\" fill=\"var(--obj-fill,#ffffff)\" stroke=\"var(--obj-stroke,#ffffff)\" stroke-width=\"1\"/><rect x=\"4.5\" y=\"4.5\" width=\"16\" height=\"4.5\" rx=\"1\" fill=\"var(--obj-fill,none)\" stroke=\"var(--text-secondary)\" stroke-width=\"0.8\"/><circle cx=\"10.5\" cy=\"6.75\" r=\"0.9\" fill=\"var(--obj-fill,none)\" stroke=\"var(--text-secondary)\" stroke-width=\"0.5\"/><circle cx=\"12.5\" cy=\"15.5\" r=\"5.5\" fill=\"var(--obj-fill,none)\" stroke=\"var(--text-secondary)\" stroke-width=\"0.9\"/><circle cx=\"12.5\" cy=\"15.5\" r=\"3.4\" fill=\"var(--obj-fill,none)\" stroke=\"var(--text-secondary)\" stroke-width=\"0.6\"/>",
+    "svg": "<rect x=\"2\" y=\"2\" width=\"21\" height=\"21\" rx=\"2\" fill=\"var(--obj-fill,#ffffff)\" stroke=\"var(--obj-stroke,#ffffff)\" stroke-width=\"1\"/><rect x=\"4.5\" y=\"4.5\" width=\"16\" height=\"4.5\" rx=\"1\" fill=\"none\" stroke=\"var(--text-secondary)\" stroke-width=\"0.8\"/><circle cx=\"10.5\" cy=\"6.75\" r=\"0.9\" fill=\"none\" stroke=\"var(--text-secondary)\" stroke-width=\"0.5\"/><circle cx=\"12.5\" cy=\"15.5\" r=\"5.5\" fill=\"none\" stroke=\"var(--text-secondary)\" stroke-width=\"0.9\"/><circle cx=\"12.5\" cy=\"15.5\" r=\"3.4\" fill=\"none\" stroke=\"var(--text-secondary)\" stroke-width=\"0.6\"/>",
     "svgViewBox": {
       "w": 25,
       "h": 25
@@ -280,9 +281,9 @@ export const originAssetsData = [
     "h": 2,
     "category": "Special",
     "walkable": true,
-    "defaultFillColor": "#ffffff",
+    "defaultFillColor": "#6f7a86",
     "origin": "svg-import",
-    "svg": "<rect x=\"1\" y=\"1\" width=\"23\" height=\"48\" rx=\"2\" fill=\"var(--obj-fill,#ffffff)\" stroke=\"var(--obj-stroke,#ffffff)\" stroke-width=\"1\"/><path d=\"M 3.5 8 H 21.5 M 3.5 15 H 21.5 M 3.5 22 H 21.5 M 3.5 29 H 21.5 M 3.5 36 H 21.5\" fill=\"var(--obj-fill,none)\" stroke=\"var(--text-secondary)\" stroke-width=\"0.55\"/><rect x=\"3.5\" y=\"41.5\" width=\"18\" height=\"6.5\" rx=\"1.2\" fill=\"var(--obj-fill,#ffffff)\" stroke=\"var(--obj-stroke,#ffffff)\" stroke-width=\"0.9\"/><line x1=\"6\" y1=\"44.75\" x2=\"19\" y2=\"44.75\" stroke=\"var(--text-secondary)\" stroke-width=\"0.6\"/>",
+    "svg": "<rect x=\"1\" y=\"1\" width=\"23\" height=\"48\" rx=\"2\" fill=\"var(--obj-fill,#ffffff)\" stroke=\"var(--obj-stroke,#ffffff)\" stroke-width=\"1\"/><path d=\"M 3.5 8 H 21.5 M 3.5 15 H 21.5 M 3.5 22 H 21.5 M 3.5 29 H 21.5 M 3.5 36 H 21.5\" fill=\"none\" stroke=\"var(--text-secondary)\" stroke-width=\"0.55\"/><rect x=\"3.5\" y=\"41.5\" width=\"18\" height=\"6.5\" rx=\"1.2\" fill=\"var(--obj-fill,#ffffff)\" stroke=\"var(--obj-stroke,#ffffff)\" stroke-width=\"0.9\"/><line x1=\"6\" y1=\"44.75\" x2=\"19\" y2=\"44.75\" stroke=\"var(--text-secondary)\" stroke-width=\"0.6\"/>",
     "svgViewBox": {
       "w": 25,
       "h": 50
@@ -327,12 +328,12 @@ export const originAssetsData = [
     "h": 1,
     "category": "Special",
     "walkable": false,
-    "defaultFillColor": "#ffffff",
+    "defaultFillColor": "#9a7b4f",
     "tags": [
       "cooking"
     ],
     "origin": "svg-import",
-    "svg": "<rect x=\"1\" y=\"2\" width=\"48\" height=\"21\" rx=\"2\" fill=\"var(--obj-fill,#ffffff)\" stroke=\"var(--obj-stroke,#ffffff)\" stroke-width=\"1\"/><circle cx=\"13.5\" cy=\"12.5\" r=\"8\" fill=\"var(--obj-fill,none)\" stroke=\"var(--text-secondary)\" stroke-width=\"0.9\"/><circle cx=\"13.5\" cy=\"12.5\" r=\"4.5\" fill=\"var(--obj-fill,none)\" stroke=\"var(--text-secondary)\" stroke-width=\"0.6\"/><circle cx=\"13.5\" cy=\"12.5\" r=\"1.2\" fill=\"var(--obj-fill,none)\" stroke=\"var(--text-secondary)\" stroke-width=\"0.5\"/><rect x=\"28.5\" y=\"4.5\" width=\"17\" height=\"16\" rx=\"2\" fill=\"var(--obj-fill,none)\" stroke=\"var(--text-secondary)\" stroke-width=\"0.8\"/><rect x=\"32\" y=\"8.5\" width=\"10\" height=\"8\" rx=\"1\" fill=\"var(--obj-fill,none)\" stroke=\"var(--text-secondary)\" stroke-width=\"0.5\"/>",
+    "svg": "<rect x=\"1\" y=\"2\" width=\"48\" height=\"21\" rx=\"2\" fill=\"var(--obj-fill,#ffffff)\" stroke=\"var(--obj-stroke,#ffffff)\" stroke-width=\"1\"/><circle cx=\"13.5\" cy=\"12.5\" r=\"8\" fill=\"none\" stroke=\"var(--text-secondary)\" stroke-width=\"0.9\"/><circle cx=\"13.5\" cy=\"12.5\" r=\"4.5\" fill=\"none\" stroke=\"var(--text-secondary)\" stroke-width=\"0.6\"/><circle cx=\"13.5\" cy=\"12.5\" r=\"1.2\" fill=\"none\" stroke=\"var(--text-secondary)\" stroke-width=\"0.5\"/><rect x=\"28.5\" y=\"4.5\" width=\"17\" height=\"16\" rx=\"2\" fill=\"none\" stroke=\"var(--text-secondary)\" stroke-width=\"0.8\"/><rect x=\"32\" y=\"8.5\" width=\"10\" height=\"8\" rx=\"1\" fill=\"none\" stroke=\"var(--text-secondary)\" stroke-width=\"0.5\"/>",
     "svgViewBox": {
       "w": 50,
       "h": 25
@@ -374,7 +375,7 @@ export const originAssetsData = [
     "h": 1,
     "category": "Special",
     "walkable": true,
-    "defaultFillColor": "#ffffff",
+    "defaultFillColor": "#7d8a7a",
     "tags": [
       "lounge"
     ],
@@ -425,7 +426,7 @@ export const originAssetsData = [
     "h": 1,
     "category": "Special",
     "walkable": true,
-    "defaultFillColor": "#ffffff",
+    "defaultFillColor": "#7d8a7a",
     "tags": [
       "lounge"
     ],
@@ -469,12 +470,12 @@ export const originAssetsData = [
     "h": 1,
     "category": "Special",
     "walkable": false,
-    "defaultFillColor": "#ffffff",
+    "defaultFillColor": "#9a7b4f",
     "tags": [
       "front-desk"
     ],
     "origin": "svg-import",
-    "svg": "<rect x=\"2\" y=\"3\" width=\"196\" height=\"7\" rx=\"2\" fill=\"var(--obj-fill,#ffffff)\" stroke=\"var(--obj-stroke,#ffffff)\" stroke-width=\"1\"/><rect x=\"5\" y=\"10\" width=\"190\" height=\"13\" rx=\"1.5\" fill=\"var(--obj-fill,#ffffff)\" stroke=\"var(--obj-stroke,#ffffff)\" stroke-width=\"0.9\"/><line x1=\"5\" y1=\"14\" x2=\"195\" y2=\"14\" stroke=\"var(--text-secondary)\" stroke-width=\"0.55\"/><path d=\"M 53 14 V 21 M 100 14 V 21 M 147 14 V 21\" fill=\"var(--obj-fill,none)\" stroke=\"var(--text-secondary)\" stroke-width=\"0.55\"/><circle cx=\"176\" cy=\"6.5\" r=\"2.2\" fill=\"var(--obj-fill,none)\" stroke=\"var(--text-secondary)\" stroke-width=\"0.7\"/>",
+    "svg": "<rect x=\"2\" y=\"3\" width=\"196\" height=\"7\" rx=\"2\" fill=\"var(--obj-fill,#ffffff)\" stroke=\"var(--obj-stroke,#ffffff)\" stroke-width=\"1\"/><rect x=\"5\" y=\"10\" width=\"190\" height=\"13\" rx=\"1.5\" fill=\"var(--obj-fill,#ffffff)\" stroke=\"var(--obj-stroke,#ffffff)\" stroke-width=\"0.9\"/><line x1=\"5\" y1=\"14\" x2=\"195\" y2=\"14\" stroke=\"var(--text-secondary)\" stroke-width=\"0.55\"/><path d=\"M 53 14 V 21 M 100 14 V 21 M 147 14 V 21\" fill=\"none\" stroke=\"var(--text-secondary)\" stroke-width=\"0.55\"/><circle cx=\"176\" cy=\"6.5\" r=\"2.2\" fill=\"none\" stroke=\"var(--text-secondary)\" stroke-width=\"0.7\"/>",
     "svgViewBox": {
       "w": 200,
       "h": 25
@@ -555,12 +556,12 @@ export const originAssetsData = [
     "h": 1,
     "category": "Special",
     "walkable": false,
-    "defaultFillColor": "#ffffff",
+    "defaultFillColor": "#a4614f",
     "tags": [
       "lounge"
     ],
     "origin": "svg-import",
-    "svg": "<g transform=\"translate(50, 0) rotate(90)\"><rect x=\"2\" y=\"2\" width=\"21\" height=\"46\" rx=\"2\" fill=\"var(--obj-fill,#ffffff)\" stroke=\"var(--obj-stroke,#ffffff)\" stroke-width=\"1\"/><rect x=\"4.5\" y=\"4.5\" width=\"16\" height=\"6\" rx=\"1\" fill=\"var(--obj-fill,none)\" stroke=\"var(--text-secondary)\" stroke-width=\"0.8\"/><rect x=\"4.5\" y=\"13.5\" width=\"11\" height=\"17\" rx=\"1\" fill=\"var(--obj-fill,none)\" stroke=\"var(--text-secondary)\" stroke-width=\"0.8\"/><path d=\"M 4.5 19.5 H 15.5 M 4.5 24.5 H 15.5\" fill=\"var(--obj-fill,none)\" stroke=\"var(--text-secondary)\" stroke-width=\"0.55\"/><circle cx=\"18.8\" cy=\"16\" r=\"0.9\" fill=\"var(--obj-fill,none)\" stroke=\"var(--text-secondary)\" stroke-width=\"0.5\"/><circle cx=\"18.8\" cy=\"20\" r=\"0.9\" fill=\"var(--obj-fill,none)\" stroke=\"var(--text-secondary)\" stroke-width=\"0.5\"/><circle cx=\"18.8\" cy=\"24\" r=\"0.9\" fill=\"var(--obj-fill,none)\" stroke=\"var(--text-secondary)\" stroke-width=\"0.5\"/><rect x=\"4.5\" y=\"35\" width=\"16\" height=\"7\" rx=\"1\" fill=\"var(--obj-fill,none)\" stroke=\"var(--text-secondary)\" stroke-width=\"0.8\"/><line x1=\"7\" y1=\"38.5\" x2=\"18\" y2=\"38.5\" stroke=\"var(--text-secondary)\" stroke-width=\"0.6\"/></g>",
+    "svg": "<g transform=\"translate(50, 0) rotate(90)\"><rect x=\"2\" y=\"2\" width=\"21\" height=\"46\" rx=\"2\" fill=\"var(--obj-fill,#ffffff)\" stroke=\"var(--obj-stroke,#ffffff)\" stroke-width=\"1\"/><rect x=\"4.5\" y=\"4.5\" width=\"16\" height=\"6\" rx=\"1\" fill=\"none\" stroke=\"var(--text-secondary)\" stroke-width=\"0.8\"/><rect x=\"4.5\" y=\"13.5\" width=\"11\" height=\"17\" rx=\"1\" fill=\"none\" stroke=\"var(--text-secondary)\" stroke-width=\"0.8\"/><path d=\"M 4.5 19.5 H 15.5 M 4.5 24.5 H 15.5\" fill=\"none\" stroke=\"var(--text-secondary)\" stroke-width=\"0.55\"/><circle cx=\"18.8\" cy=\"16\" r=\"0.9\" fill=\"none\" stroke=\"var(--text-secondary)\" stroke-width=\"0.5\"/><circle cx=\"18.8\" cy=\"20\" r=\"0.9\" fill=\"none\" stroke=\"var(--text-secondary)\" stroke-width=\"0.5\"/><circle cx=\"18.8\" cy=\"24\" r=\"0.9\" fill=\"none\" stroke=\"var(--text-secondary)\" stroke-width=\"0.5\"/><rect x=\"4.5\" y=\"35\" width=\"16\" height=\"7\" rx=\"1\" fill=\"none\" stroke=\"var(--text-secondary)\" stroke-width=\"0.8\"/><line x1=\"7\" y1=\"38.5\" x2=\"18\" y2=\"38.5\" stroke=\"var(--text-secondary)\" stroke-width=\"0.6\"/></g>",
     "svgViewBox": {
       "w": 50,
       "h": 25
@@ -601,12 +602,12 @@ export const originAssetsData = [
     "h": 1,
     "category": "Special",
     "walkable": false,
-    "defaultFillColor": "#ffffff",
+    "defaultFillColor": "#7fb3ba",
     "tags": [
       "hygiene"
     ],
     "origin": "svg-import",
-    "svg": "<rect x=\"2\" y=\"2\" width=\"46\" height=\"21\" rx=\"8\" fill=\"var(--obj-fill,#ffffff)\" stroke=\"var(--obj-stroke,#ffffff)\" stroke-width=\"1\"/><rect x=\"5.5\" y=\"5.5\" width=\"39\" height=\"14\" rx=\"6\" fill=\"var(--obj-fill,none)\" stroke=\"var(--text-secondary)\" stroke-width=\"0.8\"/><circle cx=\"40\" cy=\"12.5\" r=\"1.8\" fill=\"var(--obj-fill,none)\" stroke=\"var(--text-secondary)\" stroke-width=\"0.6\"/><circle cx=\"7.5\" cy=\"12.5\" r=\"1.3\" fill=\"var(--obj-fill,none)\" stroke=\"var(--text-secondary)\" stroke-width=\"0.6\"/>",
+    "svg": "<rect x=\"2\" y=\"2\" width=\"46\" height=\"21\" rx=\"8\" fill=\"var(--obj-fill,#ffffff)\" stroke=\"var(--obj-stroke,#ffffff)\" stroke-width=\"1\"/><rect x=\"5.5\" y=\"5.5\" width=\"39\" height=\"14\" rx=\"6\" fill=\"none\" stroke=\"var(--text-secondary)\" stroke-width=\"0.8\"/><circle cx=\"40\" cy=\"12.5\" r=\"1.8\" fill=\"none\" stroke=\"var(--text-secondary)\" stroke-width=\"0.6\"/><circle cx=\"7.5\" cy=\"12.5\" r=\"1.3\" fill=\"none\" stroke=\"var(--text-secondary)\" stroke-width=\"0.6\"/>",
     "svgViewBox": {
       "w": 50,
       "h": 25
@@ -647,12 +648,12 @@ export const originAssetsData = [
     "h": 1,
     "category": "Special",
     "walkable": false,
-    "defaultFillColor": "#ffffff",
+    "defaultFillColor": "#7fb3ba",
     "tags": [
       "hygiene"
     ],
     "origin": "svg-import",
-    "svg": "<rect x=\"6\" y=\"2\" width=\"13\" height=\"6\" rx=\"1.5\" fill=\"var(--obj-fill,#ffffff)\" stroke=\"var(--obj-stroke,#ffffff)\" stroke-width=\"0.9\"/><ellipse cx=\"12.5\" cy=\"15\" rx=\"8\" ry=\"7.5\" fill=\"var(--obj-fill,#ffffff)\" stroke=\"var(--obj-stroke,#ffffff)\" stroke-width=\"1\"/><ellipse cx=\"12.5\" cy=\"15\" rx=\"5.5\" ry=\"5\" fill=\"var(--obj-fill,none)\" stroke=\"var(--text-secondary)\" stroke-width=\"0.6\"/>",
+    "svg": "<rect x=\"6\" y=\"2\" width=\"13\" height=\"6\" rx=\"1.5\" fill=\"var(--obj-fill,#ffffff)\" stroke=\"var(--obj-stroke,#ffffff)\" stroke-width=\"0.9\"/><ellipse cx=\"12.5\" cy=\"15\" rx=\"8\" ry=\"7.5\" fill=\"var(--obj-fill,#ffffff)\" stroke=\"var(--obj-stroke,#ffffff)\" stroke-width=\"1\"/><ellipse cx=\"12.5\" cy=\"15\" rx=\"5.5\" ry=\"5\" fill=\"none\" stroke=\"var(--text-secondary)\" stroke-width=\"0.6\"/>",
     "svgViewBox": {
       "w": 25,
       "h": 25
@@ -691,12 +692,12 @@ export const originAssetsData = [
     "h": 1,
     "category": "Special",
     "walkable": false,
-    "defaultFillColor": "#ffffff",
+    "defaultFillColor": "#7fb3ba",
     "tags": [
       "hygiene"
     ],
     "origin": "svg-import",
-    "svg": "<rect x=\"2.5\" y=\"2.5\" width=\"20\" height=\"20\" rx=\"5\" fill=\"var(--obj-fill,#ffffff)\" stroke=\"var(--obj-stroke,#ffffff)\" stroke-width=\"1\"/><ellipse cx=\"12.5\" cy=\"13.5\" rx=\"7\" ry=\"6\" fill=\"var(--obj-fill,none)\" stroke=\"var(--text-secondary)\" stroke-width=\"0.7\"/><circle cx=\"12.5\" cy=\"5.8\" r=\"1.2\" fill=\"var(--obj-fill,none)\" stroke=\"var(--text-secondary)\" stroke-width=\"0.6\"/><line x1=\"12.5\" y1=\"7\" x2=\"12.5\" y2=\"8.8\" stroke=\"var(--text-secondary)\" stroke-width=\"0.5\"/>",
+    "svg": "<rect x=\"2.5\" y=\"2.5\" width=\"20\" height=\"20\" rx=\"5\" fill=\"var(--obj-fill,#ffffff)\" stroke=\"var(--obj-stroke,#ffffff)\" stroke-width=\"1\"/><ellipse cx=\"12.5\" cy=\"13.5\" rx=\"7\" ry=\"6\" fill=\"none\" stroke=\"var(--text-secondary)\" stroke-width=\"0.7\"/><circle cx=\"12.5\" cy=\"5.8\" r=\"1.2\" fill=\"none\" stroke=\"var(--text-secondary)\" stroke-width=\"0.6\"/><line x1=\"12.5\" y1=\"7\" x2=\"12.5\" y2=\"8.8\" stroke=\"var(--text-secondary)\" stroke-width=\"0.5\"/>",
     "svgViewBox": {
       "w": 25,
       "h": 25
@@ -735,12 +736,12 @@ export const originAssetsData = [
     "h": 1,
     "category": "Special",
     "walkable": false,
-    "defaultFillColor": "#ffffff",
+    "defaultFillColor": "#8fbcc2",
     "tags": [
       "hygiene"
     ],
     "origin": "svg-import",
-    "svg": "<rect x=\"2\" y=\"2\" width=\"21\" height=\"21\" rx=\"2\" fill=\"var(--obj-fill,#ffffff)\" stroke=\"var(--obj-stroke,#ffffff)\" stroke-width=\"1\"/><circle cx=\"12.5\" cy=\"12.5\" r=\"2\" fill=\"var(--obj-fill,none)\" stroke=\"var(--text-secondary)\" stroke-width=\"0.7\"/><circle cx=\"12.5\" cy=\"12.5\" r=\"0.7\" fill=\"var(--obj-fill,none)\" stroke=\"var(--text-secondary)\" stroke-width=\"0.5\"/><path d=\"M 4 12.5 A 8.5 8.5 0 0 1 12.5 4\" fill=\"var(--obj-fill,none)\" stroke=\"var(--text-secondary)\" stroke-width=\"0.45\"/>",
+    "svg": "<rect x=\"2\" y=\"2\" width=\"21\" height=\"21\" rx=\"2\" fill=\"var(--obj-fill,#ffffff)\" stroke=\"var(--obj-stroke,#ffffff)\" stroke-width=\"1\"/><circle cx=\"12.5\" cy=\"12.5\" r=\"2\" fill=\"none\" stroke=\"var(--text-secondary)\" stroke-width=\"0.7\"/><circle cx=\"12.5\" cy=\"12.5\" r=\"0.7\" fill=\"none\" stroke=\"var(--text-secondary)\" stroke-width=\"0.5\"/><path d=\"M 4 12.5 A 8.5 8.5 0 0 1 12.5 4\" fill=\"none\" stroke=\"var(--text-secondary)\" stroke-width=\"0.45\"/>",
     "svgViewBox": {
       "w": 25,
       "h": 25
@@ -779,12 +780,12 @@ export const originAssetsData = [
     "h": 1,
     "category": "Special",
     "walkable": false,
-    "defaultFillColor": "#ffffff",
+    "defaultFillColor": "#8fbcc2",
     "tags": [
       "cooking"
     ],
     "origin": "svg-import",
-    "svg": "<rect x=\"1.5\" y=\"2\" width=\"47\" height=\"21\" rx=\"2\" fill=\"var(--obj-fill,#ffffff)\" stroke=\"var(--obj-stroke,#ffffff)\" stroke-width=\"1\"/><rect x=\"4.5\" y=\"5\" width=\"17\" height=\"15\" rx=\"2.5\" fill=\"var(--obj-fill,none)\" stroke=\"var(--text-secondary)\" stroke-width=\"0.8\"/><circle cx=\"13\" cy=\"12.5\" r=\"1.5\" fill=\"var(--obj-fill,none)\" stroke=\"var(--text-secondary)\" stroke-width=\"0.5\"/><circle cx=\"13\" cy=\"6.8\" r=\"1.1\" fill=\"var(--obj-fill,none)\" stroke=\"var(--text-secondary)\" stroke-width=\"0.5\"/><path d=\"M 30 6 V 19 M 33.5 6 V 19 M 37 6 V 19 M 40.5 6 V 19 M 44 6 V 19\" fill=\"var(--obj-fill,none)\" stroke=\"var(--text-secondary)\" stroke-width=\"0.45\"/>",
+    "svg": "<rect x=\"1.5\" y=\"2\" width=\"47\" height=\"21\" rx=\"2\" fill=\"var(--obj-fill,#ffffff)\" stroke=\"var(--obj-stroke,#ffffff)\" stroke-width=\"1\"/><rect x=\"4.5\" y=\"5\" width=\"17\" height=\"15\" rx=\"2.5\" fill=\"none\" stroke=\"var(--text-secondary)\" stroke-width=\"0.8\"/><circle cx=\"13\" cy=\"12.5\" r=\"1.5\" fill=\"none\" stroke=\"var(--text-secondary)\" stroke-width=\"0.5\"/><circle cx=\"13\" cy=\"6.8\" r=\"1.1\" fill=\"none\" stroke=\"var(--text-secondary)\" stroke-width=\"0.5\"/><path d=\"M 30 6 V 19 M 33.5 6 V 19 M 37 6 V 19 M 40.5 6 V 19 M 44 6 V 19\" fill=\"none\" stroke=\"var(--text-secondary)\" stroke-width=\"0.45\"/>",
     "svgViewBox": {
       "w": 50,
       "h": 25
@@ -826,12 +827,12 @@ export const originAssetsData = [
     "h": 1,
     "category": "Special",
     "walkable": true,
-    "defaultFillColor": "#ffffff",
+    "defaultFillColor": "#9a7b4f",
     "tags": [
       "lounge"
     ],
     "origin": "svg-import",
-    "svg": "<line x1=\"6\" y1=\"17\" x2=\"6\" y2=\"21.5\" stroke=\"var(--text-secondary)\" stroke-width=\"0.8\"/><line x1=\"44\" y1=\"17\" x2=\"44\" y2=\"21.5\" stroke=\"var(--text-secondary)\" stroke-width=\"0.8\"/><rect x=\"2\" y=\"8\" width=\"46\" height=\"9\" rx=\"1.5\" fill=\"var(--obj-fill,#ffffff)\" stroke=\"var(--obj-stroke,#ffffff)\" stroke-width=\"1\"/><path d=\"M 4 11 H 46 M 4 14 H 46\" fill=\"var(--obj-fill,none)\" stroke=\"var(--text-secondary)\" stroke-width=\"0.5\"/>",
+    "svg": "<line x1=\"6\" y1=\"17\" x2=\"6\" y2=\"21.5\" stroke=\"var(--text-secondary)\" stroke-width=\"0.8\"/><line x1=\"44\" y1=\"17\" x2=\"44\" y2=\"21.5\" stroke=\"var(--text-secondary)\" stroke-width=\"0.8\"/><rect x=\"2\" y=\"8\" width=\"46\" height=\"9\" rx=\"1.5\" fill=\"var(--obj-fill,#ffffff)\" stroke=\"var(--obj-stroke,#ffffff)\" stroke-width=\"1\"/><path d=\"M 4 11 H 46 M 4 14 H 46\" fill=\"none\" stroke=\"var(--text-secondary)\" stroke-width=\"0.5\"/>",
     "svgViewBox": {
       "w": 50,
       "h": 25
@@ -877,9 +878,9 @@ export const originAssetsData = [
     "h": 1,
     "category": "Special",
     "walkable": true,
-    "defaultFillColor": "#ffffff",
+    "defaultFillColor": "#6b7c93",
     "origin": "svg-import",
-    "svg": "<rect x=\"5\" y=\"3\" width=\"15\" height=\"7\" rx=\"3\" fill=\"var(--obj-fill,#ffffff)\" stroke=\"var(--obj-stroke,#ffffff)\" stroke-width=\"0.9\"/><rect x=\"6\" y=\"12\" width=\"13\" height=\"9\" rx=\"3\" fill=\"var(--obj-fill,#ffffff)\" stroke=\"var(--obj-stroke,#ffffff)\" stroke-width=\"1\"/><line x1=\"3.5\" y1=\"8\" x2=\"3.5\" y2=\"17\" stroke=\"var(--text-secondary)\" stroke-width=\"0.6\"/><line x1=\"21.5\" y1=\"8\" x2=\"21.5\" y2=\"17\" stroke=\"var(--text-secondary)\" stroke-width=\"0.6\"/><circle cx=\"12.5\" cy=\"22.2\" r=\"1\" fill=\"var(--obj-fill,none)\" stroke=\"var(--text-secondary)\" stroke-width=\"0.5\"/>",
+    "svg": "<rect x=\"5\" y=\"3\" width=\"15\" height=\"7\" rx=\"3\" fill=\"var(--obj-fill,#ffffff)\" stroke=\"var(--obj-stroke,#ffffff)\" stroke-width=\"0.9\"/><rect x=\"6\" y=\"12\" width=\"13\" height=\"9\" rx=\"3\" fill=\"var(--obj-fill,#ffffff)\" stroke=\"var(--obj-stroke,#ffffff)\" stroke-width=\"1\"/><line x1=\"3.5\" y1=\"8\" x2=\"3.5\" y2=\"17\" stroke=\"var(--text-secondary)\" stroke-width=\"0.6\"/><line x1=\"21.5\" y1=\"8\" x2=\"21.5\" y2=\"17\" stroke=\"var(--text-secondary)\" stroke-width=\"0.6\"/><circle cx=\"12.5\" cy=\"22.2\" r=\"1\" fill=\"none\" stroke=\"var(--text-secondary)\" stroke-width=\"0.5\"/>",
     "svgViewBox": {
       "w": 25,
       "h": 25
@@ -918,12 +919,12 @@ export const originAssetsData = [
     "h": 1,
     "category": "Special",
     "walkable": false,
-    "defaultFillColor": "#ffffff",
+    "defaultFillColor": "#9a7b4f",
     "tags": [
       "lounge"
     ],
     "origin": "svg-import",
-    "svg": "<rect x=\"2\" y=\"9\" width=\"96\" height=\"14\" rx=\"2\" fill=\"var(--obj-fill,#ffffff)\" stroke=\"var(--obj-stroke,#ffffff)\" stroke-width=\"1\"/><rect x=\"2\" y=\"4\" width=\"96\" height=\"5\" rx=\"1.5\" fill=\"var(--obj-fill,#ffffff)\" stroke=\"var(--obj-stroke,#ffffff)\" stroke-width=\"0.8\"/><path d=\"M 20 13 V 21 M 50 13 V 21 M 80 13 V 21\" fill=\"var(--obj-fill,none)\" stroke=\"var(--text-secondary)\" stroke-width=\"0.6\"/>",
+    "svg": "<rect x=\"2\" y=\"9\" width=\"96\" height=\"14\" rx=\"2\" fill=\"var(--obj-fill,#ffffff)\" stroke=\"var(--obj-stroke,#ffffff)\" stroke-width=\"1\"/><rect x=\"2\" y=\"4\" width=\"96\" height=\"5\" rx=\"1.5\" fill=\"var(--obj-fill,#ffffff)\" stroke=\"var(--obj-stroke,#ffffff)\" stroke-width=\"0.8\"/><path d=\"M 20 13 V 21 M 50 13 V 21 M 80 13 V 21\" fill=\"none\" stroke=\"var(--text-secondary)\" stroke-width=\"0.6\"/>",
     "svgViewBox": {
       "w": 100,
       "h": 25
@@ -990,12 +991,12 @@ export const originAssetsData = [
     "h": 1,
     "category": "Special",
     "walkable": false,
-    "defaultFillColor": "#ffffff",
+    "defaultFillColor": "#5b6169",
     "tags": [
       "cooking"
     ],
     "origin": "svg-import",
-    "svg": "<rect x=\"1\" y=\"2\" width=\"48\" height=\"21\" rx=\"2\" fill=\"var(--obj-fill,#ffffff)\" stroke=\"var(--obj-stroke,#ffffff)\" stroke-width=\"1\"/><line x1=\"25\" y1=\"2\" x2=\"25\" y2=\"23\" stroke=\"var(--text-secondary)\" stroke-width=\"0.6\"/><circle cx=\"12.5\" cy=\"12.5\" r=\"7\" fill=\"var(--obj-fill,none)\" stroke=\"var(--text-secondary)\" stroke-width=\"0.8\"/><circle cx=\"12.5\" cy=\"12.5\" r=\"3\" fill=\"var(--obj-fill,none)\" stroke=\"var(--text-secondary)\" stroke-width=\"0.5\"/><rect x=\"30.5\" y=\"7.5\" width=\"14\" height=\"10\" rx=\"1.5\" fill=\"var(--obj-fill,none)\" stroke=\"var(--text-secondary)\" stroke-width=\"0.8\"/>",
+    "svg": "<rect x=\"1\" y=\"2\" width=\"48\" height=\"21\" rx=\"2\" fill=\"var(--obj-fill,#ffffff)\" stroke=\"var(--obj-stroke,#ffffff)\" stroke-width=\"1\"/><line x1=\"25\" y1=\"2\" x2=\"25\" y2=\"23\" stroke=\"var(--text-secondary)\" stroke-width=\"0.6\"/><circle cx=\"12.5\" cy=\"12.5\" r=\"7\" fill=\"none\" stroke=\"var(--text-secondary)\" stroke-width=\"0.8\"/><circle cx=\"12.5\" cy=\"12.5\" r=\"3\" fill=\"none\" stroke=\"var(--text-secondary)\" stroke-width=\"0.5\"/><rect x=\"30.5\" y=\"7.5\" width=\"14\" height=\"10\" rx=\"1.5\" fill=\"none\" stroke=\"var(--text-secondary)\" stroke-width=\"0.8\"/>",
     "svgViewBox": {
       "w": 50,
       "h": 25
@@ -1043,12 +1044,12 @@ export const originAssetsData = [
     "h": 2,
     "category": "Special",
     "walkable": false,
-    "defaultFillColor": "#ffffff",
+    "defaultFillColor": "#7a828c",
     "tags": [
       "portal"
     ],
     "origin": "svg-import",
-    "svg": "<rect x=\"1.5\" y=\"1.5\" width=\"27\" height=\"27\" rx=\"2\" fill=\"var(--obj-fill,#ffffff)\" stroke=\"var(--obj-stroke,#ffffff)\" stroke-width=\"1\"/><rect x=\"6\" y=\"4\" width=\"18\" height=\"22\" rx=\"1\" fill=\"var(--obj-fill,none)\" stroke=\"var(--text-secondary)\" stroke-width=\"0.8\"/><line x1=\"15\" y1=\"4\" x2=\"15\" y2=\"26\" stroke=\"var(--text-secondary)\" stroke-width=\"0.6\"/>",
+    "svg": "<rect x=\"1.5\" y=\"1.5\" width=\"27\" height=\"27\" rx=\"2\" fill=\"var(--obj-fill,#ffffff)\" stroke=\"var(--obj-stroke,#ffffff)\" stroke-width=\"1\"/><rect x=\"6\" y=\"4\" width=\"18\" height=\"22\" rx=\"1\" fill=\"none\" stroke=\"var(--text-secondary)\" stroke-width=\"0.8\"/><line x1=\"15\" y1=\"4\" x2=\"15\" y2=\"26\" stroke=\"var(--text-secondary)\" stroke-width=\"0.6\"/>",
     "svgViewBox": {
       "w": 30,
       "h": 30

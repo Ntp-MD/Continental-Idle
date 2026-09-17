@@ -2,9 +2,10 @@ import { computed } from 'vue'
 import type { AssetDef, BlueprintTagDefinition, FloorLayoutData, Rect } from '../domain/types'
 import { buildAssetMap } from '../assets/assetUtils'
 import { snap as _snap, clamp as _clamp, resolveBuildingArea } from '../domain/geometry'
-import { buildBlueprintData, buildSavedLayout, originAssets, blueprintTagDefinitions } from './dataLoader'
+import { buildBlueprintData } from './dataLoader'
 import { migrate } from './migrate'
 import { cloneDeepRaw, emptyNpcConfig } from './storeUtils'
+import { EDITOR_CONFIG } from '../editorConfig'
 import { createEditorState, initAssetFields, type BlueprintStore, type ToastApi } from './state'
 import type { PersistencePort, SyncPort } from './ports'
 import { createFloorCommands } from './floors'
@@ -31,11 +32,16 @@ export interface BlueprintStoreDeps {
 	seed: BlueprintStoreSeed
 }
 
-export function defaultSeed(): BlueprintStoreSeed {
+export function emptySeed(): BlueprintStoreSeed {
 	return {
-		layout: structuredClone(buildSavedLayout()),
-		assetRegistry: originAssets,
-		tagDefinitions: blueprintTagDefinitions,
+		layout: {
+			version: EDITOR_CONFIG.layoutVersion,
+			canvas: { ...EDITOR_CONFIG.defaultCanvas },
+			floors: [],
+			npcConfig: emptyNpcConfig(),
+		},
+		assetRegistry: [],
+		tagDefinitions: [],
 	}
 }
 
@@ -77,7 +83,7 @@ export function createBlueprintStore(deps: BlueprintStoreDeps): BlueprintStore {
 
 	function save(): Promise<boolean> {
 		const run = async (): Promise<boolean> => {
-			const body = buildBlueprintData(state.layout, state.assetRegistry, state.layout.npcConfig, state.tagDefinitions)
+			const body = buildBlueprintData(state.layout, state.assetRegistry, state.layout.npcConfig ?? emptyNpcConfig(), state.tagDefinitions)
 			try {
 				const ok = await deps.persistence.save(body)
 				if (!ok) throw new Error('Persistence save returned failure')

@@ -5,6 +5,7 @@ import { resolveBuildingArea, normalizeObject } from '../domain/geometry'
 import { aabbOverlap, objectOverlapsAny, recalcCollapsed, unionRects } from '../domain/collision'
 import type { BlueprintStore } from './state'
 import { genId, genAssetId } from './storeUtils'
+import { MAX_ASSET_TILES, MAX_OBJECTS_PER_FLOOR } from '../limits'
 
 export function createObjectCommands(store: BlueprintStore) {
 	const state = store.state
@@ -50,8 +51,9 @@ export function createObjectCommands(store: BlueprintStore) {
 		return withStateLock(async () => {
 			const floor = currentFloor.value
 			if (!floor) return null
+			if (floor.objects.length >= MAX_OBJECTS_PER_FLOOR) { toast.warning(`Object limit reached for this floor (${MAX_OBJECTS_PER_FLOOR})`); return null }
 			const safeName = name.trim()
-			if (!safeName || safeName.length > 512 || !Number.isFinite(w) || !Number.isFinite(h) || !Number.isFinite(x) || !Number.isFinite(y) || w <= 0 || h <= 0 || w > 10_000 || h > 10_000) {
+			if (!safeName || safeName.length > 512 || !Number.isFinite(w) || !Number.isFinite(h) || !Number.isFinite(x) || !Number.isFinite(y) || w <= 0 || h <= 0 || w > MAX_ASSET_TILES || h > MAX_ASSET_TILES) {
 				toast.warning('Drawn asset input is invalid')
 				return null
 			}
@@ -77,6 +79,7 @@ export function createObjectCommands(store: BlueprintStore) {
 			const floor = currentFloor.value
 			const asset = findAssetCached(assetMap(), type)
 			if (!floor || !asset) return null
+			if (floor.objects.length >= MAX_OBJECTS_PER_FLOOR) { toast.warning(`Object limit reached for this floor (${MAX_OBJECTS_PER_FLOOR})`); return null }
 			const t = state.layout.canvas.tileSize
 			const { w: aw, h: ah } = assetPixelSize(asset, t)
 			const w = snap(aw)

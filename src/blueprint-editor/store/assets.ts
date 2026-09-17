@@ -5,6 +5,7 @@ import { assetSizeFor, normalizeObject } from '../domain/geometry'
 import { parseSvgViewBox, serializeAsset } from '../assets/assetUtils'
 import type { BlueprintStore, AssetPatch } from './state'
 import { genAssetId } from './storeUtils'
+import { MAX_ASSETS, MAX_ASSET_TILES } from '../limits'
 
 const FURNITURE_COLOR_MAP: Record<string, string> = {
 	'#f4f8fc': 'var(--text-primary)',
@@ -64,7 +65,8 @@ export function createAssetCommands(store: BlueprintStore) {
 		return withStateLock(async () => {
 			const safeName = name.trim()
 			if (!safeName || safeName.length > 512) { toast.warning('Asset name is invalid'); return null }
-			if (!Number.isFinite(w) || !Number.isFinite(h) || w <= 0 || h <= 0 || w > 10_000 || h > 10_000) { toast.warning('Asset dimensions are invalid'); return null }
+			if (state.assetRegistry.length >= MAX_ASSETS) { toast.warning(`Asset limit reached (${MAX_ASSETS})`); return null }
+			if (!Number.isFinite(w) || !Number.isFinite(h) || w <= 0 || h <= 0 || w > MAX_ASSET_TILES || h > MAX_ASSET_TILES) { toast.warning(`Asset size must be between 1 and ${MAX_ASSET_TILES} tiles`); return null }
 			const safeW = Math.floor(w)
 			const safeH = Math.floor(h)
 			const trimmed = svgString.trim()
@@ -191,6 +193,10 @@ export function createAssetCommands(store: BlueprintStore) {
 			const source = state.assetRegistry.find(a => a.id === id)
 			if (!source) {
 				toast.warning('Asset not found')
+				return null
+			}
+			if (state.assetRegistry.length >= MAX_ASSETS) {
+				toast.warning(`Asset limit reached (${MAX_ASSETS})`)
 				return null
 			}
 			const copy: AssetDef = {

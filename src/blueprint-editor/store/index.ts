@@ -1,8 +1,8 @@
 import { inject, provide, type InjectionKey } from 'vue'
 import type { BlueprintStore } from './state'
-import { createBlueprintStore, defaultSeed } from './createStore'
+import { createBlueprintStore, emptySeed } from './createStore'
 
-export { createBlueprintStore, defaultSeed }
+export { createBlueprintStore, emptySeed }
 export type { BlueprintStoreDeps, BlueprintStoreSeed } from './createStore'
 export type { BlueprintStore, EditorState, AssetPatch, FloorPatch } from './state'
 export { dragState, startAssetDrag, endAssetDrag } from './state'

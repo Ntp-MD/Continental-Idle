@@ -1,5 +1,5 @@
 export {
-	useAssetsStore, provideBlueprintStore, createBlueprintStore, defaultSeed,
+	useAssetsStore, provideBlueprintStore, createBlueprintStore, emptySeed,
 	dragState, startAssetDrag, endAssetDrag,
 	createHttpPersistencePort, createWindowSyncPort,
 } from './store/index'

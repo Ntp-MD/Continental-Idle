@@ -157,6 +157,14 @@ git config core.hooksPath .githooks
 
 Run the same check by hand anytime with `node harness/scripts/verify.mjs check`. `git commit --no-verify` bypasses the hook for an emergency commit.
 
+### Gate before the edit (layer 3, opencode only)
+
+Context injection (layer 1) asks; the git hook (layer 4) catches it later. `.opencode/plugins/harness-gate.js` sits between them: on `edit`/`write` it counts distinct non-meta project files for the session, and when a second one appears while the slot Mission is still empty it throws, so the medium+ task cannot start without `harness/state/task-context.md` filled (lite = one file stays exempt; meta paths never count, so the agent can always write the slot itself). opencode discovers it automatically - no config entry - but it loads at startup, so restart opencode/Zed after changing it. `opencode debug info` lists the loaded plugin. Other agents (Cline ACP) do not run opencode plugins and stay instruction-only.
+
+### Probing the agent (does the harness actually reach it?)
+
+Enforcement assumes the agent receives `AGENTS.md` + `HARNESS.md`. Check it, do not assume it: `node harness/scripts/probe-agent.mjs` proves the wiring for free (`opencode debug config` lists the instructions); add `--model <provider/model>` to send a canary only `HARNESS.md` can answer and assert the model replies with zero tool calls (it had no need to read a file, so the text was in context). A provider agent that has to open a file before answering was never given the instructions - fix the pointer, not the prompt.
+
 ## Adopt in a new project
 
 Full procedure lives in `harness/scripts/adopt.md` (read once per project, never per task). Summary: `node <source-repo>/harness/scripts/adopt.mjs <targetRoot>` copies the harness, resets state, writes the AGENTS.md scaffold + agent pointers, smoke-runs `verify.mjs check`. Then fill the scaffold TODOs (verify rows, bans), write the target `skill.md`, pick one history stamp zone.

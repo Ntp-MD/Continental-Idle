@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { migrate } from '../src/blueprint-editor/store/migrate'
 import { normalizeNpcConfig } from '../src/blueprint-editor/domain/types'
-import { originAssets } from '../src/blueprint-editor/store/dataLoader'
+import { seedOriginAssets as originAssets } from '../src/blueprint-editor/store/seed'
 
 const validAsset = originAssets[0]
 if (!validAsset) throw new Error('test requires at least one origin asset')

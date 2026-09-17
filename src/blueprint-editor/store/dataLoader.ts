@@ -1,32 +1,17 @@
-import type { AssetDef, BlueprintDataFile, BlueprintTagDefinition, FloorLayoutData, NpcSimulationConfig, CanvasConfig, ObjectData, OriginAssetFile, PersistedFloorLayoutData } from '../domain/types'
-import { BLUEPRINT_DATA_SCHEMA, BLUEPRINT_DATA_VERSION, normalizeOriginAssetFile, normalizeNpcConfig, normalizePersistedLayoutData, normalizeTagDefinitions } from '../domain/types'
+import type { AssetDef, BlueprintDataFile, BlueprintTagDefinition, FloorLayoutData, NpcSimulationConfig, CanvasConfig, ObjectData, PersistedFloorLayoutData } from '../domain/types'
+import { BLUEPRINT_DATA_SCHEMA, BLUEPRINT_DATA_VERSION, normalizePersistedLayoutData } from '../domain/types'
 import { serializeAsset, serializeObject } from '../assets/assetUtils'
-import { emptyNpcConfig } from './storeUtils'
-import { originAssetsData } from '../data/originAssets.data'
-import { floorPlanData } from '../data/floorPlan.data'
-import { npcSettingsData } from '../data/npcSettings.data'
-import { tagManagerData } from '../data/tagManager.data'
 
 export interface BlueprintLayoutFile extends PersistedFloorLayoutData {
 	$schema: string
 	canvas: CanvasConfig
 }
 
-export const blueprintTagDefinitions: BlueprintTagDefinition[] = normalizeTagDefinitions(tagManagerData) ?? []
-export const originAssetFile: OriginAssetFile = normalizeOriginAssetFile({
-	$schema: 'origin-assets.v2.json',
-	version: 2,
-	originAssets: originAssetsData,
-}) ?? { $schema: 'origin-assets.v2.json', version: 2, originAssets: [] }
-export const originAssets: AssetDef[] = originAssetFile.originAssets
-export const blueprintLayout: BlueprintLayoutFile = normalizeBlueprintLayout(floorPlanData)
-export const npcConfig: NpcSimulationConfig = normalizeNpcConfig(npcSettingsData) ?? emptyNpcConfig()
-
 export function buildBlueprintData(
-	layout: FloorLayoutData = buildSavedLayout(),
-	assets: AssetDef[] = originAssets,
-	config: NpcSimulationConfig = npcConfig,
-	tags: BlueprintTagDefinition[] = blueprintTagDefinitions,
+	layout: FloorLayoutData,
+	assets: AssetDef[],
+	config: NpcSimulationConfig,
+	tags: BlueprintTagDefinition[],
 ): BlueprintDataFile {
 	return {
 		$schema: BLUEPRINT_DATA_SCHEMA,
@@ -45,19 +30,19 @@ export function buildBlueprintData(
 	}
 }
 
-export function buildSavedLayout(): FloorLayoutData {
+export function buildSavedLayout(layout: BlueprintLayoutFile, config: NpcSimulationConfig): FloorLayoutData {
 	return {
-		version: blueprintLayout.version,
-		canvas: blueprintLayout.canvas,
-		floors: blueprintLayout.floors.map(floor => ({
+		version: layout.version,
+		canvas: layout.canvas,
+		floors: layout.floors.map(floor => ({
 			...floor,
 			objects: floor.objects.map((object): ObjectData => ({ ...object, w: 0, h: 0 })),
 		})),
-		npcConfig,
+		npcConfig: config,
 	}
 }
 
-function normalizeBlueprintLayout(raw: unknown): BlueprintLayoutFile {
+export function normalizeBlueprintLayout(raw: unknown): BlueprintLayoutFile {
 	const r = raw as Record<string, unknown>
 	if (!r || typeof r !== 'object') throw new Error('floorPlan.data.ts: invalid structure - expected an object')
 	const layout = normalizePersistedLayoutData(r)

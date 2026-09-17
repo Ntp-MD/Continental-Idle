@@ -95,6 +95,12 @@ If no boundary is touched, report "No data boundaries touched" and exit. Always 
 - Failed saves revert in-memory state to the last saved snapshot and report failure.
 - Destructive entity deletes: confirm -> persist -> verify -> report.
 
+### Sync payload (editor <-> game)
+
+- Egress is `buildSyncedPayload` and ingress is `loadSyncedPayload`, both in `src/blueprint-editor/syncedPayload.ts` (pure - no store/DOM imports, so it runs headless). The editor's Sync Game action and the runtime boot loader share this one module; never re-inline the payload conversion at a caller (the old `scripts/observe-hotel.ts` inline was the anti-pattern).
+- Floor sync keys are a stable function of each floor's identity (`assignSyncKeys`): a canonical `label` (`G`/`F<n>` -> `G`/`<n>`) wins, otherwise the floor `id` order decides the ordinal and the `_N` collision suffix. Never derive a key from array position - reordering floors must not change any key.
+- `loadSyncedPayload` normalizes at ingress (`normalizeFloorWalkable`, `normalizeNpcSpawnZones`, `normalizeAllowedRoleIds`) and orders floors `G` first then numeric (`compareFloorKeys`). Asset definitions stay a caller concern - the runtime passes its asset map into the engine, the loader returns only `FloorData[]` + canvas.
+
 ### Tags
 
 - Tag definitions are separate from tag references on entities.
@@ -104,11 +110,12 @@ If no boundary is touched, report "No data boundaries touched" and exit. Always 
 
 ### Origin asset authoring
 
-- The canonical persisted store is ONE `src/blueprint-editor/data/blueprint-data.json` (in the `BlueprintDataFile` shape), read/written by the dev middleware at `/__blueprint-data` (GET load / POST save) with atomic temp+rename writes. The four `src/blueprint-editor/data/*.data.ts` modules are now a ONE-TIME seed/migration input only - regenerate the JSON from them with `npm run seed:blueprint-data`. Never restore the JSON via `git checkout` (the persisted store lives at runtime; git is not the write path).
+- The canonical persisted store is ONE `src/blueprint-editor/data/blueprint-data.json` (in the `BlueprintDataFile` shape), read/written by the dev middleware at `/__blueprint-data` (GET load / POST save) with atomic temp+rename writes. The four `src/blueprint-editor/data/*.data.ts` modules are now a ONE-TIME seed/migration input plus the stable test fixture only - regenerate the JSON from them with `npm run seed:blueprint-data`. They are NOT part of the app bundle: the app boots from `emptySeed()` and fills from the middleware via `reloadEditorData()`, while `store/seed.ts` (`defaultSeed()`) imports them for tests. Never restore the JSON via `git checkout` (the persisted store lives at runtime; git is not the write path).
 - Re-read the file immediately before editing - the editor save-flow rewrites it at any moment.
 - Creation defaults apply at creation time only; never migrate existing assets by hand.
-- SVG v2: body shapes use `var(--obj-fill,...)` / `var(--obj-stroke,...)`; detail lines use `--text-secondary`. Never hardcode decorative colors inside asset art. Every surface rendering asset SVG sets the theme variables first. The SVG is the whole visual - no backing plate.
+- SVG v2: body shapes use `var(--obj-fill,...)` / `var(--obj-stroke,...)`; detail lines use `--text-secondary`; hollow detail shapes keep a literal `fill="none"`. Never hardcode decorative colors inside asset art. Every surface rendering asset SVG sets the theme variables first. The SVG is the whole visual - no backing plate.
 - Colors accept hex or `transparent`; validate with the transparent-capable validator. Outline auto-derives from hex fills only.
+- Persistence limits live in ONE module (`src/blueprint-editor/limits.ts`): `MAX_GRID_ROWS/COLUMNS` 256, `MAX_FLOORS` 100, `MAX_OBJECTS_PER_FLOOR` 10 000, `MAX_ASSETS` 1 000, `MAX_ASSET_TILES` 256, `MAX_PAYLOAD_BYTES` 5 MB. Because a save is whole-file and atomic, EVERY ingress normalizer AND every construction path must use these same numbers - one entity past a limit otherwise makes every later save fail. `parseCanvasConfig` rejects a canvas whose `ceil(size/tileSize)` exceeds the grid cap; `resizeCanvas`/`addSvgAsset`/`addFloor`/`addObject`/`pasteObjects`/`flattenToSvgAsset`/`duplicateAsset` reject at the same caps; `buildWalkableGrid` returns `undefined` past the grid cap.
 - Before reporting done: asset verification passes with ZERO warnings; ids unique; sizes are tile counts unless the pixel-size flag is set.
 
 ### AssetDef field change checklist (`domain/types.ts`)

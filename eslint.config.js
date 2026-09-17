@@ -38,7 +38,7 @@ export default tseslint.config(
     },
   },
   {
-    files: ['scripts/**/*.mjs', 'harness/scripts/**/*.mjs', '.zed/**/*.mjs', 'vite.config.ts'],
+    files: ['scripts/**/*.mjs', 'harness/scripts/**/*.mjs', 'vite.config.ts'],
     languageOptions: {
       globals: { ...globals.node },
     },
@@ -74,7 +74,7 @@ export default tseslint.config(
     },
   },
   {
-    ignores: ['dist/**', 'node_modules/**', '_archive/**', 'src/blueprint-editor/data/*.data.ts', 'harness/**/*.md', 'eslint.config.js'],
+    ignores: ['dist/**', 'node_modules/**', '_archive/**', '.zed/**', 'src/blueprint-editor/data/*.data.ts', 'harness/**/*.md', 'eslint.config.js'],
   },
   prettier,
 )

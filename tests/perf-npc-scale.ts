@@ -1,5 +1,5 @@
 ﻿import { floorPlanData } from '../src/blueprint-editor/data/floorPlan.data'
-import { originAssets } from '../src/blueprint-editor/store/dataLoader'
+import { seedOriginAssets as originAssets } from '../src/blueprint-editor/store/seed'
 import { buildNpcEngineLayout } from '../src/engine/npc/layoutBuild'
 import { NpcEngine, NPC_ENGINE_DEFAULT_OPTIONS, findNpcGridPath } from '../src/engine/npc'
 import { createNpcEnginePolicy } from '../src/engine/npc/policy'

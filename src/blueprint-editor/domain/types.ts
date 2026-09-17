@@ -18,6 +18,9 @@
 // ============================================================================
 
 import { editorLog } from './logger'
+import { MAX_ASSETS, MAX_ASSET_TILES, MAX_FLOORS, MAX_GRID_COLUMNS, MAX_GRID_ROWS, MAX_NPC_ENTRIES, MAX_OBJECTS_PER_FLOOR } from '../limits'
+
+export { MAX_ASSETS, MAX_ASSET_TILES, MAX_FLOORS, MAX_GRID_COLUMNS, MAX_GRID_ROWS, MAX_NPC_ENTRIES, MAX_OBJECTS_PER_FLOOR } from '../limits'
 
 // --- Section 1: Editor primitives ---
 
@@ -188,16 +191,10 @@ export function rescaleFloorWalkable(walkable: FloorWalkable | undefined, rows: 
 const MAX_DATA_STRING_LENGTH = 512
 const MAX_SVG_ATTRIBUTE_LENGTH = 4096
 const MAX_SVG_LENGTH = 250_000
-const MAX_GRID_ROWS = 256
-const MAX_GRID_COLUMNS = 256
 const MAX_INTERACT_SPOTS = 512
 const MAX_SVG_ROLES = 512
 const MAX_ASSET_DIMENSION = 10_000
 const MAX_PIXEL_DIMENSION = 1_000_000
-const MAX_ASSETS = 1000
-const MAX_FLOORS = 100
-const MAX_OBJECTS_PER_FLOOR = 10_000
-const MAX_NPC_ENTRIES = 1000
 export const SAFE_SVG_TAGS = new Set(['svg', 'g', 'path', 'rect', 'circle', 'ellipse', 'line', 'polygon', 'polyline', 'text', 'tspan'])
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -714,7 +711,7 @@ export function applySvgColorConvention(svg: string): string {
 		const v = value.trim()
 		if (v.startsWith('var(--obj-fill') || v.startsWith('var(--obj-stroke')) return _m
 		if (attr === 'fill') {
-			if (v === 'none') return `${attr}${sep}${q}var(--obj-fill,none)${q}`
+			if (v === 'none') return _m
 			if (SVG_COLOR_VALUE_RE.test(v)) return `${attr}${sep}${q}var(--obj-fill,${v})${q}`
 		} else if (SVG_COLOR_VALUE_RE.test(v)) {
 			return `${attr}${sep}${q}var(--obj-stroke,${v})${q}`
@@ -758,7 +755,7 @@ export function normalizeOriginAsset(value: unknown): AssetDef | undefined {
 	const record = value
 	const id = normalizeIdentifier(record.id)
 	const name = normalizeText(record.name)
-	if (!id || !name || !isFiniteNumber(record.w) || record.w <= 0 || record.w > MAX_ASSET_DIMENSION || !isFiniteNumber(record.h) || record.h <= 0 || record.h > MAX_ASSET_DIMENSION) return undefined
+	if (!id || !name || !isFiniteNumber(record.w) || record.w <= 0 || record.w > MAX_ASSET_TILES || !isFiniteNumber(record.h) || record.h <= 0 || record.h > MAX_ASSET_TILES) return undefined
 	const asset: AssetDef = { id, name, w: record.w, h: record.h }
 
 	if (hasOwn(record, 'category')) {
@@ -1178,6 +1175,14 @@ export const CANVAS_FIELD_SPECS = {
 	gridColor: { kind: 'color' },
 } as const satisfies Record<keyof CanvasConfig, CanvasFieldSpec>
 
+export function canvasWithinGridCaps(canvas: { width: number; height: number; tileSize: number }): boolean {
+	const tileSize = canvas.tileSize
+	if (!Number.isFinite(tileSize) || tileSize <= 0) return false
+	const cols = Math.ceil(canvas.width / tileSize)
+	const rows = Math.ceil(canvas.height / tileSize)
+	return cols <= MAX_GRID_COLUMNS && rows <= MAX_GRID_ROWS
+}
+
 export function parseCanvasConfig(raw: unknown, strict: boolean): CanvasConfig | null {
 	if (!raw || typeof raw !== 'object') return null
 	const rec = raw as Record<string, unknown>
@@ -1199,6 +1204,11 @@ export function parseCanvasConfig(raw: unknown, strict: boolean): CanvasConfig |
 		out[key] = value
 	}
 	if (Object.keys(out).length === 0) return null
+	const width = out.width
+	const height = out.height
+	const tileSize = out.tileSize
+	if (typeof width === 'number' && typeof height === 'number' && typeof tileSize === 'number'
+		&& !canvasWithinGridCaps({ width, height, tileSize })) return null
 	return { ...out } as unknown as CanvasConfig
 }
 

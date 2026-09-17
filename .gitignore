@@ -17,6 +17,7 @@ qr-*.png
 
 # Test output
 test-output.txt
+coverage
 
 # Zed theme backup (committed on purpose: fallback seed for other devices)
 # NOTE: personal machine config (agent_servers/model IDs) travels with this file.

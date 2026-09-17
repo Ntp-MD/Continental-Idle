@@ -19,7 +19,7 @@ Rewrite the glossary on adoption (see `harness/HARNESS.md` - Adopt in a new proj
 | Instance | References a definition by id; owns only position/rotation/instance-specific overrides. | a copy of the definition |
 | Normalization | At ingress: unknown input -> canonical data or reject; idempotent, context-free. | resolution |
 | Resolution | Before consumption: derives runtime values from canonical data + context; the single path. | normalization |
-| Origin assets | The canonical `src/blueprint-editor/data/blueprint-data.json` store (`BlueprintDataFile`); the four `*.data.ts` modules are a one-time seed input only. | DB, hand-edited modules |
+| Origin assets | The canonical `src/blueprint-editor/data/blueprint-data.json` store (`BlueprintDataFile`); the four `*.data.ts` modules are a one-time seed/migration input and the test fixture only (not in the app bundle - the app boots from `emptySeed()`, tests use `store/seed.ts`). | DB, hand-edited modules |
 | Walkable grid | Boolean per-cell NPC passability for a floor. | tile states |
 | Tile states | Per-cell semantic state (walk/wall/door) on floors and objects. | walkable grid |
 | Walkable runs | Contiguous blocked+door cell groups derived from tile states. | walls |
@@ -30,10 +30,11 @@ Rewrite the glossary on adoption (see `harness/HARNESS.md` - Adopt in a new proj
 | Editor / Runtime | Authoring app vs game; adapters own lifecycle/rendering only. | game/client |
 | Editor-only field | A CanvasConfig/EditorSettings field excluded from the synced payload. | unsynced bug |
 | Synced payload | The DTO the editor pushes to the runtime - never carries editor-only fields. | save file |
+| Sync key | Stable per-floor identity in the synced payload: canonical label (`G`/`<n>`), else id-ordered ordinal with `_N` collision suffix; never array position. | array index, raw floor id |
 | Field specs | `CANVAS_FIELD_SPECS` / `EDITOR_FIELD_SPECS` declarative schemas; keys are never enumerated by hand. | settings list |
 | Free tool | Merged select+erase flow: marquee selects objects or wall/door tiles, Delete clears. | erase brush, erase mode |
 | Street ring | Cosmetic border-ring tiles; blocked to the engine by today's contract. | sidewalk |
-| Asset SVG v2 | Body shapes via `--obj-fill`/`--obj-stroke` vars; no hardcoded colors, no backing plate. | inline hex art |
+| Asset SVG v2 | Body shapes via `--obj-fill`/`--obj-stroke` vars; hollow details keep a literal `fill="none"`; no hardcoded colors, no backing plate. | inline hex art |
 | Dirty baseline | `useDirtyBaseline`: one snapshot + a `dirty` computed. | dirty flags, JSON stringify diff |
 | State lock / async action | `runExclusive` single-writer queue (store mutations) vs `useAsyncAction` (UI pending). One guard per layer. | boolean guards |
 | Tile scale | 1 tile = 0.5 m. Plot 107x67 tiles = 53.5 x 33.5 m; building interior x8..98, y8..58 (91x51 tiles, 45.5 x 25.5 m). | pixel size, grid size |

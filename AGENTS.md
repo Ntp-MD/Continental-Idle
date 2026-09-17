@@ -5,7 +5,6 @@ Repo instructions for AI agents. Read the matching section before touching an ar
 Universal harness companion - ships with `harness/`. Everything here applies everywhere EXCEPT the PROJECT ADAPTER zones (verify rows, banned suite names, patterns pointer), which each project fills with its own values.
 
 ## Operating mode
-- familiarize yourself with the project
 - Infer intent, not literal. Short prompt = incomplete spec: find the matching repo pattern first, fill gaps with repo convention, never invent a new one.
 - Expand terse prompts into scoped, actionable output without asking first; build forward toward a usable implementation, not a literal restatement.
 - Land on the relevant code and read before writing: navigate to the parts actually needed, check neighbors + existing impl before choosing a library or pattern. Verify the dependency is already used.

@@ -146,9 +146,11 @@ export function initAssetFields(asset: AssetDef): void {
 	if (asset.svg) {
 		if (!asset.svgRoles) asset.svgRoles = parseSvgRoles(asset.svg)
 		if (!asset.walkableGrid) {
-			const { walkableGrid, tileStates } = buildWalkableGrid(asset.w, asset.h, asset.svgRoles)
-			asset.walkableGrid = walkableGrid
-			asset.tileStates = tileStates
+			const grid = buildWalkableGrid(asset.w, asset.h, asset.svgRoles)
+			if (grid) {
+				asset.walkableGrid = grid.walkableGrid
+				asset.tileStates = grid.tileStates
+			}
 		}
 	}
 	if (asset.walkable === undefined) asset.walkable = false

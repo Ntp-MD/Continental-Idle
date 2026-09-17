@@ -5,6 +5,7 @@ import { normalizeObject, roundedRectPath } from '../domain/geometry'
 import { aabbOverlap, recalcCollapsed, unionRects } from '../domain/collision'
 import type { BlueprintStore } from './state'
 import { genId, genAssetId } from './storeUtils'
+import { MAX_ASSETS } from '../limits'
 
 function namespaceSvgIds(svg: string, ns: string): string {
 	return svg
@@ -37,6 +38,10 @@ export function createFlattenCommands(store: BlueprintStore) {
 			const objs = ids.map(id => byId.get(id)).filter((object): object is ObjectData => !!object)
 			if (objs.length < 2) {
 				toast.warning('Select at least 2 items to flatten')
+				return null
+			}
+			if (state.assetRegistry.length >= MAX_ASSETS) {
+				toast.warning(`Asset limit reached (${MAX_ASSETS})`)
 				return null
 			}
 			if (objs.some(o => o.locked)) {

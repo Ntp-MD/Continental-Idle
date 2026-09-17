@@ -1,8 +1,9 @@
 import assert from 'node:assert/strict'
 import {
-	createBlueprintStore, defaultSeed,
+	createBlueprintStore,
 	type BlueprintStore, type PersistencePort, type SyncPort,
 } from '../src/blueprint-editor/store/index'
+import { defaultSeed } from '../src/blueprint-editor/store/seed'
 import { createHttpPersistencePort } from '../src/blueprint-editor/store/httpPorts'
 import type { BlueprintDataFile } from '../src/blueprint-editor/domain/types'
 

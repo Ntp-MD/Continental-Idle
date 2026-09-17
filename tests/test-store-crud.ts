@@ -1,8 +1,9 @@
 import assert from 'node:assert/strict'
 import {
-	createBlueprintStore, defaultSeed,
+	createBlueprintStore,
 	type BlueprintStore, type PersistencePort, type SyncPort,
 } from '../src/blueprint-editor/store/index'
+import { defaultSeed } from '../src/blueprint-editor/store/seed'
 import { cloneDeepRaw } from '../src/blueprint-editor/store/storeUtils'
 import { resolveBuildingArea, assetSizeFor, roundedRectPath } from '../src/blueprint-editor/domain/geometry'
 import { resolveFloorTileStates } from '../src/blueprint-editor/domain/types'
@@ -22,6 +23,7 @@ const {
 	addObject, deleteSelected, moveSelectedTo, rotateSelected,
 	linkObjects, unlinkObject,
 	copySelected, pasteObjects, removeTag, clamp,
+	addSvgAsset, resizeCanvas,
 } = store
 
 function snapshot() {
@@ -111,6 +113,22 @@ async function main(): Promise<void> {
 		const moved = floor.objects[0]
 		assert.ok(moved.x >= 300, `object x stayed at ${moved.x}; expected >= 300 (street inset)`)
 		assert.ok(moved.y >= 300, `object y stayed at ${moved.y}; expected >= 300 (street inset)`)
+	})
+
+	await check('caps: resizeCanvas() rejects a grid past the tile cap and keeps the canvas', async () => {
+		restore(baseline)
+		state.layout.canvas = { width: 1600, height: 1200, tileSize: 25 }
+		const before = { ...state.layout.canvas }
+		assert.equal(await resizeCanvas(100_000, 100_000, 25), false, 'over-cap resize is rejected')
+		assert.deepEqual({ ...state.layout.canvas }, before, 'canvas is unchanged after the rejected resize')
+	})
+
+	await check('caps: addSvgAsset() rejects an asset past the tile cap without registering it', async () => {
+		restore(baseline)
+		const svg = '<svg viewBox="0 0 10 10"><rect x="0" y="0" width="10" height="10"/></svg>'
+		assert.equal(await addSvgAsset('Too Big', 300, 300, svg), null, 'over-cap asset is rejected')
+		assert.equal(state.assetRegistry.some(a => a.name === 'Too Big'), false, 'nothing was registered')
+		assert.ok(await addSvgAsset('Fits', 4, 4, svg), 'an asset within the cap still imports')
 	})
 
 	// ── B. Store CRUD regressions ──
@@ -340,25 +358,22 @@ async function main(): Promise<void> {
 		console.log(`  note  street-override probe errored: ${(error as Error).message}`)
 	}
 
-	try {
+	await check('pasteObjects() offsets by the selection bounds, so a multi-tile copy never overlaps its source', async () => {
 		restore(baseline)
 		installTestAsset()
 		state.layout.canvas = { width: 1600, height: 1200, tileSize: 25 }
 		const floor = state.layout.floors[0]
-		const source = makeObject('probe', 400, 400)
+		const source = makeObject('probe', 400, 400, { w: 50, h: 50 })
 		floor.objects = [source]
 		state.currentFloorId = floor.id
 		selectObjects(['probe'])
 		await copySelected()
 		await pasteObjects()
-		if (floor.objects.length === 2) {
-			console.log('  note  multi-tile paste works on this build')
-		} else {
-			console.log('  note  OPEN: pasting a 50px (2-tile) object is rejected - the 1-tile offset makes the copy overlap its source')
-		}
-	} catch (error) {
-		console.log(`  note  paste probe errored: ${(error as Error).message}`)
-	}
+		assert.equal(floor.objects.length, 2, 'a 2-tile-wide copy is pasted, not rejected as an overlap')
+		const pasted = floor.objects[1]
+		assert.equal(pasted.x, 450, 'copy clears the source width, not a fixed one tile')
+		assert.equal(pasted.y, 450, 'copy clears the source height')
+	})
 
 	console.log(`\n${checks - failures.length}/${checks} checks passed`)
 	if (failures.length > 0) {

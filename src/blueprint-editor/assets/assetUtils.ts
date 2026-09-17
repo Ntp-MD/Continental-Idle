@@ -1,4 +1,5 @@
 import { assetPixelSize, isValidColor } from '../domain/types'
+import { MAX_GRID_COLUMNS, MAX_GRID_ROWS } from '../limits'
 import type { AssetDef, FloorData, ObjectPlacement, SvgRole, SvgRoleInfo, WalkableGrid, TileState } from '../domain/types'
 
 export function findAsset(assets: readonly AssetDef[], type: string): AssetDef | undefined {
@@ -144,9 +145,10 @@ export function buildWalkableGrid(
 	h: number,
 	roles?: SvgRoleInfo[],
 	tileStates?: TileState[][],
-): { walkableGrid: WalkableGrid; tileStates: TileState[][] } {
+): { walkableGrid: WalkableGrid; tileStates: TileState[][] } | undefined {
 	const rows = Math.max(1, Math.round(h))
 	const cols = Math.max(1, Math.round(w))
+	if (rows > MAX_GRID_ROWS || cols > MAX_GRID_COLUMNS) return undefined
 	if (tileStates && tileStates.length === rows && tileStates[0]?.length === cols) {
 		const grid: WalkableGrid = tileStates.map(row => row.map(t => t === 'walkable' || t === 'door'))
 		return { walkableGrid: grid, tileStates }

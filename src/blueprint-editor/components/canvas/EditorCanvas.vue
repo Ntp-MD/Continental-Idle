@@ -125,20 +125,17 @@ function toggleView(key: string) {
   saveViewToggles()
 }
 
-const isInteracting = computed(() => !!panning.value || !!moving.value || zooming.value)
-const renderWalkableOverlay = computed(
-  () => (showWalkableOverlay.value || !!store.state.tileBrush) && !isInteracting.value,
-)
-const renderWallOverlay = computed(() => (showWallTiles.value || !!store.state.tileBrush) && !isInteracting.value)
-const renderDoorOverlay = computed(() => (showDoorTiles.value || !!store.state.tileBrush) && !isInteracting.value)
+const renderWalkableOverlay = computed(() => showWalkableOverlay.value || !!store.state.tileBrush)
+const renderWallOverlay = computed(() => showWallTiles.value || !!store.state.tileBrush)
+const renderDoorOverlay = computed(() => showDoorTiles.value || !!store.state.tileBrush)
 const visibleWalkableRuns = computed(() =>
   walkableRuns.value.filter(
     (run) =>
       (run.state === 'walkable' && renderWalkableOverlay.value) || (run.state === 'blocked' && renderWallOverlay.value),
   ),
 )
-const renderInteractSpots = computed(() => showInteractSpots.value && !isInteracting.value)
-const renderObjectHighlights = computed(() => showObjectHighlights.value && !isInteracting.value)
+const renderInteractSpots = computed(() => showInteractSpots.value)
+const renderObjectHighlights = computed(() => showObjectHighlights.value)
 const renderBuildingBounds = computed(() => showBuildingBounds.value)
 
 const selectedObjectIds = computed(() => {
@@ -210,7 +207,6 @@ const {
   zoom,
   spaceDown,
   panning,
-  zooming,
   svgRef,
   RULER_SIZE,
   fitToScreen,
@@ -1285,7 +1281,6 @@ async function cancelDrawnOrigin() {
                 renderWalkableOverlay,
                 renderWallOverlay,
                 objDef(obj).walkableGrid,
-                canvas.wallColor,
               ]"
             >
               <template v-for="(row, gr) in objDef(obj).walkableGrid" :key="'wg_' + obj.id + '-' + gr">
@@ -1297,7 +1292,6 @@ async function cancelDrawnOrigin() {
                     :width="obj.w / row.length"
                     :height="obj.h / objDef(obj).walkableGrid!.length"
                     :class="`editor__tile editor__tile--${cell ? 'walkable' : 'blocked'}`"
-                    :style="!cell && canvas.wallColor ? { fill: canvas.wallColor } : undefined"
                   />
                 </template>
               </template>

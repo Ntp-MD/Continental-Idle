@@ -2,7 +2,7 @@
 import { defineAsyncComponent } from 'vue'
 import ErrorBoundary from '@/components/overlays/ErrorBoundary.vue'
 import {
-  createBlueprintStore, provideBlueprintStore, defaultSeed,
+  createBlueprintStore, provideBlueprintStore, emptySeed,
   createHttpPersistencePort, createWindowSyncPort,
 } from '@/blueprint-editor/blueprintStore'
 
@@ -12,7 +12,7 @@ const UiShowcase = defineAsyncComponent(() => import('@/dev/UiShowcase.vue'))
 const store = createBlueprintStore({
   persistence: createHttpPersistencePort(),
   sync: createWindowSyncPort(),
-  seed: defaultSeed(),
+  seed: emptySeed(),
 })
 provideBlueprintStore(store)
 

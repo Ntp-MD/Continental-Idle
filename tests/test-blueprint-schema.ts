@@ -144,12 +144,12 @@ assert.equal(normalizeBlueprintDataFile({
 console.log('Blueprint boundary hardening checks passed')
 
 const conv = applySvgColorConvention
-assert.equal(conv('<rect fill="none" stroke="#ff0000"/>'), '<rect fill="var(--obj-fill,none)" stroke="var(--obj-stroke,#ff0000)"/>')
+assert.equal(conv('<rect fill="none" stroke="#ff0000"/>'), '<rect fill="none" stroke="var(--obj-stroke,#ff0000)"/>')
 assert.equal(conv('<rect stroke="url(#grad)" fill="#aabbcc"/>'), '<rect stroke="url(#grad)" fill="var(--obj-fill,#aabbcc)"/>')
 assert.equal(conv('<rect fill="var(--obj-fill,none)" stroke="none"/>'), '<rect fill="var(--obj-fill,none)" stroke="none"/>')
 assert.equal(conv("<circle fill='#fff' stroke='rgba(1,2,3,0.5)'/>"), "<circle fill='var(--obj-fill,#fff)' stroke='var(--obj-stroke,rgba(1,2,3,0.5))'/>")
 assert.equal(conv('<path d="M0 0"/>'), '<path d="M0 0"/>')
-assert.equal(conv('<rect fill="none" stroke="#abc" fill="none"/>'), '<rect fill="var(--obj-fill,none)" stroke="var(--obj-stroke,#abc)" fill="var(--obj-fill,none)"/>')
+assert.equal(conv('<rect fill="none" stroke="#abc" fill="none"/>'), '<rect fill="none" stroke="var(--obj-stroke,#abc)" fill="none"/>')
 console.log('SVG color convention checks passed')
 
 const canvasKeys = Object.keys(CANVAS_FIELD_SPECS).sort()
@@ -164,6 +164,8 @@ assert.deepEqual(strictCanvas, { width: 100, height: 50, tileSize: 25, bgColor: 
 assert.equal(parseCanvasConfig({ width: 100, height: 50, tileSize: 25, bgColor: 'white' }, true), null)
 assert.equal(parseCanvasConfig({ width: 100, height: 50, tileSize: 0 }, true), null)
 assert.equal(parseCanvasConfig({ height: 50, tileSize: 25 }, true), null)
+assert.equal(parseCanvasConfig({ width: 100_000, height: 100_000, tileSize: 25 }, true), null, 'canvas past the 256-tile grid cap is rejected at ingress')
+assert.ok(parseCanvasConfig({ width: 6_400, height: 6_400, tileSize: 25 }, true), 'canvas at 256 tiles still parses')
 
 const lenientCanvas = parseCanvasConfig({ width: 100, height: 50, tileSize: 25, bgColor: 'not-a-color', tileSizeExtra: 99 }, false)
 assert.deepEqual(lenientCanvas, { width: 100, height: 50, tileSize: 25 })
