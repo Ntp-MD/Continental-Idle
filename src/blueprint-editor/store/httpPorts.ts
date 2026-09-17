@@ -17,7 +17,7 @@ export function createHttpPersistencePort(): PersistencePort {
 				const raw: unknown = await res.json()
 				return normalizeBlueprintDataFile(raw) ?? null
 			} catch (error) {
-				editorLog.error('fetchBlueprintDataFromDisk', error)
+				editorLog.error('httpPersistencePort.load', error)
 				return null
 			}
 		},

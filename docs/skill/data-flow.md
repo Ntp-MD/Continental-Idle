@@ -104,7 +104,7 @@ If no boundary is touched, report "No data boundaries touched" and exit. Always 
 
 ### Origin asset authoring
 
-- The FOUR `src/blueprint-editor/data/` modules (`floorPlan`, `originAssets`, `npcSettings`, `tagManager`) are the ONLY persisted store (dev middleware, no JSON snapshot). Never restore via `git checkout` (`guard:data-restore`).
+- The canonical persisted store is ONE `src/blueprint-editor/data/blueprint-data.json` (in the `BlueprintDataFile` shape), read/written by the dev middleware at `/__blueprint-data` (GET load / POST save) with atomic temp+rename writes. The four `src/blueprint-editor/data/*.data.ts` modules are now a ONE-TIME seed/migration input only - regenerate the JSON from them with `npm run seed:blueprint-data`. Never restore the JSON via `git checkout` (the persisted store lives at runtime; git is not the write path).
 - Re-read the file immediately before editing - the editor save-flow rewrites it at any moment.
 - Creation defaults apply at creation time only; never migrate existing assets by hand.
 - SVG v2: body shapes use `var(--obj-fill,...)` / `var(--obj-stroke,...)`; detail lines use `--text-secondary`. Never hardcode decorative colors inside asset art. Every surface rendering asset SVG sets the theme variables first. The SVG is the whole visual - no backing plate.

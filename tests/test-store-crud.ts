@@ -1,23 +1,28 @@
 import assert from 'node:assert/strict'
-import { state, clamp } from '../src/blueprint-editor/store/state'
 import {
-	addFloor, deleteFloor, duplicateFloor, paintFloorTiles,
-	addObject, deleteSelected, moveSelectedTo, rotateSelected,
-	linkObjects, unlinkObject,
-	copySelected, pasteObjects, removeTag,
+	createBlueprintStore, defaultSeed,
+	type BlueprintStore, type PersistencePort, type SyncPort,
 } from '../src/blueprint-editor/store/index'
-import { buildBlueprintData } from '../src/blueprint-editor/store/dataLoader'
 import { cloneDeepRaw } from '../src/blueprint-editor/store/storeUtils'
 import { resolveBuildingArea, assetSizeFor, roundedRectPath } from '../src/blueprint-editor/domain/geometry'
 import { resolveFloorTileStates } from '../src/blueprint-editor/domain/types'
 import type { AssetDef, FloorData, FloorWalkable, ObjectData } from '../src/blueprint-editor/domain/types'
 
-// ── Harness: save stub + state snapshot/restore ──
-const originalFetch = globalThis.fetch
-globalThis.fetch = (async (_url: string | URL | Request, _init?: RequestInit) => {
-	const data = buildBlueprintData(state.layout, state.assetRegistry, state.layout.npcConfig, state.tagDefinitions)
-	return new Response(JSON.stringify({ ok: true, data }), { status: 200, headers: { 'content-type': 'application/json' } })
-}) as typeof fetch
+// ── Harness: in-memory ports + state snapshot/restore ──
+const persistence: PersistencePort = {
+	async load() { return null },
+	async save() { return true },
+}
+const sync: SyncPort = { emit() {} }
+
+const store: BlueprintStore = createBlueprintStore({ persistence, sync, seed: defaultSeed() })
+const state = store.state
+const {
+	addFloor, deleteFloor, duplicateFloor, paintFloorTiles,
+	addObject, deleteSelected, moveSelectedTo, rotateSelected,
+	linkObjects, unlinkObject,
+	copySelected, pasteObjects, removeTag, clamp,
+} = store
 
 function snapshot() {
 	return {
@@ -303,7 +308,25 @@ async function main(): Promise<void> {
 		assert.equal(roundedRectPath(0, 0, 10, 10, { tl: 0, tr: 0, br: 0, bl: 0 }), null)
 	})
 
-	// ── E. Informational probes (open questions, no pass/fail) ──
+	// ── E. Concurrency ──
+	await check('overlapping commands queue instead of rejecting (single-writer)', async () => {
+		restore(baseline)
+		installTestAsset()
+		state.layout.canvas = { width: 1600, height: 1200, tileSize: 25 }
+		state.layout.streetWidthTiles = 8
+		const floor = state.layout.floors[0]
+		floor.objects = []
+		state.currentFloorId = floor.id
+		const [first, second] = await Promise.all([
+			addObject('grill-asset', 400, 400),
+			addObject('grill-asset', 500, 500),
+		])
+		assert.ok(first, 'first queued placement lands')
+		assert.ok(second, 'second queued placement lands - the store queues writes instead of rejecting with "Operation in progress"')
+		assert.equal(floor.objects.length, 2, 'both placements are on the floor')
+	})
+
+	// ── F. Informational probes (open questions, no pass/fail) ──
 	try {
 		restore(baseline)
 		state.layout.canvas = { width: 800, height: 600, tileSize: 25 }
@@ -345,8 +368,4 @@ async function main(): Promise<void> {
 	}
 }
 
-try {
-	await main()
-} finally {
-	globalThis.fetch = originalFetch
-}
+await main()

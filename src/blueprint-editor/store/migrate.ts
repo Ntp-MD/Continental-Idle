@@ -5,7 +5,7 @@ import { validatePortalConfiguration } from '../assets/validation'
 import { normalizeObject } from '../domain/geometry'
 import { recalcCollapsed } from '../domain/collision'
 import { EDITOR_CONFIG } from '../editorConfig'
-import { originAssets, buildSavedLayout } from './dataLoader'
+import { originAssets } from './dataLoader'
 import { editorLog, genId, emptyNpcConfig } from './storeUtils'
 
 const LAYOUT_VERSION = EDITOR_CONFIG.layoutVersion
@@ -85,10 +85,6 @@ export function migrate(data: unknown, availableAssets: readonly AssetDef[] = or
 	for (const err of portalCheck.errors) editorLog.error('Portal', err)
 	for (const warn of portalCheck.warnings) editorLog.warn('Portal', warn)
 	return { layout: migrated }
-}
-
-export function loadInitial(): { layout: FloorLayoutData } {
-	return { layout: structuredClone(buildSavedLayout()) }
 }
 
 

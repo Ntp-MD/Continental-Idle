@@ -61,9 +61,10 @@ export function createBlueprintStore(deps: BlueprintStoreDeps): BlueprintStore {
 	}
 
 	function restoreSnapshot(snapshot: StoreSnapshot): void {
-		state.layout = snapshot.layout
-		state.assetRegistry = snapshot.assetRegistry
-		state.tagDefinitions = snapshot.tagDefinitions
+		// Install clones, never the snapshot itself - live state must not alias the save point.
+		state.layout = cloneDeepRaw(snapshot.layout)
+		state.assetRegistry = cloneDeepRaw(snapshot.assetRegistry)
+		state.tagDefinitions = cloneDeepRaw(snapshot.tagDefinitions)
 		for (const asset of state.assetRegistry) initAssetFields(asset)
 		if (!state.layout.floors.some(f => f.id === state.currentFloorId)) {
 			state.currentFloorId = state.layout.floors[0]?.id ?? ''

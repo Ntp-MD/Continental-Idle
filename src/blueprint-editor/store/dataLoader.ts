@@ -1,8 +1,7 @@
 import type { AssetDef, BlueprintDataFile, BlueprintTagDefinition, FloorLayoutData, NpcSimulationConfig, CanvasConfig, ObjectData, OriginAssetFile, PersistedFloorLayoutData } from '../domain/types'
-import { BLUEPRINT_DATA_SCHEMA, BLUEPRINT_DATA_VERSION, normalizeBlueprintDataFile, normalizeOriginAssetFile, normalizeNpcConfig, normalizePersistedLayoutData, normalizeTagDefinitions } from '../domain/types'
+import { BLUEPRINT_DATA_SCHEMA, BLUEPRINT_DATA_VERSION, normalizeOriginAssetFile, normalizeNpcConfig, normalizePersistedLayoutData, normalizeTagDefinitions } from '../domain/types'
 import { serializeAsset, serializeObject } from '../assets/assetUtils'
-import { EDITOR_CONFIG } from '../editorConfig'
-import { emptyNpcConfig, editorLog } from './storeUtils'
+import { emptyNpcConfig } from './storeUtils'
 import { originAssetsData } from '../data/originAssets.data'
 import { floorPlanData } from '../data/floorPlan.data'
 import { npcSettingsData } from '../data/npcSettings.data'
@@ -43,18 +42,6 @@ export function buildBlueprintData(
 			})),
 		},
 		npcConfig: config,
-	}
-}
-
-export async function fetchBlueprintDataFromDisk(): Promise<BlueprintDataFile | null> {
-	try {
-		const res = await fetch(EDITOR_CONFIG.blueprintDataEndpoint, { headers: { 'X-Blueprint-Client': '1' } })
-		if (!res.ok || !res.headers.get('content-type')?.toLowerCase().startsWith('application/json')) return null
-		const raw: unknown = await res.json()
-		return normalizeBlueprintDataFile(raw) ?? null
-	} catch (error) {
-		editorLog.error('fetchBlueprintDataFromDisk', error)
-		return null
 	}
 }
 

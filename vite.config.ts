@@ -6,7 +6,7 @@ import vue from '@vitejs/plugin-vue'
 import { visualizer } from 'rollup-plugin-visualizer'
 import fs from 'node:fs'
 import path from 'node:path'
-import { BLUEPRINT_DATA_SCHEMA, BLUEPRINT_DATA_VERSION, normalizeBlueprintDataFile } from './src/blueprint-editor/domain/types.js'
+import { normalizeBlueprintDataFile } from './src/blueprint-editor/domain/types.js'
 import type { BlueprintDataFile } from './src/blueprint-editor/domain/types.js'
 const BLUEPRINT_CLIENT_HEADER = 'x-blueprint-client'
 const BLUEPRINT_CLIENT_HEADER_VALUE = '1'
@@ -119,43 +119,36 @@ function invalidateJsonModule(server: ViteDevServer, filePath: string): void {
 	}
 }
 
-function blueprintDataPlugin() {
+export function blueprintDataPlugin() {
 	const dataDir = path.resolve(fileURLToPath(new URL('./src/blueprint-editor/data', import.meta.url)))
-	const moduleFiles = {
-		tags: { path: path.join(dataDir, 'tagManager.data.ts'), exportName: 'tagManagerData' },
-		originAssets: { path: path.join(dataDir, 'originAssets.data.ts'), exportName: 'originAssetsData' },
-		layout: { path: path.join(dataDir, 'floorPlan.data.ts'), exportName: 'floorPlanData' },
-		npcConfig: { path: path.join(dataDir, 'npcSettings.data.ts'), exportName: 'npcSettingsData' },
-	} as const
-
-	const readDataModule = (filePath: string, exportName: string): unknown => {
-		const stat = fs.statSync(filePath)
-		if (!stat.isFile() || stat.size > MAX_DATA_MODULE_BYTES) throw new Error('Blueprint data module is unavailable')
-		const source = fs.readFileSync(filePath, 'utf-8')
-		const prefix = `export const ${exportName} =`
-		if (!source.trimStart().startsWith(prefix)) throw new Error('Blueprint data module has an invalid export')
-		const value = source.trimStart().slice(prefix.length).trim().replace(/;\s*$/, '')
-		return JSON.parse(value)
-	}
+	const dataFilePath = path.join(dataDir, 'blueprint-data.json')
 
 	const readData = (): BlueprintDataFile => {
-		const normalized = normalizeBlueprintDataFile({
-			$schema: BLUEPRINT_DATA_SCHEMA,
-			version: BLUEPRINT_DATA_VERSION,
-			tags: readDataModule(moduleFiles.tags.path, moduleFiles.tags.exportName),
-			originAssets: readDataModule(moduleFiles.originAssets.path, moduleFiles.originAssets.exportName),
-			layout: readDataModule(moduleFiles.layout.path, moduleFiles.layout.exportName),
-			npcConfig: readDataModule(moduleFiles.npcConfig.path, moduleFiles.npcConfig.exportName),
-		})
-		if (!normalized) throw new Error('Blueprint data modules are invalid')
+		let raw: string
+		try {
+			const stat = fs.statSync(dataFilePath)
+			if (!stat.isFile() || stat.size > MAX_DATA_MODULE_BYTES) throw new Error(`not a regular file under the ${MAX_DATA_MODULE_BYTES} byte cap`)
+			raw = fs.readFileSync(dataFilePath, 'utf-8')
+		} catch (error) {
+			throw new Error(`Blueprint data store is unavailable: ${error instanceof Error ? error.message : 'unknown error'}`, { cause: error })
+		}
+		const normalized = normalizeBlueprintDataFile(JSON.parse(raw))
+		if (!normalized) throw new Error('Blueprint data store is invalid')
 		return normalized
 	}
 
-	const writeDataModule = (filePath: string, exportName: string, value: unknown): string => {
-		const tempPath = `${filePath}.${process.pid}.${randomUUID()}.tmp`
+	const writeData = (data: BlueprintDataFile): void => {
+		const tempPath = `${dataFilePath}.${process.pid}.${randomUUID()}.tmp`
+		const serialized = JSON.stringify(data, null, 2) + '\n'
 		if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath)
-		fs.writeFileSync(tempPath, `export const ${exportName} = ${JSON.stringify(value, null, 2)}\n`, { encoding: 'utf-8', mode: 0o600 })
-		return tempPath
+		try {
+			fs.writeFileSync(tempPath, serialized, { encoding: 'utf-8', mode: 0o600 })
+			renameWithRetry(tempPath, dataFilePath)
+		} catch (error) {
+			try { if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath) } catch { /* best effort cleanup */ }
+			const reason = error instanceof Error ? `${(error as NodeJS.ErrnoException).code ?? 'ERR'}: ${error.message}` : String(error)
+			throw new Error(`Blueprint data write failed: ${reason}`, { cause: error })
+		}
 	}
 
 	const renameWithRetry = (tempPath: string, filePath: string): void => {
@@ -179,25 +172,6 @@ function blueprintDataPlugin() {
 		}
 	}
 
-	const writeData = (data: BlueprintDataFile): void => {
-		const entries = [
-			[moduleFiles.tags, data.tags],
-			[moduleFiles.originAssets, data.originAssets],
-			[moduleFiles.layout, data.layout],
-			[moduleFiles.npcConfig, data.npcConfig],
-		] as const
-		const tempPaths: Array<readonly [string, string]> = []
-		try {
-			for (const [entry, value] of entries) tempPaths.push([entry.path, writeDataModule(entry.path, entry.exportName, value)])
-			for (const [filePath, tempPath] of tempPaths) renameWithRetry(tempPath, filePath)
-		} catch (error) {
-			for (const [, tempPath] of tempPaths) {
-				try { if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath) } catch { /* best effort cleanup */ }
-			}
-			const reason = error instanceof Error ? `${(error as NodeJS.ErrnoException).code ?? 'ERR'}: ${error.message}` : String(error)
-			throw new Error(`Blueprint data write failed: ${reason}`, { cause: error })
-		}
-	}
 	return {
 		name: 'blueprint-data',
 		configureServer(server: ViteDevServer) {
@@ -244,7 +218,7 @@ function blueprintDataPlugin() {
 				}
 				try {
 					writeData(data)
-					for (const entry of Object.values(moduleFiles)) invalidateJsonModule(server, entry.path)
+					invalidateJsonModule(server, dataFilePath)
 					const verified = readData()
 					sendJson(res, 200, { ok: true, data: verified })
 				} catch (error) {
@@ -253,7 +227,7 @@ function blueprintDataPlugin() {
 				}
 			})
 		},
-	}
+	};
 }
 
 export default defineConfig({

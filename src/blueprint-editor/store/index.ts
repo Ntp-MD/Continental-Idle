@@ -11,7 +11,7 @@ export type { PersistencePort, SyncPort } from './ports'
 
 export type AssetsStore = BlueprintStore
 
-const STORE_KEY = Symbol('blueprintStore') as InjectionKey<BlueprintStore>
+export const STORE_KEY = Symbol('blueprintStore') as InjectionKey<BlueprintStore>
 
 export function provideBlueprintStore(store: BlueprintStore): void {
 	provide(STORE_KEY, store)

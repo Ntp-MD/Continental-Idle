@@ -1,10 +1,10 @@
 # CRUD Reference
 
-Every store CRUD in this project, grouped by module — same idea as `src/dev/UiShowcase.vue` (one section per group, real function names, real file paths). Most functions are exposed through `useAssetsStore()` in `src/blueprint-editor/store/index.ts`; snapshot/lock guards and `editorLog` are imported from `store/state.ts` / `store/storeUtils.ts` directly.
+Every store CRUD in this project, grouped by module — same idea as `src/dev/UiShowcase.vue` (one section per group, real function names, real file paths). The store is one instance per app: `App.vue` builds it with `createBlueprintStore({ persistence, sync, seed })` (`src/blueprint-editor/store/createStore.ts`) and provides it, so everything below is a method on that instance (`store.<fn>`), reached in components through `useAssetsStore()` (`src/blueprint-editor/store/index.ts`). Only `editorLog` / `dragState` stay shared module exports (`store/storeUtils.ts` / `store/state.ts`).
 
 > Keep-up-to-date gate (`docs/skill/ui-layout.md` rule 4): a new/changed/removed store CRUD function must update this file in the same change.
 
-Conventions: every CUD awaits `saveBlueprintData()` (POST `__blueprint-data`, verify read-back, revert to last-saved snapshot on fail) under `withStateLock`. Reads never mutate.
+Conventions: every CUD awaits `store.save()` inside the store's `runExclusive()` single-writer queue - `save()` serializes on the `PersistencePort` (POST `__blueprint-data`, verify read-back), snapshots on success, and on failure reverts in-memory state to that snapshot plus an error toast. Reads never mutate.
 
 ## Floors — `src/blueprint-editor/store/floors.ts`
 
@@ -86,14 +86,16 @@ Conventions: every CUD awaits `saveBlueprintData()` (POST `__blueprint-data`, ve
 | `copySelected()` | Read | Snapshot selection into in-memory clipboard (no save) | Canvas: Ctrl/Cmd+C keys (no button) |
 | `pasteObjects()` | Create | Paste at `+1 tile` offset; overlap-skip; remap `linkGroupId` | Canvas: Ctrl/Cmd+V keys (no button) |
 
-## Persistence / sync — `src/blueprint-editor/store/persistence.ts`, `dataLoader.ts`
+## Persistence / sync — `src/blueprint-editor/store/persistence.ts`, `httpPorts.ts`, `ports.ts`, `dataLoader.ts`
 
 | Function | Kind | About | How (click / drag / hover / keys) |
 |---|---|---|---|
-| `saveBlueprintData()` | Update | `buildBlueprintData()` to POST, verify read-back, snapshot; revert on fail | No button: auto-called by every CUD above |
-| `syncToGame()` | Read | `buildSyncedPayload` + `window blueprint:sync` event; report settings issues | Toolbar: click Sync Game (toast success/fail) |
+| `store.save()` | Update | `buildBlueprintData()` to `PersistencePort.save`, snapshot on success, revert + error toast on fail (queued, one writer) | No button: auto-called by every CUD above |
+| `syncToGame()` | Read | `buildSyncedPayload` + `SyncPort.emit`; report settings issues | Toolbar: click Sync Game (toast success/fail) |
 | `buildBlueprintData(layout?, assets?, config?, tags?)` | Read | Assemble `BlueprintDataFile` from state | No UI: internal step of save |
-| `fetchBlueprintDataFromDisk()` | Read | GET + normalize, `null` on failure | No UI: boot path on BlueprintEditor mount plus showcases |
+| `PersistencePort.load()` | Read | `createHttpPersistencePort`: GET + normalize, `null` on failure | No UI: step of `reloadEditorData()` |
+| `PersistencePort.save(data)` | Update | `createHttpPersistencePort`: POST + verify read-back, 3 attempts, 413 stops immediately | No UI: the port behind `store.save()` |
+| `SyncPort.emit(payload)` | Update | `createWindowSyncPort`: dispatch the `blueprint:sync` event | No UI: step of `syncToGame()` |
 | `buildSavedLayout()` | Read | Default layout from `floorPlan.data` + `npcSettings.data` | No UI: seed fallback |
 
 ## Selection — `src/blueprint-editor/store/selection.ts`
@@ -107,17 +109,17 @@ Conventions: every CUD awaits `saveBlueprintData()` (POST `__blueprint-data`, ve
 | `selectedObject()` | Read | Primary selected `ObjectData` | ObjectPropertiesForm plus shortcuts R/L/arrows read it |
 | `selectedObjectIds()` | Read | All selected object ids | Canvas highlight plus multi-select panel read it |
 
-## State / snapshots / guards — `src/blueprint-editor/store/state.ts`, `storeUtils.ts`, `migrate.ts`
+## State / snapshots / guards — `src/blueprint-editor/store/createStore.ts`, `state.ts`, `storeUtils.ts`, `migrate.ts`
 
 | Function | Kind | About | How (click / drag / hover / keys) |
 |---|---|---|---|
-| `reloadEditorData()` | Update | Re-fetch disk via `migrate()`, replace state + snapshots | No button: BlueprintEditor mount plus UiShowcase mount |
+| `reloadEditorData()` | Update | `PersistencePort.load()` via `migrate()`, replace state + snapshots | No button: BlueprintEditor mount plus UiShowcase mount |
 | `migrate(data, assets?)` | Update | Normalize canvas/floors/objects/NPC/street; drop unknown asset types | No UI: internal step of reload |
-| `loadInitial()` | Read | Clone of `buildSavedLayout()` for boot | No UI: boot default |
+| `defaultSeed()` | Read | Fresh layout (`buildSavedLayout()` clone) + origin assets + tag definitions, for the factory | No UI: boot default in `App.vue` |
 | `initAssetFields(asset)` | Update | Lazily fill derived asset fields (`svgRoles`, `walkableGrid`, `tileStates`, `walkable`/`doorRequired` defaults) | No UI: internal, runs when an asset enters the registry |
 | `assetMap()` / `currentFloor` / `snap()` / `clamp()` | Read | Cached asset map, active floor, grid snap, building-area clamp | No UI: every place/move path uses them |
-| `withStateLock(fn)` / `isStateLocked()` | Guard | One mutation at a time; warn + reject on overlap | No UI: wraps every CUD |
+| `runExclusive(fn)` | Guard | Single-writer queue: overlapping mutations run one after another, never rejected | No UI: wraps every CUD |
 | `startAssetDrag` / `endAssetDrag` / `dragState` | Update | Palette drag state | AssetToolbar row mousedown starts drag with ghost on hover; canvas mouseup drop or Esc ends |
-| `initLastSavedSnapshot` / `updateLastSavedSnapshot` / `revertToLastSavedSnapshot` | Guard | Save-point capture + rollback on failed save | No UI: internal to save flow |
+| `captureSnapshot` / `restoreSnapshot` | Guard | Save-point capture + rollback on failed save (rollback installs clones, so live state never aliases the save point) | No UI: internal to `createStore.ts` |
 | `genId` / `genAssetId` / `cloneDeepRaw` / `emptyNpcConfig` / `taskMatchesQuery` / `assignSyncKey` | Util | Id gen, deep-clone via `toRaw`, empty NPC defaults, search, sync-key assign | NpcManagerModal search box reads taskMatchesQuery; rest internal |
 | `editorLog` | Util | `info`/`warn`/`error` console diagnostics wrapper | No UI: used by store/migration/portal code |

@@ -1,16 +1,14 @@
 ## Mission
 
 - Mode: autopilot
-- Foundation-first rebuild of the editor store/persistence core (critique items 1-9; #10 recap deferred). Locked: store = `createBlueprintStore({ persistence, sync, seed })` factory (option B) + ports + single-writer `commit` + provide/inject; #2 + #1 are ONE phase; #8 guard lands before production changes. T0 done, T1 done, T2 IN PROGRESS.
+- Foundation-first rebuild of the editor store/persistence core (critique items 1-9; #10 recap deferred). Locked: store = `createBlueprintStore({ persistence, sync, seed })` factory (option B) + ports + single-writer `commit` + provide/inject; #2 + #1 are ONE phase; #8 guard lands before production changes. T0/T1/T2/T3 done - next is T4 (stable sync identity + game loader).
 
 ## Plan
 
 - [x] T0 (#4) single building-area resolver (`resolveBuildingArea`), no default arg, all callsites routed.
 - [x] T1 (#8) test guard: `scripts/run-tests.mjs` aggregate (`npm test`), vitest covers `tests/component/**`, first UI test `tests/component/EditorCanvas.test.ts`, coverage wired.
-- [ ] T2 (#2 + #5 + #7) IN PROGRESS - source refactor DONE and typechecks clean; only test rewrites + full verify remain.
-      done: `store/ports.ts`, `store/httpPorts.ts` (retry/413/verify now live here), `store/state.ts` (EditorState + BlueprintStore type + initAssetFields + createEditorState + dragState), `store/createStore.ts` (factory: single-writer `save` queue + snapshot/revert + `runExclusive` replaces withStateLock), `store/index.ts` (provideBlueprintStore/useAssetsStore injection), `blueprintStore.ts` re-exports, `App.vue` creates + provides the store; command modules converted to factories with local aliases (floors, objects, assets, tags, mode, selection, metadata, npcDefault, persistence, flatten); globals removed from components (DeployNpcModal uses `store.state`, NpcRoleDetail/NpcTaskCard/AssetProperties use `store.managedTagSet`).
-      remaining: rewrite `tests/test-store-crud.ts`, `tests/test-persistence.ts`, `tests/component/EditorCanvas.test.ts`; then run `npm test` + typecheck + eslint + routed lint:bem/css; then tick T2.
-- [ ] T3 (#1) storage contract (format LOCKED: one canonical `src/blueprint-editor/data/blueprint-data.json`, dev middleware read/write JSON, retire `.data.ts` to seed, drop `guard:data-restore`). Design WITH T2. Depends T2.
+- [x] T2 (#2 + #5 + #7) store factory + ports + single-writer save/`runExclusive` + provide/inject. Done: factory/ports/`createStore`/`index`/`App.vue` wiring (committed earlier), all 3 suites rewritten against the factory API, revert-aliasing defect fixed (`restoreSnapshot` now installs clones), dead `fetchBlueprintDataFromDisk`/`loadInitial` retired, `crud-reference` + `ui-layout` + glossary updated to the factory API. `npm test` 16/16, typecheck clean.
+- [x] T3 (#1) storage contract. Done: `vite.config.ts` reads/writes canonical `blueprint-data.json` (atomic temp+rename + validation); `.data.ts` demoted to one-time seed (`npm run seed:blueprint-data`, byte-identical regen verified); `guard:data-restore` retired (file + script + refs gone); `},`/`};` parse defect fixed; temp plugin round-trip diagnostic passed + deleted; glossary + data-flow docs updated. `npm test` 16/16, typecheck clean.
 - [ ] T4 (#6) stable sync identity (floor key not order-fragile) + game loader. Depends T2, touches runtime contract.
 - [ ] T5 (#3) god-file decomposition (`types.ts`; `EditorCanvas.vue` after T1 UI tests; `npcEngine.ts` only with a base/mixin plan). Depends T1.
 - [ ] T6 (#9) perf gate: thresholds + cadence for `test:npc-perf`/`test:npc-scale`, out of the fast matrix.
@@ -18,13 +16,10 @@
 
 ## Blockers
 
-- (none) - the refactor compiles (src typechecks clean); only the 3 test rewrites are left.
+- (none for T2) - the three suites are green and the change is verified.
+- Unrelated, not fixed: repo-wide `npm run lint` fails only on the pre-existing `.zed/theme/*.js|mjs` bundle (temporary carried Zed theme, untouched by T2).
 
 ## Hand-off Note
 
-- NEXT ACTION: rewrite the 3 test files against `createBlueprintStore` (in-memory `PersistencePort` + recording `SyncPort`):
-  1. `tests/test-store-crud.ts` - `const store = createBlueprintStore({ persistence, sync, seed })`; replace `state` -> `store.state`, `clamp` -> `store.clamp`, every command import -> `store.<fn>`; assert the street-width checks against `store.clamp` / `store.moveSelectedTo`.
-  2. `tests/test-persistence.ts` - drop the fetch stub; success = port.save resolves true; failure = port.save rejects and assert state reverted (store owns revert now; HTTP retry/413 moved to `createHttpPersistencePort`).
-  3. `tests/component/EditorCanvas.test.ts` - provide a store instance into the mount. `STORE_KEY` in `store/index.ts` is private: either export it, or mount a tiny host SFC calling `provideBlueprintStore(store)`. Pick one (prefer exporting the key for test reuse).
-- THEN: `npm test` (16 steps) -> fix reds -> `npm run typecheck` -> `npx eslint .` (watch unused imports in the new store files) -> routed `lint:bem`/`lint:css` -> `node harness/scripts/verify.mjs check`.
-- Then log T2 in `harness/state/history.md` and start T3 (format already locked).
+- NEXT ACTION: T4 stable sync identity (floor key not order-fragile) + game loader. Depends T2 - satisfied; touches the runtime contract, so confirm the floor-key shape before changing the synced payload.
+- Store API is now documented: `docs/crud-reference.md` + `docs/skill/ui-layout.md` describe the factory; `src/blueprint-editor/store/index.ts` exports `STORE_KEY` (component tests inject a store instance through it). Storage contract: `docs/skill/data-flow.md` "Origin asset authoring" + glossary `Origin assets` describe the JSON store; regen via `npm run seed:blueprint-data`.

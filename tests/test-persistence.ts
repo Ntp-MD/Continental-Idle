@@ -1,38 +1,126 @@
 import assert from 'node:assert/strict'
-import { state } from '../src/blueprint-editor/store/state'
-import { saveBlueprintData } from '../src/blueprint-editor/store/persistence'
-import { buildBlueprintData } from '../src/blueprint-editor/store/dataLoader'
+import {
+	createBlueprintStore, defaultSeed,
+	type BlueprintStore, type PersistencePort, type SyncPort,
+} from '../src/blueprint-editor/store/index'
+import { createHttpPersistencePort } from '../src/blueprint-editor/store/httpPorts'
+import type { BlueprintDataFile } from '../src/blueprint-editor/domain/types'
 
-const originalFetch = globalThis.fetch
-const calls: Array<{ method?: string; save: string | null }> = []
-let mode: 'ok' | 'tooLarge' = 'ok'
+type SaveMode = 'ok' | 'reject' | 'false'
 
-globalThis.fetch = (async (_url: string | URL | Request, init?: RequestInit) => {
-	const headers = (init?.headers ?? {}) as Record<string, string>
-	calls.push({ method: init?.method, save: headers['X-Blueprint-Save'] ?? null })
-	if (mode === 'tooLarge') return new Response('', { status: 413 })
-	const data = buildBlueprintData(state.layout, state.assetRegistry, state.layout.npcConfig, state.tagDefinitions)
-	return new Response(JSON.stringify({ ok: true, data }), { status: 200, headers: { 'content-type': 'application/json' } })
-}) as typeof fetch
+// ── Harness: recording in-memory port (replaces the old fetch stub) ──
+function createRecordingPort() {
+	const saves: BlueprintDataFile[] = []
+	let mode: SaveMode = 'ok'
+	let inFlight = 0
+	let maxInFlight = 0
+	const port: PersistencePort = {
+		async load() { return null },
+		async save(data) {
+			inFlight++
+			maxInFlight = Math.max(maxInFlight, inFlight)
+			await new Promise(resolve => setTimeout(resolve, 0))
+			inFlight--
+			saves.push(data)
+			if (mode === 'reject') throw new Error('disk is full')
+			if (mode === 'false') return false
+			return true
+		},
+	}
+	return {
+		port,
+		saves,
+		setMode: (next: SaveMode) => { mode = next },
+		maxConcurrentSaves: () => maxInFlight,
+	}
+}
+
+const sync: SyncPort = { emit() {} }
+const harness = createRecordingPort()
+const store: BlueprintStore = createBlueprintStore({ persistence: harness.port, sync, seed: defaultSeed() })
+
+assert.ok(store.state.layout.floors.length > 0, 'expected at least one floor')
+const originalName = store.state.layout.floors[0].name
+
+// ── 1. success: one write, verified by the port ──
+assert.equal(await store.save(), true, 'save resolves true when the port accepts the write')
+assert.equal(harness.saves.length, 1, 'one write hits the port')
+const payload = harness.saves[0]
+assert.equal(payload.layout.floors[0].name, originalName, 'payload carries the current layout')
+assert.ok(payload.originAssets.length > 0, 'payload carries the asset registry')
+assert.ok(payload.tags, 'payload carries the tag definitions')
+assert.ok(payload.npcConfig, 'payload carries the npc config')
+assert.ok(payload.$schema.length > 0, 'payload is a schema-stamped blueprint file')
+
+// ── 2. port rejects: state reverts to the last saved snapshot ──
+store.state.layout.floors[0].name = 'MUTATED-SHOULD-REVERT'
+harness.setMode('reject')
+await assert.rejects(store.save(), 'save rejects when the port write fails')
+assert.equal(store.state.layout.floors[0].name, originalName, 'state reverts to the last saved snapshot on failure')
+assert.equal(store.toast.toasts.value.at(-1)?.message, 'Failed to save blueprint data', 'the store reports the failed save')
+assert.equal(harness.saves.length, 2, 'the store does not retry - retry policy lives in the port')
+
+// ── 3. port reports failure without throwing ──
+harness.setMode('false')
+store.state.layout.floors[0].name = 'MUTATED-AGAIN'
+await assert.rejects(store.save(), 'a false port result is treated as a failed save')
+assert.equal(store.state.layout.floors[0].name, originalName, 'state reverts when the port reports failure without throwing')
+
+// ── 4. single writer: queued saves never overlap ──
+harness.setMode('ok')
+const savesBefore = harness.saves.length
+const results = await Promise.all([store.save(), store.save()])
+assert.deepEqual(results, [true, true], 'both queued saves resolve')
+assert.equal(harness.saves.length, savesBefore + 2, 'both queued saves reach the port')
+assert.equal(harness.maxConcurrentSaves(), 1, 'saves run one at a time (single writer)')
+
+// ── 5. HTTP port: retry / 413 / read-back verification live here now ──
+const realFetch = globalThis.fetch
+const realSetTimeout = globalThis.setTimeout
+const calls: Array<{ method?: string; save: string | null; body: string }> = []
+const queued: Array<() => Response> = []
+const verifiedResponse = () => new Response(JSON.stringify({ ok: true, data: payload }), { status: 200, headers: { 'content-type': 'application/json' } })
+const invalidResponse = () => new Response(JSON.stringify({ ok: true, data: { nope: true } }), { status: 200, headers: { 'content-type': 'application/json' } })
 
 try {
-	mode = 'ok'
-	const ok = await saveBlueprintData()
-	assert.equal(ok, true, 'save returns true on a verified response')
+	globalThis.fetch = (async (_url: string | URL | Request, init?: RequestInit) => {
+		const headers = (init?.headers ?? {}) as Record<string, string>
+		calls.push({
+			method: init?.method,
+			save: headers['X-Blueprint-Save'] ?? null,
+			body: typeof init?.body === 'string' ? init.body : '',
+		})
+		const next = queued.shift()
+		if (!next) throw new Error('unexpected fetch')
+		return next()
+	}) as typeof fetch
+
+	const httpPort = createHttpPersistencePort()
+
+	queued.push(verifiedResponse)
+	assert.equal(await httpPort.save(payload), true, 'HTTP port resolves true on a verified read-back')
 	assert.equal(calls.length, 1, 'one POST attempt on success')
 	assert.equal(calls[0].method, 'POST', 'uses POST')
 	assert.equal(calls[0].save, '1', 'sets the save header')
+	assert.ok(calls[0].body.includes('"$schema"'), 'body is the serialized blueprint file')
 
-	const floor = state.layout.floors[0]
-	assert.ok(floor, 'expected at least one floor')
-	const originalName = floor.name
-	floor.name = 'MUTATED-SHOULD-REVERT'
-	mode = 'tooLarge'
-	await assert.rejects(saveBlueprintData(), 'save rejects on 413')
-	assert.equal(calls.length, 2, '413 fails without retry')
-	assert.equal(state.layout.floors[0].name, originalName, 'state reverts to the last saved snapshot on failure')
+	queued.push(() => new Response('', { status: 413 }))
+	await assert.rejects(httpPort.save(payload), 'a 413 payload-too-large response rejects')
+	assert.equal(calls.length, 2, '413 fails immediately without retry')
+
+	// Retry paths: the mock resolves the backoff timer at once, so the suite stays fast.
+	globalThis.setTimeout = ((fn: () => void) => { fn(); return 0 }) as unknown as typeof setTimeout
+
+	queued.push(() => { throw new Error('network down') }, verifiedResponse)
+	assert.equal(await httpPort.save(payload), true, 'a transient failure retries and then succeeds')
+	assert.equal(calls.length, 4, 'two attempts for the transient path')
+
+	queued.push(invalidResponse, invalidResponse, invalidResponse)
+	await assert.rejects(httpPort.save(payload), 'an unverifiable read-back rejects')
+	assert.equal(calls.length, 7, 'unverifiable read-back exhausts the attempt limit then fails')
 } finally {
-	globalThis.fetch = originalFetch
+	globalThis.fetch = realFetch
+	globalThis.setTimeout = realSetTimeout
 }
 
 console.log('Persistence save checks passed')

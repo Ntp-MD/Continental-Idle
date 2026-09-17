@@ -42,7 +42,7 @@ Canonical form/markup/CSS/class patterns for `src/blueprint-editor/` UI.
 - Store: components import from the shared blueprint store (`useAssetsStore` and friends). Do not import store internals directly, and do not create pass-through facade files.
 - Modals: wrap in `ModalShell` with `:open` / `@close`. Load heavy or rarely opened modals with `defineAsyncComponent`.
 - Unsaved-changes tracking: `useDirtyBaseline` - one baseline snapshot plus a `dirty` computed. Do not hand-roll dirty flags, and do not stringify state for comparison.
-- Concurrency: store-level mutations use `withStateLock`; UI pending state uses `useAsyncAction`. One guard per layer, no extra boolean flags duplicating the guard.
+- Concurrency: store-level mutations run through the store's single-writer `runExclusive` queue; UI pending state uses `useAsyncAction`. One guard per layer, no extra boolean flags duplicating the guard.
 - Walkable-grid domain logic (tile states incl. door tiles) normalizes in the domain types module as pure functions. Components compose it, never re-implement the math inline.
 - Declarative schemas: canvas/editor settings are parsed via `CANVAS_FIELD_SPECS` / `EDITOR_FIELD_SPECS`. Never enumerate their keys by hand elsewhere.
 - Confirmation: `useConfirm().confirm` from `@/composables/useConfirm`, never `window.confirm`. User feedback: `useToast` for visible messages, `editorLog` for console diagnostics. Never `alert` / `console.log` for user-facing state.
