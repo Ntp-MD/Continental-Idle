@@ -1156,7 +1156,127 @@
         "id": "floor-f6bc12edb3",
         "name": "Lobby",
         "label": "G",
-        "objects": [],
+        "objects": [
+          {
+            "id": "obj-d14ad05ec2",
+            "type": "shower",
+            "x": 640,
+            "y": 320,
+            "rotation": 0
+          },
+          {
+            "id": "obj-bd83b336cd",
+            "type": "kitchen-sink",
+            "x": 880,
+            "y": 460,
+            "rotation": 0
+          },
+          {
+            "id": "obj-3719abe5be",
+            "type": "vending-machine",
+            "x": 600,
+            "y": 500,
+            "rotation": 0
+          },
+          {
+            "id": "obj-cf231b490d",
+            "type": "kitchen-sink",
+            "x": 1040,
+            "y": 600,
+            "rotation": 0
+          },
+          {
+            "id": "obj-222134fc62",
+            "type": "office-chair",
+            "x": 700,
+            "y": 600,
+            "rotation": 0
+          },
+          {
+            "id": "obj-56eb94f6b2",
+            "type": "bar-counter",
+            "x": 400,
+            "y": 400,
+            "rotation": 0
+          },
+          {
+            "id": "obj-17b74e6de2",
+            "type": "elevator-1",
+            "x": 480,
+            "y": 620,
+            "rotation": 0
+          },
+          {
+            "id": "obj-1597c65330",
+            "type": "bar-counter",
+            "x": 1160,
+            "y": 400,
+            "rotation": 0
+          },
+          {
+            "id": "obj-301cc56b49",
+            "type": "treadmill-1",
+            "x": 360,
+            "y": 220,
+            "rotation": 0
+          },
+          {
+            "id": "obj-7aee146dee",
+            "type": "kitchen-table-1",
+            "x": 1000,
+            "y": 280,
+            "rotation": 0
+          },
+          {
+            "id": "obj-6faaaa9f4d",
+            "type": "sofa-1",
+            "x": 880,
+            "y": 360,
+            "rotation": 0
+          },
+          {
+            "id": "obj-00f239cb22",
+            "type": "single-sofa-1",
+            "x": 660,
+            "y": 440,
+            "rotation": 0
+          },
+          {
+            "id": "obj-9ba0f01486",
+            "type": "reception-desk",
+            "x": 840,
+            "y": 680,
+            "rotation": 0
+          },
+          {
+            "id": "obj-7fb5121496",
+            "type": "chair",
+            "x": 640,
+            "y": 240,
+            "rotation": 0
+          },
+          {
+            "id": "obj-a9e050e6b4",
+            "type": "table-set",
+            "x": 260,
+            "y": 580,
+            "rotation": 0
+          },
+          {
+            "id": "obj-83ffd78ca8",
+            "type": "double-bed-1",
+            "x": 1340,
+            "y": 540,
+            "rotation": 0
+          },
+          {
+            "id": "obj-e2718bf5a7",
+            "type": "elevator-1",
+            "x": 1380,
+            "y": 780,
+            "rotation": 0
+          }
+        ],
         "defaultWalkable": true,
         "walkable": {
           "walkableGrid": [
@@ -9364,16 +9484,7 @@
             ]
           ]
         },
-        "spawnZones": [
-          {
-            "id": "zone-entrance",
-            "label": "Entrance",
-            "x": 750,
-            "y": 810,
-            "w": 60,
-            "h": 60
-          }
-        ]
+        "spawnZones": []
       }
     ],
     "streetWidthTiles": 8,

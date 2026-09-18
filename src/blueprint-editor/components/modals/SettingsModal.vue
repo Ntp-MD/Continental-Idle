@@ -173,6 +173,7 @@ interface FieldDef {
   key: FieldKey
   label: string
   step: number
+  preview?: 'radius'
 }
 interface EditorGroup {
   title: string
@@ -208,11 +209,11 @@ const editorGroupsByTab: Record<Exclude<SettingsTab, 'canvas'>, EditorGroup[]> =
   display: [
     {
       title: 'Overlay Sizes',
-      hint: 'Radius of spot dots, lock indicators and NPC dots.',
+      hint: 'Radius in screen px of spot dots, lock indicators and NPC dots.',
       fields: [
-        { key: 'interactSpotRadiusPx', label: 'Interact spot radius', step: 0.5 },
-        { key: 'lockIndicatorRadiusPx', label: 'Lock indicator radius', step: 0.5 },
-        { key: 'npcDotSize', label: 'NPC dot radius', step: 0.5 },
+        { key: 'interactSpotRadiusPx', label: 'Interact spot radius px', step: 0.5, preview: 'radius' },
+        { key: 'lockIndicatorRadiusPx', label: 'Lock indicator radius px', step: 0.5, preview: 'radius' },
+        { key: 'npcDotSize', label: 'NPC dot radius px', step: 0.5, preview: 'radius' },
       ],
     },
     {
@@ -254,6 +255,12 @@ const editorGroupsByTab: Record<Exclude<SettingsTab, 'canvas'>, EditorGroup[]> =
 function fieldRange(key: FieldKey) {
   const spec = EDITOR_FIELD_SPECS[key]
   return { min: spec.min, max: spec.max }
+}
+
+function radiusPreview(key: FieldKey): number {
+  const value = Number(draft.value[key])
+  if (!Number.isFinite(value) || value <= 0) return 2
+  return Math.min(48, Math.max(2, value * 2))
 }
 
 const isEditorDirty = computed(() => {
@@ -579,6 +586,12 @@ async function resetEditorAll() {
               :step="field.step"
               @change="applyEditorField(field.key)"
             />
+            <span
+              v-if="field.preview === 'radius'"
+              class="settings__dot"
+              :style="{ width: radiusPreview(field.key) + 'px', height: radiusPreview(field.key) + 'px' }"
+              aria-hidden="true"
+            />
           </div>
           <div class="form__hint">{{ group.hint }}</div>
         </div>
@@ -608,6 +621,13 @@ async function resetEditorAll() {
 <style scoped>
 .settings__apply--bottom {
   margin-top: auto;
+}
+
+.settings__dot {
+  flex-shrink: 0;
+  border: 1px solid var(--border-dim);
+  border-radius: 50%;
+  background: var(--accent-primary);
 }
 </style>
 

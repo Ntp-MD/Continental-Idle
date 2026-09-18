@@ -435,3 +435,9 @@ ode harness/scripts/verify.mjs check pass
 - store guard: `resizeCanvas` returns false on a real size change when `layoutHasContent` (`store/mode.ts`); exposed as `store.hasContent()` (`store/state.ts` + `createStore.ts`) for the UI
 - SettingsModal Canvas Size: Width/Height/Tile inputs + Apply disabled and a lock hint shown while content exists; the old warn-and-continue confirm was removed (hard block)
 - verified: live editor with persisted walls/doors -> all 3 inputs + Apply disabled and lock hint present; `npm run typecheck`, `npm run lint:bem`, `npm run lint:css`, `npm run test:store-crud` (29/29) all pass
+
+### settings: radius labels in px + live size preview - 2026-09-18 18:50 UTC+7 (opencode, cline-pass/deepseek-v4.1-flash)
+- user order: radius in px is hard to judge -> label the unit and show the real size
+- Display tab Overlay Sizes labels now `Interact spot radius px` / `Lock indicator radius px` / `NPC dot radius px` (values were already screen px - the overlay canvas draws at dpr with no zoom scaling; only the label lacked the unit)
+- `FieldDef.preview?: 'radius'` drives a live scoped `.settings__dot` circle in the row, diameter = 2x the draft value clamped 2..48 px, updates as the field is typed
+- verified: live Settings -> Display shows the 3 labels and previews 8x8 / 6x6 / 8x8 for stored 4 / 3 / 4; `npm run typecheck`, `npm run lint:bem`, `npm run lint:css` all pass
