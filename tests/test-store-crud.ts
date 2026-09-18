@@ -287,6 +287,18 @@ async function main(): Promise<void> {
 		assert.ok(!labels.has(floor.label), `new label "${floor.label}" was already taken`)
 	})
 
+	await check('renameFloor()/updateFloor() reject a blank name or label instead of breaking every later save', async () => {
+		restore(baseline)
+		const floor = state.layout.floors[0]
+		const originalName = floor.name
+		assert.equal(await store.renameFloor(floor.id, '   '), false, 'a blank rename is refused')
+		assert.equal(floor.name, originalName, 'a blank rename leaves the name untouched')
+		assert.equal(await store.renameFloor(floor.id, '  Lobby  '), true, 'a rename with padding succeeds')
+		assert.equal(floor.name, 'Lobby', 'the stored name is trimmed')
+		assert.equal(await store.updateFloor(floor.id, { label: '' }), false, 'a blank label is refused')
+		assert.notEqual(floor.label, '', 'a blank label leaves the label untouched')
+	})
+
 	await check('removeTag() cascades into assets, roles, tasks and trigger rates', async () => {
 		restore(baseline)
 		const tag = 'grilltag'

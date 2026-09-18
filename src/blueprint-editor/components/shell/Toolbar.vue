@@ -102,11 +102,6 @@ function onTileBrush(brush: 'walkable' | 'blocked' | 'door') {
   if (previewActive.value) return
   store.setTileBrush(store.state.tileBrush === brush ? null : brush)
 }
-
-function onSyncToGame() {
-  if (store.syncToGame()) toast.success('Blueprint synced to game')
-  else toast.error('Blueprint sync failed')
-}
 </script>
 
 <template>
@@ -259,16 +254,6 @@ function onSyncToGame() {
       </button>
     </div>
 
-    <button
-      :disabled="previewActive"
-      class="flag--success editor__toolbar--spacer"
-      title="Apply blueprint layout to the main game"
-      aria-label="Sync blueprint to game"
-      @click="onSyncToGame"
-    >
-      Sync Game
-    </button>
-
     <ErrorBoundary>
       <NpcManagerModal :open="showNpcManager" @close="showNpcManager = false" />
       <FloorModal :open="showFloorModal" @close="showFloorModal = false" />
@@ -293,9 +278,5 @@ function onSyncToGame() {
   overflow: visible;
   flex-shrink: 0;
   position: relative;
-}
-
-.editor__toolbar--spacer {
-  margin-left: auto;
 }
 </style>

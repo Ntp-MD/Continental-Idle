@@ -1,5 +1,5 @@
 import type { FloorData, TileBrush } from '../domain/types'
-import { applyTileBrush, normalizeAllowedRoleIds, normalizeFloorWalkable, normalizeNpcSpawnZones, resolveFloorTileStates, resolveStreetTiles, tileStatesToWalkableGrid } from '../domain/types'
+import { applyTileBrush, normalizeAllowedRoleIds, normalizeFloorWalkable, normalizeNpcSpawnZones, normalizeText, resolveFloorTileStates, resolveStreetTiles, tileStatesToWalkableGrid } from '../domain/types'
 import type { BlueprintStore, FloorPatch } from './state'
 import { genId, cloneDeepRaw } from './storeUtils'
 import { MAX_FLOORS } from '../limits'
@@ -80,7 +80,9 @@ export function createFloorCommands(store: BlueprintStore) {
 		return withStateLock(async () => {
 			const floor = state.layout.floors.find(f => f.id === id)
 			if (!floor) return false
-			floor.name = name
+			const normalizedName = normalizeText(name)
+			if (!normalizedName) return false
+			floor.name = normalizedName
 			return saveBlueprintData()
 		})
 	}
@@ -122,8 +124,16 @@ export function createFloorCommands(store: BlueprintStore) {
 				if (normalized) floor.spawnZones = normalized
 				else delete floor.spawnZones
 			}
-			if (patch.name !== undefined) floor.name = patch.name
-			if (patch.label !== undefined) floor.label = patch.label
+			if (patch.name !== undefined) {
+				const name = normalizeText(patch.name)
+				if (!name) return false
+				floor.name = name
+			}
+			if (patch.label !== undefined) {
+				const label = normalizeText(patch.label)
+				if (!label) return false
+				floor.label = label
+			}
 			return saveBlueprintData()
 		})
 	}

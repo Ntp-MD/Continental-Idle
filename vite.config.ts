@@ -6,7 +6,7 @@ import vue from '@vitejs/plugin-vue'
 import { visualizer } from 'rollup-plugin-visualizer'
 import fs from 'node:fs'
 import path from 'node:path'
-import { normalizeBlueprintDataFile } from './src/blueprint-editor/domain/types.js'
+import { readBlueprintDataFile } from './src/blueprint-editor/store/schemaMigration.js'
 import { MAX_PAYLOAD_BYTES } from './src/blueprint-editor/limits.js'
 import type { BlueprintDataFile } from './src/blueprint-editor/domain/types.js'
 const BLUEPRINT_CLIENT_HEADER = 'x-blueprint-client'
@@ -133,9 +133,7 @@ export function blueprintDataPlugin() {
 		} catch (error) {
 			throw new Error(`Blueprint data store is unavailable: ${error instanceof Error ? error.message : 'unknown error'}`, { cause: error })
 		}
-		const normalized = normalizeBlueprintDataFile(JSON.parse(raw))
-		if (!normalized) throw new Error('Blueprint data store is invalid')
-		return normalized
+		return readBlueprintDataFile(JSON.parse(raw))
 	}
 
 	const writeData = (data: BlueprintDataFile): void => {
@@ -209,7 +207,7 @@ export function blueprintDataPlugin() {
 				}
 				let data: BlueprintDataFile | undefined
 				try {
-					data = normalizeBlueprintDataFile(JSON.parse(body))
+					data = readBlueprintDataFile(JSON.parse(body))
 				} catch {
 					data = undefined
 				}

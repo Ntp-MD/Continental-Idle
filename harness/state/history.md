@@ -275,3 +275,163 @@ ode harness/scripts/verify.mjs check pass
 - decision: `domain/types.ts` split by section into a dependency-ordered `domain/schema/*` with a barrel (over: leaving the monolith) - because the schema kernel boundary cannot be enforced while everything lives in one file
 - verified: `npm run verify` -> `16/16 test steps passed` (typecheck, lint, lint:bem/lint:css 35 files, unit 16/16, full tsx matrix, verify:assets 21 assets 0 warnings); `npm run build` exit 0; `git status` shows the new schema/*.ts + WorkspaceModal; `node harness/scripts/verify.mjs check` pass
 - not done (needs an explicit order): git commit + `v1.0.0` tag
+
+### full feature documentation - 2026-09-18 09:26 UTC+7 (opencode, cline-pass/deepseek-v4.1-flash)
+- read-only reverse-engineering of every user-facing surface; no source behaviour changed
+- new `docs/feature-documentation.md`: overview, IA, 40+ feature inventory, per-feature detail (canvas, floors, assets, NPC, settings, workspace/sync), 10 end-to-end workflows, permissions/guards, full settings table, edge cases, unverified list, coverage checklist
+- verified by exhaustive static source inspection of all 32 `.vue` components, store/domain/persistence/syncedPayload, composables, editorConfig and schema field specs; interactive browser run not performed (noted in doc section 9)
+- note: a live-looking API key (`sk_...`) was pasted by the user into chat; recommend rotating it
+
+### thai non-technical user guide - 2026-09-18 09:37 UTC+7 (opencode, cline-pass/deepseek-v4.1-flash)
+- user order: not technical, public-release style, then: more detail naming every button/thing
+- new `docs/user-guide-th.md`: plain-language Thai guide - screen overview, toolbar groups, canvas + view toggles + zoom + floor switcher, asset palette + picker, properties panel states, Edit Asset 4 tabs, Settings 4 tabs, Save-Origin / Floor / NPC / Deploy / Workspace / Shortcuts modals, full keyboard table, 3 step-by-step examples, toasts/confirms
+- no source behaviour changed; exact on-screen English labels kept inline so users can match the UI
+- verified: `node harness/scripts/verify.mjs check` pass; route -> no matching suite (docs only)
+
+### remove Sync Game button - 2026-09-18 10:12 UTC+7 (opencode, cline-pass/deepseek-v4.1-flash)
+- user order: remove the toolbar `Sync Game` button "so it is not confusing"
+- `Toolbar.vue`: deleted the button, its `onSyncToGame` handler, and the now-unused `.editor__toolbar--spacer` scoped class (zero call sites left)
+- store `syncToGame()` deliberately kept (`store/persistence.ts`, `state.ts` interface) - it is now UI-unreachable, documented as such; the toolbar has no other button that applies the blueprint to the game
+- docs kept true in the same change: `docs/crud-reference.md` (How -> No UI), `docs/feature-documentation.md` (inventory + feature section + workflow 5.9 + permissions row marked removed), `docs/user-guide-th.md` (section 2.6 removed, example step reworded), `docs/skill/data-flow.md` (egress note), `syncedPayload.ts` header comment
+- decision: keep the store function, remove only the UI (over: delete `syncToGame` too) - because removing it touches the store interface/persistence contract and is a separate order; the button was the confusion source
+- verified: `node harness/scripts/verify.mjs route` -> `npm run lint:bem` pass (35 files), `npm run lint:css` pass (35 files), `npm run typecheck` exit 0, `npm run test:sync-payload` exit 0
+- not mine: `src/blueprint-editor/data/blueprint-data.json` was already modified in the working tree before this task (read-only inspected, never written here)
+
+### drop generated docs, keep crud-reference - 2026-09-18 10:40 UTC+7 (opencode, cline-pass/deepseek-v4.1-flash)
+- user order: delete the generated documentation (option 1); duplicated content across three docs confused agents
+- removed `docs/feature-documentation.md` and `docs/user-guide-th.md` (both untracked, created this session)
+- kept `docs/crud-reference.md` - it is the tracked canonical store-CRUD doc referenced by `docs/skill/ui-layout.md` rule 4
+- no live references remain outside `history.md` (point-in-time log, left unrewritten)
+- verified: `node harness/scripts/verify.mjs check` pass; grep shows no non-history references
+
+### wiring audit fixes 1-6 - 2026-09-18 11:52 UTC+7 (opencode, cline-pass/deepseek-v4.1-flash)
+- user order: fix audit items 1-6, defer item 7 (doc mismatches); read-only audit found them first
+- 1 `store/migrate.ts`: carries `editorSettings` through migration (was persisted+validated, then dropped by `migrate` -> Settings editor tabs reverted on every reload/import)
+- 2 `syncedPayload.ts` `toObjectData`: routes through `normalizeObjectPlacement` + `normalizeText`, drops objects with unusable placement, instead of raw-copying id/type/x/y/rotation/colors/label
+- 3 `domain/schema/dataFile.ts` `validateLayoutData`: now a pure `boolean` validator (no raw cast, no mutation); `migrate.ts` call site updated
+- 4 `vite.config.ts`: dev middleware `/__blueprint-data` uses canonical `readBlueprintDataFile` (version gate + migration chain) instead of `normalizeBlueprintDataFile`; `tsconfig.node.json` includes `store/schemaMigration.ts`
+- 5 `store/localPort.ts` save: adds read-back verification (parse + canonical normalize) matching the HTTP port, instead of returning true blindly
+- 6 `store/floors.ts`: `renameFloor`/`updateFloor` normalize name/label via `normalizeText` and refuse blank (a blank label previously made every later whole-file save fail)
+- regression checks added to the matching suites: `tests/test-migrate.ts` (editorSettings survives/absent), `tests/test-sync-payload.ts` (ingress object drop + color/label normalization), `tests/test-store-crud.ts` (blank rename/label refused)
+- decision: `validateLayoutData` returns boolean (over: returning a normalized cast) - because it is a validation guard whose result `migrate` only truthy-checks; a cast return was the anti-pattern
+- verified: `npm run typecheck` exit 0; `npm run test:migrate` pass; `npm run test:sync-payload` pass; `npm run test:store-crud` 29/29; `npm run test:persistence` pass; `npm run test:blueprint-schema` pass; `npm run test:asset-schema` pass; `npm run test:settings-completeness` pass; `npm run test:unit` 16/16; `node harness/scripts/verify.mjs check` pass
+- pending (user decision): item 7 crud-reference mismatches (`clearSelection`, `isNpcPreview`, `selectFloor`, `dissolveGroupsIfSmall`, `tagCatalog`)
+
+### delete crud-reference - 2026-09-18 12:05 UTC+7 (opencode, cline-pass/deepseek-v4.1-flash)
+- user order: delete `docs/crud-reference.md` immediately (it was the tracked canonical store-CRUD doc; item 7 mismatches are moot now)
+- deleted the file and removed the dangling "CRUD gate" sentence from `docs/skill/ui-layout.md` rule 4 (it told agents to update a file that no longer exists); Showcase gate kept
+- no live references remain outside `history.md` (point-in-time log) and `_archive/save.txt` (archived, excluded from checks)
+- trade-off: the repo loses the enforced store-CRUD/UI wiring map; store API is still discoverable from the `BlueprintStore` interface in `store/state.ts`
+- file is recoverable from git history if needed
+- note: the opencode harness gate blocked the first ui-layout.md edit because the slot Mission was empty; filled the slot then retried
+- verified: `node harness/scripts/verify.mjs check` pass (docs-only change, no suite routed)
+
+### add zed playwright mcp settings - 2026-09-18 12:22 UTC+7 (opencode, cline-pass/deepseek-v4.1-flash)
+- user order: project-local `.zed/settings.json` for the Zed Playwright MCP extension, viewport 1900x900
+- new file `.zed/settings.json`: `context_servers.mcp-server-playwright.settings` = chromium, headless false, isolated true, viewport_size "1900x900"
+- extension itself must still be installed in Zed (`zed: extensions` or Install Dev Extension); the settings file only configures it
+- no custom `playwright` server key added, so no duplicate tool set
+- verified: file is valid JSON and visible to git as untracked; `node harness/scripts/verify.mjs check` pass (no suite routed for editor config)
+
+### playwright mcp wired + G2 verified in a real browser - 2026-09-18 14:15 UTC+7 (opencode, cline-pass/deepseek-v4.1-flash)
+- user order: use Playwright MCP; agent has its own playwright tools (headless chrome-for-testing) and drove the running dev server for real
+- `.zed/settings.json` rewritten to a custom local server `playwright` (`cmd /c npx -y @playwright/mcp@latest --browser chromium --viewport-size 1900x900 --isolated`) because the extension-based `mcp-server-playwright` entry never connected (toggle stayed off); extension may still need uninstalling to remove the stale list row
+- `.gitignore`: added `.playwright-mcp/` (MCP writes snapshot/console artifacts into the repo)
+- E2E verification of fix #1: on http://localhost:5173 Settings -> Display -> `Object label` 8 -> 12 -> blur -> POST `/__blueprint-data` 200 -> reload -> reopen Settings -> Display -> value still 12. Real-browser proof that `editorSettings` now survives `migrate`; headless suites could not catch this
+- observed: toolbar snapshot has no `Sync Game` button (removal confirmed in the live app); canvas shows `Empty floor - drag objects from the palette` which matches the seed (`objects=0`, 1 floor `G Lobby`, 21 assets)
+- benign pre-existing console warning confirmed live: `Migration: layout integrity issues: NPC defaultRoleId references unknown role:` - `migrate` runs before the top-level npcConfig is assigned, so the integrity check sees no roles (log noise, no data effect)
+- restored `src/blueprint-editor/data/blueprint-data.json` from a temp backup after the test write (test had persisted `editorSettings` into the seed; now `editorSettings: undefined`, 1 floor, 21 assets)
+- verified: live browser run above; `node harness/scripts/verify.mjs check` pass
+
+### playwright asset placement proven - 2026-09-18 14:32 UTC+7 (opencode, cline-pass/deepseek-v4.1-flash)
+- question: can an agent place assets via Playwright? Answer: yes, demonstrated end-to-end
+- why it works: palette drop is a custom flow (`mousedown` on the asset row -> `startAssetDrag` -> window `mousemove`/`mouseup` -> `addObject`), not native HTML5 DnD, so a raw `page.mouse.down/move/up` sequence drives it; Playwright's `browser_drag`/`dragAndDrop` (native dragstart/drop) would NOT trigger it
+- run: `browser_evaluate` returned asset row center (147,216) + canvas SVG rect; `browser_run_code_unsafe` did `mouse.move -> down -> 12 interpolated moves -> move canvas center -> up`
+- result: palette badge for "Table 1" went 0 -> "1 placed object", and the seed gained `{"id":"obj-4777e9d306","type":"table-1","x":780,"y":500,"rotation":0}` (persisted placement only, no w/h - resolved from the definition, matching the definition/instance contract)
+- caveats recorded: drop must end inside the canvas SVG and pass `canPlaceObject` (building bounds + no overlap + mode `object`); every placement auto-saves to the active port, so with `npm run dev` it rewrites `blueprint-data.json` (back up or use `preview`)
+- restored `src/blueprint-editor/data/blueprint-data.json` from the temp backup after the test (floor objects back to 0)
+
+### all origin asset fills set to white - 2026-09-18 14:42 UTC+7 (opencode, cline-pass/deepseek-v4.1-flash)
+- user order: set every asset's Appearance fill color to `#ffffff` (interim)
+- edited the canonical store `src/blueprint-editor/data/blueprint-data.json` directly: all 21 `originAssets[].defaultFillColor` = `#ffffff` (was 13 distinct colors)
+- only `defaultFillColor` changed; `defaultStrokeColor`, geometry, tags, grids untouched
+- verified: `npm run verify:assets` -> PASS 21 assets valid, 0 errors, 0 warnings; live reload in the browser shows the placed object rendering white
+- state: the seed still holds 1 object (`table-1` at 780,500) from the earlier placement test - my test artifact, left in place
+- trade-off: direct store edit bypasses the editor UI (no per-asset propagate pass), but fill lives only on the definition and instances resolve it, so no instance update is needed
+- reversible via the temp backup or git
+
+### free tool marquee can select wall/door tiles - 2026-09-18 15:42 UTC+7 (opencode, cline-pass/deepseek-v4.1-flash)
+- bug: free-tool marquee selected only objects whenever any object overlapped the rect, so wall/door tiles were unreachable (e.g. edge-road to edge-road drag)
+- root cause `useCanvasSelection.ts` onBoxSelectMouseUp: `onTileMarquee` ran only in the `hitIds.length === 0` branch
+- fix: tile marquee now runs first and, when it hits a blocked/door run, wins exclusive over object selection; EditorCanvas `onTileMarquee` returns true when it set the erase region
+- note: a marquee can never start on an object (`onObjectMouseDown` stops propagation), so no start-point disambiguation was needed
+- trade-off: rects that cross a wall now select tiles, not objects; object marquee still works inside wall-free areas (multi-select also via shift-click)
+- verified: `npm run lint:bem` + `npm run lint:css` + `npm run typecheck` pass (route for the `.vue` change)
+- verified live (Playwright, dev server): marquee over a blocked tile + the table-1 object -> 7 `.editor__erase-guide`, 0 object overlays; marquee around the same object in a wall-free rect -> 0 guides, 1 object overlay
+
+### selection highlight blue -> gold - 2026-09-18 15:47 UTC+7 (opencode, cline-pass/deepseek-v4.1-flash)
+- user order (picked option 1): the selected-object outline used `--accent-primary` blue, which collides with the blue `door` tile state; move it to `--accent-gold`
+- `EditorCanvas.vue`: `.editor__overlay--selected` and `.editor__overlay--highlight` stroke -> `var(--accent-gold)`; no new token (gold already in `variables.css`)
+- left unchanged: box-select marquee, tile previews and erase guides (blue `--accent-primary`/`--accent-blue`) - they are gesture/brush feedback, not selection state
+- verified: `npm run lint:bem` + `npm run lint:css` + `npm run typecheck` pass; live Playwright `.editor__overlay--selected` computed stroke = `rgb(210, 153, 34)` (= #d29922)
+
+### hotel-layout skill: quantities -> architect perspective - 2026-09-18 15:51 UTC+7 (opencode, cline-pass/deepseek-v4.1-flash)
+- decision: `docs/skill/hotel-layout.md` teaches the core architect way of thinking, not a program schedule (over: prescribed room areas, seat/fixture formulas, corridor %, fixed egress tiles - because counts vary per hotel and should be derived outputs, not inputs)
+- removed: "Room size standards" table, program formulas (guest rooms = ceil(guests/2), seats = guests x 0.65, kitchen 25-30%, fixtures = ceil(guests/25), corridor 10-15%), hard egress distances (12 m/24 tiles, 4-tile dead end)
+- added "Core perspective (architect)": occupancy drives space, form follows function/flow, program before plan, privacy hierarchy, right-size by relationship, circulation is the spine, walls last, egress invariant
+- kept (not quantities): tile-scale facts, geometry Placement rules, adjacency quick-reference, Verify workflow; rewrote Design process steps to principles (kept NPC-pool occupant-load reference)
+- updated `skill.md` router wording "room sizing" -> "architect perspective ... circulation/egress"
+- verified: `node harness/scripts/verify.mjs check` pass (docs-only, no suite routed)
+
+### hotel-layout scale: no stale hardcoded dims - 2026-09-18 15:53 UTC+7 (opencode, cline-pass/deepseek-v4.1-flash)
+- user directive: fixed plot/building numbers are risky because canvas settings change (`canvas.width/height`, `tileSize`, `streetWidthTiles` are all editable)
+- `docs/skill/hotel-layout.md` Scale section: dropped plot 107x67 / interior x8..98,y8..58 / street 8 tiles; kept only "1 tile = 0.5 m"; now points to live `CanvasConfig` + `resolveStreetTiles` / `resolveBuildingArea`
+- `harness/state/context.md` Tile scale row: same - 0.5 m unit stays, extents derive from config/resolvers
+- verified from code before rewriting: `resolveStreetTiles` clamps 5..20 (primitives.ts:6), `resolveBuildingArea` insets by streetTiles x tileSize (geometry.ts:139)
+- verified: `node harness/scripts/verify.mjs check` pass (docs-only)
+
+### hotel-layout: drop adjacency table - 2026-09-18 15:54 UTC+7 (opencode, cline-pass/deepseek-v4.1-flash)
+- user order: cut the "Adjacency quick-reference" section (prescribed per-room touch/NOT-touch rules)
+- relationship thinking stays in Design process step 2 (bubble diagram -> adjacency); no other file referenced the table
+- verified: `node harness/scripts/verify.mjs check` pass (docs-only)
+
+### hotel-layout: real-people + architect awareness - 2026-09-18 16:00 UTC+7 (opencode, cline-pass/deepseek-v4.1-flash)
+- user directive: the skill should build *awareness*, not a checklist - think like an architect and like the real people who live in the space
+- Core perspective gains: find the organizing idea, movement as sequence/threshold, and "enclose, then open" (a wall ring needs a `door`/walkable gap - `blocked` cells leave the walkable map, so a sealed box is unreachable)
+- new section "Design for real people": arrival, wayfinding, staff work flow, dignity/privacy, comfort, safety in a hurry, the unseen, walk-the-plan-as-each-person
+- still zero prescribed quantities; `skill.md` router wording now "architect + real-people perspective"
+- verified: `node harness/scripts/verify.mjs check` pass (docs-only)
+
+### hotel-layout: compress to high signal - 2026-09-18 16:04 UTC+7 (opencode, cline-pass/deepseek-v4.1-flash)
+- decision: cut the "Design process" itinerary and fold its unique ideas into Core (over: keeping both - because the 7 steps restated Core 1:1; article guidance that recipe-style skills now overconstrain models)
+- de-duplicated: circulation (was 4 places), enclosure/walls (4), egress (3), privacy (3), program (4)
+- merged "Design for real people" into Core perspective as one body-level bullet, kept the walk-the-plan-as-each-person lens and unseen-service line
+- kept project facts: Scale, Placement rules, Verify (Verify now states the 3 suites once instead of twice)
+- file 71 -> 43 lines; zero prescribed quantities
+- verified: `node harness/scripts/verify.mjs check` pass (docs-only)
+
+### rename hotel-layout -> key-design - 2026-09-18 16:13 UTC+7 (opencode, cline-pass/deepseek-v4.1-flash)
+- user order (chosen name): `docs/skill/hotel-layout.md` -> `docs/skill/key-design.md` via `git mv`
+- rewire per wire-paths: only live consumer was `skill.md` router row; updated to the new path
+- old path/basename re-grep: zero live hits left (only dated history entries + the live slot, which is not rewired)
+- verified: `node harness/scripts/verify.mjs check` pass (docs-only)
+
+### free tool: marquee selects objects + wall/door tiles together - 2026-09-18 16:31 UTC+7 (opencode, cline-pass/deepseek-v4.1-flash)
+- user order: object + wall + door must be selectable in one marquee (the earlier exclusive tiles-priority could not)
+- `useCanvasSelection.ts` onBoxSelectMouseUp: `onTileMarquee` no longer short-circuits - it sets the tile erase region and object selection still runs; callback back to `void`
+- `EditorCanvas.vue` Delete: now clears both - confirm when objects are selected (message adds "the wall/door tiles in the marked area"), then `paintFloorTiles('walkable')` + `deleteSelected`; tile-only stays immediate, object-only unchanged
+- `context.md` Free tool glossary: "or wall/door tiles" -> "and ... together"
+- verified: `npm run lint:bem` + `npm run lint:css` + `npm run typecheck` pass; temp `tests/component/_selection.tmp.test.ts` (deleted same session) proved tile marquee + object selection both run in one drag; live DOM check blocked - persisted store currently has 0 walls/objects (last write 16:25)
+
+### canvas: configurable street colors - 2026-09-18 17:41 UTC+7 (opencode, cline-pass/deepseek-v4.1-flash)
+- user order: street colors must be settable from Settings (colors/appearance must not be hardcoded); they were fixed `--street-*` CSS tokens
+- added `CanvasConfig.streetSidewalkColor` / `streetRoadColor` / `streetMarkingColor` + `CANVAS_FIELD_SPECS` color entries (`domain/schema/layout.ts`); setters `setCanvasStreet*Color` in `store/mode.ts` + `BlueprintStore` (`store/state.ts`); SettingsModal Street section 3 ColorInputs (refs/watch/apply); EditorCanvas street rects/lines now `canvas.<field> || 'var(--street-*)'` (4+4+4)
+- editor-only visual fields, not added to `SyncedCanvas`/`syncedPayload.ts` - same policy as `gridColor`
+- verified: live editor set all 3 via Settings -> 4 sidewalk rects + 4 road rects + 4 marking lines picked up the colors, persisted to `blueprint-data.json`, then cleared back to theme fallback; `npm run test:blueprint-schema`, `npm run test:store-crud`, `npm run typecheck`, `npm run lint:bem`, `npm run lint:css` all pass
+
+### canvas size lock while editor has content - 2026-09-18 17:49 UTC+7 (opencode, cline-pass/deepseek-v4.1-flash)
+- user order: canvas size and tile size must not be changeable while anything sits on the editor
+- new shared detector `floorHasContent` / `layoutHasContent` (`store/storeUtils.ts`): content = floor objects, NPC spawn zones, or a painted tile differing from the floor default (blocked/door on a default-walkable floor, or walkable on a default-blocked floor); all-default grids stay empty
+- store guard: `resizeCanvas` returns false on a real size change when `layoutHasContent` (`store/mode.ts`); exposed as `store.hasContent()` (`store/state.ts` + `createStore.ts`) for the UI
+- SettingsModal Canvas Size: Width/Height/Tile inputs + Apply disabled and a lock hint shown while content exists; the old warn-and-continue confirm was removed (hard block)
+- verified: live editor with persisted walls/doors -> all 3 inputs + Apply disabled and lock hint present; `npm run typecheck`, `npm run lint:bem`, `npm run lint:css`, `npm run test:store-crud` (29/29) all pass

@@ -80,6 +80,7 @@ export function useCanvasSelection(
 				return
 			}
 			opts.onBoxSelectComplete?.(rect)
+			opts.onTileMarquee?.(rect)
 			const floor = opts.floor.value
 			const objs: ObjectData[] = floor?.objects ?? []
 			const hitIds = objs.filter(o => aabbOverlap(o, rect)).map(o => o.id)
@@ -89,8 +90,6 @@ export function useCanvasSelection(
 			} else if (hitIds.length > 1) {
 				const items = hitIds.map(id => ({ type: 'object' as const, id }))
 				store.state.selectionState = { primary: items[0], items }
-			} else {
-				opts.onTileMarquee?.(rect)
 			}
 		}
 		boxSelect.value = null

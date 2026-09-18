@@ -95,6 +95,9 @@ export function createLocalPersistencePort(storage: BlueprintStorage): Persisten
 				throw new PayloadTooLargeError()
 			}
 			await storage.write(body)
+			const verification = await storage.read()
+			if (verification === null) throw new Error('Local blueprint data write could not be verified')
+			readBlueprintDataFile(JSON.parse(verification))
 			return true
 		},
 	}

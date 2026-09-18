@@ -1,5 +1,21 @@
 import { toRaw } from 'vue'
-import { NPC_DEFAULT_SPEED, NPC_OPTION_DEFAULTS, NPC_FRAME_DEFAULTS, type NpcSimulationConfig, type NpcTask } from '../domain/types'
+import { NPC_DEFAULT_SPEED, NPC_OPTION_DEFAULTS, NPC_FRAME_DEFAULTS, type FloorData, type FloorLayoutData, type NpcSimulationConfig, type NpcTask, type TileState } from '../domain/types'
+
+export function floorHasContent(floor: FloorData): boolean {
+	if (floor.objects.length > 0) return true
+	if (floor.spawnZones?.length) return true
+	const defaultState: TileState = floor.defaultWalkable === false ? 'blocked' : 'walkable'
+	const states = floor.walkable?.tileStates
+	if (states) return states.some(row => row.some(cell => cell !== defaultState))
+	const defaultCell = floor.defaultWalkable !== false
+	const grid = floor.walkable?.walkableGrid
+	if (grid) return grid.some(row => row.some(cell => cell !== defaultCell))
+	return false
+}
+
+export function layoutHasContent(layout: FloorLayoutData): boolean {
+	return layout.floors.some(floorHasContent)
+}
 
 export function genId(prefix: string): string {
 	const arr = new Uint8Array(5)

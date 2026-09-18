@@ -39,6 +39,8 @@ Owner-authored guardrails, not itineraries: the floor for a weaker model, which 
 
 **Name resolution**: when a skill references another skill by name, it resolves to `skills/<name>/SKILL.md` inside this folder - never an external fetch, never an invented procedure.
 
+**Authoring**: read `skills/README.md` before writing or refining a skill - short narrow descriptions, progressive disclosure, no itineraries.
+
 ## The loop
 
 ```

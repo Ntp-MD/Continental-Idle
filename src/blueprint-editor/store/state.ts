@@ -76,6 +76,7 @@ export interface BlueprintStore {
 	assetMap(): Map<string, AssetDef>
 	snap(value: number, tileSize?: number): number
 	clamp(rect: Rect): Rect
+	hasContent(): boolean
 	initAssetFields(asset: AssetDef): void
 	runExclusive<T>(fn: () => Promise<T>): Promise<T>
 	save(): Promise<boolean>
@@ -136,6 +137,9 @@ export interface BlueprintStore {
 	setCanvasLabelColor(color: string | undefined): Promise<boolean>
 	setCanvasWallColor(color: string | undefined): Promise<boolean>
 	setCanvasGridColor(color: string | undefined): Promise<boolean>
+	setCanvasStreetSidewalkColor(color: string | undefined): Promise<boolean>
+	setCanvasStreetRoadColor(color: string | undefined): Promise<boolean>
+	setCanvasStreetMarkingColor(color: string | undefined): Promise<boolean>
 	setStreetFloor(floorId: string | null): Promise<boolean>
 	setStreetWidth(tiles: number | null): Promise<boolean>
 	setEditorSettings(patch: Partial<EditorSettings>): Promise<boolean>

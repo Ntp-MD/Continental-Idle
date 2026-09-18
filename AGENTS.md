@@ -30,6 +30,9 @@ Universal harness companion - ships with `harness/`. Everything here applies eve
 
 `mod-cli/` is archived at `_archive/mod-cli/` - it is disconnected from the host (no bridge, no route) and excluded from typecheck/lint/tests. Do not import from it; work touching only files there skips the harness slot and history entirely.
 
+`_archive/` (whole folder) is off-limits - do not read, edit, or reference its contents until the user explicitly says so.
+`.zed/` (whole folder) is off-limits - same rule as `_archive/`.
+
 ## Canonical patterns
 
 Settled project patterns live in `skill.md` (router) + `docs/skill/*.md` (Component patterns + Domain). Reuse them; do not introduce a second way. Glossary lives in `harness/state/context.md` only - never a second glossary file.

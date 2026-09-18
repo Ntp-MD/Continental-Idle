@@ -38,9 +38,13 @@ const bgColorInput = ref(store.state.layout.canvas.bgColor)
 const labelColorInput = ref(store.state.layout.canvas.labelColor)
 const wallColorInput = ref(store.state.layout.canvas.wallColor)
 const gridColorInput = ref(store.state.layout.canvas.gridColor)
+const streetSidewalkColorInput = ref(store.state.layout.canvas.streetSidewalkColor)
+const streetRoadColorInput = ref(store.state.layout.canvas.streetRoadColor)
+const streetMarkingColorInput = ref(store.state.layout.canvas.streetMarkingColor)
 
 const maxCanvasWidth = computed(() => MAX_GRID_COLUMNS * Math.max(1, Math.round(tileInput.value || store.state.layout.canvas.tileSize)))
 const maxCanvasHeight = computed(() => MAX_GRID_ROWS * Math.max(1, Math.round(tileInput.value || store.state.layout.canvas.tileSize)))
+const contentLocked = computed(() => store.hasContent())
 
 watch(
   () => [props.open, store.state.layout.canvas] as const,
@@ -53,6 +57,9 @@ watch(
       labelColorInput.value = c.labelColor
       wallColorInput.value = c.wallColor
       gridColorInput.value = c.gridColor
+      streetSidewalkColorInput.value = c.streetSidewalkColor
+      streetRoadColorInput.value = c.streetRoadColor
+      streetMarkingColorInput.value = c.streetMarkingColor
     }
   },
   { immediate: true },
@@ -60,18 +67,11 @@ watch(
 
 async function applyCanvasSize() {
   const canvas = store.state.layout.canvas
-  const hasPlacedContent = store.state.layout.floors.some((floor) => floor.objects.length > 0)
   const changed =
     widthInput.value !== canvas.width || heightInput.value !== canvas.height || tileInput.value !== canvas.tileSize
-  if (changed && hasPlacedContent) {
-    const confirmed = await confirm({
-      title: 'Resize canvas',
-      message: 'Changing canvas settings will snap and clamp placed objects to the new grid and bounds. Continue?',
-      confirmLabel: 'Continue',
-      cancelLabel: 'Cancel',
-      danger: true,
-    })
-    if (!confirmed) return
+  if (changed && store.hasContent()) {
+    toast.error('Clear all objects and painted tiles before changing the canvas size')
+    return
   }
   const tileSize = tileInput.value > 0 ? tileInput.value : canvas.tileSize
   if (!canvasWithinGridCaps({ width: widthInput.value, height: heightInput.value, tileSize })) {
@@ -118,6 +118,33 @@ async function applyGridColor(value: string | undefined) {
     if (!saved) toast.error('Failed to set grid color')
   } catch {
     toast.error('Failed to set grid color')
+  }
+}
+
+async function applyStreetSidewalkColor(value: string | undefined) {
+  try {
+    const saved = await run(() => store.setCanvasStreetSidewalkColor(value))
+    if (!saved) toast.error('Failed to set sidewalk color')
+  } catch {
+    toast.error('Failed to set sidewalk color')
+  }
+}
+
+async function applyStreetRoadColor(value: string | undefined) {
+  try {
+    const saved = await run(() => store.setCanvasStreetRoadColor(value))
+    if (!saved) toast.error('Failed to set road color')
+  } catch {
+    toast.error('Failed to set road color')
+  }
+}
+
+async function applyStreetMarkingColor(value: string | undefined) {
+  try {
+    const saved = await run(() => store.setCanvasStreetMarkingColor(value))
+    if (!saved) toast.error('Failed to set lane marking color')
+  } catch {
+    toast.error('Failed to set lane marking color')
   }
 }
 
@@ -346,26 +373,27 @@ async function resetEditorAll() {
         <div class="form__row form--start form--wrap">
           <div class="form__col">
             <label for="canvas__width">Width</label>
-            <input id="canvas__width" v-model.number="widthInput" type="number" min="100" step="25" :max="maxCanvasWidth" />
+            <input id="canvas__width" v-model.number="widthInput" type="number" min="100" step="25" :max="maxCanvasWidth" :disabled="contentLocked" />
           </div>
           <div class="form__col">
             <label for="canvas__height">Height</label>
-            <input id="canvas__height" v-model.number="heightInput" type="number" min="100" step="25" :max="maxCanvasHeight" />
+            <input id="canvas__height" v-model.number="heightInput" type="number" min="100" step="25" :max="maxCanvasHeight" :disabled="contentLocked" />
           </div>
           <div class="form__col">
             <label for="canvas__tile">Tile</label>
-            <input id="canvas__tile" v-model.number="tileInput" type="number" min="5" step="5" :max="CANVAS_FIELD_SPECS.tileSize.max" />
+            <input id="canvas__tile" v-model.number="tileInput" type="number" min="5" step="5" :max="CANVAS_FIELD_SPECS.tileSize.max" :disabled="contentLocked" />
           </div>
           <button
             class="flag--active size--fit settings__apply--bottom"
-            :disabled="pending"
+            :disabled="pending || contentLocked"
             aria-label="Apply canvas size"
             @click="applyCanvasSize"
           >
             Apply
           </button>
         </div>
-        <div class="form__hint">Re-snaps all objects to the new grid. Max {{ MAX_GRID_COLUMNS }} x {{ MAX_GRID_ROWS }} tiles.</div>
+        <div v-if="contentLocked" class="form__hint">Locked while content exists - remove all objects, NPC spawn zones and painted wall/door tiles first.</div>
+        <div v-else class="form__hint">Re-snaps all objects to the new grid. Max {{ MAX_GRID_COLUMNS }} x {{ MAX_GRID_ROWS }} tiles.</div>
       </div>
 
       <div class="form__col form--section">
@@ -455,6 +483,36 @@ async function resetEditorAll() {
             <option value="">Default (8 tiles)</option>
             <option v-for="w in [5, 6, 7, 8, 9, 10, 11, 12]" :key="w" :value="w">{{ w }} tiles</option>
           </select>
+        </div>
+        <div class="form__row">
+          <label for="canvas__streetsidewalkcolor">Sidewalk color</label>
+          <ColorInput
+            v-model="streetSidewalkColorInput"
+            allow-transparent
+            placeholder="#RRGGBB (empty = theme default)"
+            aria-label="Street sidewalk color"
+            @commit="applyStreetSidewalkColor"
+          />
+        </div>
+        <div class="form__row">
+          <label for="canvas__streetroadcolor">Road color</label>
+          <ColorInput
+            v-model="streetRoadColorInput"
+            allow-transparent
+            placeholder="#RRGGBB (empty = theme default)"
+            aria-label="Street road color"
+            @commit="applyStreetRoadColor"
+          />
+        </div>
+        <div class="form__row">
+          <label for="canvas__streetmarkingcolor">Lane marking color</label>
+          <ColorInput
+            v-model="streetMarkingColorInput"
+            allow-transparent
+            placeholder="#RRGGBB (empty = theme default)"
+            aria-label="Street lane marking color"
+            @commit="applyStreetMarkingColor"
+          />
         </div>
         <div class="form__row">
           <label for="es__streetDashRatio">Dash ratio</label>

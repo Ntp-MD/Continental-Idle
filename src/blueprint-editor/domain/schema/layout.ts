@@ -25,6 +25,9 @@ export interface CanvasConfig {
 	labelColor?: string
 	wallColor?: string
 	gridColor?: string
+	streetSidewalkColor?: string
+	streetRoadColor?: string
+	streetMarkingColor?: string
 }
 
 export interface CanvasFieldSpec {
@@ -42,6 +45,9 @@ export const CANVAS_FIELD_SPECS = {
 	labelColor: { kind: 'color' },
 	wallColor: { kind: 'color' },
 	gridColor: { kind: 'color' },
+	streetSidewalkColor: { kind: 'color' },
+	streetRoadColor: { kind: 'color' },
+	streetMarkingColor: { kind: 'color' },
 } as const satisfies Record<keyof CanvasConfig, CanvasFieldSpec>
 
 export function canvasWithinGridCaps(canvas: { width: number; height: number; tileSize: number }): boolean {

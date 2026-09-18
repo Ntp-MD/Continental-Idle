@@ -639,30 +639,29 @@ async function onKeyDown(e: KeyboardEvent) {
   }
   if ((e.key === 'Delete' || e.key === 'Backspace') && !e.repeat) {
     const tiles = tileEraseSelection.value
+    const primary = store.state.selectionState.primary
+    const objCount = primary ? store.state.selectionState.items.length || 1 : 0
+    if (!tiles && objCount === 0) return
+    e.preventDefault()
+    if (objCount > 0) {
+      const parts: string[] = [
+        `${objCount} selected ${primary!.type === 'object' ? (objCount === 1 ? 'object' : 'objects') : primary!.type}`,
+      ]
+      if (tiles) parts.push('the wall/door tiles in the marked area')
+      const confirmed = await confirm({
+        title: 'Delete selection',
+        message: `Delete ${parts.join(' and ')}? This action cannot be undone.`,
+        confirmLabel: 'Delete',
+        cancelLabel: 'Cancel',
+        danger: true,
+      })
+      if (!confirmed) return
+    }
     if (tiles) {
-      e.preventDefault()
       const saved = await store.paintFloorTiles(store.state.currentFloorId, 'walkable', tiles.rect)
       clearTileSelection()
       if (!saved) toast.error('Failed to erase tiles')
-      return
     }
-    const primary = store.state.selectionState.primary
-    const objCount = primary ? store.state.selectionState.items.length || 1 : 0
-    if (objCount === 0) return
-    e.preventDefault()
-    const parts: string[] = []
-    if (objCount > 0)
-      parts.push(
-        `${objCount} selected ${primary!.type === 'object' ? (objCount === 1 ? 'object' : 'objects') : primary!.type}`,
-      )
-    const confirmed = await confirm({
-      title: 'Delete selection',
-      message: `Delete ${parts.join(' and ')}? This action cannot be undone.`,
-      confirmLabel: 'Delete',
-      cancelLabel: 'Cancel',
-      danger: true,
-    })
-    if (!confirmed) return
     if (objCount > 0) await store.deleteSelected()
   } else if (e.key === 'r' || e.key === 'R') {
     if (store.state.selectionState.primary?.type === 'object') {
@@ -861,21 +860,21 @@ async function cancelDrawnOrigin() {
       <!-- Street border: sidewalk + road + lane markings (8 tiles on all sides) -->
       <g v-if="showStreet" class="editor__svg--noevents">
         <!-- Outer sidewalk (2 tiles, all sides) -->
-        <rect :x="0" :y="0" :width="canvas.width" :height="streetSidewalkWidth" fill="var(--street-sidewalk)" />
+        <rect :x="0" :y="0" :width="canvas.width" :height="streetSidewalkWidth" :fill="canvas.streetSidewalkColor || 'var(--street-sidewalk)'" />
         <rect
           :x="0"
           :y="canvas.height - streetSidewalkWidth"
           :width="canvas.width"
           :height="streetSidewalkWidth"
-          fill="var(--street-sidewalk)"
+          :fill="canvas.streetSidewalkColor || 'var(--street-sidewalk)'"
         />
-        <rect :x="0" :y="0" :width="streetSidewalkWidth" :height="canvas.height" fill="var(--street-sidewalk)" />
+        <rect :x="0" :y="0" :width="streetSidewalkWidth" :height="canvas.height" :fill="canvas.streetSidewalkColor || 'var(--street-sidewalk)'" />
         <rect
           :x="canvas.width - streetSidewalkWidth"
           :y="0"
           :width="streetSidewalkWidth"
           :height="canvas.height"
-          fill="var(--street-sidewalk)"
+          :fill="canvas.streetSidewalkColor || 'var(--street-sidewalk)'"
         />
 
         <!-- Road (4 tiles, all sides) -->
@@ -884,28 +883,28 @@ async function cancelDrawnOrigin() {
           :y="streetSidewalkWidth"
           :width="canvas.width - streetSidewalkWidth * 2"
           :height="streetRoadWidth"
-          fill="var(--street-road)"
+          :fill="canvas.streetRoadColor || 'var(--street-road)'"
         />
         <rect
           :x="streetSidewalkWidth"
           :y="canvas.height - streetSidewalkWidth - streetRoadWidth"
           :width="canvas.width - streetSidewalkWidth * 2"
           :height="streetRoadWidth"
-          fill="var(--street-road)"
+          :fill="canvas.streetRoadColor || 'var(--street-road)'"
         />
         <rect
           :x="streetSidewalkWidth"
           :y="streetSidewalkWidth"
           :width="streetRoadWidth"
           :height="canvas.height - streetSidewalkWidth * 2"
-          fill="var(--street-road)"
+          :fill="canvas.streetRoadColor || 'var(--street-road)'"
         />
         <rect
           :x="canvas.width - streetSidewalkWidth - streetRoadWidth"
           :y="streetSidewalkWidth"
           :width="streetRoadWidth"
           :height="canvas.height - streetSidewalkWidth * 2"
-          fill="var(--street-road)"
+          :fill="canvas.streetRoadColor || 'var(--street-road)'"
         />
 
         <!-- Road lane markings (dashed center lines) -->
@@ -915,7 +914,7 @@ async function cancelDrawnOrigin() {
           :y1="streetSidewalkWidth + streetRoadWidth / 2"
           :x2="canvas.width - streetSidewalkWidth"
           :y2="streetSidewalkWidth + streetRoadWidth / 2"
-          stroke="var(--street-marking)"
+          :stroke="canvas.streetMarkingColor || 'var(--street-marking)'"
           stroke-width="1"
           :stroke-dasharray="streetDashArray"
           opacity="0.5"
@@ -926,7 +925,7 @@ async function cancelDrawnOrigin() {
           :y1="canvas.height - streetSidewalkWidth - streetRoadWidth / 2"
           :x2="canvas.width - streetSidewalkWidth"
           :y2="canvas.height - streetSidewalkWidth - streetRoadWidth / 2"
-          stroke="var(--street-marking)"
+          :stroke="canvas.streetMarkingColor || 'var(--street-marking)'"
           stroke-width="1"
           :stroke-dasharray="streetDashArray"
           opacity="0.5"
@@ -937,7 +936,7 @@ async function cancelDrawnOrigin() {
           :y1="streetSidewalkWidth"
           :x2="streetSidewalkWidth + streetRoadWidth / 2"
           :y2="canvas.height - streetSidewalkWidth"
-          stroke="var(--street-marking)"
+          :stroke="canvas.streetMarkingColor || 'var(--street-marking)'"
           stroke-width="1"
           :stroke-dasharray="streetDashArray"
           opacity="0.5"
@@ -948,7 +947,7 @@ async function cancelDrawnOrigin() {
           :y1="streetSidewalkWidth"
           :x2="canvas.width - streetSidewalkWidth - streetRoadWidth / 2"
           :y2="canvas.height - streetSidewalkWidth"
-          stroke="var(--street-marking)"
+          :stroke="canvas.streetMarkingColor || 'var(--street-marking)'"
           stroke-width="1"
           :stroke-dasharray="streetDashArray"
           opacity="0.5"
@@ -1662,14 +1661,14 @@ async function cancelDrawnOrigin() {
 }
 
 .editor__overlay--selected {
-  stroke: var(--accent-primary);
+  stroke: var(--accent-gold);
   stroke-width: 2px;
   fill: none;
   pointer-events: none;
 }
 
 .editor__overlay--highlight {
-  stroke: var(--accent-primary);
+  stroke: var(--accent-gold);
   stroke-width: 1.5px;
   stroke-dasharray: 5 3;
   opacity: 0.9;

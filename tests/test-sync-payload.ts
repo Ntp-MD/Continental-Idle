@@ -250,6 +250,28 @@ function makeAsset(over: Partial<AssetDef>): AssetDef {
 	assert.deepEqual(dirty.floors[0].allowedRoleIds, ['ok'], 'invalid role ids dropped at ingress')
 }
 
+// ── Loader object normalization ──
+{
+	const objects = loadSyncedPayload({
+		version: 3,
+		canvas: { width: 10, height: 10, tileSize: 5, streetWidthTiles: 1 },
+		floors: {
+			G: {
+				objects: [
+					{ id: 'ok', type: 'a-desk', x: 5, y: 5, w: 5, h: 5, rotation: 0, fillColor: '  #112233  ', label: '  Counter  ' },
+					{ id: '', type: 'a-desk', x: 5, y: 5, w: 5, h: 5, rotation: 0 },
+				],
+			},
+		},
+	} as unknown as SyncedLayoutPayload)
+	assert.equal(objects.floors[0].objects.length, 1, 'object with an unusable placement is dropped at ingress')
+	assert.deepEqual(
+		objects.floors[0].objects[0],
+		{ id: 'ok', type: 'a-desk', x: 5, y: 5, rotation: 0, w: 5, h: 5, fillColor: '#112233', label: 'Counter' },
+		'object color and label are normalized at ingress',
+	)
+}
+
 // ── Degenerate input ──
 {
 	assert.equal(buildSyncedPayload(makeLayout({ floors: [] }), new Map(), undefined), null, 'zero floors -> null')

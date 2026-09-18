@@ -5,9 +5,10 @@
  * Ingress: loadSyncedPayload (game DTO -> runtime FloorData + canvas).
  *
  * Single source of truth for floor-key assignment and object field
- * propagation, used by BOTH the editor's manual "Sync Game" action and
- * the game's boot-time loader. Kept free of editor-state / DOM imports
- * so it can run headless in tests.
+ * propagation, shared by the egress builder and the game's boot-time
+ * loader. Kept free of editor-state / DOM imports so it can run headless
+ * in tests. The toolbar Sync Game button was removed, so egress currently
+ * has no UI trigger.
  */
 import type {
 	AssetDef,
@@ -20,10 +21,13 @@ import type {
 	SyncedObject,
 } from './domain/types'
 import {
+	isFiniteNumber,
 	normalizeAllowedRoleIds,
 	normalizeFloorWalkable,
 	normalizeNpcConfig,
 	normalizeNpcSpawnZones,
+	normalizeObjectPlacement,
+	normalizeText,
 	resolveDefaultWalkable,
 	resolveObjectDef,
 	resolveStreetTiles,
@@ -167,7 +171,7 @@ function toFloorData(key: string, synced: SyncedFloor): FloorData {
 		id: key,
 		name: key,
 		label: key,
-		objects: synced.objects.map(toObjectData),
+		objects: synced.objects.map(toObjectData).filter((object): object is ObjectData => object !== null),
 	}
 	if (typeof synced.defaultWalkable === 'boolean') floor.defaultWalkable = synced.defaultWalkable
 	const walkable = normalizeFloorWalkable(synced.walkable)
@@ -179,19 +183,16 @@ function toFloorData(key: string, synced: SyncedFloor): FloorData {
 	return floor
 }
 
-function toObjectData(o: SyncedObject): ObjectData {
+function toObjectData(o: SyncedObject): ObjectData | null {
+	const placement = normalizeObjectPlacement(o)
+	if (!placement) return null
 	const object: ObjectData = {
-		id: o.id,
-		type: o.type,
-		x: o.x,
-		y: o.y,
-		rotation: o.rotation,
-		w: o.w,
-		h: o.h,
+		...placement,
+		w: isFiniteNumber(o.w) ? o.w : 0,
+		h: isFiniteNumber(o.h) ? o.h : 0,
 	}
-	if (o.fillColor) object.fillColor = o.fillColor
-	if (o.strokeColor) object.strokeColor = o.strokeColor
-	if (o.label) object.label = o.label
+	const label = normalizeText(o.label)
+	if (label) object.label = label
 	return object
 }
 

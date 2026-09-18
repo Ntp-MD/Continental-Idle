@@ -2,6 +2,7 @@ import type { EditorMode, EditorSettings, Rect, TileBrush } from '../domain/type
 import { isValidColor, normalizeEditorSettings, EDITOR_FIELD_SPECS, rescaleFloorWalkable, canvasWithinGridCaps } from '../domain/types'
 import type { BlueprintStore } from './state'
 import { normalizeObject } from '../domain/geometry'
+import { layoutHasContent } from './storeUtils'
 
 export function createModeCommands(store: BlueprintStore) {
 	const state = store.state
@@ -28,6 +29,8 @@ export function createModeCommands(store: BlueprintStore) {
 			const w = Math.max(t, Math.round(width / t) * t)
 			const h = Math.max(t, Math.round(height / t) * t)
 			if (!canvasWithinGridCaps({ width: w, height: h, tileSize: t })) return false
+			const changed = w !== state.layout.canvas.width || h !== state.layout.canvas.height || t !== state.layout.canvas.tileSize
+			if (changed && layoutHasContent(state.layout)) return false
 			state.layout.canvas = { ...state.layout.canvas, width: w, height: h, tileSize: t }
 			const rows = Math.max(1, Math.ceil(h / t))
 			const cols = Math.max(1, Math.ceil(w / t))
@@ -82,6 +85,33 @@ export function createModeCommands(store: BlueprintStore) {
 		})
 	}
 
+	async function setCanvasStreetSidewalkColor(color: string | undefined): Promise<boolean> {
+		return withStateLock(async () => {
+			if (color !== undefined && !isValidColor(color)) return false
+			if (color) state.layout.canvas.streetSidewalkColor = color
+			else delete state.layout.canvas.streetSidewalkColor
+			return saveBlueprintData()
+		})
+	}
+
+	async function setCanvasStreetRoadColor(color: string | undefined): Promise<boolean> {
+		return withStateLock(async () => {
+			if (color !== undefined && !isValidColor(color)) return false
+			if (color) state.layout.canvas.streetRoadColor = color
+			else delete state.layout.canvas.streetRoadColor
+			return saveBlueprintData()
+		})
+	}
+
+	async function setCanvasStreetMarkingColor(color: string | undefined): Promise<boolean> {
+		return withStateLock(async () => {
+			if (color !== undefined && !isValidColor(color)) return false
+			if (color) state.layout.canvas.streetMarkingColor = color
+			else delete state.layout.canvas.streetMarkingColor
+			return saveBlueprintData()
+		})
+	}
+
 	async function setStreetFloor(floorId: string | null): Promise<boolean> {
 		return withStateLock(async () => {
 			if (floorId !== null && !state.layout.floors.some(f => f.id === floorId)) return false
@@ -125,8 +155,9 @@ export function createModeCommands(store: BlueprintStore) {
 
 	return {
 		setMode, setTileBrush, resizeCanvas, setCanvasBgColor, setCanvasLabelColor,
-		setCanvasWallColor, setCanvasGridColor, setStreetFloor, setStreetWidth,
-		setEditorSettings, resetEditorSettings,
+		setCanvasWallColor, setCanvasGridColor, setCanvasStreetSidewalkColor,
+		setCanvasStreetRoadColor, setCanvasStreetMarkingColor, setStreetFloor,
+		setStreetWidth, setEditorSettings, resetEditorSettings,
 	}
 }
 

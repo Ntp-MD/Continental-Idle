@@ -41,7 +41,7 @@ export function createPersistenceCommands(store: BlueprintStore) {
 	async function importWorkspace(file: BlueprintDataFile): Promise<boolean> {
 		return withStateLock(async () => {
 			const normalized = readBlueprintDataFile(cloneDeepRaw(file))
-			const migrated = migrate(normalized.layout, normalized.originAssets)
+			const migrated = migrate(normalized.layout, normalized.originAssets, normalized.npcConfig)
 			state.layout = migrated.layout
 			state.layout.npcConfig = cloneDeepRaw(normalized.npcConfig)
 			state.assetRegistry = normalized.originAssets.map(asset => cloneDeepRaw(asset))

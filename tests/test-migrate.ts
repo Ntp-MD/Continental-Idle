@@ -59,6 +59,18 @@ const result2 = migrate(makeLayout({ npcConfig: undefined }), originAssets)
 assert.ok(result2.layout.npcConfig, 'missing npcConfig should produce empty config')
 assert.equal(result2.layout.npcConfig.roles.length, 0)
 
+const layoutOnly = makeLayout()
+const { npcConfig: topLevelNpc, ...layoutWithoutNpc } = layoutOnly as Record<string, unknown>
+const result2b = migrate(layoutWithoutNpc, originAssets, topLevelNpc)
+assert.equal(result2b.layout.npcConfig!.roles.length, 1, 'top-level npcConfig fallback should survive migration')
+assert.equal(result2b.layout.npcConfig!.defaultRoleId, 'role-1', 'top-level defaultRoleId should survive migration')
+
+const withSettings = migrate(makeLayout({ editorSettings: { dragThresholdPx: 7, npcDotSize: 9 } }), originAssets)
+assert.equal(withSettings.layout.editorSettings?.dragThresholdPx, 7, 'editorSettings survive migration')
+assert.equal(withSettings.layout.editorSettings?.npcDotSize, 9, 'editorSettings survive migration field by field')
+const withoutSettings = migrate(makeLayout(), originAssets)
+assert.equal(withoutSettings.layout.editorSettings, undefined, 'absent editorSettings stay absent after migration')
+
 const badNpc = makeLayout({
 	npcConfig: {
 		speed: 0.2,

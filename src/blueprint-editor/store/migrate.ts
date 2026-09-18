@@ -1,5 +1,5 @@
 import type { FloorLayoutData, ObjectData, AssetDef } from '../domain/types'
-import { validateLayoutData, validateLayoutIntegrity, normalizeAllowedRoleIds, normalizeNpcSpawnZones, normalizeFloorWalkable, normalizeObjectPlacement, normalizeNpcConfig, parseCanvasConfig, resolveDefaultWalkable, canvasWithinGridCaps } from '../domain/types'
+import { validateLayoutData, validateLayoutIntegrity, normalizeAllowedRoleIds, normalizeNpcSpawnZones, normalizeFloorWalkable, normalizeObjectPlacement, normalizeNpcConfig, normalizeEditorSettings, parseCanvasConfig, resolveDefaultWalkable, canvasWithinGridCaps, hasOwn } from '../domain/types'
 import { findAssetCached, buildAssetMap } from '../assets/assetUtils'
 import { validatePortalConfiguration } from '../assets/validation'
 import { normalizeObject } from '../domain/geometry'
@@ -27,7 +27,7 @@ function migrateObjects(raw: unknown[], floorLabel: unknown): ObjectData[] {
 	return out
 }
 
-export function migrate(data: unknown, availableAssets: readonly AssetDef[]): { layout: FloorLayoutData } {
+export function migrate(data: unknown, availableAssets: readonly AssetDef[], npcConfig?: unknown): { layout: FloorLayoutData } {
 	if (!data || typeof data !== 'object' || Array.isArray(data)) throw new Error('Cannot migrate invalid layout data')
 	const d = data as Record<string, unknown>
 	const parsedCanvas = parseCanvasConfig(d.canvas, false)
@@ -53,13 +53,16 @@ export function migrate(data: unknown, availableAssets: readonly AssetDef[]): { 
 				}
 			})
 			: [],
-		npcConfig: normalizeNpcConfig(d.npcConfig) ?? emptyNpcConfig(),
+		npcConfig: normalizeNpcConfig(d.npcConfig ?? npcConfig) ?? emptyNpcConfig(),
 	}
 	if (typeof d.streetFloorId === 'string' && migrated.floors.some(f => f.id === d.streetFloorId)) {
 		migrated.streetFloorId = d.streetFloorId
 	}
 	if (typeof d.streetWidthTiles === 'number' && Number.isInteger(d.streetWidthTiles) && d.streetWidthTiles >= 5 && d.streetWidthTiles <= 20) {
 		migrated.streetWidthTiles = d.streetWidthTiles
+	}
+	if (hasOwn(d, 'editorSettings') && d.editorSettings !== undefined) {
+		migrated.editorSettings = normalizeEditorSettings(d.editorSettings)
 	}
 	const migratedAssetMap = buildAssetMap(availableAssets)
 	for (const floor of migrated.floors) {
@@ -79,7 +82,7 @@ export function migrate(data: unknown, availableAssets: readonly AssetDef[]): { 
 	if (integrityIssues.length > 0) {
 		editorLog.warn('Migration', `layout integrity issues: ${integrityIssues.join('; ')}`)
 	}
-	if (!validateLayoutData(migrated as unknown)) throw new Error('Migrated layout failed schema validation')
+	if (!validateLayoutData(migrated)) throw new Error('Migrated layout failed schema validation')
 
 	const portalCheck = validatePortalConfiguration(migrated, migratedAssetMap, migrated.npcConfig)
 	for (const err of portalCheck.errors) editorLog.error('Portal', err)

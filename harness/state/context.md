@@ -32,12 +32,12 @@ Rewrite the glossary on adoption (see `harness/HARNESS.md` - Adopt in a new proj
 | Synced payload | The DTO the editor pushes to the runtime - never carries editor-only fields. | save file |
 | Sync key | Stable per-floor identity in the synced payload: canonical label (`G`/`<n>`), else id-ordered ordinal with `_N` collision suffix; never array position. | array index, raw floor id |
 | Field specs | `CANVAS_FIELD_SPECS` / `EDITOR_FIELD_SPECS` declarative schemas; keys are never enumerated by hand. | settings list |
-| Free tool | Merged select+erase flow: marquee selects objects or wall/door tiles, Delete clears. | erase brush, erase mode |
+| Free tool | Merged select+erase flow: marquee selects objects and wall/door tiles together, Delete clears both. | erase brush, erase mode |
 | Street ring | Cosmetic border-ring tiles; blocked to the engine by today's contract. | sidewalk |
 | Asset SVG v2 | Body shapes via `--obj-fill`/`--obj-stroke` vars; hollow details keep a literal `fill="none"`; no hardcoded colors, no backing plate. | inline hex art |
 | Dirty baseline | `useDirtyBaseline`: one snapshot + a `dirty` computed. | dirty flags, JSON stringify diff |
 | State lock / async action | `runExclusive` single-writer queue (store mutations) vs `useAsyncAction` (UI pending). One guard per layer. | boolean guards |
-| Tile scale | 1 tile = 0.5 m. Plot 107x67 tiles = 53.5 x 33.5 m; building interior x8..98, y8..58 (91x51 tiles, 45.5 x 25.5 m). | pixel size, grid size |
+| Tile scale | 1 tile = 0.5 m - the only fixed unit. Plot/building extents are not constants: canvas width/height + `tileSize` (`CanvasConfig`) and `streetWidthTiles` (`resolveStreetTiles`) drive grid cols/rows and `resolveBuildingArea`. | pixel size, grid size, hardcoded plot dims |
 
 ## Player vocabulary
 

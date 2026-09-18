@@ -32,15 +32,12 @@ export interface BlueprintDataFile {
 export const BLUEPRINT_DATA_SCHEMA = 'blueprint-data.v2.json'
 export const BLUEPRINT_DATA_VERSION = 2
 
-export function validateLayoutData(data: unknown): FloorLayoutData | null {
-	if (!isRecord(data)) return null
-	const layout = data as unknown as FloorLayoutData
-	const persistedInput = { ...data }
+export function validateLayoutData(data: unknown): boolean {
+	if (!isRecord(data)) return false
+	if (data.npcConfig !== undefined && !isNpcConfig(data.npcConfig)) return false
+	const persistedInput: Record<string, unknown> = { ...data }
 	delete persistedInput.npcConfig
-	const persisted = normalizePersistedLayoutData(persistedInput)
-	if (!persisted || (layout.npcConfig !== undefined && !isNpcConfig(layout.npcConfig))) return null
-	Object.assign(layout, { canvas: persisted.canvas })
-	return layout
+	return normalizePersistedLayoutData(persistedInput) !== undefined
 }
 
 export function normalizeTagDefinitions(value: unknown): BlueprintTagDefinition[] | undefined {

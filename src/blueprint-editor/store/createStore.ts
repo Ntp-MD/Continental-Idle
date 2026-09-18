@@ -4,7 +4,7 @@ import { buildAssetMap } from '../assets/assetUtils'
 import { snap as _snap, clamp as _clamp, resolveBuildingArea } from '../domain/geometry'
 import { buildBlueprintData } from './dataLoader'
 import { migrate } from './migrate'
-import { cloneDeepRaw, emptyNpcConfig } from './storeUtils'
+import { cloneDeepRaw, emptyNpcConfig, layoutHasContent } from './storeUtils'
 import { EDITOR_CONFIG } from '../editorConfig'
 import { createEditorState, initAssetFields, type BlueprintStore, type ToastApi } from './state'
 import type { PersistencePort, SyncPort } from './ports'
@@ -116,7 +116,7 @@ export function createBlueprintStore(deps: BlueprintStoreDeps): BlueprintStore {
 	async function reloadEditorData(): Promise<void> {
 		const combined = await deps.persistence.load()
 		if (!combined) return
-		const migrated = migrate(combined.layout, combined.originAssets)
+		const migrated = migrate(combined.layout, combined.originAssets, combined.npcConfig)
 		state.layout = migrated.layout
 		state.layout.npcConfig = structuredClone(combined.npcConfig ?? emptyNpcConfig())
 		state.assetRegistry = combined.originAssets.map(asset => structuredClone(asset))
@@ -136,6 +136,7 @@ export function createBlueprintStore(deps: BlueprintStoreDeps): BlueprintStore {
 		currentFloor,
 		isNpcPreview,
 		assetMap: () => assetMapComputed.value,
+		hasContent: () => layoutHasContent(state.layout),
 		snap: (value: number, tileSize?: number) => _snap(value, tileSize ?? state.layout.canvas.tileSize),
 		clamp: (rect: Rect) => {
 			const b = resolveBuildingArea(state.layout)

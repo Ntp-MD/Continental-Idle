@@ -5,11 +5,11 @@ Project domain facts for data boundaries, persistence, definitions/instances, ta
 ## Activation
 
 - Use: task touches migration, loaders, persistence, sync, validation, engine adapters, UI saves, definition fields, tags, or `src/blueprint-editor/data/` modules.
-- Don't use: pure markup/CSS reflow, hotel floor geometry, or engine-internal algorithm tuning with no boundary crossed. If no boundary is touched, report "No data boundaries touched" and exit.
+- Don't use: pure markup/CSS reflow, hotel floor geometry, or engine-internal algorithm tuning with no boundary crossed.
 
 ## Data audit
 
-Run this procedure before implementing a feature that touches any data flow (migration, loaders, persistence, sync, validation, engine adapters, UI saves), and report findings as a table. Follow the steps in order - a step may be skipped only with a stated reason (e.g. no boundary of that kind touched). Read-only audit: propose fixes, do not modify code during the audit.
+Read-only audit (propose fixes, do not modify code) before implementing any data-flow feature. Follow the steps in order; skip a step only with a stated reason. Report findings as a table.
 
 ### Step 1 - Inventory data boundaries
 
@@ -97,7 +97,7 @@ If no boundary is touched, report "No data boundaries touched" and exit. Always 
 
 ### Sync payload (editor <-> game)
 
-- Egress is `buildSyncedPayload` and ingress is `loadSyncedPayload`, both in `src/blueprint-editor/syncedPayload.ts` (pure - no store/DOM imports, so it runs headless). The editor's Sync Game action and the runtime boot loader share this one module; never re-inline the payload conversion at a caller (the old `scripts/observe-hotel.ts` inline was the anti-pattern).
+- Egress is `buildSyncedPayload` and ingress is `loadSyncedPayload`, both in `src/blueprint-editor/syncedPayload.ts` (pure - no store/DOM imports, so it runs headless). The runtime boot loader uses the ingress loader and any future sync caller uses the egress builder from this one module; never re-inline the payload conversion at a caller (the old `scripts/observe-hotel.ts` inline was the anti-pattern). Note: the toolbar Sync Game button was removed, so `buildSyncedPayload` currently has no UI trigger.
 - Floor sync keys are a stable function of each floor's identity (`assignSyncKeys`): a canonical `label` (`G`/`F<n>` -> `G`/`<n>`) wins, otherwise the floor `id` order decides the ordinal and the `_N` collision suffix. Never derive a key from array position - reordering floors must not change any key.
 - `loadSyncedPayload` normalizes at ingress (`normalizeFloorWalkable`, `normalizeNpcSpawnZones`, `normalizeAllowedRoleIds`) and orders floors `G` first then numeric (`compareFloorKeys`). Asset definitions stay a caller concern - the runtime passes its asset map into the engine, the loader returns only `FloorData[]` + canvas.
 
