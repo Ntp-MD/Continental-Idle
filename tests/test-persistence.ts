@@ -1,13 +1,17 @@
 import assert from 'node:assert/strict'
 import {
 	createBlueprintStore,
+	createLocalPersistencePort,
+	createMemoryStorage,
+	PayloadTooLargeError,
 	type BlueprintStore, type PersistencePort, type SyncPort,
 } from '../src/blueprint-editor/store/index'
 import { defaultSeed } from '../src/blueprint-editor/store/seed'
 import { createHttpPersistencePort } from '../src/blueprint-editor/store/httpPorts'
+import { MAX_PAYLOAD_BYTES } from '../src/blueprint-editor/limits'
 import type { BlueprintDataFile } from '../src/blueprint-editor/domain/types'
 
-type SaveMode = 'ok' | 'reject' | 'false'
+type SaveMode = 'ok' | 'reject' | 'false' | 'payload'
 
 // ── Harness: recording in-memory port (replaces the old fetch stub) ──
 function createRecordingPort() {
@@ -24,6 +28,7 @@ function createRecordingPort() {
 			inFlight--
 			saves.push(data)
 			if (mode === 'reject') throw new Error('disk is full')
+			if (mode === 'payload') throw new PayloadTooLargeError()
 			if (mode === 'false') return false
 			return true
 		},
@@ -67,6 +72,17 @@ store.state.layout.floors[0].name = 'MUTATED-AGAIN'
 await assert.rejects(store.save(), 'a false port result is treated as a failed save')
 assert.equal(store.state.layout.floors[0].name, originalName, 'state reverts when the port reports failure without throwing')
 
+// ── 3b. payload-too-large: the store surfaces a specific message ──
+harness.setMode('payload')
+store.state.layout.floors[0].name = 'TOO-BIG'
+await assert.rejects(store.save(), 'a payload-cap rejection rejects')
+assert.equal(store.state.layout.floors[0].name, originalName, 'state still reverts on a payload-cap rejection')
+assert.equal(
+	store.toast.toasts.value.at(-1)?.message,
+	'Failed to save blueprint data - it exceeds the maximum save size',
+	'the payload-cap failure names the size limit instead of the generic save error',
+)
+
 // ── 4. single writer: queued saves never overlap ──
 harness.setMode('ok')
 const savesBefore = harness.saves.length
@@ -74,6 +90,28 @@ const results = await Promise.all([store.save(), store.save()])
 assert.deepEqual(results, [true, true], 'both queued saves resolve')
 assert.equal(harness.saves.length, savesBefore + 2, 'both queued saves reach the port')
 assert.equal(harness.maxConcurrentSaves(), 1, 'saves run one at a time (single writer)')
+
+// ── 4b. local-first port: storage round-trip + failure modes ──
+const localStore = createMemoryStorage()
+const localPort = createLocalPersistencePort(localStore)
+assert.equal(await localPort.load(), null, 'empty storage loads as null (fresh workspace)')
+assert.equal(await localPort.save(payload), true, 'a local save resolves true')
+const reloaded = await localPort.load()
+assert.ok(reloaded, 'a local load returns the saved file')
+assert.equal(reloaded!.layout.floors.length, payload.layout.floors.length, 'a local round-trip keeps the floors')
+assert.equal(reloaded!.$schema, payload.$schema, 'a local round-trip keeps the schema stamp')
+
+await localStore.write('{ not json')
+await assert.rejects(localPort.load(), 'corrupt JSON rejects instead of silently returning null')
+
+await localStore.write('{"$schema":"blueprint-data.v2.json","version":2}')
+await assert.rejects(localPort.load(), 'a structurally invalid file rejects instead of silently returning null')
+
+await localStore.write(JSON.stringify({ ...payload, version: 999 }))
+await assert.rejects(localPort.load(), 'a newer file version rejects')
+
+const oversized = { ...payload, tags: [{ id: 'x', label: 'y'.repeat(MAX_PAYLOAD_BYTES) }] }
+await assert.rejects(localPort.save(oversized), 'a payload over the byte cap rejects before writing')
 
 // ── 5. HTTP port: retry / 413 / read-back verification live here now ──
 const realFetch = globalThis.fetch

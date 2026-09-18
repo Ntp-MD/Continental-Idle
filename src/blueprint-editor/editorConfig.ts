@@ -1,8 +1,16 @@
 const ENV = import.meta.env ?? {}
 
+type PersistenceMode = 'http' | 'local'
+
+function resolvePersistenceMode(value: unknown): PersistenceMode | undefined {
+	if (value === 'http' || value === 'local') return value
+	return undefined
+}
+
 const RAW_CONFIG = {
 	layoutVersion: 3,
 	blueprintDataEndpoint: ENV.VITE_BLUEPRINT_DATA_ENDPOINT || '/__blueprint-data',
+	persistenceMode: resolvePersistenceMode(ENV.VITE_PERSISTENCE),
 	defaultCanvas: {
 		width: 1600,
 		height: 1200,

@@ -1,6 +1,7 @@
 import { reactive, type ComputedRef } from 'vue'
 import type {
 	AssetDef,
+	BlueprintDataFile,
 	BlueprintTagDefinition,
 	EditorMode,
 	EditorSettings,
@@ -108,6 +109,7 @@ export interface BlueprintStore {
 	addSvgAsset(name: string, w: number, h: number, svgString: string): Promise<AssetDef | null>
 	updateAsset(id: string, patch: AssetPatch): Promise<void>
 	deleteAsset(id: string): Promise<boolean>
+	deleteAllAssets(): Promise<number>
 	duplicateAsset(id: string): Promise<AssetDef | null>
 	refreshOriginInstances(): Promise<number>
 
@@ -117,6 +119,8 @@ export interface BlueprintStore {
 	pasteObjects(): Promise<void>
 
 	syncToGame(): boolean
+	exportWorkspace(): BlueprintDataFile
+	importWorkspace(file: BlueprintDataFile): Promise<boolean>
 
 	select(ref: EntityRef | null): void
 	selectAsset(id: string | null): void

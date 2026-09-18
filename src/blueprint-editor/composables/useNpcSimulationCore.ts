@@ -193,12 +193,20 @@ function spawnAgents(state: NpcSimCoreState, host: NpcSimulationCoreHost, floors
 	let spawnCursor = 0
 	const skipped = new Map<string, number>()
 	const skip = (reason: string, count: number) => { skipped.set(reason, (skipped.get(reason) ?? 0) + count) }
+	let fallbackWarned = false
 	let spawned = 0
 
 	for (const entry of state.config.value.pool) {
 		const count = clampInt(entry.count || 0, 0, MAX_ROLE_SPAWN_COUNT)
 		const role = resolveRole(state.config.value, entry.roleId)
 		if (!role) { skip('unknown-role', count * floors.length); continue }
+		if (entry.roleId && entry.roleId !== role.id && !state.config.value.roles.some(candidate => candidate.id === entry.roleId)) {
+			if (!fallbackWarned) {
+				editorLog.warn('NpcSpawn', `Pool references undefined role "${entry.roleId}" - spawning as "${role.id}" instead`)
+				fallbackWarned = true
+			}
+			skip('role-fallback', count * floors.length)
+		}
 		for (const floor of floors) {
 			if (state.spawnFloorOverride && floor.id !== state.spawnFloorOverride) { skip('floor-override', count); continue }
 			const allowedFloorIds = entry.floorIds ?? []

@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import { computed, ref, defineAsyncComponent } from 'vue'
 import { useAssetsStore, startAssetDrag } from '../../blueprintStore'
+import { useToast } from '@/composables/useToast'
+import { useConfirm } from '@/composables/useConfirm'
+import { useAsyncAction } from '../../composables/useAsyncAction'
 import { assetSizeLabel, assetOriginLabel as originLabel, placedCountTitle } from '../../assets/assetUtils'
 import { useAssetListState } from '../../composables/useAssetListState'
 import SearchInput from '../inputs/SearchInput.vue'
@@ -8,6 +11,9 @@ import ErrorBoundary from '@/components/overlays/ErrorBoundary.vue'
 const AssetPickerModal = defineAsyncComponent(() => import('../modals/AssetPickerModal.vue'))
 
 const store = useAssetsStore()
+const toast = useToast()
+const confirm = useConfirm().confirm
+const { pending, run } = useAsyncAction()
 
 const showPicker = ref(false)
 
@@ -15,6 +21,28 @@ const { searchQuery, incompleteMap, incompleteTitle, placedCounts, placedObjectC
   useAssetListState()
 
 const incompleteCount = computed(() => incompleteMap.value.size)
+const totalAssets = computed(() => store.state.assetRegistry.length)
+const totalInstances = computed(() => store.state.layout.floors.reduce((sum, f) => sum + f.objects.length, 0))
+const affectedFloors = computed(() => store.state.layout.floors.filter((f) => f.objects.length > 0).length)
+const isNpcPreview = computed(() => store.isNpcPreview.value)
+
+async function deleteAllAssets() {
+  if (isNpcPreview.value) {
+    toast.warning('Cannot delete assets while NPCs are deployed. Exit NPC preview first.')
+    return
+  }
+  if (totalAssets.value === 0) return
+  const confirmed = await confirm({
+    title: 'Delete all assets',
+    message: `Delete all ${totalAssets.value} assets? ${totalInstances.value} placed object(s) on ${affectedFloors.value} floor(s) will be deleted too.`,
+    confirmLabel: 'Delete All',
+    cancelLabel: 'Cancel',
+    danger: true,
+  })
+  if (!confirmed) return
+  const count = await run(() => store.deleteAllAssets())
+  if (count) toast.success(`Deleted ${count} asset(s)`)
+}
 
 function onAssetMouseDown(assetId: string, e: MouseEvent) {
   if (e.button !== 0) return
@@ -51,6 +79,16 @@ function onItemClick(assetId: string) {
           title="Assets showing the yellow marker have incomplete settings"
           >{{ incompleteCount }} incomplete</span
         >
+        <button
+          class="flag--danger"
+          type="button"
+          aria-label="Delete all origin assets"
+          title="Delete every asset and its placed objects"
+          :disabled="pending || !totalAssets || isNpcPreview"
+          @click="deleteAllAssets"
+        >
+          Delete All
+        </button>
       </div>
       <div v-if="!filteredAssets.length" class="empty">No assets found</div>
       <div

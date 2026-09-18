@@ -4,8 +4,9 @@ import { useAssetsStore } from '../../blueprintStore'
 import { useToast, reportSaved } from '@/composables/useToast'
 import { useConfirm } from '@/composables/useConfirm'
 import { useAsyncAction } from '../../composables/useAsyncAction'
-import { DEFAULT_EDITOR_SETTINGS, EDITOR_FIELD_SPECS } from '../../domain/types'
+import { DEFAULT_EDITOR_SETTINGS, EDITOR_FIELD_SPECS, CANVAS_FIELD_SPECS, canvasWithinGridCaps } from '../../domain/types'
 import type { EditorSettings } from '../../domain/types'
+import { MAX_GRID_COLUMNS, MAX_GRID_ROWS } from '../../limits'
 import { useCanvasDefaults } from '../../composables/useCanvasDefaults'
 import ModalShell from '../shell/ModalShell.vue'
 import ColorInput from '../inputs/ColorInput.vue'
@@ -38,6 +39,9 @@ const labelColorInput = ref(store.state.layout.canvas.labelColor)
 const wallColorInput = ref(store.state.layout.canvas.wallColor)
 const gridColorInput = ref(store.state.layout.canvas.gridColor)
 
+const maxCanvasWidth = computed(() => MAX_GRID_COLUMNS * Math.max(1, Math.round(tileInput.value || store.state.layout.canvas.tileSize)))
+const maxCanvasHeight = computed(() => MAX_GRID_ROWS * Math.max(1, Math.round(tileInput.value || store.state.layout.canvas.tileSize)))
+
 watch(
   () => [props.open, store.state.layout.canvas] as const,
   ([open, c]) => {
@@ -68,6 +72,11 @@ async function applyCanvasSize() {
       danger: true,
     })
     if (!confirmed) return
+  }
+  const tileSize = tileInput.value > 0 ? tileInput.value : canvas.tileSize
+  if (!canvasWithinGridCaps({ width: widthInput.value, height: heightInput.value, tileSize })) {
+    toast.error(`Canvas size must fit within ${MAX_GRID_COLUMNS} x ${MAX_GRID_ROWS} tiles`)
+    return
   }
   try {
     const saved = await run(() => store.resizeCanvas(widthInput.value, heightInput.value, tileInput.value))
@@ -337,15 +346,15 @@ async function resetEditorAll() {
         <div class="form__row form--start form--wrap">
           <div class="form__col">
             <label for="canvas__width">Width</label>
-            <input id="canvas__width" v-model.number="widthInput" type="number" min="100" step="25" />
+            <input id="canvas__width" v-model.number="widthInput" type="number" min="100" step="25" :max="maxCanvasWidth" />
           </div>
           <div class="form__col">
             <label for="canvas__height">Height</label>
-            <input id="canvas__height" v-model.number="heightInput" type="number" min="100" step="25" />
+            <input id="canvas__height" v-model.number="heightInput" type="number" min="100" step="25" :max="maxCanvasHeight" />
           </div>
           <div class="form__col">
             <label for="canvas__tile">Tile</label>
-            <input id="canvas__tile" v-model.number="tileInput" type="number" min="5" step="5" />
+            <input id="canvas__tile" v-model.number="tileInput" type="number" min="5" step="5" :max="CANVAS_FIELD_SPECS.tileSize.max" />
           </div>
           <button
             class="flag--active size--fit settings__apply--bottom"
@@ -356,7 +365,7 @@ async function resetEditorAll() {
             Apply
           </button>
         </div>
-        <div class="form__hint">Re-snaps all objects to the new grid.</div>
+        <div class="form__hint">Re-snaps all objects to the new grid. Max {{ MAX_GRID_COLUMNS }} x {{ MAX_GRID_ROWS }} tiles.</div>
       </div>
 
       <div class="form__col form--section">

@@ -1,0 +1,119 @@
+ <script setup lang="ts">
+import { ref, watch } from 'vue'
+import { useAssetsStore, serializeWorkspace, parseWorkspace } from '../../blueprintStore'
+import { useToast } from '@/composables/useToast'
+import { useAsyncAction } from '../../composables/useAsyncAction'
+import ModalShell from '../shell/ModalShell.vue'
+
+const props = defineProps<{ open: boolean }>()
+const emit = defineEmits<{ (e: 'close'): void }>()
+
+const store = useAssetsStore()
+const toast = useToast()
+const { pending, run } = useAsyncAction()
+
+const status = ref('')
+const statusTone = ref<'' | 'success' | 'warn' | 'fail'>('')
+const fileInput = ref<HTMLInputElement | null>(null)
+
+watch(
+  () => props.open,
+  (open) => {
+    if (open) {
+      status.value = ''
+      statusTone.value = ''
+    }
+  },
+)
+
+function onExport() {
+  try {
+    const text = serializeWorkspace(store.exportWorkspace())
+    const blob = new Blob([text], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const anchor = document.createElement('a')
+    anchor.href = url
+    anchor.download = `blueprint-${new Date().toISOString().slice(0, 10)}.json`
+    anchor.click()
+    URL.revokeObjectURL(url)
+    status.value = 'Workspace exported'
+    statusTone.value = 'success'
+  } catch (error) {
+    status.value = error instanceof Error ? error.message : 'Export failed'
+    statusTone.value = 'fail'
+  }
+}
+
+async function onImportFile(event: Event) {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  input.value = ''
+  if (!file) return
+  try {
+    const parsed = parseWorkspace(await file.text())
+    const saved = await run(() => store.importWorkspace(parsed))
+    if (!saved) {
+      status.value = 'Failed to save the imported workspace'
+      statusTone.value = 'fail'
+      return
+    }
+    status.value = 'Workspace imported'
+    statusTone.value = 'success'
+    toast.success('Workspace imported')
+  } catch (error) {
+    status.value = error instanceof Error ? error.message : 'Import failed'
+    statusTone.value = 'fail'
+  }
+}
+</script>
+
+<template>
+  <ModalShell
+    :open="open"
+    modal-id="modal-workspace"
+    title="Workspace"
+    :status="status"
+    :status-tone="statusTone"
+    @close="emit('close')"
+  >
+    <div class="form__col form--section">
+      <div>Export</div>
+      <div class="form__hint">Download the current workspace as a single JSON file.</div>
+      <button class="flag--active size--fit" type="button" aria-label="Export workspace" @click="onExport">Export</button>
+    </div>
+    <div class="form__col form--section">
+      <div>Import</div>
+      <div class="form__hint">Replace the current workspace with a previously exported file.</div>
+      <input
+        ref="fileInput"
+        class="workspace__file"
+        type="file"
+        accept="application/json,.json"
+        aria-label="Workspace file"
+        @change="onImportFile"
+      />
+      <button
+        class="flag--warning size--fit"
+        type="button"
+        aria-label="Import workspace"
+        :disabled="pending"
+        @click="fileInput?.click()"
+      >
+        Import
+      </button>
+    </div>
+  </ModalShell>
+</template>
+
+<style scoped>
+.workspace__file {
+  display: none;
+}
+</style>
+
+<style>
+#modal-workspace {
+  width: min(94vw, 480px);
+  max-height: calc(100vh - 32px);
+}
+</style>

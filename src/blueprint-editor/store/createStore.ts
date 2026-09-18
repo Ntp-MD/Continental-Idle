@@ -8,6 +8,7 @@ import { cloneDeepRaw, emptyNpcConfig } from './storeUtils'
 import { EDITOR_CONFIG } from '../editorConfig'
 import { createEditorState, initAssetFields, type BlueprintStore, type ToastApi } from './state'
 import type { PersistencePort, SyncPort } from './ports'
+import { PayloadTooLargeError } from './ports'
 import { createFloorCommands } from './floors'
 import { createObjectCommands } from './objects'
 import { createAssetCommands } from './assets'
@@ -91,7 +92,11 @@ export function createBlueprintStore(deps: BlueprintStoreDeps): BlueprintStore {
 				return true
 			} catch (error) {
 				restoreSnapshot(lastSaved)
-				toast.error('Failed to save blueprint data')
+				if (error instanceof PayloadTooLargeError) {
+					toast.error('Failed to save blueprint data - it exceeds the maximum save size')
+				} else {
+					toast.error('Failed to save blueprint data')
+				}
 				throw error
 			}
 		}

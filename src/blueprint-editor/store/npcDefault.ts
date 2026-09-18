@@ -28,6 +28,7 @@ export function mergeNpcConfig(config: NpcSimulationConfig): NpcSimulationConfig
 
 export function createNpcCommands(store: BlueprintStore) {
 	const state = store.state
+	const withStateLock = <T>(fn: () => Promise<T>) => store.runExclusive(fn)
 	const saveBlueprintData = () => store.save()
 
 	function syncNpcConfigToState(config: NpcSimulationConfig): void {
@@ -41,8 +42,10 @@ export function createNpcCommands(store: BlueprintStore) {
 	}
 
 	async function updateNpcConfig(config: NpcSimulationConfig): Promise<void> {
-		syncNpcConfigToState(config)
-		await persistNpcConfigToDisk()
+		return withStateLock(async () => {
+			syncNpcConfigToState(config)
+			await persistNpcConfigToDisk()
+		})
 	}
 
 	return { syncNpcConfigToState, persistNpcConfigToDisk, updateNpcConfig }

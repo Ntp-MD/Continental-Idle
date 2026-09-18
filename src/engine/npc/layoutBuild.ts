@@ -334,6 +334,10 @@ function buildPortalInteractionTargets(
 			for (const destinationFloorId of destinationFloorIds) {
 				const destination = portals.find(portal => portal.floor.id === destinationFloorId)
 				if (!destination) continue
+				const destinationDefinition = resolveObjectDef(destination.object.rotation, getAssetDef?.(destination.object.type), { w: destination.object.w, h: destination.object.h })
+				const destinationSpotCount = destinationDefinition.interactSpots?.length ?? 0
+				if (destinationSpotCount === 0) continue
+				const destinationSpotIndex = Math.min(interactSpotIndex, destinationSpotCount - 1)
 				targets.push({
 					floorId: floor.id,
 					itemId,
@@ -345,7 +349,7 @@ function buildPortalInteractionTargets(
 					durationMinSeconds: 0,
 					durationMaxSeconds: 0,
 					transitionToFloorId: destinationFloorId,
-					destinationPortalKey: portalEndpointKey(destinationFloorId, `portal:${destination.object.id}`, interactSpotIndex),
+					destinationPortalKey: portalEndpointKey(destinationFloorId, `portal:${destination.object.id}`, destinationSpotIndex),
 					portalEndpointKey: endpointKey,
 				})
 			}

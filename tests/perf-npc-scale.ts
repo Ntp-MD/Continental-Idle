@@ -1,5 +1,4 @@
-﻿import { floorPlanData } from '../src/blueprint-editor/data/floorPlan.data'
-import { seedOriginAssets as originAssets } from '../src/blueprint-editor/store/seed'
+﻿import { seedOriginAssets as originAssets, seedLayout } from '../src/blueprint-editor/store/seed'
 import { buildNpcEngineLayout } from '../src/engine/npc/layoutBuild'
 import { NpcEngine, NPC_ENGINE_DEFAULT_OPTIONS, findNpcGridPath } from '../src/engine/npc'
 import { createNpcEnginePolicy } from '../src/engine/npc/policy'
@@ -19,7 +18,7 @@ function normalizeFloors(raw: FloorData[]): FloorData[] {
 }
 
 function cloneTo11Floors(): FloorData[] {
-	const base = normalizeFloors(JSON.parse(JSON.stringify(floorPlanData.floors)))
+	const base = normalizeFloors(JSON.parse(JSON.stringify(seedLayout.floors)))
 	const out: FloorData[] = [base[0]]
 	const pool = base.length > 1 ? base.slice(1) : base
 	for (let i = 0; i < 10; i++) {
@@ -130,7 +129,7 @@ function runScenario(name: string, floors: FloorData[], perFloor: number, ticks:
 
 const perFloorTiers = [25, 50, 75, 100]
 if (process.argv.includes('--current')) {
-	const curFloors = normalizeFloors(JSON.parse(JSON.stringify(floorPlanData.floors)))
+	const curFloors = normalizeFloors(JSON.parse(JSON.stringify(seedLayout.floors)))
 	runScenario(`CURRENT layout: ${curFloors.length} floor(s) x 100`, curFloors, 100, 1800)
 } else {
 	for (const perFloor of perFloorTiers) {

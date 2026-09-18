@@ -214,24 +214,56 @@ export function createAssetCommands(store: BlueprintStore) {
 		})
 	}
 
-	async function deleteAsset(id: string): Promise<boolean> {
-		const inUse = state.layout.floors.some(f => f.objects.some(o => o.type === id))
-		if (inUse) {
-			toast.warning('Cannot delete - asset is placed on floors. Remove instances first.')
-			return false
+	function removeAssetInstances(assetIds: ReadonlySet<string>): void {
+		const removedObjectIds = new Set<string>()
+		for (const floor of state.layout.floors) {
+			const removed = floor.objects.filter(o => assetIds.has(o.type))
+			if (removed.length === 0) continue
+			for (const o of removed) removedObjectIds.add(o.id)
+			floor.objects = floor.objects.filter(o => !assetIds.has(o.type))
+			store.dissolveGroupsIfSmall(floor, new Set(removed.map(o => o.linkGroupId).filter((gid): gid is string => !!gid)))
+			recalcCollapsed(floor, assetMap())
 		}
-		const idx = state.assetRegistry.findIndex(a => a.id === id)
-		if (idx === -1) {
-			toast.warning('Asset not found')
-			return false
+		if (removedObjectIds.size > 0) {
+			const items = state.selectionState.items.filter(item => !removedObjectIds.has(item.id))
+			state.selectionState = items.length ? { primary: items[0], items } : { primary: null, items: [] }
 		}
-		state.assetRegistry.splice(idx, 1)
-		if (state.selectedAssetId === id) state.selectedAssetId = null
-		await saveBlueprintData()
-		return true
+		const npcConfig = state.layout.npcConfig
+		if (npcConfig) {
+			for (const task of npcConfig.tasks) {
+				if (task.post && assetIds.has(task.post.assetId)) delete task.post
+			}
+		}
 	}
 
-	return { addSvgAsset, updateAsset, refreshOriginInstances, duplicateAsset, deleteAsset }
+	async function deleteAsset(id: string): Promise<boolean> {
+		return withStateLock(async () => {
+			const idx = state.assetRegistry.findIndex(a => a.id === id)
+			if (idx === -1) {
+				toast.warning('Asset not found')
+				return false
+			}
+			removeAssetInstances(new Set([id]))
+			state.assetRegistry.splice(idx, 1)
+			if (state.selectedAssetId === id) state.selectedAssetId = null
+			await saveBlueprintData()
+			return true
+		})
+	}
+
+	async function deleteAllAssets(): Promise<number> {
+		return withStateLock(async () => {
+			const ids = state.assetRegistry.map(a => a.id)
+			if (ids.length === 0) return 0
+			removeAssetInstances(new Set(ids))
+			state.assetRegistry = []
+			state.selectedAssetId = null
+			await saveBlueprintData()
+			return ids.length
+		})
+	}
+
+	return { addSvgAsset, updateAsset, refreshOriginInstances, duplicateAsset, deleteAsset, deleteAllAssets }
 }
 
 export type AssetCommands = ReturnType<typeof createAssetCommands>

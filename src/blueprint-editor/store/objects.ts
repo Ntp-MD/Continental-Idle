@@ -240,40 +240,42 @@ export function createObjectCommands(store: BlueprintStore) {
 	}
 
 	async function commitMove(): Promise<void> {
-		const floor = currentFloor.value
-		if (!floor) return
-		const members = state.selectionState.items.length > 1
-			? multiSelectionMembers(floor)
-			: selectedObject() ? objectMoveMembers(selectedObject()!) : []
-		if (members.length === 0 || members.some(member => member.locked)) return
-		const minX = Math.min(...members.map(member => member.x))
-		const minY = Math.min(...members.map(member => member.y))
-		const maxX = Math.max(...members.map(member => member.x + member.w))
-		const maxY = Math.max(...members.map(member => member.y + member.h))
-		const bounds = { minX, minY, w: maxX - minX, h: maxY - minY }
-		const clamped = clamp({ x: snap(bounds.minX), y: snap(bounds.minY), w: bounds.w, h: bounds.h })
-		const dx = clamped.x - bounds.minX
-		const dy = clamped.y - bounds.minY
-		const oldPositions = members.map(member => ({ id: member.id, x: member.x, y: member.y }))
-		for (const member of members) {
-			member.x += dx
-			member.y += dy
-		}
-		const ids = members.map(member => member.id)
-		if (members.some(member => objectOverlapsAny(floor.objects, assetMap(), member, ids))) {
-			for (const old of oldPositions) {
-				const member = members.find(candidate => candidate.id === old.id)
-				if (member) { member.x = old.x; member.y = old.y }
+		return withStateLock(async () => {
+			const floor = currentFloor.value
+			if (!floor) return
+			const members = state.selectionState.items.length > 1
+				? multiSelectionMembers(floor)
+				: selectedObject() ? objectMoveMembers(selectedObject()!) : []
+			if (members.length === 0 || members.some(member => member.locked)) return
+			const minX = Math.min(...members.map(member => member.x))
+			const minY = Math.min(...members.map(member => member.y))
+			const maxX = Math.max(...members.map(member => member.x + member.w))
+			const maxY = Math.max(...members.map(member => member.y + member.h))
+			const bounds = { minX, minY, w: maxX - minX, h: maxY - minY }
+			const clamped = clamp({ x: snap(bounds.minX), y: snap(bounds.minY), w: bounds.w, h: bounds.h })
+			const dx = clamped.x - bounds.minX
+			const dy = clamped.y - bounds.minY
+			const oldPositions = members.map(member => ({ id: member.id, x: member.x, y: member.y }))
+			for (const member of members) {
+				member.x += dx
+				member.y += dy
 			}
-		}
-		const beforeMove = unionRects(oldPositions.map(old => {
-			const moved = members.find(candidate => candidate.id === old.id)
-			return { x: old.x, y: old.y, w: moved?.w ?? 0, h: moved?.h ?? 0 }
-		}))
-		const afterMove = unionRects(members)
-		const movedBounds = beforeMove && afterMove ? unionRects([beforeMove, afterMove]) ?? undefined : (beforeMove ?? afterMove) ?? undefined
-		recalcCollapsed(floor, assetMap(), movedBounds)
-		await saveBlueprintData()
+			const ids = members.map(member => member.id)
+			if (members.some(member => objectOverlapsAny(floor.objects, assetMap(), member, ids))) {
+				for (const old of oldPositions) {
+					const member = members.find(candidate => candidate.id === old.id)
+					if (member) { member.x = old.x; member.y = old.y }
+				}
+			}
+			const beforeMove = unionRects(oldPositions.map(old => {
+				const moved = members.find(candidate => candidate.id === old.id)
+				return { x: old.x, y: old.y, w: moved?.w ?? 0, h: moved?.h ?? 0 }
+			}))
+			const afterMove = unionRects(members)
+			const movedBounds = beforeMove && afterMove ? unionRects([beforeMove, afterMove]) ?? undefined : (beforeMove ?? afterMove) ?? undefined
+			recalcCollapsed(floor, assetMap(), movedBounds)
+			await saveBlueprintData()
+		})
 	}
 
 	async function rotateSelected(): Promise<void> {
@@ -322,62 +324,68 @@ export function createObjectCommands(store: BlueprintStore) {
 	}
 
 	async function linkObjects(ids: string[]): Promise<boolean> {
-		const floor = currentFloor.value
-		if (!floor || ids.length < 2) return false
-		const objs = floor.objects.filter(o => ids.includes(o.id))
-		if (objs.length < 2) {
-			toast.warning('Some selected objects not found on current floor')
-			return false
-		}
-		if (objs.some(o => o.locked)) {
-			toast.warning('Cannot link locked objects - unlock first')
-			return false
-		}
-
-		const groupIds = new Set<string>(objs.map(obj => obj.id))
-		for (const obj of objs) {
-			for (const linked of getLinkedObjects(obj)) groupIds.add(linked.id)
-		}
-		const allGroupIds = Array.from(groupIds)
-		const linkGroupId = genId('link')
-		for (const id of allGroupIds) {
-			const obj = floor.objects.find(o => o.id === id)
-			if (obj) {
-				obj.linkGroupId = linkGroupId
+		return withStateLock(async () => {
+			const floor = currentFloor.value
+			if (!floor || ids.length < 2) return false
+			const objs = floor.objects.filter(o => ids.includes(o.id))
+			if (objs.length < 2) {
+				toast.warning('Some selected objects not found on current floor')
+				return false
 			}
-		}
-		const saved = await saveBlueprintData()
-		if (!saved) return false
-		toast.success(`Linked ${allGroupIds.length} objects`)
-		return true
+			if (objs.some(o => o.locked)) {
+				toast.warning('Cannot link locked objects - unlock first')
+				return false
+			}
+
+			const groupIds = new Set<string>(objs.map(obj => obj.id))
+			for (const obj of objs) {
+				for (const linked of getLinkedObjects(obj)) groupIds.add(linked.id)
+			}
+			const allGroupIds = Array.from(groupIds)
+			const linkGroupId = genId('link')
+			for (const id of allGroupIds) {
+				const obj = floor.objects.find(o => o.id === id)
+				if (obj) {
+					obj.linkGroupId = linkGroupId
+				}
+			}
+			const saved = await saveBlueprintData()
+			if (!saved) return false
+			toast.success(`Linked ${allGroupIds.length} objects`)
+			return true
+		})
 	}
 
 	async function unlinkObject(id: string): Promise<boolean> {
-		const floor = currentFloor.value
-		if (!floor) return false
-		const obj = floor.objects.find(o => o.id === id)
-		if (!obj || !obj.linkGroupId) return false
-		if (obj.locked) {
-			toast.warning('Cannot unlink a locked object - unlock first')
-			return false
-		}
+		return withStateLock(async () => {
+			const floor = currentFloor.value
+			if (!floor) return false
+			const obj = floor.objects.find(o => o.id === id)
+			if (!obj || !obj.linkGroupId) return false
+			if (obj.locked) {
+				toast.warning('Cannot unlink a locked object - unlock first')
+				return false
+			}
 
-		const groupId = removeLinkMember(floor, id)
-		if (!groupId) return false
-		const saved = await saveBlueprintData()
-		if (!saved) return false
-		toast.success('Unlinked object')
-		return true
+			const groupId = removeLinkMember(floor, id)
+			if (!groupId) return false
+			const saved = await saveBlueprintData()
+			if (!saved) return false
+			toast.success('Unlinked object')
+			return true
+		})
 	}
 
 	async function toggleObjectLock(id: string): Promise<void> {
-		const floor = currentFloor.value
-		if (!floor) return
-		const o = floor.objects.find(o => o.id === id)
-		if (!o) return
-		o.locked = !o.locked
-		const saved = await saveBlueprintData()
-		if (saved) toast.info(o.locked ? 'Object locked' : 'Object unlocked')
+		return withStateLock(async () => {
+			const floor = currentFloor.value
+			if (!floor) return
+			const o = floor.objects.find(o => o.id === id)
+			if (!o) return
+			o.locked = !o.locked
+			const saved = await saveBlueprintData()
+			if (saved) toast.info(o.locked ? 'Object locked' : 'Object unlocked')
+		})
 	}
 
 	return {

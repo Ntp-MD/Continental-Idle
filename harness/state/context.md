@@ -19,7 +19,7 @@ Rewrite the glossary on adoption (see `harness/HARNESS.md` - Adopt in a new proj
 | Instance | References a definition by id; owns only position/rotation/instance-specific overrides. | a copy of the definition |
 | Normalization | At ingress: unknown input -> canonical data or reject; idempotent, context-free. | resolution |
 | Resolution | Before consumption: derives runtime values from canonical data + context; the single path. | normalization |
-| Origin assets | The canonical `src/blueprint-editor/data/blueprint-data.json` store (`BlueprintDataFile`); the four `*.data.ts` modules are a one-time seed/migration input and the test fixture only (not in the app bundle - the app boots from `emptySeed()`, tests use `store/seed.ts`). | DB, hand-edited modules |
+| Origin assets | The canonical `src/blueprint-editor/data/blueprint-data.json` store (`BlueprintDataFile`), the single source; tests seed from it via `store/seed.ts`, the app boots from `emptySeed()`. | DB, hand-edited modules |
 | Walkable grid | Boolean per-cell NPC passability for a floor. | tile states |
 | Tile states | Per-cell semantic state (walk/wall/door) on floors and objects. | walkable grid |
 | Walkable runs | Contiguous blocked+door cell groups derived from tile states. | walls |

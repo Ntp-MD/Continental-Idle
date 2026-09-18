@@ -1,0 +1,70 @@
+{
+  "$schema": "blueprint-data.v2.json",
+  "version": 2,
+  "tags": [
+    {
+      "id": "lounge",
+      "label": "lounge"
+    }
+  ],
+  "originAssets": [
+    {
+      "id": "asset-1",
+      "name": "Table",
+      "w": 2,
+      "h": 1,
+      "walkable": false,
+      "defaultFillColor": "#ffffff",
+      "tags": [
+        "lounge"
+      ],
+      "origin": "drawn"
+    }
+  ],
+  "layout": {
+    "version": 3,
+    "canvas": {
+      "width": 800,
+      "height": 600,
+      "tileSize": 25
+    },
+    "floors": [
+      {
+        "id": "floor-1",
+        "name": "Ground",
+        "label": "G",
+        "objects": [
+          {
+            "id": "obj-1",
+            "type": "asset-1",
+            "x": 25,
+            "y": 25,
+            "rotation": 0
+          }
+        ],
+        "defaultWalkable": true
+      }
+    ]
+  },
+  "npcConfig": {
+    "speed": 0.2,
+    "defaultRoleId": "",
+    "roles": [],
+    "tasks": [],
+    "pool": [],
+    "crossFloorCooldownSeconds": 30,
+    "progressWatchdogTicks": 120,
+    "maxRepathAttempts": 4,
+    "repathCooldownSeconds": 2,
+    "repathCooldownExponent": 1.5,
+    "pathBudgetMinPerTick": 2,
+    "pathBudgetAgentsPerCall": 100,
+    "chooseTargetMinPerTick": 8,
+    "chooseTargetAgentsPerSlot": 20,
+    "wanderMemorySize": 32,
+    "wanderSmallMapThreshold": 8,
+    "triggerRatePeriodSeconds": 60,
+    "frameSimBudgetMs": 6,
+    "maxSimulationSteps": 8
+  }
+}

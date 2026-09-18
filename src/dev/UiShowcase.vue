@@ -18,6 +18,7 @@ const FloorModal = defineAsyncComponent(() => import('@/blueprint-editor/compone
 const NpcManagerModal = defineAsyncComponent(() => import('@/blueprint-editor/components/modals/NpcManagerModal.vue'))
 const DeployNpcModal = defineAsyncComponent(() => import('@/blueprint-editor/components/modals/DeployNpcModal.vue'))
 const SettingsModal = defineAsyncComponent(() => import('@/blueprint-editor/components/modals/SettingsModal.vue'))
+const WorkspaceModal = defineAsyncComponent(() => import('@/blueprint-editor/components/modals/WorkspaceModal.vue'))
 const ImportSvgModal = defineAsyncComponent(() => import('@/blueprint-editor/components/modals/ImportSvgModal.vue'))
 
 const store = useAssetsStore()
@@ -50,6 +51,7 @@ const showFloor = ref(false)
 const showNpcManager = ref(false)
 const showDeploy = ref(false)
 const showSettings = ref(false)
+const showWorkspace = ref(false)
 const showImportSvg = ref(false)
 const searchText = ref('')
 const colorValue = ref('#3794ff')
@@ -353,6 +355,7 @@ function backToEditor() {
         <button :disabled="!storeReady" @click="showNpcManager = true">NpcManagerModal</button>
         <button :disabled="!storeReady" @click="showDeploy = true">DeployNpcModal</button>
         <button :disabled="!storeReady" @click="showSettings = true">SettingsModal</button>
+        <button :disabled="!storeReady" @click="showWorkspace = true">WorkspaceModal</button>
         <button :disabled="!storeReady" @click="showImportSvg = true">ImportSvgModal</button>
       </div>
     </section>
@@ -433,6 +436,7 @@ function backToEditor() {
       <NpcManagerModal :open="showNpcManager" @close="showNpcManager = false" />
       <DeployNpcModal :open="showDeploy" @close="showDeploy = false" />
       <SettingsModal :open="showSettings" @close="showSettings = false" />
+      <WorkspaceModal :open="showWorkspace" @close="showWorkspace = false" />
       <ImportSvgModal :open="showImportSvg" @close="showImportSvg = false" />
     </ErrorBoundary>
   </div>

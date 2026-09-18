@@ -16,7 +16,7 @@ export default defineConfig({
       provider: 'v8',
       reporter: ['text', 'html'],
       include: ['src/**/*.ts', 'src/**/*.vue'],
-      exclude: ['src/blueprint-editor/data/**', 'src/engine/**'],
+      exclude: ['src/blueprint-editor/data/**'],
     },
   },
 })

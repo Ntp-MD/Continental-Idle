@@ -279,6 +279,14 @@ const originName = ref('')
 const originFillColor = ref<string | undefined>(undefined)
 const draftObject = computed(() => floor.value?.objects.find((object) => object.id === draftObjectId.value) ?? null)
 
+watch(draftObject, (object) => {
+  if (!object && showSaveOrigin.value) {
+    showSaveOrigin.value = false
+    draftAssetId.value = null
+    draftObjectId.value = null
+  }
+})
+
 async function onDrawComplete(rect: { x: number; y: number; w: number; h: number }) {
   const t = canvas.value.tileSize
   const w = Math.max(1, Math.round(rect.w / t))

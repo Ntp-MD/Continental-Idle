@@ -7,7 +7,7 @@ import { defaultSeed } from '../src/blueprint-editor/store/seed'
 import { cloneDeepRaw } from '../src/blueprint-editor/store/storeUtils'
 import { resolveBuildingArea, assetSizeFor, roundedRectPath } from '../src/blueprint-editor/domain/geometry'
 import { resolveFloorTileStates } from '../src/blueprint-editor/domain/types'
-import type { AssetDef, FloorData, FloorWalkable, ObjectData } from '../src/blueprint-editor/domain/types'
+import type { AssetDef, BlueprintDataFile, FloorData, FloorWalkable, ObjectData } from '../src/blueprint-editor/domain/types'
 
 // ── Harness: in-memory ports + state snapshot/restore ──
 const persistence: PersistencePort = {
@@ -23,7 +23,8 @@ const {
 	addObject, deleteSelected, moveSelectedTo, rotateSelected,
 	linkObjects, unlinkObject,
 	copySelected, pasteObjects, removeTag, clamp,
-	addSvgAsset, resizeCanvas,
+	addSvgAsset, resizeCanvas, flattenToSvgAsset, deleteAsset, deleteAllAssets,
+	importWorkspace,
 } = store
 
 function snapshot() {
@@ -132,6 +133,50 @@ async function main(): Promise<void> {
 	})
 
 	// ── B. Store CRUD regressions ──
+	await check('deleteAsset() cascades placed instances including locked ones', async () => {
+		restore(baseline)
+		installTestAsset()
+		state.layout.canvas = { width: 1600, height: 1200, tileSize: 25 }
+		const floor = state.layout.floors[0]
+		floor.objects = [makeObject('inst-a', 400, 400), makeObject('inst-b', 500, 500, { locked: true })]
+		state.currentFloorId = floor.id
+		assert.equal(await deleteAsset('grill-asset'), true)
+		assert.equal(floor.objects.length, 0, 'every instance of the deleted asset is removed, locked included')
+		assert.equal(state.assetRegistry.some(a => a.id === 'grill-asset'), false, 'asset leaves the palette')
+		const assetIds = new Set(state.assetRegistry.map(a => a.id))
+		assert.ok(
+			state.layout.floors.every(f => f.objects.every(o => assetIds.has(o.type))),
+			'no object references a deleted asset',
+		)
+	})
+
+	await check('deleteAsset() clears task posts that point at it', async () => {
+		restore(baseline)
+		installTestAsset()
+		const npc = state.layout.npcConfig
+		assert.ok(npc, 'baseline npc config with tasks is required')
+		npc.tasks = [...npc.tasks, { id: 'grill-task', label: 'Grill task', tags: ['grilltag'], post: { assetId: 'grill-asset' } }]
+		assert.equal(await deleteAsset('grill-asset'), true)
+		assert.equal(npc.tasks.find(t => t.id === 'grill-task')?.post, undefined, 'post pointing at the deleted asset is cleared')
+	})
+
+	await check('deleteAllAssets() purges the palette and every instance', async () => {
+		restore(baseline)
+		state.layout.canvas = { width: 1600, height: 1200, tileSize: 25 }
+		const floor = state.layout.floors[0]
+		installTestAsset()
+		floor.objects = [makeObject('purge-a', 100, 100), makeObject('purge-b', 200, 200)]
+		state.currentFloorId = floor.id
+		const before = state.assetRegistry.length
+		assert.ok(before > 0, 'baseline palette is not empty')
+		const deleted = await deleteAllAssets()
+		assert.equal(deleted, before, 'returns the number of purged assets')
+		assert.equal(state.assetRegistry.length, 0, 'palette is empty')
+		assert.ok(
+			state.layout.floors.every(f => f.objects.length === 0),
+			'every floor is clear of objects',
+		)
+	})
 	await check('addObject rejects an overlapping placement', async () => {
 		restore(baseline)
 		installTestAsset()
@@ -261,6 +306,23 @@ async function main(): Promise<void> {
 		assert.equal(npc.tagTriggerRates?.[tag], undefined, 'trigger rate removed')
 	})
 
+	await check('flattenToSvgAsset() merges into a walkable asset by default', async () => {
+		restore(baseline)
+		installTestAsset()
+		state.layout.canvas = { width: 1600, height: 1200, tileSize: 25 }
+		const floor = state.layout.floors[0]
+		floor.objects = [makeObject('fa', 300, 300), makeObject('fb', 350, 300)]
+		state.currentFloorId = floor.id
+		selectObjects(['fa', 'fb'])
+		const assetId = await flattenToSvgAsset('Merged')
+		assert.ok(assetId, 'flatten returns the new asset id')
+		const asset = state.assetRegistry.find(a => a.id === assetId)
+		assert.ok(asset, 'the merged asset is registered')
+		assert.equal(asset.walkable, true, 'the merged asset defaults to walkable')
+		assert.ok(asset.walkableGrid?.every(row => row.every(cell => cell)), 'every merged grid cell is walkable')
+		assert.ok(asset.tileStates?.every(row => row.every(cell => cell === 'walkable')), 'merged tile states are walkable')
+	})
+
 	await check('copySelected()/pasteObjects() offsets a single-tile copy and gives it a new id', async () => {
 		restore(baseline)
 		installTestAsset()
@@ -326,7 +388,22 @@ async function main(): Promise<void> {
 		assert.equal(roundedRectPath(0, 0, 10, 10, { tl: 0, tr: 0, br: 0, bl: 0 }), null)
 	})
 
-	// ── E. Concurrency ──
+	await check('importWorkspace() replaces layout, assets and tags', async () => {
+		restore(baseline)
+		installTestAsset()
+		state.layout.floors[0].name = 'Imported floor'
+		state.tagDefinitions = [...state.tagDefinitions, { id: 'imported', label: 'imported' }]
+		const exported = store.exportWorkspace()
+		restore(baseline)
+		assert.notEqual(state.layout.floors[0].name, 'Imported floor', 'state was reset before the import')
+		assert.equal(await importWorkspace(exported), true, 'import saves successfully')
+		assert.ok(state.assetRegistry.some(a => a.id === 'grill-asset'), 'imported asset is registered')
+		assert.equal(state.layout.floors[0].name, 'Imported floor', 'imported layout is applied')
+		assert.ok(state.tagDefinitions.some(t => t.id === 'imported'), 'imported tags are applied')
+		assert.equal(state.selectedAssetId, null, 'selection is cleared after import')
+	})
+
+	// ── E. Concurrency ───
 	await check('overlapping commands queue instead of rejecting (single-writer)', async () => {
 		restore(baseline)
 		installTestAsset()
@@ -342,6 +419,56 @@ async function main(): Promise<void> {
 		assert.ok(first, 'first queued placement lands')
 		assert.ok(second, 'second queued placement lands - the store queues writes instead of rejecting with "Operation in progress"')
 		assert.equal(floor.objects.length, 2, 'both placements are on the floor')
+	})
+
+	await check('serialization: the first save payload excludes a concurrently started command', async () => {
+		const seen: BlueprintDataFile[] = []
+		let releaseFirst: (() => void) | null = null
+		let saveCount = 0
+		const slowPort: PersistencePort = {
+			async load() { return null },
+			async save(data) {
+				saveCount++
+				seen.push(cloneDeepRaw(data))
+				if (saveCount === 1) await new Promise<void>(resolve => { releaseFirst = resolve })
+				return true
+			},
+		}
+		const local = createBlueprintStore({ persistence: slowPort, sync, seed: defaultSeed() })
+		const initialCount = local.state.layout.floors.length
+		const target = local.state.layout.floors[0]
+		const addPromise = local.addFloor()
+		const renamePromise = local.renameFloor(target.id, 'RENAMED-CONCURRENT')
+		await new Promise(resolve => setTimeout(resolve, 0))
+		assert.ok(releaseFirst, 'the first save is in flight before the second command runs')
+		;(releaseFirst as (() => void) | null)?.()
+		assert.ok(await addPromise, 'addFloor resolves')
+		await renamePromise
+		assert.equal(seen.length, 2, 'both commands reach the port')
+		assert.equal(seen[0].layout.floors.length, initialCount + 1, 'the first payload has only the add')
+		assert.notEqual(seen[0].layout.floors[0].name, 'RENAMED-CONCURRENT', 'the concurrent rename is invisible to the first save')
+		assert.equal(seen[1].layout.floors[0].name, 'RENAMED-CONCURRENT', 'the second payload carries the rename')
+	})
+
+	await check('deadlock guard: a burst of mixed mutating commands all settle', async () => {
+		const burstPort: PersistencePort = {
+			async load() { return null },
+			async save() { await new Promise(resolve => setTimeout(resolve, 0)); return true },
+		}
+		const local = createBlueprintStore({ persistence: burstPort, sync, seed: defaultSeed() })
+		const floorId = local.state.layout.floors[0].id
+		const ops: Promise<unknown>[] = []
+		for (let i = 0; i < 5; i++) {
+			ops.push(local.addFloor())
+			ops.push(local.setCanvasBgColor('#112233'))
+			ops.push(local.addTag(`bursttag${i}`))
+			ops.push(local.paintFloorTiles(floorId, 'blocked', { row0: 1, col0: 1, row1: 1, col1: 1 }))
+		}
+		const outcome = await Promise.race([
+			Promise.all(ops).then(() => 'settled' as const),
+			new Promise<'timeout'>(resolve => setTimeout(() => resolve('timeout'), 5000)),
+		])
+		assert.equal(outcome, 'settled', 'every queued command resolves - the exclusive queue never nests into a deadlock')
 	})
 
 	// ── F. Informational probes (open questions, no pass/fail) ──

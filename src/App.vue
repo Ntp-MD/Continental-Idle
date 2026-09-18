@@ -1,27 +1,48 @@
 <script setup lang="ts">
-import { defineAsyncComponent } from 'vue'
+import { ref, defineAsyncComponent } from 'vue'
 import ErrorBoundary from '@/components/overlays/ErrorBoundary.vue'
 import {
   createBlueprintStore, provideBlueprintStore, emptySeed,
-  createHttpPersistencePort, createWindowSyncPort,
+  createPersistencePort, createWindowSyncPort,
 } from '@/blueprint-editor/blueprintStore'
 
 const BlueprintEditor = defineAsyncComponent(() => import('@/blueprint-editor/BlueprintEditor.vue'))
 const UiShowcase = defineAsyncComponent(() => import('@/dev/UiShowcase.vue'))
 
-const store = createBlueprintStore({
-  persistence: createHttpPersistencePort(),
-  sync: createWindowSyncPort(),
-  seed: emptySeed(),
-})
-provideBlueprintStore(store)
+const bootError = ref('')
+let store: ReturnType<typeof createBlueprintStore> | null = null
+try {
+  store = createBlueprintStore({
+    persistence: createPersistencePort(),
+    sync: createWindowSyncPort(),
+    seed: emptySeed(),
+  })
+  provideBlueprintStore(store)
+} catch (error) {
+  bootError.value = error instanceof Error ? error.message : String(error)
+}
 
 const isShowcase = import.meta.env.DEV && new URLSearchParams(window.location.search).has('showcase')
 </script>
 
 <template>
   <ErrorBoundary>
-    <UiShowcase v-if="isShowcase" />
-    <BlueprintEditor v-else />
+    <div v-if="bootError" class="editor--loading" role="alert">Failed to start the editor: {{ bootError }}</div>
+    <UiShowcase v-else-if="isShowcase" />
+    <BlueprintEditor v-else-if="store" />
   </ErrorBoundary>
 </template>
+
+<style scoped>
+.editor--loading {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--gap-md);
+  text-align: center;
+  background: var(--bg-primary);
+  color: var(--text-secondary);
+}
+</style>

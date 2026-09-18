@@ -381,6 +381,31 @@ const elevator = makeElevatorAsset()
 }
 
 
+{
+	const portalA: AssetDef = { id: 'portal-a', name: 'Portal A', w: 2, h: 2, tags: ['portal'], interactSpots: [{ x: 25, y: 25 }, { x: 75, y: 25 }, { x: 50, y: 75 }] }
+	const portalB: AssetDef = { id: 'portal-b', name: 'Portal B', w: 2, h: 2, tags: ['portal'], interactSpots: [{ x: 50, y: 50 }] }
+	const portalAssetMap = buildAssetMap([portalA, portalB])
+	const getAssetDef = (type: string) => portalAssetMap.get(type)
+	const getAssetTags = (type: string) => portalAssetMap.get(type)?.tags
+	const portalFloors: FloorData[] = [
+		{ id: 'A', name: 'A', label: 'A', defaultWalkable: true, objects: [{ id: 'oa', type: 'portal-a', x: 100, y: 100, w: 100, h: 100, rotation: 0 }] },
+		{ id: 'B', name: 'B', label: 'B', defaultWalkable: true, objects: [{ id: 'ob', type: 'portal-b', x: 100, y: 100, w: 100, h: 100, rotation: 0 }] },
+	]
+	const built = buildNpcEngineLayout(portalFloors, { w: 1000, h: 1000, tileSize: 50, streetTiles: 0 }, getAssetDef, getAssetTags)
+	const portalTargets = built.layout.interactionTargets.filter(target => target.transitionToFloorId)
+	const endpointKeys = new Set(built.layout.interactionTargets.map(target => target.portalEndpointKey).filter((key): key is string => !!key))
+	assert.equal(portalTargets.length, 4, 'mismatched portals still produce one target per source spot')
+	for (const target of portalTargets) {
+		assert.ok(target.destinationPortalKey && endpointKeys.has(target.destinationPortalKey), `destination key "${target.destinationPortalKey}" must resolve to a real endpoint`)
+	}
+	const fallback = portalTargets.find(target => target.floorId === 'A' && target.itemId === 'portal:oa' && target.interactSpotId.startsWith('portal:2'))
+	assert.equal(fallback?.destinationPortalKey, 'B:portal:ob:endpoint:0', 'a source spot past the destination count falls back to the last destination spot')
+
+	const portalValidation = validatePortalConfiguration({ version: 1, canvas: { width: 1000, height: 1000, tileSize: 50 }, floors: portalFloors } as never, portalAssetMap, undefined)
+	assert.ok(portalValidation.warnings.some(w => w.includes('mismatched interactSpot counts')), 'validation warns about mismatched portal spot counts')
+}
+
+
 function runtimePortalEndpointKey(floorId: string, itemId: string, interactSpotIndex: number): string {
 	return `${floorId}:${itemId}:endpoint:${interactSpotIndex}`
 }

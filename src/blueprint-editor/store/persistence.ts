@@ -1,11 +1,16 @@
+import type { BlueprintDataFile } from '../domain/types'
 import type { BlueprintStore } from './state'
-import { editorLog } from './storeUtils'
+import { editorLog, emptyNpcConfig, cloneDeepRaw } from './storeUtils'
 import { validateSettingsCompleteness } from '../assets/validation'
 import { buildSyncedPayload } from '../syncedPayload'
+import { buildBlueprintData } from './dataLoader'
+import { migrate } from './migrate'
+import { readBlueprintDataFile } from './schemaMigration'
 
 export function createPersistenceCommands(store: BlueprintStore) {
 	const state = store.state
 	const assetMap = () => store.assetMap()
+	const withStateLock = <T>(fn: () => Promise<T>) => store.runExclusive(fn)
 
 	function syncToGame(): boolean {
 		try {
@@ -29,7 +34,29 @@ export function createPersistenceCommands(store: BlueprintStore) {
 		}
 	}
 
-	return { syncToGame }
+	function exportWorkspace(): BlueprintDataFile {
+		return cloneDeepRaw(buildBlueprintData(state.layout, state.assetRegistry, state.layout.npcConfig ?? emptyNpcConfig(), state.tagDefinitions))
+	}
+
+	async function importWorkspace(file: BlueprintDataFile): Promise<boolean> {
+		return withStateLock(async () => {
+			const normalized = readBlueprintDataFile(cloneDeepRaw(file))
+			const migrated = migrate(normalized.layout, normalized.originAssets)
+			state.layout = migrated.layout
+			state.layout.npcConfig = cloneDeepRaw(normalized.npcConfig)
+			state.assetRegistry = normalized.originAssets.map(asset => cloneDeepRaw(asset))
+			for (const asset of state.assetRegistry) store.initAssetFields(asset)
+			state.tagDefinitions = normalized.tags.map(tag => ({ ...tag }))
+			if (!state.layout.floors.some(floor => floor.id === state.currentFloorId)) {
+				state.currentFloorId = state.layout.floors[0]?.id ?? ''
+			}
+			state.selectionState = { primary: null, items: [] }
+			state.selectedAssetId = null
+			return store.save()
+		})
+	}
+
+	return { syncToGame, exportWorkspace, importWorkspace }
 }
 
 export type PersistenceCommands = ReturnType<typeof createPersistenceCommands>

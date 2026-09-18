@@ -3,24 +3,31 @@ import { normalizeBlueprintDataFile } from '../domain/types'
 import { EDITOR_CONFIG } from '../editorConfig'
 import { MAX_PAYLOAD_BYTES } from '../limits'
 import { editorLog } from './storeUtils'
-import type { PersistencePort, SyncPort } from './ports'
+import { readBlueprintDataFile } from './schemaMigration'
+import { PayloadTooLargeError, type PersistencePort, type SyncPort } from './ports'
 
 const MAX_SAVE_RETRIES = 3
-
-class PayloadTooLargeError extends Error { }
 
 export function createHttpPersistencePort(): PersistencePort {
 	return {
 		async load(): Promise<BlueprintDataFile | null> {
+			let res: Response
 			try {
-				const res = await fetch(EDITOR_CONFIG.blueprintDataEndpoint, { headers: { 'X-Blueprint-Client': '1' } })
-				if (!res.ok || !res.headers.get('content-type')?.toLowerCase().startsWith('application/json')) return null
-				const raw: unknown = await res.json()
-				return normalizeBlueprintDataFile(raw) ?? null
+				res = await fetch(EDITOR_CONFIG.blueprintDataEndpoint, { headers: { 'X-Blueprint-Client': '1' } })
 			} catch (error) {
 				editorLog.error('httpPersistencePort.load', error)
-				return null
+				throw new Error('Could not reach the blueprint data endpoint', { cause: error })
 			}
+			if (res.status === 404) return null
+			if (!res.ok) {
+				editorLog.error('httpPersistencePort.load', `HTTP ${res.status}`)
+				throw new Error(`Blueprint data endpoint returned HTTP ${res.status}`)
+			}
+			if (!res.headers.get('content-type')?.toLowerCase().startsWith('application/json')) {
+				throw new Error('Blueprint data endpoint returned a non-JSON response')
+			}
+			const raw: unknown = await res.json()
+			return readBlueprintDataFile(raw)
 		},
 
 		async save(data: BlueprintDataFile): Promise<boolean> {

@@ -74,7 +74,31 @@ export default tseslint.config(
     },
   },
   {
-    ignores: ['dist/**', 'node_modules/**', '_archive/**', '.zed/**', 'src/blueprint-editor/data/*.data.ts', 'harness/**/*.md', 'eslint.config.js'],
+    files: ['src/blueprint-editor/domain/schema/**/*.ts'],
+    rules: {
+      'no-restricted-imports': ['error', {
+        patterns: [
+          {
+            group: [
+              '**/blueprint-editor/store/**',
+              '**/blueprint-editor/components/**',
+              '**/blueprint-editor/composables/**',
+              '**/blueprint-editor/assets/**',
+              '**/blueprint-editor/blueprintStore',
+              '**/blueprint-editor/syncedPayload',
+              '@/composables/**',
+              '@/components/**',
+              'vue',
+              'vue/*',
+            ],
+            message: 'the domain schema kernel must stay pure (normalize/resolve only) - no store, UI, or Vue imports.',
+          },
+        ],
+      }],
+    },
+  },
+  {
+    ignores: ['dist/**', 'node_modules/**', '_archive/**', '.zed/**', 'harness/**/*.md', 'eslint.config.js'],
   },
   prettier,
 )

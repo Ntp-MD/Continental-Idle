@@ -1,25 +1,17 @@
-import type { AssetDef, BlueprintTagDefinition, NpcSimulationConfig } from '../domain/types'
-import { normalizeNpcConfig, normalizeOriginAssetFile, normalizeTagDefinitions } from '../domain/types'
-import { originAssetsData } from '../data/originAssets.data'
-import { floorPlanData } from '../data/floorPlan.data'
-import { npcSettingsData } from '../data/npcSettings.data'
-import { tagManagerData } from '../data/tagManager.data'
-import { emptyNpcConfig } from './storeUtils'
-import { buildSavedLayout, normalizeBlueprintLayout, type BlueprintLayoutFile } from './dataLoader'
+import blueprintData from '../data/blueprint-data.json'
+import { readBlueprintDataFile } from './schemaMigration'
+import { buildSavedLayout, type BlueprintLayoutFile } from './dataLoader'
 import type { BlueprintStoreSeed } from './createStore'
 
-export const seedTagDefinitions: BlueprintTagDefinition[] = normalizeTagDefinitions(tagManagerData) ?? []
+const file = readBlueprintDataFile(blueprintData)
 
-export const seedLayout: BlueprintLayoutFile = normalizeBlueprintLayout(floorPlanData)
+export const seedTagDefinitions = file.tags
 
-export const seedNpcConfig: NpcSimulationConfig = normalizeNpcConfig(npcSettingsData) ?? emptyNpcConfig()
+export const seedLayout: BlueprintLayoutFile = { $schema: 'blueprint-layout.v1.json', ...file.layout }
 
-export const seedOriginAssets: AssetDef[] =
-	normalizeOriginAssetFile({
-		$schema: 'origin-assets.v2.json',
-		version: 2,
-		originAssets: originAssetsData,
-	})?.originAssets ?? []
+export const seedNpcConfig = file.npcConfig
+
+export const seedOriginAssets = file.originAssets
 
 export function defaultSeed(): BlueprintStoreSeed {
 	return {

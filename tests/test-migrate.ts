@@ -1,5 +1,9 @@
 import assert from 'node:assert/strict'
+import fs from 'node:fs'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { migrate } from '../src/blueprint-editor/store/migrate'
+import { readBlueprintDataFile, UnsupportedBlueprintVersionError, InvalidBlueprintDataError } from '../src/blueprint-editor/store/schemaMigration'
 import { normalizeNpcConfig } from '../src/blueprint-editor/domain/types'
 import { seedOriginAssets as originAssets } from '../src/blueprint-editor/store/seed'
 
@@ -175,5 +179,21 @@ const roundTripped = migrate(makeLayout(), originAssets)
 const reMigrated = migrate(JSON.parse(JSON.stringify(roundTripped.layout)), originAssets)
 assert.deepEqual(reMigrated.layout.floors[0].id, roundTripped.layout.floors[0].id, 'round-trip should be stable')
 assert.equal(reMigrated.layout.npcConfig!.roles.length, roundTripped.layout.npcConfig!.roles.length)
+
+const fixturePath = path.resolve(path.dirname(fileURLToPath(import.meta.url)), 'fixtures', 'blueprint-data.v2.golden.json')
+const golden = JSON.parse(fs.readFileSync(fixturePath, 'utf-8')) as Record<string, unknown>
+
+const loaded = readBlueprintDataFile(golden)
+assert.deepEqual(JSON.parse(JSON.stringify(loaded)), golden, 'golden fixture round-trips through the loader unchanged')
+
+const idempotent = readBlueprintDataFile(JSON.parse(JSON.stringify(loaded)))
+assert.deepEqual(JSON.parse(JSON.stringify(idempotent)), golden, 'loading a loaded file is idempotent')
+
+assert.throws(() => readBlueprintDataFile({ ...golden, version: 999 }), UnsupportedBlueprintVersionError, 'a newer file version is rejected explicitly')
+assert.throws(() => readBlueprintDataFile({ ...golden, version: 'two' }), InvalidBlueprintDataError, 'a non-numeric version is rejected')
+assert.throws(() => readBlueprintDataFile({ ...golden, $schema: undefined }), InvalidBlueprintDataError, 'a missing schema is rejected')
+assert.throws(() => readBlueprintDataFile(null), InvalidBlueprintDataError, 'a null payload is rejected')
+assert.throws(() => readBlueprintDataFile({ ...golden, originAssets: 'nope' }), InvalidBlueprintDataError, 'a malformed payload is rejected instead of silently dropped')
+assert.equal((readBlueprintDataFile(golden).layout.floors.length), 1, 'the loaded file keeps its floors')
 
 console.log('Migration salvage checks passed')

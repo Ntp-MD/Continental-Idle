@@ -45,7 +45,8 @@ Conventions: every CUD awaits `store.save()` inside the store's `runExclusive()`
 | `addSvgAsset(name, w, h, svg)` | Create | Validate viewBox/sanitize/convert colors; `origin:svg-import` | UiShowcase only: click `ImportSvgModal` button, type name, paste SVG, click `Import SVG` |
 | `updateAsset(id, patch)` | Update | Colors/tags/interact/queue/walkable; `w/h` immutable; re-normalize, resize/clamp all instances | AssetProperties: TagPicker type plus Enter/comma or click dropdown suggestion, click tag x to remove; click Manage opens AssetEditModal: General tab type name/label plus change commit, pick fill/outline color, click Reset to clear, type corner radius plus link-toggle sync, click Portal ON/OFF; Walk tab click Walk/Block tool then click or mousedown plus mouseenter-drag tiles, click row/col headers to fill, click All Walk/All Block; Spots tab click walkable tile adds spot, click Fill All Walkable/Clear All; Assign tab type capacity/duration/queue numbers auto-save; Passable ON/OFF toggle |
 | `duplicateAsset(id)` | Create | Clone as `drawn` with `copy` name | AssetProperties panel: click `Duplicate` (selects the copy) |
-| `deleteAsset(id)` | Delete | Block if placed on any floor | AssetProperties panel: click `Delete` (confirm dialog; blocked with warning if placed); draw-cancel path also deletes draft asset |
+| `deleteAsset(id)` | Delete | Cascade: remove the asset + every instance on all floors (locked included), dissolve orphan link groups, clear `task.post` refs | AssetProperties panel: click `Delete` (confirm dialog shows the placed object count); draw-cancel path also deletes the draft asset |
+| `deleteAllAssets()` | Delete | Purge the whole palette + every instance in one save; returns the count | AssetToolbar "Assets List" header: click `Delete All` (confirm shows assets/instances/floors) |
 | `refreshOriginInstances()` | Update | Re-normalize all instances from defs; returns count | Toolbar: click `Refresh Objects` |
 
 ## Tags — `src/blueprint-editor/store/tags.ts`
@@ -86,15 +87,21 @@ Conventions: every CUD awaits `store.save()` inside the store's `runExclusive()`
 | `copySelected()` | Read | Snapshot selection into in-memory clipboard (no save) | Canvas: Ctrl/Cmd+C keys (no button) |
 | `pasteObjects()` | Create | Paste at `+1 tile` offset; overlap-skip; remap `linkGroupId` | Canvas: Ctrl/Cmd+V keys (no button) |
 
-## Persistence / sync — `src/blueprint-editor/store/persistence.ts`, `httpPorts.ts`, `ports.ts`, `dataLoader.ts`
+## Persistence / sync — `src/blueprint-editor/store/persistence.ts`, `persistenceFactory.ts`, `httpPorts.ts`, `localPort.ts`, `ports.ts`, `schemaMigration.ts`, `workspaceFile.ts`, `dataLoader.ts`
 
 | Function | Kind | About | How (click / drag / hover / keys) |
 |---|---|---|---|
 | `store.save()` | Update | `buildBlueprintData()` to `PersistencePort.save`, snapshot on success, revert + error toast on fail (queued, one writer) | No button: auto-called by every CUD above |
 | `syncToGame()` | Read | `buildSyncedPayload` + `SyncPort.emit`; report settings issues | Toolbar: click Sync Game (toast success/fail) |
+| `exportWorkspace()` | Read | Assemble the current `BlueprintDataFile` for download | Workspace modal: click Export |
+| `importWorkspace(file)` | Update | Replace layout/assets/tags/npcConfig from a parsed file, reset selection, save once (queued) | Workspace modal: pick a `.json` file |
 | `buildBlueprintData(layout?, assets?, config?, tags?)` | Read | Assemble `BlueprintDataFile` from state | No UI: internal step of save |
-| `PersistencePort.load()` | Read | `createHttpPersistencePort`: GET + normalize, `null` on failure | No UI: step of `reloadEditorData()` |
-| `PersistencePort.save(data)` | Update | `createHttpPersistencePort`: POST + verify read-back, 3 attempts, 413 stops immediately | No UI: the port behind `store.save()` |
+| `readBlueprintDataFile(raw)` | Read | Version gate + migration + normalize; throws `UnsupportedBlueprintVersionError` (newer) / `InvalidBlueprintDataError` (malformed) | No UI: ingress for every port |
+| `createPersistencePort()` | Read | Pick the port: `VITE_PERSISTENCE` else dev -> http, build -> IndexedDB | No UI: app boot |
+| `PersistencePort.load()` | Read | Returns `null` only when no workspace exists; throws when unreachable/corrupt/newer | No UI: step of `reloadEditorData()` |
+| `PersistencePort.save(data)` | Update | HTTP: POST + verify read-back, 3 attempts, 413 stops immediately. Local: IndexedDB put with a byte pre-check | No UI: the port behind `store.save()` |
+| `createLocalPersistencePort(storage)` | Read | Storage-agnostic local port; `createIndexedDbStorage` in the app, `createMemoryStorage` in tests | No UI: the local port |
+| `serializeWorkspace(file)` / `parseWorkspace(text)` | Read | JSON text <-> `BlueprintDataFile` for the export/import file | No UI: internal to the Workspace modal |
 | `SyncPort.emit(payload)` | Update | `createWindowSyncPort`: dispatch the `blueprint:sync` event | No UI: step of `syncToGame()` |
 | `buildSyncedPayload(layout, assets, npcConfig)` | Read | Egress DTO: floors keyed by stable sync key + canvas + npcConfig | No UI: step of `syncToGame()` |
 | `loadSyncedPayload(payload)` | Read | Ingress loader: normalize payload -> runtime `FloorData[]` + canvas (game boot) | No UI: runtime boot + `observe:hotel` |
@@ -119,7 +126,7 @@ Conventions: every CUD awaits `store.save()` inside the store's `runExclusive()`
 | `reloadEditorData()` | Update | `PersistencePort.load()` via `migrate()`, replace state + snapshots | No button: BlueprintEditor mount plus UiShowcase mount |
 | `migrate(data, assets?)` | Update | Normalize canvas/floors/objects/NPC/street; drop unknown asset types | No UI: internal step of reload |
 | `emptySeed()` | Read | Empty boot seed (default canvas, no floors/assets/tags) for `App.vue`; real data arrives via `reloadEditorData()` | No UI: boot default in `App.vue` |
-| `defaultSeed()` (`store/seed.ts`) | Read | Test/fixture seed built from the four `*.data.ts` modules; not imported by the app bundle | No UI: tests only |
+| `defaultSeed()` (`store/seed.ts`) | Read | Test/fixture seed read from the canonical `blueprint-data.json`; not imported by the app bundle | No UI: tests only |
 | `initAssetFields(asset)` | Update | Lazily fill derived asset fields (`svgRoles`, `walkableGrid`, `tileStates`, `walkable`/`doorRequired` defaults) | No UI: internal, runs when an asset enters the registry |
 | `assetMap()` / `currentFloor` / `snap()` / `clamp()` | Read | Cached asset map, active floor, grid snap, building-area clamp | No UI: every place/move path uses them |
 | `runExclusive(fn)` | Guard | Single-writer queue: overlapping mutations run one after another, never rejected | No UI: wraps every CUD |

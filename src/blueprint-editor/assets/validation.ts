@@ -285,6 +285,7 @@ export function validatePortalConfiguration(
 
 
 	const portalFloorLabels: string[] = []
+	const portalSpotCounts = new Map<string, number>()
 	for (const floor of layout.floors) {
 		let hasPortal = false
 		for (const object of floor.objects) {
@@ -294,9 +295,16 @@ export function validatePortalConfiguration(
 			hasPortal = true
 			if (!asset?.interactSpots?.length) {
 				warnings.push(`Portal object "${object.id}" on floor "${floor.label}" has no interactSpots on its asset "${object.type}"`)
+			} else {
+				portalSpotCounts.set(object.type, asset.interactSpots.length)
 			}
 		}
 		if (hasPortal) portalFloorLabels.push(floor.label)
+	}
+
+	if (new Set(portalSpotCounts.values()).size > 1) {
+		const detail = [...portalSpotCounts.entries()].map(([type, count]) => `"${type}": ${count}`).join(', ')
+		warnings.push(`Portal assets have mismatched interactSpot counts (${detail}) - cross-floor travel falls back to the last available spot; align the spot counts for predictable routing`)
 	}
 
 	if (portalFloorLabels.length > 0 && portalFloorLabels.length < 2) {

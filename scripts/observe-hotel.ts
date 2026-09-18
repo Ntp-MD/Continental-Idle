@@ -16,10 +16,8 @@ import { createNpcEnginePolicy } from '../src/engine/npc/policy'
 import { NpcEngine } from '../src/engine/npc'
 import { buildSyncedPayload, loadSyncedPayload } from '../src/blueprint-editor/syncedPayload'
 import { buildAssetMap } from '../src/blueprint-editor/assets/assetUtils'
-import { normalizeOriginAssetFile, normalizeNpcConfig, normalizeNpcSpawnZones } from '../src/blueprint-editor/domain/types'
-import { originAssetsData } from '../src/blueprint-editor/data/originAssets.data'
-import { floorPlanData } from '../src/blueprint-editor/data/floorPlan.data'
-import { npcSettingsData } from '../src/blueprint-editor/data/npcSettings.data'
+import { normalizeNpcSpawnZones } from '../src/blueprint-editor/domain/types'
+import { seedOriginAssets, seedLayout, seedNpcConfig } from '../src/blueprint-editor/store/seed'
 
 function mulberry32(seed: number): () => number {
 	let a = seed >>> 0
@@ -32,9 +30,9 @@ function mulberry32(seed: number): () => number {
 	}
 }
 
-const assetMap = buildAssetMap(normalizeOriginAssetFile({ $schema: 'origin-assets.v1.json', version: 1, originAssets: originAssetsData })!.originAssets)
-const npcConfig = normalizeNpcConfig(npcSettingsData)!
-const payload = buildSyncedPayload(floorPlanData as never, assetMap, npcConfig)!
+const assetMap = buildAssetMap(seedOriginAssets)
+const npcConfig = seedNpcConfig
+const payload = buildSyncedPayload(seedLayout as never, assetMap, npcConfig)!
 const { floors, canvas } = loadSyncedPayload(payload)
 const floorKeys = floors.map(floor => floor.id)
 

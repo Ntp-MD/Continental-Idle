@@ -8,6 +8,7 @@ const NpcManagerModal = defineAsyncComponent(() => import('../modals/NpcManagerM
 const FloorModal = defineAsyncComponent(() => import('../modals/FloorModal.vue'))
 const DeployNpcModal = defineAsyncComponent(() => import('../modals/DeployNpcModal.vue'))
 const SettingsModal = defineAsyncComponent(() => import('../modals/SettingsModal.vue'))
+const WorkspaceModal = defineAsyncComponent(() => import('../modals/WorkspaceModal.vue'))
 const ShortcutsModal = defineAsyncComponent(() => import('./ShortcutsModal.vue'))
 import { useNpcSimulation } from '../../composables/useNpcSimulation'
 
@@ -21,6 +22,7 @@ const showNpcManager = ref(false)
 const showFloorModal = ref(false)
 const showDeployModal = ref(false)
 const showSettings = ref(false)
+const showWorkspace = ref(false)
 const showShortcuts = ref(false)
 
 function onHelpKey(e: KeyboardEvent) {
@@ -74,6 +76,16 @@ async function onSyncOrigins() {
     toast.success(`Origins refreshed${refreshedCount ? ` - ${refreshedCount} instances rebuilt` : ''}`)
   } catch {
     toast.error('Failed to refresh origins')
+  }
+}
+
+async function onCreateFirstFloor() {
+  try {
+    const floor = await run(() => store.addFloor())
+    if (floor) toast.success('Floor created')
+    else toast.error('Failed to create a floor')
+  } catch {
+    toast.error('Failed to create a floor')
   }
 }
 
@@ -201,6 +213,14 @@ function onSyncToGame() {
         Floor Manager
       </button>
       <button
+        :disabled="previewActive"
+        title="Export or import the workspace as a JSON file"
+        aria-label="Open workspace import and export"
+        @click="showWorkspace = true"
+      >
+        Workspace
+      </button>
+      <button
         v-if="isDev"
         :disabled="previewActive"
         title="Open UI showcase (all primitives and components)"
@@ -224,6 +244,21 @@ function onSyncToGame() {
       </button>
     </div>
 
+    <div v-if="!store.state.layout.floors.length" class="form__row right--border" role="status">
+      <span class="form__hint">No floors yet</span>
+      <button
+        class="flag--active"
+        :disabled="pending || previewActive"
+        aria-label="Create the first floor"
+        @click="onCreateFirstFloor"
+      >
+        Create first floor
+      </button>
+      <button :disabled="previewActive" aria-label="Import a workspace file" @click="showWorkspace = true">
+        Import workspace
+      </button>
+    </div>
+
     <button
       :disabled="previewActive"
       class="flag--success editor__toolbar--spacer"
@@ -239,6 +274,7 @@ function onSyncToGame() {
       <FloorModal :open="showFloorModal" @close="showFloorModal = false" />
       <DeployNpcModal :open="showDeployModal" @close="showDeployModal = false" @deploy="onConfirmDeploy" />
       <SettingsModal :open="showSettings" @close="showSettings = false" />
+      <WorkspaceModal :open="showWorkspace" @close="showWorkspace = false" />
       <ShortcutsModal :open="showShortcuts" @close="showShortcuts = false" />
     </ErrorBoundary>
   </div>

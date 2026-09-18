@@ -48,8 +48,14 @@ const collapsedCount = computed(() => {
   return count
 })
 
-const assetInUse = computed(() => {
-  return store.state.layout.floors.some((f) => f.objects.some((o) => o.type === props.asset.id))
+const placedInstanceCount = computed(() => {
+  let count = 0
+  for (const floor of store.state.layout.floors) {
+    for (const obj of floor.objects) {
+      if (obj.type === props.asset.id) count++
+    }
+  }
+  return count
 })
 
 async function saveAssetTags(tags: string[]) {
@@ -62,13 +68,17 @@ async function saveAssetTags(tags: string[]) {
 }
 
 async function deleteAsset() {
-  if (assetInUse.value) {
-    useToast().warning('Cannot delete - asset is placed on floors. Remove instances first.')
+  if (isNpcDeployed.value) {
+    useToast().warning('Cannot delete assets while NPCs are deployed. Exit NPC preview first.')
     return
   }
+  const instances = placedInstanceCount.value
   const confirmed = await confirm({
     title: 'Remove asset',
-    message: 'Remove this asset from the palette?',
+    message:
+      instances > 0
+        ? `Remove "${props.asset.name}" from the palette? ${instances} placed object(s) will be deleted too.`
+        : 'Remove this asset from the palette?',
     confirmLabel: 'Remove',
     cancelLabel: 'Cancel',
     danger: true,

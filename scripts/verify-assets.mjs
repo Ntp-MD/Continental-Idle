@@ -1,13 +1,13 @@
 /**
  * verify-assets.mjs
  *
- * Loads originAssets.data.ts (the live asset registry served/saved by the
- * dev-server /__blueprint-data middleware) and validates every asset against
- * the current AssetDef shape. Catches:
+ * Loads the canonical blueprint-data.json (the single source served/saved by
+ * the dev-server /__blueprint-data middleware) and validates every origin
+ * asset against the current AssetDef shape. Catches:
  * - Fields present in data but no longer on the type (stale data after removal)
  * - Fields required by the type but missing from data (incomplete migration)
  * - Shape mismatches (e.g. interactSpots entries as [x,y] tuples instead of {x,y})
- * - Tags used by assets or NPC roles/tasks but missing from tagManager.data.ts (registration warnings)
+ * - Tags used by assets or NPC roles/tasks but missing from the tags list (registration warnings)
  *
  * Run via: npm run verify:assets
  *
@@ -20,13 +20,18 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
-const dataPath = path.join(root, 'src', 'blueprint-editor', 'data', 'originAssets.data.ts')
+const dataPath = path.join(root, 'src', 'blueprint-editor', 'data', 'blueprint-data.json')
+
+function readBlueprintData() {
+	const parsed = JSON.parse(fs.readFileSync(dataPath, 'utf8').replace(/^\uFEFF/, ''))
+	if (!parsed || typeof parsed !== 'object' || !Array.isArray(parsed.originAssets)) {
+		throw new Error('blueprint-data.json has no originAssets array')
+	}
+	return parsed
+}
 
 function readOriginAssets() {
-	const source = fs.readFileSync(dataPath, 'utf8').replace(/^\uFEFF/, '')
-	const prefix = 'export const originAssetsData ='
-	if (!source.trimStart().startsWith(prefix)) throw new Error('originAssets.data.ts has an invalid export')
-	return JSON.parse(source.trimStart().slice(prefix.length).trim().replace(/;\s*$/, ''))
+	return readBlueprintData().originAssets
 }
 
 // ─── Known AssetDef field set (must match types.ts AssetBase + AssetDef) ───
@@ -130,18 +135,18 @@ function warn(assetId, msg) {
 	warnings++
 }
 
-console.log('Verifying originAssets.data.ts against AssetDef shape...\n')
+console.log('Verifying origin assets in blueprint-data.json against AssetDef shape...\n')
 
 let raw
 try {
 	raw = readOriginAssets()
 } catch (e) {
-	console.error(`Failed to read/parse originAssets.data.ts: ${e.message}`)
+	console.error(`Failed to read/parse blueprint-data.json: ${e.message}`)
 	process.exit(1)
 }
 
 if (!Array.isArray(raw)) {
-	console.error(`File-level: originAssetsData must be an array, got ${typeof raw}`)
+	console.error(`File-level: originAssets must be an array, got ${typeof raw}`)
 	process.exit(1)
 }
 
@@ -205,7 +210,7 @@ for (const asset of raw) {
   }
 }
 
-// --- Tag registration check: tagManager.data.ts is the source of truth ---
+// --- Tag registration check: blueprint-data.json tags are the source of truth ---
 function normalizeTagValue(value) {
   if (typeof value !== 'string') return undefined
   const text = value.trim().toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9_-]/g, '')
@@ -213,24 +218,16 @@ function normalizeTagValue(value) {
 }
 
 function readDefinedTagIds() {
-  const tagPath = path.join(root, 'src', 'blueprint-editor', 'data', 'tagManager.data.ts')
-  const source = fs.readFileSync(tagPath, 'utf8').replace(/^\uFEFF/, '')
   const ids = new Set()
-  const pattern = /["']?id["']?\s*:\s*"([^"]+)"/g
-  let match
-  while ((match = pattern.exec(source)) !== null) {
-    const normalized = normalizeTagValue(match[1])
+  for (const tag of readBlueprintData().tags ?? []) {
+    const normalized = normalizeTagValue(tag?.id)
     if (normalized) ids.add(normalized)
   }
   return ids
 }
 
 function collectNpcTagUsage() {
-  const npcPath = path.join(root, 'src', 'blueprint-editor', 'data', 'npcSettings.data.ts')
-  const source = fs.readFileSync(npcPath, 'utf8').replace(/^\uFEFF/, '')
-  const prefix = 'export const npcSettingsData ='
-  if (!source.trimStart().startsWith(prefix)) throw new Error('npcSettings.data.ts has an invalid export')
-  const config = JSON.parse(source.trimStart().slice(prefix.length).trim().replace(/;\s*$/, ''))
+  const config = readBlueprintData().npcConfig ?? {}
   const usage = new Map()
   const add = (tag, user) => {
     const normalized = normalizeTagValue(tag)
@@ -267,14 +264,14 @@ function collectNpcTagUsage() {
   try {
     defined = readDefinedTagIds()
   } catch (e) {
-    error('tags', `cannot read tagManager.data.ts: ${e.message}`)
+    error('tags', `cannot read blueprint-data.json tags: ${e.message}`)
     defined = new Set()
   }
   let npcUsage
   try {
     npcUsage = collectNpcTagUsage()
   } catch (e) {
-    error('tags', `cannot read npcSettings.data.ts: ${e.message}`)
+    error('tags', `cannot read blueprint-data.json npcConfig: ${e.message}`)
     npcUsage = new Map()
   }
   for (const [tag, users] of npcUsage) {
@@ -282,7 +279,7 @@ function collectNpcTagUsage() {
   }
   const unregistered = [...usage.keys()].filter(tag => !defined.has(tag)).sort()
   for (const tag of unregistered) {
-    warn('tags', `tag "${tag}" used by [${usage.get(tag).join(', ')}] but missing from tagManager.data.ts - add a definition or remove the references`)
+    warn('tags', `tag "${tag}" used by [${usage.get(tag).join(', ')}] but missing from blueprint-data.json tags - add a definition or remove the references`)
   }
 }
 

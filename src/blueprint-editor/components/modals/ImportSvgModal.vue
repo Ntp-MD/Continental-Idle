@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { ref, watch, computed } from 'vue'
 import { useAssetsStore } from '../../blueprintStore'
 import { useToast } from '@/composables/useToast'
 import { useAsyncAction } from '../../composables/useAsyncAction'
 import { useCanvasDefaults } from '../../composables/useCanvasDefaults'
 import { parseSvgViewBox } from '../../assets/assetUtils'
+import { MAX_ASSET_TILES } from '../../limits'
 import { useDebouncedCallback } from '@/composables/useDebounceFn'
 import ModalShell from '../shell/ModalShell.vue'
 
@@ -23,12 +24,21 @@ const svgContent = ref('')
 const status = ref('')
 const statusTone = ref<'' | 'warn' | 'fail'>('')
 
+const oversized = computed(() => svgW.value > MAX_ASSET_TILES || svgH.value > MAX_ASSET_TILES)
+
 const parseSvgContent = useDebouncedCallback((val: string) => {
   if (!val) return
   const vb = parseSvgViewBox(val)
   if (!vb) return
   svgW.value = Math.max(1, Math.round(vb.w / canvasTileSize.value))
   svgH.value = Math.max(1, Math.round(vb.h / canvasTileSize.value))
+  if (oversized.value) {
+    status.value = `SVG is too large - each side is capped at ${MAX_ASSET_TILES} tiles`
+    statusTone.value = 'warn'
+  } else if (statusTone.value === 'warn') {
+    status.value = ''
+    statusTone.value = ''
+  }
 }, 200)
 
 watch(svgContent, (val) => parseSvgContent(val))
@@ -55,6 +65,11 @@ async function submit() {
   }
   if (!svgContent.value.trim()) {
     status.value = 'SVG content cannot be empty'
+    statusTone.value = 'warn'
+    return
+  }
+  if (oversized.value) {
+    status.value = `SVG is too large - each side is capped at ${MAX_ASSET_TILES} tiles`
     statusTone.value = 'warn'
     return
   }
@@ -96,6 +111,7 @@ async function submit() {
           class="size--fit"
           type="number"
           min="1"
+          :max="MAX_ASSET_TILES"
           :value="svgW"
           disabled
           placeholder="W (auto)"
@@ -106,6 +122,7 @@ async function submit() {
           class="size--fit"
           type="number"
           min="1"
+          :max="MAX_ASSET_TILES"
           :value="svgH"
           disabled
           placeholder="H (auto)"
@@ -121,7 +138,7 @@ async function submit() {
     </div>
     <template #footer>
       <button type="button" @click="emit('close')">Cancel</button>
-      <button class="flag--active" type="button" :disabled="pending" @click="submit">Import SVG</button>
+      <button class="flag--active" type="button" :disabled="pending || oversized" @click="submit">Import SVG</button>
     </template>
   </ModalShell>
 </template>
