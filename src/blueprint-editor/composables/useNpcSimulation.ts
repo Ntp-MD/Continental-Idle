@@ -27,7 +27,9 @@ export function floorSignature(floor: FloorData | undefined): string {
 	if (!floor) return ''
 	const parts: (string | number)[] = [floor.id, floor.objects.length, floor.defaultWalkable ? 1 : 0]
 	for (const o of floor.objects) {
-		parts.push(o.id, o.type)
+		// Geometry fields matter: a moved/rotated object must invalidate the
+		// engine's walkable map and interaction targets.
+		parts.push(o.id, o.type, o.x, o.y, o.w, o.h, o.rotation)
 	}
 	parts.push(JSON.stringify(floor.allowedRoleIds ?? null), JSON.stringify(floor.spawnZones ?? null))
 	const ts = floor.walkable?.tileStates

@@ -1,7 +1,9 @@
 import assert from 'node:assert/strict'
-import { buildSyncedPayload, loadSyncedPayload } from '../src/blueprint-editor/syncedPayload'
+import { buildSyncedPayload, loadSyncedPayload, SYNCED_PAYLOAD_VERSION } from '../src/blueprint-editor/syncedPayload'
 import { buildAssetMap } from '../src/blueprint-editor/assets/assetUtils'
 import { emptyNpcConfig } from '../src/blueprint-editor/store/storeUtils'
+import { BLUEPRINT_DATA_VERSION } from '../src/blueprint-editor/domain/types'
+import { EDITOR_CONFIG } from '../src/blueprint-editor/editorConfig'
 import type { AssetDef, FloorLayoutData, NpcSimulationConfig, SyncedLayoutPayload } from '../src/blueprint-editor/domain/types'
 
 const NPC_CONFIG: NpcSimulationConfig = {
@@ -275,4 +277,28 @@ function makeAsset(over: Partial<AssetDef>): AssetDef {
 // ── Degenerate input ──
 {
 	assert.equal(buildSyncedPayload(makeLayout({ floors: [] }), new Map(), undefined), null, 'zero floors -> null')
+}
+
+// ── streetFloorId remaps to the runtime sync key ──
+{
+	const payload = buildSyncedPayload(makeLayout({ streetFloorId: 'f1' }), new Map(), undefined)!
+	assert.equal(payload.canvas.streetFloorId, 'G', 'editor floor id remaps to sync key at egress')
+	const loaded = loadSyncedPayload(payload)
+	assert.equal(loaded.canvas.streetFloorId, 'G', 'runtime street id matches a runtime floor id')
+	const stray = buildSyncedPayload(makeLayout({ streetFloorId: 'nope' }), new Map(), undefined)!
+	assert.equal(stray.canvas.streetFloorId, undefined, 'unknown street floor dropped at egress')
+	const cut = loadSyncedPayload({ ...payload, canvas: { ...payload.canvas, streetFloorId: '9' } })
+	assert.equal(cut.canvas.streetFloorId, undefined, 'street id missing from payload floors dropped at ingress')
+}
+
+// ── Version namespaces stay pinned together ──
+{
+	assert.equal(BLUEPRINT_DATA_VERSION, 2, 'outer file envelope version')
+	assert.equal(EDITOR_CONFIG.layoutVersion, 3, 'inner layout version')
+	assert.equal(SYNCED_PAYLOAD_VERSION, 3, 'sync DTO version')
+	assert.throws(
+		() => loadSyncedPayload({ version: 2, canvas: { width: 10, height: 10, tileSize: 5, streetWidthTiles: 1 }, floors: {} } as unknown as SyncedLayoutPayload),
+		/Unsupported synced payload version/,
+		'stale payload rejected at ingress',
+	)
 }

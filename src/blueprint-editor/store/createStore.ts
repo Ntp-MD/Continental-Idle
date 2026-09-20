@@ -1,10 +1,10 @@
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import type { AssetDef, BlueprintTagDefinition, FloorLayoutData, Rect } from '../domain/types'
 import { buildAssetMap } from '../assets/assetUtils'
 import { snap as _snap, clamp as _clamp, resolveBuildingArea } from '../domain/geometry'
 import { buildBlueprintData } from './dataLoader'
 import { migrate } from './migrate'
-import { cloneDeepRaw, emptyNpcConfig, layoutHasContent } from './storeUtils'
+import { cloneDeepRaw, deepEqualRaw, emptyNpcConfig, layoutHasContent, pruneNpcReferences } from './storeUtils'
 import { EDITOR_CONFIG } from '../editorConfig'
 import { createEditorState, initAssetFields, type BlueprintStore, type ToastApi } from './state'
 import type { PersistencePort, SyncPort } from './ports'
@@ -80,15 +80,53 @@ export function createBlueprintStore(deps: BlueprintStoreDeps): BlueprintStore {
 
 	let lastSaved = captureSnapshot()
 
+	// Undo history: committed-state stack, live state always equals the top.
+	// Cap 5 entries = 4 undo steps (user order: "4 state พอ").
+	const HISTORY_LIMIT = 5
+	const history: Array<{ layout: FloorLayoutData; assetRegistry: AssetDef[]; tagDefinitions: BlueprintTagDefinition[]; floorId: string }> = []
+	const historyDepth = ref(0)
+
+	function pushHistory(): void {
+		const snap = {
+			layout: cloneDeepRaw(state.layout),
+			assetRegistry: cloneDeepRaw(state.assetRegistry),
+			tagDefinitions: cloneDeepRaw(state.tagDefinitions),
+			floorId: state.currentFloorId,
+		}
+		const top = history[history.length - 1]
+		if (
+			top &&
+			top.floorId === snap.floorId &&
+			deepEqualRaw(top.layout, snap.layout) &&
+			deepEqualRaw(top.assetRegistry, snap.assetRegistry) &&
+			deepEqualRaw(top.tagDefinitions, snap.tagDefinitions)
+		)
+			return
+		history.push(snap)
+		while (history.length > HISTORY_LIMIT) history.shift()
+		historyDepth.value = history.length
+	}
+
+	function resetHistory(): void {
+		history.length = 0
+		historyDepth.value = 0
+		pushHistory()
+	}
+
 	let saveChain: Promise<unknown> = Promise.resolve()
 
 	function save(): Promise<boolean> {
 		const run = async (): Promise<boolean> => {
+			const pruned = pruneNpcReferences(state.layout, state.assetRegistry)
 			const body = buildBlueprintData(state.layout, state.assetRegistry, state.layout.npcConfig ?? emptyNpcConfig(), state.tagDefinitions)
 			try {
 				const ok = await deps.persistence.save(body)
 				if (!ok) throw new Error('Persistence save returned failure')
 				lastSaved = captureSnapshot()
+				if (pruned.length) {
+					const shown = pruned.slice(0, 4).join('; ')
+					toast.info(`Wiring cleanup: ${shown}${pruned.length > 4 ? ` (+${pruned.length - 4} more)` : ''}`)
+				}
 				return true
 			} catch (error) {
 				restoreSnapshot(lastSaved)
@@ -108,9 +146,42 @@ export function createBlueprintStore(deps: BlueprintStoreDeps): BlueprintStore {
 	let exclusiveChain: Promise<unknown> = Promise.resolve()
 
 	function runExclusive<T>(fn: () => Promise<T>): Promise<T> {
-		const result = exclusiveChain.then(fn, fn)
+		const wrapped = async (): Promise<T> => {
+			const result = await fn()
+			pushHistory()
+			return result
+		}
+		const result = exclusiveChain.then(wrapped, wrapped)
 		exclusiveChain = result.then(() => undefined, () => undefined)
 		return result
+	}
+
+	const canUndo = computed(() => historyDepth.value >= 2)
+
+	async function undo(): Promise<boolean> {
+		return runExclusive(async () => {
+			if (history.length < 2) return false
+			history.pop()
+			const snap = history[history.length - 1]
+			if (!snap) return false
+			historyDepth.value = history.length
+			state.layout = cloneDeepRaw(snap.layout)
+			state.assetRegistry = cloneDeepRaw(snap.assetRegistry)
+			state.tagDefinitions = cloneDeepRaw(snap.tagDefinitions)
+			for (const asset of state.assetRegistry) initAssetFields(asset)
+			if (!state.layout.floors.some(f => f.id === state.currentFloorId)) {
+				state.currentFloorId = state.layout.floors.some(f => f.id === snap.floorId)
+					? snap.floorId
+					: state.layout.floors[0]?.id ?? ''
+			}
+			state.selectionState = { primary: null, items: [] }
+			try {
+				await save()
+				return true
+			} catch {
+				return false
+			}
+		})
 	}
 
 	async function reloadEditorData(): Promise<void> {
@@ -126,6 +197,7 @@ export function createBlueprintStore(deps: BlueprintStoreDeps): BlueprintStore {
 			state.currentFloorId = state.layout.floors[0]?.id ?? ''
 		}
 		lastSaved = captureSnapshot()
+		resetHistory()
 	}
 
 	const store: Record<string, unknown> = {
@@ -137,6 +209,8 @@ export function createBlueprintStore(deps: BlueprintStoreDeps): BlueprintStore {
 		isNpcPreview,
 		assetMap: () => assetMapComputed.value,
 		hasContent: () => layoutHasContent(state.layout),
+		undo,
+		canUndo,
 		snap: (value: number, tileSize?: number) => _snap(value, tileSize ?? state.layout.canvas.tileSize),
 		clamp: (rect: Rect) => {
 			const b = resolveBuildingArea(state.layout)
@@ -162,6 +236,9 @@ export function createBlueprintStore(deps: BlueprintStoreDeps): BlueprintStore {
 		createPersistenceCommands(s),
 		createFlattenCommands(s),
 	)
+
+	// Seed undo history with the initial committed state.
+	pushHistory()
 
 	return s
 }

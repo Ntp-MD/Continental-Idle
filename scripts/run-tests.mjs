@@ -1,10 +1,11 @@
 // Temporary hybrid test runner (plan T1, option C).
 // Target end state: vitest is the single runner. Until every legacy tsx
-// suite is migrated, this script sequences vitest + the tsx suites so one
-// command gives a deterministic pass/fail with an explicit exit code.
+// suite is migrated, this script sequences the tsx suites so one command
+// gives a deterministic pass/fail with an explicit exit code.
+// NOTE: vitest is intentionally NOT run here - `npm run verify` already runs
+// `test:unit` before invoking this script; running it here executed the full
+// vitest pass twice in CI.
 import { spawn } from 'node:child_process'
-
-const VITEST = 'npx vitest run'
 
 const LEGACY_SUITES = [
 	'test:npc-engine',
@@ -21,6 +22,7 @@ const LEGACY_SUITES = [
 	'test:tag-matching',
 	'test:persistence',
 	'test:store-crud',
+	'test:tower-integration',
 ]
 
 const LEGACY_SCRIPTS = ['verify:assets']
@@ -33,7 +35,6 @@ function run(label, command) {
 }
 
 const steps = [
-	['vitest', VITEST],
 	...LEGACY_SUITES.map((suite) => [suite, `npm run ${suite}`]),
 	...LEGACY_SCRIPTS.map((script) => [script, `npm run ${script}`]),
 ]

@@ -5,6 +5,7 @@ import { useToast, reportSaved } from '@/composables/useToast'
 import { useConfirm } from '@/composables/useConfirm'
 import { sanitizeString } from '../../../utils/sanitize'
 import { spawnZoneAllowsRole } from '../../domain/types'
+import { assignSyncKeys } from '../../syncedPayload'
 import type { FloorData, NpcSpawnZone } from '../../domain/types'
 import ModalShell from '../shell/ModalShell.vue'
 
@@ -20,6 +21,7 @@ const editingName = ref(false)
 const editingNameRaw = ref('')
 const editingLabel = ref(false)
 const editingLabelRaw = ref('')
+let labelCommitting = false
 const floorDragIndex = ref<number | null>(null)
 const newZoneLabel = ref('')
 const newZoneX = ref(0)
@@ -75,8 +77,35 @@ function startEditLabel() {
   editingLabelRaw.value = selectedFloor.value.label
 }
 async function commitLabel() {
-  if (!selectedFloor.value) return
+  if (!selectedFloor.value || labelCommitting) return
   const label = editingLabelRaw.value.trim() || selectedFloor.value.label
+  if (label === selectedFloor.value.label) {
+    editingLabel.value = false
+    return
+  }
+  const before = assignSyncKeys(floors.value)
+  const after = assignSyncKeys(floors.value.map(f => (f.id === selectedFloor.value!.id ? { ...f, label } : f)))
+  const oldKey = before.get(selectedFloor.value.id)
+  const newKey = after.get(selectedFloor.value.id)
+  if (oldKey !== newKey) {
+    labelCommitting = true
+    editingLabel.value = false
+    // Yield so the Enter keydown that opened this dialog finishes propagating
+    // before the confirm dialog mounts - otherwise it confirms itself.
+    await new Promise(resolve => setTimeout(resolve, 0))
+    try {
+      const ok = await confirm({
+        title: 'Relabel floor',
+        message: `Relabeling re-keys this floor for the game (${oldKey} -> ${newKey}). Runtime state under the old key is orphaned. Continue?`,
+        confirmLabel: 'Relabel',
+        cancelLabel: 'Cancel',
+        danger: true,
+      })
+      if (!ok) return
+    } finally {
+      labelCommitting = false
+    }
+  }
   const saved = await store.updateFloor(selectedFloor.value.id, { label })
   if (!saved) return toast.error('Failed to save floor label')
   editingLabel.value = false
@@ -180,6 +209,18 @@ function toggleNewZoneRole(roleId: string) {
   if (set.has(roleId)) set.delete(roleId)
   else set.add(roleId)
   newZoneRoles.value = [...set]
+}
+
+function armZoneDraw() {
+  const floor = selectedFloor.value
+  if (!floor) return
+  const label = sanitizeString(newZoneLabel.value.trim()) || `Zone ${(floor.spawnZones?.length ?? 0) + 1}`
+  store.armZoneDraw({ label, roleIds: [...newZoneRoles.value] })
+  store.selectFloor(floor.id)
+  store.setMode('zone')
+  newZoneLabel.value = ''
+  newZoneRoles.value = []
+  emit('close')
 }
 
 async function addSpawnZone() {
@@ -389,6 +430,13 @@ function floorCounts(f: FloorData): string {
                 @keydown.enter="addSpawnZone"
               />
               <button type="button" class="flag--active" @click="addSpawnZone">Add</button>
+              <button
+                type="button"
+                title="Close this dialog and drag a rectangle on the canvas for the new zone"
+                @click="armZoneDraw"
+              >
+                Draw
+              </button>
             </div>
             <div class="form__row form--wrap">
               <label class="form__col">X<input v-model.number="newZoneX" class="size--fit" type="number" min="0" aria-label="Zone x" /></label>

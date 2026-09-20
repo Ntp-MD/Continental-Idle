@@ -11,6 +11,7 @@ const SettingsModal = defineAsyncComponent(() => import('../modals/SettingsModal
 const WorkspaceModal = defineAsyncComponent(() => import('../modals/WorkspaceModal.vue'))
 const ShortcutsModal = defineAsyncComponent(() => import('./ShortcutsModal.vue'))
 import { useNpcSimulation } from '../../composables/useNpcSimulation'
+import { validateSettingsCompleteness } from '../../assets/validation'
 
 const store = useAssetsStore()
 const toast = useToast()
@@ -36,7 +37,19 @@ function onHelpKey(e: KeyboardEvent) {
 onMounted(() => window.addEventListener('keydown', onHelpKey))
 onUnmounted(() => window.removeEventListener('keydown', onHelpKey))
 
+function isWiringIssue(issue: string): boolean {
+  return /spawn zone|post|pool|Task "|Role "|trigger rate/i.test(issue)
+}
+
+const wiringIssues = computed(() =>
+  validateSettingsCompleteness(store.state.layout, store.assetMap(), store.state.layout.npcConfig).issues.filter(isWiringIssue),
+)
+
 function onNpcManager() {
+  if (showDeployModal.value) {
+    toast.info('Close the Deploy dialog first - it holds unsent changes')
+    return
+  }
   showNpcManager.value = true
 }
 
@@ -49,6 +62,10 @@ function onDeployNpc() {
   if (!hasRoles) {
     toast.info('Configure NPC roles first')
     showNpcManager.value = true
+    return
+  }
+  if (showNpcManager.value) {
+    toast.info('Close the NPC Manager first - it holds unsent changes')
     return
   }
   showDeployModal.value = true
@@ -102,6 +119,25 @@ function onTileBrush(brush: 'walkable' | 'blocked' | 'door') {
   if (previewActive.value) return
   store.setTileBrush(store.state.tileBrush === brush ? null : brush)
 }
+
+function onUndo() {
+  if (previewActive.value) return
+  void store.undo().then((ok) => {
+    if (!ok) toast.info('Nothing left to undo')
+  })
+}
+
+function onUndoKey(e: KeyboardEvent) {
+  if (!(e.ctrlKey || e.metaKey) || e.key.toLowerCase() !== 'z') return
+  const el = e.target as HTMLElement | null
+  if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || el.isContentEditable))
+    return
+  e.preventDefault()
+  onUndo()
+}
+
+onMounted(() => window.addEventListener('keydown', onUndoKey))
+onUnmounted(() => window.removeEventListener('keydown', onUndoKey))
 </script>
 
 <template>
@@ -125,6 +161,15 @@ function onTileBrush(brush: 'walkable' | 'blocked' | 'door') {
     </button>
 
     <button title="Keyboard shortcuts" aria-label="Keyboard shortcuts" @click="showShortcuts = true">?</button>
+
+    <button
+      title="Undo (Ctrl+Z)"
+      aria-label="Undo last change"
+      :disabled="!store.canUndo.value || previewActive"
+      @click="onUndo"
+    >
+      Undo
+    </button>
 
     <div class="form__row right--border">
       <span class="form__hint">Tools</span>
@@ -191,6 +236,14 @@ function onTileBrush(brush: 'walkable' | 'blocked' | 'door') {
       >
         NPC Manager
       </button>
+      <span
+        v-if="wiringIssues.length"
+        class="badge flag--warning"
+        role="status"
+        :title="wiringIssues.join('\n')"
+      >
+        {{ wiringIssues.length }} wiring
+      </span>
       <button
         :disabled="pending || previewActive"
         title="Re-resolve every placed object from its origin asset and rebuild walkable layout"

@@ -1,5 +1,5 @@
 import { toRaw } from 'vue'
-import { NPC_DEFAULT_SPEED, NPC_OPTION_DEFAULTS, NPC_FRAME_DEFAULTS, type FloorData, type FloorLayoutData, type NpcSimulationConfig, type NpcTask, type TileState } from '../domain/types'
+import { NPC_DEFAULT_SPEED, NPC_OPTION_DEFAULTS, NPC_FRAME_DEFAULTS, type AssetDef, type FloorData, type FloorLayoutData, type NpcSimulationConfig, type NpcTask, type TileState } from '../domain/types'
 
 export function floorHasContent(floor: FloorData): boolean {
 	if (floor.objects.length > 0) return true
@@ -26,6 +26,97 @@ export function genId(prefix: string): string {
 
 export function taskMatchesQuery(task: NpcTask, query: string): boolean {
 	return task.label.toLowerCase().includes(query) || task.tags.some((tag) => tag.toLowerCase().includes(query))
+}
+
+export function pruneNpcReferences(layout: FloorLayoutData, assets: readonly AssetDef[]): string[] {
+	const notes: string[] = []
+	const config = layout.npcConfig
+	if (!config) return notes
+	const postsByAsset = new Map(assets.map(asset => [asset.id, new Set(
+		(asset.interactSpots ?? []).map(spot => spot.post).filter((post): post is string => !!post),
+	)]))
+	const roleIds = new Set(config.roles.map(role => role.id))
+	const taskIds = new Set(config.tasks.map(task => task.id))
+	const floorIds = new Set(layout.floors.map(floor => floor.id))
+	config.pool = config.pool.filter(entry => {
+		if (!roleIds.has(entry.roleId)) {
+			notes.push(`Pool entry for unknown role "${entry.roleId}" removed`)
+			return false
+		}
+		if (entry.floorIds?.length) {
+			const kept = entry.floorIds.filter(id => floorIds.has(id))
+			const dropped = entry.floorIds.length - kept.length
+			if (dropped > 0) notes.push(`Pool entry for role "${entry.roleId}" dropped ${dropped} deleted floor(s)`)
+			if (!kept.length) {
+				notes.push(`Pool entry for role "${entry.roleId}" removed (no floors left)`)
+				return false
+			}
+			entry.floorIds = kept
+		}
+		return true
+	})
+	for (const role of config.roles) {
+		const before = role.taskIds.length
+		role.taskIds = role.taskIds.filter(id => taskIds.has(id))
+		if (role.taskIds.length !== before) notes.push(`Role "${role.label}" dropped ${before - role.taskIds.length} deleted task(s)`)
+		if (role.spawnRule && role.spawnRule.count !== undefined) {
+			notes.push(`Role "${role.label}" dropped dead spawnRule.count`)
+			delete role.spawnRule.count
+		}
+	}
+	for (const task of config.tasks) {
+		if (!task.post) continue
+		const livePosts = postsByAsset.get(task.post.assetId)
+		if (!livePosts) {
+			notes.push(`Task "${task.label}" post to deleted asset "${task.post.assetId}" removed`)
+			delete task.post
+			continue
+		}
+		if (task.post.post && !livePosts.has(task.post.post)) {
+			notes.push(`Task "${task.label}" post "${task.post.post}" no longer exists - kept asset binding`)
+			delete task.post.post
+		}
+	}
+	const usedTags = new Set<string>()
+	for (const role of config.roles) {
+		for (const tag of role.focusTags) usedTags.add(tag)
+		for (const tag of role.restrictedTags) usedTags.add(tag)
+		for (const tag of role.spawnRule?.targetTags ?? []) usedTags.add(tag)
+	}
+	for (const task of config.tasks) {
+		for (const tag of task.tags) usedTags.add(tag)
+	}
+	if (config.tagTriggerRates) {
+		for (const tag of Object.keys(config.tagTriggerRates)) {
+			if (!usedTags.has(tag)) {
+				notes.push(`Trigger rate for unused tag "${tag}" removed`)
+				delete config.tagTriggerRates[tag]
+			}
+		}
+		if (Object.keys(config.tagTriggerRates).length === 0) delete config.tagTriggerRates
+	}
+	if (config.defaultRoleId && !roleIds.has(config.defaultRoleId)) {
+		const fallback = config.roles[0]?.id ?? ''
+		notes.push(`Default role reset to "${fallback || 'none'}"`)
+		config.defaultRoleId = fallback
+	}
+	for (const floor of layout.floors) {
+		if (floor.allowedRoleIds?.length) {
+			const kept = floor.allowedRoleIds.filter(id => roleIds.has(id))
+			if (kept.length !== floor.allowedRoleIds.length) notes.push(`Floor "${floor.label}" dropped deleted role(s)`)
+			if (kept.length) floor.allowedRoleIds = kept
+			else delete floor.allowedRoleIds
+		}
+		for (const zone of floor.spawnZones ?? []) {
+			if (zone.roleIds?.length) {
+				const kept = zone.roleIds.filter(id => roleIds.has(id))
+				if (kept.length !== zone.roleIds.length) notes.push(`Spawn zone "${zone.label}" dropped deleted role(s)`)
+				if (kept.length) zone.roleIds = kept
+				else delete zone.roleIds
+			}
+		}
+	}
+	return notes
 }
 
 export function cloneDeepRaw<T>(value: T): T {

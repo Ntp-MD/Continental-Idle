@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict'
 import { collectFloorEntrances, isGuestRoleId, validateSettingsCompleteness } from '../src/blueprint-editor/assets/validation'
+import { EDITOR_FIELD_SPECS } from '../src/blueprint-editor/domain/types'
+import { settingsFieldKeys } from '../src/blueprint-editor/components/modals/settingsFields'
 import type { FloorLayoutData, NpcSimulationConfig, ObjectData, TileState } from '../src/blueprint-editor/domain/types'
 
 const STREET_HINT_SNIPPET = 'need a street-side spawn zone'
@@ -255,6 +257,108 @@ console.log('guest role id predicate passed')
 	const entrances = collectFloorEntrances({ id: 'F1', name: 'Lobby', label: 'Lobby', objects: [] }, CANVAS, 8)
 	assert.equal(entrances.length, 0)
 	console.log('entrance derivation empty floor passed')
+}
+
+// Pool targeting a floor with no placed objects: spawn-with-nothing-to-do hint fires.
+{
+	const result = validateSettingsCompleteness(
+		makeLayout({}),
+		new Map(),
+		makeConfig([{ roleId: 'role-staff', count: 2, floorIds: ['F1'] }]),
+	)
+	assert.ok(result.issues.some(issue => issue.includes('no placed objects')), 'pool->empty floor is flagged')
+	console.log('empty-floor pool hint passed')
+}
+
+// Same pool against a furnished floor: no empty-floor hint.
+{
+	const layout = makeLayout({})
+	layout.floors[0].objects = [{ id: 'o1', type: 'chair', x: 0, y: 0, rotation: 0, w: 20, h: 20 }]
+	const result = validateSettingsCompleteness(
+		layout,
+		new Map(),
+		makeConfig([{ roleId: 'role-staff', count: 2, floorIds: ['F1'] }]),
+	)
+	assert.equal(result.issues.some(issue => issue.includes('no placed objects')), false)
+	console.log('empty-floor pool hint absent when furnished passed')
+}
+
+// 2x2 solid wall masses are surfaced (single-tile wall rule).
+{
+	const layout = makeLayout({})
+	layout.floors[0].walkable = {
+		walkableGrid: [[true, true], [true, true]],
+		tileStates: [['blocked', 'blocked'], ['blocked', 'blocked']],
+	}
+	const result = validateSettingsCompleteness(layout, new Map(), makeConfig([{ roleId: 'role-staff', count: 2 }]))
+	assert.ok(result.issues.some(issue => issue.includes('2x2')), 'solid wall mass flagged')
+	console.log('2x2 wall mass hint passed')
+}
+
+// Spawn zone whose role has live work on the floor: no purposeless-zone hint.
+{
+	const assetMap = new Map([['stove', { id: 'stove', name: 'Stove', w: 1, h: 1, tags: ['cooking'] } as never]])
+	const layout = makeLayout({
+		objects: [{ id: 'o1', type: 'stove', x: 0, y: 0, rotation: 0, w: 20, h: 20 }],
+		zones: [{ x: 0, y: 0, w: 100, h: 100, roleIds: ['role-staff'] }],
+	})
+	const config = makeConfig([{ roleId: 'role-staff', count: 1 }])
+	config.roles.find(r => r.id === 'role-staff')!.taskIds = ['task-cook']
+	config.tasks = [{ id: 'task-cook', label: 'Cook', tags: ['cooking'] }]
+	const result = validateSettingsCompleteness(layout, assetMap, config)
+	assert.equal(result.issues.some(issue => issue.includes('none of its tasks')), false)
+	console.log('zoned role with live work is quiet passed')
+}
+
+// Zone spawns a tasked role but nothing on the floor matches: hint fires.
+{
+	const assetMap = new Map([['sofa', { id: 'sofa', name: 'Sofa', w: 1, h: 1, tags: ['lounge'] } as never]])
+	const layout = makeLayout({
+		objects: [{ id: 'o1', type: 'sofa', x: 0, y: 0, rotation: 0, w: 20, h: 20 }],
+		zones: [{ x: 0, y: 0, w: 100, h: 100, roleIds: ['role-staff'] }],
+	})
+	const config = makeConfig([{ roleId: 'role-staff', count: 1 }])
+	config.roles.find(r => r.id === 'role-staff')!.taskIds = ['task-cook']
+	config.tasks = [{ id: 'task-cook', label: 'Cook', tags: ['cooking'] }]
+	const result = validateSettingsCompleteness(layout, assetMap, config)
+	assert.ok(result.issues.some(issue => issue.includes('none of its tasks')), 'purposeless zone is flagged')
+	console.log('zoned role with dead tasks hint passed')
+}
+
+// Task-less wanderer in a zone: exempt, no hint.
+{
+	const assetMap = new Map([['sofa', { id: 'sofa', name: 'Sofa', w: 1, h: 1, tags: ['lounge'] } as never]])
+	const layout = makeLayout({
+		objects: [{ id: 'o1', type: 'sofa', x: 0, y: 0, rotation: 0, w: 20, h: 20 }],
+		zones: [{ x: 0, y: 0, w: 100, h: 100, roleIds: ['role-guest'] }],
+	})
+	const result = validateSettingsCompleteness(layout, assetMap, makeConfig([{ roleId: 'role-guest', count: 1 }]))
+	assert.equal(result.issues.some(issue => issue.includes('none of its tasks')), false)
+	console.log('taskless wanderer exempt passed')
+}
+
+// Post-bound task: live post name is quiet, renamed post fires the hint.
+{
+	const assetMap = new Map([['desk', { id: 'desk', name: 'Desk', w: 1, h: 1, tags: ['front-desk'], interactSpots: [{ kind: 'stand', x: 1, y: 1, post: 'station' }] } as never]])
+	const layout = makeLayout({
+		objects: [{ id: 'o1', type: 'desk', x: 0, y: 0, rotation: 0, w: 20, h: 20 }],
+		zones: [{ x: 0, y: 0, w: 100, h: 100, roleIds: ['role-staff'] }],
+	})
+	const config = makeConfig([{ roleId: 'role-staff', count: 1 }])
+	config.roles.find(r => r.id === 'role-staff')!.taskIds = ['task-desk']
+	config.tasks = [{ id: 'task-desk', label: 'Desk', tags: [], post: { assetId: 'desk', post: 'station' } }]
+	assert.equal(validateSettingsCompleteness(layout, assetMap, config).issues.some(issue => issue.includes('none of its tasks')), false)
+	config.tasks[0].post = { assetId: 'desk', post: 'renamed' }
+	assert.ok(validateSettingsCompleteness(layout, assetMap, config).issues.some(issue => issue.includes('none of its tasks')), 'renamed post flagged')
+	console.log('post-bound zone purpose passed')
+}
+
+// Every editor field spec has a Settings modal row (no silent omissions).
+{
+	const covered = new Set(settingsFieldKeys())
+	const missing = (Object.keys(EDITOR_FIELD_SPECS) as (keyof typeof EDITOR_FIELD_SPECS)[]).filter(key => !covered.has(key))
+	assert.deepEqual(missing, [], `spec keys missing from Settings modal: ${missing.join(', ')}`)
+	console.log('settings modal field coverage passed')
 }
 
 console.log('settings completeness checks passed')

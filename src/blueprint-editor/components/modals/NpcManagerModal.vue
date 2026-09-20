@@ -3,11 +3,11 @@ import { computed, onUnmounted, ref, watch } from 'vue'
 import { useAssetsStore } from '../../blueprintStore'
 import { useConfirm } from '@/composables/useConfirm'
 import { useToast, reportSaved } from '@/composables/useToast'
-import { isHexColor, normalizeNpcConfig, clampInt } from '../../domain/types'
+import { isHexColor, normalizeNpcConfig, normalizeTag, clampInt } from '../../domain/types'
 import { genId, emptyNpcConfig, taskMatchesQuery, cloneDeepRaw } from '../../blueprintStore'
 import { useDebouncedCallback } from '@/composables/useDebounceFn'
 import { sanitizeString } from '../../../utils/sanitize'
-import type { NpcRole, NpcSimulationConfig, NpcTask } from '../../domain/types'
+import type { NpcRole, NpcSimulationConfig, NpcSpawnRule, NpcTask } from '../../domain/types'
 import ModalShell from '../shell/ModalShell.vue'
 import NpcRoleList from './NpcRoleList.vue'
 import NpcRoleDetail from './NpcRoleDetail.vue'
@@ -157,7 +157,7 @@ async function addRole() {
     restrictedTags: [],
     taskIds: [],
     focusChance: 100,
-    spawnRule: { targetTags: [], count: 0 },
+    spawnRule: { targetTags: [] },
   })
   if (!draft.value.defaultRoleId) draft.value.defaultRoleId = id
   view.value = 'roles'
@@ -188,25 +188,8 @@ async function deleteRole(role: NpcRole) {
   draft.value.pool = draft.value.pool.filter((entry) => entry.roleId !== role.id)
   if (isDefault) draft.value.defaultRoleId = others[0].id
   if (selectedRoleId.value === role.id) resetSelection()
-  removeRoleFromFloors(role.id)
   const ok = await persistConfig()
   reportSaved(ok, `Role "${role.label}" deleted`, 'Failed to delete role - changes not saved')
-}
-
-function removeRoleFromFloors(roleId: string) {
-  for (const floor of store.state.layout.floors) {
-    if (floor.allowedRoleIds?.includes(roleId)) {
-      const next = floor.allowedRoleIds.filter((id) => id !== roleId)
-      if (next.length) floor.allowedRoleIds = next
-      else delete floor.allowedRoleIds
-    }
-    if (floor.spawnZones?.some((zone) => zone.roleIds?.includes(roleId))) {
-      floor.spawnZones = floor.spawnZones.map((zone) => {
-        const roleIds = zone.roleIds?.filter((id) => id !== roleId)
-        return roleIds?.length ? { ...zone, roleIds } : { ...zone, roleIds: undefined }
-      })
-    }
-  }
 }
 
 async function setDefaultRole(role: NpcRole) {
@@ -216,6 +199,68 @@ async function setDefaultRole(role: NpcRole) {
 
 async function updateRole() {
   queuePersist()
+}
+
+const floors = computed(() => store.state.layout.floors.map(floor => ({ id: floor.id, label: floor.label })))
+
+function poolCountFor(roleId: string): number {
+  return draft.value.pool.find(entry => entry.roleId === roleId)?.count ?? 0
+}
+
+function poolFloorIdsFor(roleId: string): string[] {
+  return draft.value.pool.find(entry => entry.roleId === roleId)?.floorIds ?? []
+}
+
+async function setPoolCount(roleId: string, count: number) {
+  const safe = clampInt(count || 0, 0, 100)
+  const entry = draft.value.pool.find(item => item.roleId === roleId)
+  if (safe === 0) {
+    if (entry) draft.value.pool = draft.value.pool.filter(item => item.roleId !== roleId)
+  } else {
+    if (entry) entry.count = safe
+    else draft.value.pool.push({ roleId, count: safe })
+  }
+  queuePersist()
+}
+
+async function togglePoolFloor(roleId: string, floorId: string) {
+  const entry = draft.value.pool.find(item => item.roleId === roleId)
+  if (!entry) return
+  const current = new Set(entry.floorIds ?? [])
+  if (current.has(floorId)) current.delete(floorId)
+  else current.add(floorId)
+  entry.floorIds = current.size ? [...current] : undefined
+  queuePersist()
+}
+
+function ensureSpawnRuleFor(role: NpcRole): NpcSpawnRule {
+  if (!role.spawnRule) {
+    role.spawnRule = { targetTags: [] }
+  }
+  return role.spawnRule
+}
+
+async function addSpawnTag(tag: string) {
+  if (!selectedRole.value) return
+  const rule = ensureSpawnRuleFor(selectedRole.value)
+  if (!rule.targetTags!.includes(tag)) rule.targetTags!.push(tag)
+  queuePersist()
+}
+
+async function removeSpawnTag(tag: string) {
+  if (!selectedRole.value?.spawnRule?.targetTags) return
+  selectedRole.value.spawnRule.targetTags = selectedRole.value.spawnRule.targetTags.filter(item => item !== tag)
+  queuePersist()
+}
+
+async function setSelectedPoolCount(count: number) {
+  if (!selectedRole.value) return
+  await setPoolCount(selectedRole.value.id, count)
+}
+
+async function toggleSelectedPoolFloor(floorId: string) {
+  if (!selectedRole.value) return
+  await togglePoolFloor(selectedRole.value.id, floorId)
 }
 
 async function renameRole(value: string) {
@@ -294,10 +339,11 @@ async function addTaskTag(task: NpcTask, value: string) {
   if (!input) return
   for (const part of input
     .split(',')
-    .map((tag) => tag.trim())
-    .filter(Boolean)) {
+    .map((tag) => normalizeTag(tag))
+    .filter((tag): tag is string => !!tag)) {
     if (!task.tags.includes(part)) task.tags.push(part)
   }
+  if (!task.tags.length) return
   await store.ensureTag(task.tags[task.tags.length - 1])
   await updateTask()
 }
@@ -309,7 +355,12 @@ async function removeTaskTag(task: NpcTask, tag: string) {
 
 async function setTaskPostAsset(task: NpcTask, assetId: string) {
   if (!assetId.trim()) delete task.post
-  else task.post = { assetId: assetId.trim(), ...(task.post?.post ? { post: task.post.post } : {}) }
+  else {
+    const trimmed = assetId.trim()
+    const knownPosts = stationAssets.value.find(asset => asset.id === trimmed)?.posts ?? []
+    const keptPost = task.post?.post && knownPosts.includes(task.post.post) ? { post: task.post.post } : {}
+    task.post = { assetId: trimmed, ...keptPost }
+  }
   await updateTask()
 }
 
@@ -360,7 +411,10 @@ async function removeTag(tag: string) {
   )
     return
   try {
+    queuePersist.cancel()
     reportSaved(await store.removeTag(tag), `Tag "${tag}" deleted`, 'Failed to delete tag - changes not saved')
+    draft.value = cloneDeepRaw(store.state.layout.npcConfig ?? emptyNpcConfig())
+    resetSelection()
   } catch {
     toast.error('Failed to delete tag - changes not saved')
   }
@@ -368,7 +422,7 @@ async function removeTag(tag: string) {
 
 async function addRoleTag(kind: 'focus' | 'restricted', tag: string) {
   if (!selectedRole.value) return
-  const value = tag.trim()
+  const value = normalizeTag(tag)
   if (!value) return
   const target = kind === 'focus' ? selectedRole.value.focusTags : selectedRole.value.restrictedTags
   if (!target.includes(value)) target.push(value)
@@ -450,6 +504,9 @@ onUnmounted(() => {
         :all-tags="tags"
         :trigger-rates="draft.tagTriggerRates"
         :is-default="selectedRole.id === draft.defaultRoleId"
+        :pool-count="poolCountFor(selectedRole.id)"
+        :pool-floor-ids="poolFloorIdsFor(selectedRole.id)"
+        :floors="floors"
         @rename="renameRole"
         @chance="setRoleChance"
         @commit-color="commitRoleColor"
@@ -457,6 +514,10 @@ onUnmounted(() => {
         @remove-tag="removeRoleTag"
         @toggle-task="toggleTaskAssignment"
         @set-rate="setTriggerRate"
+        @set-count="setSelectedPoolCount"
+        @toggle-floor="toggleSelectedPoolFloor"
+        @add-spawn-tag="addSpawnTag"
+        @remove-spawn-tag="removeSpawnTag"
         @remove="deleteRole(selectedRole)"
       />
       <section v-else class="npc__detail">

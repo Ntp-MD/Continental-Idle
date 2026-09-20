@@ -9,6 +9,7 @@ import type {
 	FloorData,
 	FloorLayoutData,
 	NpcSimulationConfig,
+	NpcSpawnZone,
 	ObjectData,
 	Rect,
 	SelectionState,
@@ -81,6 +82,8 @@ export interface BlueprintStore {
 	runExclusive<T>(fn: () => Promise<T>): Promise<T>
 	save(): Promise<boolean>
 	reloadEditorData(): Promise<void>
+	undo(): Promise<boolean>
+	canUndo: ComputedRef<boolean>
 
 	addFloor(): Promise<FloorData | null>
 	clearFloor(id: string): Promise<boolean>
@@ -91,6 +94,9 @@ export interface BlueprintStore {
 	selectFloor(id: string): void
 	updateFloor(id: string, patch: FloorPatch): Promise<boolean>
 	paintFloorTiles(floorId: string, brush: TileBrush, rect: { row0: number; col0: number; row1: number; col1: number }): Promise<boolean>
+	armZoneDraw(draft: { label: string; roleIds: string[] }): void
+	takeZoneDraft(): { label: string; roleIds: string[] } | null
+	addSpawnZone(floorId: string, rect: Rect, label?: string, roleIds?: string[]): Promise<NpcSpawnZone | null>
 
 	beginDrawnObject(name: string, w: number, h: number, x: number, y: number): Promise<{ asset: AssetDef; object: ObjectData } | null>
 	addObject(type: string, x: number, y: number): Promise<ObjectData | null>

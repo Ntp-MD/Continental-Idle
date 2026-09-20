@@ -9,6 +9,15 @@ locally in the browser or syncs a compact payload to the game.
 - Node.js 22+
 - A modern browser (IndexedDB is required for the production build)
 
+End-to-end tests need the Chromium browser once per machine:
+
+```bash
+npm run test:e2e:install
+```
+
+They build the app and serve it with `vite preview`, so they exercise the real
+production persistence path (IndexedDB) and never touch the dev store file.
+
 ## Getting started
 
 ```bash
@@ -47,6 +56,8 @@ Persistence selection is automatic and can be overridden with `VITE_PERSISTENCE`
 | `npm run preview` | Serve the production build |
 | `npm test` | Full test runner (vitest + the tsx suites + asset verification) |
 | `npm run test:unit` | vitest only |
+| `npm run test:e2e` | Playwright browser smoke against the production build |
+| `npm run test:e2e:install` | Download the Chromium browser (once per machine) |
 | `npm run verify` | typecheck + lint + BEM/CSS lint + unit + full test runner |
 | `npm run verify:assets` | Validate the origin assets in `blueprint-data.json` |
 | `npm run typecheck` / `npm run lint` | Type and lint gates |

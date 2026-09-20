@@ -22,5 +22,5 @@
     "erasableSyntaxOnly": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["vite.config.ts", "src/blueprint-editor/limits.ts", "src/blueprint-editor/domain/schema/**/*.ts", "src/blueprint-editor/domain/types.ts", "src/blueprint-editor/domain/logger.ts", "src/blueprint-editor/store/schemaMigration.ts"]
+  "include": ["vite.config.ts", "playwright.config.ts", "vitest.config.ts", "src/blueprint-editor/limits.ts", "src/blueprint-editor/domain/schema/**/*.ts", "src/blueprint-editor/domain/types.ts", "src/blueprint-editor/domain/logger.ts", "src/blueprint-editor/store/schemaMigration.ts"]
 }

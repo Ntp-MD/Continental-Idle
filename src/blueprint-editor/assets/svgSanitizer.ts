@@ -15,7 +15,7 @@ function sanitizeSvgNode(node: Element): boolean {
 			node.removeAttribute(attr.name)
 			continue
 		}
-		if ((name === 'href' || name.startsWith('xlink:')) && /^(javascript|data|blob):/i.test(attr.value)) {
+		if ((name === 'href' || name.startsWith('xlink:')) && /^(javascript|data|blob|vbscript):/i.test(attr.value)) {
 			node.removeAttribute(attr.name)
 		}
 	}

@@ -152,6 +152,7 @@ const modeLabel = computed(() => {
     draw: 'Draw Object',
     move: 'Move',
     'npc-preview': 'NPC Preview',
+    zone: 'Draw Zone',
   }
   return (labels[store.state.mode] ?? store.state.mode) + ' Mode'
 })
@@ -177,6 +178,7 @@ const modeHint = computed(() => {
     draw: 'Drag a rectangle, then save it as an origin asset',
     move: 'Click and drag an object to reposition it - Delete removes the selection',
     'npc-preview': 'NPCs are simulating on this floor',
+    zone: 'Drag a rectangle on the canvas to add a spawn zone',
   }
   return hints[store.state.mode] ?? ''
 })
@@ -221,6 +223,8 @@ const {
 } = vp
 
 const EMPTY_CHATS: readonly ChatBubble[] = []
+const MAX_CHAT_BUBBLES = 6
+const NPC_PREVIEW_FLOOR_COLOR = '#3a332b'
 const activeChats = new Map<string, { by: string; at: number }>()
 watch(
   () => npcSimulation.socialEvents.value,
@@ -238,6 +242,7 @@ function chatBubbles(): readonly ChatBubble[] {
   const fid = store.state.currentFloorId
   const bubbles: ChatBubble[] = []
   for (const [key, info] of activeChats) {
+    if (bubbles.length >= MAX_CHAT_BUBBLES) break
     const sep = key.indexOf('|')
     const first = npcSimulation.frameDots.get(key.slice(0, sep))
     const second = npcSimulation.frameDots.get(key.slice(sep + 1))
@@ -258,7 +263,9 @@ const { startNpcDraw, stopNpcDraw } = useNpcOverlayDraw({
   arrivalMarks: npcSimulation.arrivalMarks,
   floorId: () => store.state.currentFloorId,
   guides: showNpcGuides,
+  isPaused: () => npcSimulation.isPaused.value,
   dotSize: () => editorSettings.value.npcDotSize,
+  isStaff: (roleId: string) => !isGuestRoleId(roleId),
   svg: vp.svgRef,
   canvas: npcCanvasRef,
   viewBox,
@@ -286,6 +293,24 @@ watch(draftObject, (object) => {
     draftObjectId.value = null
   }
 })
+
+async function onZoneComplete(rect: { x: number; y: number; w: number; h: number }) {
+  const t = Math.max(1, Math.round(canvas.value.tileSize))
+  const x0 = Math.max(0, Math.floor(rect.x / t) * t)
+  const y0 = Math.max(0, Math.floor(rect.y / t) * t)
+  const x1 = Math.ceil((rect.x + rect.w) / t) * t
+  const y1 = Math.ceil((rect.y + rect.h) / t) * t
+  const staged = store.takeZoneDraft()
+  const zone = await store.addSpawnZone(
+    store.state.currentFloorId,
+    { x: x0, y: y0, w: Math.max(t, x1 - x0), h: Math.max(t, y1 - y0) },
+    staged?.label,
+    staged?.roleIds,
+  )
+  store.setMode('object')
+  if (zone) toast.success(`Zone "${zone.label}" added - refine roles in Floor Manager`)
+  else toast.error('Failed to add zone')
+}
 
 async function onDrawComplete(rect: { x: number; y: number; w: number; h: number }) {
   const t = canvas.value.tileSize
@@ -318,6 +343,7 @@ const sel = useCanvasSelection({
   zoom,
   boxSelectThresholdPx: () => editorSettings.value.boxSelectThresholdPx,
   onDrawComplete,
+  onZoneComplete,
   onBoxSelectStart: () => clearTileSelection(),
   onTileMarquee: (rect) => {
     const t = canvas.value.tileSize
@@ -398,6 +424,14 @@ function doorTileStyle(cell: DoorCellRect): Record<string, string> {
   const dx = cell.axis === 'x' ? cell.slideDir * distance : 0
   const dy = cell.axis === 'y' ? cell.slideDir * distance : 0
   return { transform: `translate(${dx}px, ${dy}px)`, opacity: '0.3' }
+}
+
+const isNpcPreview = computed(() => store.isNpcPreview.value)
+
+function runTileStyle(state: string): Record<string, string> | undefined {
+  if (state === 'blocked') return canvas.value.wallColor ? { fill: canvas.value.wallColor } : undefined
+  if (state === 'walkable' && isNpcPreview.value) return { fill: NPC_PREVIEW_FLOOR_COLOR }
+  return undefined
 }
 
 function onSvgMouseDown(e: MouseEvent) {
@@ -825,7 +859,7 @@ async function cancelDrawnOrigin() {
     :class="{
       'editor__canvas--panning': spaceDown,
       'editor__canvas--dragging': !!panning,
-      'editor__canvas--draw': store.state.mode === 'draw',
+      'editor__canvas--draw': store.state.mode === 'draw' || store.state.mode === 'zone',
       'editor__canvas--move': store.state.mode === 'move',
       'editor__canvas--brush': !!store.state.tileBrush,
     }"
@@ -1122,9 +1156,20 @@ async function cancelDrawnOrigin() {
         </text>
       </g>
 
+      <rect
+        v-if="isNpcPreview && floor?.walkable?.tileStates"
+        v-memo="[buildingAreaRect, isNpcPreview]"
+        :x="buildingAreaRect.x"
+        :y="buildingAreaRect.y"
+        :width="buildingAreaRect.w"
+        :height="buildingAreaRect.h"
+        :fill="NPC_PREVIEW_FLOOR_COLOR"
+        class="editor__svg--noevents"
+      />
+
       <g
         v-if="floor?.walkable?.tileStates && (renderWalkableOverlay || renderWallOverlay)"
-        v-memo="[visibleWalkableRuns, renderWalkableOverlay, renderWallOverlay, canvas.wallColor]"
+        v-memo="[visibleWalkableRuns, renderWalkableOverlay, renderWallOverlay, canvas.wallColor, isNpcPreview]"
         class="editor__svg--noevents"
       >
         <rect
@@ -1135,7 +1180,7 @@ async function cancelDrawnOrigin() {
           :width="run.w"
           :height="run.h"
           :class="`editor__tile editor__tile--${run.state}`"
-          :style="run.state === 'blocked' && canvas.wallColor ? { fill: canvas.wallColor } : undefined"
+          :style="runTileStyle(run.state)"
         />
       </g>
 
@@ -1314,7 +1359,7 @@ async function cancelDrawnOrigin() {
               class="editor__overlay--selected editor__svg--noevents"
             />
             <text
-              v-if="showLabels"
+              v-if="showLabels && (isObjectSelected(obj.id) || obj.w * zoom >= 48)"
               :x="obj.x + obj.w / 2"
               :y="Math.max(obj.y - (obj.labelPadding ?? 0) - 3, 7)"
               text-anchor="middle"

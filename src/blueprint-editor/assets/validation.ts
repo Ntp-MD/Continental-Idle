@@ -219,6 +219,52 @@ export function validateSettingsCompleteness(
 			const role = npcConfig.roles.find(r => r.id === entry.roleId)
 			issues.push(`Pool entry for role "${role?.label ?? entry.roleId}" has count ${entry.count} - no NPCs will spawn`)
 		}
+		if (entry.count > 0 && entry.floorIds?.length) {
+			const role = npcConfig.roles.find(r => r.id === entry.roleId)
+			for (const floorId of entry.floorIds) {
+				const floor = layout.floors.find(f => f.id === floorId)
+				if (floor && floor.objects.length === 0) {
+					issues.push(`Pool entry for role "${role?.label ?? entry.roleId}" targets floor "${floor.label}" with no placed objects - NPCs will spawn with nothing to do`)
+				}
+			}
+		}
+	}
+
+	for (const floor of layout.floors) {
+		if (!floor.objects.length) continue
+		const floorTags = new Set<string>()
+		const floorAssetIds = new Set<string>()
+		const floorPosts = new Map<string, Set<string>>()
+		for (const object of floor.objects) {
+			const asset = assetMap.get(object.type)
+			if (!asset) continue
+			floorAssetIds.add(asset.id)
+			for (const tag of asset.tags ?? []) floorTags.add(tag.trim().toLowerCase())
+			if (!floorPosts.has(asset.id)) {
+				floorPosts.set(asset.id, new Set((asset.interactSpots ?? []).map(spot => spot.post).filter((post): post is string => !!post)))
+			}
+		}
+		for (const zone of floor.spawnZones ?? []) {
+			const zonedRoleIds = zone.roleIds?.length ? zone.roleIds : npcConfig.roles.map(role => role.id)
+			for (const roleId of zonedRoleIds) {
+				const role = npcConfig.roles.find(candidate => candidate.id === roleId)
+				if (!role) continue
+				if (role.taskIds.length === 0 && role.focusTags.length === 0) continue
+				const resolves = role.taskIds.some(taskId => {
+					const task = npcConfig.tasks.find(candidate => candidate.id === taskId)
+					if (!task) return false
+					if (task.tags.some(tag => floorTags.has(tag.trim().toLowerCase()))) return true
+					if (task.post && floorAssetIds.has(task.post.assetId)) {
+						if (!task.post.post) return true
+						return floorPosts.get(task.post.assetId)?.has(task.post.post) ?? false
+					}
+					return false
+				}) || role.focusTags.some(tag => floorTags.has(tag.trim().toLowerCase()))
+				if (!resolves) {
+					issues.push(`Floor "${floor.label}" spawn zone "${zone.label}" spawns role "${role.label}" but none of its tasks or focus tags match anything on this floor`)
+				}
+			}
+		}
 	}
 
 	const streetFloorId = layout.streetFloorId
@@ -247,6 +293,21 @@ export function validateSettingsCompleteness(
 	}
 
 	for (const floor of layout.floors) {
+		const states = floor.walkable?.tileStates
+		if (states?.length) {
+			let masses = 0
+			for (let row = 0; row < states.length - 1; row++) {
+				const upper = states[row]
+				const lower = states[row + 1]
+				if (!upper || !lower) continue
+				for (let col = 0; col < Math.min(upper.length, lower.length) - 1; col++) {
+					if (upper[col] === 'blocked' && upper[col + 1] === 'blocked' && lower[col] === 'blocked' && lower[col + 1] === 'blocked') masses++
+				}
+			}
+			if (masses > 0) {
+				issues.push(`Floor "${floor.label}" has ${masses} 2x2 solid wall block(s) - walls must stay single-tile`)
+			}
+		}
 		const interactableObjects = floor.objects.filter(object => {
 			const asset = assetMap.get(object.type)
 			if (!asset) return false

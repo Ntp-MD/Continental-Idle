@@ -5,7 +5,9 @@ import { fileURLToPath } from 'node:url'
 import { migrate } from '../src/blueprint-editor/store/migrate'
 import { readBlueprintDataFile, UnsupportedBlueprintVersionError, InvalidBlueprintDataError } from '../src/blueprint-editor/store/schemaMigration'
 import { normalizeNpcConfig } from '../src/blueprint-editor/domain/types'
-import { seedOriginAssets as originAssets } from '../src/blueprint-editor/store/seed'
+import { assetSizeFor } from '../src/blueprint-editor/domain/geometry'
+import { seedOriginAssets } from '../src/blueprint-editor/store/seed'
+const originAssets = seedOriginAssets()
 
 const validAsset = originAssets[0]
 if (!validAsset) throw new Error('test requires at least one origin asset')
@@ -207,5 +209,16 @@ assert.throws(() => readBlueprintDataFile({ ...golden, $schema: undefined }), In
 assert.throws(() => readBlueprintDataFile(null), InvalidBlueprintDataError, 'a null payload is rejected')
 assert.throws(() => readBlueprintDataFile({ ...golden, originAssets: 'nope' }), InvalidBlueprintDataError, 'a malformed payload is rejected instead of silently dropped')
 assert.equal((readBlueprintDataFile(golden).layout.floors.length), 1, 'the loaded file keeps its floors')
+
+const zeroSize = migrate(makeLayout({
+	floors: [makeFloor({
+		objects: [{ id: 'obj-zero', type: validAsset.id, x: 50, y: 50, rotation: 0, w: 0, h: 0 }],
+	})],
+}), originAssets)
+const enriched = zeroSize.layout.floors[0].objects[0]
+const expectedSize = assetSizeFor(validAsset.id, 0, 25, originAssets)
+assert.ok(expectedSize, 'test asset resolves a size')
+assert.equal(enriched.w, expectedSize!.w, 'persisted w:0 is re-derived from the live asset on ingress')
+assert.equal(enriched.h, expectedSize!.h, 'persisted h:0 is re-derived from the live asset on ingress')
 
 console.log('Migration salvage checks passed')

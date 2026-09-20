@@ -58,8 +58,10 @@ export interface NpcOverlayDrawSources {
 	waitReasons: ReadonlyMap<string, string>
 	arrivalMarks: ReadonlyMap<string, number>
 	floorId: () => string
-	guides: Ref<boolean>
-	dotSize: () => number
+  guides: Ref<boolean>
+  isPaused: () => boolean
+  dotSize: () => number
+	isStaff: (roleId: string) => boolean
 	svg: Ref<SVGSVGElement | null>
 	canvas: Ref<HTMLCanvasElement | null>
 	viewBox: ComputedRef<string>
@@ -67,9 +69,58 @@ export interface NpcOverlayDrawSources {
 	chats: () => readonly ChatBubble[]
 }
 
+const SKIN_TONES = ['#e7c19b', '#d9a877', '#c08a5c', '#8d5f3f', '#f0d0b0'] as const
+const TROUSER_COLOR = '#2b2f38'
+const STAFF_COLLAR_COLOR = '#f5f5f0'
+const SHADOW_COLOR = 'rgba(0,0,0,0.35)'
+
+function hashId(id: string): number {
+	let h = 0
+	for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) | 0
+	return Math.abs(h)
+}
+
+function drawNpcBody(
+	ctx: CanvasRenderingContext2D,
+	sx: number,
+	sy: number,
+	r: number,
+	dot: NpcSimDot,
+	staff: boolean,
+	now: number,
+): void {
+	const seed = hashId(dot.id)
+	const bob = dot.status === 'walking' ? Math.sin(now / 130 + seed) * r * 0.12 : 0
+	const skin = SKIN_TONES[seed % SKIN_TONES.length]
+	const y = sy + bob
+	ctx.fillStyle = SHADOW_COLOR
+	ctx.beginPath()
+	ctx.ellipse(sx, sy + r * 1.25, r * 0.95, r * 0.4, 0, 0, Math.PI * 2)
+	ctx.fill()
+	ctx.fillStyle = TROUSER_COLOR
+	for (const side of [-1, 1]) {
+		ctx.fillRect(sx + side * r * 0.38 - r * 0.22, y + r * 0.55, r * 0.44, r * 0.75)
+	}
+	ctx.beginPath()
+	if (typeof ctx.roundRect === 'function') ctx.roundRect(sx - r * 0.8, y - r * 0.4, r * 1.6, r * 1.55, r * 0.45)
+	else ctx.rect(sx - r * 0.8, y - r * 0.4, r * 1.6, r * 1.55)
+	ctx.fillStyle = dot.color
+	ctx.fill()
+	if (staff) {
+		ctx.fillStyle = STAFF_COLLAR_COLOR
+		ctx.fillRect(sx - r * 0.24, y - r * 0.4, r * 0.48, r * 1.0)
+	}
+	ctx.beginPath()
+	ctx.arc(sx, y - r * 0.95, r * 0.62, 0, Math.PI * 2)
+	ctx.fillStyle = skin
+	ctx.fill()
+}
+
 export function useNpcOverlayDraw(sources: NpcOverlayDrawSources) {
 	let drawRaf: number | null = null
 	let geoDirty = true
+	let lastPausedDraw = 0
+	const PAUSED_REDRAW_MS = 500
 	const geo = { sLeft: 0, sTop: 0, sWidth: 0, sHeight: 0, a: 1, b: 0, c: 0, d: 1, e: 0, f: 0, dpr: 1 }
 	const themeColors = { accent: '#4cc9f0', guide: '#3a86ff', green: '#2ec4b6', gold: '#d29922', red: '#dc2626', secondary: '#6e7681' }
 	let geoObserver: ResizeObserver | null = null
@@ -134,6 +185,9 @@ export function useNpcOverlayDraw(sources: NpcOverlayDrawSources) {
 
 	function drawFrame(): void {
 		drawRaf = requestAnimationFrame(drawFrame)
+		const now = performance.now()
+		if (!geoDirty && sources.isPaused() && now - lastPausedDraw < PAUSED_REDRAW_MS) return
+		lastPausedDraw = now
 		const canvas = sources.canvas.value
 		const svg = sources.svg.value
 		if (!canvas || !svg) return
@@ -148,7 +202,6 @@ export function useNpcOverlayDraw(sources: NpcOverlayDrawSources) {
 		const colAccent = themeColors.accent
 		const colGuide = themeColors.guide
 		const colGreen = themeColors.green
-		const colRing = 'rgba(255,255,255,0.8)'
 		const colGold = themeColors.gold
 		const colRed = themeColors.red
 		const colDim = themeColors.secondary
@@ -189,18 +242,24 @@ export function useNpcOverlayDraw(sources: NpcOverlayDrawSources) {
 				ctx.lineTo(tx, ty + 3)
 				ctx.stroke()
 			}
-		ctx.beginPath()
-		ctx.arc(sx, sy, dotR, 0, Math.PI * 2)
-		ctx.fillStyle = dot.color
-		ctx.fill()
+		if (dotR >= 3) {
+			drawNpcBody(ctx, sx, sy, dotR, dot, sources.isStaff(dot.type), now)
+		} else {
+			ctx.beginPath()
+			ctx.arc(sx, sy, dotR, 0, Math.PI * 2)
+			ctx.fillStyle = dot.color
+			ctx.fill()
+		}
 		ctx.lineWidth = 1
 		const mood = resolveNpcMood(dot.status, sources.waitReasons.get(dot.id))
+		ctx.beginPath()
+		ctx.arc(sx, sy, dotR * 1.45, 0, Math.PI * 2)
 		if (dot.status === 'interacting' || dot.status === 'chatting') ctx.strokeStyle = colGreen
 		else if (mood === 'stuck') ctx.strokeStyle = colRed
 		else if (mood === 'lost' || mood === 'waiting') ctx.strokeStyle = colGold
 		else if (mood === 'patient' || mood === 'detouring') ctx.strokeStyle = colGuide
 		else if (mood === 'bored' || mood === 'unknown') ctx.strokeStyle = colDim
-		else ctx.strokeStyle = colRing
+		else ctx.strokeStyle = 'transparent'
 		ctx.stroke()
 		if (mood === 'stuck') {
 			ctx.beginPath()

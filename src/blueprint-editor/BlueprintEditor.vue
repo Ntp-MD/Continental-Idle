@@ -9,12 +9,21 @@ import ConfirmDialog from './components/shell/ConfirmDialog.vue'
 import { useAssetsStore } from './blueprintStore'
 import { useNpcSimulation } from './composables/useNpcSimulation'
 import { resolveStreetTiles } from './domain/types'
+import { seedVersionError } from './store/seed'
 
 const store = useAssetsStore()
 const ready = ref(false)
 const loadError = ref('')
 
 onMounted(async () => {
+  // The static seed is validated here, inside the boot UI, so a malformed or
+  // future-version data file reaches the load-error state instead of
+  // white-screening during module evaluation.
+  const seedError = seedVersionError()
+  if (seedError) {
+    loadError.value = `Static blueprint data is invalid: ${seedError.message}`
+    return
+  }
   try {
     await store.reloadEditorData()
   } catch (err) {

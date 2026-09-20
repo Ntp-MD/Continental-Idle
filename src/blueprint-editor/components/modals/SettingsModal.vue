@@ -8,6 +8,7 @@ import { DEFAULT_EDITOR_SETTINGS, EDITOR_FIELD_SPECS, CANVAS_FIELD_SPECS, canvas
 import type { EditorSettings } from '../../domain/types'
 import { MAX_GRID_COLUMNS, MAX_GRID_ROWS } from '../../limits'
 import { useCanvasDefaults } from '../../composables/useCanvasDefaults'
+import { canvasEditorGroups, editorGroupsByTab, editorTabs, settingsTabs, type SettingsTab } from './settingsFields'
 import ModalShell from '../shell/ModalShell.vue'
 import ColorInput from '../inputs/ColorInput.vue'
 
@@ -169,88 +170,7 @@ watch(
 )
 
 type FieldKey = keyof EditorSettings
-interface FieldDef {
-  key: FieldKey
-  label: string
-  step: number
-  preview?: 'radius'
-}
-interface EditorGroup {
-  title: string
-  hint: string
-  fields: FieldDef[]
-}
-
-type SettingsTab = 'canvas' | 'interaction' | 'display' | 'grid'
 const activeTab = ref<SettingsTab>('canvas')
-const settingsTabs: { key: SettingsTab; label: string }[] = [
-  { key: 'canvas', label: 'Canvas' },
-  { key: 'interaction', label: 'Interaction' },
-  { key: 'display', label: 'Display' },
-  { key: 'grid', label: 'Grid Editor' },
-]
-const editorTabs = settingsTabs.filter((t) => t.key !== 'canvas') as {
-  key: Exclude<SettingsTab, 'canvas'>
-  label: string
-}[]
-
-const editorGroupsByTab: Record<Exclude<SettingsTab, 'canvas'>, EditorGroup[]> = {
-  interaction: [
-    {
-      title: 'Hit Testing',
-      hint: 'Tolerances for hit, drag, cycle and box select.',
-      fields: [
-        { key: 'dragThresholdPx', label: 'Drag threshold px', step: 0.5 },
-        { key: 'cycleThresholdPx', label: 'Cycle threshold px', step: 0.5 },
-        { key: 'boxSelectThresholdPx', label: 'Box select px', step: 0.5 },
-      ],
-    },
-  ],
-  display: [
-    {
-      title: 'Overlay Sizes',
-      hint: 'Radius in screen px of spot dots, lock indicators and NPC dots.',
-      fields: [
-        { key: 'interactSpotRadiusPx', label: 'Interact spot radius px', step: 0.5, preview: 'radius' },
-        { key: 'lockIndicatorRadiusPx', label: 'Lock indicator radius px', step: 0.5, preview: 'radius' },
-        { key: 'npcDotSize', label: 'NPC dot radius px', step: 0.5, preview: 'radius' },
-      ],
-    },
-    {
-      title: 'Font Sizes',
-      hint: 'Text sizes in px, scaled by 1/zoom.',
-      fields: [
-        { key: 'labelFontSizePx', label: 'Object label', step: 0.5 },
-        { key: 'lockLabelFontSizePx', label: 'Lock label', step: 0.5 },
-        { key: 'interactSpotFontSizePx', label: 'Interact spot label', step: 0.5 },
-        { key: 'zoneLabelFontSizePx', label: 'Zone label', step: 0.5 },
-        { key: 'emptyStateFontSizePx', label: 'Empty state', step: 1 },
-        { key: 'rulerTickFontSizePx', label: 'Ruler tick', step: 0.5 },
-      ],
-    },
-    {
-      title: 'Ruler',
-      hint: 'Bar size clamps relative to zoom (sqrt scaling).',
-      fields: [
-        { key: 'rulerMinPx', label: 'Min px', step: 1 },
-        { key: 'rulerMaxPx', label: 'Max px', step: 1 },
-        { key: 'rulerBasePx', label: 'Base px', step: 1 },
-      ],
-    },
-  ],
-  grid: [
-    {
-      title: 'Walkable Grid Editor',
-      hint: 'Tile size constraints for the grid modal.',
-      fields: [
-        { key: 'walkableGridMinTilePx', label: 'Min tile px', step: 1 },
-        { key: 'walkableGridMaxTilePx', label: 'Max tile px', step: 1 },
-        { key: 'walkableGridMaxWidthPx', label: 'Max width px', step: 10 },
-        { key: 'walkableGridMaxHeightPx', label: 'Max height px', step: 10 },
-      ],
-    },
-  ],
-}
 
 function fieldRange(key: FieldKey) {
   const spec = EDITOR_FIELD_SPECS[key]
@@ -521,45 +441,24 @@ async function resetEditorAll() {
             @commit="applyStreetMarkingColor"
           />
         </div>
-        <div class="form__row">
-          <label for="es__streetDashRatio">Dash ratio</label>
-          <input
-            id="es__streetDashRatio"
-            v-model.number="draft.streetDashRatio"
-            type="number"
-            :min="fieldRange('streetDashRatio').min"
-            :max="fieldRange('streetDashRatio').max"
-            :step="0.01"
-            @change="applyEditorField('streetDashRatio')"
-          />
-        </div>
-        <div class="form__row">
-          <label for="es__streetGapRatio">Gap ratio</label>
-          <input
-            id="es__streetGapRatio"
-            v-model.number="draft.streetGapRatio"
-            type="number"
-            :min="fieldRange('streetGapRatio').min"
-            :max="fieldRange('streetGapRatio').max"
-            :step="0.01"
-            @change="applyEditorField('streetGapRatio')"
-          />
-        </div>
-        <div class="form__row">
-          <label for="es__sidewalkTileRatio">Sidewalk tile ratio</label>
-          <input
-            id="es__sidewalkTileRatio"
-            v-model.number="draft.sidewalkTileRatio"
-            type="number"
-            :min="fieldRange('sidewalkTileRatio').min"
-            :max="fieldRange('sidewalkTileRatio').max"
-            :step="0.01"
-            @change="applyEditorField('sidewalkTileRatio')"
-          />
-        </div>
-        <div class="form__hint">
-          Ring width drives placement boundary and NPC walkable zone; ratios style dash/gap/sidewalk.
-        </div>
+        <template v-for="group in canvasEditorGroups" :key="group.title">
+          <div class="form__col form--section">
+            <div>{{ group.title }}</div>
+            <div v-for="field in group.fields" :key="field.key" class="form__row">
+              <label :for="`es__${field.key}`">{{ field.label }}</label>
+              <input
+                :id="`es__${field.key}`"
+                v-model.number="draft[field.key]"
+                type="number"
+                :min="fieldRange(field.key).min"
+                :max="fieldRange(field.key).max"
+                :step="field.step"
+                @change="applyEditorField(field.key)"
+              />
+            </div>
+            <div class="form__hint">{{ group.hint }}</div>
+          </div>
+        </template>
       </div>
     </div>
 

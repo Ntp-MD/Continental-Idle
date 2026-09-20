@@ -1,4 +1,4 @@
-export type EditorMode = 'object' | 'draw' | 'move' | 'npc-preview'
+export type EditorMode = 'object' | 'draw' | 'move' | 'npc-preview' | 'zone'
 export type Rotation = 0 | 90 | 180 | 270
 
 export const STREET_TILES = 8

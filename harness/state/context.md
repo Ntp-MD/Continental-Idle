@@ -24,6 +24,10 @@ Rewrite the glossary on adoption (see `harness/HARNESS.md` - Adopt in a new proj
 | Tile states | Per-cell semantic state (walk/wall/door) on floors and objects. | walkable grid |
 | Walkable runs | Contiguous blocked+door cell groups derived from tile states. | walls |
 | Door halves | 2+ connected door tiles slide as two halves (`slideDir` -1/+1); 1 tile stays single. | door animation |
+| Vestibule | An entrance air-lock: two door sets with clear floor between, for arriving/departing and luggage. | porch, lobby |
+| Front of house / back of house | Guest areas (arrival, reception, lounge) vs staff/service areas (kitchen, storage, laundry, staff room) reached by a service corridor. | public/private |
+| Service corridor | The staff spine from the service door to the BOH rooms; guests never use it. | guest corridor |
+| Spawn zone | Per-floor, role-filtered tiles where a role's NPCs spawn (`NpcSpawnZone`); sits on that role's own work area. | pool entry |
 | Interact spot | An object's stand/edge/post anchor set. | interact config |
 | Interact config | An object's interaction definition. | interact spot |
 | Engine | Pure, UI-framework-independent simulation shared by editor preview and runtime. | adapter |

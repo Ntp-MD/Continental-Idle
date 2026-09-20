@@ -136,13 +136,13 @@ export function blueprintDataPlugin() {
 		return readBlueprintDataFile(JSON.parse(raw))
 	}
 
-	const writeData = (data: BlueprintDataFile): void => {
+	const writeData = async (data: BlueprintDataFile): Promise<void> => {
 		const tempPath = `${dataFilePath}.${process.pid}.${randomUUID()}.tmp`
 		const serialized = JSON.stringify(data, null, 2) + '\n'
 		if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath)
 		try {
 			fs.writeFileSync(tempPath, serialized, { encoding: 'utf-8', mode: 0o600 })
-			renameWithRetry(tempPath, dataFilePath)
+			await renameWithRetry(tempPath, dataFilePath)
 		} catch (error) {
 			try { if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath) } catch { /* best effort cleanup */ }
 			const reason = error instanceof Error ? `${(error as NodeJS.ErrnoException).code ?? 'ERR'}: ${error.message}` : String(error)
@@ -150,7 +150,12 @@ export function blueprintDataPlugin() {
 		}
 	}
 
-	const renameWithRetry = (tempPath: string, filePath: string): void => {
+	const sleep = (ms: number): Promise<void> => new Promise(resolve => setTimeout(resolve, ms))
+
+	// Never unlink the live destination while retrying: a locked file is moved
+	// aside (recoverable) instead of deleted, and only the final copy fallback
+	// can overwrite the old file in place.
+	const renameWithRetry = async (tempPath: string, filePath: string): Promise<void> => {
 		const MAX_RENAME_RETRIES = 5
 		const RENAME_DELAY_MS = 150
 		for (let attempt = 1; attempt <= MAX_RENAME_RETRIES; attempt++) {
@@ -163,10 +168,12 @@ export function blueprintDataPlugin() {
 				if (attempt === MAX_RENAME_RETRIES) {
 					try { fs.copyFileSync(tempPath, filePath); fs.unlinkSync(tempPath); return } catch (e) { throw error ?? e }
 				}
-				try { if (fs.existsSync(filePath)) fs.unlinkSync(filePath) } catch { /* best effort cleanup */ }
-				const delay = RENAME_DELAY_MS * attempt
-				const end = Date.now() + delay
-				while (Date.now() < end) { /* spin wait for rename retry */ }
+				try {
+					const backupPath = `${filePath}.${process.pid}.${randomUUID()}.old`
+					fs.renameSync(filePath, backupPath)
+					try { fs.unlinkSync(backupPath) } catch { /* still locked - leave the backup on disk */ }
+				} catch { /* destination already gone or unmovable - just retry the rename */ }
+				await sleep(RENAME_DELAY_MS * attempt)
 			}
 		}
 	}
@@ -216,7 +223,7 @@ export function blueprintDataPlugin() {
 					return
 				}
 				try {
-					writeData(data)
+					await writeData(data)
 					invalidateJsonModule(server, dataFilePath)
 					const verified = readData()
 					sendJson(res, 200, { ok: true, data: verified })
@@ -239,6 +246,8 @@ export default defineConfig({
 		alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) },
 	},
 	server: {
+		host: '127.0.0.1',
+		port: 5173,
 		watch: { ignored: ['**/src/blueprint-editor/data/*.json', '**/src/blueprint-editor/data/*.data.ts'] },
 	},
 	build: { rollupOptions: { input: { main: 'index.html' } } },

@@ -1,4 +1,4 @@
-import type { FloorData, TileBrush } from '../domain/types'
+import type { FloorData, NpcSpawnZone, Rect, TileBrush } from '../domain/types'
 import { applyTileBrush, normalizeAllowedRoleIds, normalizeFloorWalkable, normalizeNpcSpawnZones, normalizeText, resolveFloorTileStates, resolveStreetTiles, tileStatesToWalkableGrid } from '../domain/types'
 import type { BlueprintStore, FloorPatch } from './state'
 import { genId, cloneDeepRaw } from './storeUtils'
@@ -138,6 +138,49 @@ export function createFloorCommands(store: BlueprintStore) {
 		})
 	}
 
+	let pendingZoneDraft: { label: string; roleIds: string[] } | null = null
+
+	function armZoneDraw(draft: { label: string; roleIds: string[] }): void {
+		pendingZoneDraft = { label: draft.label, roleIds: [...draft.roleIds] }
+	}
+
+	function takeZoneDraft(): { label: string; roleIds: string[] } | null {
+		const staged = pendingZoneDraft
+		pendingZoneDraft = null
+		return staged
+	}
+
+	async function addSpawnZone(
+		floorId: string,
+		rect: Rect,
+		label?: string,
+		roleIds?: string[],
+	): Promise<NpcSpawnZone | null> {
+		return withStateLock(async () => {
+			const floor = state.layout.floors.find(f => f.id === floorId)
+			if (!floor) return null
+			const { x, y, w, h } = rect
+			if (
+				![x, y, w, h].every(v => typeof v === 'number' && Number.isFinite(v)) ||
+				x < 0 || y < 0 || w <= 0 || h <= 0
+			) return null
+			const zone: NpcSpawnZone = {
+				id: genId('zone'),
+				label: label?.trim() || `Zone ${(floor.spawnZones?.length ?? 0) + 1}`,
+				x,
+				y,
+				w,
+				h,
+				...(roleIds?.length ? { roleIds: [...roleIds] } : {}),
+			}
+			const normalized = normalizeNpcSpawnZones([...(floor.spawnZones ?? []), zone])
+			if (!normalized) return null
+			floor.spawnZones = normalized
+			const saved = await saveBlueprintData()
+			return saved ? zone : null
+		})
+	}
+
 	async function paintFloorTiles(
 		floorId: string,
 		brush: TileBrush,
@@ -166,6 +209,7 @@ export function createFloorCommands(store: BlueprintStore) {
 	return {
 		addFloor, clearFloor, deleteFloor, duplicateFloor, renameFloor,
 		reorderFloors, selectFloor, updateFloor, paintFloorTiles,
+		armZoneDraw, takeZoneDraft, addSpawnZone,
 	}
 }
 

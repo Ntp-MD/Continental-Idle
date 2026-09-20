@@ -61,15 +61,16 @@ export function buildSyncedPayload(
 		if (Object.keys(floors).length === 0) return null
 
 		const normalizedNpcConfig = npcConfig ? normalizeNpcConfig(npcConfig) : undefined
+		const streetFloorKey = layout.streetFloorId ? floorKeys.get(layout.streetFloorId) : undefined
 		return {
-			version: 3,
+			version: SYNCED_PAYLOAD_VERSION,
 			canvas: {
 				width: layout.canvas.width,
 				height: layout.canvas.height,
 				tileSize: layout.canvas.tileSize,
 				...(layout.canvas.bgColor ? { bgColor: layout.canvas.bgColor } : {}),
 				streetWidthTiles: resolveStreetTiles(layout),
-				...(layout.streetFloorId ? { streetFloorId: layout.streetFloorId } : {}),
+				...(streetFloorKey ? { streetFloorId: streetFloorKey } : {}),
 			},
 			floors,
 			...(normalizedNpcConfig ? { npcConfig: normalizedNpcConfig } : {}),
@@ -94,6 +95,8 @@ export interface LoadedRuntimeLayout {
 	canvas: SyncedRuntimeCanvas
 }
 
+export const SYNCED_PAYLOAD_VERSION = 3
+
 /**
  * Ingress loader for the game/runtime: normalizes a synced payload back
  * into the runtime `FloorData[]` + canvas the shared engine consumes.
@@ -101,6 +104,9 @@ export interface LoadedRuntimeLayout {
  * assets from the data file and passes the asset map into the engine).
  */
 export function loadSyncedPayload(payload: SyncedLayoutPayload): LoadedRuntimeLayout {
+	if (payload.version !== SYNCED_PAYLOAD_VERSION) {
+		throw new Error(`Unsupported synced payload version ${payload.version} (want ${SYNCED_PAYLOAD_VERSION})`)
+	}
 	const floors = Object.entries(payload.floors)
 		.sort(([a], [b]) => compareFloorKeys(a, b))
 		.map(([key, synced]) => toFloorData(key, synced))
@@ -110,7 +116,9 @@ export function loadSyncedPayload(payload: SyncedLayoutPayload): LoadedRuntimeLa
 		tileSize: payload.canvas.tileSize,
 		streetTiles: payload.canvas.streetWidthTiles,
 	}
-	if (payload.canvas.streetFloorId) canvas.streetFloorId = payload.canvas.streetFloorId
+	if (payload.canvas.streetFloorId && payload.floors[payload.canvas.streetFloorId]) {
+		canvas.streetFloorId = payload.canvas.streetFloorId
+	}
 	return { floors, canvas }
 }
 

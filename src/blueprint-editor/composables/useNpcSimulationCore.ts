@@ -6,7 +6,6 @@ import {
 	NPC_ENGINE_TICKS_PER_SECOND,
 	buildNpcEngineLayout,
 	buildRoleWalkableMap,
-	cellToPixel,
 	filterNpcSpawnTiles,
 	createNpcEnginePolicy,
 	floorMatchesTargetTags,
@@ -23,6 +22,7 @@ import {
 	NPC_FRAME_DEFAULTS,
 } from '@/blueprint-editor/domain/types'
 import { mergeNpcConfig, editorLog, cloneDeepRaw } from '@/blueprint-editor/blueprintStore'
+import { updateSimDot, pruneStaleDots, pruneWaitReasons, filterDotsForFloor } from './npcSimProjection'
 
 const MAX_ROLE_SPAWN_COUNT = 100
 const SYNC_INTERVAL_MS = 250
@@ -126,62 +126,18 @@ function syncAgents(state: NpcSimCoreState): void {
 	for (const agent of agents) {
 		const map = state.floorMaps.get(agent.floorId)
 		if (!map) continue
-		const cs = map.cellSize
 		state.seenAgentIds.add(agent.id)
-		const existing = state.frameDots.get(agent.id)
-		const dot: NpcSimDot = existing ?? {
-			id: agent.id,
-			floorId: agent.floorId,
-			type: agent.roleId ?? '',
-			x: 0,
-			y: 0,
-			targetX: 0,
-			targetY: 0,
-			speed: 0,
-			color: '#8ecae6',
-			status: 'idle',
-			pauseTimer: 0,
-			pathIdx: 0,
-			path: [],
-			interactTargetKey: null,
-			interactSpotKey: null,
-			interactDurationMin: 0,
-			interactDurationMax: 0,
-		}
-		state.frameDots.set(agent.id, dot)
-		dot.floorId = agent.floorId
-		dot.type = agent.roleId ?? ''
-		dot.x = cellToPixel(agent.x, cs)
-		dot.y = cellToPixel(agent.y, cs)
-		dot.targetX = cellToPixel(agent.targetX, cs)
-		dot.targetY = cellToPixel(agent.targetY, cs)
-		dot.status = agent.status
-		if (agent.reservationItemId !== null && agent.reservationInteractSpotId !== null) {
-			dot.interactTargetKey = `${agent.floorId}:${agent.reservationItemId}`
-			dot.interactSpotKey = `${agent.floorId}:${agent.reservationItemId}:${agent.reservationInteractSpotId}`
-		} else {
-			dot.interactTargetKey = null
-			dot.interactSpotKey = null
-		}
-		if (dot.path.length !== agent.path.length || agent.pathIndex < dot.pathIdx) {
-			dot.path = agent.path.map(point => [cellToPixel(point.x, cs), cellToPixel(point.y, cs)] as [number, number])
-		}
-		dot.pathIdx = agent.pathIndex
-		dot.color = dotColorFor(state, agent.roleId ?? '')
+		state.frameDots.set(
+			agent.id,
+			updateSimDot(state.frameDots.get(agent.id), agent, map.cellSize, roleId => dotColorFor(state, roleId)),
+		)
 	}
-	if (state.frameDots.size > state.seenAgentIds.size) {
-		for (const id of state.frameDots.keys()) {
-			if (!state.seenAgentIds.has(id)) state.frameDots.delete(id)
-		}
-	}
-	for (const id of state.waitReasons.keys()) {
-		const dot = state.frameDots.get(id)
-		if (!dot || (dot.status !== 'waiting' && dot.status !== 'queued')) state.waitReasons.delete(id)
-	}
+	pruneStaleDots(state.frameDots, state.seenAgentIds)
+	pruneWaitReasons(state.waitReasons, state.frameDots)
 	const now = performance.now()
 	if (now - state.lastSyncAt >= SYNC_INTERVAL_MS && !state.isPaused.value) {
 		state.lastSyncAt = now
-		state.npcs.value = [...state.frameDots.values()].filter(dot => dot.floorId === state.viewFloorId)
+		state.npcs.value = filterDotsForFloor(state.frameDots.values(), state.viewFloorId)
 	}
 }
 
@@ -304,32 +260,38 @@ function buildEngine(state: NpcSimCoreState, host: NpcSimulationCoreHost, floors
 
 function frame(state: NpcSimCoreState, host: NpcSimulationCoreHost): void {
 	if (!state.isPaused.value && state.engine) {
-		const cfg = host.getConfig()
-		const maxSteps = cfg?.maxSimulationSteps ?? 8
-		const budgetMs = cfg?.frameSimBudgetMs ?? 6
-		const desired = Math.max(1, Math.min(maxSteps, Math.round(state.simSpeed.value)))
-		let steps = desired
-		if (state.tickCostEma > 0) {
-			steps = Math.max(1, Math.min(desired, Math.floor(budgetMs / state.tickCostEma)))
-		}
-		const t0 = performance.now()
-		state.engine.tick(steps)
-		state.tickCostEma = state.tickCostEma === 0 ? (performance.now() - t0) / steps : state.tickCostEma * 0.85 + ((performance.now() - t0) / steps) * 0.15
-		syncAgents(state)
-		const events = state.engine.drainEvents()
-		pruneArrivalMarks(state.arrivalMarks, state.engine.tickNumber)
-		if (events.length > 0) {
-			const chatEvents = events.filter(e => e.type === 'chatting-start' || e.type === 'chatting-end')
-			if (chatEvents.length > 0 || state.socialEvents.value.length > 0) state.socialEvents.value = chatEvents
-			for (const event of events) {
-				if (event.type === 'waiting' && event.reason) {
-					const dot = state.frameDots.get(event.agentId)
-					if (dot && (dot.status === 'waiting' || dot.status === 'queued')) state.waitReasons.set(event.agentId, event.reason)
-				}
-				latchArrivalEvent(state.arrived, state.arrivalMarks, event, host.idPrefix)
+		try {
+			const cfg = host.getConfig()
+			const maxSteps = cfg?.maxSimulationSteps ?? 8
+			const budgetMs = cfg?.frameSimBudgetMs ?? 6
+			const desired = Math.max(1, Math.min(maxSteps, Math.round(state.simSpeed.value)))
+			let steps = desired
+			if (state.tickCostEma > 0) {
+				steps = Math.max(1, Math.min(desired, Math.floor(budgetMs / state.tickCostEma)))
 			}
-		} else {
-			if (state.socialEvents.value.length > 0) state.socialEvents.value = []
+			const t0 = performance.now()
+			state.engine.tick(steps)
+			state.tickCostEma = state.tickCostEma === 0 ? (performance.now() - t0) / steps : state.tickCostEma * 0.85 + ((performance.now() - t0) / steps) * 0.15
+			syncAgents(state)
+			const events = state.engine.drainEvents()
+			pruneArrivalMarks(state.arrivalMarks, state.engine.tickNumber)
+			if (events.length > 0) {
+				const chatEvents = events.filter(e => e.type === 'chatting-start' || e.type === 'chatting-end')
+				if (chatEvents.length > 0 || state.socialEvents.value.length > 0) state.socialEvents.value = chatEvents
+				for (const event of events) {
+					if (event.type === 'waiting' && event.reason) {
+						const dot = state.frameDots.get(event.agentId)
+						if (dot && (dot.status === 'waiting' || dot.status === 'queued')) state.waitReasons.set(event.agentId, event.reason)
+					}
+					latchArrivalEvent(state.arrived, state.arrivalMarks, event, host.idPrefix)
+				}
+			} else {
+				if (state.socialEvents.value.length > 0) state.socialEvents.value = []
+			}
+		} catch (error) {
+			// A single bad tick must never kill the rAF loop - log and keep the
+			// simulation alive so the next tick can recover.
+			editorLog.error('NpcSim frame', error)
 		}
 	}
 	state.animationId = requestAnimationFrame(() => frame(state, host))

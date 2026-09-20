@@ -33,6 +33,9 @@ export function createTagCommands(store: BlueprintStore) {
 					asset.tags = asset.tags.filter(t => t !== normalized)
 					if (asset.tags.length === 0) delete asset.tags
 				}
+				for (const spot of asset.interactSpots ?? []) {
+					if (spot.post === normalized) delete spot.post
+				}
 			}
 			const npcConfig = state.layout.npcConfig
 			if (npcConfig) {

@@ -1,5 +1,4 @@
 import type { BlueprintDataFile, SyncedLayoutPayload } from '../domain/types'
-import { normalizeBlueprintDataFile } from '../domain/types'
 import { EDITOR_CONFIG } from '../editorConfig'
 import { MAX_PAYLOAD_BYTES } from '../limits'
 import { editorLog } from './storeUtils'
@@ -48,7 +47,12 @@ export function createHttpPersistencePort(): PersistencePort {
 					const response: unknown = await res.json()
 					if (!response || typeof response !== 'object') throw new Error('Persistence verification response was invalid')
 					const verified = response as Record<string, unknown>
-					if (verified.ok !== true || !normalizeBlueprintDataFile(verified.data)) throw new Error('Persistence verification response was invalid')
+					if (verified.ok !== true) throw new Error('Persistence verification response was invalid')
+					try {
+						readBlueprintDataFile(verified.data)
+					} catch (error) {
+						throw new Error('Persistence verification response was invalid', { cause: error })
+					}
 					return true
 				} catch (error) {
 					editorLog.error(`saveBlueprintData attempt ${attempt}`, error)

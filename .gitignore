@@ -20,6 +20,11 @@ test-output.txt
 coverage
 .playwright-mcp/
 
+# Playwright E2E artifacts
+test-results/
+playwright-report/
+blob-report/
+
 # Zed theme backup (committed on purpose: fallback seed for other devices)
 # NOTE: personal machine config (agent_servers/model IDs) travels with this file.
 # .zed/theme/settings.json

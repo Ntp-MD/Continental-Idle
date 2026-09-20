@@ -176,7 +176,7 @@ export const DEFAULT_EDITOR_SETTINGS: EditorSettings = {
 	walkableGridMaxTilePx: 40,
 	walkableGridMaxWidthPx: 900,
 	walkableGridMaxHeightPx: 560,
-	npcDotSize: 4,
+	npcDotSize: 8,
 }
 
 export function normalizeEditorSettings(value: unknown): EditorSettings {

@@ -3,12 +3,10 @@ import { ref, computed, watch } from 'vue'
 import { useDebouncedCallback } from '@/composables/useDebounceFn'
 import { useAsyncAction } from '../../composables/useAsyncAction'
 import { useAssetsStore, emptyNpcConfig, cloneDeepRaw } from '../../blueprintStore'
+import { validateSettingsCompleteness } from '../../assets/validation'
 import {
   normalizeNpcConfig,
-  clampInt,
   type NpcSimulationConfig,
-  type NpcRole,
-  type NpcSpawnRule,
 } from '../../domain/types'
 import ModalShell from '../shell/ModalShell.vue'
 import TagChip from '../inputs/TagChip.vue'
@@ -26,7 +24,6 @@ if (!store.state.layout.npcConfig) {
 }
 
 const draft = ref<NpcSimulationConfig>(cloneDeepRaw(store.state.layout.npcConfig))
-const newSpawnTag = ref<Record<string, string>>({})
 const spawnFloorId = ref('')
 
 const roles = computed(() => draft.value.roles)
@@ -50,56 +47,12 @@ watch(
   },
 )
 
-function ensureSpawnRuleFor(role: NpcRole): NpcSpawnRule {
-  if (!role.spawnRule) {
-    role.spawnRule = { targetTags: [], count: 0 }
-  }
-  return role.spawnRule
-}
-
 function getPoolCount(roleId: string): number {
   return draft.value.pool.find((p) => p.roleId === roleId)?.count ?? 0
 }
 
 function getPoolFloorIds(roleId: string): string[] {
   return draft.value.pool.find((p) => p.roleId === roleId)?.floorIds ?? []
-}
-
-function togglePoolFloor(roleId: string, floorId: string): void {
-  const entry = draft.value.pool.find((p) => p.roleId === roleId)
-  if (!entry) return
-  const current = new Set(entry.floorIds ?? [])
-  if (current.has(floorId)) current.delete(floorId)
-  else current.add(floorId)
-  entry.floorIds = current.size ? [...current] : undefined
-  schedulePersist()
-}
-
-function setPoolCount(roleId: string, count: number) {
-  const safe = clampInt(count || 0, 0, 100)
-  const entry = draft.value.pool.find((p) => p.roleId === roleId)
-  if (safe === 0) {
-    if (entry) draft.value.pool = draft.value.pool.filter((p) => p.roleId !== roleId)
-  } else {
-    if (entry) entry.count = safe
-    else draft.value.pool.push({ roleId, count: safe })
-  }
-  schedulePersist()
-}
-
-function onAddSpawnTagFor(role: NpcRole) {
-  const tag = (newSpawnTag.value[role.id] ?? '').trim()
-  if (!tag) return
-  const rule = ensureSpawnRuleFor(role)
-  if (!rule.targetTags!.includes(tag)) rule.targetTags!.push(tag)
-  newSpawnTag.value[role.id] = ''
-  schedulePersist()
-}
-
-function onRemoveSpawnTagFrom(role: NpcRole, tag: string) {
-  if (!role.spawnRule?.targetTags) return
-  role.spawnRule.targetTags = role.spawnRule.targetTags.filter((t) => t !== tag)
-  schedulePersist()
 }
 
 const totalNpcCount = computed(() => draft.value.pool.reduce((sum, p) => sum + p.count, 0))
@@ -120,6 +73,14 @@ async function onDeploy() {
   if (totalNpcCount.value === 0) {
     status.value = 'Set at least one NPC count before deploying'
     statusTone.value = 'warn'
+    return
+  }
+  const gated = validateSettingsCompleteness(store.state.layout, store.assetMap(), draft.value).issues.filter(
+    (issue) => issue.includes('spawn rule targets tags'),
+  )
+  if (gated.length > 0) {
+    status.value = gated[0] + (gated.length > 1 ? ` (+${gated.length - 1} more)` : '')
+    statusTone.value = 'fail'
     return
   }
   status.value = ''
@@ -148,7 +109,7 @@ async function onDeploy() {
           v-model.number="draft.speed"
           type="range"
           min="0.01"
-          max="0.2"
+          max="1"
           step="0.01"
           @change="schedulePersist"
         />
@@ -189,79 +150,48 @@ async function onDeploy() {
           >
             <span class="swatch" :style="{ background: role.color }" />
             <strong class="size--stretch">{{ role.label }}</strong>
-            <button
-              class="deploy__step"
-              aria-label="Decrease count"
-              @click.stop="setPoolCount(role.id, getPoolCount(role.id) - 1)"
+            <span
+              class="badge"
+              :title="`Deploy count for ${role.label} - edit counts in NPC Manager`"
+              >{{ getPoolCount(role.id) }}</span
             >
-              -
-            </button>
-            <input
-              :id="`deploy-role-count-${role.id}`"
-              :value="getPoolCount(role.id)"
-              type="number"
-              min="0"
-              max="100"
-              :aria-label="`Count for ${role.label}`"
-              @click.stop
-              @change="setPoolCount(role.id, Number(($event.target as HTMLInputElement).value))"
-            />
-            <button
-              class="deploy__step"
-              aria-label="Increase count"
-              @click.stop="setPoolCount(role.id, getPoolCount(role.id) + 1)"
-            >
-              +
-            </button>
           </li>
         </ul>
+        <p class="form__hint">Edit counts in NPC Manager</p>
       </aside>
 
       <section v-if="selectedRole" class="form__col deploy__detail">
         <h3>Spawn Rule: {{ selectedRole.label }}</h3>
         <template v-if="getPoolCount(selectedRole.id) > 0">
-          <div class="form__row form--start form--wrap">
-            <div class="form__col form--section">
-              <div>Spawn Floors</div>
-              <template v-if="!spawnFloorId">
-                <ul class="form__row form--wrap">
-                  <li v-for="floor in floors" :key="`spawn-floor-${selectedRole.id}-${floor.id}`">
-                    <label
-                      class="card__item"
-                      :class="{ 'flag--active': getPoolFloorIds(selectedRole.id).includes(floor.id) }"
-                    >
-                      <input
-                        type="checkbox"
-                        :checked="getPoolFloorIds(selectedRole.id).includes(floor.id)"
-                        @change="togglePoolFloor(selectedRole.id, floor.id)"
-                      />
-                      <span>{{ floor.label }}</span>
-                    </label>
-                  </li>
-                </ul>
-                <p v-if="!getPoolFloorIds(selectedRole.id).length" class="form__hint">All floors</p>
-              </template>
-              <p v-else class="form__hint">Spawn floor is forced in Simulation above.</p>
-            </div>
-            <div class="form__col form--section">
-              <div>Target Tags</div>
-              <ul v-if="selectedRole.spawnRule?.targetTags?.length" class="form__row form--wrap">
-                <li v-for="tag in selectedRole.spawnRule?.targetTags ?? []" :key="'st_' + selectedRole.id + tag">
-                  <TagChip :label="tag" removable @remove="onRemoveSpawnTagFrom(selectedRole, tag)" />
+          <div class="form__col form--section">
+            <div>Spawn Floors</div>
+            <template v-if="!spawnFloorId">
+              <ul v-if="getPoolFloorIds(selectedRole.id).length" class="form__row form--wrap">
+                <li v-for="floor in floors" :key="`spawn-floor-${selectedRole.id}-${floor.id}`">
+                  <span
+                    v-if="getPoolFloorIds(selectedRole.id).includes(floor.id)"
+                    class="card__item flag--active"
+                  >
+                    {{ floor.label }}
+                  </span>
                 </li>
               </ul>
-              <span v-else class="empty">No target tags</span>
-              <input
-                v-model="newSpawnTag[selectedRole.id]"
-                type="text"
-                placeholder="+ tag"
-                aria-label="Add target tag"
-                @keydown.enter="onAddSpawnTagFor(selectedRole)"
-              />
-            </div>
+              <p v-else class="form__hint">All floors</p>
+            </template>
+            <p v-else class="form__hint">Spawn floor is forced in Simulation above.</p>
           </div>
+          <div class="form__col form--section">
+            <div>Target Tags</div>
+            <ul v-if="selectedRole.spawnRule?.targetTags?.length" class="form__row form--wrap">
+              <li v-for="tag in selectedRole.spawnRule?.targetTags ?? []" :key="'st_' + selectedRole.id + tag">
+                <TagChip :label="tag" />
+              </li>
+            </ul>
+            <span v-else class="empty">No target tags</span>
+          </div>
+          <p class="form__hint">Edit spawn floors and target tags in NPC Manager</p>
         </template>
-        <p v-else class="form__hint">Set a count above 0 to configure spawn floors and target tags.</p>
+        <p v-else class="form__hint">Set a count above 0 in NPC Manager to deploy this role.</p>
       </section>
     </div>
 
@@ -284,12 +214,6 @@ async function onDeploy() {
 
 .deploy__sidebar .card__item:hover {
   border-color: var(--accent-primary);
-}
-
-.deploy__step {
-  width: 28px;
-  min-height: 28px;
-  padding: 0;
 }
 
 .deploy__detail {

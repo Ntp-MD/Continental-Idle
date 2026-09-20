@@ -28,7 +28,8 @@ export interface NpcSpawnRule {
 
 	targetTags?: string[]
 
-	count: number
+	/** Dead field: kept readable for old saves, never written, ignored by the engine. */
+	count?: number
 }
 
 export interface NpcRole {
@@ -164,7 +165,8 @@ function isValidRole(r: unknown): r is NpcRole {
 	if (!Array.isArray(role.restrictedTags) || !normalizeTags(role.restrictedTags)) return false
 	if (!Array.isArray(role.taskIds) || role.taskIds.length > MAX_NPC_ENTRIES || role.taskIds.some((taskId: unknown) => !normalizeIdentifier(taskId))) return false
 	if (role.spawnRule !== undefined) {
-		if (!isRecord(role.spawnRule) || !isFiniteNumber(role.spawnRule.count) || role.spawnRule.count < 0 || role.spawnRule.count > 1000) return false
+		if (!isRecord(role.spawnRule)) return false
+		if (role.spawnRule.count !== undefined && (!isFiniteNumber(role.spawnRule.count) || role.spawnRule.count < 0 || role.spawnRule.count > 1000)) return false
 		if (role.spawnRule.targetTags !== undefined && (!Array.isArray(role.spawnRule.targetTags) || !normalizeTags(role.spawnRule.targetTags))) return false
 	}
 	return true
@@ -225,7 +227,6 @@ export function normalizeNpcConfig(value: unknown): NpcSimulationConfig | undefi
 			if (role.spawnRule) {
 				normalized.spawnRule = {
 					targetTags: normalizeTags(role.spawnRule.targetTags) ?? [],
-					count: clampInt(role.spawnRule.count, 0, 1000),
 				}
 			}
 			return normalized

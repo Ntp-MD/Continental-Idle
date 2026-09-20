@@ -228,12 +228,6 @@ export function createAssetCommands(store: BlueprintStore) {
 			const items = state.selectionState.items.filter(item => !removedObjectIds.has(item.id))
 			state.selectionState = items.length ? { primary: items[0], items } : { primary: null, items: [] }
 		}
-		const npcConfig = state.layout.npcConfig
-		if (npcConfig) {
-			for (const task of npcConfig.tasks) {
-				if (task.post && assetIds.has(task.post.assetId)) delete task.post
-			}
-		}
 	}
 
 	async function deleteAsset(id: string): Promise<boolean> {

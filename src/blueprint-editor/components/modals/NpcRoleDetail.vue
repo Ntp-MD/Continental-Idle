@@ -12,6 +12,9 @@ const props = defineProps<{
   allTags: string[]
   triggerRates: Record<string, number> | undefined
   isDefault: boolean
+  poolCount: number
+  poolFloorIds: string[]
+  floors: { id: string; label: string }[]
 }>()
 
 const store = useAssetsStore()
@@ -25,11 +28,16 @@ const emit = defineEmits<{
   (e: 'remove-tag', kind: 'focus' | 'restricted', tag: string): void
   (e: 'toggle-task', taskId: string): void
   (e: 'set-rate', tag: string, rate: number): void
+  (e: 'set-count', count: number): void
+  (e: 'toggle-floor', floorId: string): void
+  (e: 'add-spawn-tag', tag: string): void
+  (e: 'remove-spawn-tag', tag: string): void
   (e: 'remove'): void
 }>()
 
 const newFocusTag = ref('')
 const newRestrictedTag = ref('')
+const newSpawnTag = ref('')
 const taskFilter = ref('')
 const ratesExpanded = ref(false)
 const rateSearch = ref('')
@@ -67,6 +75,8 @@ const rateRows = computed<string[]>(() => {
 
 const roleRateCount = computed(() => roleTagScope.value.filter((tag) => (props.triggerRates?.[tag] ?? 0) > 0).length)
 
+const ratesOverrideFocus = computed(() => Object.keys(props.triggerRates ?? {}).length > 0)
+
 const configuredRateCount = computed(() => Object.keys(props.triggerRates ?? {}).length)
 
 function submitRoleTag(kind: 'focus' | 'restricted') {
@@ -75,6 +85,13 @@ function submitRoleTag(kind: 'focus' | 'restricted') {
   if (!value) return
   emit('add-tag', kind, value)
   input.value = ''
+}
+
+function submitSpawnTag() {
+  const value = newSpawnTag.value.trim()
+  if (!value) return
+  emit('add-spawn-tag', value)
+  newSpawnTag.value = ''
 }
 </script>
 
@@ -120,9 +137,12 @@ function submitRoleTag(kind: 'focus' | 'restricted') {
             type="range"
             min="0"
             max="100"
+            :disabled="ratesOverrideFocus"
+            :aria-describedby="ratesOverrideFocus ? `npc-role-chance-hint-${role.id}` : undefined"
             @change="emit('chance', +($event.target as HTMLInputElement).value)"
           />
           <span class="form__hint">{{ role.focusChance }}%</span>
+          <span v-if="ratesOverrideFocus" :id="`npc-role-chance-hint-${role.id}`" class="form__hint">Trigger rates override focus chance</span>
         </div>
       </div>
 
@@ -217,6 +237,70 @@ function submitRoleTag(kind: 'focus' | 'restricted') {
         <div v-else class="empty">
           {{ tasks.length ? 'No matching tasks' : 'No tasks yet - create them under Tags & Tasks' }}
         </div>
+      </div>
+
+      <div class="form__col form--section">
+        <h4>Spawn</h4>
+        <div class="form__row">
+          <label :for="`npc-role-count-${role.id}`">Count</label>
+          <button
+            type="button"
+            aria-label="Decrease count"
+            @click="emit('set-count', poolCount - 1)"
+          >
+            -
+          </button>
+          <input
+            :id="`npc-role-count-${role.id}`"
+            :value="poolCount"
+            type="number"
+            min="0"
+            max="100"
+            :aria-label="`Count for ${role.label}`"
+            @change="emit('set-count', +($event.target as HTMLInputElement).value)"
+          />
+          <button
+            type="button"
+            aria-label="Increase count"
+            @click="emit('set-count', poolCount + 1)"
+          >
+            +
+          </button>
+        </div>
+        <template v-if="poolCount > 0">
+          <div>Spawn Floors</div>
+          <ul class="form__row form--wrap">
+            <li v-for="floor in floors" :key="`spawn-floor-${role.id}-${floor.id}`">
+              <label
+                class="card__item"
+                :class="{ 'flag--active': poolFloorIds.includes(floor.id) }"
+              >
+                <input
+                  type="checkbox"
+                  :checked="poolFloorIds.includes(floor.id)"
+                  @change="emit('toggle-floor', floor.id)"
+                />
+                <span>{{ floor.label }}</span>
+              </label>
+            </li>
+          </ul>
+          <p v-if="!poolFloorIds.length" class="form__hint">All floors</p>
+          <div>Target Tags</div>
+          <ul v-if="role.spawnRule?.targetTags?.length" class="form__row form--wrap">
+            <li v-for="tag in role.spawnRule?.targetTags ?? []" :key="'st_' + role.id + tag">
+              <TagChip :label="tag" removable @remove="emit('remove-spawn-tag', tag)" />
+            </li>
+          </ul>
+          <span v-else class="empty">No target tags</span>
+          <input
+            v-model="newSpawnTag"
+            type="text"
+            placeholder="+ tag"
+            aria-label="Add target tag"
+            @keydown.enter="submitSpawnTag"
+          />
+        </template>
+        <p v-else class="form__hint">Set a count above 0 to configure spawn floors and target tags.</p>
       </div>
 
       <div class="form__col form--section">

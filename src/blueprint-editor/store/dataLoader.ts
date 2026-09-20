@@ -36,8 +36,14 @@ export function buildSavedLayout(layout: BlueprintLayoutFile, config: NpcSimulat
 		canvas: layout.canvas,
 		floors: layout.floors.map(floor => ({
 			...floor,
+			// Persisted sizes are untrusted: migrate() re-derives w/h via
+			// normalizeObject before the engine, collision, or canvas reads
+			// them, and engine guards degrade unresolved sizes instead of NaN.
 			objects: floor.objects.map((object): ObjectData => ({ ...object, w: 0, h: 0 })),
 		})),
+		...(layout.streetWidthTiles !== undefined ? { streetWidthTiles: layout.streetWidthTiles } : {}),
+		...(layout.streetFloorId !== undefined ? { streetFloorId: layout.streetFloorId } : {}),
+		...(layout.editorSettings !== undefined ? { editorSettings: layout.editorSettings } : {}),
 		npcConfig: config,
 	}
 }

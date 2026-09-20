@@ -1,5 +1,5 @@
 import type { EditorMode, EditorSettings, Rect, TileBrush } from '../domain/types'
-import { isValidColor, normalizeEditorSettings, EDITOR_FIELD_SPECS, rescaleFloorWalkable, canvasWithinGridCaps } from '../domain/types'
+import { isValidColor, normalizeEditorSettings, EDITOR_FIELD_SPECS, rescaleFloorWalkable, canvasWithinGridCaps, resolveStreetTiles } from '../domain/types'
 import type { BlueprintStore } from './state'
 import { normalizeObject } from '../domain/geometry'
 import { layoutHasContent } from './storeUtils'
@@ -126,6 +126,32 @@ export function createModeCommands(store: BlueprintStore) {
 			if (tiles !== null && (!Number.isInteger(tiles) || tiles < 5 || tiles > 20)) return false
 			if (tiles !== null) state.layout.streetWidthTiles = tiles
 			else delete state.layout.streetWidthTiles
+			const tileSize = Math.max(1, Math.round(state.layout.canvas.tileSize))
+			const cols = Math.max(1, Math.ceil(state.layout.canvas.width / tileSize))
+			const rows = Math.max(1, Math.ceil(state.layout.canvas.height / tileSize))
+			const street = resolveStreetTiles(state.layout)
+			for (const floor of state.layout.floors) {
+				const states = floor.walkable?.tileStates
+				if (!states || states.length !== rows) continue
+				for (let row = 0; row < rows; row++) {
+					if (row >= (states[row]?.length ?? 0)) continue
+					for (let col = 0; col < states[row].length; col++) {
+						if (row < street || row >= rows - street || col < street || col >= cols - street) {
+							states[row][col] = 'walkable'
+						}
+					}
+				}
+				const grid = floor.walkable?.walkableGrid
+				if (grid?.length === rows && grid.every((grow, index) => grow.length === states[index]?.length)) {
+					for (let row = 0; row < rows; row++) {
+						for (let col = 0; col < grid[row].length; col++) {
+							if (row < street || row >= rows - street || col < street || col >= cols - street) {
+								grid[row][col] = true
+							}
+						}
+					}
+				}
+			}
 			return saveBlueprintData()
 		})
 	}

@@ -4,7 +4,6 @@ import { useAssetsStore } from '../../blueprintStore'
 import { useToast } from '@/composables/useToast'
 import { useDebouncedCallback } from '@/composables/useDebounceFn'
 import { useConfirm } from '@/composables/useConfirm'
-import { useAssetPreview } from '../../composables/useAssetPreview'
 import { useCanvasDefaults } from '../../composables/useCanvasDefaults'
 import { useDirtyBaseline } from '../../composables/useDirtyBaseline'
 import type { AssetDef, TileState, EdgeInteractSpot, InteractSpot } from '../../domain/types'
@@ -66,11 +65,6 @@ const tilePx = computed(() => {
     editorSettings.value.walkableGridMinTilePx,
     Math.min(editorSettings.value.walkableGridMaxTilePx, Math.min(maxByWidth, maxByHeight)),
   )
-})
-
-const { viewBox: svgPreviewViewBox, vars: previewVars, setEl: setPreviewEl } = useAssetPreview({
-  asset: () => props.asset ?? undefined,
-  isActive: () => props.active,
 })
 
 watch(
@@ -608,19 +602,6 @@ watch([gridTiles, gridInteractSpots, gridEdgeSpots], () => {
       </div>
     </div>
     <div class="walkablegrid__layout">
-      <div class="walkablegrid__layer">
-        <div class="walkablegrid__label">Real Visual</div>
-        <div class="walkablegrid__preview">
-          <svg
-            :ref="setPreviewEl"
-            :viewBox="svgPreviewViewBox"
-            preserveAspectRatio="xMidYMid meet"
-            class="walkablegrid__fill"
-            :style="previewVars"
-          ></svg>
-        </div>
-      </div>
-
       <div class="walkablegrid__editor">
         <div v-if="activeGridConfig?.hint" class="form__hint">
           {{ activeGridConfig.hint }}
@@ -844,17 +825,6 @@ watch([gridTiles, gridInteractSpots, gridEdgeSpots], () => {
   height: var(--tile-size, 40px);
 }
 
-.walkablegrid__preview {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 120px;
-  padding: var(--gap-sm);
-  border: 1px solid var(--border-dim);
-  border-radius: var(--radius-sm);
-  overflow: hidden;
-}
-
 .walkablegrid__legend {
   display: flex;
   flex-wrap: wrap;
@@ -883,11 +853,6 @@ watch([gridTiles, gridInteractSpots, gridEdgeSpots], () => {
 .walkablegrid__dot--blocked {
   background: color-mix(in srgb, var(--accent-red) 30%, transparent);
   border: 1px solid var(--accent-red);
-}
-
-.walkablegrid__fill {
-  width: 100%;
-  height: 100%;
 }
 
 .walkablegrid__passable {
