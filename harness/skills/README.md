@@ -29,4 +29,4 @@ https://developers.openai.com/blog/rethinking-skills-and-prompts-for-gpt-6-astra
 
 - `skills/*/SKILL.md` descriptions stay one line, trigger-narrow.
 - `HARNESS.md` is the router; this note is not in the read chain until skills are authored.
-- Variance tracking stays in `state/lessons.md` - never a second tracking file.
+- Variance tracking stays in the history entries - never a second tracking file.

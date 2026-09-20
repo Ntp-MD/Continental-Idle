@@ -248,9 +248,9 @@ function buildEngine(state: NpcSimCoreState, host: NpcSimulationCoreHost, floors
 		wanderSmallMapThreshold: cfg?.wanderSmallMapThreshold ?? NPC_ENGINE_DEFAULT_OPTIONS.wanderSmallMapThreshold,
 		triggerRatePeriodSeconds: cfg?.triggerRatePeriodSeconds ?? NPC_ENGINE_DEFAULT_OPTIONS.triggerRatePeriodSeconds,
 		socialRadius: 2,
-		socialCooldownSeconds: 45,
-		socialChatDurationMinSeconds: 3,
-		socialChatDurationMaxSeconds: 8,
+		socialCooldownSeconds: 20,
+		socialChatDurationMinSeconds: 5,
+		socialChatDurationMaxSeconds: 14,
 		...policy,
 	})
 

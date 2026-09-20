@@ -15,6 +15,7 @@ Rewrite the glossary on adoption (see `harness/HARNESS.md` - Adopt in a new proj
 
 | Term | Meaning | Not |
 | ---- | ------- | --- |
+| Parti | The one dominant move that organizes a floor plan (arrival axis, courtyard, corridor spine); named in the slot BEFORE any tile write; must be new per build unless the user orders reuse. | layout, floor plan, template |
 | Definition | Reusable asset/config owning defaults, validation metadata, tags (identified by `id`). | template, base asset |
 | Instance | References a definition by id; owns only position/rotation/instance-specific overrides. | a copy of the definition |
 | Normalization | At ingress: unknown input -> canonical data or reject; idempotent, context-free. | resolution |

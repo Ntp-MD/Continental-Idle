@@ -80,7 +80,10 @@ export function useNpcSimulation(sources: NpcSimulationSources = {}): {
 
 	watch(() => sources.getFloor?.()?.id, floorId => {
 		if (!floorId) return
-		lastFloorSig = ''
+		// A floor switch is a view change, not a layout change: prime the
+		// signature from the newly active floor so the deep watcher below
+		// sees no diff and the deployed agents survive across floors.
+		lastFloorSig = floorSignature(sources.getFloor?.())
 		core.setViewFloorId(floorId)
 	})
 

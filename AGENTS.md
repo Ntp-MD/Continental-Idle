@@ -9,8 +9,9 @@ Universal harness companion - ships with `harness/`. Everything here applies eve
 - Expand terse prompts into scoped, actionable output without asking first; build forward toward a usable implementation, not a literal restatement.
 - Land on the relevant code and read before writing: navigate to the parts actually needed, check neighbors + existing impl before choosing a library or pattern. Verify the dependency is already used.
 - Zero-duplication: never create a second way to do the same thing. No duplicate impls, facades, or wrappers.
-- DO directly: in-scope edits, local refactors, obvious wiring. STOP + ask: destructive (rm/migrate/drop), scope growth past 3 files beyond what was asked, new dependency/infra, secrets/auth change. A requested change that itself spans over 3 files is pre-authorized - the gate covers unrequested scope creep, not the asked work.
-- Rule: confidence >80% and reversible -> do it, state assumption in report. Else ask.
+- DO directly: in-scope edits, local refactors, obvious wiring, and any destructive edit to in-repo project content (see standing order below). STOP + ask: destructive actions outside the repo, scope growth past 3 files beyond what was asked, new dependency/infra, secrets/auth change. A requested change that itself spans over 3 files is pre-authorized - the gate covers unrequested scope creep, not the asked work.
+- Standing order (this project): pre-release and unfinished - hotel floors/content/NPC/state may be wiped, cleared, or rebuilt at any time and any earlier decision may change. Destructive in-repo edits are pre-authorized: no restore/no-recovery concern, no ask-gate. Still stop for secrets/auth and irreversible actions outside the repo.
+- Rule: confidence >80% -> do it, state assumption in report. Else ask. Reversibility is not a gate for in-repo project content.
 - Safe iteration is pre-authorized: run the routed verify suite, fix failures caused by the requested change, and rerun without asking for approval at each step.
 - Ask with options: whenever stopping to ask, present numbered options (2-4) each with pros/cons, then state which option is recommended and why.
 - Claim then impact: user-reported bug/request -> verify against code first and state what is actually true; assess impact + pros/cons before implementing.

@@ -53,7 +53,7 @@ Drive each task to completion by yourself. Define completion in the plan and tre
 
 ## Steps
 
-1. Inspect - locate the relevant code, read neighboring files and the existing implementation before choosing a pattern. Never invent a new pattern when a repo pattern exists. Grep `state/lessons.md` with the touched file/surface name first - a hit means the failure happened before, apply the recorded fix. Record current behavior, repo pattern to reuse, files that must change.
+1. Inspect - locate the relevant code, read neighboring files and the existing implementation before choosing a pattern. Never invent a new pattern when a repo pattern exists. Record current behavior, repo pattern to reuse, files that must change.
 2. Plan - files to touch (unrequested growth past 3 files: proceed only if reversible, else stop and ask - a requested change spanning over 3 files is pre-authorized, see AGENTS.md), risks, the single matching verify suite. No coding until four parts are clear: What (scope + non-goals), Why (current vs expected with proof), How (steps in order), Why this way (pattern reused, rejected alternatives, risks + rollback). Pre-proof gate: a captured baseline exists; every edit anchor carries an identity; UI work names who confirms the visual. On feature-lane tickets, reuse the lane outputs (Mission summary, Impact Summary, picked interface) - plan only the ticket slice.
 3. Implement - follow file-local conventions and the project's canonical patterns. Never add a second way. ASCII-only source, imports at top, no code comments unless requested. Never commit unless asked.
 4. Test - run ONLY the suite matching the change (`verify.mjs route` prints it). Never the full matrix unless asked. When Phase F wrote the failing case first, this run is that same suite - one suite, two moments (red before, green after), never a second suite.
@@ -142,7 +142,7 @@ Behavior while active:
 
 ## Calibration loop
 
-- Whenever variance hits (audit verdict flips, fix takes 2+ rounds, scope grows unplanned), append one line to the history entry: which step's budget held or broke. A repeat of an already-logged variance gets promoted to `state/lessons.md` as one line (symptom | cause | fix | evidence).
+- Whenever variance hits (audit verdict flips, fix takes 2+ rounds, scope grows unplanned), append one line to the history entry: which step's budget held or broke.
 - Every `compact` run, scan the variance lines: the step with the most UNCERTAIN/broken-budget hits gets a tighter evidence rule next. The harness improves itself; no separate tracking file.
 
 ## Safety

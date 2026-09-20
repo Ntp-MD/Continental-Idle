@@ -11,13 +11,15 @@
  * Run: npx tsx scripts/observe-hotel.ts   (OBS_SECONDS env overrides duration)
  */
 import assert from 'node:assert/strict'
-import { buildNpcEngineLayout } from '../src/engine/npc/layoutBuild'
+import fs from 'node:fs'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
+import { buildNpcEngineLayout, buildRoleWalkableMap, filterNpcSpawnTiles } from '../src/engine/npc/layoutBuild'
 import { createNpcEnginePolicy } from '../src/engine/npc/policy'
-import { NpcEngine } from '../src/engine/npc'
-import { buildSyncedPayload, loadSyncedPayload } from '../src/blueprint-editor/syncedPayload'
+import { NpcEngine, floorMatchesTargetTags } from '../src/engine/npc'
 import { buildAssetMap } from '../src/blueprint-editor/assets/assetUtils'
-import { normalizeNpcSpawnZones } from '../src/blueprint-editor/domain/types'
-import { seedOriginAssets, seedLayout, seedNpcConfig } from '../src/blueprint-editor/store/seed'
+import { migrate } from '../src/blueprint-editor/store/migrate'
+import type { AssetDef } from '../src/blueprint-editor/domain/types'
 
 function mulberry32(seed: number): () => number {
 	let a = seed >>> 0
@@ -30,10 +32,19 @@ function mulberry32(seed: number): () => number {
 	}
 }
 
-const assetMap = buildAssetMap(seedOriginAssets)
-const npcConfig = seedNpcConfig
-const payload = buildSyncedPayload(seedLayout as never, assetMap, npcConfig)!
-const { floors, canvas } = loadSyncedPayload(payload)
+const seedPath = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../src/blueprint-editor/data/blueprint-data.json')
+const seed = JSON.parse(fs.readFileSync(seedPath, 'utf8')) as { layout: unknown; originAssets: AssetDef[]; npcConfig: unknown }
+const { layout } = migrate(seed.layout, seed.originAssets, seed.npcConfig)
+const npcConfig = layout.npcConfig!
+const assetMap = buildAssetMap(seed.originAssets)
+const floors = layout.floors
+const canvas = {
+	w: layout.canvas.width,
+	h: layout.canvas.height,
+	tileSize: layout.canvas.tileSize,
+	streetTiles: layout.streetWidthTiles,
+	streetFloorId: layout.streetFloorId,
+}
 const floorKeys = floors.map(floor => floor.id)
 
 const random = mulberry32(20260825)
@@ -51,39 +62,32 @@ const policy = createNpcEnginePolicy({
 })
 const engine = new NpcEngine(built.layout, {
 	ticksPerSecond: 60, random,
-	socialRadius: 2, socialCooldownSeconds: 45,
-	socialChatDurationMinSeconds: 3, socialChatDurationMaxSeconds: 8,
+	socialRadius: 2, socialCooldownSeconds: 20,
+	socialChatDurationMinSeconds: 5, socialChatDurationMaxSeconds: 14,
 	...policy,
 })
 
-// Spawn exactly like useNpcSimulationCore.spawnAgents.
+// Spawn exactly like useNpcSimulationCore.spawnAgents: pool -> floorIds ->
+// allowedRoleIds -> targetTags -> role walkable map -> spawn zones.
 const TPS = 60
+const getAssetTags = (type: string) => assetMap.get(type)?.tags
+let agentSeq = 0
 for (const entry of npcConfig.pool) {
 	const role = npcConfig.roles.find(r => r.id === entry.roleId)
 	if (!role) continue
 	for (const floor of floors) {
+		if (entry.floorIds?.length && !entry.floorIds.includes(floor.id)) continue
 		if (floor.allowedRoleIds?.length && !floor.allowedRoleIds.includes(role.id)) continue
-		if (role.spawnRule?.targetTags?.length) {
-			const tagsOnFloor = new Set(floor.objects.flatMap(o => assetMap.get(o.type)?.tags ?? []))
-			if (!role.spawnRule.targetTags.some(t => tagsOnFloor.has(t))) continue
-		}
+		if (!floorMatchesTargetTags(floor, role.spawnRule?.targetTags ?? [], getAssetTags)) continue
 		const map = built.floorMaps.get(floor.id)
 		if (!map) continue
-		const zones = normalizeNpcSpawnZones(floor.spawnZones) ?? []
-		let cells = [...map.tiles]
-		if (zones.length) {
-			cells = cells.filter(key => {
-				const [x, y] = key.split(',').map(Number)
-				const px = x * map.cellSize
-				const py = y * map.cellSize
-				return zones.some(z => px >= z.x && px < z.x + z.w && py >= z.y && py < z.y + z.h)
-			})
-		}
+		const roleMap = buildRoleWalkableMap(map, floor, role, getAssetTags)
+		const cells = [...filterNpcSpawnTiles(roleMap, floor, role.id)]
 		assert.ok(cells.length > 0, `no spawn cells for ${role.id} on ${floor.id}`)
 		for (let i = 0; i < entry.count; i++) {
 			const key = cells[(random() * cells.length) | 0]!
 			const [cx, cy] = key.split(',').map(Number)
-			engine.addAgent({ id: `obs-${entry.roleId}-${floor.id}-${i}`, roleId: role.id, floorId: floor.id, x: cx!, y: cy!, targetX: cx!, targetY: cy!, speed: Math.max(0.01, npcConfig.speed) * TPS / map.cellSize })
+			engine.addAgent({ id: `obs-${agentSeq++}`, roleId: role.id, floorId: floor.id, x: cx!, y: cy!, targetX: cx!, targetY: cy!, speed: Math.max(0.01, npcConfig.speed) * TPS / map.cellSize })
 		}
 	}
 }
