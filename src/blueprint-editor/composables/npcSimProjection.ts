@@ -1,6 +1,13 @@
 import { cellToPixel } from '@/engine/npc'
 import type { NpcEngineAgent } from '@/engine/npc'
-import type { NpcSimDot } from '@/blueprint-editor/domain/types'
+import type { NpcRoleHat, NpcSimDot } from '@/blueprint-editor/domain/types'
+
+export interface NpcSimLook {
+	skinTone?: string
+	trousers?: string
+	hat?: NpcRoleHat
+	hatColor?: string
+}
 
 export function blankSimDot(agent: Pick<NpcEngineAgent, 'id' | 'floorId' | 'roleId'>): NpcSimDot {
 	return {
@@ -13,6 +20,10 @@ export function blankSimDot(agent: Pick<NpcEngineAgent, 'id' | 'floorId' | 'role
 		targetY: 0,
 		speed: 0,
 		color: '#8ecae6',
+		skinTone: '',
+		trousers: '',
+		hat: 'none',
+		hatColor: '',
 		status: 'idle',
 		pauseTimer: 0,
 		pathIdx: 0,
@@ -29,6 +40,7 @@ export function updateSimDot(
 	agent: NpcEngineAgent,
 	cellSize: number,
 	resolveColor: (roleId: string) => string,
+	resolveLook?: (roleId: string) => NpcSimLook,
 ): NpcSimDot {
 	const dot: NpcSimDot = existing ?? blankSimDot(agent)
 	dot.floorId = agent.floorId
@@ -50,6 +62,11 @@ export function updateSimDot(
 	}
 	dot.pathIdx = agent.pathIndex
 	dot.color = resolveColor(agent.roleId ?? '')
+	const look = resolveLook?.(agent.roleId ?? '')
+	dot.skinTone = look?.skinTone ?? ''
+	dot.trousers = look?.trousers ?? ''
+	dot.hat = look?.hat ?? 'none'
+	dot.hatColor = look?.hatColor ?? ''
 	return dot
 }
 

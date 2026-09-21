@@ -60,8 +60,8 @@ function buildingRect(wrapper: ReturnType<typeof mountCanvas>) {
 }
 
 describe('EditorCanvas building area', () => {
-	beforeEach(() => {
-		store = createBlueprintStore({ persistence, sync, seed: defaultSeed() })
+	beforeEach(async () => {
+		store = createBlueprintStore({ persistence, sync, seed: await defaultSeed() })
 		const floor = store.state.layout.floors[0]
 		store.state.currentFloorId = floor.id
 		store.state.layout.streetFloorId = floor.id

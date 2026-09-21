@@ -1,5 +1,9 @@
 // verify - slot check + verify router for the harness.
 // check: validate state/task-context.md headers, secrets, scope.
+// drift: mid-task drift gate - compares slot state against the working tree,
+// fails when progress is untracked (no slot / no ticks), and prints the
+// anchor line (Mission + next unchecked Plan item) so a re-run re-injects
+// the original intent into the agent context after drift or cutoff.
 // route: match the working tree against the project's verify table (AGENTS.md
 // verify markers) and print ONLY the matching suites - the harness ships no
 // suite names; suites live in the project's table + package.json only.
@@ -8,17 +12,18 @@
 // Covers both lanes in HARNESS.md: light loop (single-file fix) and feature
 // lane (per-ticket loop) - routing is per changed file either way.
 //
-// Run with: node harness/scripts/verify.mjs [check|table|route|run|compact]
-// Exit code: 0 = ok, 1 = check failure / suite failure / usage error
+// Run with: node harness/scripts/verify.mjs [check|drift|table|route|run|compact]
+// Exit code: 0 = ok, 1 = check failure / drift / suite failure / usage error
 import fs from 'node:fs'
 import path from 'node:path'
 import { execSync, spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
+import { DRIFT_NO_SLOT_FILES, DRIFT_UNTRACKED_FILES, isMetaPath, slotIsEmpty, slotPathFor } from './rail.mjs'
 
 const root = process.env.HARNESS_ROOT
   ? path.resolve(process.env.HARNESS_ROOT)
   : path.resolve(fileURLToPath(new URL('../..', import.meta.url)))
-const slotPath = path.join(root, 'harness', 'state', 'task-context.md')
+const slotPath = slotPathFor(root)
 const agentsPath = path.join(root, 'AGENTS.md')
 
 const HEADERS = [
@@ -79,8 +84,61 @@ function gitScope() {
   }
 }
 
-function cmdCheck() {
-  if (!fs.existsSync(slotPath)) fail('slot file missing (harness/state/task-context.md)')
+const DRIFT_TEMP_RE = /tests\/_.*\.tmp\.ts/
+
+function sectionBody(sections, header) {
+  const section = sections.find((item) => item.header === header)
+  return section ? section.body : ''
+}
+
+function firstMeaningfulLine(body) {
+  for (const line of body.split('\n')) {
+    const text = line.trim()
+    if (text && !text.startsWith('<!--')) return text
+  }
+  return ''
+}
+
+function missionLine(sections) {
+  const line = firstMeaningfulLine(sectionBody(sections, 'Mission'))
+  return line === '(empty)' ? '' : line.replace(/^Mode:\s*autopilot\s*$/i, '').trim()
+}
+
+function nextPlanItem(sections) {
+  const plan = sectionBody(sections, 'Plan')
+  const line = plan.split('\n').find((item) => /^\s*-\s\[\s\]/.test(item))
+  return line ? line.replace(/^\s*-\s\[\s\]\s*/, '').trim() : ''
+}
+
+function cmdDrift() {
+  if (!fs.existsSync(slotPath)) fail(`drift: slot file missing (${path.relative(root, slotPath)}) - fill it before continuing`)
+  const text = fs.readFileSync(slotPath, 'utf8')
+  const sections = parseSections(text)
+  const scope = gitScope()
+  const files = scope === null ? [] : scope.map((line) => line.slice(3).trim()).filter((rel) => rel && !isMetaPath(rel))
+  const mission = missionLine(sections)
+  const next = nextPlanItem(sections)
+  const anchor = mission || '(no mission)'
+  if (slotIsEmpty(text) && files.length >= DRIFT_NO_SLOT_FILES) {
+    fail(
+      `drift: ${files.length} project files changed with an EMPTY slot - this is a lost task. ` +
+        `Write harness/state/task-context.md (Mission = the goal you are actually pursuing) before any further edit`,
+    )
+  }
+  const plan = sectionBody(sections, 'Plan')
+  if (mission && files.length >= DRIFT_UNTRACKED_FILES && !/- \[x\]/.test(plan)) {
+    fail(
+      `drift: ${files.length} project files changed but no Plan box was ever ticked - progress is untracked. ` +
+        `Update the Plan in harness/state/task-context.md to match reality before continuing`,
+    )
+  }
+  const stale = scope === null ? [] : scope.filter((line) => DRIFT_TEMP_RE.test(line))
+  if (stale.length) console.error(`verify: drift warning - temp diagnostics left behind: ${stale.map((line) => line.slice(3).trim()).join(', ')}`)
+  const anchorNote = next ? ` | next: ${next}` : ''
+  console.log(`verify: drift ok - ${files.length} non-meta file(s), slot tracked | anchor: ${anchor}${anchorNote}`)
+}
+
+function cmdCheck() {  if (!fs.existsSync(slotPath)) fail('slot file missing (harness/state/task-context.md)')
   const text = fs.readFileSync(slotPath, 'utf8')
   const sections = parseSections(text)
   const names = sections.map((section) => section.header)
@@ -391,6 +449,7 @@ function cmdCompact(args) {
 function main() {
   const mode = process.argv[2] ?? 'route'
   if (mode === 'check') cmdCheck()
+  else if (mode === 'drift') cmdDrift()
   else if (mode === 'table') {
     const issues = tableProblems()
     if (issues.length) fail(`verify table invalid:\n  - ${issues.join('\n  - ')}`)
@@ -416,7 +475,7 @@ function main() {
     report(files, plan)
     if (mode === 'run') runPlan(plan)
   } else {
-    fail('usage: node harness/scripts/verify.mjs [check|table|route|run|compact]')
+    fail('usage: node harness/scripts/verify.mjs [check|drift|table|route|run|compact]')
   }
 }
 

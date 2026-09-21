@@ -16,7 +16,7 @@ const persistence: PersistencePort = {
 }
 const sync: SyncPort = { emit() {} }
 
-const store: BlueprintStore = createBlueprintStore({ persistence, sync, seed: defaultSeed() })
+const store: BlueprintStore = createBlueprintStore({ persistence, sync, seed: await defaultSeed() })
 const state = store.state
 const {
 	addFloor, deleteFloor, duplicateFloor, paintFloorTiles,
@@ -446,7 +446,7 @@ async function main(): Promise<void> {
 				return true
 			},
 		}
-		const local = createBlueprintStore({ persistence: slowPort, sync, seed: defaultSeed() })
+		const local = createBlueprintStore({ persistence: slowPort, sync, seed: await defaultSeed() })
 		const initialCount = local.state.layout.floors.length
 		const target = local.state.layout.floors[0]
 		const addPromise = local.addFloor()
@@ -467,7 +467,7 @@ async function main(): Promise<void> {
 			async load() { return null },
 			async save() { await new Promise(resolve => setTimeout(resolve, 0)); return true },
 		}
-		const local = createBlueprintStore({ persistence: burstPort, sync, seed: defaultSeed() })
+		const local = createBlueprintStore({ persistence: burstPort, sync, seed: await defaultSeed() })
 		const floorId = local.state.layout.floors[0].id
 		const ops: Promise<unknown>[] = []
 		for (let i = 0; i < 5; i++) {
@@ -540,7 +540,7 @@ async function main(): Promise<void> {
 	})
 
 	await check('no-op commands do not consume undo history', async () => {
-		const local = createBlueprintStore({ persistence, sync, seed: defaultSeed() })
+		const local = createBlueprintStore({ persistence, sync, seed: await defaultSeed() })
 		assert.equal(await local.setCanvasBgColor('#112233'), true, 'real mutation commits')
 		assert.equal(await local.resizeCanvas(100_000, 100_000, 25), false, 'rejected resize mutates nothing')
 		assert.equal(await local.undo(), true, 'undo applies')

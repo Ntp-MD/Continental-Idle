@@ -6,15 +6,31 @@ Coding agents fail in predictable ways: they lose track of state mid-task, run t
 
 ## Read chain
 
-1. Project instruction file first (this repo: `AGENTS.md`) - rules, verify table, bans.
-2. This file - how the loop runs.
+1. Project instruction file first (this repo: `AGENTS.md`) - digest, project adapter values (standing orders, verify table, bans).
+2. This file - the full rules: operating mode, loop, report format.
 3. `state/task-context.md` - live slot, current state. Read it at task start.
 4. `state/history.md` - human reference log. The agent never reads it on its own - only when the user explicitly orders an investigation.
 5. Project skill file (this repo: `skill.md`) - only when the task touches project domain.
 6. `state/context.md` - shared language (glossary). Read when domain terms or wording matter; patch it when a new term locks.
 
-## Persona
+Canonical patterns live in the project's `skill.md` (router) + `docs/skill/*.md` - reuse them, never a second way. The glossary lives in `state/context.md` only - never a second glossary file.
+
+## Operating mode
+
 This folder is not a checklist - it is a software engineer. Facts are looked up, never asked; decisions are put to the user; the first interface idea is never the last.
+
+- Infer intent, not literal. Short prompt = incomplete spec: find the matching repo pattern first, fill gaps with repo convention, never invent a new one.
+- Expand terse prompts into scoped, actionable output without asking first; build forward toward a usable implementation, not a literal restatement.
+- Land on the relevant code and read before writing: navigate to the parts actually needed, check neighbors + existing impl before choosing a library or pattern. Verify the dependency is already used.
+- Zero-duplication: never create a second way to do the same thing. No duplicate impls, facades, or wrappers.
+- DO directly: in-scope edits, local refactors, obvious wiring, and destructive edits to in-repo project content when a per-project standing order authorizes them. STOP + ask: destructive actions outside the repo, scope growth past 3 files beyond what was asked, new dependency/infra, secrets/auth change.
+- Rule: confidence >80% -> do it, state the assumption in the report. Else ask. Reversibility is not a gate for in-repo project content.
+- Safe iteration is pre-authorized: run the routed verify suite, fix failures caused by the requested change, and rerun without asking for approval at each step.
+- Ask with options: whenever stopping to ask, present numbered options (2-4) each with pros/cons, then state which option is recommended and why.
+- Claim then impact: user-reported bug/request -> verify against code first and state what is actually true; assess impact + pros/cons before implementing.
+- Engineering standard: for every choice, pick the efficient / best-practice / higher-performance / cleaner-code option first; when alternatives exist, state briefly in the report why the chosen path won.
+- Keep scope: fix the asked task only. User correction persists for the session.
+- Per-project standing orders (e.g. pre-release wipe policy, off-limits folders) live in the project's AGENTS.md - not here.
 
 Every task walks the loop below - inspect, plan, implement, test, fix, review, done. A routine one-file fix walks the light loop with no extra reads.
 
@@ -59,7 +75,7 @@ Drive each task to completion by yourself. Define completion in the plan and tre
 4. Test - run ONLY the suite matching the change (`verify.mjs route` prints it). Never the full matrix unless asked. When Phase F wrote the failing case first, this run is that same suite - one suite, two moments (red before, green after), never a second suite.
 5. Fix - diagnose the root cause from the failing output, fix the smallest in-scope change, re-run. Pre-existing unrelated failures are reported separately, never fixed silently.
 6. Review - correctness, regressions, chain (each changed function lists its direct callers + callees with a touched-or-unaffected verdict per edge; one hop mandatory, deeper only when an edge contract changed), correspondence (zero references to removed things; load `wire-paths` only when paths moved), scope (no files beyond the plan), architecture scan (list introduced complexity as candidates, never fix silently - the scope rule applies). Uncertainty gate: re-read each judged verdict (audit calls, boundary mappings) once against its quoted evidence; a verdict that flips between passes is marked UNCERTAIN and escalated, never silently picked. A verdict without a `file:line` evidence quote does not count.
-7. Done - report short: claim verdict (which part of the request was true), what changed, assumption made, impact/trade-offs, how verified.
+7. Done - report in the Report format section below (fixed headings: Changed / Decisions / Gaps / Verify under a verdict headline)
 
 ## Feature lane (idea -> tickets -> per-ticket loop)
 
@@ -111,7 +127,7 @@ Behavior while active:
 2. Decision rule, in order: most reversible option > closest to an existing repo pattern > simplest. State the assumption in the done report.
 3. Decision log: every non-trivial decision is logged in `harness/state/history.md` as `- decision: <choice> (over: <rejected alternatives> - because <reason>)`. The done report opens with the decision log so the user can veto any single decision - a veto is a normal follow-up task, not an error.
 4. Batch checkpoints: don't pause for approval mid-task. Report at the end (or at a phase boundary for feature-lane work). Slot is written through as usual.
-5. Still hard-stopped, even in autopilot: destructive git commands (already banned), deleting/rewriting persisted store content without an explicit user order, secrets/auth changes, and anything irreversible outside the repo. For these, leave a Blockers entry and end the report with the question.
+5. Still hard-stopped, even in autopilot: everything on the Operating-mode STOP list, plus deleting/rewriting persisted store content without an explicit user order. For these, leave a Blockers entry and end the report with the question.
 
 `autopilot off` returns to normal mode - remove the slot marker in the same breath.
 
@@ -125,17 +141,40 @@ Behavior while active:
 
 ## Verify routing
 
-- The verify table in `AGENTS.md` (between `verify` markers) is the ONLY routing source - the harness ships no suite names. Row format: backticked globs in the Changed cell, backticked npm scripts in the Run cell; a row with no concrete script is a human-pick row.
-- `node harness/scripts/verify.mjs route` matches the working tree against the table and prints ONLY the matching suites (`npm run <script>`). No-slash globs (`*.vue`) match basenames anywhere; slash globs (`src/**/*.css`) match paths. Pick rows list the project's `test:` scripts (read from package.json) for the human to choose - the router never chooses.
-- `run` executes the matched suites and stops at the first failure; a matched pick row always refuses to auto-run.
-- `table` validates the verify table against `package.json` (every concrete npm script in a Run cell exists; every Changed cell has a backticked glob). `check` gates slot headers, secrets, scope, and runs the table validation. Run it before reporting done.
-- Harness-owned conventions (not project suites): temp diagnostics go in `tests/_*.tmp.ts`, deleted same session, never committed - the router filters them out.
+- The verify table lives in `AGENTS.md` (between `verify` markers) - it is the ONLY routing source; the harness ships no suite names. Row format, glob semantics, and bans are documented next to that table, stated there once - never restated here.
+- `node harness/scripts/verify.mjs route` prints ONLY the suites matching the working tree; `run` executes them and stops at the first failure. A row with no concrete script is a human-pick row - the router never chooses.
+- `drift` is the mid-task re-anchor: run it every ~8 non-meta file edits and after ANY context cutoff/compaction. It prints the anchor line (Mission + next unchecked Plan item) to re-confirm intent; exit 1 = drift - fix the slot before any further edit.
+- `table` validates the verify table against `package.json`; `check` gates slot headers, secrets, scope, and the table. Run `check` before reporting done.
+- Harness-owned convention: temp diagnostics go in `tests/_*.tmp.ts`, deleted same session, never committed - the router filters them out.
+
+## Report format
+
+Markdown-file style, fixed headings in this order:
+
+```markdown
+## <task name> - <DONE | PARTIAL | BLOCKED> (<n>/<total>)
+
+### Changed
+- **<file>** - <what changed>
+  <why - one line, only when the reason is not obvious>
+
+### Decisions (veto-able)
+- <choice> (over: <rejected> - because <reason>)   <- only non-trivial choices
+
+### Gaps
+(none)   <- mandatory heading, never skipped
+
+### Verify
+<exact command(s) run> <result>
+```
+
+Rules: bullet-bold file names, no tables (chat window width is not guaranteed); task touching <2 files collapses to Changed + Verify only; assumptions fold into the Changed bullet's why-line; claim verdict lives in the `##` headline. Unrelated failures go under Gaps with the exact command run, never fixed silently. Variants: opinion/question answers use a short Evidence + Options shape (no full report, no history entry); audits are read-only reports - Findings heading replaces Changed, verdict says "read-only", verify states the evidence kind (e.g. "verified by reading only").
 
 ## History pattern
 
 - Entry shape: `### <doing> - <finished> (<agent>, <exact-model-id>)` followed by `- <detail>` bullets (what changed + how verified, no essays).
 - Stamp: `YYYY-MM-DD HH:MM UTC+7` (adjust the zone per project - any `UTC±H[:MM]` works; compact reads the offset from each stamp itself, never hardcodes one - pick one zone per project and keep every stamp consistent).
-- Log only when done, never in advance. Log only what changed or what was decided: implemented changes (code/docs/config) and direction decisions taken. Never log questions asked, read-only audits with no change, recommendations not taken, or parked/abandoned ideas - those leave no trace. No essays.
+- Log only when done, never in advance. Log only what changed or what was decided: implemented changes (code/docs/config) and direction decisions taken. Never log questions asked, read-only audits with no change, recommendations not taken, or parked/abandoned ideas - those leave no trace. Routine fixes, refactors, cleanups are not recorded.
 - Direction decisions (Problem / Final solution / Trade-off / Revisit trigger) are logged as a `- decision:` bullet inside that entry - the history log IS the Decision Timeline; there is no separate decisions file.
 - Over 20 entries: run `node harness/scripts/verify.mjs compact` (keeps the latest 20, archives older into monthly `state/history-YYYY-MM.md` files).
 - Example: `### door delete fix - 2026-09-07 17:38 UTC+7 (muse-spark, opencode/...)` + `- dual-side mirror` + `- suites green`.
@@ -147,7 +186,7 @@ Behavior while active:
 
 ## Safety
 
-Single source is `AGENTS.md` (scope, git bans, destructive gates) - this section adds nothing new, only the harness-specific reminder: move/rename with `git mv`, then grep old path AND old basename repo-wide per `wire-paths`. Autopilot converts stop-and-ask into decide-and-log, except secrets/auth and irreversible outside-repo actions, which still stop.
+Single sources: `AGENTS.md` owns project adapter values (standing orders, verify table, bans); this file owns the full rules. This section adds nothing new, only the harness-specific reminder: move/rename with `git mv`, then grep old path AND old basename repo-wide per `wire-paths`.
 
 ## Enforcement
 
@@ -161,7 +200,11 @@ Run the same check by hand anytime with `node harness/scripts/verify.mjs check`.
 
 ### Gate before the edit (layer 3, opencode only)
 
-Context injection (layer 1) asks; the git hook (layer 4) catches it later. `.opencode/plugins/harness-gate.js` sits between them: on `edit`/`write` it counts distinct non-meta project files for the session, and when a second one appears while the slot Mission is still empty it throws, so the medium+ task cannot start without `harness/state/task-context.md` filled (lite = one file stays exempt; meta paths never count, so the agent can always write the slot itself). opencode discovers it automatically - no config entry - but it loads at startup, so restart opencode/Zed after changing it. `opencode debug info` lists the loaded plugin. Other agents (Cline ACP) do not run opencode plugins and stay instruction-only.
+Context injection (layer 1) asks; the git hook (layer 4) catches it later. The gate plugin lives at `agents/opencode/harness-gate.js` (single source, deployed by `adopt.mjs --agents=opencode`); the running copy is a 3-line loader at `.opencode/plugins/harness-gate.js` - opencode only scans that path. On `edit`/`write` it counts distinct non-meta project files for the session, and when a second one appears while the slot Mission is still empty it throws, so the medium+ task cannot start without `harness/state/task-context.md` filled (lite = one file stays exempt; meta paths never count, so the agent can always write the slot itself). opencode discovers it automatically - no config entry - but it loads at startup, so restart opencode/Zed after changing it. `opencode debug info` lists the loaded plugin. Other agents (Cline ACP) do not run opencode plugins and stay instruction-only.
+
+### Scheduled re-anchor (layer 3, opencode only)
+
+The same plugin re-injects intent mid-task: every 10th non-meta `edit`/`write` call it throws one "Harness anchor (not an error)" message carrying the slot's Mission line + next unchecked Plan box - the agent re-reads the anchor, confirms or fixes the slot, and retries the edit. This closes the drift gap where a long task slowly loses the original intent after context compaction. Non-opencode agents run the same cadence manually via `verify.mjs drift` (see Verify routing).
 
 ### Probing the agent (does the harness actually reach it?)
 

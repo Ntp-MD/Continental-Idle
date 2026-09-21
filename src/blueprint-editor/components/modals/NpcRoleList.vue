@@ -6,6 +6,7 @@ defineProps<{
   defaultRoleId: string
   selectedId: string
   pending: boolean
+  poolCounts: Record<string, number>
 }>()
 
 const emit = defineEmits<{
@@ -15,9 +16,6 @@ const emit = defineEmits<{
   (e: 'add'): void
 }>()
 
-function roleSummary(role: NpcRole): string {
-  return `${role.focusTags.length} focus - ${role.taskIds.length} tasks`
-}
 </script>
 
 <template>
@@ -40,8 +38,12 @@ function roleSummary(role: NpcRole): string {
         <span class="npc__text"
           ><strong class="truncate">{{ role.label }}</strong
           ><small class="npc__sub"
-            ><span v-if="role.id === defaultRoleId" class="badge flag--success">Default</span
-            >{{ roleSummary(role) }}</small
+            ><span v-if="role.id === defaultRoleId" class="badge flag--success">Default</span>
+            <span v-if="poolCounts[role.id]" class="badge" title="Deploy count">{{ poolCounts[role.id] }} NPC</span>
+            <span v-if="role.focusTags.length" class="badge" title="Focus tags">{{ role.focusTags.length }} focus</span>
+            <span v-if="role.restrictedTags.length" class="badge flag--warning" title="Restricted tags">{{ role.restrictedTags.length }} restrict</span>
+            <span v-if="role.taskIds.length" class="badge" title="Assigned tasks">{{ role.taskIds.length }} tasks</span>
+          ></small
           ></span
         >
         <button

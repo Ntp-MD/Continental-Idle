@@ -22,7 +22,7 @@ import {
 	NPC_FRAME_DEFAULTS,
 } from '@/blueprint-editor/domain/types'
 import { mergeNpcConfig, editorLog, cloneDeepRaw } from '@/blueprint-editor/blueprintStore'
-import { updateSimDot, pruneStaleDots, pruneWaitReasons, filterDotsForFloor } from './npcSimProjection'
+import { updateSimDot, pruneStaleDots, pruneWaitReasons, filterDotsForFloor, type NpcSimLook } from './npcSimProjection'
 
 const MAX_ROLE_SPAWN_COUNT = 100
 const SYNC_INTERVAL_MS = 250
@@ -93,6 +93,7 @@ interface NpcSimCoreState {
 	arrivalMarks: Map<string, number>
 	seenAgentIds: Set<string>
 	dotRoleColors: Map<string, string>
+	dotRoleLooks: Map<string, NpcSimLook>
 }
 
 function getAssetTagsSafe(host: NpcSimulationCoreHost): ((type: string) => string[] | undefined) | undefined {
@@ -118,6 +119,16 @@ function dotColorFor(state: NpcSimCoreState, requestedRoleId: string): string {
 	return color
 }
 
+function dotLookFor(state: NpcSimCoreState, requestedRoleId: string): NpcSimLook {
+	let look = state.dotRoleLooks.get(requestedRoleId)
+	if (look === undefined) {
+		const appearance = resolveRole(state.config.value, requestedRoleId)?.appearance
+		look = appearance ? { ...appearance } : {}
+		state.dotRoleLooks.set(requestedRoleId, look)
+	}
+	return look
+}
+
 function syncAgents(state: NpcSimCoreState): void {
 	const currentEngine = state.engine
 	if (!currentEngine) return
@@ -129,7 +140,7 @@ function syncAgents(state: NpcSimCoreState): void {
 		state.seenAgentIds.add(agent.id)
 		state.frameDots.set(
 			agent.id,
-			updateSimDot(state.frameDots.get(agent.id), agent, map.cellSize, roleId => dotColorFor(state, roleId)),
+			updateSimDot(state.frameDots.get(agent.id), agent, map.cellSize, roleId => dotColorFor(state, roleId), roleId => dotLookFor(state, roleId)),
 		)
 	}
 	pruneStaleDots(state.frameDots, state.seenAgentIds)
@@ -309,6 +320,7 @@ function ingestConfig(state: NpcSimCoreState, raw: NpcSimulationConfig | undefin
 	if (!raw || !isNpcConfig(raw)) return false
 	state.config.value = mergeNpcConfig(cloneDeepRaw(raw))
 	state.dotRoleColors.clear()
+	state.dotRoleLooks.clear()
 	applyConfigSpeedToAgents(state)
 	return true
 }
@@ -345,6 +357,7 @@ export function useNpcSimulationCore(host: NpcSimulationCoreHost) {
 		arrivalMarks: new Map(),
 		seenAgentIds: new Set(),
 		dotRoleColors: new Map(),
+		dotRoleLooks: new Map(),
 	}
 
 	function startLoop(): void {
@@ -400,6 +413,7 @@ export function useNpcSimulationCore(host: NpcSimulationCoreHost) {
 			state.arrived.clear()
 			state.arrivalMarks.clear()
 			state.dotRoleColors.clear()
+			state.dotRoleLooks.clear()
 			state.currentCanvas = null
 			state.viewFloorId = null
 			state.deploymentActive = false

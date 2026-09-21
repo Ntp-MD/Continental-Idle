@@ -43,7 +43,7 @@ function createRecordingPort() {
 
 const sync: SyncPort = { emit() {} }
 const harness = createRecordingPort()
-const store: BlueprintStore = createBlueprintStore({ persistence: harness.port, sync, seed: defaultSeed() })
+const store: BlueprintStore = createBlueprintStore({ persistence: harness.port, sync, seed: await defaultSeed() })
 
 assert.ok(store.state.layout.floors.length > 0, 'expected at least one floor')
 const originalName = store.state.layout.floors[0].name

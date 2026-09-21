@@ -325,16 +325,46 @@ export class NpcEngine {
 		}
 	}
 
-	private findChatPartner(agent: MutableAgent, radius: number): MutableAgent | null {
-		const candidates: MutableAgent[] = []
-		for (const other of this.agents.values()) {
-			if (other.id === agent.id || other.floorId !== agent.floorId) continue
-			if (other.status !== 'idle' && other.status !== 'waiting' && other.status !== 'walking') continue
-			if (!this.sociallyFree(other)) continue
-			if ((this.socialCooldownUntil.get(other.id) ?? 0) > this.tickCount) continue
-			if (Math.hypot(other.x - agent.x, other.y - agent.y) > radius) continue
-			candidates.push(other)
+	private socialBucketCache: { tick: number, buckets: Map<string, MutableAgent[]>, order: Map<string, number> } | null = null
+
+	private socialBuckets(radius: number): { buckets: Map<string, MutableAgent[]>, order: Map<string, number> } {
+		if (this.socialBucketCache && this.socialBucketCache.tick === this.tickCount) return this.socialBucketCache
+		const cell = Math.max(radius, 1e-6)
+		const buckets = new Map<string, MutableAgent[]>()
+		const order = new Map<string, number>()
+		let seq = 0
+		for (const agent of this.agents.values()) {
+			order.set(agent.id, seq++)
+			const key = `${agent.floorId}:${Math.floor(agent.x / cell)},${Math.floor(agent.y / cell)}`
+			const bucket = buckets.get(key)
+			if (bucket) bucket.push(agent)
+			else buckets.set(key, [agent])
 		}
+		this.socialBucketCache = { tick: this.tickCount, buckets, order }
+		return this.socialBucketCache
+	}
+
+	private findChatPartner(agent: MutableAgent, radius: number): MutableAgent | null {
+		const { buckets, order } = this.socialBuckets(radius)
+		const cell = Math.max(radius, 1e-6)
+		const cx = Math.floor(agent.x / cell)
+		const cy = Math.floor(agent.y / cell)
+		const candidates: MutableAgent[] = []
+		for (let gx = cx - 1; gx <= cx + 1; gx++) {
+			for (let gy = cy - 1; gy <= cy + 1; gy++) {
+				const bucket = buckets.get(`${agent.floorId}:${gx},${gy}`)
+				if (!bucket) continue
+				for (const other of bucket) {
+					if (other.id === agent.id) continue
+					if (other.status !== 'idle' && other.status !== 'waiting' && other.status !== 'walking') continue
+					if (!this.sociallyFree(other)) continue
+					if ((this.socialCooldownUntil.get(other.id) ?? 0) > this.tickCount) continue
+					if (Math.hypot(other.x - agent.x, other.y - agent.y) > radius) continue
+					candidates.push(other)
+				}
+			}
+		}
+		candidates.sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0))
 		if (!candidates.length) return null
 		if (!this.options.socialSelector) return candidates[0] ?? null
 		const picked = this.options.socialSelector(agent, candidates)

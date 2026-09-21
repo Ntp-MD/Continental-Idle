@@ -12,7 +12,7 @@ import ModalShell from '../shell/ModalShell.vue'
 import TagChip from '../inputs/TagChip.vue'
 
 const props = defineProps<{ open: boolean }>()
-const emit = defineEmits<{ (e: 'close'): void; (e: 'deploy', spawnFloorId: string): void }>()
+const emit = defineEmits<{ (e: 'close'): void; (e: 'deploy', spawnFloorId: string): void; (e: 'open-npc-manager'): void }>()
 
 const store = useAssetsStore()
 const { pending, run } = useAsyncAction()
@@ -66,6 +66,11 @@ async function onClose() {
   schedulePersist.cancel()
   await persistDraft()
   emit('close')
+}
+
+function openNpcManager() {
+  schedulePersist.cancel()
+  void persistDraft().then(() => emit('open-npc-manager'))
 }
 
 async function onDeploy() {
@@ -190,8 +195,12 @@ async function onDeploy() {
             <span v-else class="empty">No target tags</span>
           </div>
           <p class="form__hint">Edit spawn floors and target tags in NPC Manager</p>
+          <button type="button" @click="openNpcManager">Open NPC Manager</button>
         </template>
-        <p v-else class="form__hint">Set a count above 0 in NPC Manager to deploy this role.</p>
+        <template v-else>
+          <p class="form__hint">Set a count above 0 in NPC Manager to deploy this role.</p>
+          <button type="button" @click="openNpcManager">Open NPC Manager</button>
+        </template>
       </section>
     </div>
 

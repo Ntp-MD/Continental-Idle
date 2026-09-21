@@ -50,6 +50,13 @@ const AGENT_POINTERS = {
   windsurf: '.windsurfrules',
 }
 
+// opencode has no pointer file (it auto-discovers AGENTS.md) - instead adopt
+// deploys its pre-call gate plugin: the loader shim goes to the only path
+// opencode scans, and it re-exports the plugin source inside the copied
+// harness (same relative layout as the source repo).
+const OPENCODE_PLUGIN_SOURCE = path.join('agents', 'opencode', 'loader.js')
+const OPENCODE_PLUGIN_TARGET = path.join('.opencode', 'plugins', 'harness-gate.js')
+
 const agentsArg = process.argv.find((arg) => arg.startsWith('--agents='))
 const requestedAgents = agentsArg
   ? agentsArg
@@ -58,9 +65,9 @@ const requestedAgents = agentsArg
       .map((name) => name.trim())
       .filter(Boolean)
   : []
-const unknownAgents = requestedAgents.filter((name) => !AGENT_POINTERS[name])
+const unknownAgents = requestedAgents.filter((name) => name !== 'opencode' && !AGENT_POINTERS[name])
 if (unknownAgents.length) {
-  fail(`unknown agent(s): ${unknownAgents.join(', ')} - pick from ${Object.keys(AGENT_POINTERS).join(', ')}`)
+  fail(`unknown agent(s): ${unknownAgents.join(', ')} - pick from ${Object.keys(AGENT_POINTERS).join(', ')}, opencode`)
 }
 
 const pointerText = fs.readFileSync(path.join(sourceHarness, 'agents', 'pointer.txt'), 'utf8')
@@ -77,15 +84,34 @@ node harness/scripts/verify.mjs check || {
 
 const AGENTS_SCAFFOLD = `# AGENTS
 
-Project instructions for AI agents. Explicit user instruction > this file > general best practice.
+Project instructions for AI agents. Full rules (operating mode, loop, report format)
+live in \`harness/HARNESS.md\` - this file is the digest + project adapter.
+Explicit user instruction > this file > \`harness/HARNESS.md\` > general best practice.
 
 <!-- adopt scaffold: fill every <TODO>, then delete this comment block -->
 
+## Rules digest (full text: \`harness/HARNESS.md\` - Operating mode)
+
+- Read before writing - reuse repo patterns; zero-duplication: never a second way.
+- DO directly: in-scope edits + authorized destructive in-repo content. STOP + ask:
+  destructive actions outside the repo, unrequested scope growth past 3 files,
+  new dependency/infra, secrets/auth change.
+- Confidence >80% -> do it and state the assumption; else ask with 2-4 options + recommendation.
+- Claim then impact: verify user reports against code first. Keep scope.
+- Report in the HARNESS.md Report format (Changed / Decisions / Gaps / Verify).
+- Direction decisions -> \`harness/state/history.md\` \`- decision:\` bullets.
+
 ## Read chain
 
-Follow \`AGENTS.md\` for every task in this repo - it is the single source of rules,
-the read chain (\`harness/HARNESS.md\`, \`harness/state/task-context.md\`, \`harness/state/context.md\`,
-\`skill.md\` + \`docs/skill/\`, \`harness/skills/\` per the gate in \`harness/HARNESS.md\`), and the verify table.
+Follow \`harness/HARNESS.md\` first for every task in this repo - it is the single source
+of full rules (operating mode, loop, report format), then \`harness/state/task-context.md\`
+(live slot), \`skill.md\` + \`docs/skill/\` (project patterns), \`harness/state/context.md\`
+(glossary), \`harness/skills/\` (gate skills). This file adds only project adapter values.
+
+## Project notes
+
+<!-- TODO: disconnected folders, off-limits folders, standing orders (destructive
+edit pre-authorization or its absence) - project-specific, HARNESS.md owns none of these. -->
 
 ## Verify
 
@@ -99,7 +125,7 @@ A row with no concrete script is a human-pick row. Example:
 -->
 <!-- verify:end -->
 
-Router: \`node harness/scripts/verify.mjs\` (route/run/check) parses THIS table -
+Router: \`node harness/scripts/verify.mjs\` (route/run/check/drift) parses THIS table -
 backticked globs in Changed match \`git status\` (no-slash globs match basenames,
 slash globs match paths), backticked npm scripts in Run are the route; a row with
 no concrete script is human-pick (the router lists the project's \`test:\` scripts,
@@ -109,12 +135,6 @@ never auto-runs). The table is the only routing source.
 
 <!-- TODO: no verify/test matrix unless asked; ban specific heavy suites; never
 checkout/restore/reset/stash/clean tracked files - revert only by hand-editing. -->
-
-## Decisions
-
-Direction-level decisions only (Problem / Final solution / Trade-off / Revisit trigger)
-go in \`harness/state/history.md\` as a \`- decision:\` bullet - the history log IS
-the Decision Timeline. Routine fixes, refactors, cleanups are not recorded.
 `
 
 const EMPTY_SLOT = `## Mission
@@ -188,7 +208,7 @@ if (fs.existsSync(agentsPath)) {
   done('wrote', agentsPath)
 }
 
-const pointers = requestedAgents.map((name) => path.join(targetRoot, AGENT_POINTERS[name]))
+const pointers = requestedAgents.filter((name) => AGENT_POINTERS[name]).map((name) => path.join(targetRoot, AGENT_POINTERS[name]))
 for (const pointer of pointers) {
   if (fs.existsSync(pointer)) {
     skipped.push(pointer)
@@ -198,6 +218,18 @@ for (const pointer of pointers) {
   fs.mkdirSync(path.dirname(pointer), { recursive: true })
   fs.writeFileSync(pointer, pointerText)
   done('wrote', pointer)
+}
+
+if (requestedAgents.includes('opencode')) {
+  const pluginTarget = path.join(targetRoot, OPENCODE_PLUGIN_TARGET)
+  if (fs.existsSync(pluginTarget)) {
+    skipped.push(pluginTarget)
+    console.log(`adopt: exists (skipped) ${path.relative(targetRoot, pluginTarget)}`)
+  } else {
+    fs.mkdirSync(path.dirname(pluginTarget), { recursive: true })
+    fs.copyFileSync(path.join(destHarness, OPENCODE_PLUGIN_SOURCE), pluginTarget)
+    done('wrote', pluginTarget)
+  }
 }
 
 const hookPath = path.join(targetRoot, '.githooks', 'pre-commit')

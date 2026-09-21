@@ -336,14 +336,15 @@ function floorCounts(f: FloorData): string {
                 @keydown.enter="commitLabel"
                 @blur="commitLabel"
               />
-              <input
-                v-else
-                :value="selectedFloor.label"
-                readonly
-                title="Double-click to edit"
-                aria-label="Floor label"
-                @dblclick="startEditLabel"
-              />
+              <template v-else>
+                <input
+                  :value="selectedFloor.label"
+                  readonly
+                  aria-label="Floor label"
+                  class="size--stretch"
+                />
+                <button type="button" aria-label="Edit floor label" @click="startEditLabel">Edit</button>
+              </template>
             </div>
             <div class="form__row">
               <label>Name</label>
@@ -355,14 +356,15 @@ function floorCounts(f: FloorData): string {
                 @keydown.enter="commitName"
                 @blur="commitName"
               />
-              <input
-                v-else
-                :value="selectedFloor.name"
-                readonly
-                title="Double-click to edit"
-                aria-label="Floor name"
-                @dblclick="startEditName"
-              />
+              <template v-else>
+                <input
+                  :value="selectedFloor.name"
+                  readonly
+                  aria-label="Floor name"
+                  class="size--stretch"
+                />
+                <button type="button" aria-label="Edit floor name" @click="startEditName">Edit</button>
+              </template>
             </div>
             <div class="form__row">
               <label>Stats</label>

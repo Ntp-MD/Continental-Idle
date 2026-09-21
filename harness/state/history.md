@@ -6,6 +6,23 @@ mod-cli records, no harness-meta records.
 
 ## Entries (Doing - Finished (Agent, Model) + Detail Bullets)
 
+### ux discoverability polish (autopilot) - 2026-09-21 (opencode, opencode-go/glm-5.3-flash)
+- NpcRoleDetail -> sub-tabs Basics/Tags/Tasks/Spawn/Rates with count badges (drop Trigger Rates collapse + Basics h4); Spawn tab always shows zone-coverage badge + "Open Floor Manager" jump (over: single long scroll - because buried Trigger Rates / conditional Spawn were the reported pain)
+- decision: jump-link pattern, not data merge - spawn zones stay floor-level in FloorModal; NpcRoleDetail reads coverage read-only via spawnZoneAllowsRole (over: moving zones into NPC Manager - because zone ownership is per-floor in schema/sync)
+- decision: audit re-check killed 2 of 4 planned items (canvas flags already labeled, Draw hint already in modeHint EditorCanvas.vue:184) - claim-then-impact before edit
+- NpcRoleList rows now show pool/focus/restrict/tasks badges (poolCounts prop, single caller wired)
+- FloorModal Label/Name: explicit Edit buttons replace dblclick-to-edit
+- DeployNpcModal: "Open NPC Manager" buttons (persist draft before jump, both empty and configured branches)
+- Toolbar wires cross-modal jumps: open-floor-manager (persist first), open-npc-manager (close deploy first)
+- verified: npm run lint:bem + lint:css + typecheck all pass; verify.mjs check pass (42-file scope warning is pre-existing working tree, this task touched 5 planned files)
+
+### npc role appearance (autopilot) - 2026-09-21 16:06 UTC+7 (opencode, opencode-go/glm-5.3-flash)
+- NpcRole.appearance?: { skinTones[<=8], trousers, hat none|cap|boater, hatColor } - empty = today behavior exactly; skin resolve via per-role cache cleared on config ingest (over: per-frame resolve - because matches dotRoleColors pattern, no per-frame alloc)
+- decision: dropped shirt field (over: appearance.shirt - because role.color already owns the shirt, zero-duplication)
+- decision: validator = isValidColor schema-side lenient salvage; role never dropped for bad appearance (over: strict isValidRole extension - because normalizeNpcConfig drops invalid roles + filters pool entries)
+- wired: schema/npc.ts normalizeAppearance, NpcSimDot skin fields, projection resolveLook, core dotRoleLooks cache, drawNpcBody hat shapes, NpcRoleDetail UI + manager merge handler
+- verified: typecheck(app) 0, lint 0, lint:bem/css pass, test:migrate pass (lenient + cap8 + round-trip), test:npc-social pass, test:unit 38/38 (+2)
+
 ### autopilot perf phase 1: diagnose (no code defect) - 2026-09-19 23:05 UTC+7 (opencode, opencode/muse-spark-1.3-contributor-free)
 - decision: attribute, don't patch blindly (over: spawn-map cache, measureText cache, paused-canvas throttle - because every measured sub-cost is ms-scale, so added complexity had no verified payoff)
 - evidence: rAF ~1fps in ALL modes incl. fresh edit mode vs blank-page 158fps; timers free; 0 DOM mutations/8s; parse 3ms, stringify 6ms, validate 4ms, HTTP save ~115ms, engine layout 189ms, spawn 1ms, tick 2ms; production build e2e 3/3 in 1.9s
@@ -128,3 +145,17 @@ mod-cli records, no harness-meta records.
 - verified: read-back validates (1 floor, 73 objects, 4 zones, 50x80); blueprint-schema + migrate + tower-integration (1 floor, 20/20 agents) + settings-completeness + verify:assets 22/22
 - note: elevator core is physically present but inert - single floor, so the engine logs "portals exist on only 1 floor" (expected)
 - assumption: kept the single-floor wipe state; no upper floors to connect the elevator
+
+### harness universal move - 2026-09-21 (opencode, opencode-go/glm-5.3-flash)
+- report format locked as markdown-file template (Changed/Decisions/Gaps/Verify, no tables, <2-file collapse) + audit/question variants - source of truth HARNESS.md
+- verify.mjs drift subcommand: mid-task gate (empty-slot / no-ticks fail exit 1) + anchor line re-inject; plugin throws scheduled anchor every 10 edits (opencode only)
+- decision: universal rules moved AGENTS.md -> HARNESS.md, AGENTS.md now digest + adapter zones (over: keeping full rules in AGENTS.md - because adopt copies HARNESS verbatim, kills cross-project drift)
+- adopt.mjs scaffold + report-gaps skill updated to point at HARNESS.md; adopt smoke-tested end-to-end
+- verified: verify.mjs check + table pass, drift 3 paths tested, adopt full run ok
+
+### rail portable + spec runners - 2026-09-21 (opencode, opencode-go/glm-5.3-flash)
+- plugin source moved harness/agents/opencode/ (+loader.js shim template); .opencode/plugins/ copy is a 3-line re-export; adopt --agents=opencode deploys the shim
+- rail-spec.mjs: 10 regression scenarios on temp fixtures (gate lite/medium, drift 3 paths, anchor@10, check x3, adopt e2e) - real repo untouched
+- ab-protocol.md: A/B measurement protocol (playground repo, 3 tasks x 3 runs x 2 conditions, process+outcome metrics, blind rubric) - runner ab-spec.mjs parked, see slot Hand-off
+- verified: rail-spec 10/10, npm run lint, verify.mjs check
+

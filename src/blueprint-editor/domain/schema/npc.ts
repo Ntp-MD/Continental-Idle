@@ -45,6 +45,40 @@ export interface NpcRole {
 
 	focusChance: number
 	spawnRule?: NpcSpawnRule
+	appearance?: NpcRoleAppearance
+}
+
+export type NpcRoleHat = 'none' | 'cap' | 'boater'
+
+export interface NpcRoleAppearance {
+	skinTones?: string[]
+	trousers?: string
+	hat?: NpcRoleHat
+	hatColor?: string
+}
+
+const MAX_SKIN_TONES = 8
+const NPC_HATS: readonly NpcRoleHat[] = ['none', 'cap', 'boater']
+
+/** Lenient: bad appearance fields are dropped, never the role itself. */
+function normalizeAppearance(value: unknown): NpcRoleAppearance | undefined {
+	if (value === undefined) return undefined
+	if (!isRecord(value)) return undefined
+	const raw = value
+	const out: NpcRoleAppearance = {}
+	if (raw.skinTones !== undefined) {
+		if (Array.isArray(raw.skinTones) && raw.skinTones.length > 0) {
+			const tones = (raw.skinTones as unknown[])
+				.map(tone => (typeof tone === 'string' && isValidColor(tone) ? tone.trim() : undefined))
+				.filter((tone): tone is string => !!tone)
+				.slice(0, MAX_SKIN_TONES)
+			if (tones.length) out.skinTones = tones
+		}
+	}
+	if (typeof raw.trousers === 'string' && isValidColor(raw.trousers)) out.trousers = raw.trousers.trim()
+	if (typeof raw.hat === 'string' && (NPC_HATS as readonly string[]).includes(raw.hat)) out.hat = raw.hat as NpcRoleHat
+	if (typeof raw.hatColor === 'string' && isValidColor(raw.hatColor)) out.hatColor = raw.hatColor.trim()
+	return Object.keys(out).length ? out : undefined
 }
 
 export interface NpcDeploymentPool {
@@ -109,6 +143,10 @@ export interface NpcSimDot {
 	targetY: number
 	speed: number
 	color: string
+	skinTone: string
+	trousers: string
+	hat: NpcRoleHat
+	hatColor: string
 	status: 'walking' | 'queued' | 'waiting' | 'interacting' | 'chatting' | 'idle'
 	pauseTimer: number
 	pathIdx: number
@@ -229,6 +267,8 @@ export function normalizeNpcConfig(value: unknown): NpcSimulationConfig | undefi
 					targetTags: normalizeTags(role.spawnRule.targetTags) ?? [],
 				}
 			}
+			const appearance = normalizeAppearance(role.appearance)
+			if (appearance) normalized.appearance = appearance
 			return normalized
 		}),
 		tasks: tasks.map(task => {

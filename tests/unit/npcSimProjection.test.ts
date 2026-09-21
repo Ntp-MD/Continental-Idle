@@ -88,6 +88,29 @@ describe('updateSimDot', () => {
 		expect(cleared.interactTargetKey).toBeNull()
 		expect(cleared.interactSpotKey).toBeNull()
 	})
+
+	it('defaults skin fields to draw-time fallbacks when no look resolver is given', () => {
+		const dot = updateSimDot(undefined, agent(), 20, color)
+		expect(dot.skinTone).toBe('')
+		expect(dot.trousers).toBe('')
+		expect(dot.hat).toBe('none')
+		expect(dot.hatColor).toBe('')
+	})
+
+	it('resolves look per update and drops unset fields back to defaults', () => {
+		const look = (roleId: string) =>
+			roleId === 'role-guest' ? { skinTone: '#c08a5c', trousers: '#101010', hat: 'cap' as const, hatColor: '#ffffff' } : {}
+		const dressed = updateSimDot(undefined, agent(), 20, color, look)
+		expect(dressed.skinTone).toBe('#c08a5c')
+		expect(dressed.trousers).toBe('#101010')
+		expect(dressed.hat).toBe('cap')
+		expect(dressed.hatColor).toBe('#ffffff')
+		const plain = updateSimDot(dressed, agent({ roleId: 'role-plain' }), 20, color, look)
+		expect(plain.skinTone).toBe('')
+		expect(plain.trousers).toBe('')
+		expect(plain.hat).toBe('none')
+		expect(plain.hatColor).toBe('')
+	})
 })
 
 describe('pruneStaleDots', () => {

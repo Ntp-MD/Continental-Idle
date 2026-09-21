@@ -71,6 +71,16 @@ function onDeployNpc() {
   showDeployModal.value = true
 }
 
+function openFloorFromNpc() {
+  showNpcManager.value = false
+  showFloorModal.value = true
+}
+
+function openNpcFromDeploy() {
+  showDeployModal.value = false
+  showNpcManager.value = true
+}
+
 function onOpenShowcase() {
   const url = new URL(window.location.href)
   url.searchParams.set('showcase', '1')
@@ -308,9 +318,9 @@ onUnmounted(() => window.removeEventListener('keydown', onUndoKey))
     </div>
 
     <ErrorBoundary>
-      <NpcManagerModal :open="showNpcManager" @close="showNpcManager = false" />
+      <NpcManagerModal :open="showNpcManager" @close="showNpcManager = false" @open-floor-manager="openFloorFromNpc" />
       <FloorModal :open="showFloorModal" @close="showFloorModal = false" />
-      <DeployNpcModal :open="showDeployModal" @close="showDeployModal = false" @deploy="onConfirmDeploy" />
+      <DeployNpcModal :open="showDeployModal" @close="showDeployModal = false" @deploy="onConfirmDeploy" @open-npc-manager="openNpcFromDeploy" />
       <SettingsModal :open="showSettings" @close="showSettings = false" />
       <WorkspaceModal :open="showWorkspace" @close="showWorkspace = false" />
       <ShortcutsModal :open="showShortcuts" @close="showShortcuts = false" />

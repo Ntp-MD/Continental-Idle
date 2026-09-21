@@ -16,7 +16,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { buildNpcEngineLayout, buildRoleWalkableMap, filterNpcSpawnTiles } from '../src/engine/npc/layoutBuild'
 import { createNpcEnginePolicy } from '../src/engine/npc/policy'
-import { NpcEngine, floorMatchesTargetTags } from '../src/engine/npc'
+import { NPC_ENGINE_DEFAULT_OPTIONS, NpcEngine, floorMatchesTargetTags } from '../src/engine/npc'
 import { buildAssetMap } from '../src/blueprint-editor/assets/assetUtils'
 import { migrate } from '../src/blueprint-editor/store/migrate'
 import type { AssetDef } from '../src/blueprint-editor/domain/types'
@@ -61,6 +61,7 @@ const policy = createNpcEnginePolicy({
 	random,
 })
 const engine = new NpcEngine(built.layout, {
+	...NPC_ENGINE_DEFAULT_OPTIONS,
 	ticksPerSecond: 60, random,
 	socialRadius: 2, socialCooldownSeconds: 20,
 	socialChatDurationMinSeconds: 5, socialChatDurationMaxSeconds: 14,
@@ -105,7 +106,7 @@ if (process.env.OBS_DEBUG) {
 	const spawnDist: Record<string, Record<string, number>> = {}
 	for (const a of engine.listAgents()) {
 		spawnDist[a.floorId] ??= {}
-		const label = a.roleId.replace('role-', '')
+		const label = (a.roleId ?? '').replace('role-', '')
 		spawnDist[a.floorId]![label] = (spawnDist[a.floorId]![label] ?? 0) + 1
 	}
 	console.log('post-spawn distribution:')
@@ -155,7 +156,7 @@ if (!ridesByFloorPair.size) console.log('  none')
 const byFloorRoles: Record<string, Record<string, number>> = {}
 for (const a of engine.listAgents()) {
 	byFloorRoles[a.floorId] ??= {}
-	const label = a.roleId.replace('role-', '')
+	const label = (a.roleId ?? '').replace('role-', '')
 	byFloorRoles[a.floorId]![label] = (byFloorRoles[a.floorId]![label] ?? 0) + 1
 }
 console.log('\nfinal population per floor:')

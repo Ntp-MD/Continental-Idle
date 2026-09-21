@@ -1,6 +1,6 @@
 # Adopt in a new project
 
-Automated (recommended): `node <source-repo>/harness/scripts/adopt.mjs <targetRoot>` - copies the harness folder into the target, resets the carried state (state/ slot -> empty shape, history -> preamble only, history-*.md archives dropped, glossary words wiped with the shape kept), writes the AGENTS.md scaffold (read chain + verify markers) and the agent pointers only for clients named via `--agents=` (canonical text + provider map in `harness/agents/`) when missing, then smoke-runs `verify.mjs check` in the target and prints the remaining manual steps. Then:
+Automated (recommended): `node <source-repo>/harness/scripts/adopt.mjs <targetRoot> [--agents=opencode,cline,copilot,claude,gemini,cursor,windsurf]` - copies the harness folder into the target, resets the carried state (state/ slot -> empty shape, history -> preamble only, history-*.md archives dropped, glossary words wiped with the shape kept), writes the AGENTS.md scaffold (read chain + verify markers) and the agent pointers only for clients named via `--agents=` (canonical text + provider map in `harness/agents/`; `opencode` instead deploys the gate plugin to `.opencode/plugins/`) when missing, then smoke-runs `verify.mjs check` in the target and prints the remaining manual steps. Then:
 
 1. Fill the <TODO> sections of the AGENTS.md scaffold: verify-table rows (backticked globs -> backticked npm scripts) and bans.
 2. Write the target's domain skill file (`skill.md` at the repo root).

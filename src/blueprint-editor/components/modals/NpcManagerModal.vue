@@ -7,7 +7,7 @@ import { isHexColor, normalizeNpcConfig, normalizeTag, clampInt } from '../../do
 import { genId, emptyNpcConfig, taskMatchesQuery, cloneDeepRaw } from '../../blueprintStore'
 import { useDebouncedCallback } from '@/composables/useDebounceFn'
 import { sanitizeString } from '../../../utils/sanitize'
-import type { NpcRole, NpcSimulationConfig, NpcSpawnRule, NpcTask } from '../../domain/types'
+import type { NpcRole, NpcRoleAppearance, NpcSimulationConfig, NpcSpawnRule, NpcTask } from '../../domain/types'
 import ModalShell from '../shell/ModalShell.vue'
 import NpcRoleList from './NpcRoleList.vue'
 import NpcRoleDetail from './NpcRoleDetail.vue'
@@ -15,7 +15,7 @@ import NpcTaskCard from './NpcTaskCard.vue'
 import SearchInput from '../inputs/SearchInput.vue'
 
 const props = defineProps<{ open: boolean }>()
-const emit = defineEmits<{ (e: 'close'): void }>()
+const emit = defineEmits<{ (e: 'close'): void; (e: 'open-floor-manager'): void }>()
 
 const store = useAssetsStore()
 const confirm = useConfirm().confirm
@@ -207,6 +207,12 @@ function poolCountFor(roleId: string): number {
   return draft.value.pool.find(entry => entry.roleId === roleId)?.count ?? 0
 }
 
+const poolCounts = computed<Record<string, number>>(() => {
+  const map: Record<string, number> = {}
+  for (const entry of draft.value.pool) map[entry.roleId] = entry.count
+  return map
+})
+
 function poolFloorIdsFor(roleId: string): string[] {
   return draft.value.pool.find(entry => entry.roleId === roleId)?.floorIds ?? []
 }
@@ -392,6 +398,16 @@ async function commitRoleColor(value: string | undefined) {
   await updateRole()
 }
 
+async function commitRoleAppearance(patch: Partial<NpcRoleAppearance>) {
+  if (!selectedRole.value) return
+  const next = { ...(selectedRole.value.appearance ?? {}), ...patch }
+  for (const key of Object.keys(next) as (keyof NpcRoleAppearance)[]) {
+    if (next[key] === undefined) delete next[key]
+  }
+  selectedRole.value.appearance = Object.keys(next).length ? next : undefined
+  await updateRole()
+}
+
 async function addTag() {
   const tag = newTag.value.trim()
   if (!tag) return
@@ -450,6 +466,11 @@ function onClose() {
   void persistConfig(true).then(() => emit('close'))
 }
 
+function onViewZones() {
+  queuePersist.cancel()
+  void persistConfig().then(() => emit('open-floor-manager'))
+}
+
 onUnmounted(() => {
   if (saveStateTimer) window.clearTimeout(saveStateTimer)
 })
@@ -491,6 +512,7 @@ onUnmounted(() => {
         :default-role-id="draft.defaultRoleId"
         :selected-id="selectedRoleId"
         :pending="pending"
+        :pool-counts="poolCounts"
         @select="selectedRoleId = $event"
         @set-default="setDefaultRole"
         @remove="deleteRole"
@@ -510,6 +532,7 @@ onUnmounted(() => {
         @rename="renameRole"
         @chance="setRoleChance"
         @commit-color="commitRoleColor"
+        @commit-appearance="commitRoleAppearance"
         @add-tag="addRoleTag"
         @remove-tag="removeRoleTag"
         @toggle-task="toggleTaskAssignment"
@@ -518,6 +541,7 @@ onUnmounted(() => {
         @toggle-floor="toggleSelectedPoolFloor"
         @add-spawn-tag="addSpawnTag"
         @remove-spawn-tag="removeSpawnTag"
+        @view-zones="onViewZones"
         @remove="deleteRole(selectedRole)"
       />
       <section v-else class="npc__detail">

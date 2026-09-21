@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import type { NpcRole, NpcTask } from '../../domain/types'
+import type { NpcRole, NpcRoleAppearance, NpcRoleHat, NpcTask } from '../../domain/types'
+import { spawnZoneAllowsRole } from '../../domain/types'
 import { taskMatchesQuery, useAssetsStore } from '../../blueprintStore'
 import ColorInput from '../inputs/ColorInput.vue'
 import TagChip from '../inputs/TagChip.vue'
@@ -24,6 +25,7 @@ const emit = defineEmits<{
   (e: 'rename', value: string): void
   (e: 'chance', value: number): void
   (e: 'commit-color', value: string | undefined): void
+  (e: 'commit-appearance', patch: Partial<NpcRoleAppearance>): void
   (e: 'add-tag', kind: 'focus' | 'restricted', tag: string): void
   (e: 'remove-tag', kind: 'focus' | 'restricted', tag: string): void
   (e: 'toggle-task', taskId: string): void
@@ -32,6 +34,7 @@ const emit = defineEmits<{
   (e: 'toggle-floor', floorId: string): void
   (e: 'add-spawn-tag', tag: string): void
   (e: 'remove-spawn-tag', tag: string): void
+  (e: 'view-zones'): void
   (e: 'remove'): void
 }>()
 
@@ -39,9 +42,25 @@ const newFocusTag = ref('')
 const newRestrictedTag = ref('')
 const newSpawnTag = ref('')
 const taskFilter = ref('')
-const ratesExpanded = ref(false)
 const rateSearch = ref('')
 const rateScopeAll = ref(false)
+
+type DetailTab = 'basics' | 'tags' | 'tasks' | 'spawn' | 'rates'
+const activeTab = ref<DetailTab>('basics')
+
+const tabs: { key: DetailTab; label: string }[] = [
+  { key: 'basics', label: 'Basics' },
+  { key: 'tags', label: 'Tags' },
+  { key: 'tasks', label: 'Tasks' },
+  { key: 'spawn', label: 'Spawn' },
+  { key: 'rates', label: 'Rates' },
+]
+
+const tabBadges = computed<Partial<Record<DetailTab, number>>>(() => ({
+  tags: props.role.focusTags.length + props.role.restrictedTags.length,
+  tasks: props.role.taskIds.length,
+  rates: Object.keys(props.triggerRates ?? {}).length,
+}))
 
 const availableFocusTags = computed(() => props.allTags.filter((tag) => !props.role.focusTags.includes(tag)))
 const availableRestrictedTags = computed(() => props.allTags.filter((tag) => !props.role.restrictedTags.includes(tag)))
@@ -62,6 +81,26 @@ const roleTagScope = computed<string[]>(() => {
   return [...set]
 })
 
+const zoneCoverage = computed(() => {
+  let zones = 0
+  const floorLabels: string[] = []
+  for (const floor of store.state.layout.floors) {
+    if (floor.allowedRoleIds?.length && !floor.allowedRoleIds.includes(props.role.id)) continue
+    const match = (floor.spawnZones ?? []).filter((zone) => spawnZoneAllowsRole(zone, props.role.id))
+    if (match.length) {
+      zones += match.length
+      floorLabels.push(floor.label)
+    }
+  }
+  return { zones, floorLabels }
+})
+
+const roleRateCount = computed(() => roleTagScope.value.filter((tag) => (props.triggerRates?.[tag] ?? 0) > 0).length)
+
+const ratesOverrideFocus = computed(() => Object.keys(props.triggerRates ?? {}).length > 0)
+
+const configuredRateCount = computed(() => Object.keys(props.triggerRates ?? {}).length)
+
 const rateRows = computed<string[]>(() => {
   const base = rateScopeAll.value
     ? [...props.allTags]
@@ -72,12 +111,6 @@ const rateRows = computed<string[]>(() => {
   const list = query ? base.filter((tag) => tag.toLowerCase().includes(query)) : base
   return list.sort((a, b) => a.localeCompare(b))
 })
-
-const roleRateCount = computed(() => roleTagScope.value.filter((tag) => (props.triggerRates?.[tag] ?? 0) > 0).length)
-
-const ratesOverrideFocus = computed(() => Object.keys(props.triggerRates ?? {}).length > 0)
-
-const configuredRateCount = computed(() => Object.keys(props.triggerRates ?? {}).length)
 
 function submitRoleTag(kind: 'focus' | 'restricted') {
   const input = kind === 'focus' ? newFocusTag : newRestrictedTag
@@ -92,6 +125,15 @@ function submitSpawnTag() {
   if (!value) return
   emit('add-spawn-tag', value)
   newSpawnTag.value = ''
+}
+
+function parseSkinTones(raw: string): string[] | undefined {
+  const tones = raw.split(',').map((tone) => tone.trim()).filter(Boolean)
+  return tones.length ? tones : undefined
+}
+
+function commitHat(value: string) {
+  emit('commit-appearance', { hat: value as NpcRoleHat })
 }
 </script>
 
@@ -108,9 +150,31 @@ function submitSpawnTag() {
         Delete
       </button>
     </div>
+    <div class="tabs__bar" role="tablist" aria-label="Role detail sections">
+      <button
+        v-for="t in tabs"
+        :id="`npc-role-tab--${t.key}`"
+        :key="t.key"
+        type="button"
+        role="tab"
+        class="tabs__tab"
+        :class="{ 'flag--active': activeTab === t.key }"
+        :aria-selected="activeTab === t.key"
+        :aria-controls="`npc-role-panel--${t.key}`"
+        @click="activeTab = t.key"
+      >
+        {{ t.label }}
+        <span v-if="tabBadges[t.key]" class="badge">{{ tabBadges[t.key] }}</span>
+      </button>
+    </div>
     <div class="form__col">
-      <div class="form__col form--section">
-        <h4>Basics</h4>
+      <div
+        v-if="activeTab === 'basics'"
+        :id="`npc-role-panel--basics`"
+        role="tabpanel"
+        aria-labelledby="npc-role-tab--basics"
+        class="form__col form--section"
+      >
         <div class="form__row">
           <label :for="`npc-role-label-${role.id}`">Label</label>
           <input
@@ -130,6 +194,46 @@ function submitSpawnTag() {
           />
         </div>
         <div class="form__row">
+          <label :for="`npc-role-skin-${role.id}`">Skin Tones</label>
+          <input
+            :id="`npc-role-skin-${role.id}`"
+            :value="role.appearance?.skinTones?.join(', ') ?? ''"
+            type="text"
+            placeholder="#e7c19b, #c08a5c (empty = random)"
+            @change="emit('commit-appearance', { skinTones: parseSkinTones(($event.target as HTMLInputElement).value) })"
+          />
+        </div>
+        <div class="form__row">
+          <label :for="`npc-role-trousers-${role.id}`">Trousers</label>
+          <ColorInput
+            :model-value="role.appearance?.trousers ?? ''"
+            placeholder="#RRGGBB (empty = default)"
+            aria-label="Role trousers color"
+            @commit="emit('commit-appearance', { trousers: $event })"
+          />
+        </div>
+        <div class="form__row">
+          <label :for="`npc-role-hat-${role.id}`">Hat</label>
+          <select
+            :id="`npc-role-hat-${role.id}`"
+            :value="role.appearance?.hat ?? 'none'"
+            @change="commitHat(($event.target as HTMLSelectElement).value)"
+          >
+            <option value="none">None</option>
+            <option value="cap">Cap</option>
+            <option value="boater">Boater</option>
+          </select>
+        </div>
+        <div class="form__row">
+          <label :for="`npc-role-hatcolor-${role.id}`">Hat Color</label>
+          <ColorInput
+            :model-value="role.appearance?.hatColor ?? ''"
+            placeholder="#RRGGBB (empty = trousers color)"
+            aria-label="Role hat color"
+            @commit="emit('commit-appearance', { hatColor: $event })"
+          />
+        </div>
+        <div class="form__row">
           <label :for="`npc-role-chance-${role.id}`">Focus Chance</label>
           <input
             :id="`npc-role-chance-${role.id}`"
@@ -146,7 +250,13 @@ function submitSpawnTag() {
         </div>
       </div>
 
-      <div class="form__row form--start form--wrap">
+      <div
+        v-if="activeTab === 'tags'"
+        :id="`npc-role-panel--tags`"
+        role="tabpanel"
+        aria-labelledby="npc-role-tab--tags"
+        class="form__row form--start form--wrap"
+      >
       <div class="form__col form--section">
         <h4>Focus Tags</h4>
         <p class="npc__hint">Where this NPC prefers to go. Empty = wanders anywhere.</p>
@@ -217,7 +327,13 @@ function submitSpawnTag() {
       </div>
       </div>
 
-      <div class="form__col form--section npc__scroll">
+      <div
+        v-if="activeTab === 'tasks'"
+        :id="`npc-role-panel--tasks`"
+        role="tabpanel"
+        aria-labelledby="npc-role-tab--tasks"
+        class="form__col form--section npc__scroll"
+      >
         <h4>Assigned Tasks</h4>
         <SearchInput v-model="taskFilter" placeholder="Search tasks..." label="Search assigned tasks" />
         <ul v-if="filteredAssignTasks.length" class="form__col">
@@ -239,7 +355,13 @@ function submitSpawnTag() {
         </div>
       </div>
 
-      <div class="form__col form--section">
+      <div
+        v-if="activeTab === 'spawn'"
+        :id="`npc-role-panel--spawn`"
+        role="tabpanel"
+        aria-labelledby="npc-role-tab--spawn"
+        class="form__col form--section"
+      >
         <h4>Spawn</h4>
         <div class="form__row">
           <label :for="`npc-role-count-${role.id}`">Count</label>
@@ -301,45 +423,58 @@ function submitSpawnTag() {
           />
         </template>
         <p v-else class="form__hint">Set a count above 0 to configure spawn floors and target tags.</p>
+        <div class="form__col form--section">
+          <div class="form__row">
+            <div class="size--stretch">Spawn Zones</div>
+            <span class="badge" :class="{ 'flag--warning': zoneCoverage.zones === 0 }">{{ zoneCoverage.zones }}</span>
+            <button type="button" @click="emit('view-zones')">Open Floor Manager</button>
+          </div>
+          <p class="form__hint">
+            {{
+              zoneCoverage.zones
+                ? `Zones on floors: ${zoneCoverage.floorLabels.join(', ')}`
+                : 'No spawn zones allow this role - NPCs spawn anywhere walkable'
+            }}
+          </p>
+        </div>
       </div>
 
-      <div class="form__col form--section">
+      <div
+        v-if="activeTab === 'rates'"
+        :id="`npc-role-panel--rates`"
+        role="tabpanel"
+        aria-labelledby="npc-role-tab--rates"
+        class="form__col form--section"
+      >
         <div class="form__row">
           <h4>Tag Trigger Rates</h4>
-          <button
-            type="button"
-            :aria-expanded="ratesExpanded"
-            @click="ratesExpanded = !ratesExpanded"
-          >
-            {{ ratesExpanded ? 'Hide' : 'Show' }}
-          </button>
         </div>
-        <template v-if="ratesExpanded">
-          <div class="form__row">
-            <SearchInput
-              v-model="rateSearch"
-              class="npc__search"
-              placeholder="Search tags..."
-              label="Search rate tags"
-            />
-            <label class="form__row"><input v-model="rateScopeAll" type="checkbox" /> All tags</label>
-          </div>
-          <label v-for="tag in rateRows" :key="`rate-${tag}`" class="form__row">
-            <span class="size--stretch truncate">{{ tag }}</span>
-            <input
-              type="number"
-              min="0"
-              max="100"
-              step="1"
-              :value="triggerRates?.[tag] ?? 0"
-              :aria-label="`Trigger rate for ${tag}`"
-              @change="emit('set-rate', tag, +($event.target as HTMLInputElement).value)"
-            />
-            <span class="form__hint">%/min</span>
-          </label>
-          <div v-if="!rateRows.length" class="empty">No tags match</div>
-        </template>
-        <div v-else class="empty">{{ roleRateCount }} configured for this role / {{ configuredRateCount }} total</div>
+        <div class="form__row">
+          <span class="form__hint">{{ roleRateCount }} configured for this role / {{ configuredRateCount }} total</span>
+        </div>
+        <div class="form__row">
+          <SearchInput
+            v-model="rateSearch"
+            class="npc__search"
+            placeholder="Search tags..."
+            label="Search rate tags"
+          />
+          <label class="form__row"><input v-model="rateScopeAll" type="checkbox" /> All tags</label>
+        </div>
+        <label v-for="tag in rateRows" :key="`rate-${tag}`" class="form__row">
+          <span class="size--stretch truncate">{{ tag }}</span>
+          <input
+            type="number"
+            min="0"
+            max="100"
+            step="1"
+            :value="triggerRates?.[tag] ?? 0"
+            :aria-label="`Trigger rate for ${tag}`"
+            @change="emit('set-rate', tag, +($event.target as HTMLInputElement).value)"
+          />
+          <span class="form__hint">%/min</span>
+        </label>
+        <div v-if="!rateRows.length" class="empty">No tags match</div>
       </div>
     </div>
   </section>

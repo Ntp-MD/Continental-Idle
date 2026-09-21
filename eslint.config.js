@@ -98,7 +98,7 @@ export default tseslint.config(
     },
   },
   {
-    ignores: ['dist/**', 'node_modules/**', '_archive/**', '.zed/**', 'harness/**/*.md', 'eslint.config.js'],
+    ignores: ['dist/**', 'node_modules/**', '.zed/**', 'harness/**/*.md', 'eslint.config.js'],
   },
   prettier,
 )

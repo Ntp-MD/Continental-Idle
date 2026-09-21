@@ -91,13 +91,14 @@ function drawNpcBody(
 ): void {
 	const seed = hashId(dot.id)
 	const bob = dot.status === 'walking' ? Math.sin(now / 130 + seed) * r * 0.12 : 0
-	const skin = SKIN_TONES[seed % SKIN_TONES.length]
+	const skin = dot.skinTone || SKIN_TONES[seed % SKIN_TONES.length]
+	const trouser = dot.trousers || TROUSER_COLOR
 	const y = sy + bob
 	ctx.fillStyle = SHADOW_COLOR
 	ctx.beginPath()
 	ctx.ellipse(sx, sy + r * 1.25, r * 0.95, r * 0.4, 0, 0, Math.PI * 2)
 	ctx.fill()
-	ctx.fillStyle = TROUSER_COLOR
+	ctx.fillStyle = trouser
 	for (const side of [-1, 1]) {
 		ctx.fillRect(sx + side * r * 0.38 - r * 0.22, y + r * 0.55, r * 0.44, r * 0.75)
 	}
@@ -114,6 +115,20 @@ function drawNpcBody(
 	ctx.arc(sx, y - r * 0.95, r * 0.62, 0, Math.PI * 2)
 	ctx.fillStyle = skin
 	ctx.fill()
+	if (dot.hat !== 'none') {
+		ctx.fillStyle = dot.hatColor || trouser
+		if (dot.hat === 'cap') {
+			ctx.beginPath()
+			ctx.arc(sx, y - r * 1.1, r * 0.5, Math.PI, 0)
+			ctx.fill()
+			ctx.fillRect(sx - r * 0.75, y - r * 1.16, r * 0.75, r * 0.14)
+		} else {
+			ctx.beginPath()
+			ctx.ellipse(sx, y - r * 1.28, r * 0.95, r * 0.22, 0, 0, Math.PI * 2)
+			ctx.fill()
+			ctx.fillRect(sx - r * 0.45, y - r * 1.62, r * 0.9, r * 0.38)
+		}
+	}
 }
 
 export function useNpcOverlayDraw(sources: NpcOverlayDrawSources) {

@@ -19,7 +19,7 @@ onMounted(async () => {
   // The static seed is validated here, inside the boot UI, so a malformed or
   // future-version data file reaches the load-error state instead of
   // white-screening during module evaluation.
-  const seedError = seedVersionError()
+  const seedError = await seedVersionError()
   if (seedError) {
     loadError.value = `Static blueprint data is invalid: ${seedError.message}`
     return

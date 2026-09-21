@@ -96,6 +96,7 @@ const showGrid = ref(savedToggles.showGrid ?? true)
 const showLabels = ref(savedToggles.showLabels ?? true)
 const showWallTiles = ref(savedToggles.showWallTiles ?? true)
 const showDoorTiles = ref(savedToggles.showDoorTiles ?? true)
+const showSpawnZones = ref(savedToggles.showSpawnZones ?? true)
 const viewToggles: Record<string, Ref<boolean>> = {
   showGrid,
   showLabels,
@@ -106,6 +107,7 @@ const viewToggles: Record<string, Ref<boolean>> = {
   showNpcGuides,
   showWallTiles,
   showDoorTiles,
+  showSpawnZones,
 }
 
 function saveViewToggles() {
@@ -135,6 +137,7 @@ const visibleWalkableRuns = computed(() =>
   ),
 )
 const renderInteractSpots = computed(() => showInteractSpots.value)
+const renderSpawnZones = computed(() => showSpawnZones.value)
 const renderObjectHighlights = computed(() => showObjectHighlights.value)
 const renderBuildingBounds = computed(() => showBuildingBounds.value)
 
@@ -1406,6 +1409,7 @@ async function cancelDrawnOrigin() {
                   stroke-width="0.8"
                 />
                 <text
+                  v-if="showLabels"
                   :x="obj.x + interactSpot.x"
                   :y="obj.y + interactSpot.y - 6"
                   text-anchor="middle"
@@ -1420,8 +1424,8 @@ async function cancelDrawnOrigin() {
         </template>
 
         <g
-          v-if="renderWalkableOverlay"
-          v-memo="[floor?.spawnZones, renderWalkableOverlay]"
+          v-if="renderSpawnZones"
+          v-memo="[floor?.spawnZones, renderSpawnZones]"
           class="editor__svg--noevents"
         >
           <g v-for="zone in floor?.spawnZones ?? []" :key="`spawn-zone-${zone.id}`">
@@ -1435,7 +1439,7 @@ async function cancelDrawnOrigin() {
               stroke-width="1"
               stroke-dasharray="5 3"
             />
-            <text :x="zone.x + 4" :y="zone.y + 10" :font-size="zoneLabelFontSize" fill="var(--accent-green)">
+            <text v-if="showLabels" :x="zone.x + 4" :y="zone.y + 10" :font-size="zoneLabelFontSize" fill="var(--accent-green)">
               {{ zone.label }}
             </text>
           </g>
@@ -1607,6 +1611,14 @@ async function cancelDrawnOrigin() {
           @click="toggleView('showNpcGuides')"
         >
           Guides
+        </button>
+        <button
+          :class="{ 'flag--active': showSpawnZones }"
+          title="Toggle Spawn Zones"
+          aria-label="Toggle spawn zones"
+          @click="toggleView('showSpawnZones')"
+        >
+          Spawns
         </button>
       </div>
     </div>
