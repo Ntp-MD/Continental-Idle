@@ -21,10 +21,8 @@ export function assetPixelSize(asset: AssetPixelSize, tileSize: number): { w: nu
 export interface AssetBase {
 	id: string
 	name: string
-	category?: string
 	w: number
 	h: number
-	custom?: boolean
 	walkable?: boolean
 	doorRequired?: boolean
 	defaultPadding?: number
@@ -119,15 +117,6 @@ export function normalizeOriginAsset(value: unknown): AssetDef | undefined {
 	if (!id || !name || !isFiniteNumber(record.w) || record.w <= 0 || record.w > MAX_ASSET_TILES || !isFiniteNumber(record.h) || record.h <= 0 || record.h > MAX_ASSET_TILES) return undefined
 	const asset: AssetDef = { id, name, w: record.w, h: record.h }
 
-	if (hasOwn(record, 'category')) {
-		if (typeof record.category !== 'string') return undefined
-		const category = normalizeText(record.category)
-		if (category) asset.category = category
-	}
-	if (hasOwn(record, 'custom')) {
-		if (typeof record.custom !== 'boolean') return undefined
-		asset.custom = record.custom
-	}
 	if (hasOwn(record, 'walkable')) {
 		if (typeof record.walkable !== 'boolean') return undefined
 		asset.walkable = record.walkable

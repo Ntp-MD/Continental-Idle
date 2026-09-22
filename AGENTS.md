@@ -28,7 +28,15 @@ Standing order (this project): pre-release and unfinished - hotel floors/content
 
 ## Canonical patterns
 
-Settled project patterns live in `skill.md` (router) + `docs/skill/*.md` (Component patterns + Domain). Reuse them; do not introduce a second way. Glossary lives in `harness/state/context.md` only - never a second glossary file.
+Settled project patterns live in `skill.md` (router), `docs/skill/data-flow.md` (Domain), and the UI conventions below. Reuse them; do not introduce a second way. Glossary lives in `harness/state/context.md` only - never a second glossary file.
+
+### UI conventions (`src/blueprint-editor/`)
+
+- BEM: `block__element` / `block--modifier`, max two `__` per name (enforced by `lint:bem`). UI state vocabulary is `flag--*` only (selection = `flag--active`); `block__element--state` is only for domain rendering internals (canvas drawing, tile states).
+- Cascade and layers: `reset.css` -> `components.css` -> `layout.css` -> scoped styles. A shared semantic class lives in a shared stylesheet, a subsystem-shared class in the subsystem stylesheet, a single-component class in its scoped style. Never redefine a shared class as a top-level block in a scoped style, never `!important`, never a hardcoded `z-index` (use `--z-layer-*`), never a static inline `style="..."` - all enforced by `lint:css`.
+- Modals: wrap in `ModalShell` with `:open` / `@close`; load heavy or rarely opened modals with `defineAsyncComponent`. Tabs use the shared `.tabs__bar` / `.tabs__tab`.
+- Components read the store through `useAssetsStore` and friends (never store internals, no pass-through facades). Concurrency: store mutations go through the `runExclusive` queue, UI pending state through `useAsyncAction` - one guard per layer. Confirm via `useConfirm().confirm`, user feedback via `useToast`; never `alert` / `window.confirm` / `console.log` for user-facing state.
+- Canvas/editor settings come from `CANVAS_FIELD_SPECS` / `EDITOR_FIELD_SPECS`; never enumerate their keys by hand. Labels use player vocabulary, never schema names.
 
 ## Verify
 

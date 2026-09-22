@@ -6,9 +6,11 @@ import { useNpcSimulation } from '../../composables/useNpcSimulation'
 import { NPC_MOOD_LEGEND } from '../../composables/useNpcOverlayDraw'
 import ObjectPropertiesForm from './ObjectPropertiesForm.vue'
 import AssetProperties from './AssetProperties.vue'
+import { usePanelResize } from '../../composables/usePanelResize'
 
 const store = useAssetsStore()
 const confirm = useConfirm().confirm
+const { panelStyle, onResizeStart, onResizeKey, resetPanelWidth } = usePanelResize('right')
 
 const object = computed(() => store.selectedObject())
 const asset = computed(() => store.selectedAsset.value)
@@ -121,7 +123,18 @@ async function doFlatten() {
 </script>
 
 <template>
-  <div class="sidebar__panel">
+  <div class="sidebar__panel" :style="panelStyle">
+    <div
+      class="sidebar__resizer sidebar__resizer--right"
+      role="separator"
+      aria-orientation="vertical"
+      aria-label="Resize properties panel"
+      title="Drag to resize (double-click to reset)"
+      tabindex="0"
+      @mousedown="onResizeStart"
+      @keydown="onResizeKey"
+      @dblclick="resetPanelWidth"
+    />
     <div class="form__header">
       <span>Properties</span>
       <span>{{ store.currentFloor.value?.label ?? '-' }} - {{ store.currentFloor.value?.name ?? '' }}</span>

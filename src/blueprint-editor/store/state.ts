@@ -17,6 +17,7 @@ import type {
 } from '../domain/types'
 import type { TagCatalog } from '../assets/tagCatalog'
 import { parseSvgRoles, buildWalkableGrid } from '../assets/assetUtils'
+import { normalizeTileStates, tileStatesToWalkableGrid } from '../domain/types'
 import type { PersistencePort, SyncPort } from './ports'
 import type { useToast } from '@/composables/useToast'
 
@@ -115,17 +116,16 @@ export interface BlueprintStore {
 
 	addSvgAsset(name: string, w: number, h: number, svgString: string): Promise<AssetDef | null>
 	updateAsset(id: string, patch: AssetPatch): Promise<void>
+	reorderAssets(fromIndex: number, toIndex: number): Promise<boolean>
 	deleteAsset(id: string): Promise<boolean>
 	deleteAllAssets(): Promise<number>
 	duplicateAsset(id: string): Promise<AssetDef | null>
-	refreshOriginInstances(): Promise<number>
 
 	updateNpcConfig(config: NpcSimulationConfig): Promise<void>
 
 	copySelected(): void
 	pasteObjects(): Promise<void>
 
-	syncToGame(): boolean
 	exportWorkspace(): BlueprintDataFile
 	importWorkspace(file: BlueprintDataFile): Promise<boolean>
 
@@ -157,15 +157,17 @@ export interface BlueprintStore {
 }
 
 export function initAssetFields(asset: AssetDef): void {
-	if (asset.svg) {
-		if (!asset.svgRoles) asset.svgRoles = parseSvgRoles(asset.svg)
-		if (!asset.walkableGrid) {
-			const grid = buildWalkableGrid(asset.w, asset.h, asset.svgRoles)
-			if (grid) {
-				asset.walkableGrid = grid.walkableGrid
-				asset.tileStates = grid.tileStates
-			}
+	if (asset.svg && !asset.svgRoles) asset.svgRoles = parseSvgRoles(asset.svg)
+	if (!asset.walkableGrid && !asset.tileStates && asset.svg) {
+		const grid = buildWalkableGrid(asset.w, asset.h, asset.svgRoles)
+		if (grid) {
+			asset.walkableGrid = grid.walkableGrid
+			asset.tileStates = grid.tileStates
 		}
+	}
+	if (!asset.walkableGrid && asset.tileStates) {
+		const states = normalizeTileStates(asset.tileStates)
+		if (states) asset.walkableGrid = tileStatesToWalkableGrid(states)
 	}
 	if (asset.walkable === undefined) asset.walkable = false
 	if (asset.doorRequired === undefined) asset.doorRequired = false

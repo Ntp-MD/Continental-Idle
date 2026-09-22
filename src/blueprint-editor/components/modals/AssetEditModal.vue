@@ -27,7 +27,11 @@ watch(
   },
 )
 
-const { viewBox: previewViewBox, vars: previewVars, setEl: setPreviewEl } = useAssetPreview({
+const {
+  viewBox: previewViewBox,
+  vars: previewVars,
+  setEl: setPreviewEl,
+} = useAssetPreview({
   asset: () => props.asset,
   isActive: () => props.open,
 })
@@ -40,6 +44,10 @@ const { viewBox: previewViewBox, vars: previewVars, setEl: setPreviewEl } = useA
     :title="`Edit Asset - ${asset?.name ?? ''}`"
     @close="emit('close')"
   >
+    <div class="form__header">
+      <span class="size--stretch truncate">{{ asset?.name }} - {{ asset?.w }}x{{ asset?.h }} tiles</span>
+      <span class="form__hint">Changes save automatically.</span>
+    </div>
     <div class="tabs--sidebar edit__layout">
       <div class="tabs__bar" role="tablist" aria-label="Asset editor sections">
         <button
@@ -56,6 +64,19 @@ const { viewBox: previewViewBox, vars: previewVars, setEl: setPreviewEl } = useA
         >
           {{ t.label }}
         </button>
+      </div>
+      <div v-if="open && asset" class="edit__preview">
+        <span class="edit__preview-label">Real Visual</span>
+        <div class="edit__preview-box">
+          <svg
+            :ref="setPreviewEl"
+            :viewBox="previewViewBox"
+            preserveAspectRatio="xMidYMid meet"
+            class="edit__preview-svg"
+            :style="previewVars"
+          ></svg>
+        </div>
+        <span class="form__hint">{{ asset.name }} - {{ asset.w }}x{{ asset.h }} tiles</span>
       </div>
       <div class="edit__content form__col size--stretch">
         <div
@@ -75,22 +96,8 @@ const { viewBox: previewViewBox, vars: previewVars, setEl: setPreviewEl } = useA
           <WalkableGridEditor :key="asset.id" :asset="asset" :active="open" :active-tab="activeTab" />
         </div>
       </div>
-      <div v-if="open && asset" class="edit__preview">
-        <span class="edit__preview-label">Real Visual</span>
-        <div class="edit__preview-box">
-          <svg
-            :ref="setPreviewEl"
-            :viewBox="previewViewBox"
-            preserveAspectRatio="xMidYMid meet"
-            class="edit__preview-svg"
-            :style="previewVars"
-          ></svg>
-        </div>
-        <span class="form__hint">{{ asset.name }} - {{ asset.w }}x{{ asset.h }} tiles</span>
-      </div>
     </div>
     <template #footer>
-      <span class="form__hint">Changes save automatically.</span>
       <div class="form__row">
         <button type="button" @click="emit('close')">Close</button>
       </div>
@@ -103,11 +110,13 @@ const { viewBox: previewViewBox, vars: previewVars, setEl: setPreviewEl } = useA
   flex: 1;
   min-height: 0;
   display: flex;
+  flex-wrap: wrap;
   gap: var(--gap-md);
 }
 
 .edit__content {
   overflow-y: auto;
+  min-width: min(100%, 360px);
 }
 
 .edit__preview {
@@ -118,7 +127,7 @@ const { viewBox: previewViewBox, vars: previewVars, setEl: setPreviewEl } = useA
   padding: var(--gap-sm);
   width: 248px;
   flex-shrink: 0;
-  align-self: flex-start;
+  align-self: stretch;
 }
 
 .edit__preview-label {
@@ -131,7 +140,8 @@ const { viewBox: previewViewBox, vars: previewVars, setEl: setPreviewEl } = useA
   display: flex;
   align-items: center;
   justify-content: center;
-  height: 200px;
+  flex: 1;
+  min-height: 200px;
   padding: var(--gap-sm);
   border: 1px solid var(--border-dim);
   border-radius: var(--radius-sm);

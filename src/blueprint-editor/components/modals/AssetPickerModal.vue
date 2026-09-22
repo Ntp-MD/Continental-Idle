@@ -70,7 +70,10 @@ function pick(asset: AssetDef) {
 
 <template>
   <ModalShell :open="open" modal-id="modal-asset-picker" title="Asset Picker" @close="emit('close')">
-    <SearchInput v-model="searchQuery" placeholder="Search assets..." label="Search assets" />
+    <div class="form__header">
+      <SearchInput v-model="searchQuery" class="size--stretch" placeholder="Search assets..." label="Search assets" />
+      <span class="badge" :title="`${filteredAssets.length} assets shown`">{{ filteredAssets.length }}</span>
+    </div>
     <div class="picker__scroll">
       <div v-if="!filteredAssets.length" class="empty">No assets found</div>
       <ul v-else class="picker__grid">
@@ -115,12 +118,13 @@ function pick(asset: AssetDef) {
             :title="placedCountTitle(placedObjectCount(asset.id))"
             >{{ placedObjectCount(asset.id) }}</span
           >
-          <span>{{ asset.name }}</span>
+          <span class="truncate">{{ asset.name }}</span>
           <span class="picker__meta truncate">{{ assetSizeLabel(asset) }} - {{ originLabel(asset) }}</span>
         </li>
       </ul>
     </div>
     <template #footer>
+      <span class="form__hint">Click an asset, then click the canvas to place it.</span>
       <div class="form__row">
         <button type="button" @click="emit('close')">Close</button>
       </div>
@@ -130,7 +134,8 @@ function pick(asset: AssetDef) {
 
 <style>
 #modal-asset-picker {
-  width: min(94vw, 720px);
+  width: min(94vw, 760px);
+  height: min(82vh, 720px);
   max-height: calc(100vh - 32px);
 }
 
@@ -142,7 +147,7 @@ function pick(asset: AssetDef) {
 
 .picker__grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(100px, 100%), 1fr));
   gap: var(--gap-sm);
 }
 

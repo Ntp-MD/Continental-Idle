@@ -102,6 +102,7 @@ export function validateSettingsCompleteness(
 	layout: FloorLayoutData,
 	assetMap: Map<string, AssetDef>,
 	npcConfig: NpcSimulationConfig | undefined,
+	managedTags?: ReadonlySet<string>,
 ): SettingsCompletenessResult {
 	const issues: string[] = []
 
@@ -146,6 +147,23 @@ export function validateSettingsCompleteness(
 			}
 		}
 
+		if (focusTags.length > 0) {
+			const matching = focusTags.some(tag => floorAssetTags.has(tag.trim().toLowerCase()))
+			if (!matching) {
+				issues.push(`Role "${role.label}" focuses on tags [${focusTags.join(', ')}] but no asset on any floor matches`)
+			}
+		}
+
+		if (managedTags) {
+			const orphans = [...new Set(
+				[...focusTags, ...role.restrictedTags, ...(role.spawnRule?.targetTags ?? [])]
+					.filter(tag => !managedTags.has(tag.trim().toLowerCase())),
+			)]
+			if (orphans.length > 0) {
+				issues.push(`Role "${role.label}" uses undefined tags [${orphans.join(', ')}] - the engine ignores them until the tag definition exists`)
+			}
+		}
+
 		for (const floor of layout.floors) {
 			const allowed = !floor.allowedRoleIds?.length || floor.allowedRoleIds.includes(role.id)
 			if (!allowed) continue
@@ -158,6 +176,12 @@ export function validateSettingsCompleteness(
 	for (const task of npcConfig.tasks) {
 		if (!taskIdsReferenced.has(task.id)) {
 			issues.push(`Task "${task.label}" is not assigned to any role`)
+		}
+		if (managedTags) {
+			const orphans = [...new Set(task.tags.filter(tag => !managedTags.has(tag.trim().toLowerCase())))]
+			if (orphans.length > 0) {
+				issues.push(`Task "${task.label}" uses undefined tags [${orphans.join(', ')}] - the engine ignores them until the tag definition exists`)
+			}
 		}
 		const post = task.post
 		if (!post) continue

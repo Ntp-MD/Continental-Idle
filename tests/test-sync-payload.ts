@@ -1,10 +1,11 @@
 import assert from 'node:assert/strict'
 import { buildSyncedPayload, loadSyncedPayload, SYNCED_PAYLOAD_VERSION } from '../src/blueprint-editor/syncedPayload'
 import { buildAssetMap } from '../src/blueprint-editor/assets/assetUtils'
+import { normalizeObject } from '../src/blueprint-editor/domain/geometry'
 import { emptyNpcConfig } from '../src/blueprint-editor/store/storeUtils'
 import { BLUEPRINT_DATA_VERSION } from '../src/blueprint-editor/domain/types'
 import { EDITOR_CONFIG } from '../src/blueprint-editor/editorConfig'
-import type { AssetDef, FloorLayoutData, NpcSimulationConfig, SyncedLayoutPayload } from '../src/blueprint-editor/domain/types'
+import type { AssetDef, FloorLayoutData, NpcSimulationConfig, ObjectData, SyncedLayoutPayload } from '../src/blueprint-editor/domain/types'
 
 const NPC_CONFIG: NpcSimulationConfig = {
 	...emptyNpcConfig(),
@@ -138,6 +139,23 @@ function makeAsset(over: Partial<AssetDef>): AssetDef {
 	const orphan = floor.objects[1]
 	assert.equal(orphan.walkable, false, 'unknown asset type degrades to non-walkable')
 	assert.equal(orphan.interactSpots, undefined)
+}
+
+// ── Origin defaultLabel reaches placed objects through the resolve path ──
+{
+	const desk = makeAsset({ defaultLabel: 'Reception' })
+	const assets = buildAssetMap([desk])
+	const placed: ObjectData = { id: 'o1', type: 'a-desk', x: 25, y: 25, w: 0, h: 0, rotation: 0 }
+	normalizeObject(placed, 25, assets)
+	assert.equal(placed.label, 'Reception', 'resolve path snapshots the origin defaultLabel onto the placed object')
+	const payload = buildSyncedPayload(makeLayout({
+		floors: [{ id: 'f1', name: 'Ground', label: 'G', objects: [placed] }],
+	}), assets, undefined)!
+	assert.equal(payload.floors['G']!.objects[0].label, 'Reception', 'synced payload carries the placed label')
+
+	const unlabeledAssets = buildAssetMap([makeAsset({})])
+	normalizeObject(placed, 25, unlabeledAssets)
+	assert.equal(placed.label, undefined, 'removing the origin default clears the placed snapshot')
 }
 
 // ── Persisted placements without w/h derive size from origin asset ──

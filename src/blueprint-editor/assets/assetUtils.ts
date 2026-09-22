@@ -189,10 +189,8 @@ export function serializeObject(obj: ObjectPlacement): ObjectPlacement {
 export const ASSET_DEF_FIELD_COVERAGE: Record<keyof AssetDef, true> = {
 	id: true,
 	name: true,
-	category: true,
 	w: true,
 	h: true,
-	custom: true,
 	walkable: true,
 	doorRequired: true,
 	defaultPadding: true,
@@ -226,8 +224,6 @@ export function serializeAsset(asset: AssetDef): AssetDef {
 		h: asset.h,
 	}
 	if (asset.origin) out.origin = asset.origin
-	if (asset.category) out.category = asset.category
-	if (asset.custom) out.custom = asset.custom
 	if (asset.walkable !== undefined) out.walkable = asset.walkable
 	if (asset.doorRequired) out.doorRequired = asset.doorRequired
 	if (asset.defaultPadding && asset.defaultPadding > 0) out.defaultPadding = asset.defaultPadding
@@ -244,8 +240,8 @@ export function serializeAsset(asset: AssetDef): AssetDef {
 	if (asset.usePx) out.usePx = asset.usePx
 	if (asset.svg) out.svg = asset.svg
 	if (asset.svgViewBox) out.svgViewBox = { ...asset.svgViewBox }
-	if (asset.svgRoles?.length) out.svgRoles = [...asset.svgRoles]
-	if (asset.walkableGrid) out.walkableGrid = asset.walkableGrid.map(row => [...row])
+	// svgRoles + walkableGrid are derived, not persisted: svgRoles re-parses
+	// from svg and walkableGrid re-derives from tileStates on load/resolve.
 	if (asset.tileStates) out.tileStates = asset.tileStates.map(row => [...row])
 	if (asset.interactSpots?.length) out.interactSpots = asset.interactSpots.map(p => ({ ...p }))
 	if (asset.interact) out.interact = { ...asset.interact }

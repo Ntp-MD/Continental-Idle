@@ -1,4 +1,4 @@
- <script setup lang="ts">
+<script setup lang="ts">
 import { ref, watch } from 'vue'
 import { useAssetsStore, serializeWorkspace, parseWorkspace } from '../../blueprintStore'
 import { useToast } from '@/composables/useToast'
@@ -88,33 +88,45 @@ async function onImportFile(event: Event) {
     :status-tone="statusTone"
     @close="emit('close')"
   >
-    <div class="form__col form--section">
-      <div>Export</div>
-      <div class="form__hint">Download the current workspace as a single JSON file.</div>
-      <button class="flag--active size--fit" type="button" aria-label="Export workspace" @click="onExport">Export</button>
+    <div class="form__header">
+      <span class="size--stretch form__hint">One JSON file holds the whole workspace.</span>
+      <span v-if="fileName" class="badge truncate" :title="fileName">{{ fileName }}</span>
     </div>
-    <div class="form__col form--section">
-      <div>Import</div>
-      <div class="form__hint">Replace the current workspace with a previously exported file.</div>
-      <div v-if="fileName" class="form__hint">Last file: {{ fileName }}</div>
-      <input
-        ref="fileInput"
-        class="workspace__file"
-        type="file"
-        accept="application/json,.json"
-        aria-label="Workspace file"
-        @change="onImportFile"
-      />
-      <button
-        class="flag--warning size--fit"
-        type="button"
-        aria-label="Import workspace"
-        :disabled="pending"
-        @click="fileInput?.click()"
-      >
-        Import
-      </button>
+    <div class="form__col">
+      <div class="card form__col">
+        <div>Import</div>
+        <div class="form__hint">Replace the current workspace with a previously exported file.</div>
+        <input
+          ref="fileInput"
+          class="workspace__file"
+          type="file"
+          accept="application/json,.json"
+          aria-label="Workspace file"
+          @change="onImportFile"
+        />
+        <button
+          class="flag--warning size--fill"
+          type="button"
+          aria-label="Import workspace"
+          :disabled="pending"
+          @click="fileInput?.click()"
+        >
+          Import
+        </button>
+      </div>
+      <div class="card form__col">
+        <div>Export</div>
+        <div class="form__hint">Download the current workspace as a single JSON file.</div>
+        <button class="flag--active size--fill" type="button" aria-label="Export workspace" @click="onExport">
+          Export
+        </button>
+      </div>
     </div>
+    <template #footer>
+      <div class="form__row">
+        <button type="button" @click="emit('close')">Close</button>
+      </div>
+    </template>
   </ModalShell>
 </template>
 
@@ -126,7 +138,7 @@ async function onImportFile(event: Event) {
 
 <style>
 #modal-workspace {
-  width: min(94vw, 480px);
+  width: min(94vw, 560px);
   max-height: calc(100vh - 32px);
 }
 </style>

@@ -84,7 +84,7 @@ async function commitLabel() {
     return
   }
   const before = assignSyncKeys(floors.value)
-  const after = assignSyncKeys(floors.value.map(f => (f.id === selectedFloor.value!.id ? { ...f, label } : f)))
+  const after = assignSyncKeys(floors.value.map((f) => (f.id === selectedFloor.value!.id ? { ...f, label } : f)))
   const oldKey = before.get(selectedFloor.value.id)
   const newKey = after.get(selectedFloor.value.id)
   if (oldKey !== newKey) {
@@ -92,7 +92,7 @@ async function commitLabel() {
     editingLabel.value = false
     // Yield so the Enter keydown that opened this dialog finishes propagating
     // before the confirm dialog mounts - otherwise it confirms itself.
-    await new Promise(resolve => setTimeout(resolve, 0))
+    await new Promise((resolve) => setTimeout(resolve, 0))
     try {
       const ok = await confirm({
         title: 'Relabel floor',
@@ -231,7 +231,10 @@ async function addSpawnZone() {
   const rect = { x: newZoneX.value, y: newZoneY.value, w: newZoneW.value, h: newZoneH.value }
   if (
     ![rect.x, rect.y, rect.w, rect.h].every((v) => typeof v === 'number' && Number.isFinite(v)) ||
-    rect.x < 0 || rect.y < 0 || rect.w <= 0 || rect.h <= 0
+    rect.x < 0 ||
+    rect.y < 0 ||
+    rect.w <= 0 ||
+    rect.h <= 0
   ) {
     toast.warning('Zone needs finite x/y and positive w/h')
     return
@@ -264,7 +267,9 @@ async function deleteSpawnZone(zoneId: string) {
     danger: true,
   })
   if (!ok) return
-  const saved = await store.updateFloor(floor.id, { spawnZones: (floor.spawnZones ?? []).filter((entry) => entry.id !== zoneId) })
+  const saved = await store.updateFloor(floor.id, {
+    spawnZones: (floor.spawnZones ?? []).filter((entry) => entry.id !== zoneId),
+  })
   reportSaved(saved, `Zone "${zone.label}" deleted`, 'Failed to delete zone')
 }
 
@@ -275,12 +280,16 @@ function floorCounts(f: FloorData): string {
 
 <template>
   <ModalShell :open="open" modal-id="modal-floor-manager" title="Floor Manager" @close="onClose">
-    <div class="form__row form--start">
+    <div class="form__header">
+      <span class="size--stretch">Floors ({{ floors.length }}) - drag the list to reorder</span>
+      <span v-if="selectedFloor && selectedFloor.id === store.state.currentFloorId" class="badge">ACTIVE</span>
+      <button class="flag--dashed" @click="onAdd">+ Add</button>
+    </div>
+    <div class="form__row form--start form--wrap">
       <!-- Left pane: Floor list -->
       <div class="form__col floor__body right--border">
         <div class="floor__heading">
-          <span>Floors ({{ floors.length }})</span>
-          <button class="flag--dashed" @click="onAdd">+ Add</button>
+          <span class="floor__count">{{ selectedFloor?.name ?? 'Select a floor' }}</span>
         </div>
         <ul class="form__col">
           <li
@@ -300,7 +309,7 @@ function floorCounts(f: FloorData): string {
             <span v-if="f.id === store.state.currentFloorId" class="badge">ACTIVE</span>
             <button
               type="button"
-              class="flag--danger"
+              class="card__item--remove flag--danger"
               :title="floors.length <= 1 ? 'Cannot delete the last floor' : 'Delete floor'"
               :aria-label="`Delete floor ${f.name}`"
               :disabled="floors.length <= 1"
@@ -316,83 +325,60 @@ function floorCounts(f: FloorData): string {
       <div class="form__col floor__body">
         <template v-if="selectedFloor">
           <div class="form__row form--start form--wrap">
-          <div class="form__col form--section">
-            <div class="floor__heading">
-              <span>Details</span>
-            </div>
-            <div class="form__row">
-              <label>Label</label>
-              <input
-                v-if="editingLabel"
-                v-model="editingLabelRaw"
-                aria-label="Edit floor label"
-                @keydown.enter="commitLabel"
-                @blur="commitLabel"
-              />
-              <template v-else>
+            <div class="form__col form--section">
+              <div class="floor__heading">
+                <span>Details</span>
+                <button type="button" aria-label="Duplicate this floor" @click="onDuplicate(selectedFloor.id)">
+                  Duplicate
+                </button>
+              </div>
+              <div class="form__row">
+                <label>Label</label>
                 <input
-                  :value="selectedFloor.label"
-                  readonly
-                  aria-label="Floor label"
+                  v-if="editingLabel"
+                  v-model="editingLabelRaw"
                   class="size--stretch"
+                  aria-label="Edit floor label"
+                  @keydown.enter="commitLabel"
+                  @blur="commitLabel"
                 />
-                <button type="button" aria-label="Edit floor label" @click="startEditLabel">Edit</button>
-              </template>
-            </div>
-            <div class="form__row">
-              <label>Name</label>
-              <input
-                v-if="editingName"
-                :value="editingNameRaw"
-                aria-label="Edit floor name"
-                @input="editingNameRaw = sanitizeString(($event.target as HTMLInputElement).value)"
-                @keydown.enter="commitName"
-                @blur="commitName"
-              />
-              <template v-else>
+                <template v-else>
+                  <input :value="selectedFloor.label" readonly aria-label="Floor label" class="size--stretch" />
+                  <button type="button" aria-label="Edit floor label" @click="startEditLabel">Edit</button>
+                </template>
+              </div>
+              <div class="form__row">
+                <label>Name</label>
                 <input
-                  :value="selectedFloor.name"
-                  readonly
-                  aria-label="Floor name"
+                  v-if="editingName"
+                  :value="editingNameRaw"
                   class="size--stretch"
+                  aria-label="Edit floor name"
+                  @input="editingNameRaw = sanitizeString(($event.target as HTMLInputElement).value)"
+                  @keydown.enter="commitName"
+                  @blur="commitName"
                 />
-                <button type="button" aria-label="Edit floor name" @click="startEditName">Edit</button>
-              </template>
+                <template v-else>
+                  <input :value="selectedFloor.name" readonly aria-label="Floor name" class="size--stretch" />
+                  <button type="button" aria-label="Edit floor name" @click="startEditName">Edit</button>
+                </template>
+              </div>
+              <div class="form__row">
+                <label>Stats</label>
+                <span class="floor__count">{{ floorCounts(selectedFloor) }}</span>
+              </div>
+              <div class="form__hint">
+                Label keys game saves (G, 1, 2, ...) - renaming it orphans old saves. Name is display-only.
+              </div>
             </div>
-            <div class="form__row">
-              <label>Stats</label>
-              <span class="floor__count">{{ floorCounts(selectedFloor) }}</span>
-            </div>
-            <div class="form__hint">Label keys game saves (G, 1, 2, ...) - renaming it orphans old saves. Name is display-only.</div>
-          </div>
 
-          <div class="form__col form--section">
-            <div>Walkability</div>
-            <label class="form__row floor__check">
-              <input type="checkbox" :checked="selectedFloor.defaultWalkable ?? true" @change="toggleWalkable" />
-              <span>Empty areas are walkable</span>
-            </label>
-          </div>
-          </div>
-
-          <div class="form__col form--section">
-            <div>Allowed Roles</div>
-            <div class="form__row">
-              <span v-if="!selectedFloor.allowedRoleIds?.length" class="empty">All roles allowed</span>
-              <button v-else @click="clearRoles">Clear (allow all)</button>
+            <div class="form__col form--section">
+              <div>Walkability</div>
+              <label class="form__row floor__check">
+                <input type="checkbox" :checked="selectedFloor.defaultWalkable ?? true" @change="toggleWalkable" />
+                <span>Empty areas are walkable</span>
+              </label>
             </div>
-            <ul class="form__row form--wrap">
-              <li v-for="role in availableRoles" :key="role.id" class="floor__role">
-                <label class="card__item" :class="{ 'flag--active': isRoleAllowed(role.id) }">
-                  <input type="checkbox" :checked="isRoleAllowed(role.id)" @change="toggleRole(role.id)" />
-                  <span class="swatch" :style="{ background: role.color }" />
-                  <span>{{ role.label }}</span>
-                </label>
-              </li>
-            </ul>
-            <span v-if="!availableRoles.length" class="empty"
-              >No roles configured - open Role Manager to add roles</span
-            >
           </div>
 
           <div class="form__col form--section">
@@ -400,14 +386,30 @@ function floorCounts(f: FloorData): string {
             <ul v-if="selectedFloor.spawnZones?.length" class="form__col">
               <li v-for="zone in selectedFloor.spawnZones" :key="zone.id" class="form__col card__item">
                 <div class="form__row">
-                  <span class="size--stretch truncate">{{ zone.label }} ({{ zone.x }},{{ zone.y }} {{ zone.w }}x{{ zone.h }})</span>
-                  <small class="form__hint">{{ zone.roleIds?.length ? `${zone.roleIds.length} roles` : 'all roles' }}</small>
-                  <button type="button" class="flag--danger" :aria-label="`Delete zone ${zone.label}`" @click="deleteSpawnZone(zone.id)">x</button>
+                  <span class="size--stretch truncate"
+                    >{{ zone.label }} ({{ zone.x }},{{ zone.y }} {{ zone.w }}x{{ zone.h }})</span
+                  >
+                  <small class="form__hint">{{
+                    zone.roleIds?.length ? `${zone.roleIds.length} roles` : 'all roles'
+                  }}</small>
+                  <button
+                    type="button"
+                    class="card__item--remove flag--danger"
+                    :aria-label="`Delete zone ${zone.label}`"
+                    @click="deleteSpawnZone(zone.id)"
+                  >
+                    x
+                  </button>
                 </div>
                 <ul v-if="availableRoles.length" class="form__row form--wrap">
                   <li v-for="role in availableRoles" :key="`zone-${zone.id}-${role.id}`" class="floor__role">
                     <label class="card__item" :class="{ 'flag--active': isZoneRole(zone, role.id) }">
-                      <input type="checkbox" :checked="isZoneRole(zone, role.id)" :aria-label="`${role.label} spawns in ${zone.label}`" @change="toggleZoneRole(zone.id, role.id)" />
+                      <input
+                        type="checkbox"
+                        :checked="isZoneRole(zone, role.id)"
+                        :aria-label="`${role.label} spawns in ${zone.label}`"
+                        @change="toggleZoneRole(zone.id, role.id)"
+                      />
                       <span class="swatch" :style="{ background: role.color }" />
                       <span>{{ role.label }}</span>
                     </label>
@@ -435,15 +437,27 @@ function floorCounts(f: FloorData): string {
               </button>
             </div>
             <div class="form__row form--wrap">
-              <label class="form__col">X<input v-model.number="newZoneX" class="size--fit" type="number" min="0" aria-label="Zone x" /></label>
-              <label class="form__col">Y<input v-model.number="newZoneY" class="size--fit" type="number" min="0" aria-label="Zone y" /></label>
-              <label class="form__col">W<input v-model.number="newZoneW" class="size--fit" type="number" min="1" aria-label="Zone width" /></label>
-              <label class="form__col">H<input v-model.number="newZoneH" class="size--fit" type="number" min="1" aria-label="Zone height" /></label>
+              <label class="form__col"
+                >X<input v-model.number="newZoneX" class="size--fit" type="number" min="0" aria-label="Zone x"
+              /></label>
+              <label class="form__col"
+                >Y<input v-model.number="newZoneY" class="size--fit" type="number" min="0" aria-label="Zone y"
+              /></label>
+              <label class="form__col"
+                >W<input v-model.number="newZoneW" class="size--fit" type="number" min="1" aria-label="Zone width"
+              /></label>
+              <label class="form__col"
+                >H<input v-model.number="newZoneH" class="size--fit" type="number" min="1" aria-label="Zone height"
+              /></label>
             </div>
             <ul v-if="availableRoles.length" class="form__row form--wrap">
               <li v-for="role in availableRoles" :key="`zone-role-${role.id}`">
                 <label class="card__item" :class="{ 'flag--active': newZoneRoles.includes(role.id) }">
-                  <input type="checkbox" :checked="newZoneRoles.includes(role.id)" @change="toggleNewZoneRole(role.id)" />
+                  <input
+                    type="checkbox"
+                    :checked="newZoneRoles.includes(role.id)"
+                    @change="toggleNewZoneRole(role.id)"
+                  />
                   <span class="swatch" :style="{ background: role.color }" />
                   <span>{{ role.label }}</span>
                 </label>
@@ -451,14 +465,64 @@ function floorCounts(f: FloorData): string {
             </ul>
           </div>
 
+          <div class="form__col form--section">
+            <div>Allowed Roles</div>
+            <div class="form__row">
+              <span v-if="!selectedFloor.allowedRoleIds?.length" class="empty">All roles allowed</span>
+              <button v-else @click="clearRoles">Clear (allow all)</button>
+            </div>
+            <ul class="form__row form--wrap">
+              <li v-for="role in availableRoles" :key="role.id" class="floor__role">
+                <label class="card__item" :class="{ 'flag--active': isRoleAllowed(role.id) }">
+                  <input type="checkbox" :checked="isRoleAllowed(role.id)" @change="toggleRole(role.id)" />
+                  <span class="swatch" :style="{ background: role.color }" />
+                  <span>{{ role.label }}</span>
+                </label>
+              </li>
+            </ul>
+            <span v-if="!availableRoles.length" class="empty"
+              >No roles configured - open Role Manager to add roles</span
+            >
+          </div>
+
+          <div class="form__col form--section form__row--border">
+            <div>Danger zone</div>
+            <div class="form__hint">
+              Clear removes all objects but keeps the floor. Delete removes the floor entirely.
+            </div>
+            <div class="form__row">
+              <button
+                type="button"
+                class="flag--danger"
+                :title="
+                  selectedFloor.objects.length === 0
+                    ? 'No objects to clear'
+                    : `Remove all ${selectedFloor.objects.length} object(s) from this floor`
+                "
+                :disabled="selectedFloor.objects.length === 0"
+                @click="onClear(selectedFloor.id)"
+              >
+                Clear objects
+              </button>
+              <button
+                type="button"
+                class="flag--danger"
+                :title="floors.length <= 1 ? 'Cannot delete the last floor' : 'Delete floor'"
+                :disabled="floors.length <= 1"
+                @click="onDelete(selectedFloor.id)"
+              >
+                Delete floor
+              </button>
+            </div>
+          </div>
         </template>
         <div v-else class="empty">Select a floor to edit</div>
       </div>
     </div>
-    <template v-if="selectedFloor" #footer>
-      <button @click="onDuplicate(selectedFloor.id)">Duplicate</button>
-      <button class="flag--danger" :title="selectedFloor.objects.length === 0 ? 'No objects to clear' : `Remove all ${selectedFloor.objects.length} object(s) from this floor`" :disabled="selectedFloor.objects.length === 0" @click="onClear(selectedFloor.id)">Clear</button>
-      <button class="flag--danger" :title="floors.length <= 1 ? 'Cannot delete the last floor' : 'Delete floor'" :disabled="floors.length <= 1" @click="onDelete(selectedFloor.id)">Delete</button>
+    <template #footer>
+      <div class="form__row">
+        <button @click="onClose">Close</button>
+      </div>
     </template>
   </ModalShell>
 </template>
@@ -507,8 +571,11 @@ function floorCounts(f: FloorData): string {
   max-height: calc(100vh - 32px);
 }
 
-#modal-floor-manager .form__row > .floor__body {
-  flex: 1 1 260px;
-  height: stretch;
+#modal-floor-manager .form__row > .floor__body:first-child {
+  flex: 0 1 300px;
+}
+
+#modal-floor-manager .form__row > .floor__body:last-child {
+  flex: 1 1 420px;
 }
 </style>

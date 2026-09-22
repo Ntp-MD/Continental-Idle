@@ -4,7 +4,12 @@ import { useAssetsStore } from '../../blueprintStore'
 import { useToast, reportSaved } from '@/composables/useToast'
 import { useConfirm } from '@/composables/useConfirm'
 import { useAsyncAction } from '../../composables/useAsyncAction'
-import { DEFAULT_EDITOR_SETTINGS, EDITOR_FIELD_SPECS, CANVAS_FIELD_SPECS, canvasWithinGridCaps } from '../../domain/types'
+import {
+  DEFAULT_EDITOR_SETTINGS,
+  EDITOR_FIELD_SPECS,
+  CANVAS_FIELD_SPECS,
+  canvasWithinGridCaps,
+} from '../../domain/types'
 import type { EditorSettings } from '../../domain/types'
 import { MAX_GRID_COLUMNS, MAX_GRID_ROWS } from '../../limits'
 import { useCanvasDefaults } from '../../composables/useCanvasDefaults'
@@ -43,8 +48,12 @@ const streetSidewalkColorInput = ref(store.state.layout.canvas.streetSidewalkCol
 const streetRoadColorInput = ref(store.state.layout.canvas.streetRoadColor)
 const streetMarkingColorInput = ref(store.state.layout.canvas.streetMarkingColor)
 
-const maxCanvasWidth = computed(() => MAX_GRID_COLUMNS * Math.max(1, Math.round(tileInput.value || store.state.layout.canvas.tileSize)))
-const maxCanvasHeight = computed(() => MAX_GRID_ROWS * Math.max(1, Math.round(tileInput.value || store.state.layout.canvas.tileSize)))
+const maxCanvasWidth = computed(
+  () => MAX_GRID_COLUMNS * Math.max(1, Math.round(tileInput.value || store.state.layout.canvas.tileSize)),
+)
+const maxCanvasHeight = computed(
+  () => MAX_GRID_ROWS * Math.max(1, Math.round(tileInput.value || store.state.layout.canvas.tileSize)),
+)
 const contentLocked = computed(() => store.hasContent())
 
 watch(
@@ -183,11 +192,6 @@ function radiusPreview(key: FieldKey): number {
   return Math.min(48, Math.max(2, value * 2))
 }
 
-const isEditorDirty = computed(() => {
-  const c = currentEditor.value
-  return (Object.keys(c) as FieldKey[]).some((k) => draft.value[k] !== c[k])
-})
-
 async function applyEditorField(key: FieldKey) {
   const range = fieldRange(key)
   const v = draft.value[key]
@@ -219,29 +223,6 @@ async function applyEditorField(key: FieldKey) {
     }
   } catch {
     status.value = 'Failed to save setting'
-    statusTone.value = 'fail'
-  }
-}
-
-async function applyEditorAll() {
-  const c = currentEditor.value
-  const patch: Partial<EditorSettings> = {}
-  for (const key of Object.keys(c) as FieldKey[]) {
-    if (draft.value[key] !== c[key]) patch[key] = draft.value[key]
-  }
-  if (Object.keys(patch).length === 0) return
-  try {
-    const saved = await run(() => store.setEditorSettings(patch))
-    if (!saved) {
-      status.value = 'Some values out of range'
-      statusTone.value = 'warn'
-      return
-    }
-    status.value = ''
-    statusTone.value = ''
-    toast.success('Editor settings saved')
-  } catch {
-    status.value = 'Failed to save editor settings'
     statusTone.value = 'fail'
   }
 }
@@ -288,6 +269,27 @@ async function resetEditorAll() {
       </button>
     </div>
 
+    <div class="form__header">
+      <span class="size--stretch form__hint">Changes on this tab apply immediately.</span>
+      <button
+        v-if="activeTab === 'canvas'"
+        class="flag--active size--fit settings__apply--bottom"
+        :disabled="pending || contentLocked"
+        aria-label="Apply canvas size"
+        @click="applyCanvasSize"
+      >
+        Apply
+      </button>
+      <button
+        class="flag--danger"
+        :disabled="pending"
+        aria-label="Reset all editor settings to defaults"
+        @click="resetEditorAll"
+      >
+        Reset
+      </button>
+    </div>
+
     <div
       v-show="activeTab === 'canvas'"
       id="settings__panel--canvas"
@@ -295,158 +297,186 @@ async function resetEditorAll() {
       role="tabpanel"
       aria-labelledby="settings__tab--canvas"
     >
-      <div class="form__hint">Changes on this tab apply immediately.</div>
+      <div class="form__row form--start form--wrap">
+        <div class="form__col form--section">
+          <div>Background</div>
+          <div class="form__row">
+            <label for="canvas__bgcolor">Color</label>
+            <ColorInput
+              v-model="bgColorInput"
+              :allow-transparent="true"
+              placeholder="#RRGGBB"
+              aria-label="Canvas background color"
+              @commit="applyCanvasBgColor"
+            />
+          </div>
+          <div class="form__hint">Hex value, or toggle transparent.</div>
+        </div>
+
+        <div class="form__col form--section">
+          <div>Labels</div>
+          <div class="form__row">
+            <label for="canvas__labelcolor">Color</label>
+            <ColorInput
+              v-model="labelColorInput"
+              allow-transparent
+              placeholder="#RRGGBB"
+              aria-label="Object label color"
+              @commit="applyLabelColor"
+            />
+          </div>
+          <div class="form__hint">Color for all object labels. Empty = theme default.</div>
+        </div>
+
+        <div class="form__col form--section">
+          <div>Walls</div>
+          <div class="form__row">
+            <label for="canvas__wallcolor">Color</label>
+            <ColorInput
+              v-model="wallColorInput"
+              allow-transparent
+              placeholder="#RRGGBB"
+              aria-label="Wall tile color"
+              @commit="applyWallColor"
+            />
+          </div>
+          <div class="form__hint">Color for wall tiles. Empty = theme default.</div>
+        </div>
+
+        <div class="form__col form--section">
+          <div>Grid</div>
+          <div class="form__row">
+            <label for="canvas__gridcolor">Line color</label>
+            <ColorInput
+              v-model="gridColorInput"
+              allow-transparent
+              placeholder="#RRGGBB"
+              aria-label="Grid line color"
+              @commit="applyGridColor"
+            />
+          </div>
+          <div class="form__hint">Color for the canvas tile grid lines. Empty = theme default.</div>
+        </div>
+      </div>
+
+      <div class="form__row form--start form--wrap">
+        <div class="form__col form--section">
+          <div>Street</div>
+          <div class="form__row">
+            <label for="canvas__streetfloor">Show street on</label>
+            <select
+              id="canvas__streetfloor"
+              :value="store.state.layout.streetFloorId ?? ''"
+              aria-label="Floor that displays the street ring"
+              @change="applyStreetFloor(($event.target as HTMLSelectElement).value || null)"
+            >
+              <option value="">None</option>
+              <option v-for="f in store.state.layout.floors" :key="f.id" :value="f.id">
+                {{ f.label }} - {{ f.name }}
+              </option>
+            </select>
+          </div>
+          <div class="form__row">
+            <label for="canvas__streetwidth">Street width</label>
+            <select
+              id="canvas__streetwidth"
+              :value="store.state.layout.streetWidthTiles ?? ''"
+              aria-label="Street ring width in tiles"
+              @change="store.setStreetWidth(Number(($event.target as HTMLSelectElement).value) || null)"
+            >
+              <option value="">Default (8 tiles)</option>
+              <option v-for="w in [5, 6, 7, 8, 9, 10, 11, 12]" :key="w" :value="w">{{ w }} tiles</option>
+            </select>
+          </div>
+        </div>
+        <div class="form__col form--section">
+          <div>Street Colors</div>
+          <div class="form__row">
+            <label for="canvas__streetsidewalkcolor">Sidewalk</label>
+            <ColorInput
+              v-model="streetSidewalkColorInput"
+              allow-transparent
+              placeholder="#RRGGBB"
+              aria-label="Street sidewalk color"
+              @commit="applyStreetSidewalkColor"
+            />
+          </div>
+          <div class="form__row">
+            <label for="canvas__streetroadcolor">Road</label>
+            <ColorInput
+              v-model="streetRoadColorInput"
+              allow-transparent
+              placeholder="#RRGGBB"
+              aria-label="Street road color"
+              @commit="applyStreetRoadColor"
+            />
+          </div>
+          <div class="form__row">
+            <label for="canvas__streetmarkingcolor">Lane marking</label>
+            <ColorInput
+              v-model="streetMarkingColorInput"
+              allow-transparent
+              placeholder="#RRGGBB"
+              aria-label="Street lane marking color"
+              @commit="applyStreetMarkingColor"
+            />
+          </div>
+        </div>
+      </div>
       <div class="form__col form--section">
         <div>Canvas Size</div>
         <div class="form__row form--start form--wrap">
           <div class="form__col">
             <label for="canvas__width">Width</label>
-            <input id="canvas__width" v-model.number="widthInput" type="number" min="100" step="25" :max="maxCanvasWidth" :disabled="contentLocked" />
+            <input
+              id="canvas__width"
+              v-model.number="widthInput"
+              type="number"
+              min="100"
+              step="25"
+              :max="maxCanvasWidth"
+              :disabled="contentLocked"
+            />
           </div>
           <div class="form__col">
             <label for="canvas__height">Height</label>
-            <input id="canvas__height" v-model.number="heightInput" type="number" min="100" step="25" :max="maxCanvasHeight" :disabled="contentLocked" />
+            <input
+              id="canvas__height"
+              v-model.number="heightInput"
+              type="number"
+              min="100"
+              step="25"
+              :max="maxCanvasHeight"
+              :disabled="contentLocked"
+            />
           </div>
           <div class="form__col">
             <label for="canvas__tile">Tile</label>
-            <input id="canvas__tile" v-model.number="tileInput" type="number" min="5" step="5" :max="CANVAS_FIELD_SPECS.tileSize.max" :disabled="contentLocked" />
+            <input
+              id="canvas__tile"
+              v-model.number="tileInput"
+              type="number"
+              min="5"
+              step="5"
+              :max="CANVAS_FIELD_SPECS.tileSize.max"
+              :disabled="contentLocked"
+            />
           </div>
-          <button
-            class="flag--active size--fit settings__apply--bottom"
-            :disabled="pending || contentLocked"
-            aria-label="Apply canvas size"
-            @click="applyCanvasSize"
-          >
-            Apply
-          </button>
         </div>
-        <div v-if="contentLocked" class="form__hint">Locked while content exists - remove all objects, NPC spawn zones and painted wall/door tiles first.</div>
-        <div v-else class="form__hint">Re-snaps all objects to the new grid. Max {{ MAX_GRID_COLUMNS }} x {{ MAX_GRID_ROWS }} tiles.</div>
-      </div>
-
-      <div class="form__col form--section">
-        <div>Background</div>
-        <div class="form__row">
-          <label for="canvas__bgcolor">Color</label>
-          <ColorInput
-            v-model="bgColorInput"
-            :allow-transparent="true"
-            placeholder="#RRGGBB or transparent"
-            aria-label="Canvas background color"
-            @commit="applyCanvasBgColor"
-          />
+        <div v-if="contentLocked" class="form__hint">
+          Locked while content exists - remove all objects, NPC spawn zones and painted wall/door tiles first. Apply
+          is in the header.
         </div>
-        <div class="form__hint">Hex or 'transparent'.</div>
-      </div>
-
-      <div class="form__col form--section">
-        <div>Labels</div>
-        <div class="form__row">
-          <label for="canvas__labelcolor">Color</label>
-          <ColorInput
-            v-model="labelColorInput"
-            allow-transparent
-            placeholder="#RRGGBB (empty = theme default)"
-            aria-label="Object label color"
-            @commit="applyLabelColor"
-          />
-        </div>
-        <div class="form__hint">Color for all object labels.</div>
-      </div>
-
-      <div class="form__col form--section">
-        <div>Walls</div>
-        <div class="form__row">
-          <label for="canvas__wallcolor">Color</label>
-          <ColorInput
-            v-model="wallColorInput"
-            allow-transparent
-            placeholder="#RRGGBB (empty = theme default)"
-            aria-label="Wall tile color"
-            @commit="applyWallColor"
-          />
-        </div>
-        <div class="form__hint">Color for wall tiles.</div>
-      </div>
-
-      <div class="form__col form--section">
-        <div>Grid</div>
-        <div class="form__row">
-          <label for="canvas__gridcolor">Line color</label>
-          <ColorInput
-            v-model="gridColorInput"
-            allow-transparent
-            placeholder="#RRGGBB (empty = theme default)"
-            aria-label="Grid line color"
-            @commit="applyGridColor"
-          />
-        </div>
-        <div class="form__hint">Color for the canvas tile grid lines.</div>
-      </div>
-
-      <div class="form__col form--section">
-        <div>Street</div>
-        <div class="form__row">
-          <label for="canvas__streetfloor">Show street on</label>
-          <select
-            id="canvas__streetfloor"
-            :value="store.state.layout.streetFloorId ?? ''"
-            aria-label="Floor that displays the street ring"
-            @change="applyStreetFloor(($event.target as HTMLSelectElement).value || null)"
-          >
-            <option value="">None</option>
-            <option v-for="f in store.state.layout.floors" :key="f.id" :value="f.id">
-              {{ f.label }} - {{ f.name }}
-            </option>
-          </select>
-        </div>
-        <div class="form__row">
-          <label for="canvas__streetwidth">Street width</label>
-          <select
-            id="canvas__streetwidth"
-            :value="store.state.layout.streetWidthTiles ?? ''"
-            aria-label="Street ring width in tiles"
-            @change="store.setStreetWidth(Number(($event.target as HTMLSelectElement).value) || null)"
-          >
-            <option value="">Default (8 tiles)</option>
-            <option v-for="w in [5, 6, 7, 8, 9, 10, 11, 12]" :key="w" :value="w">{{ w }} tiles</option>
-          </select>
-        </div>
-        <div class="form__row">
-          <label for="canvas__streetsidewalkcolor">Sidewalk color</label>
-          <ColorInput
-            v-model="streetSidewalkColorInput"
-            allow-transparent
-            placeholder="#RRGGBB (empty = theme default)"
-            aria-label="Street sidewalk color"
-            @commit="applyStreetSidewalkColor"
-          />
-        </div>
-        <div class="form__row">
-          <label for="canvas__streetroadcolor">Road color</label>
-          <ColorInput
-            v-model="streetRoadColorInput"
-            allow-transparent
-            placeholder="#RRGGBB (empty = theme default)"
-            aria-label="Street road color"
-            @commit="applyStreetRoadColor"
-          />
-        </div>
-        <div class="form__row">
-          <label for="canvas__streetmarkingcolor">Lane marking color</label>
-          <ColorInput
-            v-model="streetMarkingColorInput"
-            allow-transparent
-            placeholder="#RRGGBB (empty = theme default)"
-            aria-label="Street lane marking color"
-            @commit="applyStreetMarkingColor"
-          />
+        <div v-else class="form__hint">
+          Re-snaps all objects to the new grid. Max {{ MAX_GRID_COLUMNS }} x {{ MAX_GRID_ROWS }} tiles. Apply is in
+          the header.
         </div>
       </div>
       <template v-for="group in canvasEditorGroups" :key="group.title">
-          <div class="form__col form--section">
-            <div>{{ group.title }}</div>
-            <div v-for="field in group.fields" :key="field.key" class="form__row">
+        <div class="form__col form--section">
+          <div>{{ group.title }}</div>
+          <div class="form__row form--start form--wrap">
+            <div v-for="field in group.fields" :key="field.key" class="form__col">
               <label :for="`es__${field.key}`">{{ field.label }}</label>
               <input
                 :id="`es__${field.key}`"
@@ -458,8 +488,9 @@ async function resetEditorAll() {
                 @change="applyEditorField(field.key)"
               />
             </div>
-            <div class="form__hint">{{ group.hint }}</div>
           </div>
+          <div class="form__hint">{{ group.hint }}</div>
+        </div>
       </template>
     </div>
 
@@ -472,48 +503,38 @@ async function resetEditorAll() {
       role="tabpanel"
       :aria-labelledby="`settings__tab--${t.key}`"
     >
+      <div class="form__hint">Changes apply as you edit them.</div>
       <template v-for="group in editorGroupsByTab[t.key]" :key="group.title">
         <div class="form__col form--section">
           <div>{{ group.title }}</div>
-          <div v-for="field in group.fields" :key="field.key" class="form__row">
-            <label :for="`es__${field.key}`">{{ field.label }}</label>
-            <input
-              :id="`es__${field.key}`"
-              v-model.number="draft[field.key]"
-              type="number"
-              :min="fieldRange(field.key).min"
-              :max="fieldRange(field.key).max"
-              :step="field.step"
-              @change="applyEditorField(field.key)"
-            />
-            <span
-              v-if="field.preview === 'radius'"
-              class="settings__dot"
-              :style="{ width: radiusPreview(field.key) + 'px', height: radiusPreview(field.key) + 'px' }"
-              aria-hidden="true"
-            />
+          <div class="form__row form--start form--wrap">
+            <div v-for="field in group.fields" :key="field.key" class="form__col">
+              <label :for="`es__${field.key}`">{{ field.label }}</label>
+              <div class="form__row">
+                <input
+                  :id="`es__${field.key}`"
+                  v-model.number="draft[field.key]"
+                  type="number"
+                  :min="fieldRange(field.key).min"
+                  :max="fieldRange(field.key).max"
+                  :step="field.step"
+                  @change="applyEditorField(field.key)"
+                />
+                <span
+                  v-if="field.preview === 'radius'"
+                  class="settings__dot"
+                  :style="{ width: radiusPreview(field.key) + 'px', height: radiusPreview(field.key) + 'px' }"
+                  aria-hidden="true"
+                />
+              </div>
+            </div>
           </div>
           <div class="form__hint">{{ group.hint }}</div>
         </div>
       </template>
     </div>
     <template v-if="activeTab !== 'canvas'" #footer>
-      <button
-        class="flag--danger"
-        :disabled="pending"
-        aria-label="Reset all editor settings to defaults"
-        @click="resetEditorAll"
-      >
-        Reset
-      </button>
-      <button
-        class="flag--active"
-        :disabled="pending || !isEditorDirty"
-        aria-label="Apply all editor settings"
-        @click="applyEditorAll"
-      >
-        Apply All
-      </button>
+      <span class="form__hint">Edits apply instantly - Reset restores defaults (Reset is in the header).</span>
     </template>
   </ModalShell>
 </template>
@@ -537,11 +558,21 @@ async function resetEditorAll() {
   min-height: 0;
   overflow-y: auto;
 }
+
+.settings__panel .form__row.form--start > .form__col,
+.settings__panel > .form__col {
+  flex: 1 1 220px;
+}
+
+.settings__panel .form__row.form--start > .form--section,
+.settings__panel > .form--section {
+  flex: 1 1 300px;
+}
 </style>
 
 <style>
 #modal-settings {
-  width: min(94vw, 720px);
+  width: min(94vw, 860px);
   max-height: calc(100vh - 32px);
 }
 

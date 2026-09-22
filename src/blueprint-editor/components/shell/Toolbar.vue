@@ -42,7 +42,12 @@ function isWiringIssue(issue: string): boolean {
 }
 
 const wiringIssues = computed(() =>
-  validateSettingsCompleteness(store.state.layout, store.assetMap(), store.state.layout.npcConfig).issues.filter(isWiringIssue),
+  validateSettingsCompleteness(
+    store.state.layout,
+    store.assetMap(),
+    store.state.layout.npcConfig,
+    store.managedTagSet.value,
+  ).issues.filter(isWiringIssue),
 )
 
 function onNpcManager() {
@@ -93,19 +98,6 @@ function onConfirmDeploy(spawnFloorId?: string) {
   npcSimulation.deploy(store.state.currentFloorId, spawnFloorId || undefined)
 }
 
-async function onSyncOrigins() {
-  try {
-    const refreshedCount = await run(async () => {
-      const count = await store.refreshOriginInstances()
-      npcSimulation.refresh()
-      return count
-    })
-    toast.success(`Origins refreshed${refreshedCount ? ` - ${refreshedCount} instances rebuilt` : ''}`)
-  } catch {
-    toast.error('Failed to refresh origins')
-  }
-}
-
 async function onCreateFirstFloor() {
   try {
     const floor = await run(() => store.addFloor())
@@ -152,36 +144,6 @@ onUnmounted(() => window.removeEventListener('keydown', onUndoKey))
 
 <template>
   <div class="editor__toolbar">
-    <button title="Settings" aria-label="Open settings" :disabled="previewActive" @click="showSettings = true">
-      <svg
-        width="16"
-        height="16"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="2"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-      >
-        <circle cx="12" cy="12" r="3" />
-        <path
-          d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"
-        />
-      </svg>
-      Settings
-    </button>
-
-    <button title="Keyboard shortcuts" aria-label="Keyboard shortcuts" @click="showShortcuts = true">?</button>
-
-    <button
-      title="Undo (Ctrl+Z)"
-      aria-label="Undo last change"
-      :disabled="!store.canUndo.value || previewActive"
-      @click="onUndo"
-    >
-      Undo
-    </button>
-
     <div class="form__row right--border">
       <span class="form__hint">Tools</span>
       <button
@@ -237,32 +199,17 @@ onUnmounted(() => window.removeEventListener('keydown', onUndoKey))
       </button>
     </div>
 
+    <button
+      title="Undo (Ctrl+Z)"
+      aria-label="Undo last change"
+      :disabled="!store.canUndo.value || previewActive"
+      @click="onUndo"
+    >
+      Undo
+    </button>
+
     <div class="form__row right--border">
       <span class="form__hint">Manage</span>
-      <button
-        title="Configure NPC roles and tags"
-        aria-label="Open NPC manager"
-        :disabled="previewActive"
-        @click="onNpcManager"
-      >
-        NPC Manager
-      </button>
-      <span
-        v-if="wiringIssues.length"
-        class="badge flag--warning"
-        role="status"
-        :title="wiringIssues.join('\n')"
-      >
-        {{ wiringIssues.length }} wiring
-      </span>
-      <button
-        :disabled="pending || previewActive"
-        title="Re-resolve every placed object from its origin asset and rebuild walkable layout"
-        aria-label="Refresh all placed objects from origins"
-        @click="onSyncOrigins"
-      >
-        Refresh Objects
-      </button>
       <button
         :disabled="previewActive"
         title="Manage floors: add, delete, reorder, role restrictions"
@@ -272,13 +219,16 @@ onUnmounted(() => window.removeEventListener('keydown', onUndoKey))
         Floor Manager
       </button>
       <button
+        title="Configure NPC roles and tags"
+        aria-label="Open NPC manager"
         :disabled="previewActive"
-        title="Export or import the workspace as a JSON file"
-        aria-label="Open workspace import and export"
-        @click="showWorkspace = true"
+        @click="onNpcManager"
       >
-        Workspace
+        NPC Manager
       </button>
+      <span v-if="wiringIssues.length" class="badge flag--warning" role="status" :title="wiringIssues.join('\n')">
+        {{ wiringIssues.length }} wiring
+      </span>
       <button
         v-if="isDev"
         :disabled="previewActive"
@@ -318,10 +268,35 @@ onUnmounted(() => window.removeEventListener('keydown', onUndoKey))
       </button>
     </div>
 
+    <button title="Settings" aria-label="Settings" :disabled="previewActive" @click="showSettings = true">
+      <svg
+        width="16"
+        height="16"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <circle cx="12" cy="12" r="3" />
+        <path
+          d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"
+        />
+      </svg>
+    </button>
+
+    <button title="Keyboard shortcuts" aria-label="Keyboard shortcuts" @click="showShortcuts = true">?</button>
+
     <ErrorBoundary>
       <NpcManagerModal :open="showNpcManager" @close="showNpcManager = false" @open-floor-manager="openFloorFromNpc" />
       <FloorModal :open="showFloorModal" @close="showFloorModal = false" />
-      <DeployNpcModal :open="showDeployModal" @close="showDeployModal = false" @deploy="onConfirmDeploy" @open-npc-manager="openNpcFromDeploy" />
+      <DeployNpcModal
+        :open="showDeployModal"
+        @close="showDeployModal = false"
+        @deploy="onConfirmDeploy"
+        @open-npc-manager="openNpcFromDeploy"
+      />
       <SettingsModal :open="showSettings" @close="showSettings = false" />
       <WorkspaceModal :open="showWorkspace" @close="showWorkspace = false" />
       <ShortcutsModal :open="showShortcuts" @close="showShortcuts = false" />

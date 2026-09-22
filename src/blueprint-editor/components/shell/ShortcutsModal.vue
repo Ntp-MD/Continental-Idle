@@ -19,12 +19,24 @@ const shortcuts: { keys: string; label: string }[] = [
 </script>
 
 <template>
-  <ModalShell :open="open" title="Keyboard Shortcuts" @close="emit('close')">
+  <ModalShell :open="open" modal-id="modal-shortcuts" title="Keyboard Shortcuts" @close="emit('close')">
     <div class="form__col">
       <div v-for="s in shortcuts" :key="s.keys" class="form__row">
         <span class="badge">{{ s.keys }}</span>
         <span class="form__hint">{{ s.label }}</span>
       </div>
     </div>
+    <template #footer>
+      <div class="form__row">
+        <button type="button" @click="emit('close')">Close</button>
+      </div>
+    </template>
   </ModalShell>
 </template>
+
+<style>
+#modal-shortcuts {
+  width: min(94vw, 420px);
+  max-height: calc(100vh - 32px);
+}
+</style>

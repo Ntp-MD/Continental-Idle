@@ -9,4 +9,29 @@
 	overflow-y: auto;
 	background: var(--bg-secondary);
 	padding: var(--gap-md);
+	position: relative;
+}
+
+.sidebar__resizer {
+	position: absolute;
+	top: 0;
+	bottom: 0;
+	width: 7px;
+	flex: none;
+	cursor: col-resize;
+	touch-action: none;
+	background: transparent;
+}
+
+.sidebar__resizer:hover,
+.sidebar__resizer:active {
+	background: color-mix(in srgb, var(--accent-primary) 45%, transparent);
+}
+
+.sidebar__resizer--left {
+	right: -4px;
+}
+
+.sidebar__resizer--right {
+	left: -4px;
 }

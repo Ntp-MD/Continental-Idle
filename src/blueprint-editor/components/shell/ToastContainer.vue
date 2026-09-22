@@ -71,6 +71,8 @@ const classMap: Record<string, string> = {
   width: 20px;
   height: 20px;
   border-radius: var(--radius-pill);
+  font-weight: 700;
+  color: currentColor;
 }
 
 .toast__msg {

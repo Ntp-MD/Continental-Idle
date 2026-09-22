@@ -1,6 +1,6 @@
 import type { AssetDef } from './assets'
 import type { Rotation } from './primitives'
-import { type TileState, normalizeTileStates, normalizeWalkableGrid } from './walkable'
+import { type TileState, normalizeTileStates, normalizeWalkableGrid, tileStatesToWalkableGrid } from './walkable'
 import { MAX_ASSET_DIMENSION, MAX_INTERACT_SPOTS, MAX_PIXEL_DIMENSION, isFiniteNumber, isRecord, normalizeTag } from './helpers'
 
 export type InteractSpotEdge = 'N' | 'S' | 'E' | 'W'
@@ -273,8 +273,11 @@ export function resolveObjectDef(
 	const walkable = asset?.walkable ?? false
 	const doorRequired = asset?.doorRequired ?? false
 	const rotSteps = Math.round(rotation / 90)
-	const walkableGrid = rotateGrid90(normalizeWalkableGrid(asset?.walkableGrid), rotSteps)
 	const tileStates = rotateGrid90(normalizeTileStates(asset?.tileStates), rotSteps)
+	const walkableGrid = rotateGrid90(
+		normalizeWalkableGrid(asset?.walkableGrid) ?? (tileStates ? tileStatesToWalkableGrid(tileStates) : undefined),
+		rotSteps,
+	)
 	const interactSpots = normalizeInteractSpots(asset?.interactSpots)
 	const sourceSize = size
 		? (rotSteps % 2 === 0 ? size : { w: size.h, h: size.w })

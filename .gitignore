@@ -24,6 +24,7 @@ coverage
 test-results/
 playwright-report/
 blob-report/
+tests/e2e/__screenshots__/
 
 # Zed theme backup (committed on purpose: fallback seed for other devices)
 # NOTE: personal machine config (agent_servers/model IDs) travels with this file.

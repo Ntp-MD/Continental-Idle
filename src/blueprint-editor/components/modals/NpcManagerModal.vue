@@ -144,7 +144,10 @@ function hslToHex(h: number, s: number, l: number): string {
   const k = (n: number) => (n + h / 30) % 12
   const a = s * Math.min(l, 1 - l)
   const f = (n: number) => l - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1)))
-  const to = (x: number) => Math.round(255 * x).toString(16).padStart(2, '0')
+  const to = (x: number) =>
+    Math.round(255 * x)
+      .toString(16)
+      .padStart(2, '0')
   return `#${to(f(0))}${to(f(8))}${to(f(4))}`
 }
 
@@ -208,10 +211,10 @@ async function updateRole() {
   queuePersist()
 }
 
-const floors = computed(() => store.state.layout.floors.map(floor => ({ id: floor.id, label: floor.label })))
+const floors = computed(() => store.state.layout.floors.map((floor) => ({ id: floor.id, label: floor.label })))
 
 function poolCountFor(roleId: string): number {
-  return draft.value.pool.find(entry => entry.roleId === roleId)?.count ?? 0
+  return draft.value.pool.find((entry) => entry.roleId === roleId)?.count ?? 0
 }
 
 const poolCounts = computed<Record<string, number>>(() => {
@@ -221,14 +224,14 @@ const poolCounts = computed<Record<string, number>>(() => {
 })
 
 function poolFloorIdsFor(roleId: string): string[] {
-  return draft.value.pool.find(entry => entry.roleId === roleId)?.floorIds ?? []
+  return draft.value.pool.find((entry) => entry.roleId === roleId)?.floorIds ?? []
 }
 
 async function setPoolCount(roleId: string, count: number) {
   const safe = clampInt(count || 0, 0, 100)
-  const entry = draft.value.pool.find(item => item.roleId === roleId)
+  const entry = draft.value.pool.find((item) => item.roleId === roleId)
   if (safe === 0) {
-    if (entry) draft.value.pool = draft.value.pool.filter(item => item.roleId !== roleId)
+    if (entry) draft.value.pool = draft.value.pool.filter((item) => item.roleId !== roleId)
   } else {
     if (entry) entry.count = safe
     else draft.value.pool.push({ roleId, count: safe })
@@ -237,7 +240,7 @@ async function setPoolCount(roleId: string, count: number) {
 }
 
 async function togglePoolFloor(roleId: string, floorId: string) {
-  const entry = draft.value.pool.find(item => item.roleId === roleId)
+  const entry = draft.value.pool.find((item) => item.roleId === roleId)
   if (!entry) return
   const current = new Set(entry.floorIds ?? [])
   if (current.has(floorId)) current.delete(floorId)
@@ -262,7 +265,7 @@ async function addSpawnTag(tag: string) {
 
 async function removeSpawnTag(tag: string) {
   if (!selectedRole.value?.spawnRule?.targetTags) return
-  selectedRole.value.spawnRule.targetTags = selectedRole.value.spawnRule.targetTags.filter(item => item !== tag)
+  selectedRole.value.spawnRule.targetTags = selectedRole.value.spawnRule.targetTags.filter((item) => item !== tag)
   queuePersist()
 }
 
@@ -310,7 +313,9 @@ const stationAssets = computed(() =>
     .map((asset) => ({
       id: asset.id,
       name: asset.name,
-      posts: [...new Set((asset.interactSpots ?? []).map((spot) => spot.post).filter((post): post is string => !!post))],
+      posts: [
+        ...new Set((asset.interactSpots ?? []).map((spot) => spot.post).filter((post): post is string => !!post)),
+      ],
     }))
     .sort((a, b) => a.name.localeCompare(b.name)),
 )
@@ -371,7 +376,7 @@ async function setTaskPostAsset(task: NpcTask, assetId: string) {
   if (!assetId.trim()) delete task.post
   else {
     const trimmed = assetId.trim()
-    const knownPosts = stationAssets.value.find(asset => asset.id === trimmed)?.posts ?? []
+    const knownPosts = stationAssets.value.find((asset) => asset.id === trimmed)?.posts ?? []
     const keptPost = task.post?.post && knownPosts.includes(task.post.post) ? { post: task.post.post } : {}
     task.post = { assetId: trimmed, ...keptPost }
   }
@@ -493,6 +498,14 @@ onUnmounted(() => {
     :status-tone="statusTone"
     @close="onClose"
   >
+    <div class="form__header">
+      <span class="size--stretch form__hint"
+        >Tags decide where a role goes; Tasks decide what it does there. Changes save automatically.</span
+      >
+      <span class="badge" :title="`${roles.length} roles, ${tags.length} tags, ${draft.tasks.length} tasks`"
+        >{{ roles.length }} / {{ tags.length }} / {{ draft.tasks.length }}</span
+      >
+    </div>
     <div class="tabs__bar">
       <button
         type="button"
@@ -513,8 +526,6 @@ onUnmounted(() => {
         Tags &amp; Tasks ({{ tags.length }} / {{ draft.tasks.length }})
       </button>
     </div>
-    <div class="form__hint">Tags decide where a role goes; Tasks decide what it does there. Changes save automatically.</div>
-
     <div v-if="view === 'roles'" class="form__row form--start form--wrap">
       <NpcRoleList
         :roles="roles"
@@ -582,7 +593,6 @@ onUnmounted(() => {
         role="tabpanel"
         aria-labelledby="npc-lib-tab--tags"
       >
-        <div>Tags</div>
         <SearchInput v-model="tagSearch" placeholder="Search tags..." label="Search tags" />
         <div class="form__row npc__add">
           <input
@@ -595,10 +605,17 @@ onUnmounted(() => {
           />
           <button type="button" class="flag--active" @click="addTag">Add</button>
         </div>
-        <ul v-if="filteredTags.length" class="form__col">
+        <ul v-if="filteredTags.length" class="form__row form--wrap">
           <li v-for="tag in filteredTags" :key="tag" class="card__item">
-            <span class="size--stretch truncate">{{ tag }}</span>
-            <button type="button" class="flag--danger" aria-label="Delete tag" @click="removeTag(tag)">x</button>
+            <span class="truncate">{{ tag }}</span>
+            <button
+              type="button"
+              class="card__item--remove flag--danger"
+              aria-label="Delete tag"
+              @click="removeTag(tag)"
+            >
+              x
+            </button>
           </li>
         </ul>
         <div v-else class="empty">No tags</div>
@@ -611,7 +628,7 @@ onUnmounted(() => {
         role="tabpanel"
         aria-labelledby="npc-lib-tab--tasks"
       >
-        <div>Tasks</div>
+        <button type="button" class="flag--active size--fill" :disabled="pending" @click="addTask">+ Add Task</button>
         <SearchInput v-model="libTaskFilter" placeholder="Search tasks..." label="Search tasks" />
         <ul v-if="filteredLibTasks.length" class="form__col">
           <li v-for="task in filteredLibTasks" :key="task.id">
@@ -629,10 +646,14 @@ onUnmounted(() => {
             />
           </li>
         </ul>
-        <div v-else class="empty">No tasks yet - click "+ Add Task"</div>
-        <button type="button" class="flag--active size--fill" :disabled="pending" @click="addTask">+ Add Task</button>
+        <div v-else class="empty">No tasks yet - click "+ Add Task" above</div>
       </section>
     </div>
+    <template #footer>
+      <div class="form__row">
+        <button type="button" @click="onClose">Close</button>
+      </div>
+    </template>
   </ModalShell>
 </template>
 <style>

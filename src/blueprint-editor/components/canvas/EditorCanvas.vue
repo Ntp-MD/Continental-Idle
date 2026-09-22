@@ -4,6 +4,7 @@ import { useAssetsStore, dragState, endAssetDrag } from '../../blueprintStore'
 import { svgColorVarStyle } from '../../assets/assetUtils'
 import { isGuestRoleId } from '../../assets/validation'
 import { svgTransform as svgTransformGeo, roundedRectPath, resolveBuildingArea } from '../../domain/geometry'
+import { unionRects } from '../../domain/collision'
 import { resolveStreetTiles, normalizeEditorSettings } from '../../domain/types'
 import { useConfirm } from '@/composables/useConfirm'
 import { useToast } from '@/composables/useToast'
@@ -368,6 +369,53 @@ const sel = useCanvasSelection({
   },
 })
 const { boxSelect, onCanvasMouseDown, onBoxSelectMouseMove, onBoxSelectMouseUp } = sel
+
+// Tile-snapped drag guide for draw/zone modes: uses the exact commit math of
+// onDrawComplete/onZoneComplete, and shows only when the drag would commit
+// (same w/h threshold as useCanvasSelection). Object marquee stays raw pixels.
+const tileGuideRect = computed(() => {
+  const mode = store.state.mode
+  if (mode !== 'draw' && mode !== 'zone') return null
+  const selBox = boxSelect.value
+  if (!selBox) return null
+  const threshold = Math.max(1, editorSettings.value.boxSelectThresholdPx / zoom.value)
+  if (!(selBox.w > threshold && selBox.h > threshold)) return null
+  const t = Math.max(1, Math.round(canvas.value.tileSize))
+  if (mode === 'zone') {
+    const x0 = Math.max(0, Math.floor(selBox.x / t) * t)
+    const y0 = Math.max(0, Math.floor(selBox.y / t) * t)
+    const x1 = Math.ceil((selBox.x + selBox.w) / t) * t
+    const y1 = Math.ceil((selBox.y + selBox.h) / t) * t
+    const w = Math.max(t, x1 - x0)
+    const h = Math.max(t, y1 - y0)
+    return { x: x0, y: y0, w, h, cols: Math.max(1, Math.round(w / t)), rows: Math.max(1, Math.round(h / t)) }
+  }
+  const cols = Math.max(1, Math.round(selBox.w / t))
+  const rows = Math.max(1, Math.round(selBox.h / t))
+  return { x: Math.round(selBox.x / t) * t, y: Math.round(selBox.y / t) * t, w: cols * t, h: rows * t, cols, rows }
+})
+
+// Landing guide while moving a selection: the selection's true bounds (linked
+// members included) at its live dragged position, snapped to the tile grid and
+// clamped to the building area - exactly what commitMove will accept.
+const moveGuideRect = computed(() => {
+  if (!moving.value || !_dragHasMoved) return null
+  const currentFloor = floor.value
+  if (!currentFloor) return null
+  const items = store.state.selectionState.items
+  const primaryId = items[0]?.type === 'object' ? items[0].id : moving.value.id
+  const anchor = currentFloor.objects.find((o) => o.id === primaryId)
+  if (!anchor || anchor.locked) return null
+  const members = items.length > 1
+    ? items
+        .map((i) => (i.type === 'object' ? currentFloor.objects.find((o) => o.id === i.id) : null))
+        .filter((o): o is NonNullable<typeof o> => !!o)
+    : [anchor, ...store.getLinkedObjects(anchor)]
+  const bounds = unionRects(members)
+  if (!bounds) return null
+  const snapped = store.clamp({ x: store.snap(bounds.x), y: store.snap(bounds.y), w: bounds.w, h: bounds.h })
+  return { x: snapped.x, y: snapped.y, w: bounds.w, h: bounds.h }
+})
 
 const tilePaint = useCanvasTilePaint({
   brush: () => store.state.tileBrush,
@@ -807,6 +855,10 @@ function objFillColor(obj: ObjectData, asset: AssetDef | undefined): string {
   return asset?.defaultFillColor ?? 'var(--text-primary)'
 }
 
+function objStrokeColor(obj: ObjectData, asset: AssetDef | undefined): string {
+  return obj.strokeColor ?? asset?.defaultStrokeColor ?? 'var(--text-primary)'
+}
+
 function objLabelColor(): string {
   return canvas.value.labelColor || 'var(--text-primary)'
 }
@@ -897,7 +949,13 @@ async function cancelDrawnOrigin() {
       <!-- Street border: sidewalk + road + lane markings (8 tiles on all sides) -->
       <g v-if="showStreet" class="editor__svg--noevents">
         <!-- Outer sidewalk (2 tiles, all sides) -->
-        <rect :x="0" :y="0" :width="canvas.width" :height="streetSidewalkWidth" :fill="canvas.streetSidewalkColor || 'var(--street-sidewalk)'" />
+        <rect
+          :x="0"
+          :y="0"
+          :width="canvas.width"
+          :height="streetSidewalkWidth"
+          :fill="canvas.streetSidewalkColor || 'var(--street-sidewalk)'"
+        />
         <rect
           :x="0"
           :y="canvas.height - streetSidewalkWidth"
@@ -905,7 +963,13 @@ async function cancelDrawnOrigin() {
           :height="streetSidewalkWidth"
           :fill="canvas.streetSidewalkColor || 'var(--street-sidewalk)'"
         />
-        <rect :x="0" :y="0" :width="streetSidewalkWidth" :height="canvas.height" :fill="canvas.streetSidewalkColor || 'var(--street-sidewalk)'" />
+        <rect
+          :x="0"
+          :y="0"
+          :width="streetSidewalkWidth"
+          :height="canvas.height"
+          :fill="canvas.streetSidewalkColor || 'var(--street-sidewalk)'"
+        />
         <rect
           :x="canvas.width - streetSidewalkWidth"
           :y="0"
@@ -1294,7 +1358,7 @@ async function cancelDrawnOrigin() {
                 'editor__object--linked': !!obj.linkGroupId,
                 'editor__object--locked': obj.locked,
               }"
-              stroke="var(--text-primary)"
+              :stroke="objStrokeColor(obj, objAssetMap.get(obj.id))"
               :style="{ cursor: moving?.id === obj.id ? 'grabbing' : 'move' }"
             />
             <rect
@@ -1309,10 +1373,9 @@ async function cancelDrawnOrigin() {
               :class="{
                 'editor__object--collapsed': obj.collapsed,
                 'editor__object--dragging': moving?.id === obj.id,
-                'editor__object--linked': !!obj.linkGroupId,
                 'editor__object--locked': obj.locked,
               }"
-              stroke="var(--text-primary)"
+              :stroke="objStrokeColor(obj, objAssetMap.get(obj.id))"
               :style="{ cursor: moving?.id === obj.id ? 'grabbing' : 'move' }"
             />
             <rect
@@ -1423,11 +1486,7 @@ async function cancelDrawnOrigin() {
           </g>
         </template>
 
-        <g
-          v-if="renderSpawnZones"
-          v-memo="[floor?.spawnZones, renderSpawnZones]"
-          class="editor__svg--noevents"
-        >
+        <g v-if="renderSpawnZones" v-memo="[floor?.spawnZones, renderSpawnZones]" class="editor__svg--noevents">
           <g v-for="zone in floor?.spawnZones ?? []" :key="`spawn-zone-${zone.id}`">
             <rect
               :x="zone.x"
@@ -1439,17 +1498,70 @@ async function cancelDrawnOrigin() {
               stroke-width="1"
               stroke-dasharray="5 3"
             />
-            <text v-if="showLabels" :x="zone.x + 4" :y="zone.y + 10" :font-size="zoneLabelFontSize" fill="var(--accent-green)">
+            <text
+              v-if="showLabels"
+              :x="zone.x + 4"
+              :y="zone.y + 10"
+              :font-size="zoneLabelFontSize"
+              fill="var(--accent-green)"
+            >
               {{ zone.label }}
             </text>
           </g>
         </g>
       </g>
 
+      <g v-if="moveGuideRect" class="editor__svg--noevents">
+        <rect
+          :x="moveGuideRect.x"
+          :y="moveGuideRect.y"
+          :width="moveGuideRect.w"
+          :height="moveGuideRect.h"
+          fill="color-mix(in srgb, var(--accent-green) 15%, transparent)"
+          stroke="var(--accent-green)"
+          stroke-width="1.5"
+          stroke-dasharray="4 3"
+        />
+      </g>
+
+      <g v-if="moveGuideRect" class="editor__svg--noevents">
+        <rect
+          :x="moveGuideRect.x"
+          :y="moveGuideRect.y"
+          :width="moveGuideRect.w"
+          :height="moveGuideRect.h"
+          fill="color-mix(in srgb, var(--accent-green) 15%, transparent)"
+          stroke="var(--accent-green)"
+          stroke-width="1.5"
+          stroke-dasharray="4 3"
+        />
+      </g>
+
       <rect :width="canvas.width" :height="canvas.height" fill="none" stroke="var(--border-dim)" stroke-width="2" />
 
+      <g v-if="tileGuideRect" class="editor__svg--noevents">
+        <rect
+          :x="tileGuideRect.x"
+          :y="tileGuideRect.y"
+          :width="tileGuideRect.w"
+          :height="tileGuideRect.h"
+          fill="color-mix(in srgb, var(--accent-primary) 15%, transparent)"
+          stroke="var(--accent-primary)"
+          stroke-width="1.5"
+          stroke-dasharray="4 3"
+        />
+        <text
+          :x="tileGuideRect.x + 4"
+          :y="tileGuideRect.y + 12"
+          :font-size="zoneLabelFontSize"
+          fill="var(--accent-primary)"
+        >
+          {{ tileGuideRect.cols }} x {{ tileGuideRect.rows }}
+        </text>
+      </g>
+
       <rect
-        v-if="boxSelect && boxSelect.w > 4"
+        v-else-if="boxSelect && boxSelect.w > 4"
         :x="boxSelect.x"
         :y="boxSelect.y"
         :width="boxSelect.w"
@@ -1536,13 +1648,13 @@ async function cancelDrawnOrigin() {
         <span class="editor__zoom" aria-label="Zoom level">{{ zoomPercent }}%</span>
         <button title="Zoom In (+)" aria-label="Zoom in" @click="zoomBy(1.25)">+</button>
         <button title="Fit to Screen (Ctrl+0)" aria-label="Fit to screen" @click="fitToScreen">Fit</button>
-        <button title="Center View" aria-label="Center view" @click="centerView">Center</button>
+        <button title="Center view at default zoom" aria-label="Center view" @click="centerView">Center</button>
       </div>
       <div class="form__row">
         <span class="form__hint">View</span>
         <button
           :class="{ 'flag--active': showGrid }"
-          title="Toggle Grid"
+          title="Toggle grid"
           aria-label="Toggle grid"
           @click="toggleView('showGrid')"
         >
@@ -1550,7 +1662,7 @@ async function cancelDrawnOrigin() {
         </button>
         <button
           :class="{ 'flag--active': showLabels }"
-          title="Toggle Labels"
+          title="Toggle labels"
           aria-label="Toggle labels"
           @click="toggleView('showLabels')"
         >
@@ -1558,7 +1670,7 @@ async function cancelDrawnOrigin() {
         </button>
         <button
           :class="{ 'flag--active': showWalkableOverlay }"
-          title="Toggle Walkable"
+          title="Toggle walkable overlay"
           aria-label="Toggle walkable view"
           @click="toggleView('showWalkableOverlay')"
         >
@@ -1566,7 +1678,7 @@ async function cancelDrawnOrigin() {
         </button>
         <button
           :class="{ 'flag--active': showWallTiles }"
-          title="Toggle Wall Tiles"
+          title="Toggle wall tiles"
           aria-label="Toggle wall tiles"
           @click="toggleView('showWallTiles')"
         >
@@ -1574,7 +1686,7 @@ async function cancelDrawnOrigin() {
         </button>
         <button
           :class="{ 'flag--active': showDoorTiles }"
-          title="Toggle Door Tiles"
+          title="Toggle door tiles"
           aria-label="Toggle door tiles"
           @click="toggleView('showDoorTiles')"
         >
@@ -1582,7 +1694,7 @@ async function cancelDrawnOrigin() {
         </button>
         <button
           :class="{ 'flag--active': showInteractSpots }"
-          title="Toggle Interact Spots"
+          title="Toggle interact spots"
           aria-label="Toggle interact spots"
           @click="toggleView('showInteractSpots')"
         >
@@ -1606,7 +1718,7 @@ async function cancelDrawnOrigin() {
         </button>
         <button
           :class="{ 'flag--active': showNpcGuides }"
-          title="Toggle NPC path guides (only in NPC Preview)"
+          title="Toggle NPC path guides (only in NPC preview)"
           aria-label="Toggle NPC path guides"
           @click="toggleView('showNpcGuides')"
         >
@@ -1614,7 +1726,7 @@ async function cancelDrawnOrigin() {
         </button>
         <button
           :class="{ 'flag--active': showSpawnZones }"
-          title="Toggle Spawn Zones"
+          title="Toggle spawn zones"
           aria-label="Toggle spawn zones"
           @click="toggleView('showSpawnZones')"
         >
@@ -1638,8 +1750,8 @@ async function cancelDrawnOrigin() {
         }"
       />
       <span class="form__hint" role="status"
-        >{{ (draftObject?.w ?? 0) / canvas.tileSize }} x {{ (draftObject?.h ?? 0) / canvas.tileSize }} tiles -
-        saved as a reusable asset</span
+        >{{ (draftObject?.w ?? 0) / canvas.tileSize }} x {{ (draftObject?.h ?? 0) / canvas.tileSize }} tiles - saved as
+        a reusable asset</span
       >
       <label class="form__row">
         <span>Name</span>

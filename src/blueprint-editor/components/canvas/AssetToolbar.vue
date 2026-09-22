@@ -6,6 +6,7 @@ import { useConfirm } from '@/composables/useConfirm'
 import { useAsyncAction } from '../../composables/useAsyncAction'
 import { assetSizeLabel, assetOriginLabel as originLabel, placedCountTitle } from '../../assets/assetUtils'
 import { useAssetListState } from '../../composables/useAssetListState'
+import { usePanelResize } from '../../composables/usePanelResize'
 import SearchInput from '../inputs/SearchInput.vue'
 import ErrorBoundary from '@/components/overlays/ErrorBoundary.vue'
 const AssetPickerModal = defineAsyncComponent(() => import('../modals/AssetPickerModal.vue'))
@@ -18,6 +19,8 @@ const { pending, run } = useAsyncAction()
 
 const showPicker = ref(false)
 const showImportSvg = ref(false)
+
+const { panelStyle, onResizeStart, onResizeKey, resetPanelWidth } = usePanelResize('left')
 
 const { searchQuery, incompleteMap, incompleteTitle, placedCounts, placedObjectCount, filteredAssets } =
   useAssetListState()
@@ -56,25 +59,36 @@ function onAssetMouseDown(assetId: string, e: MouseEvent) {
 function onItemClick(assetId: string) {
   store.selectAsset(assetId)
 }
+
+function registryIndex(assetId: string): number {
+  return store.state.assetRegistry.findIndex((a) => a.id === assetId)
+}
+
+async function moveAsset(assetId: string, delta: -1 | 1) {
+  const index = registryIndex(assetId)
+  if (index < 0) return
+  await store.reorderAssets(index, index + delta)
+}
 </script>
 
 <template>
-  <div class="sidebar__panel">
+  <div class="sidebar__panel" :style="panelStyle">
+    <div
+      class="sidebar__resizer sidebar__resizer--left"
+      role="separator"
+      aria-orientation="vertical"
+      aria-label="Resize assets panel"
+      title="Drag to resize (double-click to reset)"
+      tabindex="0"
+      @mousedown="onResizeStart"
+      @keydown="onResizeKey"
+      @dblclick="resetPanelWidth"
+    />
     <div class="form__header">Origin Asset</div>
     <div class="form__col">
       <SearchInput v-model="searchQuery" placeholder="Search assets..." label="Search assets">
-        <button
-          title="Browse assets in a grid"
-          aria-label="Browse assets"
-          @click="showPicker = true"
-        >
-          Browse
-        </button>
-        <button
-          title="Create an asset from SVG markup"
-          aria-label="Import SVG asset"
-          @click="showImportSvg = true"
-        >
+        <button title="Browse assets in a grid" aria-label="Browse assets" @click="showPicker = true">Browse</button>
+        <button title="Create an asset from SVG markup" aria-label="Import SVG asset" @click="showImportSvg = true">
           Import SVG
         </button>
       </SearchInput>
@@ -126,11 +140,35 @@ function onItemClick(assetId: string) {
         <span v-if="incompleteMap.get(asset.id)?.length" class="badge flag--warning" title="Incomplete settings"
           >!</span
         >
-        <span
-          class="badge"
-          :title="placedCountTitle(placedObjectCount(asset.id))"
-          >{{ placedObjectCount(asset.id) }}</span
+        <span class="badge" :title="placedCountTitle(placedObjectCount(asset.id))">{{
+          placedObjectCount(asset.id)
+        }}</span>
+        <button
+          type="button"
+          title="Move asset up"
+          :aria-label="`Move ${asset.name} up`"
+          :disabled="registryIndex(asset.id) <= 0 || searchQuery.trim() !== ''"
+          @mousedown.stop
+          @click.stop="moveAsset(asset.id, -1)"
+          @keydown.stop
         >
+          ↑
+        </button>
+        <button
+          type="button"
+          title="Move asset down"
+          :aria-label="`Move ${asset.name} down`"
+          :disabled="
+            registryIndex(asset.id) < 0 ||
+            registryIndex(asset.id) >= store.state.assetRegistry.length - 1 ||
+            searchQuery.trim() !== ''
+          "
+          @mousedown.stop
+          @click.stop="moveAsset(asset.id, 1)"
+          @keydown.stop
+        >
+          ↓
+        </button>
       </div>
     </div>
     <ErrorBoundary>

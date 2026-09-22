@@ -95,48 +95,61 @@ async function submit() {
     :status-tone="statusTone"
     @close="emit('close')"
   >
+    <div class="form__header">
+      <span class="size--stretch form__hint">Paste markup with a viewBox so the tile size can be read.</span>
+      <span class="badge" :title="`Tile size ${svgW} by ${svgH}`">{{ svgW }}x{{ svgH }}</span>
+    </div>
     <div class="form__col">
-      <div class="form__row">
-        <label for="importsvg__name">Asset name</label>
-        <input
-          id="importsvg__name"
-          v-model="svgName"
-          class="size--fill"
-          placeholder="Asset name"
-          aria-label="SVG asset name"
-        />
+      <div class="card form__col">
+        <label for="importsvg__content">SVG content</label>
+        <textarea
+          id="importsvg__content"
+          v-model="svgContent"
+          placeholder="Paste SVG here (must include viewBox)..."
+          rows="8"
+          aria-label="SVG content"
+        ></textarea>
+        <div class="form__hint">Each side caps at {{ MAX_ASSET_TILES }} tiles.</div>
       </div>
-      <div class="form__row">
-        <input
-          class="size--fit"
-          type="number"
-          min="1"
-          :max="MAX_ASSET_TILES"
-          :value="svgW"
-          readonly
-          placeholder="W (auto)"
-          aria-label="SVG width in tiles, read from the viewBox"
-        />
-        <span aria-hidden="true">x</span>
-        <input
-          class="size--fit"
-          type="number"
-          min="1"
-          :max="MAX_ASSET_TILES"
-          :value="svgH"
-          readonly
-          placeholder="H (auto)"
-          aria-label="SVG height in tiles, read from the viewBox"
-        />
+      <div class="form__row form--start form--wrap">
+        <div class="form__col">
+          <label for="importsvg__name">Asset name</label>
+          <input
+            id="importsvg__name"
+            v-model="svgName"
+            class="size--fill"
+            placeholder="Asset name"
+            aria-label="SVG asset name"
+          />
+        </div>
+        <div class="form__col">
+          <label>Size in tiles (auto)</label>
+          <div class="form__row">
+            <input
+              class="size--fit"
+              type="number"
+              min="1"
+              :max="MAX_ASSET_TILES"
+              :value="svgW"
+              readonly
+              placeholder="W (auto)"
+              aria-label="SVG width in tiles, read from the viewBox"
+            />
+            <span aria-hidden="true">x</span>
+            <input
+              class="size--fit"
+              type="number"
+              min="1"
+              :max="MAX_ASSET_TILES"
+              :value="svgH"
+              readonly
+              placeholder="H (auto)"
+              aria-label="SVG height in tiles, read from the viewBox"
+            />
+          </div>
+          <div class="form__hint">Read from the viewBox - each side caps at {{ MAX_ASSET_TILES }} tiles.</div>
+        </div>
       </div>
-      <div class="form__hint">Size is read from the SVG viewBox - each side caps at {{ MAX_ASSET_TILES }} tiles.</div>
-      <textarea
-        v-model="svgContent"
-        placeholder="Paste SVG here (must include viewBox)..."
-        rows="6"
-        aria-label="SVG content"
-      ></textarea>
-      <div class="form__hint">Paste markup with a viewBox so the tile size can be read.</div>
     </div>
     <template #footer>
       <button type="button" @click="emit('close')">Cancel</button>
@@ -147,7 +160,15 @@ async function submit() {
 
 <style>
 #modal-import-svg {
-  width: min(94vw, 480px);
+  width: min(94vw, 520px);
   max-height: calc(100vh - 32px);
+}
+
+#modal-import-svg .form__row.form--start > .form__col:first-child {
+  flex: 2 1 240px;
+}
+
+#modal-import-svg .form__row.form--start > .form__col:last-child {
+  flex: 1 1 160px;
 }
 </style>

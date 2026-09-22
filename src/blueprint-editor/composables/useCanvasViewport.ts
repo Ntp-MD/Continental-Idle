@@ -64,6 +64,7 @@ export function useCanvasViewport(
 	}
 
 	function centerView() {
+		zoom.value = 1
 		panX.value = 0
 		panY.value = 0
 	}

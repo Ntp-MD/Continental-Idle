@@ -50,9 +50,9 @@ const activeTab = ref<DetailTab>('basics')
 
 const tabs: { key: DetailTab; label: string }[] = [
   { key: 'basics', label: 'Basics' },
-  { key: 'tags', label: 'Tags' },
-  { key: 'tasks', label: 'Tasks' },
   { key: 'spawn', label: 'Spawn' },
+  { key: 'tasks', label: 'Tasks' },
+  { key: 'tags', label: 'Tags' },
   { key: 'rates', label: 'Rates' },
 ]
 
@@ -128,7 +128,10 @@ function submitSpawnTag() {
 }
 
 function parseSkinTones(raw: string): string[] | undefined {
-  const tones = raw.split(',').map((tone) => tone.trim()).filter(Boolean)
+  const tones = raw
+    .split(',')
+    .map((tone) => tone.trim())
+    .filter(Boolean)
   return tones.length ? tones : undefined
 }
 
@@ -139,16 +142,9 @@ function commitHat(value: string) {
 
 <template>
   <section class="form__col npc__detail">
-    <div class="form__row">
-      <h3 class="size--stretch">Editing: {{ role.label }}</h3>
-      <button
-        type="button"
-        class="flag--danger"
-        :title="isDefault ? 'Delete this role - another role will become Default' : 'Delete this role'"
-        @click="emit('remove')"
-      >
-        Delete
-      </button>
+    <div class="form__header">
+      <h3 class="size--stretch truncate">Editing: {{ role.label }}</h3>
+      <span v-if="isDefault" class="badge flag--success">Default</span>
     </div>
     <div class="tabs__bar" role="tablist" aria-label="Role detail sections">
       <button
@@ -181,6 +177,7 @@ function commitHat(value: string) {
             :id="`npc-role-label-${role.id}`"
             :value="role.label"
             type="text"
+            class="size--stretch"
             @change="emit('rename', ($event.target as HTMLInputElement).value)"
           />
         </div>
@@ -199,18 +196,22 @@ function commitHat(value: string) {
             :id="`npc-role-skin-${role.id}`"
             :value="role.appearance?.skinTones?.join(', ') ?? ''"
             type="text"
-            placeholder="#e7c19b, #c08a5c (empty = random)"
-            @change="emit('commit-appearance', { skinTones: parseSkinTones(($event.target as HTMLInputElement).value) })"
+            class="size--stretch"
+            placeholder="#e7c19b, #c08a5c"
+            @change="
+              emit('commit-appearance', { skinTones: parseSkinTones(($event.target as HTMLInputElement).value) })
+            "
           />
         </div>
         <div class="form__row">
           <label :for="`npc-role-trousers-${role.id}`">Trousers</label>
           <ColorInput
             :model-value="role.appearance?.trousers ?? ''"
-            placeholder="#RRGGBB (empty = default)"
+            placeholder="#RRGGBB"
             aria-label="Role trousers color"
             @commit="emit('commit-appearance', { trousers: $event })"
           />
+          <span class="form__hint">Empty = default</span>
         </div>
         <div class="form__row">
           <label :for="`npc-role-hat-${role.id}`">Hat</label>
@@ -228,12 +229,13 @@ function commitHat(value: string) {
           <label :for="`npc-role-hatcolor-${role.id}`">Hat Color</label>
           <ColorInput
             :model-value="role.appearance?.hatColor ?? ''"
-            placeholder="#RRGGBB (empty = trousers color)"
+            placeholder="#RRGGBB"
             aria-label="Role hat color"
             @commit="emit('commit-appearance', { hatColor: $event })"
           />
+          <span class="form__hint">Empty = trousers color</span>
         </div>
-        <div class="form__row">
+        <div class="form__row form--wrap">
           <label :for="`npc-role-chance-${role.id}`">Focus Chance</label>
           <input
             :id="`npc-role-chance-${role.id}`"
@@ -246,7 +248,9 @@ function commitHat(value: string) {
             @change="emit('chance', +($event.target as HTMLInputElement).value)"
           />
           <span class="form__hint">{{ role.focusChance }}%</span>
-          <span :id="`npc-role-chance-hint-${role.id}`" class="form__hint">Per-tag trigger rates (Rates tab) override this chance</span>
+          <span :id="`npc-role-chance-hint-${role.id}`" class="form__hint"
+            >Per-tag trigger rates (Rates tab) override this chance</span
+          >
         </div>
       </div>
 
@@ -257,74 +261,62 @@ function commitHat(value: string) {
         aria-labelledby="npc-role-tab--tags"
         class="form__row form--start form--wrap"
       >
-      <div class="form__col form--section">
-        <h4>Focus Tags</h4>
-        <p class="npc__hint">Where this NPC prefers to go. Empty = wanders anywhere.</p>
-        <ul v-if="role.focusTags.length" class="form__row form--wrap">
-          <li v-for="tag in role.focusTags" :key="`focus-${tag}`">
-            <TagChip
-              :label="tag"
-              variant="focus"
-              removable
-              :class="{ 'flag--warning': !managedTagSet.has(tag) }"
-              @remove="emit('remove-tag', 'focus', tag)"
-            />
-          </li>
-        </ul>
-        <span v-else class="empty">None - NPC wanders</span>
-        <div class="form__row">
-          <input v-model="newFocusTag" type="text" placeholder="tag name" @keydown.enter="submitRoleTag('focus')" />
-          <button type="button" @click="submitRoleTag('focus')">Add</button>
+        <div class="form__col form--section">
+          <h4>Focus Tags</h4>
+          <p class="npc__hint">Where this NPC prefers to go. Empty = wanders anywhere.</p>
+          <ul v-if="role.focusTags.length" class="form__row form--wrap">
+            <li v-for="tag in role.focusTags" :key="`focus-${tag}`">
+              <TagChip
+                :label="tag"
+                variant="focus"
+                removable
+                :class="{ 'flag--warning': !managedTagSet.has(tag) }"
+                @remove="emit('remove-tag', 'focus', tag)"
+              />
+            </li>
+          </ul>
+          <span v-else class="empty">None - NPC wanders</span>
+          <div class="form__row">
+            <input v-model="newFocusTag" type="text" placeholder="tag name" @keydown.enter="submitRoleTag('focus')" />
+            <button type="button" @click="submitRoleTag('focus')">Add</button>
+          </div>
+          <ul v-if="availableFocusTags.length" class="form__row form--wrap">
+            <li v-for="tag in availableFocusTags.slice(0, 8)" :key="`fsug-${tag}`">
+              <button type="button" class="card__item" @click="emit('add-tag', 'focus', tag)">+ {{ tag }}</button>
+            </li>
+          </ul>
         </div>
-        <ul v-if="availableFocusTags.length" class="form__row form--wrap">
-          <li v-for="tag in availableFocusTags.slice(0, 8)" :key="`fsug-${tag}`">
-            <button
-              type="button"
-              class="card__item"
-              @click="emit('add-tag', 'focus', tag)"
-            >
-              + {{ tag }}
-            </button>
-          </li>
-        </ul>
-      </div>
 
-      <div class="form__col form--section">
-        <h4>Restricted Tags</h4>
-        <p class="npc__hint">Places this NPC avoids.</p>
-        <ul v-if="role.restrictedTags.length" class="form__row form--wrap">
-          <li v-for="tag in role.restrictedTags" :key="`restricted-${tag}`">
-            <TagChip
-              :label="tag"
-              variant="restricted"
-              removable
-              :class="{ 'flag--warning': !managedTagSet.has(tag) }"
-              @remove="emit('remove-tag', 'restricted', tag)"
+        <div class="form__col form--section">
+          <h4>Restricted Tags</h4>
+          <p class="npc__hint">Places this NPC avoids.</p>
+          <ul v-if="role.restrictedTags.length" class="form__row form--wrap">
+            <li v-for="tag in role.restrictedTags" :key="`restricted-${tag}`">
+              <TagChip
+                :label="tag"
+                variant="restricted"
+                removable
+                :class="{ 'flag--warning': !managedTagSet.has(tag) }"
+                @remove="emit('remove-tag', 'restricted', tag)"
+              />
+            </li>
+          </ul>
+          <span v-else class="empty">No restrictions</span>
+          <div class="form__row">
+            <input
+              v-model="newRestrictedTag"
+              type="text"
+              placeholder="tag name"
+              @keydown.enter="submitRoleTag('restricted')"
             />
-          </li>
-        </ul>
-        <span v-else class="empty">No restrictions</span>
-        <div class="form__row">
-          <input
-            v-model="newRestrictedTag"
-            type="text"
-            placeholder="tag name"
-            @keydown.enter="submitRoleTag('restricted')"
-          />
-          <button type="button" @click="submitRoleTag('restricted')">Add</button>
+            <button type="button" @click="submitRoleTag('restricted')">Add</button>
+          </div>
+          <ul v-if="availableRestrictedTags.length" class="form__row form--wrap">
+            <li v-for="tag in availableRestrictedTags.slice(0, 8)" :key="`rsug-${tag}`">
+              <button type="button" class="card__item" @click="emit('add-tag', 'restricted', tag)">+ {{ tag }}</button>
+            </li>
+          </ul>
         </div>
-        <ul v-if="availableRestrictedTags.length" class="form__row form--wrap">
-          <li v-for="tag in availableRestrictedTags.slice(0, 8)" :key="`rsug-${tag}`">
-            <button
-              type="button"
-              class="card__item"
-              @click="emit('add-tag', 'restricted', tag)"
-            >
-              + {{ tag }}
-            </button>
-          </li>
-        </ul>
-      </div>
       </div>
 
       <div
@@ -365,13 +357,7 @@ function commitHat(value: string) {
         <h4>Spawn</h4>
         <div class="form__row">
           <label :for="`npc-role-count-${role.id}`">Count</label>
-          <button
-            type="button"
-            aria-label="Decrease count"
-            @click="emit('set-count', poolCount - 1)"
-          >
-            -
-          </button>
+          <button type="button" aria-label="Decrease count" @click="emit('set-count', poolCount - 1)">-</button>
           <input
             :id="`npc-role-count-${role.id}`"
             :value="poolCount"
@@ -381,22 +367,13 @@ function commitHat(value: string) {
             :aria-label="`Count for ${role.label}`"
             @change="emit('set-count', +($event.target as HTMLInputElement).value)"
           />
-          <button
-            type="button"
-            aria-label="Increase count"
-            @click="emit('set-count', poolCount + 1)"
-          >
-            +
-          </button>
+          <button type="button" aria-label="Increase count" @click="emit('set-count', poolCount + 1)">+</button>
         </div>
         <template v-if="poolCount > 0">
           <div>Spawn Floors</div>
           <ul class="form__row form--wrap">
             <li v-for="floor in floors" :key="`spawn-floor-${role.id}-${floor.id}`">
-              <label
-                class="card__item"
-                :class="{ 'flag--active': poolFloorIds.includes(floor.id) }"
-              >
+              <label class="card__item" :class="{ 'flag--active': poolFloorIds.includes(floor.id) }">
                 <input
                   type="checkbox"
                   :checked="poolFloorIds.includes(floor.id)"
@@ -453,21 +430,17 @@ function commitHat(value: string) {
           <span class="form__hint">{{ roleRateCount }} configured for this role / {{ configuredRateCount }} total</span>
         </div>
         <div class="form__row">
-          <SearchInput
-            v-model="rateSearch"
-            class="npc__search"
-            placeholder="Search tags..."
-            label="Search rate tags"
-          />
+          <SearchInput v-model="rateSearch" class="npc__search" placeholder="Search tags..." label="Search rate tags" />
           <label class="form__row"><input v-model="rateScopeAll" type="checkbox" /> All tags</label>
         </div>
-        <label v-for="tag in rateRows" :key="`rate-${tag}`" class="form__row">
+        <label v-for="tag in rateRows" :key="`rate-${tag}`" class="form__row form--wrap">
           <span class="size--stretch truncate">{{ tag }}</span>
           <input
             type="number"
             min="0"
             max="100"
             step="1"
+            class="size--fit"
             :value="triggerRates?.[tag] ?? 0"
             :aria-label="`Trigger rate for ${tag}`"
             @change="emit('set-rate', tag, +($event.target as HTMLInputElement).value)"
@@ -476,6 +449,17 @@ function commitHat(value: string) {
         </label>
         <div v-if="!rateRows.length" class="empty">No tags match</div>
       </div>
+    </div>
+    <div class="form__row form__row--border">
+      <span class="size--stretch form__hint">Delete removes this role, its deploy count and behavior settings.</span>
+      <button
+        type="button"
+        class="flag--danger"
+        :title="isDefault ? 'Delete this role - another role will become Default' : 'Delete this role'"
+        @click="emit('remove')"
+      >
+        Delete
+      </button>
     </div>
   </section>
 </template>
@@ -487,7 +471,7 @@ function commitHat(value: string) {
 }
 
 .npc__scroll {
-  max-height: 200px;
+  max-height: 340px;
   overflow-y: auto;
   padding-right: var(--gap-xs);
 }
@@ -505,5 +489,4 @@ function commitHat(value: string) {
   flex: 1;
   min-width: 0;
 }
-
 </style>

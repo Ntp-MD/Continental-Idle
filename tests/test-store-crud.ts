@@ -610,15 +610,78 @@ async function main(): Promise<void> {
 		assert.equal(await store.duplicateAsset('asset-ghost'), null, 'unknown asset rejected')
 	})
 
-	await check('refreshOriginInstances() re-derives drifted object sizes', async () => {
+	await check('updateAsset() re-derives drifted object sizes on any edit', async () => {
 		restore(baseline)
 		installTestAsset()
 		const floor = state.layout.floors[0]
 		floor.objects = [makeObject('ref-a', 100, 100, { w: 0, h: 0 })]
-		const refreshed = await store.refreshOriginInstances()
-		assert.ok(refreshed > 0, 'drifted instance refreshed')
+		await store.updateAsset('grill-asset', { name: 'Grill v2' })
 		const expected = assetSizeFor('grill-asset', 0, state.layout.canvas.tileSize, new Map(state.assetRegistry.map(a => [a.id, a])))
 		assert.deepEqual([floor.objects[0].w, floor.objects[0].h], [expected!.w, expected!.h], 'size restored from the live asset')
+	})
+
+	await check('updateAsset() keeps explicit per-instance locks when the origin default changes', async () => {
+		restore(baseline)
+		installTestAsset()
+		const floor = state.layout.floors[0]
+		state.currentFloorId = floor.id
+		floor.objects = [makeObject('lock-inherit', 100, 100), makeObject('lock-explicit', 300, 300)]
+		await store.toggleObjectLock('lock-explicit')
+		assert.equal(floor.objects[1].locked, true, 'explicit lock set on the instance')
+		await store.updateAsset('grill-asset', { defaultLocked: false })
+		assert.equal(floor.objects[0].locked, false, 'inheriting instance follows the new default')
+		assert.equal(floor.objects[1].locked, true, 'explicitly locked instance survives the origin edit')
+		await store.updateAsset('grill-asset', { defaultLocked: true })
+		assert.equal(floor.objects[0].locked, true, 'inheriting instance follows the default back')
+		assert.equal(floor.objects[1].locked, true, 'explicit lock still intact')
+	})
+
+	await check('updateAsset() preserves per-instance color overrides', async () => {
+		restore(baseline)
+		installTestAsset()
+		const floor = state.layout.floors[0]
+		floor.objects = [makeObject('col-a', 100, 100, { fillColor: '#112233', strokeColor: '#445566' })]
+		await store.updateAsset('grill-asset', { name: 'Grill v2' })
+		assert.equal(floor.objects[0].fillColor, '#112233', 'fill override survives the origin edit')
+		assert.equal(floor.objects[0].strokeColor, '#445566', 'stroke override survives the origin edit')
+	})
+
+	await check('updateAsset() re-resolves every placed instance on any edit', async () => {
+		restore(baseline)
+		const asset = installTestAsset()
+		asset.defaultLabel = 'Grill Label'
+		asset.defaultRadius = 5
+		const floor = state.layout.floors[0]
+		state.currentFloorId = floor.id
+		floor.objects = [makeObject('heal-a', 100, 100, { locked: true, fillColor: '#112233' })]
+		const obj = floor.objects[0]
+		obj.label = 'Stale'
+		obj.radius = 999
+		await store.updateAsset('grill-asset', { name: 'Grill v2' })
+		assert.equal(asset.name, 'Grill v2', 'unrelated edit applied to the origin')
+		assert.equal(obj.label, 'Grill Label', 'drifted label healed despite the unrelated patch')
+		assert.equal(obj.radius, 5, 'drifted radius healed despite the unrelated patch')
+		assert.equal(obj.locked, true, 'explicit lock preserved')
+		assert.equal(obj.fillColor, '#112233', 'fill override preserved')
+	})
+
+	await check('reorderAssets() moves palette entries and rejects out-of-range moves', async () => {
+		restore(baseline)
+		const base = state.assetRegistry.length
+		state.assetRegistry.push(
+			{ id: 'ra-1', name: 'One', w: 1, h: 1 },
+			{ id: 'ra-2', name: 'Two', w: 1, h: 1 },
+			{ id: 'ra-3', name: 'Three', w: 1, h: 1 },
+		)
+		const ids = () => state.assetRegistry.slice(base).map(a => a.id)
+		assert.equal(await store.reorderAssets(base, base + 2), true)
+		assert.deepEqual(ids(), ['ra-2', 'ra-3', 'ra-1'], 'first entry moved to the end')
+		assert.equal(await store.reorderAssets(base + 2, base), true)
+		assert.deepEqual(ids(), ['ra-1', 'ra-2', 'ra-3'], 'last entry moved back to the front')
+		assert.equal(await store.reorderAssets(base, base), false, 'no-op move rejected')
+		assert.equal(await store.reorderAssets(-1, base), false, 'negative index rejected')
+		assert.equal(await store.reorderAssets(base, base + 3), false, 'past-the-end index rejected')
+		assert.deepEqual(ids(), ['ra-1', 'ra-2', 'ra-3'], 'rejected moves leave the order untouched')
 	})
 
 	await check('deleteFloor() drops pool references to the removed floor', async () => {

@@ -4,15 +4,16 @@ import { useDebouncedCallback } from '@/composables/useDebounceFn'
 import { useAsyncAction } from '../../composables/useAsyncAction'
 import { useAssetsStore, emptyNpcConfig, cloneDeepRaw } from '../../blueprintStore'
 import { validateSettingsCompleteness } from '../../assets/validation'
-import {
-  normalizeNpcConfig,
-  type NpcSimulationConfig,
-} from '../../domain/types'
+import { normalizeNpcConfig, type NpcSimulationConfig } from '../../domain/types'
 import ModalShell from '../shell/ModalShell.vue'
 import TagChip from '../inputs/TagChip.vue'
 
 const props = defineProps<{ open: boolean }>()
-const emit = defineEmits<{ (e: 'close'): void; (e: 'deploy', spawnFloorId: string): void; (e: 'open-npc-manager'): void }>()
+const emit = defineEmits<{
+  (e: 'close'): void
+  (e: 'deploy', spawnFloorId: string): void
+  (e: 'open-npc-manager'): void
+}>()
 
 const store = useAssetsStore()
 const { pending, run } = useAsyncAction()
@@ -80,8 +81,13 @@ async function onDeploy() {
     statusTone.value = 'warn'
     return
   }
-  const gated = validateSettingsCompleteness(store.state.layout, store.assetMap(), draft.value).issues.filter(
-    (issue) => issue.includes('spawn rule targets tags'),
+  const gated = validateSettingsCompleteness(
+    store.state.layout,
+    store.assetMap(),
+    draft.value,
+    store.managedTagSet.value,
+  ).issues.filter((issue) =>
+    issue.includes('spawn rule targets tags'),
   )
   if (gated.length > 0) {
     status.value = gated[0] + (gated.length > 1 ? ` (+${gated.length - 1} more)` : '')
@@ -101,70 +107,52 @@ async function onDeploy() {
     :open="open"
     modal-id="modal-deploy-npc"
     title="Deploy NPCs"
-    :status="status"
+    :status="status || 'Total: ' + totalNpcCount + ' NPCs'"
     :status-tone="statusTone"
     @close="onClose"
   >
     <div class="form__col form--section">
       <div>Simulation</div>
-      <label class="form__row" for="deploy-npc-speed">
-        <span>Walk speed</span>
-        <input
-          id="deploy-npc-speed"
-          v-model.number="draft.speed"
-          type="range"
-          min="0.01"
-          max="1"
-          step="0.01"
-          @change="schedulePersist"
-        />
-        <output>{{ draft.speed.toFixed(2) }}</output>
-      </label>
-      <p class="form__hint">Base walking speed for every deployed NPC.</p>
-      <label class="form__row" for="deploy-spawn-floor">
-        <span>Spawn floor</span>
-        <select id="deploy-spawn-floor" v-model="spawnFloorId">
-          <option value="">All floors (per-role filters below)</option>
-          <option v-for="floor in floors" :key="`deploy-floor-${floor.id}`" :value="floor.id">
-            {{ floor.label }} - {{ floor.name }}
-          </option>
-        </select>
-      </label>
-      <p class="form__hint">
-        Spawn floor forces every NPC onto one floor; "All floors" uses each role's floor checks below.
-      </p>
+      <div class="form__row form--start form--wrap">
+        <label class="form__col" for="deploy-npc-speed">
+          <span>Walk speed</span>
+          <div class="form__row">
+            <input
+              id="deploy-npc-speed"
+              v-model.number="draft.speed"
+              type="range"
+              min="0.01"
+              max="1"
+              step="0.01"
+              @change="schedulePersist"
+            />
+            <output>{{ draft.speed.toFixed(2) }}</output>
+          </div>
+          <span class="form__hint">Base walking speed for every deployed NPC.</span>
+        </label>
+        <label class="form__col" for="deploy-spawn-floor">
+          <span>Spawn floor</span>
+          <select id="deploy-spawn-floor" v-model="spawnFloorId">
+            <option value="">All floors (per-role filters below)</option>
+            <option v-for="floor in floors" :key="`deploy-floor-${floor.id}`" :value="floor.id">
+              {{ floor.label }} - {{ floor.name }}
+            </option>
+          </select>
+          <span class="form__hint">
+            Forces every NPC onto one floor; "All floors" uses each role's floor checks below.
+          </span>
+        </label>
+      </div>
+    </div>
+
+    <div class="form__header">
+      <span class="size--stretch">Total: {{ totalNpcCount }} NPCs across {{ roles.length }} roles</span>
+      <button type="button" @click="openNpcManager">Open NPC Manager</button>
     </div>
 
     <div v-if="roles.length === 0" class="empty">No roles configured. Open NPC Manager to create roles first.</div>
 
     <div v-else class="form__row form--start form--wrap">
-      <aside class="form__col deploy__sidebar">
-        <div>Roles</div>
-        <ul class="form__col">
-          <li
-            v-for="role in roles"
-            :key="role.id"
-            class="card__item"
-            :class="{ 'flag--active': selectedRole?.id === role.id }"
-            role="button"
-            tabindex="0"
-            :aria-pressed="selectedRole?.id === role.id"
-            @click="selectedRoleId = role.id"
-            @keydown.self.enter.prevent="selectedRoleId = role.id"
-            @keydown.self.space.prevent="selectedRoleId = role.id"
-          >
-            <span class="swatch" :style="{ background: role.color }" />
-            <strong class="size--stretch">{{ role.label }}</strong>
-            <span
-              class="badge"
-              :title="`Deploy count for ${role.label} - edit counts in NPC Manager`"
-              >{{ getPoolCount(role.id) }}</span
-            >
-          </li>
-        </ul>
-        <p class="form__hint">Edit counts in NPC Manager</p>
-      </aside>
-
       <section v-if="selectedRole" class="form__col deploy__detail">
         <h3>Deployment: {{ selectedRole.label }}</h3>
         <template v-if="getPoolCount(selectedRole.id) > 0">
@@ -173,10 +161,7 @@ async function onDeploy() {
             <template v-if="!spawnFloorId">
               <ul v-if="getPoolFloorIds(selectedRole.id).length" class="form__row form--wrap">
                 <li v-for="floor in floors" :key="`spawn-floor-${selectedRole.id}-${floor.id}`">
-                  <span
-                    v-if="getPoolFloorIds(selectedRole.id).includes(floor.id)"
-                    class="card__item flag--active"
-                  >
+                  <span v-if="getPoolFloorIds(selectedRole.id).includes(floor.id)" class="card__item flag--active">
                     {{ floor.label }}
                   </span>
                 </li>
@@ -194,18 +179,40 @@ async function onDeploy() {
             </ul>
             <span v-else class="empty">No target tags</span>
           </div>
-          <p class="form__hint">Edit spawn floors and target tags in NPC Manager</p>
-          <button type="button" @click="openNpcManager">Open NPC Manager</button>
+          <p class="form__hint">Edit spawn floors and target tags in NPC Manager (button in the header)</p>
         </template>
         <template v-else>
           <p class="form__hint">Set a count above 0 in NPC Manager to deploy this role.</p>
-          <button type="button" @click="openNpcManager">Open NPC Manager</button>
         </template>
       </section>
+
+      <aside class="form__col deploy__sidebar">
+        <div>Roles</div>
+        <ul class="form__col">
+          <li
+            v-for="role in roles"
+            :key="role.id"
+            class="card__item"
+            :class="{ 'flag--active': selectedRole?.id === role.id }"
+            role="button"
+            tabindex="0"
+            :aria-pressed="selectedRole?.id === role.id"
+            @click="selectedRoleId = role.id"
+            @keydown.self.enter.prevent="selectedRoleId = role.id"
+            @keydown.self.space.prevent="selectedRoleId = role.id"
+          >
+            <span class="swatch" :style="{ background: role.color }" />
+            <strong class="size--stretch">{{ role.label }}</strong>
+            <span class="badge" :title="`Deploy count for ${role.label} - edit counts in NPC Manager`">{{
+              getPoolCount(role.id)
+            }}</span>
+          </li>
+        </ul>
+        <p class="form__hint">Edit counts in NPC Manager</p>
+      </aside>
     </div>
 
     <template #footer>
-      <span class="form__hint">Total: {{ totalNpcCount }} NPCs</span>
       <div class="form__row">
         <button @click="onClose">Cancel</button>
         <button class="flag--active" :disabled="totalNpcCount === 0 || pending" @click="onDeploy">Deploy</button>
@@ -216,8 +223,7 @@ async function onDeploy() {
 
 <style>
 .deploy__sidebar {
-  flex: 1 1 240px;
-  max-width: 360px;
+  flex: 0 1 260px;
   min-width: 0;
 }
 
@@ -226,14 +232,14 @@ async function onDeploy() {
 }
 
 .deploy__detail {
-  flex: 1 1 320px;
+  flex: 1 1 360px;
   min-width: 0;
 }
 </style>
 
 <style>
 #modal-deploy-npc {
-  width: min(94vw, 760px);
+  width: min(94vw, 720px);
   max-height: calc(100vh - 32px);
 }
 </style>

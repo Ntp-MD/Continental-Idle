@@ -353,6 +353,52 @@ console.log('guest role id predicate passed')
 	console.log('post-bound zone purpose passed')
 }
 
+// Role focus tags matching no asset: hint fires.
+{
+	const assetMap = new Map([['sofa', { id: 'sofa', name: 'Sofa', w: 1, h: 1, tags: ['lounge'] } as never]])
+	const layout = makeLayout({
+		objects: [{ id: 'o1', type: 'sofa', x: 0, y: 0, rotation: 0, w: 20, h: 20 }],
+	})
+	const config = makeConfig([{ roleId: 'role-staff', count: 1 }])
+	config.roles.find(r => r.id === 'role-staff')!.focusTags = ['sauna']
+	const result = validateSettingsCompleteness(layout, assetMap, config)
+	assert.ok(result.issues.some(issue => issue.includes('focuses on tags')), 'unmatched focus tags flagged')
+	console.log('focus-no-match hint passed')
+}
+
+// Role focus tags matching an asset: quiet.
+{
+	const assetMap = new Map([['sofa', { id: 'sofa', name: 'Sofa', w: 1, h: 1, tags: ['lounge'] } as never]])
+	const layout = makeLayout({
+		objects: [{ id: 'o1', type: 'sofa', x: 0, y: 0, rotation: 0, w: 20, h: 20 }],
+	})
+	const config = makeConfig([{ roleId: 'role-staff', count: 1 }])
+	config.roles.find(r => r.id === 'role-staff')!.focusTags = ['lounge']
+	const result = validateSettingsCompleteness(layout, assetMap, config, new Set(['lounge']))
+	assert.equal(result.issues.some(issue => issue.includes('focuses on tags')), false)
+	assert.equal(result.issues.some(issue => issue.includes('undefined tags')), false)
+	console.log('matched defined focus tags quiet passed')
+}
+
+// Undefined role/task tags are flagged only when the managed set is passed.
+{
+	const assetMap = new Map([['sofa', { id: 'sofa', name: 'Sofa', w: 1, h: 1, tags: ['lounge'] } as never]])
+	const layout = makeLayout({
+		objects: [{ id: 'o1', type: 'sofa', x: 0, y: 0, rotation: 0, w: 20, h: 20 }],
+	})
+	const config = makeConfig([{ roleId: 'role-staff', count: 1 }])
+	config.roles.find(r => r.id === 'role-staff')!.focusTags = ['lounge']
+	config.roles.find(r => r.id === 'role-staff')!.taskIds = ['task-lounge']
+	config.tasks = [{ id: 'task-lounge', label: 'Lounge', tags: ['lounge'] }]
+	const managed = new Set<string>()
+	const result = validateSettingsCompleteness(layout, assetMap, config, managed)
+	assert.ok(result.issues.some(issue => issue.includes('Role "Staff" uses undefined tags')), 'orphan role tag flagged')
+	assert.ok(result.issues.some(issue => issue.includes('Task "Lounge" uses undefined tags')), 'orphan task tag flagged')
+	const quiet = validateSettingsCompleteness(layout, assetMap, config)
+	assert.equal(quiet.issues.some(issue => issue.includes('undefined tags')), false, 'orphan check skipped without the managed set')
+	console.log('orphan tag hints passed')
+}
+
 // Every editor field spec has a Settings modal row (no silent omissions).
 {
 	const covered = new Set(settingsFieldKeys())

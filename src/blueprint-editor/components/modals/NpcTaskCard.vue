@@ -43,42 +43,25 @@ function submitTag() {
 
 <template>
   <article class="form__col npc__card">
-    <div class="form__row">
+    <div class="form__header">
       <input
         :value="task.label"
         type="text"
+        class="size--stretch"
         aria-label="Task label"
         @change="emit('rename', ($event.target as HTMLInputElement).value)"
       />
-      <button type="button" class="flag--danger" aria-label="Delete task" @click="emit('remove')">x</button>
-    </div>
-    <ul v-if="task.tags.length" class="form__row form--wrap">
-      <li v-for="tag in task.tags" :key="`${task.id}-${tag}`">
-        <TagChip
-          :label="tag"
-          removable
-          :class="{ 'flag--warning': !managedTagSet.has(tag) }"
-          @remove="emit('remove-tag', tag)"
-        />
-      </li>
-    </ul>
-    <span v-else class="empty">No tags</span>
-    <div class="form__row">
-      <input
-        v-model="newTagInput"
-        type="text"
-        placeholder="add tag"
-        aria-label="Add task tag"
-        @keydown.enter.prevent="submitTag"
-        @change="submitTag"
-      />
       <small class="npc__usage">used by {{ usageCount }} role(s)</small>
+      <button type="button" class="card__item--remove flag--danger" aria-label="Delete task" @click="emit('remove')">
+        x
+      </button>
     </div>
     <div class="form__row">
       <label :for="`task-station-asset-${task.id}`">Station</label>
       <select
         :id="`task-station-asset-${task.id}`"
         :value="task.post?.assetId ?? ''"
+        class="size--stretch"
         :class="{ 'flag--warning': !!task.post && !assets.some((asset) => asset.id === task.post?.assetId) }"
         aria-label="Station asset"
         @change="emit('set-post-asset', ($event.target as HTMLSelectElement).value)"
@@ -94,6 +77,7 @@ function submitTag() {
           :id="`task-station-spot-${task.id}`"
           :value="task.post.post ?? ''"
           type="text"
+          class="size--stretch"
           placeholder="any spot"
           aria-label="Station spot name"
           @change="emit('set-post-name', ($event.target as HTMLInputElement).value)"
@@ -106,6 +90,28 @@ function submitTag() {
         </li>
       </ul>
     </template>
+    <ul v-if="task.tags.length" class="form__row form--wrap">
+      <li v-for="tag in task.tags" :key="`${task.id}-${tag}`">
+        <TagChip
+          :label="tag"
+          removable
+          :class="{ 'flag--warning': !managedTagSet.has(tag) }"
+          @remove="emit('remove-tag', tag)"
+        />
+      </li>
+    </ul>
+    <span v-else class="empty">No tags</span>
+    <div class="form__row">
+      <input
+        v-model="newTagInput"
+        type="text"
+        class="size--stretch"
+        placeholder="add tag"
+        aria-label="Add task tag"
+        @keydown.enter.prevent="submitTag"
+        @change="submitTag"
+      />
+    </div>
   </article>
 </template>
 

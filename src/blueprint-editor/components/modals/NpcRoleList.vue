@@ -15,12 +15,14 @@ const emit = defineEmits<{
   (e: 'remove', role: NpcRole): void
   (e: 'add'): void
 }>()
-
 </script>
 
 <template>
   <aside class="form__col npc__sidebar">
-    <h3>Roles</h3>
+    <div class="form__header">
+      <h3 class="size--stretch">Roles ({{ roles.length }})</h3>
+      <button type="button" class="flag--active" :disabled="pending" @click="emit('add')">+ Add Role</button>
+    </div>
     <ul v-if="roles.length" class="form__col">
       <li
         v-for="role in roles"
@@ -41,9 +43,11 @@ const emit = defineEmits<{
             ><span v-if="role.id === defaultRoleId" class="badge flag--success">Default</span>
             <span v-if="poolCounts[role.id]" class="badge" title="Deploy count">{{ poolCounts[role.id] }} NPC</span>
             <span v-if="role.focusTags.length" class="badge" title="Focus tags">{{ role.focusTags.length }} focus</span>
-            <span v-if="role.restrictedTags.length" class="badge flag--warning" title="Restricted tags">{{ role.restrictedTags.length }} restrict</span>
+            <span v-if="role.restrictedTags.length" class="badge flag--warning" title="Restricted tags"
+              >{{ role.restrictedTags.length }} restrict</span
+            >
             <span v-if="role.taskIds.length" class="badge" title="Assigned tasks">{{ role.taskIds.length }} tasks</span>
-          ></small
+            ></small
           ></span
         >
         <button
@@ -57,7 +61,7 @@ const emit = defineEmits<{
         </button>
         <button
           type="button"
-          class="flag--danger"
+          class="card__item--remove flag--danger"
           aria-label="Delete role"
           @click.stop="emit('remove', role)"
         >
@@ -65,8 +69,7 @@ const emit = defineEmits<{
         </button>
       </li>
     </ul>
-    <div v-else class="empty">No roles yet - click "+ Add Role"</div>
-    <button type="button" class="flag--active size--fill" :disabled="pending" @click="emit('add')">+ Add Role</button>
+    <div v-else class="empty">No roles yet - click "+ Add Role" above</div>
   </aside>
 </template>
 

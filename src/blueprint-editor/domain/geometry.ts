@@ -35,12 +35,15 @@ export function normalizeObject(
 		rotation: o.rotation,
 		linkGroupId: o.linkGroupId,
 		locked: o.locked,
+		fillColor: o.fillColor,
+		strokeColor: o.strokeColor,
 	}, asset, tileSize)
 	if (!resolved) return
 	o.w = resolved.w
 	o.h = resolved.h
 	o.radius = resolved.radius
 	o.labelPadding = resolved.labelPadding
+	o.label = resolved.label
 	o.locked = resolved.locked
 	o.padding = resolved.padding
 	o.rx = resolved.rx

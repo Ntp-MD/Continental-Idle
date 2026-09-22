@@ -1,7 +1,7 @@
 import type { AssetDef, Rect } from '../domain/types'
 import { isSafeSvgMarkup, isValidColor, normalizeOriginAsset, applySvgColorConvention } from '../domain/types'
 import { recalcCollapsed } from '../domain/collision'
-import { assetSizeFor, normalizeObject } from '../domain/geometry'
+import { assetSizeFor } from '../domain/geometry'
 import { parseSvgViewBox, serializeAsset } from '../assets/assetUtils'
 import type { BlueprintStore, AssetPatch } from './state'
 import { genAssetId } from './storeUtils'
@@ -124,13 +124,17 @@ export function createAssetCommands(store: BlueprintStore) {
 			for (const [key, value] of Object.entries(patch as Record<string, unknown>)) {
 				if (value === undefined || (typeof value === 'string' && value === '') || (Array.isArray(value) && value.length === 0 && ['tags', 'interactSpots', 'svgRoles'].includes(key))) delete candidateInput[key]
 			}
-			const normalizedAsset = normalizeOriginAsset(candidateInput)
-			if (!normalizedAsset) {
-				toast.warning('Asset update contains invalid data')
-				return
-			}
-			for (const key of Object.keys(asset)) delete (asset as unknown as Record<string, unknown>)[key]
-			Object.assign(asset, normalizedAsset)
+		const normalizedAsset = normalizeOriginAsset(candidateInput)
+		if (!normalizedAsset) {
+			toast.warning('Asset update contains invalid data')
+			return
+		}
+		// Pre-edit default: instances whose lock matches it are inheriting and
+		// follow the new default; instances holding any other value were
+		// explicitly toggled and keep their override.
+		const prevLocked = asset.defaultLocked
+		for (const key of Object.keys(asset)) delete (asset as unknown as Record<string, unknown>)[key]
+		Object.assign(asset, normalizedAsset)
 
 			const t = state.layout.canvas.tileSize
 			const assets = assetMap()
@@ -142,21 +146,20 @@ export function createAssetCommands(store: BlueprintStore) {
 					if (!size) continue
 					obj.w = size.w
 					obj.h = size.h
-					const clamped = clamp({ x: obj.x, y: obj.y, w: size.w, h: size.h })
-					obj.x = clamped.x
-					obj.y = clamped.y
-					if (asset.defaultPadding && asset.defaultPadding > 0) {
-						obj.padding = asset.defaultPadding
-					} else if (obj.padding !== undefined && patch.defaultPadding !== undefined) {
-						obj.padding = undefined
-					}
-					if (patch.defaultRx !== undefined) {
-						obj.rx = asset.defaultRx ? { ...asset.defaultRx } : undefined
-					}
-					if (patch.defaultLabel !== undefined) obj.label = asset.defaultLabel
-					if (patch.defaultRadius !== undefined) obj.radius = asset.defaultRadius
-					if (patch.defaultLabelPadding !== undefined) obj.labelPadding = asset.defaultLabelPadding
-					if (patch.defaultLocked !== undefined) obj.locked = asset.defaultLocked
+				const clamped = clamp({ x: obj.x, y: obj.y, w: size.w, h: size.h })
+				obj.x = clamped.x
+				obj.y = clamped.y
+				// Every origin edit re-resolves every placed instance: origin-owned
+				// snapshot fields always follow the origin, even when the patch
+				// touched an unrelated field (this also heals stale snapshots).
+				// Instance-owned overrides are preserved: explicit locks (see
+				// prevLocked above) and fill/stroke colors (never copied).
+				obj.padding = asset.defaultPadding
+				obj.rx = asset.defaultRx ? { ...asset.defaultRx } : undefined
+				obj.label = asset.defaultLabel
+				obj.radius = asset.defaultRadius
+				obj.labelPadding = asset.defaultLabelPadding
+				if (obj.locked === prevLocked) obj.locked = asset.defaultLocked
 				}
 				recalcCollapsed(floor, assets)
 			}
@@ -170,21 +173,15 @@ export function createAssetCommands(store: BlueprintStore) {
 	}
 
 
-	async function refreshOriginInstances(): Promise<number> {
+	async function reorderAssets(fromIndex: number, toIndex: number): Promise<boolean> {
 		return withStateLock(async () => {
-			const tileSize = state.layout.canvas.tileSize
-			const assets = assetMap()
-			let refreshedCount = 0
-			for (const floor of state.layout.floors) {
-				for (const object of floor.objects) {
-					if (!assets.has(object.type)) continue
-					normalizeObject(object, tileSize, assets)
-					refreshedCount++
-				}
-				recalcCollapsed(floor, assets)
-			}
-			await saveBlueprintData()
-			return refreshedCount
+			if (fromIndex === toIndex) return false
+			if (fromIndex < 0 || toIndex < 0) return false
+			if (fromIndex >= state.assetRegistry.length || toIndex >= state.assetRegistry.length) return false
+			const registry = state.assetRegistry
+			const [moved] = registry.splice(fromIndex, 1)
+			registry.splice(toIndex, 0, moved)
+			return saveBlueprintData()
 		})
 	}
 
@@ -257,7 +254,7 @@ export function createAssetCommands(store: BlueprintStore) {
 		})
 	}
 
-	return { addSvgAsset, updateAsset, refreshOriginInstances, duplicateAsset, deleteAsset, deleteAllAssets }
+	return { addSvgAsset, updateAsset, reorderAssets, duplicateAsset, deleteAsset, deleteAllAssets }
 }
 
 export type AssetCommands = ReturnType<typeof createAssetCommands>
