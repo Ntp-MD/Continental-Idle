@@ -89,6 +89,12 @@ const { viewBox: previewViewBox, vars: previewVars, setEl: setPreviewEl } = useA
         <span class="form__hint">{{ asset.name }} - {{ asset.w }}x{{ asset.h }} tiles</span>
       </div>
     </div>
+    <template #footer>
+      <span class="form__hint">Changes save automatically.</span>
+      <div class="form__row">
+        <button type="button" @click="emit('close')">Close</button>
+      </div>
+    </template>
   </ModalShell>
 </template>
 

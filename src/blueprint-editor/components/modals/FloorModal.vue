@@ -220,6 +220,7 @@ function armZoneDraw() {
   store.setMode('zone')
   newZoneLabel.value = ''
   newZoneRoles.value = []
+  toast.info('Floor Manager closed - drag a rectangle on the canvas for the new zone')
   emit('close')
 }
 
@@ -299,14 +300,6 @@ function floorCounts(f: FloorData): string {
             <span v-if="f.id === store.state.currentFloorId" class="badge">ACTIVE</span>
             <button
               type="button"
-              title="Duplicate floor"
-              :aria-label="`Duplicate floor ${f.name}`"
-              @click.stop="onDuplicate(f.id)"
-            >
-              Duplicate
-            </button>
-            <button
-              type="button"
               class="flag--danger"
               :title="floors.length <= 1 ? 'Cannot delete the last floor' : 'Delete floor'"
               :aria-label="`Delete floor ${f.name}`"
@@ -370,6 +363,7 @@ function floorCounts(f: FloorData): string {
               <label>Stats</label>
               <span class="floor__count">{{ floorCounts(selectedFloor) }}</span>
             </div>
+            <div class="form__hint">Label keys game saves (G, 1, 2, ...) - renaming it orphans old saves. Name is display-only.</div>
           </div>
 
           <div class="form__col form--section">

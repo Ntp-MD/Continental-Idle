@@ -21,6 +21,12 @@ const store = useAssetsStore()
 const confirm = useConfirm().confirm
 const toast = useToast()
 const view = ref<'roles' | 'library'>('roles')
+type LibView = 'tags' | 'tasks'
+const libView = ref<LibView>('tags')
+const libTabs: { key: LibView; label: string }[] = [
+  { key: 'tags', label: 'Tags' },
+  { key: 'tasks', label: 'Tasks' },
+]
 const selectedRoleId = ref('')
 const tagSearch = ref('')
 const libTaskFilter = ref('')
@@ -125,6 +131,7 @@ watch(
     if (open) {
       draft.value = cloneDeepRaw(store.state.layout.npcConfig ?? emptyNpcConfig())
       view.value = 'roles'
+      libView.value = 'tags'
       resetSelection()
     }
   },
@@ -312,6 +319,7 @@ async function addTask() {
   const id = genId('task')
   draft.value.tasks.push({ id, label: 'New Task', tags: [] })
   view.value = 'library'
+  libView.value = 'tasks'
   await persistConfig()
 }
 
@@ -505,6 +513,7 @@ onUnmounted(() => {
         Tags &amp; Tasks ({{ tags.length }} / {{ draft.tasks.length }})
       </button>
     </div>
+    <div class="form__hint">Tags decide where a role goes; Tasks decide what it does there. Changes save automatically.</div>
 
     <div v-if="view === 'roles'" class="form__row form--start form--wrap">
       <NpcRoleList
@@ -549,8 +558,30 @@ onUnmounted(() => {
       </section>
     </div>
 
-    <div v-else class="form__row form--start form--wrap">
-      <section class="form__col npc__panel">
+    <div v-else class="form__col">
+      <div class="tabs__bar" role="tablist" aria-label="Tags and tasks">
+        <button
+          v-for="t in libTabs"
+          :id="`npc-lib-tab--${t.key}`"
+          :key="t.key"
+          type="button"
+          role="tab"
+          class="tabs__tab"
+          :class="{ 'flag--active': libView === t.key }"
+          :aria-selected="libView === t.key"
+          :aria-controls="`npc-lib-panel--${t.key}`"
+          @click="libView = t.key"
+        >
+          {{ t.label }} ({{ t.key === 'tags' ? tags.length : draft.tasks.length }})
+        </button>
+      </div>
+      <section
+        v-if="libView === 'tags'"
+        id="npc-lib-panel--tags"
+        class="form__col npc__panel"
+        role="tabpanel"
+        aria-labelledby="npc-lib-tab--tags"
+      >
         <div>Tags</div>
         <SearchInput v-model="tagSearch" placeholder="Search tags..." label="Search tags" />
         <div class="form__row npc__add">
@@ -573,7 +604,13 @@ onUnmounted(() => {
         <div v-else class="empty">No tags</div>
       </section>
 
-      <section class="form__col npc__panel">
+      <section
+        v-else
+        id="npc-lib-panel--tasks"
+        class="form__col npc__panel"
+        role="tabpanel"
+        aria-labelledby="npc-lib-tab--tasks"
+      >
         <div>Tasks</div>
         <SearchInput v-model="libTaskFilter" placeholder="Search tasks..." label="Search tasks" />
         <ul v-if="filteredLibTasks.length" class="form__col">

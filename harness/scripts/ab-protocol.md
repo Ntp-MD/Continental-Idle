@@ -1,6 +1,8 @@
 # AB protocol - measuring harness impact (future runner: ab-spec.mjs)
 
-Status: protocol only - runner not built yet. Build the runner from this doc when picked up.
+Status: runner BUILT - harness/scripts/ab-spec.mjs, smoke-proven end-to-end on both
+conditions (task 3, 1 run each, model opencode-go/glm-5.3-flash). Full comparison runs
+(cost tokens) are a user-ordered event, not part of this task.
 
 ## Question
 

@@ -113,9 +113,9 @@ async function submit() {
           min="1"
           :max="MAX_ASSET_TILES"
           :value="svgW"
-          disabled
+          readonly
           placeholder="W (auto)"
-          aria-label="SVG width (auto)"
+          aria-label="SVG width in tiles, read from the viewBox"
         />
         <span aria-hidden="true">x</span>
         <input
@@ -124,17 +124,19 @@ async function submit() {
           min="1"
           :max="MAX_ASSET_TILES"
           :value="svgH"
-          disabled
+          readonly
           placeholder="H (auto)"
-          aria-label="SVG height (auto)"
+          aria-label="SVG height in tiles, read from the viewBox"
         />
       </div>
+      <div class="form__hint">Size is read from the SVG viewBox - each side caps at {{ MAX_ASSET_TILES }} tiles.</div>
       <textarea
         v-model="svgContent"
         placeholder="Paste SVG here (must include viewBox)..."
         rows="6"
         aria-label="SVG content"
       ></textarea>
+      <div class="form__hint">Paste markup with a viewBox so the tile size can be read.</div>
     </div>
     <template #footer>
       <button type="button" @click="emit('close')">Cancel</button>

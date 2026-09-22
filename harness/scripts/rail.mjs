@@ -28,7 +28,9 @@ export const LITE_MAX_WORK_FILES = 1
 
 // Scheduled re-anchor cadence: every Nth non-meta edit call the plugin throws
 // the anchor message (Mission + next unchecked Plan box) back into context.
-export const ANCHOR_EVERY_CALLS = 10
+// 15 = tuned for strong models (fewer interrupts); lower to ~10 when running
+// weaker models or high-drift work.
+export const ANCHOR_EVERY_CALLS = 15
 
 // Drift gate: N project files changed with an EMPTY slot = lost task.
 export const DRIFT_NO_SLOT_FILES = 3

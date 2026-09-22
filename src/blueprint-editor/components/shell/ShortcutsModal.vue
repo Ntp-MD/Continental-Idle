@@ -9,7 +9,7 @@ const shortcuts: { keys: string; label: string }[] = [
   { keys: 'R', label: 'Rotate selected object' },
   { keys: 'Arrows', label: 'Nudge 1 tile (Shift: 10)' },
   { keys: 'Space', label: 'Pan canvas' },
-  { keys: 'Esc', label: 'Cancel draw/drag, deselect' },
+  { keys: 'Esc', label: 'Cancel draw/drag, deselect, close dialogs' },
   { keys: 'Ctrl+Z', label: 'Undo last change (up to 4)' },
   { keys: 'Ctrl+L', label: 'Link objects / Shift: unlink' },
   { keys: 'Ctrl+C/V', label: 'Copy / paste objects' },

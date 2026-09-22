@@ -2,6 +2,7 @@
 import { ref, watch } from 'vue'
 import { useAssetsStore, serializeWorkspace, parseWorkspace } from '../../blueprintStore'
 import { useToast } from '@/composables/useToast'
+import { useConfirm } from '@/composables/useConfirm'
 import { useAsyncAction } from '../../composables/useAsyncAction'
 import ModalShell from '../shell/ModalShell.vue'
 
@@ -10,11 +11,13 @@ const emit = defineEmits<{ (e: 'close'): void }>()
 
 const store = useAssetsStore()
 const toast = useToast()
+const confirm = useConfirm().confirm
 const { pending, run } = useAsyncAction()
 
 const status = ref('')
 const statusTone = ref<'' | 'success' | 'warn' | 'fail'>('')
 const fileInput = ref<HTMLInputElement | null>(null)
+const fileName = ref('')
 
 watch(
   () => props.open,
@@ -49,6 +52,15 @@ async function onImportFile(event: Event) {
   const file = input.files?.[0]
   input.value = ''
   if (!file) return
+  fileName.value = file.name
+  const ok = await confirm({
+    title: 'Import workspace',
+    message: `Replace the current workspace with "${file.name}"? This cannot be undone.`,
+    confirmLabel: 'Import',
+    cancelLabel: 'Cancel',
+    danger: true,
+  })
+  if (!ok) return
   try {
     const parsed = parseWorkspace(await file.text())
     const saved = await run(() => store.importWorkspace(parsed))
@@ -71,7 +83,7 @@ async function onImportFile(event: Event) {
   <ModalShell
     :open="open"
     modal-id="modal-workspace"
-    title="Workspace"
+    title="Workspace (Export / Import)"
     :status="status"
     :status-tone="statusTone"
     @close="emit('close')"
@@ -84,6 +96,7 @@ async function onImportFile(event: Event) {
     <div class="form__col form--section">
       <div>Import</div>
       <div class="form__hint">Replace the current workspace with a previously exported file.</div>
+      <div v-if="fileName" class="form__hint">Last file: {{ fileName }}</div>
       <input
         ref="fileInput"
         class="workspace__file"

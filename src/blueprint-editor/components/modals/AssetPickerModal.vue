@@ -110,6 +110,7 @@ function pick(asset: AssetDef) {
             >!</span
           >
           <span
+            v-if="placedObjectCount(asset.id) > 0"
             class="badge picker__badge picker__badge--count"
             :title="placedCountTitle(placedObjectCount(asset.id))"
             >{{ placedObjectCount(asset.id) }}</span
@@ -119,6 +120,11 @@ function pick(asset: AssetDef) {
         </li>
       </ul>
     </div>
+    <template #footer>
+      <div class="form__row">
+        <button type="button" @click="emit('close')">Close</button>
+      </div>
+    </template>
   </ModalShell>
 </template>
 

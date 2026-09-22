@@ -159,3 +159,50 @@ mod-cli records, no harness-meta records.
 - ab-protocol.md: A/B measurement protocol (playground repo, 3 tasks x 3 runs x 2 conditions, process+outcome metrics, blind rubric) - runner ab-spec.mjs parked, see slot Hand-off
 - verified: rail-spec 10/10, npm run lint, verify.mjs check
 
+### ab-spec runner - 2026-09-21 (opencode, opencode-go/glm-5.3-flash)
+- ab-spec.mjs built per ab-protocol.md: playground fixture builder (3 tasks = pre-seeded failing tests: multi-file/scope/pattern-reuse), conditions A (AGENTS digest + harness + plugin) vs B (one-liner), headless 'opencode run --format json' + objective metrics (tests pass, scope vs allowed, TODO delta, slot filled, pattern reuse, tool calls)
+- smoke: both conditions measured on task 3 (A: slot filled=yes tests=yes; B: tests=yes) - full 18-run comparison is a user-ordered event, costs tokens
+- decision: playground = synthetic mini JS repo with failing tests as task spec (over: copying the real hotel project - because objective outcome metric needs deterministic tests + zero contamination)
+- rail-spec hardened: fixture stages its own empty slot (live slot leak caused 2 false FAILs when the real slot was filled)
+- verified: ab-spec 2 smoke cells, rail-spec 10/10, npm run lint, verify.mjs check
+
+### ab full comparison - 2026-09-21 (autopilot, opencode-go/glm-5.3-flash)
+- 18/18 runs (3 tasks x 3 runs x 2 conditions) complete, 0 model errors
+- verdict: NO outcome delta on this task set - tests pass 9/9 both, scope ok 9/9 both, pattern reuse 3/3 both; harness delivers process compliance only (slot filled 9/9) at +~1 tool call cost
+- decision: scope metric fixed mid-study (staged-seed + untracked-dir collapse, 2 bugs) and ALL 18 runs rerun (over: keeping first batch - because first-batch scope numbers were all false, unusable)
+- caveat: glm-5.3-flash on trivial tasks - harness value (gate/drift/anchor) targets weak models, hard tasks, long sessions; not exercised here
+- verified: rail-spec 10/10 after git -uall fix in verify.mjs gitScope; metrics visible in ab-spec output
+
+### harness efficiency pass - 2026-09-21 (opencode, opencode-go/glm-5.3-flash)
+- decide-dont-stall: ask-first narrowed to secrets/auth + irreversible-outside + missing info; scope growth/dependencies/interface picks = decide + veto-able log (over: keep STOP+ask for scope - because reversibility already covers in-repo and asking stalls trusted models)
+- HARNESS.md compressed 5254 -> 2514 tokens: Steps/Feature lane/thinking budget/calibration moved to harness/LANE.md (progressive disclosure, load only on multi-step work); fixed injection 6900 -> 4150 tokens (-40%)
+- verified: verify.mjs check, rail-spec 10/10, opencode debug config still lists HARNESS.md (probe canary facts intact)
+
+### lite pass - 2026-09-21 (opencode, opencode-go/glm-5.3-flash)
+- HARNESS.md 2514 -> 2156 tokens: Enforcement compressed to 1 para (gate/anchor detail moved to adopt.md), report template moved to report-gaps skill (HARNESS keeps 1-line shape)
+- decision: report template ownership = report-gaps skill (over: keep in HARNESS - because the skill is loaded at Done time anyway, the agent never reads the template twice)
+- ANCHOR_EVERY_CALLS 10 -> 15 (tuned for strong models, rationale in rail.mjs comment); rail-spec anchor scenario updated to 15
+- verified: rail-spec 10/10, npm run lint, verify.mjs check
+
+### evidence audit - 2026-09-21 (opencode, opencode-go/glm-5.3-flash)
+- verify.mjs audit: validates every file:line quote in slot + latest history entry against the working tree; exit 1 = quote points nowhere; --all scans archives (line drift = expected noise)
+- decision: default scope = slot + latest entry only (over: scan everything - because old entries are frozen records whose line numbers legitimately drift as code moves)
+- anti-fake: closes the fabricated-evidence gap (agent claiming file:line that does not exist); snippet-match interpretation remains out of scope (subjective)
+- rail-spec: +2 scenarios (real quote passes / fabricated fails) = 12 total
+- verified: rail-spec 12/12; audit --all on live repo flagged 1 expected basename-drift quote in archives
+
+### modal ux improvements - 2026-09-22 11:37 UTC+7 (opencode, muse-spark-1.3-contributor-free)
+- ModalShell close `x` -> `×`; Toolbar gear gains visible `Settings` text; Shortcuts Esc row covers closing dialogs
+- WorkspaceModal titled `Workspace (Export / Import)`, import now confirms danger-style + echoes last filename
+- SettingsModal: player-vocabulary labels/hints across all 4 tabs (`settingsFields.ts`), Street Rendering un-nested from Street section, Canvas instant-apply hint, `Ring` -> `Street width`, `On floor` -> `Show street on`
+- AssetPickerModal count badge only when > 0 + footer Close; AssetEditModal footer autosave note + Close; FloorModal drops per-row Duplicate, adds Label-vs-Name hint, Draw toasts before closing
+- NpcManagerModal orienting hint + always-visible focus-chance hint; DeployNpcModal `Walk speed` + hint, `Deployment:` heading, dropped focusin-select; origin modal titled `Save as New Asset` with size as text
+- decision: `Walk speed` (over: `Preview speed` - because `useNpcSimulationCore.ts:211-212` feeds config speed into agent walk velocity); ImportSvg wired into AssetToolbar next to Browse (over: deleting the modal - because the `addSvgAsset` store path exists and the showcase kept it alive)
+- verified: lint:bem pass (35 files, 0 violations); lint:css pass (35 files, 0 violations); typecheck pass (app + test + node)
+
+### npc tags-tasks sub-tabs - 2026-09-22 11:37 UTC+7 (opencode, muse-spark-1.3-contributor-free)
+- NpcManagerModal library view splits into Tags / Tasks sub-tabs with counts (`libView` + `libTabs`, reset to Tags on open); panels render full-width one at a time instead of side-by-side
+- decision: sub-tabs inside Tags & Tasks (over: two top-level tabs - because the top-level Role Editor / Tags & Tasks split stays stable and the tab pattern matches NpcRoleDetail `role=tab` semantics)
+- `addTask` jumps to the Tasks sub-tab so the new task is visible
+- verified: lint:bem pass; lint:css pass; typecheck pass (app + test + node)
+

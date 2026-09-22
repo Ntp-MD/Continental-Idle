@@ -91,7 +91,7 @@ onUnmounted(() => {
           <span :id="titleId">{{ title }}</span>
           <slot name="header" />
           <div class="modal__status truncate" :class="statusClass" role="status" aria-live="polite">{{ status }}</div>
-          <button class="modal__close" aria-label="Close" @click="onClose">x</button>
+          <button class="modal__close" aria-label="Close" @click="onClose">×</button>
         </div>
         <div class="modal__body" :class="bodyClass">
           <slot />

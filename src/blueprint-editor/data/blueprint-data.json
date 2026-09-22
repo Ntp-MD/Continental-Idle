@@ -9431,52 +9431,7 @@
             ]
           ]
         },
-        "spawnZones": [
-          {
-            "id": "zone-guest-arrival",
-            "label": "Guest arrival",
-            "x": 700,
-            "y": 740,
-            "w": 120,
-            "h": 80,
-            "roleIds": [
-              "role-guest"
-            ]
-          },
-          {
-            "id": "zone-reception",
-            "label": "Reception",
-            "x": 720,
-            "y": 640,
-            "w": 160,
-            "h": 20,
-            "roleIds": [
-              "role-receptionist"
-            ]
-          },
-          {
-            "id": "zone-kitchen",
-            "label": "Kitchen",
-            "x": 180,
-            "y": 180,
-            "w": 280,
-            "h": 140,
-            "roleIds": [
-              "role-6dfde6eef0"
-            ]
-          },
-          {
-            "id": "zone-boh",
-            "label": "Service",
-            "x": 1140,
-            "y": 180,
-            "w": 260,
-            "h": 140,
-            "roleIds": [
-              "role-housekeeper"
-            ]
-          }
-        ],
+        "spawnZones": [],
         "allowedRoleIds": [
           "role-guest",
           "role-6dfde6eef0",

@@ -1626,7 +1626,7 @@ async function cancelDrawnOrigin() {
     <ModalShell
       :open="showSaveOrigin && !!draftObject"
       modal-id="modal-save-origin"
-      title="Save Placed Object as Origin"
+      title="Save as New Asset"
       @close="cancelDrawnOrigin"
     >
       <div
@@ -1637,11 +1637,10 @@ async function cancelDrawnOrigin() {
           background: originFillColor || 'var(--bg-primary)',
         }"
       />
-      <input
-        :value="`${(draftObject?.w ?? 0) / canvas.tileSize} x ${(draftObject?.h ?? 0) / canvas.tileSize} tiles`"
-        readonly
-        aria-label="Object size"
-      />
+      <span class="form__hint" role="status"
+        >{{ (draftObject?.w ?? 0) / canvas.tileSize }} x {{ (draftObject?.h ?? 0) / canvas.tileSize }} tiles -
+        saved as a reusable asset</span
+      >
       <label class="form__row">
         <span>Name</span>
         <input v-model="originName" type="text" placeholder="Object name" data-autofocus />

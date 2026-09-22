@@ -295,6 +295,7 @@ async function resetEditorAll() {
       role="tabpanel"
       aria-labelledby="settings__tab--canvas"
     >
+      <div class="form__hint">Changes on this tab apply immediately.</div>
       <div class="form__col form--section">
         <div>Canvas Size</div>
         <div class="form__row form--start form--wrap">
@@ -386,7 +387,7 @@ async function resetEditorAll() {
       <div class="form__col form--section">
         <div>Street</div>
         <div class="form__row">
-          <label for="canvas__streetfloor">On floor</label>
+          <label for="canvas__streetfloor">Show street on</label>
           <select
             id="canvas__streetfloor"
             :value="store.state.layout.streetFloorId ?? ''"
@@ -400,7 +401,7 @@ async function resetEditorAll() {
           </select>
         </div>
         <div class="form__row">
-          <label for="canvas__streetwidth">Ring</label>
+          <label for="canvas__streetwidth">Street width</label>
           <select
             id="canvas__streetwidth"
             :value="store.state.layout.streetWidthTiles ?? ''"
@@ -441,7 +442,8 @@ async function resetEditorAll() {
             @commit="applyStreetMarkingColor"
           />
         </div>
-        <template v-for="group in canvasEditorGroups" :key="group.title">
+      </div>
+      <template v-for="group in canvasEditorGroups" :key="group.title">
           <div class="form__col form--section">
             <div>{{ group.title }}</div>
             <div v-for="field in group.fields" :key="field.key" class="form__row">
@@ -458,8 +460,7 @@ async function resetEditorAll() {
             </div>
             <div class="form__hint">{{ group.hint }}</div>
           </div>
-        </template>
-      </div>
+      </template>
     </div>
 
     <div

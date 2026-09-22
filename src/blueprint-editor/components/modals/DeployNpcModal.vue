@@ -108,7 +108,7 @@ async function onDeploy() {
     <div class="form__col form--section">
       <div>Simulation</div>
       <label class="form__row" for="deploy-npc-speed">
-        <span>Speed</span>
+        <span>Walk speed</span>
         <input
           id="deploy-npc-speed"
           v-model.number="draft.speed"
@@ -120,6 +120,7 @@ async function onDeploy() {
         />
         <output>{{ draft.speed.toFixed(2) }}</output>
       </label>
+      <p class="form__hint">Base walking speed for every deployed NPC.</p>
       <label class="form__row" for="deploy-spawn-floor">
         <span>Spawn floor</span>
         <select id="deploy-spawn-floor" v-model="spawnFloorId">
@@ -151,7 +152,6 @@ async function onDeploy() {
             @click="selectedRoleId = role.id"
             @keydown.self.enter.prevent="selectedRoleId = role.id"
             @keydown.self.space.prevent="selectedRoleId = role.id"
-            @focusin="selectedRoleId = role.id"
           >
             <span class="swatch" :style="{ background: role.color }" />
             <strong class="size--stretch">{{ role.label }}</strong>
@@ -166,7 +166,7 @@ async function onDeploy() {
       </aside>
 
       <section v-if="selectedRole" class="form__col deploy__detail">
-        <h3>Spawn Rule: {{ selectedRole.label }}</h3>
+        <h3>Deployment: {{ selectedRole.label }}</h3>
         <template v-if="getPoolCount(selectedRole.id) > 0">
           <div class="form__col form--section">
             <div>Spawn Floors</div>

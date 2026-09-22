@@ -9,6 +9,7 @@ import { useAssetListState } from '../../composables/useAssetListState'
 import SearchInput from '../inputs/SearchInput.vue'
 import ErrorBoundary from '@/components/overlays/ErrorBoundary.vue'
 const AssetPickerModal = defineAsyncComponent(() => import('../modals/AssetPickerModal.vue'))
+const ImportSvgModal = defineAsyncComponent(() => import('../modals/ImportSvgModal.vue'))
 
 const store = useAssetsStore()
 const toast = useToast()
@@ -16,6 +17,7 @@ const confirm = useConfirm().confirm
 const { pending, run } = useAsyncAction()
 
 const showPicker = ref(false)
+const showImportSvg = ref(false)
 
 const { searchQuery, incompleteMap, incompleteTitle, placedCounts, placedObjectCount, filteredAssets } =
   useAssetListState()
@@ -67,6 +69,13 @@ function onItemClick(assetId: string) {
           @click="showPicker = true"
         >
           Browse
+        </button>
+        <button
+          title="Create an asset from SVG markup"
+          aria-label="Import SVG asset"
+          @click="showImportSvg = true"
+        >
+          Import SVG
         </button>
       </SearchInput>
     </div>
@@ -126,6 +135,7 @@ function onItemClick(assetId: string) {
     </div>
     <ErrorBoundary>
       <AssetPickerModal :open="showPicker" @close="showPicker = false" />
+      <ImportSvgModal :open="showImportSvg" @close="showImportSvg = false" />
     </ErrorBoundary>
   </div>
 </template>

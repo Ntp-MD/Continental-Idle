@@ -242,11 +242,11 @@ function commitHat(value: string) {
             min="0"
             max="100"
             :disabled="ratesOverrideFocus"
-            :aria-describedby="ratesOverrideFocus ? `npc-role-chance-hint-${role.id}` : undefined"
+            :aria-describedby="`npc-role-chance-hint-${role.id}`"
             @change="emit('chance', +($event.target as HTMLInputElement).value)"
           />
           <span class="form__hint">{{ role.focusChance }}%</span>
-          <span v-if="ratesOverrideFocus" :id="`npc-role-chance-hint-${role.id}`" class="form__hint">Trigger rates override focus chance</span>
+          <span :id="`npc-role-chance-hint-${role.id}`" class="form__hint">Per-tag trigger rates (Rates tab) override this chance</span>
         </div>
       </div>
 

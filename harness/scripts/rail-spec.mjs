@@ -19,11 +19,18 @@ const keep = process.argv.includes('--keep')
 let passed = 0
 let failed = 0
 
+// The live slot leaks into fixtures via the harness copy - stage a known-empty
+// slot so scenarios that test the empty-slot rail always start from empty.
+const EMPTY_SLOT = '## Mission\n\n(empty)\n\n## Plan\n\n- (none)\n\n## Blockers\n\n- (none)\n\n## Hand-off Note\n\n(empty - next action: await new task)\n'
+
 function makeFixture(name, { git = true, copyHarness = true } = {}) {
   const dir = path.join(os.tmpdir(), `rail-spec-${Date.now()}-${name}`)
   fs.rmSync(dir, { recursive: true, force: true })
   fs.mkdirSync(dir, { recursive: true })
-  if (copyHarness) fs.cpSync(path.join(harnessRoot, 'harness'), path.join(dir, 'harness'), { recursive: true })
+  if (copyHarness) {
+    fs.cpSync(path.join(harnessRoot, 'harness'), path.join(dir, 'harness'), { recursive: true })
+    fs.writeFileSync(path.join(dir, 'harness', 'state', 'task-context.md'), EMPTY_SLOT)
+  }
   if (git) execSync('git init -q', { cwd: dir, stdio: 'ignore' })
   return dir
 }
@@ -138,14 +145,14 @@ const scenarios = [
     },
   },
   {
-    name: 'anchor - fires exactly on the 10th edit when slot is filled',
+    name: 'anchor - fires exactly on the 15th edit when slot is filled',
     build: [write('harness/state/task-context.md', FILLED_SLOT)],
     async run(dir) {
       deployPlugin(dir)
-      const throws = await runGate(dir, 12)
+      const throws = await runGate(dir, 17)
       return throws.length === 1 && throws[0].includes('Harness anchor')
         ? null
-        : `expected 1 anchor throw at call 10, got ${throws.length}: ${throws[0] ?? 'none'}`
+        : `expected 1 anchor throw at call 15, got ${throws.length}: ${throws[0] ?? 'none'}`
     },
   },
   {
@@ -178,6 +185,32 @@ const scenarios = [
       return result.status === 1 && result.stderr.includes('Hand-off Note is blank')
         ? null
         : `expected exit 1 + blank hand-off, got exit ${result.status}: ${result.stderr.trim()}`
+    },
+  },
+  {
+    name: 'audit - real evidence quote passes',
+    build: [
+      write('src/a.ts', 'line one\nline two\nline three\n'),
+      write('harness/state/task-context.md', SLOT('Mission text', '- [ ] see src/a.ts:2 for the bug')),
+    ],
+    run(dir) {
+      const result = runVerify(dir, 'audit')
+      return result.status === 0 && result.stdout.includes('1 evidence quote')
+        ? null
+        : `expected exit 0 + 1 quote, got exit ${result.status}: ${result.stdout} ${result.stderr}`
+    },
+  },
+  {
+    name: 'audit - fabricated quote (file:line nowhere) fails',
+    build: [
+      write('src/a.ts', 'line one\nline two\n'),
+      write('harness/state/task-context.md', SLOT('Mission text', '- [ ] fixed per src/ghost.ts:99')),
+    ],
+    run(dir) {
+      const result = runVerify(dir, 'audit')
+      return result.status === 1 && result.stderr.includes('point nowhere')
+        ? null
+        : `expected exit 1 + point nowhere, got exit ${result.status}: ${result.stdout} ${result.stderr}`
     },
   },
   {

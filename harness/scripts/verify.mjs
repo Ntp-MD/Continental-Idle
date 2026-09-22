@@ -12,7 +12,7 @@
 // Covers both lanes in HARNESS.md: light loop (single-file fix) and feature
 // lane (per-ticket loop) - routing is per changed file either way.
 //
-// Run with: node harness/scripts/verify.mjs [check|drift|table|route|run|compact]
+// Run with: node harness/scripts/verify.mjs [check|drift|audit|table|route|run|compact]
 // Exit code: 0 = ok, 1 = check failure / drift / suite failure / usage error
 import fs from 'node:fs'
 import path from 'node:path'
@@ -74,7 +74,7 @@ function uncheckedBoxes(planBody) {
 
 function gitScope() {
   try {
-    const out = execSync('git status --short', { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] })
+    const out = execSync('git status --short -uall', { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] })
     return out
       .split('\n')
       .map((line) => line.trim())
@@ -446,10 +446,56 @@ function cmdCompact(args) {
   console.log(`verify: moved ${move.length} to monthly archive(s), kept ${kept.length}`)
 }
 
+// audit - evidence-quote validator: every `file:line` quote in the slot and
+// the latest history entry must point at a real file and a real line in the
+// working tree. Old history entries are frozen records - quoted line numbers
+// drift as code moves - so they are only scanned with --all.
+function cmdAudit(args) {
+  const targets = []
+  if (fs.existsSync(slotPath)) targets.push({ name: 'slot', text: fs.readFileSync(slotPath, 'utf8') })
+  const historyPath = path.join(root, 'harness', 'state', 'history.md')
+  if (fs.existsSync(historyPath)) {
+    const history = fs.readFileSync(historyPath, 'utf8')
+    if (args.all) {
+      targets.push({ name: 'history (all entries)', text: history })
+    } else {
+      const { entries } = parseHistoryEntries(history)
+      const last = entries[entries.length - 1]
+      if (last) targets.push({ name: `history (latest: ${last.title})`, text: last.lines.join('\n') })
+    }
+  }
+  const QUOTE_RE = /(?<![\w/])((?:[\w.@-]+[/\\])*[\w.@-]+\.(?:ts|tsx|js|mjs|cjs|vue|css|json)):(\d+)/g
+  const quotes = new Map()
+  for (const target of targets) {
+    for (const match of target.text.matchAll(QUOTE_RE)) {
+      const rel = match[1].replace(/\\/g, '/')
+      if (/^(node_modules|dist|coverage)\//.test(rel)) continue
+      const key = `${rel}:${match[2]}`
+      if (!quotes.has(key)) quotes.set(key, target.name)
+    }
+  }
+  const broken = []
+  for (const [key, source] of quotes) {
+    const sep = key.lastIndexOf(':')
+    const rel = key.slice(0, sep)
+    const line = Number(key.slice(sep + 1))
+    const full = path.join(root, rel)
+    if (!fs.existsSync(full)) {
+      broken.push(`${key} (${source}) - file not found`)
+      continue
+    }
+    const lines = fs.readFileSync(full, 'utf8').split('\n').length
+    if (line < 1 || line > lines) broken.push(`${key} (${source}) - file has ${lines} line(s)`)
+  }
+  if (broken.length) fail(`audit: ${broken.length} of ${quotes.size} evidence quote(s) point nowhere:\n  - ${broken.join('\n  - ')}`)
+  console.log(`verify: audit pass - ${quotes.size} evidence quote(s) checked across ${targets.length} target(s)`)
+}
+
 function main() {
   const mode = process.argv[2] ?? 'route'
   if (mode === 'check') cmdCheck()
   else if (mode === 'drift') cmdDrift()
+  else if (mode === 'audit') cmdAudit({ all: process.argv.includes('--all') })
   else if (mode === 'table') {
     const issues = tableProblems()
     if (issues.length) fail(`verify table invalid:\n  - ${issues.join('\n  - ')}`)
@@ -475,7 +521,7 @@ function main() {
     report(files, plan)
     if (mode === 'run') runPlan(plan)
   } else {
-    fail('usage: node harness/scripts/verify.mjs [check|drift|table|route|run|compact]')
+    fail('usage: node harness/scripts/verify.mjs [check|drift|audit|table|route|run|compact]')
   }
 }
 
