@@ -7,7 +7,7 @@ import { NPC_FRAME_DEFAULTS, NPC_OPTION_DEFAULTS, isNpcConfig, isValidTagTrigger
 import type { NpcSpawnZone, ObjectPlacement } from './objects'
 import { normalizeAllowedRoleIds, normalizeNpcSpawnZones, normalizeObjectPlacement } from './objects'
 import { normalizeFloorWalkable } from './walkable'
-import { MAX_FLOORS, MAX_NPC_ENTRIES, MAX_OBJECTS_PER_FLOOR } from '../../limits'
+import { MAX_FLOORS, MAX_NPC_ENTRIES, MAX_OBJECTS_PER_FLOOR, MAX_TAGS, MIN_STREET_WIDTH_TILES, MAX_STREET_WIDTH_TILES } from '../../limits'
 import { MAX_DATA_STRING_LENGTH, hasOwn, isFiniteNumber, isRecord, normalizeIdentifier, normalizeTag, normalizeText } from './helpers'
 
 export interface PersistedFloorData extends Omit<FloorData, 'objects'> {
@@ -41,7 +41,7 @@ export function validateLayoutData(data: unknown): boolean {
 }
 
 export function normalizeTagDefinitions(value: unknown): BlueprintTagDefinition[] | undefined {
-	if (!Array.isArray(value) || value.length > 256) return undefined
+	if (!Array.isArray(value) || value.length > MAX_TAGS) return undefined
 	const tags: BlueprintTagDefinition[] = []
 	const seen = new Set<string>()
 	for (const item of value) {
@@ -122,7 +122,7 @@ export function normalizePersistedLayoutData(value: unknown): PersistedFloorLayo
 
 	const layout: PersistedFloorLayoutData = { version: value.version, canvas, floors }
 	if (hasOwn(value, 'streetWidthTiles')) {
-		if (!isFiniteNumber(value.streetWidthTiles) || !Number.isInteger(value.streetWidthTiles) || value.streetWidthTiles < 5 || value.streetWidthTiles > 20) return undefined
+		if (!isFiniteNumber(value.streetWidthTiles) || !Number.isInteger(value.streetWidthTiles) || value.streetWidthTiles < MIN_STREET_WIDTH_TILES || value.streetWidthTiles > MAX_STREET_WIDTH_TILES) return undefined
 		layout.streetWidthTiles = value.streetWidthTiles
 	}
 	if (hasOwn(value, 'streetFloorId')) {

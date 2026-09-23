@@ -113,6 +113,8 @@ export function createBlueprintStore(deps: BlueprintStoreDeps): BlueprintStore {
 		pushHistory()
 	}
 
+	// Its own chain, never `runExclusive`: every command calls `save()` from inside its
+	// exclusive step, so queueing a save behind that step would deadlock it.
 	let saveChain: Promise<unknown> = Promise.resolve()
 
 	function save(): Promise<boolean> {
@@ -133,7 +135,8 @@ export function createBlueprintStore(deps: BlueprintStoreDeps): BlueprintStore {
 				if (error instanceof PayloadTooLargeError) {
 					toast.error('Failed to save blueprint data - it exceeds the maximum save size')
 				} else {
-					toast.error('Failed to save blueprint data')
+					const reason = error instanceof Error ? error.message : 'unknown error'
+					toast.error(`Failed to save blueprint data - changes reverted (${reason})`)
 				}
 				throw error
 			}
@@ -174,7 +177,7 @@ export function createBlueprintStore(deps: BlueprintStoreDeps): BlueprintStore {
 					? snap.floorId
 					: state.layout.floors[0]?.id ?? ''
 			}
-			state.selectionState = { primary: null, items: [] }
+			s.clearSelection()
 			try {
 				await save()
 				return true
@@ -185,25 +188,27 @@ export function createBlueprintStore(deps: BlueprintStoreDeps): BlueprintStore {
 	}
 
 	async function reloadEditorData(): Promise<void> {
-		const combined = await deps.persistence.load()
-		if (!combined) return
-		const migrated = migrate(combined.layout, combined.originAssets, combined.npcConfig)
-		state.layout = migrated.layout
-		state.layout.npcConfig = structuredClone(combined.npcConfig ?? emptyNpcConfig())
-		state.assetRegistry = combined.originAssets.map(asset => structuredClone(asset))
-		state.tagDefinitions = combined.tags.map(tag => ({ ...tag }))
-		for (const asset of state.assetRegistry) initAssetFields(asset)
-		if (!state.layout.floors.some(f => f.id === state.currentFloorId)) {
-			state.currentFloorId = state.layout.floors[0]?.id ?? ''
-		}
-		lastSaved = captureSnapshot()
-		resetHistory()
+		// On the exclusive queue: a reload that lands mid-command replaces the
+		// layout the command is writing to, and the committed write disappears.
+		await runExclusive(async () => {
+			const combined = await deps.persistence.load()
+			if (!combined) return
+			const migrated = migrate(combined.layout, combined.originAssets, combined.npcConfig)
+			state.layout = migrated.layout
+			state.layout.npcConfig = structuredClone(combined.npcConfig ?? emptyNpcConfig())
+			state.assetRegistry = combined.originAssets.map(asset => structuredClone(asset))
+			state.tagDefinitions = combined.tags.map(tag => ({ ...tag }))
+			for (const asset of state.assetRegistry) initAssetFields(asset)
+			if (!state.layout.floors.some(f => f.id === state.currentFloorId)) {
+				state.currentFloorId = state.layout.floors[0]?.id ?? ''
+			}
+			lastSaved = captureSnapshot()
+			resetHistory()
+		})
 	}
 
-	const store: Record<string, unknown> = {
+	const store = {
 		state,
-		persistence: deps.persistence,
-		sync: deps.sync,
 		toast,
 		currentFloor,
 		isNpcPreview,
@@ -211,6 +216,7 @@ export function createBlueprintStore(deps: BlueprintStoreDeps): BlueprintStore {
 		hasContent: () => layoutHasContent(state.layout),
 		undo,
 		canUndo,
+		historyDepth,
 		snap: (value: number, tileSize?: number) => _snap(value, tileSize ?? state.layout.canvas.tileSize),
 		clamp: (rect: Rect) => {
 			const b = resolveBuildingArea(state.layout)
@@ -223,22 +229,23 @@ export function createBlueprintStore(deps: BlueprintStoreDeps): BlueprintStore {
 	}
 
 	const s = store as unknown as BlueprintStore
-	Object.assign(
-		store,
-		createSelectionCommands(s),
-		createTagCommands(s),
-		createFloorCommands(s),
-		createObjectCommands(s),
-		createAssetCommands(s),
-		createModeCommands(s),
-		createMetadataCommands(s),
-		createNpcCommands(s),
-		createPersistenceCommands(s),
-		createFlattenCommands(s),
-	)
+	// One spread source, then the declared contract is checked: a slice key that is
+	// missing or mistyped fails typecheck instead of hiding behind the cast above.
+	const composed: BlueprintStore = Object.assign(store, {
+		...createSelectionCommands(s),
+		...createTagCommands(s),
+		...createFloorCommands(s),
+		...createObjectCommands(s),
+		...createAssetCommands(s),
+		...createModeCommands(s),
+		...createMetadataCommands(s),
+		...createNpcCommands(s),
+		...createPersistenceCommands(s),
+		...createFlattenCommands(s),
+	})
 
 	// Seed undo history with the initial committed state.
 	pushHistory()
 
-	return s
+	return composed
 }

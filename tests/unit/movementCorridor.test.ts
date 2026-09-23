@@ -1,5 +1,6 @@
+import { test } from 'vitest'
 import assert from 'node:assert/strict'
-import { NpcEngine, NPC_ENGINE_DEFAULT_OPTIONS, findNpcGridPath, type NpcEngineFloor, type NpcEngineInteractionTarget } from '../src/engine/npc'
+import { NpcEngine, NPC_ENGINE_DEFAULT_OPTIONS, findNpcGridPath, type NpcEngineFloor, type NpcEngineInteractionTarget } from '../../src/engine/npc'
 
 // Movement-corridor regression suite: guards the cell-reservation lifecycle.
 // The invariant: no two agents may ever share a floor cell at any tick
@@ -82,31 +83,28 @@ function runAdjacentSwap(clearance: number): CorridorResult {
 	return { shared, aX: a.x, bX: b.x, ticks, aStatus: a.status, bStatus: b.status }
 }
 
-// Case 1: slow crossing traffic (partial moves) - the reported mid-move window.
-for (const clearance of [0.5, 1]) {
-	const r = runCrossing(clearance, 2)
-	console.log(`cross clearance=${clearance}: shared=${r.shared ?? 'none'} A.x=${r.aX.toFixed(2)} B.x=${r.bX.toFixed(2)} ticks=${r.ticks}`)
-	assert.equal(r.shared, null, `clearance ${clearance}: crossing must never share a floor cell`)
-	assert.ok(r.aX > 7.5 && r.bX < 3.5, `clearance ${clearance}: both must cross (A.x=${r.aX.toFixed(2)}, B.x=${r.bX.toFixed(2)})`)
-}
+test('slow crossing traffic never shares a floor cell and completes', () => {
+	// Case 1: slow crossing traffic (partial moves) - the reported mid-move window.
+	for (const clearance of [0.5, 1]) {
+		const r = runCrossing(clearance, 2)
+		assert.equal(r.shared, null, `clearance ${clearance}: crossing must never share a floor cell`)
+		assert.ok(r.aX > 7.5 && r.bX < 3.5, `clearance ${clearance}: both must cross (A.x=${r.aX.toFixed(2)}, B.x=${r.bX.toFixed(2)})`)
+	}
+})
 
-// Case 2: adjacent fast swap - one-tick atomic exchange completes cleanly.
-{
+test('adjacent fast swap completes as a one-tick atomic exchange', () => {
+	// Case 2: adjacent fast swap - one-tick atomic exchange completes cleanly.
 	const r = runAdjacentSwap(1)
-	console.log(`fast swap: shared=${r.shared ?? 'none'} A.x=${r.aX.toFixed(2)} B.x=${r.bX.toFixed(2)} ticks=${r.ticks}`)
 	assert.equal(r.shared, null, 'fast swap must not share a floor cell')
 	assert.ok(r.aX > r.bX, `fast swap must exchange sides (A.x=${r.aX.toFixed(2)}, B.x=${r.bX.toFixed(2)})`)
-}
+})
 
-// Case 3: dead-end 1-row corridor - head-on agents must stand (never
-// co-occupy), run bounded, statuses sane (waiting/queued, not stuck walking).
-{
+test('dead-end 1-row corridor: agents stand off, run bounded, no ghosting', () => {
+	// Case 3: dead-end 1-row corridor - head-on agents must stand (never
+	// co-occupy), run bounded, statuses sane (waiting/queued, not stuck walking).
 	const r = runCrossing(0.5, 2, true)
-	console.log(`dead-end: shared=${r.shared ?? 'none'} ticks=${r.ticks} A=${r.aStatus} B=${r.bStatus}`)
 	assert.equal(r.shared, null, 'dead-end must never share a floor cell')
 	assert.ok(r.ticks >= 1500, 'dead-end run must be bounded')
 	assert.notEqual(r.aStatus, 'interacting', 'dead-end: A must not ghost through to its target')
 	assert.notEqual(r.bStatus, 'interacting', 'dead-end: B must not ghost through to its target')
-}
-
-console.log('movement corridor checks passed')
+})

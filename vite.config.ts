@@ -3,7 +3,6 @@ import { fileURLToPath, URL } from 'node:url'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { randomUUID } from 'node:crypto'
 import vue from '@vitejs/plugin-vue'
-import { visualizer } from 'rollup-plugin-visualizer'
 import fs from 'node:fs'
 import path from 'node:path'
 import { readBlueprintDataFile } from './src/blueprint-editor/store/schemaMigration.js'
@@ -240,7 +239,6 @@ export default defineConfig({
 	plugins: [
 		vue(),
 		blueprintDataPlugin(),
-		...(process.env.BUNDLE_REPORT ? [visualizer({ filename: 'dist/bundle-report.html', gzipSize: true, brotliSize: true, template: 'treemap' })] : []),
 	],
 	resolve: {
 		alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) },

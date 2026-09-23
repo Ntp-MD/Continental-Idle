@@ -8,7 +8,7 @@ import { unionRects } from '../../domain/collision'
 import { resolveStreetTiles, normalizeEditorSettings } from '../../domain/types'
 import { useConfirm } from '@/composables/useConfirm'
 import { useToast } from '@/composables/useToast'
-import type { ObjectData, EntityRef, AssetDef } from '../../domain/types'
+import type { ObjectData, EntityRef, AssetDef, Rect } from '../../domain/types'
 import { useCanvasViewport } from '../../composables/useCanvasViewport'
 import { useCanvasSelection } from '../../composables/useCanvasSelection'
 import { useCanvasDragDrop } from '../../composables/useCanvasDragDrop'
@@ -395,27 +395,167 @@ const tileGuideRect = computed(() => {
   return { x: Math.round(selBox.x / t) * t, y: Math.round(selBox.y / t) * t, w: cols * t, h: rows * t, cols, rows }
 })
 
-// Landing guide while moving a selection: the selection's true bounds (linked
-// members included) at its live dragged position, snapped to the tile grid and
-// clamped to the building area - exactly what commitMove will accept.
-const moveGuideRect = computed(() => {
-  if (!moving.value || !_dragHasMoved) return null
+// Smart-guide shared pieces: one tolerance, one dragged-group resolution.
+// Display (moveGuideRect/alignGuides) and snap-assist all read these, so the
+// lines shown and the pull applied can never disagree.
+const alignTolerance = computed(() => editorSettings.value.alignTolerancePx / zoom.value)
+
+interface DraggedGroup {
+  bounds: Rect
+  ids: Set<string>
+  multi: boolean
+}
+
+function resolveDraggedGroup(): DraggedGroup | null {
   const currentFloor = floor.value
-  if (!currentFloor) return null
+  if (!currentFloor || !moving.value) return null
   const items = store.state.selectionState.items
   const primaryId = items[0]?.type === 'object' ? items[0].id : moving.value.id
   const anchor = currentFloor.objects.find((o) => o.id === primaryId)
-  if (!anchor || anchor.locked) return null
-  const members = items.length > 1
-    ? items
-        .map((i) => (i.type === 'object' ? currentFloor.objects.find((o) => o.id === i.id) : null))
-        .filter((o): o is NonNullable<typeof o> => !!o)
-    : [anchor, ...store.getLinkedObjects(anchor)]
+  if (!anchor) return null
+  const members =
+    items.length > 1
+      ? items
+          .map((i) => (i.type === 'object' ? currentFloor.objects.find((o) => o.id === i.id) : null))
+          .filter((o): o is NonNullable<typeof o> => !!o)
+      : [anchor, ...store.getLinkedObjects(anchor)]
+  if (members.some((m) => m.locked)) return null
   const bounds = unionRects(members)
   if (!bounds) return null
-  const snapped = store.clamp({ x: store.snap(bounds.x), y: store.snap(bounds.y), w: bounds.w, h: bounds.h })
-  return { x: snapped.x, y: snapped.y, w: bounds.w, h: bounds.h }
+  return { bounds, ids: new Set(members.map((m) => m.id)), multi: members.length > 1 }
+}
+
+const draggedBounds = computed<DraggedGroup | null>(() => {
+  if (!moving.value || !dragHasMoved.value) return null
+  return resolveDraggedGroup()
 })
+
+function dragEdges(bounds: Rect, multi: boolean): { v: number[]; h: number[] } {
+  const v = [bounds.x, bounds.x + bounds.w]
+  const h = [bounds.y, bounds.y + bounds.h]
+  if (!multi) {
+    v.splice(1, 0, bounds.x + bounds.w / 2)
+    h.splice(1, 0, bounds.y + bounds.h / 2)
+  }
+  return { v, h }
+}
+
+interface AlignCandidate {
+  at: number
+  door: boolean
+}
+
+function collectAlignCandidates(excludeIds: Set<string>, includeDoors: boolean): { v: AlignCandidate[]; h: AlignCandidate[] } {
+  const v: AlignCandidate[] = []
+  const h: AlignCandidate[] = []
+  const currentFloor = floor.value
+  if (currentFloor) {
+    for (const o of currentFloor.objects) {
+      if (excludeIds.has(o.id)) continue
+      v.push({ at: o.x, door: false }, { at: o.x + o.w / 2, door: false }, { at: o.x + o.w, door: false })
+      h.push({ at: o.y, door: false }, { at: o.y + o.h / 2, door: false }, { at: o.y + o.h, door: false })
+    }
+  }
+  for (const run of walkableRuns.value) {
+    const isDoor = run.state === 'door'
+    if (run.state !== 'blocked' && !(isDoor && includeDoors)) continue
+    v.push({ at: run.x, door: isDoor }, { at: run.x + run.w, door: isDoor })
+    h.push({ at: run.y, door: isDoor }, { at: run.y + run.h, door: isDoor })
+  }
+  return { v, h }
+}
+
+function draggedHasDoor(ids: Set<string>): boolean {
+  for (const id of ids) {
+    if (objAssetMap.value.get(id)?.svgRoles?.some((r) => r.role === 'door')) return true
+  }
+  return false
+}
+
+// Landing guide while moving a selection: the dragged bounds snapped to the
+// tile grid and clamped to the building area - exactly what commitMove accepts.
+const moveGuideRect = computed(() => {
+  const group = draggedBounds.value
+  if (!group) return null
+  const snapped = store.clamp({
+    x: store.snap(group.bounds.x),
+    y: store.snap(group.bounds.y),
+    w: group.bounds.w,
+    h: group.bounds.h,
+  })
+  return { x: snapped.x, y: snapped.y, w: group.bounds.w, h: group.bounds.h }
+})
+
+// Smart Guides (G1 display): full-span alignment lines while dragging.
+// Door runs participate only when the dragged group holds a door asset.
+const alignGuides = computed(() => {
+  const group = draggedBounds.value
+  if (!group) return null
+  const tolerance = alignTolerance.value
+  if (!(tolerance > 0)) return null
+  const edges = dragEdges(group.bounds, group.multi)
+  const candidates = collectAlignCandidates(group.ids, draggedHasDoor(group.ids))
+  const vHits = new Map<number, boolean>()
+  const hHits = new Map<number, boolean>()
+  const near = (a: number, b: number) => Math.abs(a - b) <= tolerance
+  const addHit = (hits: Map<number, boolean>, at: number, door: boolean) => {
+    const key = Math.round(at * 2) / 2
+    if (!hits.has(key)) hits.set(key, door)
+    else if (door) hits.set(key, true)
+  }
+  for (const c of candidates.v) {
+    if (edges.v.some((d) => near(d, c.at))) addHit(vHits, c.at, c.door)
+  }
+  for (const c of candidates.h) {
+    if (edges.h.some((d) => near(d, c.at))) addHit(hHits, c.at, c.door)
+  }
+  if (!vHits.size && !hHits.size) return null
+  return {
+    v: [...vHits.entries()].map(([x, door]) => ({ x, door })),
+    h: [...hHits.entries()].map(([y, door]) => ({ y, door })),
+  }
+})
+
+// Snap-assist (G2): pull the drop target so a dragged edge lands on the
+// nearest candidate within tolerance. Same candidates/tolerance as display.
+function assistMoveTarget(x: number, y: number): { x: number; y: number } {
+  const currentFloor = floor.value
+  const m = moving.value
+  if (!currentFloor || !m) return { x, y }
+  const group = resolveDraggedGroup()
+  if (!group) return { x, y }
+  const anchor = currentFloor.objects.find((o) => o.id === m.id)
+  if (!anchor) return { x, y }
+  const tolerance = alignTolerance.value
+  if (!(tolerance > 0)) return { x, y }
+  const shiftX = x - anchor.x
+  const shiftY = y - anchor.y
+  const edges = dragEdges(group.bounds, group.multi)
+  const candidates = collectAlignCandidates(group.ids, draggedHasDoor(group.ids))
+  let corrX = 0
+  let corrY = 0
+  let bestDx = Infinity
+  let bestDy = Infinity
+  for (const c of candidates.v) {
+    for (const e of edges.v) {
+      const d = Math.abs(e + shiftX - c.at)
+      if (d <= tolerance && d < bestDx) {
+        bestDx = d
+        corrX = c.at - (e + shiftX)
+      }
+    }
+  }
+  for (const c of candidates.h) {
+    for (const e of edges.h) {
+      const d = Math.abs(e + shiftY - c.at)
+      if (d <= tolerance && d < bestDy) {
+        bestDy = d
+        corrY = c.at - (e + shiftY)
+      }
+    }
+  }
+  return { x: x + corrX, y: y + corrY }
+}
 
 const tilePaint = useCanvasTilePaint({
   brush: () => store.state.tileBrush,
@@ -603,7 +743,7 @@ function tryCycleSelect(p: { x: number; y: number }): EntityRef | null {
 }
 
 function onObjectMouseDown(e: MouseEvent, id: string) {
-  if (store.state.mode === 'npc-preview') return
+  if (isNpcPreview.value) return
   if (store.state.tileBrush) return
   if (e.button === 1 || spaceDown.value) return
   e.stopPropagation()
@@ -630,12 +770,12 @@ function onObjectMouseDown(e: MouseEvent, id: string) {
     startX: p.x,
     startY: p.y,
   }
-  _dragHasMoved = false
+  dragHasMoved.value = false
   window.addEventListener('mousemove', onMoveMouseMove)
   window.addEventListener('mouseup', onMoveMouseUp)
 }
 
-let _dragHasMoved = false
+const dragHasMoved = ref(false)
 let _moveRafId: number | null = null
 let _movePending: { x: number; y: number } | null = null
 
@@ -645,7 +785,7 @@ function cancelObjectDrag(): void {
     _moveRafId = null
   }
   _movePending = null
-  _dragHasMoved = false
+  dragHasMoved.value = false
   moving.value = null
   window.removeEventListener('mousemove', onMoveMouseMove)
   window.removeEventListener('mouseup', onMoveMouseUp)
@@ -656,11 +796,12 @@ function onMoveMouseMove(e: MouseEvent) {
   const p = localPoint(e)
   if (!p) return
   const threshold = Math.max(0.5, editorSettings.value.dragThresholdPx / zoom.value)
-  if (!_dragHasMoved) {
+  if (!dragHasMoved.value) {
     if (Math.abs(p.x - moving.value.startX) < threshold && Math.abs(p.y - moving.value.startY) < threshold) return
-    _dragHasMoved = true
+    dragHasMoved.value = true
   }
-  _movePending = { x: p.x - moving.value.offsetX, y: p.y - moving.value.offsetY }
+  const assisted = assistMoveTarget(p.x - moving.value.offsetX, p.y - moving.value.offsetY)
+  _movePending = { x: assisted.x, y: assisted.y }
   if (_moveRafId === null) {
     _moveRafId = requestAnimationFrame(() => {
       _moveRafId = null
@@ -684,9 +825,9 @@ async function onMoveMouseUp() {
     _movePending = null
   }
   if (moving.value) {
-    if (_dragHasMoved) await store.commitMove()
+    if (dragHasMoved.value) await store.commitMove()
   }
-  _dragHasMoved = false
+  dragHasMoved.value = false
   moving.value = null
 }
 
@@ -728,20 +869,21 @@ async function onKeyDown(e: KeyboardEvent) {
     const objCount = primary ? store.state.selectionState.items.length || 1 : 0
     if (!tiles && objCount === 0) return
     e.preventDefault()
+    const parts: string[] = []
     if (objCount > 0) {
-      const parts: string[] = [
+      parts.push(
         `${objCount} selected ${primary!.type === 'object' ? (objCount === 1 ? 'object' : 'objects') : primary!.type}`,
-      ]
-      if (tiles) parts.push('the wall/door tiles in the marked area')
-      const confirmed = await confirm({
-        title: 'Delete selection',
-        message: `Delete ${parts.join(' and ')}? This action cannot be undone.`,
-        confirmLabel: 'Delete',
-        cancelLabel: 'Cancel',
-        danger: true,
-      })
-      if (!confirmed) return
+      )
     }
+    if (tiles) parts.push('the wall/door tiles in the marked area')
+    const confirmed = await confirm({
+      title: 'Delete selection',
+      message: `Delete ${parts.join(' and ')}? You can undo this with Ctrl+Z.`,
+      confirmLabel: 'Delete',
+      cancelLabel: 'Cancel',
+      danger: true,
+    })
+    if (!confirmed) return
     if (tiles) {
       const saved = await store.paintFloorTiles(store.state.currentFloorId, 'walkable', tiles.rect)
       clearTileSelection()
@@ -778,7 +920,7 @@ async function onKeyDown(e: KeyboardEvent) {
   } else if (e.key === 'Escape') {
     if (dragState.assetId) endAssetDrag()
     clearTileSelection()
-    store.state.selectionState = { primary: null, items: [] }
+    store.clearSelection()
   } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'l') {
     e.preventDefault()
     if (e.shiftKey) {
@@ -1102,7 +1244,7 @@ async function cancelDrawnOrigin() {
         />
 
         <!-- Top ruler ticks -->
-        <g v-for="tick in rulerXTicks" :key="'rx' + tick.pos">
+        <g v-for="tick in rulerXTicks" :key="'rx' + tick.pos" v-memo="[tick.pos, tick.major, tick.label, rulerTickFontSize]">
           <line
             v-if="tick.major"
             :x1="tick.pos"
@@ -1135,7 +1277,7 @@ async function cancelDrawnOrigin() {
         </g>
 
         <!-- Left ruler ticks -->
-        <g v-for="tick in rulerYTicks" :key="'ry' + tick.pos">
+        <g v-for="tick in rulerYTicks" :key="'ry' + tick.pos" v-memo="[tick.pos, tick.major, tick.label, rulerTickFontSize]">
           <line
             v-if="tick.major"
             :x1="-RULER_SIZE"
@@ -1386,7 +1528,7 @@ async function cancelDrawnOrigin() {
               :height="Math.max(0, obj.h - 2)"
               fill="none"
               :rx="obj.radius ?? 0"
-              class="editor__overlay--highlight editor__svg--noevents"
+              class="editor__overlay editor__overlay--highlight editor__svg--noevents"
             />
             <template
               v-if="(renderWalkableOverlay || renderWallOverlay) && objDef(obj).walkableGrid"
@@ -1422,7 +1564,7 @@ async function cancelDrawnOrigin() {
               :height="obj.h - (obj.padding ?? 0) * 2"
               fill="none"
               :rx="obj.radius ?? 0"
-              class="editor__overlay--selected editor__svg--noevents"
+              class="editor__overlay flag--active editor__svg--noevents"
             />
             <text
               v-if="showLabels && (isObjectSelected(obj.id) || obj.w * zoom >= 48)"
@@ -1524,16 +1666,28 @@ async function cancelDrawnOrigin() {
         />
       </g>
 
-      <g v-if="moveGuideRect" class="editor__svg--noevents">
-        <rect
-          :x="moveGuideRect.x"
-          :y="moveGuideRect.y"
-          :width="moveGuideRect.w"
-          :height="moveGuideRect.h"
-          fill="color-mix(in srgb, var(--accent-green) 15%, transparent)"
-          stroke="var(--accent-green)"
-          stroke-width="1.5"
-          stroke-dasharray="4 3"
+      <g v-if="alignGuides" class="editor__svg--noevents">
+        <line
+          v-for="(l, i) in alignGuides.v"
+          :key="`agv-${i}`"
+          :x1="l.x"
+          y1="0"
+          :x2="l.x"
+          :y2="canvas.height"
+          :stroke="l.door ? 'var(--accent-green)' : 'var(--accent-primary)'"
+          stroke-width="1"
+          stroke-dasharray="5 3"
+        />
+        <line
+          v-for="(l, i) in alignGuides.h"
+          :key="`agh-${i}`"
+          x1="0"
+          :y1="l.y"
+          :x2="canvas.width"
+          :y2="l.y"
+          :stroke="l.door ? 'var(--accent-green)' : 'var(--accent-primary)'"
+          stroke-width="1"
+          stroke-dasharray="5 3"
         />
       </g>
 
@@ -1828,20 +1982,20 @@ async function cancelDrawnOrigin() {
   outline: 2px solid var(--accent-primary);
 }
 
-.editor__overlay--selected {
-  stroke: var(--accent-gold);
-  stroke-width: 2px;
+.editor__overlay {
   fill: none;
+  stroke: var(--accent-gold);
   pointer-events: none;
 }
 
+.editor__overlay.flag--active {
+  stroke-width: 2px;
+}
+
 .editor__overlay--highlight {
-  stroke: var(--accent-gold);
   stroke-width: 1.5px;
   stroke-dasharray: 5 3;
   opacity: 0.9;
-  fill: none;
-  pointer-events: none;
 }
 
 .editor__object--linked {

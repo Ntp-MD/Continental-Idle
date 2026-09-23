@@ -10,17 +10,7 @@ import { spawn } from 'node:child_process'
 const LEGACY_SUITES = [
 	'test:npc-engine',
 	'test:npc-queue',
-	'test:npc-social',
-	'test:arrival-latch',
-	'test:movement-corridor',
-	'test:blueprint-schema',
-	'test:asset-schema',
 	'test:settings-completeness',
-	'test:sync-payload',
-	'test:migrate',
-	'test:collision',
-	'test:tag-matching',
-	'test:persistence',
 	'test:store-crud',
 	'test:tower-integration',
 ]

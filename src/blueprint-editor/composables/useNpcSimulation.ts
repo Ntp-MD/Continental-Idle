@@ -12,6 +12,8 @@ export interface NpcSimulationSources {
 	getAssetTags?: (type: string) => string[] | undefined
 	getAssetDef?: (type: string) => AssetDef | undefined
 	getManagedTags?: () => readonly string[]
+	/** Commit counter (`store.historyDepth`); bumps once per settled mutation. */
+	getCommitVersion?: () => number
 }
 
 const tileStateIds = new WeakMap<object, number>()
@@ -87,13 +89,19 @@ export function useNpcSimulation(sources: NpcSimulationSources = {}): {
 		core.setViewFloorId(floorId)
 	})
 
-	watch(() => sources.getFloor?.(), floor => {
+	// Commit-granular, not `deep: true` on the floor: a deep watcher re-traverses every
+	// tile cell (~8k nodes at default canvas) on each flush, so dragging one object cost
+	// ~12ms per frame of pure observation - and the signature check below discarded most
+	// of those frames anyway. Layout edits only reach the store through committed
+	// commands, so the commit counter sees every change that matters.
+	watch(() => sources.getCommitVersion?.() ?? 0, () => {
+		const floor = sources.getFloor?.()
 		if (!floor || floor.id !== core.getViewFloorId()) return
 		const sig = floorSignature(floor)
 		if (sig === lastFloorSig) return
 		lastFloorSig = sig
 		core.refresh()
-	}, { deep: true })
+	})
 
 	watch(() => sources.getCanvas?.(), () => {
 		if (!core.isDeploymentActive()) return

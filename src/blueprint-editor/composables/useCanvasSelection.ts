@@ -94,8 +94,7 @@ export function useCanvasSelection(
 			if (hitIds.length === 1) {
 				store.select({ type: 'object', id: hitIds[0] })
 			} else if (hitIds.length > 1) {
-				const items = hitIds.map(id => ({ type: 'object' as const, id }))
-				store.state.selectionState = { primary: items[0], items }
+				store.setSelection(hitIds.map(id => ({ type: 'object' as const, id })))
 			}
 		}
 		boxSelect.value = null

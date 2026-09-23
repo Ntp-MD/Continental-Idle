@@ -1,7 +1,8 @@
+import { test } from 'vitest'
 import assert from 'node:assert/strict'
-import { ASSET_DEF_FIELD_COVERAGE, serializeAsset } from '../src/blueprint-editor/assets/assetUtils'
-import { normalizeOriginAsset, resolveObjectDef } from '../src/blueprint-editor/domain/types'
-import type { AssetDef } from '../src/blueprint-editor/domain/types'
+import { ASSET_DEF_FIELD_COVERAGE, serializeAsset } from '../../src/blueprint-editor/assets/assetUtils'
+import { normalizeOriginAsset, resolveObjectDef } from '../../src/blueprint-editor/domain/types'
+import type { AssetDef } from '../../src/blueprint-editor/domain/types'
 
 // Sample fixture must populate EVERY AssetDef field (see ASSET_DEF_FIELD_COVERAGE).
 // When adding a field to AssetDef (types.ts): add it to ASSET_DEF_FIELD_COVERAGE
@@ -39,27 +40,29 @@ const sample: AssetDef = {
 	queue: { maxMembers: 3, admissionDepth: 4 },
 }
 
-{
-	const covered = Object.keys(ASSET_DEF_FIELD_COVERAGE).sort()
-	const fixtureKeys = Object.keys(sample).sort()
-	assert.deepEqual(fixtureKeys, covered, 'test fixture is missing AssetDef fields — extend `sample`')
-}
-
 function assertSurvives(label: string, out: Record<string, unknown> | undefined, exempt: string[] = []): void {
 	assert.ok(out, `${label}: output is undefined`)
 	for (const key of Object.keys(sample)) {
 		if (exempt.includes(key)) continue
 		assert.ok(
 			out[key] !== undefined,
-			`${label} drops AssetDef field "${key}" — extend ${label} when adding schema fields`,
+			`${label} drops AssetDef field "${key}" - extend ${label} when adding schema fields`,
 		)
 	}
 }
 
-assertSurvives('serializeAsset', serializeAsset(JSON.parse(JSON.stringify(sample))) as unknown as Record<string, unknown>, ['svgRoles', 'walkableGrid'])
-assertSurvives('normalizeOriginAsset', normalizeOriginAsset(JSON.parse(JSON.stringify(sample))) as unknown as Record<string, unknown>)
+test('fixture covers every AssetDef field', () => {
+	const covered = Object.keys(ASSET_DEF_FIELD_COVERAGE).sort()
+	const fixtureKeys = Object.keys(sample).sort()
+	assert.deepEqual(fixtureKeys, covered, 'test fixture is missing AssetDef fields - extend `sample`')
+})
 
-{
+test('serializeAsset and normalizeOriginAsset keep every field', () => {
+	assertSurvives('serializeAsset', serializeAsset(JSON.parse(JSON.stringify(sample))) as unknown as Record<string, unknown>, ['svgRoles', 'walkableGrid'])
+	assertSurvives('normalizeOriginAsset', normalizeOriginAsset(JSON.parse(JSON.stringify(sample))) as unknown as Record<string, unknown>)
+})
+
+test('derived fields are not persisted, legacy values still load, resolve derives from tileStates', () => {
 	const serialized = serializeAsset(JSON.parse(JSON.stringify(sample)) as AssetDef)
 	assert.equal('svgRoles' in serialized, false, 'derived svgRoles are not persisted')
 	assert.equal('walkableGrid' in serialized, false, 'derived walkableGrid is not persisted')
@@ -70,6 +73,4 @@ assertSurvives('normalizeOriginAsset', normalizeOriginAsset(JSON.parse(JSON.stri
 	const resolved = resolveObjectDef(0, statesOnly, { w: 25, h: 25 })
 	assert.deepEqual(resolved.walkableGrid, [[true]], 'resolve derives the grid from tileStates when none is stored')
 	assert.deepEqual(resolved.tileStates, [['door']], 'tileStates pass through untouched')
-}
-
-console.log('Asset schema coverage checks passed')
+})

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { collectFloorEntrances, isGuestRoleId, validateSettingsCompleteness } from '../src/blueprint-editor/assets/validation'
-import { EDITOR_FIELD_SPECS } from '../src/blueprint-editor/domain/types'
+import { EDITOR_FIELD_SPECS, normalizeEditorSettings } from '../src/blueprint-editor/domain/types'
 import { settingsFieldKeys } from '../src/blueprint-editor/components/modals/settingsFields'
 import type { FloorLayoutData, NpcSimulationConfig, ObjectData, TileState } from '../src/blueprint-editor/domain/types'
 
@@ -397,6 +397,14 @@ console.log('guest role id predicate passed')
 	const quiet = validateSettingsCompleteness(layout, assetMap, config)
 	assert.equal(quiet.issues.some(issue => issue.includes('undefined tags')), false, 'orphan check skipped without the managed set')
 	console.log('orphan tag hints passed')
+}
+
+// alignTolerancePx round-trips through normalize and clamps to spec.
+{
+  assert.equal(normalizeEditorSettings({ alignTolerancePx: 10 }).alignTolerancePx, 10)
+  assert.equal(normalizeEditorSettings({ alignTolerancePx: 99 }).alignTolerancePx, 6, 'over-max falls back to default')
+  assert.equal(normalizeEditorSettings({}).alignTolerancePx, 6, 'missing key falls back to default')
+  console.log('align tolerance normalize passed')
 }
 
 // Every editor field spec has a Settings modal row (no silent omissions).

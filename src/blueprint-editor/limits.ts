@@ -12,4 +12,7 @@ export const MAX_FLOORS = 100
 export const MAX_OBJECTS_PER_FLOOR = 10_000
 export const MAX_NPC_ENTRIES = 1000
 export const MAX_ASSET_TILES = 256
+export const MAX_TAGS = 256
+export const MIN_STREET_WIDTH_TILES = 5
+export const MAX_STREET_WIDTH_TILES = 20
 export const MAX_PAYLOAD_BYTES = 5 * 1024 * 1024

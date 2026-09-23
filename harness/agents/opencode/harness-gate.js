@@ -1,13 +1,15 @@
 import { readFileSync } from 'node:fs'
 import { isAbsolute, join, relative, sep } from 'node:path'
-import { ANCHOR_EVERY_CALLS, LITE_MAX_WORK_FILES, SLOT_REL, isMetaPath, slotIsEmpty } from '../../scripts/rail.mjs'
+import { ANCHOR_EVERY_CALLS, BANNED_SHELL, LITE_MAX_WORK_FILES, SLOT_REL, isMetaPath, slotIsEmpty } from '../../scripts/rail.mjs'
 
 // Harness gate - layer 3 (CLI/agent) enforcement, opencode only.
 //
 // Layer 1 (AGENTS.md + HARNESS.md context injection) asks the agent to follow
-// the harness. This plugin enforces the one rule that matters at the tool
-// boundary: a medium+ task - a second distinct project file - cannot be edited
-// until the live slot is filled. A single-file lite task stays free.
+// the harness. This plugin enforces the rules that matter at the tool
+// boundary: (1) a medium+ task - a second distinct project file - cannot be
+// edited until the live slot is filled, a single-file lite task stays free;
+// (2) banned shell commands (BANNED_SHELL in rail.mjs) cannot run at all -
+// soft context rules that slipped through the loop are hard-banned here.
 //
 // Enforcement is mechanical: throwing from tool.execute.before aborts the call
 // (opencoce docs, ".env protection"). Meta paths never count, so the agent can
@@ -15,6 +17,7 @@ import { ANCHOR_EVERY_CALLS, LITE_MAX_WORK_FILES, SLOT_REL, isMetaPath, slotIsEm
 // Rules + thresholds live in harness/scripts/rail.mjs - this file only wires.
 
 const EDIT_TOOLS = new Set(['edit', 'write'])
+const SHELL_TOOLS = new Set(['bash', 'shell', 'command'])
 
 function toRepoRel(directory, filePath) {
 	if (typeof filePath !== 'string' || !filePath) return null
@@ -58,6 +61,20 @@ export function createHarnessGate({ directory }) {
 	let calls = 0
 	return {
 		'tool.execute.before': async (input, output) => {
+			if (SHELL_TOOLS.has(input.tool)) {
+				const command = typeof output?.args?.command === 'string' ? output.args.command : ''
+				for (const rule of BANNED_SHELL) {
+					if (rule.pattern.test(command)) {
+						throw new Error(
+							`Harness gate: banned shell command (${rule.why}). ` +
+								`Matched: ${String(rule.pattern)} in "${command.slice(0, 200)}". ` +
+								`Do not retry, do not route around it (no scripts, aliases, plugins, or other tools) - ` +
+								`the only unlock is the user naming git in the current prompt.`,
+						)
+					}
+				}
+				return
+			}
 			if (!EDIT_TOOLS.has(input.tool)) return
 			const rel = toRepoRel(directory, output?.args?.filePath)
 			if (!rel || isMetaPath(rel)) return

@@ -42,6 +42,8 @@ Settled project patterns live in `skill.md` (router), `docs/skill/data-flow.md` 
 
 Run ONLY the suite matching the change, never the full matrix.
 
+Verify cadence (this project, user order): verify ONCE at Done, never mid-task. While iterating, do not run the routed suite, lint, typecheck, `verify.mjs check`, or `verify.mjs drift` - batch the edits, then run the single routed suite one time at the end. This overrides the HARNESS.md "safe iteration" rerun and the mid-task drift cadence; the harness-gate plugin's scheduled anchor stays as-is.
+
 PROJECT ADAPTER - the rows and banned names below are this project's values. A new project keeps the table shape and markers, fills its own rows.
 <!-- verify:start -->
 
@@ -61,5 +63,5 @@ PROJECT ADAPTER - the rows and banned names below are this project's values. A n
 
 Router: `node harness/scripts/verify.mjs` (route/run/check/drift/audit) parses THIS table - backticked globs in Changed match `git status` (no-slash globs match basenames, slash globs match paths), backticked npm scripts in Run are the route; a row with no concrete script is human-pick (the router lists the project's `test:` scripts, never auto-runs). The table is the only routing source - the harness ships no suite names.
 
-Bans: no `verify` / `test` matrix unless asked. Never `test:npc-perf`, `test:npc-scale`, `test:behavior`, `observe:hotel` unless asked. Never `git checkout --`, `git restore`, `git reset`, `git stash`, or `git clean` on tracked/staged files - revert only by hand-editing; read-only `git status` / `git log` allowed, never `git diff` (use targeted `read` on the file instead); Temp diagnostics go in `tests/_*.tmp.ts`, deleted same session, never committed.
+Bans: no `verify` / `test` matrix unless asked. Never `test:npc-perf`, `test:npc-scale`, `test:behavior`, `observe:hotel` unless asked. Never run `git` at all - the user runs git manually (push/pull/fetch/commit); the ONLY unlock is the user naming git in the current prompt - no agent-side bypass, no workaround (scripts/aliases/other tools), no self-granted exception, never claim prior permission (hard-enforced by the harness-gate plugin). Temp diagnostics go in `tests/_*.tmp.ts`, deleted same session, never committed.
 <!-- verify:end -->

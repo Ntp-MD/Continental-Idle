@@ -50,6 +50,23 @@ export function normalizeObject(
 	o.fillColor = resolved.fillColor
 }
 
+/**
+ * The origin-owned snapshot an instance inherits from its origin asset. Adding a
+ * field here is the single place that decides "origin wins"; the lock rule stays
+ * out because a fresh placement takes the default while an existing instance only
+ * follows it while it never overrode the default (see `resolvePlacedObject` and
+ * `store/assets.ts`).
+ */
+export function originSnapshot(asset: AssetDef): Pick<ObjectData, 'label' | 'radius' | 'labelPadding' | 'padding' | 'rx'> {
+	return {
+		label: asset.defaultLabel,
+		radius: asset.defaultRadius,
+		labelPadding: asset.defaultLabelPadding,
+		padding: asset.defaultPadding,
+		rx: asset.defaultRx ? { ...asset.defaultRx } : undefined,
+	}
+}
+
 export function resolvePlacedObject(
 	placement: ObjectPlacement,
 	asset: AssetDef | undefined,
@@ -63,11 +80,7 @@ export function resolvePlacedObject(
 		...placement,
 		w: size.w,
 		h: size.h,
-		label: asset.defaultLabel,
-		radius: asset.defaultRadius,
-		labelPadding: asset.defaultLabelPadding,
-		padding: asset.defaultPadding,
-		rx: asset.defaultRx ? { ...asset.defaultRx } : undefined,
+		...originSnapshot(asset),
 		fillColor: placement.fillColor,
 		strokeColor: placement.strokeColor,
 		locked: placement.locked ?? asset.defaultLocked,

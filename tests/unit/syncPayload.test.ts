@@ -1,11 +1,12 @@
+import { test } from 'vitest'
 import assert from 'node:assert/strict'
-import { buildSyncedPayload, loadSyncedPayload, SYNCED_PAYLOAD_VERSION } from '../src/blueprint-editor/syncedPayload'
-import { buildAssetMap } from '../src/blueprint-editor/assets/assetUtils'
-import { normalizeObject } from '../src/blueprint-editor/domain/geometry'
-import { emptyNpcConfig } from '../src/blueprint-editor/store/storeUtils'
-import { BLUEPRINT_DATA_VERSION } from '../src/blueprint-editor/domain/types'
-import { EDITOR_CONFIG } from '../src/blueprint-editor/editorConfig'
-import type { AssetDef, FloorLayoutData, NpcSimulationConfig, ObjectData, SyncedLayoutPayload } from '../src/blueprint-editor/domain/types'
+import { buildSyncedPayload, loadSyncedPayload, SYNCED_PAYLOAD_VERSION } from '../../src/blueprint-editor/syncedPayload'
+import { buildAssetMap } from '../../src/blueprint-editor/assets/assetUtils'
+import { normalizeObject } from '../../src/blueprint-editor/domain/geometry'
+import { emptyNpcConfig } from '../../src/blueprint-editor/store/storeUtils'
+import { BLUEPRINT_DATA_VERSION } from '../../src/blueprint-editor/domain/types'
+import { EDITOR_CONFIG } from '../../src/blueprint-editor/editorConfig'
+import type { AssetDef, FloorLayoutData, NpcSimulationConfig, ObjectData, SyncedLayoutPayload } from '../../src/blueprint-editor/domain/types'
 
 const NPC_CONFIG: NpcSimulationConfig = {
 	...emptyNpcConfig(),
@@ -46,8 +47,7 @@ function makeAsset(over: Partial<AssetDef>): AssetDef {
 	} as AssetDef
 }
 
-// ─ Floor-key mapping (assignSyncKeys contract) ─
-{
+test('floor-key mapping (assignSyncKeys contract)', () => {
 	const payload = buildSyncedPayload(makeLayout(), new Map(), undefined)!
 	assert.deepEqual(Object.keys(payload.floors).sort(), ['1', 'G'], "labels 'G'/'F1' map to keys G/1 (integer-like keys iterate first)")
 	const dup = buildSyncedPayload(
@@ -80,10 +80,9 @@ function makeAsset(over: Partial<AssetDef>): AssetDef {
 		undefined,
 	)!
 	assert.ok('G' in f0.floors, 'unrecognized first-floor label falls back to G')
-}
+})
 
-// ── Floor keys are stable under reorder (identity, not array position) ──
-{
+test('floor keys are stable under reorder (identity, not array position)', () => {
 	const atrium = { id: 'b', name: 'Atrium', label: 'Lobby', objects: [] }
 	const mezz = { id: 'a', name: 'Mezzanine', label: 'Lobby', objects: [] }
 	const first = buildSyncedPayload(makeLayout({ floors: [atrium, mezz] }), new Map(), undefined)!
@@ -104,10 +103,9 @@ function makeAsset(over: Partial<AssetDef>): AssetDef {
 	}), new Map(), undefined)!
 	assert.deepEqual(stripTimestamp(collFirst), stripTimestamp(collSecond), 'collision suffixes do not depend on array order')
 	assert.deepEqual(Object.keys(collSecond.floors).sort(), ['1', '1_2'], 'collision suffix still applied')
-}
+})
 
-// ── Object field propagation from origin asset ──
-{
+test('object field propagation from origin asset', () => {
 	const desk = makeAsset({})
 	const layout = makeLayout({
 		floors: [
@@ -139,10 +137,9 @@ function makeAsset(over: Partial<AssetDef>): AssetDef {
 	const orphan = floor.objects[1]
 	assert.equal(orphan.walkable, false, 'unknown asset type degrades to non-walkable')
 	assert.equal(orphan.interactSpots, undefined)
-}
+})
 
-// ── Origin defaultLabel reaches placed objects through the resolve path ──
-{
+test('origin defaultLabel reaches placed objects through the resolve path', () => {
 	const desk = makeAsset({ defaultLabel: 'Reception' })
 	const assets = buildAssetMap([desk])
 	const placed: ObjectData = { id: 'o1', type: 'a-desk', x: 25, y: 25, w: 0, h: 0, rotation: 0 }
@@ -156,10 +153,9 @@ function makeAsset(over: Partial<AssetDef>): AssetDef {
 	const unlabeledAssets = buildAssetMap([makeAsset({})])
 	normalizeObject(placed, 25, unlabeledAssets)
 	assert.equal(placed.label, undefined, 'removing the origin default clears the placed snapshot')
-}
+})
 
-// ── Persisted placements without w/h derive size from origin asset ──
-{
+test('persisted placements without w/h derive size from origin asset', () => {
 	const table = makeAsset({ id: 'a-table', name: 'Table', w: 2, h: 1 })
 	const layout = makeLayout({
 		floors: [
@@ -180,10 +176,9 @@ function makeAsset(over: Partial<AssetDef>): AssetDef {
 	assert.equal(floor.objects[0].h, 25, 'missing h derived from asset (1 tile x tileSize)')
 	assert.equal(floor.objects[1].w, 25, 'rotation 90 swaps derived width')
 	assert.equal(floor.objects[1].h, 50, 'rotation 90 swaps derived height')
-}
+})
 
-// ── Tile state propagation (walls and doors are cell tiles) ──
-{
+test('tile state propagation: walls and doors are cell tiles', () => {
 	const table = makeAsset({ id: 'a-table', name: 'Table', w: 2, h: 1, walkable: false, tileStates: [['door', 'blocked']] })
 	const payload = buildSyncedPayload(makeLayout({
 		floors: [{
@@ -199,8 +194,9 @@ function makeAsset(over: Partial<AssetDef>): AssetDef {
 	assert.deepEqual(syncedObjects[0].tileStates, [['door', 'blocked']], 'asset tile states sync through')
 	assert.equal('wallSegments' in syncedObjects[0], false, 'no wall segments on synced objects')
 	assert.equal('isWall' in syncedObjects[0], false, 'no wall flag on synced objects')
-// ── Rotated tile states resolve through the shared definition path ──
-{
+})
+
+test('rotated tile states resolve through the shared definition path', () => {
 	const wall = makeAsset({ id: 'a-wall', name: 'Wall', w: 2, h: 1, walkable: false, tileStates: [['blocked', 'door']] })
 	const payload = buildSyncedPayload(makeLayout({
 		floors: [{
@@ -214,13 +210,9 @@ function makeAsset(over: Partial<AssetDef>): AssetDef {
 	}), buildAssetMap([wall]), undefined)!
 	const synced = payload.floors.G!.objects[0]
 	assert.deepEqual(synced.tileStates, [['blocked'], ['door']], 'rotation 90 rotates tileStates to match the swapped w/h')
-}
+})
 
-// ── Canvas + npcConfig ──
-}
-
-// ── Canvas + npcConfig ──
-{
+test('canvas + npcConfig defaults and overrides', () => {
 	const payload = buildSyncedPayload(makeLayout(), new Map(), NPC_CONFIG)!
 	assert.equal(payload.canvas.streetWidthTiles, 8, 'street width defaults to STREET_TILES')
 	assert.equal(payload.version, 3)
@@ -234,10 +226,9 @@ function makeAsset(over: Partial<AssetDef>): AssetDef {
 	)!
 	assert.equal(custom.canvas.streetWidthTiles, 6, 'explicit street width honored')
 	assert.equal(custom.npcConfig, undefined, 'npcConfig omitted when absent')
-}
+})
 
-// ─ Game loader: payload -> runtime FloorData + canvas ──
-{
+test('game loader: payload -> runtime FloorData + canvas', () => {
 	const desk = makeAsset({})
 	const payload = buildSyncedPayload(makeLayout({
 		floors: [
@@ -254,10 +245,9 @@ function makeAsset(over: Partial<AssetDef>): AssetDef {
 	assert.deepEqual(loaded.floors[1].allowedRoleIds, ['staff'], 'allowedRoleIds round-trips')
 	assert.deepEqual(loaded.floors[1].objects[0], { id: 'o1', type: 'a-desk', x: 25, y: 25, rotation: 0, w: 25, h: 25 }, 'objects collapse to runtime ObjectData')
 	assert.equal('walkable' in loaded.floors[1].objects[0], false, 'definition fields are not copied onto runtime objects')
-}
+})
 
-// ── Loader ingress normalization ──
-{
+test('loader ingress normalization: walkable, zones, role ids', () => {
 	const dirty = loadSyncedPayload({
 		version: 3,
 		canvas: { width: 10, height: 10, tileSize: 5, streetWidthTiles: 1 },
@@ -268,10 +258,9 @@ function makeAsset(over: Partial<AssetDef>): AssetDef {
 	assert.equal(dirty.floors[0].walkable, undefined, 'invalid walkable dropped at ingress')
 	assert.equal(dirty.floors[0].spawnZones, undefined, 'invalid spawn zones dropped at ingress')
 	assert.deepEqual(dirty.floors[0].allowedRoleIds, ['ok'], 'invalid role ids dropped at ingress')
-}
+})
 
-// ── Loader object normalization ──
-{
+test('loader object normalization: placement, color, label', () => {
 	const objects = loadSyncedPayload({
 		version: 3,
 		canvas: { width: 10, height: 10, tileSize: 5, streetWidthTiles: 1 },
@@ -290,15 +279,13 @@ function makeAsset(over: Partial<AssetDef>): AssetDef {
 		{ id: 'ok', type: 'a-desk', x: 5, y: 5, rotation: 0, w: 5, h: 5, fillColor: '#112233', label: 'Counter' },
 		'object color and label are normalized at ingress',
 	)
-}
+})
 
-// ── Degenerate input ──
-{
+test('degenerate input: zero floors -> null', () => {
 	assert.equal(buildSyncedPayload(makeLayout({ floors: [] }), new Map(), undefined), null, 'zero floors -> null')
-}
+})
 
-// ── streetFloorId remaps to the runtime sync key ──
-{
+test('streetFloorId remaps to the runtime sync key', () => {
 	const payload = buildSyncedPayload(makeLayout({ streetFloorId: 'f1' }), new Map(), undefined)!
 	assert.equal(payload.canvas.streetFloorId, 'G', 'editor floor id remaps to sync key at egress')
 	const loaded = loadSyncedPayload(payload)
@@ -307,10 +294,9 @@ function makeAsset(over: Partial<AssetDef>): AssetDef {
 	assert.equal(stray.canvas.streetFloorId, undefined, 'unknown street floor dropped at egress')
 	const cut = loadSyncedPayload({ ...payload, canvas: { ...payload.canvas, streetFloorId: '9' } })
 	assert.equal(cut.canvas.streetFloorId, undefined, 'street id missing from payload floors dropped at ingress')
-}
+})
 
-// ── Version namespaces stay pinned together ──
-{
+test('version namespaces stay pinned together', () => {
 	assert.equal(BLUEPRINT_DATA_VERSION, 2, 'outer file envelope version')
 	assert.equal(EDITOR_CONFIG.layoutVersion, 3, 'inner layout version')
 	assert.equal(SYNCED_PAYLOAD_VERSION, 3, 'sync DTO version')
@@ -319,4 +305,4 @@ function makeAsset(over: Partial<AssetDef>): AssetDef {
 		/Unsupported synced payload version/,
 		'stale payload rejected at ingress',
 	)
-}
+})

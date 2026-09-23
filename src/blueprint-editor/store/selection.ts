@@ -10,24 +10,30 @@ export function createSelectionCommands(store: BlueprintStore) {
 
 	function selectAsset(id: string | null) {
 		state.selectedAssetId = id
-		if (id) state.selectionState = { primary: null, items: [] }
+		if (id) clearSelection()
 	}
 
 	const selectedAsset = computed(() =>
 		state.selectedAssetId ? findAssetCached(assetMap(), state.selectedAssetId) ?? null : null,
 	)
 
-	function select(ref: EntityRef | null) {
-		if (ref) {
-			state.selectionState = { primary: ref, items: [ref] }
-			state.selectedAssetId = null
-		} else {
-			state.selectionState = { primary: null, items: [] }
-		}
+	// Single owner of the selection shape: every write to `selectionState` goes through
+	// these two, so `primary` can never disagree with `items`.
+	function setSelection(items: EntityRef[]) {
+		state.selectionState = items.length ? { primary: items[0]!, items } : { primary: null, items: [] }
 	}
 
 	function clearSelection() {
 		state.selectionState = { primary: null, items: [] }
+	}
+
+	function select(ref: EntityRef | null) {
+		if (ref) {
+			setSelection([ref])
+			state.selectedAssetId = null
+		} else {
+			clearSelection()
+		}
 	}
 
 	function selectedObject(): ObjectData | undefined {
@@ -46,18 +52,14 @@ export function createSelectionCommands(store: BlueprintStore) {
 		const existingIdx = items.findIndex(item => item.id === id)
 
 		if (existingIdx >= 0) {
-			const nextItems = items.filter((_, index) => index !== existingIdx)
-			state.selectionState = nextItems.length
-				? { primary: nextItems[0], items: nextItems }
-				: { primary: null, items: [] }
+			setSelection(items.filter((_, index) => index !== existingIdx))
 			return
 		}
 
-		const nextItems = [...items, ref]
-		state.selectionState = { primary: nextItems[0], items: nextItems }
+		setSelection([...items, ref])
 	}
 
-	return { selectAsset, selectedAsset, select, clearSelection, selectedObject, selectedObjectIds, toggleMultiSelect }
+	return { selectAsset, selectedAsset, select, setSelection, clearSelection, selectedObject, selectedObjectIds, toggleMultiSelect }
 }
 
 export type SelectionCommands = ReturnType<typeof createSelectionCommands>

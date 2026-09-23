@@ -1145,3 +1145,67 @@ ode harness/scripts/verify.mjs check pass
 - Floor 980 / NpcManager 1200 / AssetEdit 1200 / Confirm 400 kept - their list+detail layouts use the space
 - decision: per-modal `min()` widths (over: one shared width utility - because content differs per modal and each rule is one line in its own component file)
 - verified: prettier clean; lint:bem pass; lint:css pass; typecheck pass (app + test + node)
+
+### modal input fill-width - 2026-09-22 11:37 UTC+7 (opencode, muse-spark-1.3-contributor-free)
+- components.css: `.form__col` gets `min-width: 0` + direct `input/select/textarea` children stretch to `width: 100%; min-width: 0; max-width: 100%` - inputs fill their parent column and can no longer push past the modal edge
+- NpcRoleDetail label/skin text inputs gained `size--stretch` so row-based inputs also fill remaining space
+- decision: stretch via `.form__col > input` context selector (over: global `input { width: 100% }` - because row layouts like label+input+button pairs rely on field-sizing content for the input to shrink between siblings)
+- verified: prettier clean; lint:bem pass; lint:css pass; typecheck pass (app + test + node)
+
+### modal layout redesign - 2026-09-22 11:37 UTC+7 (opencode, muse-spark-1.3-contributor-free)
+- SettingsModal Canvas tab: color sections (Background/Labels/Walls/Grid) pair into a wrapping two-column grid; Street split into controls vs Street Colors; Street Rendering numeric fields go horizontal
+- SettingsModal editor tabs: numeric field groups render as wrapping label-over-input columns (radius dot sits beside its input)
+- ImportSvgModal: Name + auto Size as two labeled columns, textarea gets its own labeled block (8 rows)
+- AssetPickerModal: "click asset, then click canvas" usage hint under search
+- DeployNpcModal Simulation: Walk speed + Spawn floor as two labeled columns with hints under each
+- NpcManagerModal library: dropped redundant Tags/Tasks panel headers (sub-tabs already carry names + counts)
+- decision: two-column wrapping grids via existing form__row/form--wrap/form__col only (over: new grid classes - because ui-layout.md rule 1 requires approval for new shared classes and form primitives already express the layout)
+- verified: prettier clean; lint:bem pass; lint:css pass; typecheck pass (app + test + node)
+
+### toolbar modal interiors redesign - 2026-09-22 11:37 UTC+7 (opencode, muse-spark-1.3-contributor-free)
+- SettingsModal unified to instant-apply: Apply All + isEditorDirty removed, per-tab instant hints, Reset-only footer
+- FloorModal: Duplicate moved into Details header, new Danger zone section (Clear objects + Delete floor), footer reduced to Close
+- DeployNpcModal: Total moved into header status (errors still override), footer keeps Cancel/Deploy
+- WorkspaceModal: Export/Import as side-by-side wrapping cards + Close footer
+- NpcManagerModal + ShortcutsModal: Close footers (footer convention now complete on every toolbar modal)
+- decision: drop Apply All instead of extending it to canvas (over: per-tab footers everywhere - because every editor field already applies on change, Apply All was a redundant second path)
+- verified: prettier --write on 5 files; lint:bem pass; lint:css pass; typecheck pass (app + test + node)
+
+### design-system polish pass - 2026-09-22 11:37 UTC+7 (opencode, muse-spark-1.3-contributor-free)
+- variables.css: added missing `--gap-lg: 24px` step (gap scale jumped 16 -> 40); modal body now breathes (gap-md inner, lg vertical padding)
+- reset.css: input/select/textarea gained `:focus-visible` outline (keyboard users had no focus indicator, only mouse border-color)
+- components.css: tabs__tab sized (font-sm, min-height 30px) to match body text; card__item--remove got horizontal padding (bare 10px x buttons were sub-target)
+- ToastContainer: toast icon inherits currentColor + weight 700 (was same weight as message, no tone emphasis)
+- EditorCanvas: View-toggle tooltips normalized to sentence case matching aria-labels
+- decision: token + shared-layer only (over: per-modal fixes - because spacing/focus/tab sizing are cross-cutting; per-page patches would fork the system)
+- verified: prettier clean; lint:bem pass; lint:css pass; typecheck pass (app + test + node)
+
+### modal UX/UI redesign, all modals, desktop - 2026-09-22 13:40 UTC+7 (opencode, opencode-go/deepseek-v4.1-flash)
+- user order: redesign every modal under `components/modals/` - no new class names, desktop-only fluid, audit with Playwright
+- SettingsModal was the only measured defect: `div.color` + `button.color__transparent` clipped past the modal edge at 1440 and 1024 because long ColorInput placeholders inflated the field; fixed by shortening placeholders to `#RRGGBB` and making groups wrap 2-up (`.settings__panel .form__row.form--start > .form--section { flex: 1 1 300px }`, fields `1 1 220px`)
+- decision: tag library renders as wrapping `card__item` chips (over: full-width rows - because a 1200px-wide single-column tag list wastes the modal and strands each delete `x` far right)
+- FloorModal floor-list pinned to 300px / detail fills, edit inputs `size--stretch`; DeployNpc sidebar `0 1 260px` / detail `1 1 360px`; AssetPicker fixed frame `min(82vh,720px)` + truncated names; AssetEdit preview rail stretches instead of `flex-start`
+- list/zone/task/role delete `x` reuse existing `card__item--remove` (quieter); NpcRoleDetail appearance placeholders shortened + skin/spot inputs stretched
+- verified: Playwright audit 1440x900 + 1024x768 - 0 overflowers, 0 console errors, `docOverflowX` false for all 11 modals; prettier + lint:bem + lint:css + typecheck green; verify.mjs check pass
+
+### ui-layout.md route fixed + UI rules re-homed - 2026-09-22 14:30 UTC+7 (opencode, opencode-go/deepseek-v4.1-flash)
+- user confirmed `docs/skill/ui-layout.md` was deleted on purpose (uncommitted working-tree delete); the file still existed in HEAD so earlier work this session cited it - gap owned
+- `skill.md`: Editor UI row retargeted from `docs/skill/ui-layout.md` to `AGENTS.md` (UI conventions) - dangling route gone
+- `AGENTS.md`: added a compact UI conventions block (BEM + `flag--*` state vocabulary, cascade/layer scope, ModalShell/async modals/shared tabs, store + concurrency + confirm/toast, field specs + player labels)
+- decision: re-homed only the enforced/architectural rules and dropped the visual-freeze rules that lived only in the deleted doc (reuse-first + approval-to-add, no-box-shadow/borders-only, 3+-call-site shared-class bar, input max-width ban) - over: re-homing them verbatim, because they are the constraint behind the "re-UI always looks the same" complaint
+- verified: `node harness/scripts/verify.mjs check` pass; no `.vue`/`.css` touched so no routed suite
+
+### modal layouts reworked, zero new classes - 2026-09-22 14:48 UTC+7 (opencode, opencode/muse-spark-1.3-contributor-free)
+- user order: redesign every UI layout in `components/modals/` with no new classes, visibly different and easier to use - template-only rework of all 11 Vue files, `settingsFields.ts` untouched (data-only)
+- every modal gets a `form__header` summary strip (counts in `badge`, hints, primary action); reused pool limited to tokens already defined under `src/` (`card`, `form__row--border`, `truncate`, modal `__` classes) so lint:css orphan/dead rules stay green, no `<style>` touched
+- AssetEdit preview rail moved left of the editor (tabs | preview | content); AssetPicker search+count badge in header, place-hint to footer; ImportSvg paste-first `card` with WxH badge; Workspace import-first `card` stack with filename badge
+- FloorModal +Add moved to header, Spawn Zones above Allowed Roles, danger row split by `form__row--border`; SettingsModal Apply+Reset in header, color/street sections before Canvas Size, footer reduced to hint; DeployNpcModal detail-first mirror with header total + Manager jump (per-detail jump buttons removed)
+- NpcManagerModal header counts + "+ Add Task" moved above search; NpcRoleList "+ Add Role" moved to header; NpcRoleDetail tabs reordered Basics/Spawn/Tasks/Tags/Rates with Default `badge`, Delete moved to bottom danger row; NpcTaskCard header (label + usage + delete) with station block before tags
+- decision: mirrored Deploy panes but NOT Floor panes (over: symmetric mirroring - because Floor widths are `:first-child`/`:last-child` order-based while Deploy widths are class-based, so a Floor swap would squeeze the detail pane)
+- verified: `lint:bem` pass, `lint:css` pass, `typecheck` (all three projects) pass
+
+### toolbar button order reworked - 2026-09-22 15:05 UTC+7 (opencode, opencode/muse-spark-1.3-contributor-free)
+- user order: button order in `Toolbar.vue` was wrong (Settings gear led, workflow scrambled) - DOM reorder only, no logic/class changes
+- new order: Tools -> Floor paint -> Undo -> Manage (Floor Manager, NPC Manager + wiring badge, Refresh Objects, Workspace) -> Preview (Deploy NPCs) -> utilities (Settings, Shortcuts) last
+- decision: structure (Floor) before actors (NPC) before culminating Deploy; rare utilities last (over: keeping original positions - because Settings-first buried daily tools and NPC-before-Floor broke the build flow)
+- verified: `lint:bem` + `lint:css` + `typecheck` pass

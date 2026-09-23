@@ -69,7 +69,7 @@ export function createObjectCommands(store: BlueprintStore) {
 			normalizeObject(object, t, new Map([...assetMap(), [asset.id, asset]]))
 			state.assetRegistry.push(asset)
 			floor.objects.push(object)
-			state.selectionState = { primary: { type: 'object', id: object.id }, items: [{ type: 'object', id: object.id }] }
+			store.setSelection([{ type: 'object', id: object.id }])
 			return { asset, object }
 		})
 	}
@@ -96,7 +96,7 @@ export function createObjectCommands(store: BlueprintStore) {
 			}
 			normalizeObject(obj, t, assetMap())
 			floor.objects.push(obj)
-			state.selectionState = { primary: { type: 'object', id: obj.id }, items: [{ type: 'object', id: obj.id }] }
+			store.setSelection([{ type: 'object', id: obj.id }])
 			await saveBlueprintData()
 			return obj
 		})

@@ -8,6 +8,7 @@ export function createFloorCommands(store: BlueprintStore) {
 	const state = store.state
 	const withStateLock = <T>(fn: () => Promise<T>) => store.runExclusive(fn)
 	const saveBlueprintData = () => store.save()
+	const clearSelection = () => store.clearSelection()
 
 	async function addFloor(): Promise<FloorData | null> {
 		return withStateLock(async () => {
@@ -34,7 +35,7 @@ export function createFloorCommands(store: BlueprintStore) {
 			if (state.layout.streetFloorId === id) {
 				delete state.layout.streetFloorId
 			}
-			state.selectionState = { primary: null, items: [] }
+			clearSelection()
 			return saveBlueprintData()
 		})
 	}
@@ -45,7 +46,7 @@ export function createFloorCommands(store: BlueprintStore) {
 			if (!floor) return false
 			if (floor.objects.length === 0) return true
 			floor.objects = []
-			state.selectionState = { primary: null, items: [] }
+			clearSelection()
 			return saveBlueprintData()
 		})
 	}
@@ -101,7 +102,7 @@ export function createFloorCommands(store: BlueprintStore) {
 
 	function selectFloor(id: string) {
 		state.currentFloorId = id
-		state.selectionState = { primary: null, items: [] }
+		clearSelection()
 	}
 
 	async function updateFloor(id: string, patch: FloorPatch): Promise<boolean> {

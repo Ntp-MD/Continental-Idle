@@ -40,6 +40,11 @@ export const editorGroupsByTab: Record<Exclude<SettingsTab, 'canvas'>, EditorGro
 				{ key: 'boxSelectThresholdPx', label: 'Box select edge (px)', step: 0.5 },
 			],
 		},
+		{
+			title: 'Smart Guides',
+			hint: 'Alignment lines while dragging snap the selection when an edge lands this close - 0 turns the guides off.',
+			fields: [{ key: 'alignTolerancePx', label: 'Align snap distance (px)', step: 0.5 }],
+		},
 	],
 	display: [
 		{

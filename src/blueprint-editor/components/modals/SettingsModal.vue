@@ -301,7 +301,7 @@ async function resetEditorAll() {
         <div class="form__col form--section">
           <div>Background</div>
           <div class="form__row">
-            <label for="canvas__bgcolor">Color</label>
+            <label>Color</label>
             <ColorInput
               v-model="bgColorInput"
               :allow-transparent="true"
@@ -316,7 +316,7 @@ async function resetEditorAll() {
         <div class="form__col form--section">
           <div>Labels</div>
           <div class="form__row">
-            <label for="canvas__labelcolor">Color</label>
+            <label>Color</label>
             <ColorInput
               v-model="labelColorInput"
               allow-transparent
@@ -331,7 +331,7 @@ async function resetEditorAll() {
         <div class="form__col form--section">
           <div>Walls</div>
           <div class="form__row">
-            <label for="canvas__wallcolor">Color</label>
+            <label>Color</label>
             <ColorInput
               v-model="wallColorInput"
               allow-transparent
@@ -346,7 +346,7 @@ async function resetEditorAll() {
         <div class="form__col form--section">
           <div>Grid</div>
           <div class="form__row">
-            <label for="canvas__gridcolor">Line color</label>
+            <label>Line color</label>
             <ColorInput
               v-model="gridColorInput"
               allow-transparent
@@ -392,7 +392,7 @@ async function resetEditorAll() {
         <div class="form__col form--section">
           <div>Street Colors</div>
           <div class="form__row">
-            <label for="canvas__streetsidewalkcolor">Sidewalk</label>
+            <label>Sidewalk</label>
             <ColorInput
               v-model="streetSidewalkColorInput"
               allow-transparent
@@ -402,7 +402,7 @@ async function resetEditorAll() {
             />
           </div>
           <div class="form__row">
-            <label for="canvas__streetroadcolor">Road</label>
+            <label>Road</label>
             <ColorInput
               v-model="streetRoadColorInput"
               allow-transparent
@@ -412,7 +412,7 @@ async function resetEditorAll() {
             />
           </div>
           <div class="form__row">
-            <label for="canvas__streetmarkingcolor">Lane marking</label>
+            <label>Lane marking</label>
             <ColorInput
               v-model="streetMarkingColorInput"
               allow-transparent

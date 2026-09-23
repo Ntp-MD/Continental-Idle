@@ -102,11 +102,7 @@ export function createMetadataCommands(store: BlueprintStore) {
 				const obj = floor.objects.find(o => o.id === newId)
 				if (obj) obj.linkGroupId = groupId
 			}
-			if (newIds.length > 1) {
-				state.selectionState = { primary: { type: 'object', id: newIds[0] }, items: newIds.map(id => ({ type: 'object' as const, id })) }
-			} else {
-				state.selectionState = { primary: { type: 'object', id: newIds[0] }, items: [{ type: 'object', id: newIds[0] }] }
-			}
+			store.setSelection(newIds.map(id => ({ type: 'object' as const, id })))
 			recalcCollapsed(floor, assetMap(), unionRects(pendingCopies) ?? undefined)
 			await saveBlueprintData()
 			toast.success(`Pasted ${newIds.length} object(s)`)

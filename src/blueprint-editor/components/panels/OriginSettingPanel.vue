@@ -117,12 +117,14 @@ async function commitField(
     useToast().warning("Color must be a hex code or 'transparent'")
     return
   }
-  await store.updateAsset(props.asset.id, { [field]: val } as Partial<AssetDef>)
+  // One patch, one save: a derived outline used to be a second write, so a single
+  // user edit cost two undo steps.
+  const patch = { [field]: val } as Partial<AssetDef>
   if (field === 'defaultFillColor' && assetColorSync.value && typeof val === 'string' && val && isHexColor(val)) {
-    const derived = darkenHex(val)
-    dimFields.value.defaultStrokeColor = derived
-    await store.updateAsset(props.asset.id, { defaultStrokeColor: derived })
+    patch.defaultStrokeColor = darkenHex(val)
+    dimFields.value.defaultStrokeColor = patch.defaultStrokeColor
   }
+  await store.updateAsset(props.asset.id, patch)
 }
 
 function darkenHex(hex: string): string {

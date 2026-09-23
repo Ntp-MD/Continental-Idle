@@ -38,7 +38,7 @@ function readOriginAssets() {
 // Keep in sync with ASSET_DEF_FIELD_COVERAGE (assetUtils.ts).
 const REQUIRED_FIELDS = ['id', 'name', 'w', 'h']
 const OPTIONAL_FIELDS = [
-	'origin', 'category', 'custom',
+	'origin',
 	'pxW', 'pxH', 'usePx',
 	'svg', 'svgViewBox', 'svgRoles',
 	'walkable', 'doorRequired',

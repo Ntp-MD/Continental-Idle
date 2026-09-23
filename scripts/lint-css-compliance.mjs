@@ -1,4 +1,4 @@
-// CSS compliance linter for docs/agents/css.md.
+// CSS compliance linter for the UI conventions in AGENTS.md ("Canonical patterns").
 // Checks, project-wide across src/, for the rules that are unambiguous to automate:
 //   1. No static inline style="..." in <template> (dynamic :style is allowed).
 //   2. No !important in any stylesheet.
@@ -18,7 +18,6 @@ import { fileURLToPath } from 'node:url'
 
 const root = path.resolve(fileURLToPath(new URL('..', import.meta.url)))
 const srcDir = path.resolve(root, 'src')
-const modCliDir = path.resolve(root, 'mod-cli')
 const TARGET_EXT = new Set(['.vue', '.css'])
 
 function walk(dir, out = []) {
@@ -38,14 +37,22 @@ function readAll(files, ext) {
 	return files.filter((f) => f.endsWith(ext)).map((f) => ({ rel: toPosix(path.relative(root, f)), content: fs.readFileSync(f, 'utf8') }))
 }
 
-// -- rule 1: static inline style in <template> ----------------------------------
+// Every <style> block, scoped or not - a component may hold several, and a
+// first-block-only scan silently exempts the rest of the file.
+function styleBlocks(rel, content) {
+	return rel.endsWith('.vue') ? [...content.matchAll(/<style[^>]*>([\s\S]*?)<\/style>/g)].map((m) => m[1]) : [content]
+}
+
+// -- rule 1: static inline style in markup -------------------------------------
 function findStaticInlineStyle(items) {
 	const issues = []
 	const re = /(?<!:)style\s*=\s*"/g
 	for (const { rel, content } of items) {
-		const tm = content.match(/<template>([\s\S]*?)<\/template>/)
-		if (!tm) continue
-		for (const [, , ] of tm[1].matchAll(re)) issues.push(`${rel}: static inline style="..."`)
+		// Scan all markup, not a slice between <template> tags: named slots nest
+		// further <template> elements, so a balanced-region match stops at the
+		// first close and quietly exempts the rest of the file.
+		const markup = noScript(noStyle(content))
+		for (const [, , ] of markup.matchAll(re)) issues.push(`${rel}: static inline style="..."`)
 	}
 	return issues
 }
@@ -58,14 +65,14 @@ function findCssRuleIssues(items) {
 	const issues = []
 	const seen = new Set()
 	for (const { rel, content } of items) {
-		const cssFromVue = content.match(/<style[^>]*>([\s\S]*?)<\/style>/)
-		const css = cssFromVue ? cssFromVue[1] : content
-		for (const [re, label] of [[IMPORTANT_RE, '!important'], [HARDCODED_Z_RE, 'hardcoded z-index (use --z-layer-*)']]) {
-			for (const [, ] of css.matchAll(re)) {
-				const key = `${rel}:${label}`
-				if (!seen.has(key)) {
-					seen.add(key)
-					issues.push(`${rel}: ${label}`)
+		for (const css of styleBlocks(rel, content)) {
+			for (const [re, label] of [[IMPORTANT_RE, '!important'], [HARDCODED_Z_RE, 'hardcoded z-index (use --z-layer-*)']]) {
+				for (const [, ] of css.matchAll(re)) {
+					const key = `${rel}:${label}`
+					if (!seen.has(key)) {
+						seen.add(key)
+						issues.push(`${rel}: ${label}`)
+					}
 				}
 			}
 		}
@@ -88,16 +95,18 @@ function findScopedRedefined(items) {
 	}
 	const issues = []
 	for (const { rel, content } of items) {
-		const scoped = content.match(/<style[^>]*>([\s\S]*?)<\/style>/)
-		if (!scoped) continue
-		for (const [, name] of scoped[1].matchAll(TOP_LEVEL_SELECTOR_RE)) {
-			if (sharedTargets.has(name)) issues.push(`${rel}: shared class .${name} redefined in scoped style`)
+		// Shared stylesheets define the classes; only components can redefine them.
+		if (!rel.endsWith('.vue')) continue
+		for (const scoped of styleBlocks(rel, content)) {
+			for (const [, name] of scoped.matchAll(TOP_LEVEL_SELECTOR_RE)) {
+				if (sharedTargets.has(name)) issues.push(`${rel}: shared class .${name} redefined in scoped style`)
+			}
 		}
 	}
 	return issues
 }
 
-const files = [srcDir, modCliDir].filter((dir) => fs.existsSync(dir)).flatMap((dir) => walk(dir, []))
+const files = walk(srcDir, [])
 const vueFiles = readAll(files, '.vue')
 const cssFiles = readAll(files, '.css')
 const tsFiles = files.filter((f) => f.endsWith('.ts')).map((f) => ({ rel: toPosix(path.relative(root, f)), content: fs.readFileSync(f, 'utf8') }))
@@ -112,12 +121,13 @@ function noStyle(content) {
 	return content.replace(/<style[^>]*>[\s\S]*?<\/style>/g, '\n')
 }
 
+function noScript(content) {
+	return content.replace(/<script\b[\s\S]*?<\/script>/g, '\n')
+}
+
 function collectDefinedShapesMulti(items, store) {
 	for (const { rel, content } of items) {
-		const blocks = rel.endsWith('.vue')
-			? [...content.matchAll(/<style[^>]*>([\s\S]*?)<\/style>/g)].map((m) => m[1])
-			: [content]
-		for (const css of blocks) {
+		for (const css of styleBlocks(rel, content)) {
 			for (const [, name] of css.matchAll(CLASS_TOKEN_RE)) {
 				if (!CLASSY_TOKEN_RE.test(name)) continue
 				if (!store.has(name)) store.set(name, new Set())

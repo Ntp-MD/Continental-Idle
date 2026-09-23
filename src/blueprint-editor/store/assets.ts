@@ -1,7 +1,7 @@
 import type { AssetDef, Rect } from '../domain/types'
 import { isSafeSvgMarkup, isValidColor, normalizeOriginAsset, applySvgColorConvention } from '../domain/types'
 import { recalcCollapsed } from '../domain/collision'
-import { assetSizeFor } from '../domain/geometry'
+import { assetSizeFor, originSnapshot } from '../domain/geometry'
 import { parseSvgViewBox, serializeAsset } from '../assets/assetUtils'
 import type { BlueprintStore, AssetPatch } from './state'
 import { genAssetId } from './storeUtils'
@@ -154,11 +154,7 @@ export function createAssetCommands(store: BlueprintStore) {
 				// touched an unrelated field (this also heals stale snapshots).
 				// Instance-owned overrides are preserved: explicit locks (see
 				// prevLocked above) and fill/stroke colors (never copied).
-				obj.padding = asset.defaultPadding
-				obj.rx = asset.defaultRx ? { ...asset.defaultRx } : undefined
-				obj.label = asset.defaultLabel
-				obj.radius = asset.defaultRadius
-				obj.labelPadding = asset.defaultLabelPadding
+				Object.assign(obj, originSnapshot(asset))
 				if (obj.locked === prevLocked) obj.locked = asset.defaultLocked
 				}
 				recalcCollapsed(floor, assets)
@@ -223,7 +219,7 @@ export function createAssetCommands(store: BlueprintStore) {
 		}
 		if (removedObjectIds.size > 0) {
 			const items = state.selectionState.items.filter(item => !removedObjectIds.has(item.id))
-			state.selectionState = items.length ? { primary: items[0], items } : { primary: null, items: [] }
+			store.setSelection(items)
 		}
 	}
 

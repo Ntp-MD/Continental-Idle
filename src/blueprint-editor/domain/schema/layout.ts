@@ -120,6 +120,7 @@ export interface EditorSettings {
 	walkableGridMaxWidthPx: number
 	walkableGridMaxHeightPx: number
 	npcDotSize: number
+	alignTolerancePx: number
 }
 
 export interface EditorFieldSpec {
@@ -152,6 +153,7 @@ export const EDITOR_FIELD_SPECS = {
 	walkableGridMaxWidthPx: { kind: 'number', min: 200, max: 2000 },
 	walkableGridMaxHeightPx: { kind: 'number', min: 200, max: 2000 },
 	npcDotSize: { kind: 'number', min: 2, max: 12 },
+	alignTolerancePx: { kind: 'number', min: 0, max: 24 },
 } as const satisfies Record<keyof EditorSettings, EditorFieldSpec>
 
 export const DEFAULT_EDITOR_SETTINGS: EditorSettings = {
@@ -177,6 +179,7 @@ export const DEFAULT_EDITOR_SETTINGS: EditorSettings = {
 	walkableGridMaxWidthPx: 900,
 	walkableGridMaxHeightPx: 560,
 	npcDotSize: 8,
+	alignTolerancePx: 6,
 }
 
 export function normalizeEditorSettings(value: unknown): EditorSettings {

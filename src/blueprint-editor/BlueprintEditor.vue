@@ -48,6 +48,7 @@ const npcSimulation = useNpcSimulation({
   getAssetTags: (id: string) => store.assetMap().get(id)?.tags,
   getAssetDef: (id: string) => store.assetMap().get(id),
   getManagedTags: () => store.globalTags.value,
+  getCommitVersion: () => store.historyDepth.value,
 })
 
 provide('npcSimulation', npcSimulation)

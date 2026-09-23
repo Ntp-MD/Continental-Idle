@@ -16,7 +16,7 @@ import { validateSettingsCompleteness } from '../../assets/validation'
 const store = useAssetsStore()
 const toast = useToast()
 const isDev = import.meta.env.DEV
-const previewActive = computed(() => store.state.mode === 'npc-preview')
+const previewActive = computed(() => store.isNpcPreview.value)
 const { pending, run } = useAsyncAction()
 const npcSimulation = inject('npcSimulation') as ReturnType<typeof useNpcSimulation>
 const showNpcManager = ref(false)
@@ -245,7 +245,7 @@ onUnmounted(() => window.removeEventListener('keydown', onUndoKey))
 
       <button
         :disabled="previewActive"
-        :class="{ 'flag--active': store.state.mode === 'npc-preview' }"
+        :class="{ 'flag--active': previewActive }"
         title="Deploy NPCs on current floor (configure roles first)"
         @click="onDeployNpc"
       >

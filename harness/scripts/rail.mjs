@@ -40,6 +40,17 @@ export const DRIFT_NO_SLOT_FILES = 3
 // legitimately runs without ticking anything.
 export const DRIFT_UNTRACKED_FILES = 10
 
+// Shell-command gate: hard-enforced hard bans. These slipped through as soft
+// context rules (AGENTS.md Bans) - the command lines below are banned at the
+// tool boundary by the harness-gate plugin, message repeats the soft rule.
+// No agent-side bypass exists. The ONLY unlock is the user explicitly naming
+// git in the current prompt (e.g. "commit", "push", "run git X") - the agent
+// may not decide on its own, may not claim prior permission, and may not
+// work around the ban through scripts, aliases, plugins, or other tools.
+export const BANNED_SHELL = [
+	{ pattern: /\bgit\b/, why: 'the user runs git manually - the agent may not run any git command unless the user names it in the current prompt; no bypass, no workaround, no self-granted exception' },
+]
+
 export function isMetaPath(rel) {
 	return META_PREFIXES.some((prefix) => rel.startsWith(prefix)) || META_FILES.includes(rel)
 }

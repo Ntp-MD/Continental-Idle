@@ -6,69 +6,11 @@ mod-cli records, no harness-meta records.
 
 ## Entries (Doing - Finished (Agent, Model) + Detail Bullets)
 
-### modal input fill-width - 2026-09-22 11:37 UTC+7 (opencode, muse-spark-1.3-contributor-free)
-- components.css: `.form__col` gets `min-width: 0` + direct `input/select/textarea` children stretch to `width: 100%; min-width: 0; max-width: 100%` - inputs fill their parent column and can no longer push past the modal edge
-- NpcRoleDetail label/skin text inputs gained `size--stretch` so row-based inputs also fill remaining space
-- decision: stretch via `.form__col > input` context selector (over: global `input { width: 100% }` - because row layouts like label+input+button pairs rely on field-sizing content for the input to shrink between siblings)
-- verified: prettier clean; lint:bem pass; lint:css pass; typecheck pass (app + test + node)
-
-### modal layout redesign - 2026-09-22 11:37 UTC+7 (opencode, muse-spark-1.3-contributor-free)
-- SettingsModal Canvas tab: color sections (Background/Labels/Walls/Grid) pair into a wrapping two-column grid; Street split into controls vs Street Colors; Street Rendering numeric fields go horizontal
-- SettingsModal editor tabs: numeric field groups render as wrapping label-over-input columns (radius dot sits beside its input)
-- ImportSvgModal: Name + auto Size as two labeled columns, textarea gets its own labeled block (8 rows)
-- AssetPickerModal: "click asset, then click canvas" usage hint under search
-- DeployNpcModal Simulation: Walk speed + Spawn floor as two labeled columns with hints under each
-- NpcManagerModal library: dropped redundant Tags/Tasks panel headers (sub-tabs already carry names + counts)
-- decision: two-column wrapping grids via existing form__row/form--wrap/form__col only (over: new grid classes - because ui-layout.md rule 1 requires approval for new shared classes and form primitives already express the layout)
-- verified: prettier clean; lint:bem pass; lint:css pass; typecheck pass (app + test + node)
-
-### toolbar modal interiors redesign - 2026-09-22 11:37 UTC+7 (opencode, muse-spark-1.3-contributor-free)
-- SettingsModal unified to instant-apply: Apply All + isEditorDirty removed, per-tab instant hints, Reset-only footer
-- FloorModal: Duplicate moved into Details header, new Danger zone section (Clear objects + Delete floor), footer reduced to Close
-- DeployNpcModal: Total moved into header status (errors still override), footer keeps Cancel/Deploy
-- WorkspaceModal: Export/Import as side-by-side wrapping cards + Close footer
-- NpcManagerModal + ShortcutsModal: Close footers (footer convention now complete on every toolbar modal)
-- decision: drop Apply All instead of extending it to canvas (over: per-tab footers everywhere - because every editor field already applies on change, Apply All was a redundant second path)
-- verified: prettier --write on 5 files; lint:bem pass; lint:css pass; typecheck pass (app + test + node)
-
-### design-system polish pass - 2026-09-22 11:37 UTC+7 (opencode, muse-spark-1.3-contributor-free)
-- variables.css: added missing `--gap-lg: 24px` step (gap scale jumped 16 -> 40); modal body now breathes (gap-md inner, lg vertical padding)
-- reset.css: input/select/textarea gained `:focus-visible` outline (keyboard users had no focus indicator, only mouse border-color)
-- components.css: tabs__tab sized (font-sm, min-height 30px) to match body text; card__item--remove got horizontal padding (bare 10px x buttons were sub-target)
-- ToastContainer: toast icon inherits currentColor + weight 700 (was same weight as message, no tone emphasis)
-- EditorCanvas: View-toggle tooltips normalized to sentence case matching aria-labels
-- decision: token + shared-layer only (over: per-modal fixes - because spacing/focus/tab sizing are cross-cutting; per-page patches would fork the system)
-- verified: prettier clean; lint:bem pass; lint:css pass; typecheck pass (app + test + node)
-
-### modal UX/UI redesign, all modals, desktop - 2026-09-22 13:40 UTC+7 (opencode, opencode-go/deepseek-v4.1-flash)
-- user order: redesign every modal under `components/modals/` - no new class names, desktop-only fluid, audit with Playwright
-- SettingsModal was the only measured defect: `div.color` + `button.color__transparent` clipped past the modal edge at 1440 and 1024 because long ColorInput placeholders inflated the field; fixed by shortening placeholders to `#RRGGBB` and making groups wrap 2-up (`.settings__panel .form__row.form--start > .form--section { flex: 1 1 300px }`, fields `1 1 220px`)
-- decision: tag library renders as wrapping `card__item` chips (over: full-width rows - because a 1200px-wide single-column tag list wastes the modal and strands each delete `x` far right)
-- FloorModal floor-list pinned to 300px / detail fills, edit inputs `size--stretch`; DeployNpc sidebar `0 1 260px` / detail `1 1 360px`; AssetPicker fixed frame `min(82vh,720px)` + truncated names; AssetEdit preview rail stretches instead of `flex-start`
-- list/zone/task/role delete `x` reuse existing `card__item--remove` (quieter); NpcRoleDetail appearance placeholders shortened + skin/spot inputs stretched
-- verified: Playwright audit 1440x900 + 1024x768 - 0 overflowers, 0 console errors, `docOverflowX` false for all 11 modals; prettier + lint:bem + lint:css + typecheck green; verify.mjs check pass
-
-### ui-layout.md route fixed + UI rules re-homed - 2026-09-22 14:30 UTC+7 (opencode, opencode-go/deepseek-v4.1-flash)
-- user confirmed `docs/skill/ui-layout.md` was deleted on purpose (uncommitted working-tree delete); the file still existed in HEAD so earlier work this session cited it - gap owned
-- `skill.md`: Editor UI row retargeted from `docs/skill/ui-layout.md` to `AGENTS.md` (UI conventions) - dangling route gone
-- `AGENTS.md`: added a compact UI conventions block (BEM + `flag--*` state vocabulary, cascade/layer scope, ModalShell/async modals/shared tabs, store + concurrency + confirm/toast, field specs + player labels)
-- decision: re-homed only the enforced/architectural rules and dropped the visual-freeze rules that lived only in the deleted doc (reuse-first + approval-to-add, no-box-shadow/borders-only, 3+-call-site shared-class bar, input max-width ban) - over: re-homing them verbatim, because they are the constraint behind the "re-UI always looks the same" complaint
-- verified: `node harness/scripts/verify.mjs check` pass; no `.vue`/`.css` touched so no routed suite
-
-### modal layouts reworked, zero new classes - 2026-09-22 14:48 UTC+7 (opencode, opencode/muse-spark-1.3-contributor-free)
-- user order: redesign every UI layout in `components/modals/` with no new classes, visibly different and easier to use - template-only rework of all 11 Vue files, `settingsFields.ts` untouched (data-only)
-- every modal gets a `form__header` summary strip (counts in `badge`, hints, primary action); reused pool limited to tokens already defined under `src/` (`card`, `form__row--border`, `truncate`, modal `__` classes) so lint:css orphan/dead rules stay green, no `<style>` touched
-- AssetEdit preview rail moved left of the editor (tabs | preview | content); AssetPicker search+count badge in header, place-hint to footer; ImportSvg paste-first `card` with WxH badge; Workspace import-first `card` stack with filename badge
-- FloorModal +Add moved to header, Spawn Zones above Allowed Roles, danger row split by `form__row--border`; SettingsModal Apply+Reset in header, color/street sections before Canvas Size, footer reduced to hint; DeployNpcModal detail-first mirror with header total + Manager jump (per-detail jump buttons removed)
-- NpcManagerModal header counts + "+ Add Task" moved above search; NpcRoleList "+ Add Role" moved to header; NpcRoleDetail tabs reordered Basics/Spawn/Tasks/Tags/Rates with Default `badge`, Delete moved to bottom danger row; NpcTaskCard header (label + usage + delete) with station block before tags
-- decision: mirrored Deploy panes but NOT Floor panes (over: symmetric mirroring - because Floor widths are `:first-child`/`:last-child` order-based while Deploy widths are class-based, so a Floor swap would squeeze the detail pane)
-- verified: `lint:bem` pass, `lint:css` pass, `typecheck` (all three projects) pass
-
-### toolbar button order reworked - 2026-09-22 15:05 UTC+7 (opencode, opencode/muse-spark-1.3-contributor-free)
-- user order: button order in `Toolbar.vue` was wrong (Settings gear led, workflow scrambled) - DOM reorder only, no logic/class changes
-- new order: Tools -> Floor paint -> Undo -> Manage (Floor Manager, NPC Manager + wiring badge, Refresh Objects, Workspace) -> Preview (Deploy NPCs) -> utilities (Settings, Shortcuts) last
-- decision: structure (Floor) before actors (NPC) before culminating Deploy; rare utilities last (over: keeping original positions - because Settings-first buried daily tools and NPC-before-Floor broke the build flow)
-- verified: `lint:bem` + `lint:css` + `typecheck` pass
+### AGENTS.md Bans hard-enforced at the tool boundary - 2026-09-23 16:10 UTC+7 (opencode, opencode-go/glm-5.3-flash)
+- user report: observe-era agents kept running `git diff` to judge present work against the past and aborted on trust of unstaged commits, despite the AGENTS.md Bans soft rule (soft context injection does not survive long tasks)
+- decision: hard-enforce at the tool boundary - `BANNED_SHELL` rules added to `harness/scripts/rail.mjs` (single source, regex matches nested/chained commands) + shell gate in `harness/agents/opencode/harness-gate.js` `tool.execute.before` for `bash`/`shell`/`command` tools
+- decision (user order): full git ban - the user runs git manually; the ONLY unlock is the user naming git in the current prompt; no agent-side bypass, no workaround (scripts/aliases/other tools), no self-granted exception, never claim prior permission - `BANNED_SHELL` widened to `/\bgit\b/` + AGENTS.md Bans row rewritten + gate error message forbids routing around
+- verified: `npm run lint` pass; behavioral test blocks `git diff`/`git status`/`git log`/`git add .`/chained `git stash`, allows non-git commands
 
 ### origin defaultLabel not reaching placed objects - fixed - 2026-09-22 15:20 UTC+7 (opencode, opencode/muse-spark-1.3-contributor-free)
 - user report: some origin-asset values never reach placed assets - root cause is `normalizeObject` (`domain/geometry.ts:40`): the single resolve path used at placement/refresh/migrate/flatten/mode-change copied w/h/radius/labelPadding/locked/padding/rx/fillColor but dropped `resolved.label`, so placed objects got the Default Label only when the origin was edited post-placement via `updateAsset` (`store/assets.ts:156`)
@@ -140,3 +82,95 @@ mod-cli records, no harness-meta records.
 - `moveGuideRect` (`EditorCanvas.vue`): while dragging a selection, a green dashed landing rect shows the selection's true bounds (linked members included) snapped to the tile grid and clamped to the building area - the exact `commitMove` math (`clamp(snap(minX), snap(minY), w, h)`); appears only after the drag threshold (`_dragHasMoved`), multi-select aware, no new classes
 - selection-color answer (read-only): NOT one setting - canvas selection + highlight share `--accent-gold` (`editor__overlay--selected`/`--highlight`), UI active states + links use `--accent-blue`, focus outlines `--accent-primary`; all are theme token references, no user-facing color setting exists
 - verified: `lint` + `typecheck` (fixed floor shadowing + missing import mid-task), `lint:bem` + `lint:css` pass
+
+### smart guides G1 show-only - 2026-09-23 09:15 UTC+7 (opencode, opencode/muse-spark-1.3-contributor-free)
+- `alignGuides` (`EditorCanvas.vue`): while dragging, full-span dashed lines on matches - other objects' edges/centers, painted blocked-run edges, door runs (green, rest primary); candidates cached per floor, 6px/zoom tolerance, half-px dedup; drag/commit untouched, no new classes
+- decision: door edges match any dragged edge rendered green (over: strict door-asset-only matching - indistinguishable in practice, simpler)
+- also removed a duplicated moveGuideRect template block left by a retried insert
+- verified: `lint:bem` + `lint:css` + `lint` + `typecheck` pass; visual checklist (object/wall/door/multi/zoom/preview) needs the running app
+
+### smart guide no-show root-caused: plain-let drag flag - 2026-09-23 10:00 UTC+7 (opencode, opencode/muse-spark-1.3-contributor-free)
+- user report was right: 0 lines on real drags (my first count had matched ruler lines - bad selector). Isolated via probes: `moving` set + objects moving, but `_dragHasMoved` plain `let` never re-triggered the guide computeds
+- fix: `dragHasMoved` is now a `ref` (`EditorCanvas.vue`) read by `moveGuideRect`/`alignGuides` - reactive end to end; debug probes removed
+- verified on dev 5173 (headless Chromium, real drag): moveGuide 1 + alignLines 5 mid-drag, 0 console errors, screenshot `tests/e2e/__screenshots__/guides-fixed.png` shows full-span dashed guides through the dragged desk
+- note: probe drags moved a few chairs/desk in dev `blueprint-data.json` (auto-saved); say the word to restore positions
+
+### smart guides hardening batch (5 items, autopilot) - 2026-09-23 11:35 UTC+7 (opencode, opencode/muse-spark-1.3-contributor-free)
+- shared `draggedBounds` (members/bounds/ids/multi) consumed by moveGuide + alignGuides + assist - member logic in one place; locked-any-member hides guides (matches move no-op)
+- multi-select and linked groups match edges only (centers dropped); singles keep 6 lines
+- strict door-to-door: door runs participate only when a dragged member's asset has a door svgRole
+- G2 snap-assist in `onMoveMouseMove`: pulls the drop target to the nearest candidate within tolerance (same candidates/tolerance as display, so lines shown == pull applied); grid-snap on commit stays last and is a no-op on aligned drops
+- `alignTolerancePx` editor setting (default 6, 0-24, 0 = off): specs + defaults + normalize (auto) + Smart Guides settings group + round-trip test
+- verified on dev 5173: mid-drag 4 lines + move guide, drop from 4px short lands exactly on target edge (JSON assert), 0 console errors; settings suite + typecheck + lint family + vitest 38/38 green; temp scripts deleted
+
+### tile-erase confirm + honest undo message - 2026-09-23 11:50 UTC+7 (opencode, opencode/muse-spark-1.3-contributor-free)
+- Delete key with tiles-only selection now confirms (was silently erased); message fixed from false "cannot be undone" to "You can undo this with Ctrl+Z" (runExclusive snapshots cover paint + deletes, depth 4)
+- verified: `lint:bem` + `lint:css` + `lint` + `typecheck` pass
+
+### audit follow-up: 6 contained P1 fixes from the architecture audit - 2026-09-23 12:30 UTC+7 (qoder, qoder-agent)
+- `useFocusTrap` now traps: Tab/Shift+Tab wrap at the container boundary, focus outside is pulled back in, listener released on close/unmount; user's own `role=dialog`+`aria-modal` claim finally holds. Verified live on dev 5174 (real key presses: wrap both directions, restore to trigger on Escape)
+- store composition root is now type-checked: `Object.assign`ed into one spread source assigned to a `BlueprintStore`-typed const, so a missing/mistyped slice key fails `typecheck` instead of hiding behind `as unknown as`
+- selection has one owner: added `setSelection(items)` beside `clearSelection()`, routed all 15 `state.selectionState = {...}` writes (9 store + 2 UI) through them; the two UI writes were in `EditorCanvas` (Escape) and `useCanvasSelection` (box-select)
+- decision: `setSelection` does not touch `selectedAssetId` (over: clearing the palette on every bulk set - because `deleteAsset`'s prune path and box-select already clear it in their own flow; keeping the accessor write-only avoids behavior change)
+- `lint:css` scans every `<style>` block (was first-only: `SettingsModal` had 3, only 10 lines scanned) and `lint:bem` enforces the `flag--*` state vocabulary; dead `mod-cli/` scan paths dropped from both
+- decision: banned the state words (`active|selected|checked|open|closed|disabled|pending|focused`) as modifiers on non-`flag` blocks only (over: full `flag--*` whitelist - because `--dragging`/`--loading`/`--success` are 12 uses that are rendering or tone, and renaming them is a separate call)
+- fallout the new rule caught for real: `editor__overlay--selected` → `editor__overlay flag--active` in `EditorCanvas`, with the shared overlay paint hoisted to a base class (both overlay variants had duplicated fill/stroke/pointer-events)
+- 7 dead `<label for="canvas__*">` bindings removed from `SettingsModal` (the `ColorInput`s were already `aria-label`ed); 5 valid `for`/`id` pairs kept
+- 4 hand-written `state.mode === 'npc-preview'` reads replaced with the `store.isNpcPreview` accessor (`PropertiesPanel` x2, `Toolbar` x2, `EditorCanvas`)
+- verified: `lint:bem` + `lint:css` + `lint` pass, `typecheck` all 3 projects pass, `test:unit` 38/38, `test:store-crud` 47/47, `test:persistence` + `test:sync-payload` pass; browser check on 5174 also confirmed the selection ring and highlight overlay compute to the same paint as before the rename
+
+### reload single-writer + audit's ingress finding corrected - 2026-09-23 12:50 UTC+7 (qoder, qoder-agent)
+- `reloadEditorData()` moved inside `runExclusive` (`store/createStore.ts`): a reload landing mid-`addFloor()` silently discarded the already-committed write - reproduced first (floors went 1 -> 1, expected 2), regression check appended to `tests/test-persistence.ts`
+- save-failure toast now names the reason and says the changes were reverted (`Failed to save blueprint data - changes reverted (disk is full)`); the test's copy assertion updated to match
+- decision: `save()` keeps its own `saveChain` rather than joining `runExclusive` (over: one queue - because every command awaits `save()` from inside its own exclusive step, so nesting self-deadlocks; invariant now commented where the chain is declared)
+- decision: took this cluster over the modal write guards and the perf pair after "whatever helps the project most" (over: perf - the race costs data, the perf items cost frames)
+- audit correction: the "two ingress owners -> silent save revert" claim is false. `migrate()` already ends in the same strict validator the save read-back uses, so a junk `labelColor` or blank floor name throws at LOAD, and junk `streetWidthTiles`/object ids are dropped by the shared normalizer before anything is stored (`importWorkspace` reports that drop count). No code changed for it.
+- left alone: a *reload* that drops objects only warns in the console, where import toasts "imported with losses" - storage the app wrote itself cannot hold droppable values
+- verified: `test:persistence` pass (incl. the new race check), `test:store-crud` 47/47, `test:unit` 38/38, `test:sync-payload` + `test:migrate` pass, `typecheck` app+test exit 0, `eslint` clean; temp diagnostic `tests/_ingress.tmp.ts` deleted same session
+
+### Floor Manager write guard + one-save color commit - 2026-09-23 13:36 UTC+7 (qoder, qoder-agent)
+- `FloorModal.vue`: the 13 unguarded `await store.…` calls now go through `useAsyncAction().run()` with a `pending.value` entry guard and `:disabled="pending"` on every trigger - proven in the browser: 3 rapid "+ Add" clicks create exactly ONE floor (was one per click), and nothing is left stuck disabled
+- `OriginSettingPanel.vue`: committing the fill color wrote `updateAsset` TWICE when outline-sync was on, so one user edit cost two undo steps - now one patch, one save
+- decision: did NOT wrap `OriginSettingPanel`'s 8 awaits in `run()` (over: finishing the guard sweep - because `run()` throws when busy and that panel's debounced corner writer would silently drop edits, while the store's `runExclusive` already serializes them; the guard would only add a failure mode)
+- decision: closed the audit's perf pair as measured-but-not-acted (704 forced objects = ~50 ms per full-canvas patch, ~0.07 ms/object linear; the real floor is 11 objects = ~0.1 ms), so object-loop `v-memo` would have been a ~25-entry dep list bought for a case 60x beyond current content
+- verified: `lint:bem` + `lint:css` + `eslint` + `typecheck` pass; browser smoke covered add/duplicate dedupe, walkability toggle and role restriction toggle persisting, console clean; stress fixture reverted (`data/blueprint-data.json` md5 back to 1c569fa3a2434f2ec36d234b29956d64), temp files deleted, only my own dev-server PIDs killed
+
+### NPC sim watcher de-deepified: 13.6 ms per drag frame -> ~0 - 2026-09-23 15:46 UTC+7 (qoder, qoder-agent)
+- efficiency sweep over the data-serving paths (the axis the closed object-count perf item never covered: cost that scales with canvas size and interaction rate, so it bites at 11 objects). 7 suspects checked, 2 confirmed hot, 5 not hot - `objDef`, `assignSyncKeys`, `exportWorkspace` and the `v-for` helpers are all clean, so the earlier "6 calls per object" audit line was 6 hash lookups on a cached map, not 6 allocations.
+- the fix: `useNpcSimulation.ts` watched the current floor with `{ deep: true }`, so every rAF drag write re-traversed ~8k reactive nodes and rebuilt `floorSignature` (~12-13 ms/frame of pure observation) even with no NPCs deployed, and the signature check then discarded most of those frames. It now watches a commit counter, matching the fact that layout only changes through settled commands.
+- `historyDepth` exposed on the `BlueprintStore` contract (`src/blueprint-editor/store/state.ts`, `store/createStore.ts`) as the commit signal; `getCommitVersion` added to `NpcSimulationSources` and wired in `BlueprintEditor.vue`.
+- measured, not asserted (temp probe against the real store + real `floorSignature`, 11 objects / 4000 grid cells): 30 drag writes 409.1 ms -> 0.2 ms; a real `rotateSelected()` commit still fires exactly one refresh (~7.5 ms), so committed edits are still seen.
+- decision: left `pushHistory`'s clone-then-dedupe alone (over: reordering to compare first - that comparison would then walk live reactive proxies, costing more on every real commit than it saves on no-op commits; snapshot-per-commit is inherent to undo).
+- decision: left `assistMoveTarget` re-deriving align candidates per mousemove, and `validateSettingsCompleteness` (~7 ms/commit through proxies) alone - both real, both small, and the first sits in the smart-guides path the user tuned by hand.
+- verified: `lint:bem`, `lint:css`, `eslint src/blueprint-editor`, `typecheck` app pass; `test:unit` 6 files pass; npc-engine, npc-queue, npc-social, arrival-latch, movement-corridor, tower-integration, store-crud, persistence, settings-completeness, blueprint-schema all pass. Live browser check was impossible (rAF never fires in the automation tab, so the sim cannot animate there) - which is why the probe drove the store directly.
+- dev data restored after the deploy click wrote the file (md5 back to 1c569fa3a2434f2ec36d234b29956d64); temp probe deleted; only my own dev-server PID killed
+
+### full-repo review + the six items that survived an over-engineering filter - 2026-09-23 15:05 UTC+7 (qoder, qoder-agent)
+- second review pass covered what the first missed: `vite.config.ts` middleware, entry points, CI, tsconfig strictness, engine internals, docs-vs-reality. Report delivered in chat (read-only).
+- `NpcManagerModal.vue` `removeTag`: cancelled the queued draft write and then re-cloned the draft from store state, discarding any edit inside the 400 ms debounce. Now `queuePersist.flush()`. `flush()` had zero tests - added two (`tests/unit/useDebounceFn.test.ts`).
+- `scripts/lint-css-compliance.mjs` rule 1 scanned a non-greedy `<template>...</template>` slice, i.e. 424 of `EditorCanvas`'s 880 markup lines; a static `style="..."` past the first nested `</template>` passed green. Now scans all markup minus script/style (424 -> 890 lines measured), tree still clean. Header pointer fixed (`docs/agents/css.md` never existed).
+- `domain/geometry.ts`: added `originSnapshot(asset)` as the single owner of the origin-inherited field list, adopted by `resolvePlacedObject` and `store/assets.ts` (which hand-copied the same five assignments). Lock rules stay per-caller and are documented as intentional.
+- ceilings consolidated: new `MAX_TAGS` + `MIN/MAX_STREET_WIDTH_TILES` in `src/blueprint-editor/limits.ts` replaced copies at `src/blueprint-editor/store/mode.ts:128`, `src/blueprint-editor/store/migrate.ts:62`, `src/blueprint-editor/domain/schema/dataFile.ts:125` and the bare `256` at `src/blueprint-editor/domain/schema/dataFile.ts:44`; `store.addTag` now refuses over-cap with a toast instead of failing later at save.
+- config hygiene: `.gitignore` covers `.env*` (keeping `.env.example`) and the middleware's `data/*.tmp` / `data/*.old` artifacts; added `.env.example` and `ImportMetaEnv` declarations so `VITE_PERSISTENCE` / `VITE_BLUEPRINT_DATA_ENDPOINT` typos are type errors.
+- decision: cut the save concurrency-token/409, the middleware `node:http` test, engine NaN self-validation, the engine<->schema ownership refactor, `server.cors` as its own task, and `EditorCanvas` extraction as a standalone project (over: working through the audit list - these protect scenarios a solo, loopback-only, git-tracked-data tool does not create).
+- decision: downgraded my own severity on the draft-clobber after trying to reproduce it - it needs the confirm dialog answered inside 400 ms. Fixed because `flush` is strictly better than `cancel`, not because it was common.
+- verified: `lint:bem`, `lint:css`, `lint`, all three typecheck projects, `test:unit` (6 files, +2 new cases), and `test:store-crud` 47/47 plus blueprint-schema, migrate, tag-matching, asset-schema, persistence, sync-payload, settings-completeness, npc-engine all pass. Browser (my own dev-server PID, killed after): tag delete path still works, 14 -> 13 tags, console clean; the sub-400 ms race itself is not reachable through automation (~3 s round-trips), so that claim rests on the unit tests plus code reading.
+- dev data untouched: `data/blueprint-data.json` restored byte-for-byte (md5 1c569fa3a2434f2ec36d234b29956d64)
+
+### dependency + script prune (vue-eslint-parser declared, dead tools dropped) - 2026-09-23 17:10 UTC+7 (opencode, cline-pass/cline-pass/deepseek-v4.1-flash)
+- user order: cleanest project + tests only as needed, after an evidence pass separating dead / wired-but-optional / must-keep deps
+- removed dead: devDep `@vue/eslint-config-typescript` (never imported - `eslint.config.js:4` uses `typescript-eslint` direct), script `typecheck:test` (same `tsconfig.test.json` pass `typecheck` already runs, different binary), scripts `format` + `format:check` (`format:check` is red on 98 pre-existing tab-indented files and no verify row or CI step routes it)
+- removed opt-ins: devDep `@vitest/coverage-v8` + `test:coverage` + the `coverage` block in `vitest.config.ts`; devDep `rollup-plugin-visualizer` + its `BUNDLE_REPORT` plugin entry in `vite.config.ts` (nothing set the env)
+- added the undeclared devDep `vue-eslint-parser@^10.4.1` (imported at `eslint.config.js:3`; survived only by hoisting from `eslint-plugin-vue`)
+- decision: kept `prettier` + `eslint-config-prettier` (imported `eslint.config.js:5`, applied :103) and deleted the two `format` scripts instead of removing prettier - dropping the config re-enables ESLint stylistic rules and risks the `lint` gate
+- note: `@vitest/coverage-v8` stays installed as vitest's dev optional peer (`npm explain`), no longer a project declaration
+- follow-up (same order): cut the zero-reference convenience scripts - `hverify`/`hcheck` (aliases of the direct `node harness/scripts/verify.mjs`), `test:unit:watch`, `test:e2e:report`, `lint:fix`, and `clear-cache` (`dev` is now plain `vite`; the cache workaround had no other caller) - 37 -> 31 scripts
+- verified: `npm install` synced `package-lock.json` (removed 47 packages); `npm run typecheck` + `npm run lint` + `npm run test:unit` (6 files / 40 tests) pass; follow-up `node harness/scripts/verify.mjs check` pass
+
+### tsx -> vitest migration batch 1 (5 small suites) - 2026-09-23 17:30 UTC+7 (opencode, cline-pass/cline-pass/deepseek-v4.1-flash)
+- user order (option a): new vitest files first, green, then delete the old per batch - coverage never gaps; `harness/LANE.md` loaded (multi-step lane)
+- migrated 1:1 (node:assert kept, no expect rewrite, helpers module-scope, console.logs dropped): `test-arrival-latch.ts` -> `tests/unit/arrivalLatch.test.ts` (8 tests), `test-collision.ts` -> `collision.test.ts` (3), `test-tag-matching.ts` -> `tagMatching.test.ts` (5), `test-asset-schema.ts` -> `assetSchema.test.ts` (3), `test-movement-corridor.ts` -> `movementCorridor.test.ts` (3); new files land in the existing vitest include glob - zero vitest.config change
+- deleted the 5 tsx files + npm scripts (`test:arrival-latch`, `test:movement-corridor`, `test:collision`, `test:tag-matching`, `test:asset-schema`) + their `run-tests.mjs` entries (legacy steps 15 -> 10)
+- decision: batch-1 scope only (5 smallest suites) as the pilot; batches 2-4 (persistence/social/migrate/blueprint-schema/sync-payload, settings-completeness/tower-integration, store-crud/npc-queue/npc-engine) queued in the slot; diagnostics (behavior/perf) stay banned-unless-asked per standing decision
+- verified: vitest green-check on the 5 new files (5 files / 22 tests) BEFORE deleting the tsx originals; Done: `npm run test:unit` 11 files / 62 tests pass, `npm run lint` pass, `node harness/scripts/verify.mjs check` pass
+- batch 2 (same migration): `test-persistence.ts` -> `persistence.test.ts` (4 tests; top-level `await defaultSeed()` per-test), `test-npc-social.ts` -> `npcSocial.test.ts` (8), `test-migrate.ts` -> `migrate.test.ts` (13; top-level await -> `beforeAll`, golden fixture path adjusted `'..', 'fixtures'` for the unit dir), `test-blueprint-schema.ts` -> `blueprintSchema.test.ts` (7; shared consts hoisted module-scope), `test-sync-payload.ts` -> `syncPayload.test.ts` (13); green-check 5/5 (47 tests) before deleting; legacy steps 10 -> 5 (npc-engine, npc-queue, settings-completeness, store-crud, tower-integration); Done: test:unit 16 files / 109 tests, lint pass, check pass, script-path scan clean

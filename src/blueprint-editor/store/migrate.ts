@@ -6,6 +6,7 @@ import { normalizeObject } from '../domain/geometry'
 import { recalcCollapsed } from '../domain/collision'
 import { EDITOR_CONFIG } from '../editorConfig'
 import { editorLog, genId, emptyNpcConfig } from './storeUtils'
+import { MIN_STREET_WIDTH_TILES, MAX_STREET_WIDTH_TILES } from '../limits'
 
 const LAYOUT_VERSION = EDITOR_CONFIG.layoutVersion
 
@@ -58,7 +59,7 @@ export function migrate(data: unknown, availableAssets: readonly AssetDef[], npc
 	if (typeof d.streetFloorId === 'string' && migrated.floors.some(f => f.id === d.streetFloorId)) {
 		migrated.streetFloorId = d.streetFloorId
 	}
-	if (typeof d.streetWidthTiles === 'number' && Number.isInteger(d.streetWidthTiles) && d.streetWidthTiles >= 5 && d.streetWidthTiles <= 20) {
+	if (typeof d.streetWidthTiles === 'number' && Number.isInteger(d.streetWidthTiles) && d.streetWidthTiles >= MIN_STREET_WIDTH_TILES && d.streetWidthTiles <= MAX_STREET_WIDTH_TILES) {
 		migrated.streetWidthTiles = d.streetWidthTiles
 	}
 	if (hasOwn(d, 'editorSettings') && d.editorSettings !== undefined) {

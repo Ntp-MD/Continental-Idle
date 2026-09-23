@@ -35,7 +35,7 @@ export function createPersistenceCommands(store: BlueprintStore) {
 			if (!state.layout.floors.some(floor => floor.id === state.currentFloorId)) {
 				state.currentFloorId = state.layout.floors[0]?.id ?? ''
 			}
-			state.selectionState = { primary: null, items: [] }
+			store.clearSelection()
 			state.selectedAssetId = null
 			const saved = await store.save()
 			if (saved && losses.length > 0) {

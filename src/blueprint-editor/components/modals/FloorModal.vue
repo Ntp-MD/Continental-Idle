@@ -3,6 +3,7 @@ import { ref, computed, watch } from 'vue'
 import { genId, useAssetsStore } from '../../blueprintStore'
 import { useToast, reportSaved } from '@/composables/useToast'
 import { useConfirm } from '@/composables/useConfirm'
+import { useAsyncAction } from '../../composables/useAsyncAction'
 import { sanitizeString } from '../../../utils/sanitize'
 import { spawnZoneAllowsRole } from '../../domain/types'
 import { assignSyncKeys } from '../../syncedPayload'
@@ -15,6 +16,7 @@ const emit = defineEmits<{ (e: 'close'): void }>()
 const store = useAssetsStore()
 const toast = useToast()
 const confirm = useConfirm().confirm
+const { pending, run } = useAsyncAction()
 
 const selectedFloorId = ref<string | null>(null)
 const editingName = ref(false)
@@ -64,9 +66,10 @@ function startEditName() {
   editingNameRaw.value = selectedFloor.value.name
 }
 async function commitName() {
-  if (!selectedFloor.value) return
+  const floor = selectedFloor.value
+  if (!floor || pending.value) return
   const name = editingNameRaw.value.trim() || 'Unnamed'
-  const saved = await store.renameFloor(selectedFloor.value.id, name)
+  const saved = await run(() => store.renameFloor(floor.id, name))
   if (!reportSaved(saved, 'Floor renamed', 'Failed to rename floor')) return
   editingName.value = false
 }
@@ -77,7 +80,7 @@ function startEditLabel() {
   editingLabelRaw.value = selectedFloor.value.label
 }
 async function commitLabel() {
-  if (!selectedFloor.value || labelCommitting) return
+  if (!selectedFloor.value || labelCommitting || pending.value) return
   const label = editingLabelRaw.value.trim() || selectedFloor.value.label
   if (label === selectedFloor.value.label) {
     editingLabel.value = false
@@ -106,23 +109,25 @@ async function commitLabel() {
       labelCommitting = false
     }
   }
-  const saved = await store.updateFloor(selectedFloor.value.id, { label })
+  const saved = await run(() => store.updateFloor(selectedFloor.value!.id, { label }))
   if (!saved) return toast.error('Failed to save floor label')
   editingLabel.value = false
 }
 
 async function onAdd() {
-  const floor = await store.addFloor()
+  if (pending.value) return
+  const floor = await run(() => store.addFloor())
   reportSaved(!!floor, 'Floor added', 'Failed to add floor')
 }
 
 async function onDuplicate(id: string) {
-  const duplicated = await store.duplicateFloor(id)
+  if (pending.value) return
+  const duplicated = await run(() => store.duplicateFloor(id))
   reportSaved(!!duplicated, 'Floor duplicated', 'Failed to duplicate floor')
 }
 
 async function onDelete(id: string) {
-  if (floors.value.length <= 1) return
+  if (floors.value.length <= 1 || pending.value) return
   const ok = await confirm({
     title: 'Delete floor',
     message: 'Delete this floor? This action cannot be undone.',
@@ -131,14 +136,14 @@ async function onDelete(id: string) {
     danger: true,
   })
   if (!ok) return
-  const deleted = await store.deleteFloor(id)
+  const deleted = await run(() => store.deleteFloor(id))
   if (!reportSaved(deleted, 'Floor deleted', 'Failed to delete floor')) return
   if (selectedFloorId.value === id) selectedFloorId.value = floors.value[0]?.id ?? null
 }
 
 async function onClear(id: string) {
   const floor = floors.value.find((f) => f.id === id)
-  if (!floor || floor.objects.length === 0) return
+  if (!floor || floor.objects.length === 0 || pending.value) return
   const ok = await confirm({
     title: 'Clear floor',
     message: `Remove all ${floor.objects.length} object(s) from "${floor.name}"? The floor, its tiles and spawn zones are kept. This action cannot be undone.`,
@@ -147,7 +152,7 @@ async function onClear(id: string) {
     danger: true,
   })
   if (!ok) return
-  const cleared = await store.clearFloor(id)
+  const cleared = await run(() => store.clearFloor(id))
   if (!reportSaved(cleared, 'Floor cleared', 'Failed to clear floor')) return
 }
 
@@ -155,16 +160,18 @@ function onDragStart(index: number) {
   floorDragIndex.value = index
 }
 async function onDrop(index: number) {
-  if (floorDragIndex.value === null) return
-  const saved = await store.reorderFloors(floorDragIndex.value, index)
+  if (floorDragIndex.value === null || pending.value) return
+  const from = floorDragIndex.value
   floorDragIndex.value = null
+  const saved = await run(() => store.reorderFloors(from, index))
   reportSaved(!!saved, 'Floors reordered', 'Failed to reorder floors')
 }
 
 async function toggleWalkable(e: Event) {
-  if (!selectedFloor.value) return
+  const floor = selectedFloor.value
+  if (!floor || pending.value) return
   const checked = (e.target as HTMLInputElement).checked
-  await store.updateFloor(selectedFloor.value.id, { defaultWalkable: checked })
+  await run(() => store.updateFloor(floor.id, { defaultWalkable: checked }))
 }
 
 function isRoleAllowed(roleId: string): boolean {
@@ -173,14 +180,16 @@ function isRoleAllowed(roleId: string): boolean {
   return selectedFloor.value.allowedRoleIds.includes(roleId)
 }
 async function toggleRole(roleId: string) {
-  if (!selectedFloor.value) return
-  const current = selectedFloor.value.allowedRoleIds ?? []
+  const floor = selectedFloor.value
+  if (!floor || pending.value) return
+  const current = floor.allowedRoleIds ?? []
   const next = current.includes(roleId) ? current.filter((id) => id !== roleId) : [...current, roleId]
-  await store.updateFloor(selectedFloor.value.id, { allowedRoleIds: next })
+  await run(() => store.updateFloor(floor.id, { allowedRoleIds: next }))
 }
 async function clearRoles() {
-  if (!selectedFloor.value) return
-  await store.updateFloor(selectedFloor.value.id, { allowedRoleIds: [] })
+  const floor = selectedFloor.value
+  if (!floor || pending.value) return
+  await run(() => store.updateFloor(floor.id, { allowedRoleIds: [] }))
 }
 
 function isZoneRole(zone: NpcSpawnZone, roleId: string): boolean {
@@ -188,7 +197,7 @@ function isZoneRole(zone: NpcSpawnZone, roleId: string): boolean {
 }
 async function toggleZoneRole(zoneId: string, roleId: string): Promise<void> {
   const floor = selectedFloor.value
-  if (!floor) return
+  if (!floor || pending.value) return
   const zone = floor.spawnZones?.find((entry) => entry.id === zoneId)
   if (!zone) return
   const allIds = availableRoles.value.map((role) => role.id)
@@ -201,7 +210,7 @@ async function toggleZoneRole(zoneId: string, roleId: string): Promise<void> {
     if (!trimmed.length || trimmed.length >= allIds.length) delete nextZone.roleIds
     return nextZone
   })
-  await store.updateFloor(floor.id, { spawnZones: zones })
+  await run(() => store.updateFloor(floor.id, { spawnZones: zones }))
 }
 
 function toggleNewZoneRole(roleId: string) {
@@ -226,7 +235,7 @@ function armZoneDraw() {
 
 async function addSpawnZone() {
   const floor = selectedFloor.value
-  if (!floor) return
+  if (!floor || pending.value) return
   const label = sanitizeString(newZoneLabel.value.trim()) || `Zone ${(floor.spawnZones?.length ?? 0) + 1}`
   const rect = { x: newZoneX.value, y: newZoneY.value, w: newZoneW.value, h: newZoneH.value }
   if (
@@ -248,7 +257,7 @@ async function addSpawnZone() {
     h: rect.h,
     ...(newZoneRoles.value.length ? { roleIds: [...newZoneRoles.value] } : {}),
   }
-  const saved = await store.updateFloor(floor.id, { spawnZones: [...(floor.spawnZones ?? []), zone] })
+  const saved = await run(() => store.updateFloor(floor.id, { spawnZones: [...(floor.spawnZones ?? []), zone] }))
   if (!reportSaved(saved, `Zone "${label}" added`, 'Failed to add zone')) return
   newZoneLabel.value = ''
   newZoneRoles.value = []
@@ -256,7 +265,7 @@ async function addSpawnZone() {
 
 async function deleteSpawnZone(zoneId: string) {
   const floor = selectedFloor.value
-  if (!floor) return
+  if (!floor || pending.value) return
   const zone = floor.spawnZones?.find((entry) => entry.id === zoneId)
   if (!zone) return
   const ok = await confirm({
@@ -267,9 +276,11 @@ async function deleteSpawnZone(zoneId: string) {
     danger: true,
   })
   if (!ok) return
-  const saved = await store.updateFloor(floor.id, {
-    spawnZones: (floor.spawnZones ?? []).filter((entry) => entry.id !== zoneId),
-  })
+  const saved = await run(() =>
+    store.updateFloor(floor.id, {
+      spawnZones: (floor.spawnZones ?? []).filter((entry) => entry.id !== zoneId),
+    }),
+  )
   reportSaved(saved, `Zone "${zone.label}" deleted`, 'Failed to delete zone')
 }
 
@@ -283,7 +294,7 @@ function floorCounts(f: FloorData): string {
     <div class="form__header">
       <span class="size--stretch">Floors ({{ floors.length }}) - drag the list to reorder</span>
       <span v-if="selectedFloor && selectedFloor.id === store.state.currentFloorId" class="badge">ACTIVE</span>
-      <button class="flag--dashed" @click="onAdd">+ Add</button>
+      <button class="flag--dashed" :disabled="pending" @click="onAdd">+ Add</button>
     </div>
     <div class="form__row form--start form--wrap">
       <!-- Left pane: Floor list -->
@@ -312,7 +323,7 @@ function floorCounts(f: FloorData): string {
               class="card__item--remove flag--danger"
               :title="floors.length <= 1 ? 'Cannot delete the last floor' : 'Delete floor'"
               :aria-label="`Delete floor ${f.name}`"
-              :disabled="floors.length <= 1"
+              :disabled="floors.length <= 1 || pending"
               @click.stop="onDelete(f.id)"
             >
               x
@@ -328,7 +339,12 @@ function floorCounts(f: FloorData): string {
             <div class="form__col form--section">
               <div class="floor__heading">
                 <span>Details</span>
-                <button type="button" aria-label="Duplicate this floor" @click="onDuplicate(selectedFloor.id)">
+                <button
+                  type="button"
+                  aria-label="Duplicate this floor"
+                  :disabled="pending"
+                  @click="onDuplicate(selectedFloor.id)"
+                >
                   Duplicate
                 </button>
               </div>
@@ -375,7 +391,12 @@ function floorCounts(f: FloorData): string {
             <div class="form__col form--section">
               <div>Walkability</div>
               <label class="form__row floor__check">
-                <input type="checkbox" :checked="selectedFloor.defaultWalkable ?? true" @change="toggleWalkable" />
+                <input
+                  type="checkbox"
+                  :checked="selectedFloor.defaultWalkable ?? true"
+                  :disabled="pending"
+                  @change="toggleWalkable"
+                />
                 <span>Empty areas are walkable</span>
               </label>
             </div>
@@ -396,6 +417,7 @@ function floorCounts(f: FloorData): string {
                     type="button"
                     class="card__item--remove flag--danger"
                     :aria-label="`Delete zone ${zone.label}`"
+                    :disabled="pending"
                     @click="deleteSpawnZone(zone.id)"
                   >
                     x
@@ -408,6 +430,7 @@ function floorCounts(f: FloorData): string {
                         type="checkbox"
                         :checked="isZoneRole(zone, role.id)"
                         :aria-label="`${role.label} spawns in ${zone.label}`"
+                        :disabled="pending"
                         @change="toggleZoneRole(zone.id, role.id)"
                       />
                       <span class="swatch" :style="{ background: role.color }" />
@@ -425,9 +448,10 @@ function floorCounts(f: FloorData): string {
                 type="text"
                 placeholder="New zone"
                 aria-label="New zone label"
+                :disabled="pending"
                 @keydown.enter="addSpawnZone"
               />
-              <button type="button" class="flag--active" @click="addSpawnZone">Add</button>
+              <button type="button" class="flag--active" :disabled="pending" @click="addSpawnZone">Add</button>
               <button
                 type="button"
                 title="Close this dialog and drag a rectangle on the canvas for the new zone"
@@ -469,12 +493,17 @@ function floorCounts(f: FloorData): string {
             <div>Allowed Roles</div>
             <div class="form__row">
               <span v-if="!selectedFloor.allowedRoleIds?.length" class="empty">All roles allowed</span>
-              <button v-else @click="clearRoles">Clear (allow all)</button>
+              <button v-else :disabled="pending" @click="clearRoles">Clear (allow all)</button>
             </div>
             <ul class="form__row form--wrap">
               <li v-for="role in availableRoles" :key="role.id" class="floor__role">
                 <label class="card__item" :class="{ 'flag--active': isRoleAllowed(role.id) }">
-                  <input type="checkbox" :checked="isRoleAllowed(role.id)" @change="toggleRole(role.id)" />
+                  <input
+                    type="checkbox"
+                    :checked="isRoleAllowed(role.id)"
+                    :disabled="pending"
+                    @change="toggleRole(role.id)"
+                  />
                   <span class="swatch" :style="{ background: role.color }" />
                   <span>{{ role.label }}</span>
                 </label>
@@ -499,7 +528,7 @@ function floorCounts(f: FloorData): string {
                     ? 'No objects to clear'
                     : `Remove all ${selectedFloor.objects.length} object(s) from this floor`
                 "
-                :disabled="selectedFloor.objects.length === 0"
+                :disabled="selectedFloor.objects.length === 0 || pending"
                 @click="onClear(selectedFloor.id)"
               >
                 Clear objects
@@ -508,7 +537,7 @@ function floorCounts(f: FloorData): string {
                 type="button"
                 class="flag--danger"
                 :title="floors.length <= 1 ? 'Cannot delete the last floor' : 'Delete floor'"
-                :disabled="floors.length <= 1"
+                :disabled="floors.length <= 1 || pending"
                 @click="onDelete(selectedFloor.id)"
               >
                 Delete floor

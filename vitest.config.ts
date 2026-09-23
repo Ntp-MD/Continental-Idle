@@ -12,11 +12,5 @@ export default defineConfig({
     globals: true,
     setupFiles: ['tests/setup.ts'],
     include: ['tests/unit/**/*.test.ts', 'tests/component/**/*.test.ts'],
-    coverage: {
-      provider: 'v8',
-      reporter: ['text', 'html'],
-      include: ['src/**/*.ts', 'src/**/*.vue'],
-      exclude: ['src/blueprint-editor/data/**'],
-    },
   },
 })

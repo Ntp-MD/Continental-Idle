@@ -26,7 +26,7 @@ const hasLinkedGroup = computed(() => selectedItems.value.some((o) => o.linkGrou
 
 const flattenName = ref('')
 
-const previewActive = computed(() => store.state.mode === 'npc-preview')
+const previewActive = computed(() => store.isNpcPreview.value)
 const npcSimulation = inject('npcSimulation') as ReturnType<typeof useNpcSimulation>
 const { npcs, isPaused, pause, resume, reset, stop, simSpeed } = npcSimulation
 const total = computed(() => npcs.value.length)
@@ -54,7 +54,7 @@ const NPC_STATUS_LABELS: Record<NpcStatusKey, string> = {
 }
 const statusCounts = ref<{ key: NpcStatusKey; label: string; count: number }[]>([])
 const statusTimer = window.setInterval(() => {
-  if (store.state.mode !== 'npc-preview') return
+  if (!previewActive.value) return
   const counts = new Map<string, number>()
   for (const npc of npcs.value) counts.set(npc.status, (counts.get(npc.status) ?? 0) + 1)
   const next = NPC_STATUS_ORDER.filter((status) => counts.has(status)).map((status) => ({

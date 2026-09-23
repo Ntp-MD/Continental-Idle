@@ -1,0 +1,24 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(*)",
+      "WebFetch(*)",
+      "WebFetch(*)",
+      "WebFetch(*)",
+      "Bash(echo \"=== HOME ===\"; ls -d ~/.config/opencode ~/.local/share/opencode ~/.cache/opencode ~/.qoder 2>/dev/null; echo \"=== opencode config dir ===\"; ls -la ~/.config/opencode 2>/dev/null; echo \"=== opencode data dir ===\"; ls -la ~/.local/share/opencode 2>/dev/null; echo \"=== qoder dir ===\"; ls ~/.qoder 2>/dev/null)",
+      "Read(//c/Users/ITOP/.config/**)",
+      "WebFetch(*)",
+      "Bash(cd ~/.local/share/opencode && node -e \"const a=require\\('./auth.json'\\); for\\(const [k,v] of Object.entries\\(a\\)\\) console.log\\(k, '->', v.type||'?', '| keys:', Object.keys\\(v\\).join\\(','\\)\\)\")",
+      "Bash(cd ~/.config/opencode && echo \"=== package.json ===\"; cat package.json; echo; echo \"=== node_modules ===\"; ls node_modules; ls node_modules/@* -d 2>/dev/null)",
+      "Bash(cd ~/.config/opencode && grep -o '\"plugin\"[^]]*]' opencode.json; echo \"=== service.json ===\"; cat service.json; echo \"=== gitignore ===\"; cat .gitignore)",
+      "Bash(cd ~/.config/opencode && echo \"=== lines in opencode.json ===\"; grep -n 'opencode-go\\\\|cline-pass\\\\|plugin' opencode.json; echo \"=== global grep in config \\(no node_modules\\) ===\"; grep -rn --exclude-dir=node_modules 'opencode-go\\\\|cline-pass' . 2>/dev/null | head -20; echo \"=== cache dir ===\"; ls -la ~/.cache/opencode | head -20)",
+      "Bash(cd ~/.config/opencode && sed -n '18,22p' opencode.json | cat -A | sed 's/\\\\$$//' | head -6)",
+      "Bash(cd ~/.cache/opencode && node -e \"\nconst m=require\\('./models.json'\\);\nconst root = m.providers ? m : \\(Object.values\\(m\\)[0]||{}\\);\nconst ids = Object.keys\\(root.providers||{}\\);\nconsole.log\\('total providers:', ids.length\\);\nconsole.log\\('matches qoder/go/cline:', ids.filter\\(i=>/qoder|opencode|cline/i.test\\(i\\)\\).join\\(', '\\)\\);\n\" 2>&1 | head -20)",
+      "Bash(ls -R ~/.cache/opencode/packages 2>/dev/null | head -40; echo \"=== find qoder plugin files ===\"; find ~/.cache/opencode ~/.config/opencode ~/.local/share/opencode -iname '*qoder*' -not -path '*/node_modules/*' 2>/dev/null | head -20; echo \"=== find plugin dirs ===\"; find ~/.cache/opencode/packages -maxdepth 3 -name 'package.json' 2>/dev/null | head -20)",
+      "Bash(cd ~/.cache/opencode/packages/opencode-qoder && cat package.json; echo \"=== files ===\"; find . -type f -not -path './node_modules/*' | head -30; echo \"=== node_modules top ===\"; ls node_modules 2>/dev/null | head)",
+      "Bash(cd ~/.cache/opencode/packages/opencode-qoder/node_modules/opencode-qoder && echo \"=== pkg ===\"; cat package.json; echo \"=== files ===\"; find . -type f | head -40; echo \"=== README \\(head\\) ===\"; head -60 README.md 2>/dev/null)",
+      "Bash(cd ~/.cache/opencode/packages/opencode-qoder/node_modules/opencode-qoder/dist && wc -l *.js; echo \"=== grep effort/variant/reasoning in index+constants ===\"; grep -n 'effort\\\\|variant\\\\|reasoning\\\\|Reasoning' index.js constants.js | head -40)",
+      "Bash(ls -la \"C:/Users/ITOP/.qoder/settings.json\" \"C:/Users/ITOP/.qoder/settings.local.json\" \".qoder/\" 2>&1 | head -30)"
+    ]
+  }
+}

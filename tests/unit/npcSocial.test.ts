@@ -1,16 +1,8 @@
+import { test } from 'vitest'
 import assert from 'node:assert/strict'
-import { NpcEngine, NPC_ENGINE_DEFAULT_OPTIONS, findNpcGridPath, chatPairKey, resolveChatExchange, type NpcEngineAgent, type NpcEngineFloor } from '../src/engine/npc'
-import { createNpcEnginePolicy } from '../src/engine/npc/policy'
-import type { FloorData } from '../src/blueprint-editor/domain/types'
-
-assert.equal(chatPairKey('b', 'a'), chatPairKey('a', 'b'), 'pair key is order-independent')
-const exchange = resolveChatExchange(chatPairKey('npc-1', 'npc-2'))
-assert.equal(exchange.length, 2, 'exchange has opener and reply')
-assert.ok(exchange[0].length > 0 && exchange[1].length > 0, 'exchange lines are non-empty')
-assert.deepEqual(resolveChatExchange(chatPairKey('npc-1', 'npc-2')), exchange, 'same pair always resolves the same exchange')
-assert.ok(!exchange[0].startsWith(' ') && !exchange[1].endsWith(' '), 'exchange lines are trimmed')
-
-console.log('NPC social lines checks passed')
+import { NpcEngine, NPC_ENGINE_DEFAULT_OPTIONS, findNpcGridPath, chatPairKey, resolveChatExchange, type NpcEngineAgent, type NpcEngineFloor } from '../../src/engine/npc'
+import { createNpcEnginePolicy } from '../../src/engine/npc/policy'
+import type { FloorData } from '../../src/blueprint-editor/domain/types'
 
 function makeFloor(): NpcEngineFloor {
 	return {
@@ -36,13 +28,25 @@ function idle(id: string, x: number, y: number): Parameters<NpcEngine['addAgent'
 	return { id, floorId: 'F1', x, y, targetX: x, targetY: y, speed: 10 }
 }
 
-// Pair formation, facing, timed end, cooldown
-{
+function runUntilChatting(engine: NpcEngine, id: string): void {
+	for (let i = 0; i < 120 && engine.getAgent(id)?.status !== 'chatting'; i++) engine.tick(1)
+}
+
+test('chat pair key and exchanges', () => {
+	assert.equal(chatPairKey('b', 'a'), chatPairKey('a', 'b'), 'pair key is order-independent')
+	const exchange = resolveChatExchange(chatPairKey('npc-1', 'npc-2'))
+	assert.equal(exchange.length, 2, 'exchange has opener and reply')
+	assert.ok(exchange[0].length > 0 && exchange[1].length > 0, 'exchange lines are non-empty')
+	assert.deepEqual(resolveChatExchange(chatPairKey('npc-1', 'npc-2')), exchange, 'same pair always resolves the same exchange')
+	assert.ok(!exchange[0].startsWith(' ') && !exchange[1].endsWith(' '), 'exchange lines are trimmed')
+})
+
+test('pair formation, facing, timed end, cooldown', () => {
 	const engine = makeSocialEngine()
 	engine.addAgent(idle('a', 2, 2))
 	engine.addAgent(idle('b', 2, 3))
 	engine.addAgent(idle('c', 10, 10))
-	for (let i = 0; i < 120 && engine.getAgent('a')?.status !== 'chatting'; i++) engine.tick(1)
+	runUntilChatting(engine, 'a')
 	const a = engine.getAgent('a')!
 	const b = engine.getAgent('b')!
 	assert.equal(a.status, 'chatting', 'nearby idle pair starts chatting')
@@ -63,32 +67,26 @@ function idle(id: string, x: number, y: number): Parameters<NpcEngine['addAgent'
 	engine.tick(120)
 	assert.equal(engine.getAgent('a')?.status, 'idle', 'cooldown prevents instant re-chat')
 	assert.equal(engine.getAgent('b')?.status, 'idle', 'partner cooldown prevents instant re-chat')
-}
+})
 
-console.log('NPC social pairing checks passed')
-
-// Mutual exclusion: a third agent cannot join an active pair
-{
+test('mutual exclusion: a third agent cannot join an active pair', () => {
 	const engine = makeSocialEngine()
 	engine.addAgent(idle('a', 5, 5))
 	engine.addAgent(idle('b', 5, 6))
-	for (let i = 0; i < 120 && engine.getAgent('a')?.status !== 'chatting'; i++) engine.tick(1)
+	runUntilChatting(engine, 'a')
 	assert.equal(engine.getAgent('a')?.status, 'chatting', 'pair forms first')
 	engine.addAgent(idle('d', 5, 7))
 	engine.tick(60)
 	assert.notEqual(engine.getAgent('d')?.status, 'chatting', 'third agent cannot join the pair')
 	const dStarts = engine.drainEvents().filter(e => e.type === 'chatting-start' && (e.agentId === 'd' || e.partnerId === 'd'))
 	assert.equal(dStarts.length, 0, 'no chat events involve the outsider')
-}
+})
 
-console.log('NPC social exclusion checks passed')
-
-// Removal dissolves the chat on the surviving side
-{
+test('removal dissolves the chat on the surviving side', () => {
 	const engine = makeSocialEngine()
 	engine.addAgent(idle('a', 3, 3))
 	engine.addAgent(idle('b', 3, 4))
-	for (let i = 0; i < 120 && engine.getAgent('a')?.status !== 'chatting'; i++) engine.tick(1)
+	runUntilChatting(engine, 'a')
 	assert.equal(engine.getAgent('a')?.status, 'chatting', 'pair chatting before removal')
 	engine.drainEvents()
 	engine.removeAgent('a')
@@ -98,12 +96,9 @@ console.log('NPC social exclusion checks passed')
 	const ends = engine.drainEvents().filter(e => e.type === 'chatting-end')
 	assert.equal(ends.length, 1, 'survivor gets exactly one chat-end')
 	assert.equal(ends[0].partnerId, 'a', 'chat-end names the removed partner')
-}
+})
 
-console.log('NPC social removal checks passed')
-
-// Business before pleasure: reserved walkers neither initiate nor accept
-{
+test('business before pleasure: reserved walkers neither initiate nor accept', () => {
 	const target = {
 		floorId: 'F1', itemId: 'object:desk', interactSpotId: 'object:desk:0',
 		x: 9, y: 9, tags: [] as string[], capacity: 1, durationMinSeconds: 1, durationMaxSeconds: 1,
@@ -132,12 +127,9 @@ console.log('NPC social removal checks passed')
 	}
 	assert.equal(chatted, false, 'reserved walker never chats mid-errand')
 	assert.ok(interacted, 'walker still completes its business')
-}
+})
 
-console.log('NPC social business-first checks passed')
-
-// Wanderers meet on the road: unreserved walkers may stop and chat
-{
+test('wanderers meet on the road: unreserved walkers may stop and chat', () => {
 	const roadEngine = new NpcEngine({ floors: [makeFloor()], interactionTargets: [] }, {
 		...NPC_ENGINE_DEFAULT_OPTIONS,
 		ticksPerSecond: 60,
@@ -159,12 +151,9 @@ console.log('NPC social business-first checks passed')
 	assert.equal(roadEngine.getAgent('a')?.status, 'chatting', 'walker stops to chat')
 	assert.equal(roadEngine.getAgent('b')?.status, 'chatting', 'bystander joins the chat')
 	assert.equal(roadEngine.getAgent('a')?.chatPartnerId, 'b', 'road pair linked')
-}
+})
 
-console.log('NPC social road-meeting checks passed')
-
-// Social stays off unless opted in
-{
+test('social stays off unless opted in', () => {
 	const engine = new NpcEngine({ floors: [makeFloor()], interactionTargets: [] }, {
 		...NPC_ENGINE_DEFAULT_OPTIONS,
 		ticksPerSecond: 60,
@@ -176,12 +165,9 @@ console.log('NPC social road-meeting checks passed')
 	engine.tick(200)
 	assert.equal(engine.getAgent('a')?.status, 'idle', 'default engine never chats')
 	assert.equal(engine.drainEvents().some(e => e.type === 'chatting-start'), false, 'no chat events by default')
-}
+})
 
-console.log('NPC social opt-in checks passed')
-
-// Policy taste: loners never chat, chatty picks nearest, others sometimes pass
-{
+test('policy taste: loners never chat, chatty picks nearest, others sometimes pass', () => {
 	const tiles = new Set<string>()
 	for (let y = 0; y < 12; y++) for (let x = 0; x < 12; x++) tiles.add(`${x},${y}`)
 	const floorMap = { tiles, width: 12, height: 12, cellSize: 1 }
@@ -228,6 +214,4 @@ console.log('NPC social opt-in checks passed')
 	assert.equal(permissive.socialSelector(chatty, [near])?.id, 'n', 'chatty picks the nearest')
 	assert.equal(permissive.socialSelector(plain, [near])?.id, 'n', 'plain accepts at low roll')
 	assert.equal(picky.socialSelector(plain, [near]), null, 'plain passes at high roll')
-}
-
-console.log('NPC social taste checks passed')
+})

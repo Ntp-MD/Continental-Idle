@@ -97,4 +97,27 @@ describe('useDebouncedCallback', () => {
       expect(fn).toHaveBeenCalledWith('b')
     })
   })
+
+  it('flush runs a pending call immediately', () => {
+    scope.run(() => {
+      const fn = vi.fn()
+      const debounced = useDebouncedCallback(fn, 100)
+      debounced('a')
+      debounced.flush()
+      expect(fn).toHaveBeenCalledTimes(1)
+      vi.advanceTimersByTime(100)
+      expect(fn).toHaveBeenCalledTimes(1)
+    })
+  })
+
+  it('flush with nothing pending does not re-run the last call', () => {
+    scope.run(() => {
+      const fn = vi.fn()
+      const debounced = useDebouncedCallback(fn, 100)
+      debounced('a')
+      vi.advanceTimersByTime(100)
+      debounced.flush()
+      expect(fn).toHaveBeenCalledTimes(1)
+    })
+  })
 })

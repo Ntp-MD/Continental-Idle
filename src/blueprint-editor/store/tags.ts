@@ -2,9 +2,11 @@ import { computed } from 'vue'
 import type { BlueprintStore } from './state'
 import { buildTagCatalog } from '../assets/tagCatalog'
 import { normalizeTag } from '../domain/types'
+import { MAX_TAGS } from '../limits'
 
 export function createTagCommands(store: BlueprintStore) {
 	const state = store.state
+	const toast = store.toast
 	const withStateLock = <T>(fn: () => Promise<T>) => store.runExclusive(fn)
 	const saveBlueprintData = () => store.save()
 
@@ -16,6 +18,10 @@ export function createTagCommands(store: BlueprintStore) {
 		return withStateLock(async () => {
 			const normalized = normalizeTag(tag)
 			if (!normalized || state.tagDefinitions.some(item => item.id === normalized)) return
+			if (state.tagDefinitions.length >= MAX_TAGS) {
+				toast.warning(`Tag limit reached (${MAX_TAGS})`)
+				return
+			}
 			state.tagDefinitions.push({ id: normalized, label: normalized })
 			await saveBlueprintData()
 		})
@@ -66,7 +72,7 @@ export function createTagCommands(store: BlueprintStore) {
 		}
 	}
 
-	return { tagCatalog, globalTags, managedTagSet, addTag, removeTag, ensureTag }
+	return { globalTags, managedTagSet, addTag, removeTag, ensureTag }
 }
 
 export type TagCommands = ReturnType<typeof createTagCommands>

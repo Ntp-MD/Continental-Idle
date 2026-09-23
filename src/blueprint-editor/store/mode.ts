@@ -3,6 +3,7 @@ import { isValidColor, normalizeEditorSettings, EDITOR_FIELD_SPECS, rescaleFloor
 import type { BlueprintStore } from './state'
 import { normalizeObject } from '../domain/geometry'
 import { layoutHasContent } from './storeUtils'
+import { MIN_STREET_WIDTH_TILES, MAX_STREET_WIDTH_TILES } from '../limits'
 
 export function createModeCommands(store: BlueprintStore) {
 	const state = store.state
@@ -10,16 +11,17 @@ export function createModeCommands(store: BlueprintStore) {
 	const assetMap = () => store.assetMap()
 	const withStateLock = <T>(fn: () => Promise<T>) => store.runExclusive(fn)
 	const saveBlueprintData = () => store.save()
+	const clearSelection = () => store.clearSelection()
 
 	function setMode(mode: EditorMode) {
 		state.mode = mode
 		state.tileBrush = null
-		state.selectionState = { primary: null, items: [] }
+		clearSelection()
 	}
 
 	function setTileBrush(brush: TileBrush | null) {
 		state.tileBrush = brush
-		state.selectionState = { primary: null, items: [] }
+		clearSelection()
 	}
 
 	async function resizeCanvas(width: number, height: number, tileSize: number): Promise<boolean> {
@@ -123,7 +125,7 @@ export function createModeCommands(store: BlueprintStore) {
 
 	async function setStreetWidth(tiles: number | null): Promise<boolean> {
 		return withStateLock(async () => {
-			if (tiles !== null && (!Number.isInteger(tiles) || tiles < 5 || tiles > 20)) return false
+			if (tiles !== null && (!Number.isInteger(tiles) || tiles < MIN_STREET_WIDTH_TILES || tiles > MAX_STREET_WIDTH_TILES)) return false
 			if (tiles !== null) state.layout.streetWidthTiles = tiles
 			else delete state.layout.streetWidthTiles
 			const tileSize = Math.max(1, Math.round(state.layout.canvas.tileSize))

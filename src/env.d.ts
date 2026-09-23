@@ -1,5 +1,12 @@
 
 
+// Build-time configuration read in editorConfig.ts. Declared explicitly so a
+// misspelled name is a type error instead of a silently undefined value.
+interface ImportMetaEnv {
+	readonly VITE_PERSISTENCE?: 'http' | 'local'
+	readonly VITE_BLUEPRINT_DATA_ENDPOINT?: string
+}
+
 declare module '*.vue' {
   import type { DefineComponent } from 'vue'
   const component: DefineComponent<{}, {}, any>

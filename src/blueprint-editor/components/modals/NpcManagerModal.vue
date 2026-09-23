@@ -7,6 +7,7 @@ import { isHexColor, normalizeNpcConfig, normalizeTag, clampInt } from '../../do
 import { genId, emptyNpcConfig, taskMatchesQuery, cloneDeepRaw } from '../../blueprintStore'
 import { useDebouncedCallback } from '@/composables/useDebounceFn'
 import { sanitizeString } from '../../../utils/sanitize'
+import { MAX_NPC_ENTRIES } from '../../limits'
 import type { NpcRole, NpcRoleAppearance, NpcSimulationConfig, NpcSpawnRule, NpcTask } from '../../domain/types'
 import ModalShell from '../shell/ModalShell.vue'
 import NpcRoleList from './NpcRoleList.vue'
@@ -158,6 +159,10 @@ function colorForId(id: string): string {
 }
 
 async function addRole() {
+  if (draft.value.roles.length >= MAX_NPC_ENTRIES) {
+    toast.warning(`Role limit reached (${MAX_NPC_ENTRIES})`)
+    return
+  }
   const id = genId('role')
   draft.value.roles.push({
     id,
@@ -321,6 +326,10 @@ const stationAssets = computed(() =>
 )
 
 async function addTask() {
+  if (draft.value.tasks.length >= MAX_NPC_ENTRIES) {
+    toast.warning(`Task limit reached (${MAX_NPC_ENTRIES})`)
+    return
+  }
   const id = genId('task')
   draft.value.tasks.push({ id, label: 'New Task', tags: [] })
   view.value = 'library'
@@ -440,7 +449,10 @@ async function removeTag(tag: string) {
   )
     return
   try {
-    queuePersist.cancel()
+    // Flush, do not cancel: the re-clone below adopts store state, so a draft
+    // still inside the 400ms debounce window would vanish with no trace.
+    // The store queue keeps this write ordered before the tag removal.
+    queuePersist.flush()
     reportSaved(await store.removeTag(tag), `Tag "${tag}" deleted`, 'Failed to delete tag - changes not saved')
     draft.value = cloneDeepRaw(store.state.layout.npcConfig ?? emptyNpcConfig())
     resetSelection()

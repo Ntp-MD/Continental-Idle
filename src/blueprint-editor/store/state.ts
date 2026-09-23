@@ -1,4 +1,4 @@
-import { reactive, type ComputedRef } from 'vue'
+import { reactive, type ComputedRef, type Ref } from 'vue'
 import type {
 	AssetDef,
 	BlueprintDataFile,
@@ -15,10 +15,8 @@ import type {
 	SelectionState,
 	TileBrush,
 } from '../domain/types'
-import type { TagCatalog } from '../assets/tagCatalog'
 import { parseSvgRoles, buildWalkableGrid } from '../assets/assetUtils'
 import { normalizeTileStates, tileStatesToWalkableGrid } from '../domain/types'
-import type { PersistencePort, SyncPort } from './ports'
 import type { useToast } from '@/composables/useToast'
 
 export interface EditorState {
@@ -65,12 +63,9 @@ export interface FloorPatch {
 
 export interface BlueprintStore {
 	readonly state: EditorState
-	readonly persistence: PersistencePort
-	readonly sync: SyncPort
 	readonly toast: ToastApi
 	readonly currentFloor: ComputedRef<FloorData | undefined>
 	readonly isNpcPreview: ComputedRef<boolean>
-	readonly tagCatalog: ComputedRef<TagCatalog>
 	readonly globalTags: ComputedRef<string[]>
 	readonly managedTagSet: ComputedRef<Set<string>>
 	readonly selectedAsset: ComputedRef<AssetDef | null>
@@ -85,6 +80,8 @@ export interface BlueprintStore {
 	reloadEditorData(): Promise<void>
 	undo(): Promise<boolean>
 	canUndo: ComputedRef<boolean>
+	/** Counts committed states; bump is the cheap signal that layout may have changed. */
+	historyDepth: Ref<number>
 
 	addFloor(): Promise<FloorData | null>
 	clearFloor(id: string): Promise<boolean>
@@ -130,6 +127,7 @@ export interface BlueprintStore {
 	importWorkspace(file: BlueprintDataFile): Promise<boolean>
 
 	select(ref: EntityRef | null): void
+	setSelection(items: EntityRef[]): void
 	selectAsset(id: string | null): void
 	clearSelection(): void
 	selectedObject(): ObjectData | undefined
