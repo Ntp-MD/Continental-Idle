@@ -96,67 +96,22 @@ async function applyCanvasSize() {
   }
 }
 
-async function applyCanvasBgColor(value: string | undefined) {
+async function applyCanvasColor(failMessage: string, setter: () => Promise<boolean>) {
   try {
-    await run(() => store.setCanvasBgColor(value))
+    const saved = await run(setter)
+    if (!saved) toast.error(failMessage)
   } catch {
-    toast.error('Failed to set canvas background color')
+    toast.error(failMessage)
   }
 }
 
-async function applyLabelColor(value: string | undefined) {
-  try {
-    const saved = await run(() => store.setCanvasLabelColor(value))
-    if (!saved) toast.error('Failed to set label color')
-  } catch {
-    toast.error('Failed to set label color')
-  }
-}
-
-async function applyWallColor(value: string | undefined) {
-  try {
-    const saved = await run(() => store.setCanvasWallColor(value))
-    if (!saved) toast.error('Failed to set wall color')
-  } catch {
-    toast.error('Failed to set wall color')
-  }
-}
-
-async function applyGridColor(value: string | undefined) {
-  try {
-    const saved = await run(() => store.setCanvasGridColor(value))
-    if (!saved) toast.error('Failed to set grid color')
-  } catch {
-    toast.error('Failed to set grid color')
-  }
-}
-
-async function applyStreetSidewalkColor(value: string | undefined) {
-  try {
-    const saved = await run(() => store.setCanvasStreetSidewalkColor(value))
-    if (!saved) toast.error('Failed to set sidewalk color')
-  } catch {
-    toast.error('Failed to set sidewalk color')
-  }
-}
-
-async function applyStreetRoadColor(value: string | undefined) {
-  try {
-    const saved = await run(() => store.setCanvasStreetRoadColor(value))
-    if (!saved) toast.error('Failed to set road color')
-  } catch {
-    toast.error('Failed to set road color')
-  }
-}
-
-async function applyStreetMarkingColor(value: string | undefined) {
-  try {
-    const saved = await run(() => store.setCanvasStreetMarkingColor(value))
-    if (!saved) toast.error('Failed to set lane marking color')
-  } catch {
-    toast.error('Failed to set lane marking color')
-  }
-}
+const applyCanvasBgColor = (value: string | undefined) => applyCanvasColor('Failed to set canvas background color', () => store.setCanvasBgColor(value))
+const applyLabelColor = (value: string | undefined) => applyCanvasColor('Failed to set label color', () => store.setCanvasLabelColor(value))
+const applyWallColor = (value: string | undefined) => applyCanvasColor('Failed to set wall color', () => store.setCanvasWallColor(value))
+const applyGridColor = (value: string | undefined) => applyCanvasColor('Failed to set grid color', () => store.setCanvasGridColor(value))
+const applyStreetSidewalkColor = (value: string | undefined) => applyCanvasColor('Failed to set sidewalk color', () => store.setCanvasStreetSidewalkColor(value))
+const applyStreetRoadColor = (value: string | undefined) => applyCanvasColor('Failed to set road color', () => store.setCanvasStreetRoadColor(value))
+const applyStreetMarkingColor = (value: string | undefined) => applyCanvasColor('Failed to set lane marking color', () => store.setCanvasStreetMarkingColor(value))
 
 async function applyStreetFloor(floorId: string | null) {
   try {

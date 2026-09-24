@@ -1,8 +1,9 @@
+import { test } from 'vitest'
 import assert from 'node:assert/strict'
-import { NpcEngine, NPC_ENGINE_DEFAULT_OPTIONS, findNpcGridPath, type NpcEngineAgent, type NpcEngineQueue, type NpcEngineFloor } from '../src/engine/npc'
-import { buildNpcQueues } from '../src/engine/npc/queueBuild'
-import { createNpcEnginePolicy } from '../src/engine/npc/policy'
-import type { AssetDef, FloorData } from '../src/blueprint-editor/domain/types'
+import { NpcEngine, NPC_ENGINE_DEFAULT_OPTIONS, findNpcGridPath, type NpcEngineAgent, type NpcEngineQueue, type NpcEngineFloor } from '../../src/engine/npc'
+import { buildNpcQueues } from '../../src/engine/npc/queueBuild'
+import { createNpcEnginePolicy } from '../../src/engine/npc/policy'
+import type { AssetDef, FloorData } from '../../src/blueprint-editor/domain/types'
 
 const target = {
 	floorId: 'F1',
@@ -48,50 +49,51 @@ const queueTargets = [
 	{ ...target, itemId: 'object:desk', interactSpotId: 'object:desk:1' },
 ]
 const builtQueues = buildNpcQueues(queueFloor, queueFloorData, 25, new Map([[queueAsset.id, queueAsset]]), queueTargets)
-assert.equal(builtQueues.length, 1)
-assert.equal(builtQueues[0].maxMembers, 3)
-assert.deepEqual(builtQueues[0].slots, [{ x: 7, y: 5 }, { x: 7, y: 6 }, { x: 8, y: 5 }])
 
-const engine = new NpcEngine({
-	floors: [{ id: 'F1', width: 12, height: 12, tileSize: 1, walkable: [] }],
-	interactionTargets: [target],
-	queues: [queue],
-}, {
-	...NPC_ENGINE_DEFAULT_OPTIONS,
-	ticksPerSecond: 1,
-	random: () => 0,
-	pathfinder: (_floor, from, to) => [{ x: from.x, y: from.y }, { x: to.x, y: to.y }],
-	targetSelector: (_agent, targets) => targets[0] ?? null,
-	queueSelector: (_agent, _targets, _available, queues) => queues[0] ?? null,
-	wanderSelector: () => ({ x: 10, y: 10 }),
+test('npc queue', () => {
+	assert.equal(builtQueues.length, 1)
+	assert.equal(builtQueues[0].maxMembers, 3)
+	assert.deepEqual(builtQueues[0].slots, [{ x: 7, y: 5 }, { x: 7, y: 6 }, { x: 8, y: 5 }])
+
+	const engine = new NpcEngine({
+		floors: [{ id: 'F1', width: 12, height: 12, tileSize: 1, walkable: [] }],
+		interactionTargets: [target],
+		queues: [queue],
+	}, {
+		...NPC_ENGINE_DEFAULT_OPTIONS,
+		ticksPerSecond: 1,
+		random: () => 0,
+		pathfinder: (_floor, from, to) => [{ x: from.x, y: from.y }, { x: to.x, y: to.y }],
+		targetSelector: (_agent, targets) => targets[0] ?? null,
+		queueSelector: (_agent, _targets, _available, queues) => queues[0] ?? null,
+		wanderSelector: () => ({ x: 10, y: 10 }),
+	})
+
+	const startPositions = [[0, 0], [4, 9], [5, 9], [6, 9], [0, 4]]
+	for (let i = 0; i < startPositions.length; i++) {
+		const [x, y] = startPositions[i]
+		engine.addAgent({ id: `npc-${i}`, floorId: 'F1', x, y, targetX: x, targetY: y, speed: 10 })
+	}
+	engine.tick()
+
+	const agents = new Map(engine.getAgents().map(agent => [agent.id, agent]))
+	assert.equal(agents.get('npc-0')?.status, 'interacting')
+	assert.equal(agents.get('npc-1')?.queueSlotIndex, 0)
+	assert.equal(agents.get('npc-2')?.queueSlotIndex, 1)
+	assert.equal(agents.get('npc-3')?.queueSlotIndex, 2)
+	assert.equal(agents.get('npc-4')?.status, 'walking')
+	assert.equal(agents.get('npc-4')?.reservationItemId, null)
+
+	engine.tick(2)
+	const afterRelease = new Map(engine.getAgents().map(agent => [agent.id, agent]))
+	assert.equal(afterRelease.get('npc-1')?.status, 'interacting')
+	assert.equal(afterRelease.get('npc-1')?.reservationInteractSpotId, 'object:desk:0')
+	assert.equal(afterRelease.get('npc-2')?.queueSlotIndex, 0)
+	assert.equal(afterRelease.get('npc-3')?.queueSlotIndex, 1)
 })
 
-const startPositions = [[0, 0], [4, 9], [5, 9], [6, 9], [0, 4]]
-for (let i = 0; i < startPositions.length; i++) {
-	const [x, y] = startPositions[i]
-	engine.addAgent({ id: `npc-${i}`, floorId: 'F1', x, y, targetX: x, targetY: y, speed: 10 })
-}
-engine.tick()
-
-const agents = new Map(engine.getAgents().map(agent => [agent.id, agent]))
-assert.equal(agents.get('npc-0')?.status, 'interacting')
-assert.equal(agents.get('npc-1')?.queueSlotIndex, 0)
-assert.equal(agents.get('npc-2')?.queueSlotIndex, 1)
-assert.equal(agents.get('npc-3')?.queueSlotIndex, 2)
-assert.equal(agents.get('npc-4')?.status, 'walking')
-assert.equal(agents.get('npc-4')?.reservationItemId, null)
-
-engine.tick(2)
-const afterRelease = new Map(engine.getAgents().map(agent => [agent.id, agent]))
-assert.equal(afterRelease.get('npc-1')?.status, 'interacting')
-assert.equal(afterRelease.get('npc-1')?.reservationInteractSpotId, 'object:desk:0')
-assert.equal(afterRelease.get('npc-2')?.queueSlotIndex, 0)
-assert.equal(afterRelease.get('npc-3')?.queueSlotIndex, 1)
-
-console.log('NPC queue checks passed')
-
 // Queue front holds its place while the target stays occupied (no line switching)
-{
+test('npc queue patience', () => {
 	const holdBed = { ...target, tags: ['rest'], durationMinSeconds: 100000, durationMaxSeconds: 100000 }
 	const holdQueue: NpcEngineQueue = {
 		key: 'F1:queue:hold',
@@ -125,10 +127,8 @@ console.log('NPC queue checks passed')
 	}
 	assert.ok(joined, 'waiter joins the line')
 	assert.equal(leftAfterJoin, false, 'front never abandons the line while target occupied')
-}
 
-// Transient doorway crowd: retry the same target without failure or blacklist
-{
+	// Transient doorway crowd: retry the same target without failure or blacklist
 	const corridor: NpcEngineFloor = {
 		id: 'F1', width: 6, height: 6, tileSize: 1,
 		walkable: [0, 1, 2, 3, 4, 5].map(y => ({ x: 2, y })),
@@ -150,12 +150,10 @@ console.log('NPC queue checks passed')
 	crowdEngine.tick(1500)
 	const failures = crowdEngine.drainEvents().filter(e => e.type === 'repath-failed')
 	assert.equal(failures.length, 0, 'transient crowd causes no repath failures')
-}
-
-console.log('NPC queue patience checks passed')
+})
 
 // Handoff: finished occupant yields the spot; the line advances instead of hogging it
-{
+test('npc queue handoff', () => {
 	const handoffBed = { ...target, durationMinSeconds: 2, durationMaxSeconds: 2 }
 	const handoffQueue: NpcEngineQueue = {
 		key: 'F1:queue:handoff',
@@ -185,12 +183,10 @@ console.log('NPC queue patience checks passed')
 		if (handoffEngine.drainEvents().some(e => e.type === 'interaction-start' && e.agentId === 'next')) { nextInteracted = true; break }
 	}
 	assert.ok(nextInteracted, 'line advances: next agent interacts after handoff')
-}
-
-console.log('NPC queue handoff checks passed')
+})
 
 // Yield under repath cooldown must not eject a queue member (dynamic blocks while detouring)
-{
+test('npc queue yield-hold', () => {
 	const hold2Bed = { ...target, durationMinSeconds: 100000, durationMaxSeconds: 100000 }
 	const hold2Queue: NpcEngineQueue = {
 		key: 'F1:queue:hold2',
@@ -226,12 +222,10 @@ console.log('NPC queue handoff checks passed')
 	}
 	assert.ok(joined, 'member joins the line')
 	assert.equal(ejected, false, 'cooldown yield never ejects a queue member')
-}
-
-console.log('NPC queue yield-hold checks passed')
+})
 
 // Standalone objects with an explicit queue config build queues without doors
-{
+test('npc standalone queue', () => {
 	const looAsset: AssetDef = {
 		id: 'asset-loo',
 		name: 'Loo',
@@ -303,12 +297,10 @@ console.log('NPC queue yield-hold checks passed')
 		durationMaxSeconds: 8,
 	}]
 	assert.equal(buildNpcQueues(looFloor, plainFloorData, 25, new Map([[plainAsset.id, plainAsset]]), plainTargets).length, 0, 'doorless object without queue config builds no queues')
-}
-
-console.log('NPC standalone queue checks passed')
+})
 
 // Busy queue guards its doorway: slots always guarded, admission guarded once the line is full
-{
+test('npc doorway guard', () => {
 	const farTarget = {
 		floorId: 'F1', itemId: 'far', interactSpotId: 'far:0',
 		x: 5, y: 2, tags: [] as string[], capacity: 2, durationMinSeconds: 1, durationMaxSeconds: 1,
@@ -358,12 +350,10 @@ console.log('NPC standalone queue checks passed')
 	const walker2 = guardEngine.getAgent('walker2')!
 	assert.equal(walker2.status, 'walking', 'second outsider paths after unlock')
 	assert.ok(walker2.path.some(point => Math.floor(point.x) === 5 && Math.floor(point.y) === 6), 'doorway walkable again once interaction ends')
-}
-
-console.log('NPC doorway guard checks passed')
+})
 
 // Full queues are skipped: overflow goes to the nearest queue with space, never overfills
-{
+test('npc queue overflow', () => {
 	const tiles = new Set<string>()
 	for (let y = 0; y < 12; y++) for (let x = 0; x < 12; x++) tiles.add(`${x},${y}`)
 	const floorMap = { tiles, width: 12, height: 12, cellSize: 1 }
@@ -420,12 +410,10 @@ console.log('NPC doorway guard checks passed')
 	assert.equal(policy.queueSelector(seeker, [tA, tB], [], [qA, qB])?.key, 'QB', 'full nearest queue skipped for queue with space')
 	agents = [...agents, mkAgent('n1', 9, 8, 'QB'), mkAgent('n2', 9, 7, 'QB'), mkAgent('n3', 9, 6, 'QB')]
 	assert.equal(policy.queueSelector(seeker, [tA, tB], [], [qA, qB]), null, 'all queues full returns null instead of overfilling')
-}
-
-console.log('NPC queue overflow checks passed')
+})
 
 // FIFO: the line advances in join order, never LIFO or random
-{
+test('npc queue FIFO', () => {
 	const fifoBed = { ...target, durationMinSeconds: 2, durationMaxSeconds: 2 }
 	const fifoQueue: NpcEngineQueue = {
 		key: 'F1:queue:fifo',
@@ -461,12 +449,10 @@ console.log('NPC queue overflow checks passed')
 	}
 	assert.ok(starts.includes('first') && starts.includes('second'), 'both waiters get served')
 	assert.ok(starts.indexOf('first') < starts.indexOf('second'), 'line advances in join order (FIFO)')
-}
-
-console.log('NPC queue FIFO checks passed')
+})
 
 // Free target is taken directly: no queue detour when nothing is busy
-{
+test('npc free-target', () => {
 	const freeBed = { ...target, durationMinSeconds: 2, durationMaxSeconds: 2 }
 	const freeFloor: NpcEngineFloor = {
 		id: 'F1', width: 12, height: 12, tileSize: 1,
@@ -487,12 +473,10 @@ console.log('NPC queue FIFO checks passed')
 	assert.equal(solo.queueKey, null, 'no queue join when target is free')
 	assert.equal(solo.queuePendingKey, null, 'no queue approach when target is free')
 	assert.equal(solo.reservationItemId, 'object:desk', 'free target reserved directly')
-}
-
-console.log('NPC free-target checks passed')
+})
 
 // Capacity 1 + single spot: never two occupants at once, nobody starves
-{
+test('npc single-occupancy', () => {
 	const singleBed = { ...target, durationMinSeconds: 5, durationMaxSeconds: 5 }
 	const singleFloor: NpcEngineFloor = {
 		id: 'F1', width: 12, height: 12, tileSize: 1,
@@ -521,12 +505,10 @@ console.log('NPC free-target checks passed')
 	}
 	assert.equal(maxConcurrent, 1, 'capacity-1 spot never double-occupies')
 	assert.equal(served.size, 2, 'both agents get served, nobody starves')
-}
-
-console.log('NPC single-occupancy checks passed')
+})
 
 // Patience: a stuck line is abandoned for the next-nearest line instead of waiting forever
-{
+test('npc queue patience-timeout', () => {
 	const longBed = { ...target, durationMinSeconds: 100000, durationMaxSeconds: 100000 }
 	const longFar = {
 		floorId: 'F1', itemId: 'far', interactSpotId: 'far:0',
@@ -578,12 +560,10 @@ console.log('NPC single-occupancy checks passed')
 	}
 	assert.ok(moved, 'waiter abandons the stuck line for the next-nearest line')
 	assert.equal(patienceEngine.getAgent('camperA')?.status, 'interacting', 'original occupant undisturbed')
-}
-
-console.log('NPC queue patience-timeout checks passed')
+})
 
 // Lifecycle: per-agent engine maps are released with the agent and cleared on reset
-{
+test('npc engine lifecycle', () => {
 	const lifeFloor: NpcEngineFloor = {
 		id: 'F1', width: 12, height: 12, tileSize: 1,
 		walkable: Array.from({ length: 144 }, (_, index) => ({ x: index % 12, y: Math.floor(index / 12) })),
@@ -604,12 +584,10 @@ console.log('NPC queue patience-timeout checks passed')
 	assert.equal(internals.lastChooseTargetTick.size, 1, 'agent removal releases decision state')
 	lifeEngine.reset()
 	assert.equal(internals.lastChooseTargetTick.size, 0, 'reset clears decision state')
-}
-
-console.log('NPC engine lifecycle checks passed')
+})
 
 // Waiting events carry reasons: line joins and occupied-spot bounces are distinguishable
-{
+test('npc waiting-reason', () => {
 	const reasonFloor: NpcEngineFloor = {
 		id: 'F1', width: 12, height: 12, tileSize: 1,
 		walkable: Array.from({ length: 144 }, (_, index) => ({ x: index % 12, y: Math.floor(index / 12) })),
@@ -652,12 +630,10 @@ console.log('NPC engine lifecycle checks passed')
 		}
 	}
 	assert.ok(queuedReason, 'line join emits queued')
-}
-
-console.log('NPC waiting-reason checks passed')
+})
 
 // Admit race: arrival at a just-filled line backs off instead of re-approaching
-{
+test('npc admit-race', () => {
 	const raceBed = { ...target, durationMinSeconds: 100000, durationMaxSeconds: 100000 }
 	const raceQueue: NpcEngineQueue = {
 		key: 'F1:queue:race',
@@ -692,12 +668,10 @@ console.log('NPC waiting-reason checks passed')
 	const lateAfter = raceEngine.getAgent('late')!
 	assert.equal(lateAfter.queuePendingKey, null, 'no re-approach while the line stays full')
 	assert.ok(lateAfter.status === 'waiting' || lateAfter.status === 'idle', 'latecomer waits out the occupation')
-}
-
-console.log('NPC admit-race checks passed')
+})
 
 // Fuzz: random join/leave/remove churn never breaks line invariants
-{
+test('npc queue fuzz', () => {
 	function mulberry32(seed: number): () => number {
 		let a = seed
 		return () => {
@@ -776,6 +750,4 @@ console.log('NPC admit-race checks passed')
 	}
 	fuzzEngine.tick(300)
 	checkInvariants(999)
-}
-
-console.log('NPC queue fuzz checks passed')
+})

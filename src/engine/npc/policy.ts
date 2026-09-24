@@ -207,6 +207,8 @@ function hasTriggerRates(config: NpcSimulationConfig): boolean {
 	return Object.keys(config.tagTriggerRates ?? {}).length > 0
 }
 
+// A guest leaving floor 13 wants the floor that actually has the thing it is after (the pool,
+// the dining room), not the neighbouring bedroom floor. Density wins, distance only breaks ties.
 function pickNearestFloorTarget(
 	targets: readonly NpcEngineInteractionTarget[],
 	currentFloorId: string,
@@ -214,12 +216,20 @@ function pickNearestFloorTarget(
 ): NpcEngineInteractionTarget | null {
 	if (!targets.length) return null
 	const floorIds = floors.map(floor => floor.id)
-	const currentIndex = floorIds.indexOf(currentFloorId)
-	return targets.reduce((best, target) =>
-		Math.abs(floorIds.indexOf(target.floorId) - currentIndex) < Math.abs(floorIds.indexOf(best.floorId) - currentIndex)
-			? target
-			: best,
-	)
+	const currentIndex = Math.max(0, floorIds.indexOf(currentFloorId))
+	const countByFloor = new Map<string, number>()
+	for (const target of targets) {
+		if (target.floorId === currentFloorId) continue
+		countByFloor.set(target.floorId, (countByFloor.get(target.floorId) ?? 0) + 1)
+	}
+	let best: NpcEngineInteractionTarget | null = null
+	let bestScore = Number.NEGATIVE_INFINITY
+	for (const target of targets) {
+		if (target.floorId === currentFloorId) continue
+		const score = (countByFloor.get(target.floorId) ?? 0) * 100 - Math.abs(floorIds.indexOf(target.floorId) - currentIndex)
+		if (score > bestScore) { bestScore = score; best = target }
+	}
+	return best
 }
 
 function resolveFurnishedTiles(context: NpcPolicyContext, state: PolicyState, floorId: string): Set<string> | null {
@@ -264,6 +274,10 @@ function makeTargetSelector(
 		if (!roleContext) return null
 		const posted = selectPostTarget(context, roleContext, agent, targets)
 		if (posted) return posted
+		// A role with cross-floor business deliberately passes on the local floor sometimes,
+		// which is what puts guests and staff through the lift lobby instead of the sofa.
+		const crossFloorChance = roleContext.role.crossFloorChance ?? 0
+		if (crossFloorChance > 0 && random() * 100 < crossFloorChance) return null
 		const openTargets = targets.filter(target => !hasPostTag(target.tags))
 		const tags = resolveFocusTags(context, roleContext.role)
 		if (!tags.length) {

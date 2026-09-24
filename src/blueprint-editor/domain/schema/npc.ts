@@ -1,6 +1,6 @@
 import { MAX_NPC_ENTRIES } from '../../limits'
 import { editorLog } from '../logger'
-import { MAX_DATA_STRING_LENGTH, clampInt, isFiniteNumber, isRecord, isValidColor, normalizeIdentifier, normalizeTag, normalizeTags, normalizeText } from './helpers'
+import { MAX_DATA_STRING_LENGTH, clampInt, isFiniteNumber, isRecord, isValidColor, normalizeIdentifier, normalizeTag, normalizeTags, normalizeText, positiveInt, positiveNumber } from './helpers'
 
 export interface NpcTaskPost {
 	assetId: string
@@ -44,6 +44,8 @@ export interface NpcRole {
 	taskIds: string[]
 
 	focusChance: number
+	/** Share of target decisions (0-100) that skip the current floor and look elsewhere. */
+	crossFloorChance?: number
 	spawnRule?: NpcSpawnRule
 	appearance?: NpcRoleAppearance
 }
@@ -199,6 +201,7 @@ function isValidRole(r: unknown): r is NpcRole {
 	const color = normalizeText(role.color, 32)
 	if (!normalizeIdentifier(role.id) || !normalizeText(role.label) || !color || !isValidColor(color)) return false
 	if (!isFiniteNumber(role.focusChance) || role.focusChance < 0 || role.focusChance > 100) return false
+	if (role.crossFloorChance !== undefined && (!isFiniteNumber(role.crossFloorChance) || role.crossFloorChance < 0 || role.crossFloorChance > 100)) return false
 	if (!Array.isArray(role.focusTags) || !normalizeTags(role.focusTags)) return false
 	if (!Array.isArray(role.restrictedTags) || !normalizeTags(role.restrictedTags)) return false
 	if (!Array.isArray(role.taskIds) || role.taskIds.length > MAX_NPC_ENTRIES || role.taskIds.some((taskId: unknown) => !normalizeIdentifier(taskId))) return false
@@ -269,6 +272,8 @@ export function normalizeNpcConfig(value: unknown): NpcSimulationConfig | undefi
 			}
 			const appearance = normalizeAppearance(role.appearance)
 			if (appearance) normalized.appearance = appearance
+			const crossFloorChance = isFiniteNumber(role.crossFloorChance) ? clampInt(role.crossFloorChance, 0, 100) : 0
+			if (crossFloorChance > 0) normalized.crossFloorChance = crossFloorChance
 			return normalized
 		}),
 		tasks: tasks.map(task => {
@@ -285,20 +290,20 @@ export function normalizeNpcConfig(value: unknown): NpcSimulationConfig | undefi
 			count: clampInt(entry.count, 0, 1000),
 			...(entry.floorIds?.length ? { floorIds: [...new Set(entry.floorIds.map(id => id.trim()).filter(Boolean))] } : {}),
 		})),
-		crossFloorCooldownSeconds: isFiniteNumber(c.crossFloorCooldownSeconds) && c.crossFloorCooldownSeconds > 0 ? c.crossFloorCooldownSeconds : NPC_OPTION_DEFAULTS.crossFloorCooldownSeconds,
-		progressWatchdogTicks: isFiniteNumber(c.progressWatchdogTicks) && c.progressWatchdogTicks > 0 ? Math.floor(c.progressWatchdogTicks) : NPC_OPTION_DEFAULTS.progressWatchdogTicks,
-		maxRepathAttempts: isFiniteNumber(c.maxRepathAttempts) && c.maxRepathAttempts > 0 ? Math.floor(c.maxRepathAttempts) : NPC_OPTION_DEFAULTS.maxRepathAttempts,
-		repathCooldownSeconds: isFiniteNumber(c.repathCooldownSeconds) && c.repathCooldownSeconds > 0 ? c.repathCooldownSeconds : NPC_OPTION_DEFAULTS.repathCooldownSeconds,
-		repathCooldownExponent: isFiniteNumber(c.repathCooldownExponent) && c.repathCooldownExponent > 0 ? c.repathCooldownExponent : NPC_OPTION_DEFAULTS.repathCooldownExponent,
-		pathBudgetMinPerTick: isFiniteNumber(c.pathBudgetMinPerTick) && c.pathBudgetMinPerTick > 0 ? Math.floor(c.pathBudgetMinPerTick) : NPC_OPTION_DEFAULTS.pathBudgetMinPerTick,
-		pathBudgetAgentsPerCall: isFiniteNumber(c.pathBudgetAgentsPerCall) && c.pathBudgetAgentsPerCall > 0 ? Math.floor(c.pathBudgetAgentsPerCall) : NPC_OPTION_DEFAULTS.pathBudgetAgentsPerCall,
-		chooseTargetMinPerTick: isFiniteNumber(c.chooseTargetMinPerTick) && c.chooseTargetMinPerTick > 0 ? Math.floor(c.chooseTargetMinPerTick) : NPC_OPTION_DEFAULTS.chooseTargetMinPerTick,
-		chooseTargetAgentsPerSlot: isFiniteNumber(c.chooseTargetAgentsPerSlot) && c.chooseTargetAgentsPerSlot > 0 ? Math.floor(c.chooseTargetAgentsPerSlot) : NPC_OPTION_DEFAULTS.chooseTargetAgentsPerSlot,
-		wanderMemorySize: isFiniteNumber(c.wanderMemorySize) && c.wanderMemorySize > 0 ? Math.floor(c.wanderMemorySize) : NPC_OPTION_DEFAULTS.wanderMemorySize,
-		wanderSmallMapThreshold: isFiniteNumber(c.wanderSmallMapThreshold) && c.wanderSmallMapThreshold > 0 ? Math.floor(c.wanderSmallMapThreshold) : NPC_OPTION_DEFAULTS.wanderSmallMapThreshold,
-		triggerRatePeriodSeconds: isFiniteNumber(c.triggerRatePeriodSeconds) && c.triggerRatePeriodSeconds > 0 ? c.triggerRatePeriodSeconds : NPC_OPTION_DEFAULTS.triggerRatePeriodSeconds,
-		frameSimBudgetMs: isFiniteNumber(c.frameSimBudgetMs) && c.frameSimBudgetMs > 0 ? c.frameSimBudgetMs : NPC_FRAME_DEFAULTS.frameSimBudgetMs,
-		maxSimulationSteps: isFiniteNumber(c.maxSimulationSteps) && c.maxSimulationSteps > 0 ? Math.floor(c.maxSimulationSteps) : NPC_FRAME_DEFAULTS.maxSimulationSteps,
+		crossFloorCooldownSeconds: positiveNumber(c.crossFloorCooldownSeconds, NPC_OPTION_DEFAULTS.crossFloorCooldownSeconds),
+		progressWatchdogTicks: positiveInt(c.progressWatchdogTicks, NPC_OPTION_DEFAULTS.progressWatchdogTicks),
+		maxRepathAttempts: positiveInt(c.maxRepathAttempts, NPC_OPTION_DEFAULTS.maxRepathAttempts),
+		repathCooldownSeconds: positiveNumber(c.repathCooldownSeconds, NPC_OPTION_DEFAULTS.repathCooldownSeconds),
+		repathCooldownExponent: positiveNumber(c.repathCooldownExponent, NPC_OPTION_DEFAULTS.repathCooldownExponent),
+		pathBudgetMinPerTick: positiveInt(c.pathBudgetMinPerTick, NPC_OPTION_DEFAULTS.pathBudgetMinPerTick),
+		pathBudgetAgentsPerCall: positiveInt(c.pathBudgetAgentsPerCall, NPC_OPTION_DEFAULTS.pathBudgetAgentsPerCall),
+		chooseTargetMinPerTick: positiveInt(c.chooseTargetMinPerTick, NPC_OPTION_DEFAULTS.chooseTargetMinPerTick),
+		chooseTargetAgentsPerSlot: positiveInt(c.chooseTargetAgentsPerSlot, NPC_OPTION_DEFAULTS.chooseTargetAgentsPerSlot),
+		wanderMemorySize: positiveInt(c.wanderMemorySize, NPC_OPTION_DEFAULTS.wanderMemorySize),
+		wanderSmallMapThreshold: positiveInt(c.wanderSmallMapThreshold, NPC_OPTION_DEFAULTS.wanderSmallMapThreshold),
+		triggerRatePeriodSeconds: positiveNumber(c.triggerRatePeriodSeconds, NPC_OPTION_DEFAULTS.triggerRatePeriodSeconds),
+		frameSimBudgetMs: positiveNumber(c.frameSimBudgetMs, NPC_FRAME_DEFAULTS.frameSimBudgetMs),
+		maxSimulationSteps: positiveInt(c.maxSimulationSteps, NPC_FRAME_DEFAULTS.maxSimulationSteps),
 	}
 	config.tagTriggerRates = normalizeTagTriggerRates(c.tagTriggerRates)
 	if (!config.roles.some(role => role.id === config.defaultRoleId)) config.defaultRoleId = config.roles[0]?.id ?? ''

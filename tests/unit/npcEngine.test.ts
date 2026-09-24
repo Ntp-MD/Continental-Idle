@@ -1,9 +1,10 @@
+import { test } from 'vitest'
 import assert from 'node:assert/strict'
-import { NpcEngine, NPC_ENGINE_DEFAULT_OPTIONS, buildNpcEngineLayout, createNpcEnginePolicy, findNpcGridPath, selectBestTarget, WanderMemory, type NpcEngineLayout, type NpcEngineInteractionTarget, type NpcEngineFloor, type NpcEngineAgent, type NpcEngineOptions } from '../src/engine/npc'
-import { normalizeAllowedRoleIds, normalizeNpcConfig, type TileState } from '../src/blueprint-editor/domain/types'
-import { buildAssetMap } from '../src/blueprint-editor/assets/assetUtils'
-import { validatePortalConfiguration } from '../src/blueprint-editor/assets/validation'
-import type { AssetDef, FloorData } from '../src/blueprint-editor/domain/types'
+import { NpcEngine, NPC_ENGINE_DEFAULT_OPTIONS, buildNpcEngineLayout, createNpcEnginePolicy, findNpcGridPath, selectBestTarget, WanderMemory, type NpcEngineLayout, type NpcEngineInteractionTarget, type NpcEngineFloor, type NpcEngineAgent, type NpcEngineOptions } from '../../src/engine/npc'
+import { normalizeAllowedRoleIds, normalizeNpcConfig, type TileState } from '../../src/blueprint-editor/domain/types'
+import { buildAssetMap } from '../../src/blueprint-editor/assets/assetUtils'
+import { validatePortalConfiguration } from '../../src/blueprint-editor/assets/validation'
+import type { AssetDef, FloorData } from '../../src/blueprint-editor/domain/types'
 
 function makeElevatorAsset(): AssetDef {
 	const offsets = [12.5, 37.5, 62.5]
@@ -34,84 +35,6 @@ const layout: NpcEngineLayout = {
 		{ floorId: 'F1', itemId: 'table', interactSpotId: 'a2', x: 2, y: 0, tags: ['service'], capacity: 2, durationMinSeconds: 2, durationMaxSeconds: 2 },
 	],
 }
-
-const engine = new NpcEngine(layout, {
-	...NPC_ENGINE_DEFAULT_OPTIONS,
-	ticksPerSecond: 1,
-	agentClearance: 0.5,
-	random: () => 0,
-	targetSelector: (_agent, targets) => targets[0] ?? null,
-	pathfinder: (_floor, from, to) => [{ x: from.x, y: from.y }, { x: to.x, y: to.y }],
-})
-
-engine.addAgent({ id: 'npc-1', roleId: 'staff', floorId: 'F1', x: 0, y: 0, targetX: 0, targetY: 0, speed: 10 })
-engine.addAgent({ id: 'npc-2', roleId: 'staff', floorId: 'F1', x: 0, y: 1, targetX: 0, targetY: 1, speed: 10 })
-engine.tick()
-
-const first = engine.getAgents().find(agent => agent.id === 'npc-1')!
-const second = engine.getAgents().find(agent => agent.id === 'npc-2')!
-assert.equal(first.reservationInteractSpotId, 'a1')
-assert.equal(second.reservationInteractSpotId, 'a2')
-assert.equal(['walking', 'interacting'].includes(first.status), true)
-assert.equal(['walking', 'interacting'].includes(second.status), true)
-
-engine.tick(2)
-assert.equal(engine.getAgents().every(agent => agent.status === 'interacting' || agent.status === 'idle'), true)
-assert.equal(engine.getAgents().every(agent => agent.status === 'idle'), true)
-assert.equal(engine.getAgents().every(agent => agent.reservationInteractSpotId === null), true)
-
-const blockedEngine = new NpcEngine({
-	...layout,
-	interactionTargets: [layout.interactionTargets[0]],
-}, {
-	...NPC_ENGINE_DEFAULT_OPTIONS,
-	ticksPerSecond: 1,
-	random: () => 0,
-	pathfinder: (_floor, from, to) => [{ x: from.x, y: from.y }, { x: to.x, y: to.y }],
-})
-blockedEngine.addAgent({ id: 'npc-a', floorId: 'F1', x: 0, y: 0, targetX: 0, targetY: 0, speed: 10 })
-blockedEngine.addAgent({ id: 'npc-b', floorId: 'F1', x: 0, y: 1, targetX: 0, targetY: 1, speed: 10 })
-blockedEngine.tick()
-assert.equal(blockedEngine.getAgents().filter(agent => agent.status === 'waiting').length, 1)
-assert.equal(blockedEngine.drainEvents().some(event => event.type === 'waiting'), true)
-
-const crowdedTargetEngine = new NpcEngine({
-	...layout,
-	interactionTargets: [layout.interactionTargets[0]],
-}, {
-	...NPC_ENGINE_DEFAULT_OPTIONS,
-	ticksPerSecond: 1,
-	random: () => 0,
-	targetSelector: (_agent, targets) => targets[0] ?? null,
-	wanderSelector: () => ({ x: 9, y: 9 }),
-	pathfinder: (_floor, from, to) => [{ x: from.x, y: from.y }, { x: to.x, y: to.y }],
-})
-crowdedTargetEngine.addAgent({ id: 'npc-holder', floorId: 'F1', x: 0, y: 0, targetX: 0, targetY: 0, speed: 10 })
-crowdedTargetEngine.addAgent({ id: 'npc-waiter', floorId: 'F1', x: 0, y: 1, targetX: 0, targetY: 1, speed: 10 })
-crowdedTargetEngine.tick()
-const waiter = crowdedTargetEngine.getAgents().find(agent => agent.id === 'npc-waiter')!
-assert.equal(waiter.status, 'walking')
-assert.equal(waiter.targetX, 9)
-assert.equal(waiter.targetY, 9)
-
-const blockedWanderEngine = new NpcEngine({
-	floors: layout.floors,
-	interactionTargets: [],
-}, {
-	...NPC_ENGINE_DEFAULT_OPTIONS,
-	ticksPerSecond: 1,
-	random: () => 0,
-	targetSelector: () => null,
-	wanderSelector: () => ({ x: 2, y: 0 }),
-	pathfinder: (_floor, from, to) => [{ x: from.x, y: from.y }, { x: to.x, y: to.y }],
-})
-blockedWanderEngine.addAgent({ id: 'npc-lead', floorId: 'F1', x: 1, y: 0, targetX: 1, targetY: 0, speed: 10 })
-blockedWanderEngine.addAgent({ id: 'npc-blocked', floorId: 'F1', x: 0, y: 0, targetX: 0, targetY: 0, speed: 10 })
-blockedWanderEngine.tick()
-blockedWanderEngine.tick()
-const blockedWanderer = blockedWanderEngine.getAgents().find(agent => agent.id === 'npc-blocked')!
-assert.notEqual(blockedWanderer.status, 'walking')
-
 
 function makePortalPair(srcFloor: string, destFloor: string, srcObjId: string, destObjId: string, srcXY: [number, number], destXY: [number, number], interactSpotIdx = 0) {
 	const srcEndpoint = `${srcFloor}:portal:${srcObjId}:endpoint:${interactSpotIdx}`
@@ -147,8 +70,92 @@ function makeWalkable(w: number, h: number): Set<string> {
 
 const elevator = makeElevatorAsset()
 
+test('service spots: two staff reserve the two spots and settle to idle after the interaction', () => {
+	const engine = new NpcEngine(layout, {
+		...NPC_ENGINE_DEFAULT_OPTIONS,
+		ticksPerSecond: 1,
+		agentClearance: 0.5,
+		random: () => 0,
+		targetSelector: (_agent, targets) => targets[0] ?? null,
+		pathfinder: (_floor, from, to) => [{ x: from.x, y: from.y }, { x: to.x, y: to.y }],
+	})
 
-{
+	engine.addAgent({ id: 'npc-1', roleId: 'staff', floorId: 'F1', x: 0, y: 0, targetX: 0, targetY: 0, speed: 10 })
+	engine.addAgent({ id: 'npc-2', roleId: 'staff', floorId: 'F1', x: 0, y: 1, targetX: 0, targetY: 1, speed: 10 })
+	engine.tick()
+
+	const first = engine.getAgents().find(agent => agent.id === 'npc-1')!
+	const second = engine.getAgents().find(agent => agent.id === 'npc-2')!
+	assert.equal(first.reservationInteractSpotId, 'a1')
+	assert.equal(second.reservationInteractSpotId, 'a2')
+	assert.equal(['walking', 'interacting'].includes(first.status), true)
+	assert.equal(['walking', 'interacting'].includes(second.status), true)
+
+	engine.tick(2)
+	assert.equal(engine.getAgents().every(agent => agent.status === 'interacting' || agent.status === 'idle'), true)
+	assert.equal(engine.getAgents().every(agent => agent.status === 'idle'), true)
+	assert.equal(engine.getAgents().every(agent => agent.reservationInteractSpotId === null), true)
+})
+
+test('single spot capacity: the second staff waits and a waiting event is emitted', () => {
+	const blockedEngine = new NpcEngine({
+		...layout,
+		interactionTargets: [layout.interactionTargets[0]],
+	}, {
+		...NPC_ENGINE_DEFAULT_OPTIONS,
+		ticksPerSecond: 1,
+		random: () => 0,
+		pathfinder: (_floor, from, to) => [{ x: from.x, y: from.y }, { x: to.x, y: to.y }],
+	})
+	blockedEngine.addAgent({ id: 'npc-a', floorId: 'F1', x: 0, y: 0, targetX: 0, targetY: 0, speed: 10 })
+	blockedEngine.addAgent({ id: 'npc-b', floorId: 'F1', x: 0, y: 1, targetX: 0, targetY: 1, speed: 10 })
+	blockedEngine.tick()
+	assert.equal(blockedEngine.getAgents().filter(agent => agent.status === 'waiting').length, 1)
+	assert.equal(blockedEngine.drainEvents().some(event => event.type === 'waiting'), true)
+})
+
+test('crowded target: the second staff wanders to the wander tile instead of waiting', () => {
+	const crowdedTargetEngine = new NpcEngine({
+		...layout,
+		interactionTargets: [layout.interactionTargets[0]],
+	}, {
+		...NPC_ENGINE_DEFAULT_OPTIONS,
+		ticksPerSecond: 1,
+		random: () => 0,
+		targetSelector: (_agent, targets) => targets[0] ?? null,
+		wanderSelector: () => ({ x: 9, y: 9 }),
+		pathfinder: (_floor, from, to) => [{ x: from.x, y: from.y }, { x: to.x, y: to.y }],
+	})
+	crowdedTargetEngine.addAgent({ id: 'npc-holder', floorId: 'F1', x: 0, y: 0, targetX: 0, targetY: 0, speed: 10 })
+	crowdedTargetEngine.addAgent({ id: 'npc-waiter', floorId: 'F1', x: 0, y: 1, targetX: 0, targetY: 1, speed: 10 })
+	crowdedTargetEngine.tick()
+	const waiter = crowdedTargetEngine.getAgents().find(agent => agent.id === 'npc-waiter')!
+	assert.equal(waiter.status, 'walking')
+	assert.equal(waiter.targetX, 9)
+	assert.equal(waiter.targetY, 9)
+})
+
+test('blocked wander: a wanderer whose cell is taken by a lead agent stops walking', () => {
+	const blockedWanderEngine = new NpcEngine({
+		floors: layout.floors,
+		interactionTargets: [],
+	}, {
+		...NPC_ENGINE_DEFAULT_OPTIONS,
+		ticksPerSecond: 1,
+		random: () => 0,
+		targetSelector: () => null,
+		wanderSelector: () => ({ x: 2, y: 0 }),
+		pathfinder: (_floor, from, to) => [{ x: from.x, y: from.y }, { x: to.x, y: to.y }],
+	})
+	blockedWanderEngine.addAgent({ id: 'npc-lead', floorId: 'F1', x: 1, y: 0, targetX: 1, targetY: 0, speed: 10 })
+	blockedWanderEngine.addAgent({ id: 'npc-blocked', floorId: 'F1', x: 0, y: 0, targetX: 0, targetY: 0, speed: 10 })
+	blockedWanderEngine.tick()
+	blockedWanderEngine.tick()
+	const blockedWanderer = blockedWanderEngine.getAgents().find(agent => agent.id === 'npc-blocked')!
+	assert.notEqual(blockedWanderer.status, 'walking')
+})
+
+test('portal transition: agent teleports to the destination floor and its source reservation is released', () => {
 	const portals = makePortalPair('F1', 'F2', 'p1', 'p2', [5, 5], [8, 8])
 	const portalLayout: NpcEngineLayout = {
 		floors: [
@@ -174,10 +181,9 @@ const elevator = makeElevatorAsset()
 	assert.equal(agent.reservationInteractSpotId, null, 'source interactspot reservation must be released after teleport')
 	assert.equal(selectorSawCrossFloor, false, 'targetSelector must only receive same-floor targets')
 	assert.ok(portalEngine.drainEvents().some(e => e.type === 'floor-transition' && e.fromFloorId === 'F1' && e.toFloorId === 'F2'), 'floor-transition event emitted')
-}
+})
 
-
-{
+test('cross-floor cooldown: a teleported agent stays put until the cooldown expires', () => {
 	const portals = makePortalPair('F1', 'F2', 'p1', 'p2', [5, 5], [8, 8])
 	const portalLayout: NpcEngineLayout = {
 		floors: [
@@ -208,10 +214,9 @@ const elevator = makeElevatorAsset()
 	for (let i = 0; i < 5 && i < cooldownEnd; i++) cdEngine.tick()
 	const afterCooldown = cdEngine.getAgents().find(a => a.id === 'npc-cd')!
 	assert.equal(afterCooldown.floorId, 'F1', 'agent must stay on F1 during cooldown')
-}
+})
 
-
-{
+test('cross-floor cooldown: an agent does not teleport back to the source floor immediately', () => {
 	const portals = makePortalPair('F1', 'F2', 'p1', 'p2', [5, 5], [8, 8])
 	const portalLayout: NpcEngineLayout = {
 		floors: [
@@ -233,10 +238,9 @@ const elevator = makeElevatorAsset()
 	for (let i = 0; i < 5; i++) loopEngine.tick()
 	const agent = loopEngine.getAgents().find(a => a.id === 'npc-loop')!
 	assert.equal(agent.floorId, 'F2', 'agent must not teleport back immediately (cooldown + portal excluded from same-floor selection)')
-}
+})
 
-
-{
+test('no portal route: agent stays on its floor and reserves nothing', () => {
 	const noRouteLayout: NpcEngineLayout = {
 		floors: [
 			...tenByTenFloors('F1', 'F2'),
@@ -255,10 +259,9 @@ const elevator = makeElevatorAsset()
 	const agent = noRouteEngine.getAgents().find(a => a.id === 'npc-nr')!
 	assert.equal(agent.floorId, 'F1', 'agent stays on F1 when no portal route exists')
 	assert.equal(agent.reservationItemId, null, 'no reservation created without portal route')
-}
+})
 
-
-{
+test('three-floor portals: agent reaches the third floor through the paired network', () => {
 	const p12 = makePortalPair('F1', 'F2', 'p1', 'p2', [5, 5], [8, 8])
 	const p13 = makePortalPair('F1', 'F3', 'p1', 'p3', [5, 5], [3, 3])
 	const p23 = makePortalPair('F2', 'F3', 'p2', 'p3', [8, 8], [3, 3])
@@ -283,10 +286,9 @@ const elevator = makeElevatorAsset()
 	assert.equal(agent.floorId, 'F3', 'agent should teleport to F3 via 3-floor portal pairing')
 	assert.equal(agent.x, 3, 'agent x should be F3 portal x')
 	assert.equal(agent.y, 3, 'agent y should be F3 portal y')
-}
+})
 
-
-{
+test('role gate: staff must not cross to a floor restricted to security', () => {
 	const portals = makePortalPair('F1', 'F2', 'p1', 'p2', [5, 5], [8, 8])
 	const roleLayout: NpcEngineLayout = {
 		floors: [
@@ -308,10 +310,9 @@ const elevator = makeElevatorAsset()
 	const agent = roleEngine.getAgents().find(a => a.id === 'npc-staff')!
 	assert.equal(agent.floorId, 'F1', 'staff must not cross to F2 (role not allowed)')
 	assert.equal(agent.reservationItemId, null, 'no portal reservation when role not allowed on destination')
-}
+})
 
-
-{
+test('destination occupied: agent stays put and the source reservation is released without a leak', () => {
 	const portals = makePortalPair('F1', 'F2', 'p1', 'p2', [5, 5], [8, 8])
 	const occLayout: NpcEngineLayout = {
 		floors: [
@@ -333,10 +334,9 @@ const elevator = makeElevatorAsset()
 	const agent = occEngine.getAgents().find(a => a.id === 'npc-go')!
 	assert.equal(agent.floorId, 'F1', 'agent stays on F1 when destination occupied')
 	assert.equal(agent.reservationItemId, null, 'source reservation released when destination occupied (no leak)')
-}
+})
 
-
-{
+test('portal targets are excluded from same-floor selection', () => {
 	const portals = makePortalPair('F1', 'F2', 'p1', 'p2', [5, 5], [8, 8])
 	const dupLayout: NpcEngineLayout = {
 		floors: [
@@ -355,19 +355,16 @@ const elevator = makeElevatorAsset()
 	dupEngine.addAgent({ id: 'npc-dup', roleId: 'staff', floorId: 'F1', x: 0, y: 0, targetX: 0, targetY: 0, speed: 10 })
 	dupEngine.tick()
 	assert.equal(portalInSameFloor, false, 'portal targets must be excluded from same-floor targetSelector input')
-}
+})
 
-
-{
+test('allowedRoleIds normalization drops duplicates, blanks and non-arrays', () => {
 	assert.deepEqual(normalizeAllowedRoleIds(undefined), undefined)
 	assert.deepEqual(normalizeAllowedRoleIds([]), undefined)
 	assert.deepEqual(normalizeAllowedRoleIds(['a', 'a', 'b ', '']), ['a', 'b'])
 	assert.deepEqual(normalizeAllowedRoleIds([1, 2] as unknown), undefined)
-}
+})
 
-
-{
-
+test('elevator portal asset: validation warns on single-floor portals and unknown roles', () => {
 	const assetMap = buildAssetMap([elevator])
 	assert.ok(elevator.tags?.includes('portal'), 'elevator asset should have portal tag')
 	assert.equal(elevator.interactSpots?.length, 9, 'elevator asset should have 9 interactSpots')
@@ -378,10 +375,9 @@ const elevator = makeElevatorAsset()
 	const result = validatePortalConfiguration(singleFloorLayout as never, assetMap, { roles: [{ id: 'staff', label: 'Staff', color: '#fff', focusTags: [], restrictedTags: [], taskIds: [], focusChance: 100 }], tasks: [], speed: 1, defaultRoleId: 'staff', pool: [] } as never)
 	assert.ok(result.warnings.some(w => w.includes('at least 2 floors')), 'should warn about single-floor portal')
 	assert.ok(result.warnings.some(w => w.includes('ghost')), 'should warn about unknown allowedRoleIds role')
-}
+})
 
-
-{
+test('portal layout build: mismatched spot counts resolve to real endpoints with last-spot fallback', () => {
 	const portalA: AssetDef = { id: 'portal-a', name: 'Portal A', w: 2, h: 2, tags: ['portal'], interactSpots: [{ x: 25, y: 25 }, { x: 75, y: 25 }, { x: 50, y: 75 }] }
 	const portalB: AssetDef = { id: 'portal-b', name: 'Portal B', w: 2, h: 2, tags: ['portal'], interactSpots: [{ x: 50, y: 50 }] }
 	const portalAssetMap = buildAssetMap([portalA, portalB])
@@ -403,13 +399,11 @@ const elevator = makeElevatorAsset()
 
 	const portalValidation = validatePortalConfiguration({ version: 1, canvas: { width: 1000, height: 1000, tileSize: 50 }, floors: portalFloors } as never, portalAssetMap, undefined)
 	assert.ok(portalValidation.warnings.some(w => w.includes('mismatched interactSpot counts')), 'validation warns about mismatched portal spot counts')
-}
-
+})
 
 function runtimePortalEndpointKey(floorId: string, itemId: string, interactSpotIndex: number): string {
 	return `${floorId}:${itemId}:endpoint:${interactSpotIndex}`
 }
-
 
 function findNearestWalkableCell(walkable: Set<string>, x: number, y: number, radius: number): [number, number] | null {
 	for (let r = 1; r <= radius; r++) {
@@ -423,7 +417,6 @@ function findNearestWalkableCell(walkable: Set<string>, x: number, y: number, ra
 	}
 	return null
 }
-
 
 function generateRuntimePortalTargets(
 	floors: { id: string; walkable: Set<string>; portalObjects: { id: string; x: number; y: number; interactSpots: { x: number; y: number }[] }[] }[],
@@ -470,8 +463,7 @@ function generateRuntimePortalTargets(
 	return targets
 }
 
-
-{
+test('integration: runtime portal targets teleport an agent between two floors', () => {
 	assert.ok(elevator.interactSpots?.length === 9, 'elevator must have 9 interactspots for integration test')
 	const tileSize = 25
 	const floorDefs = [
@@ -500,10 +492,9 @@ function generateRuntimePortalTargets(
 	assert.equal(agent.floorId, '1', 'integration: agent should teleport from G to 1')
 	assert.ok(agent.crossFloorCooldownUntil > 0, 'integration: cooldown should be set')
 	assert.ok(intEngine.drainEvents().some(e => e.type === 'floor-transition'), 'integration: floor-transition event emitted')
-}
+})
 
-
-{
+test('integration: three-floor portal network routes the agent to the nearest floor', () => {
 	const tileSize = 25
 	const floorDefs = [
 		{ id: 'G', walkable: makeWalkable(10, 10), portalObjects: [{ id: 'elev-g', x: 100, y: 100, interactSpots: elevator.interactSpots! }] },
@@ -543,10 +534,9 @@ function generateRuntimePortalTargets(
 	int3Engine.tick()
 	const agent = int3Engine.getAgents().find(a => a.id === 'npc-3int')!
 	assert.equal(agent.floorId, '1', 'integration 3-floor: agent should teleport to nearest floor (1), not floor 2')
-}
+})
 
-
-{
+test('integration: role restriction blocks crossing to a security-only floor', () => {
 	const tileSize = 25
 	const floorDefs = [
 		{ id: 'G', walkable: makeWalkable(10, 10), portalObjects: [{ id: 'elev-g', x: 100, y: 100, interactSpots: elevator.interactSpots! }] },
@@ -572,10 +562,9 @@ function generateRuntimePortalTargets(
 	roleEngine.tick()
 	const agent = roleEngine.getAgents().find(a => a.id === 'npc-role')!
 	assert.equal(agent.floorId, 'G', 'integration: staff blocked from floor 1 (allowedRoleIds: [security])')
-}
+})
 
-
-{
+test('interact spot cells: elevator spots snap onto the expected 3x3 grid', () => {
 	const tileSize = 25
 
 	const expectedCells = [
@@ -590,7 +579,7 @@ function generateRuntimePortalTargets(
 		assert.equal(cellX, expectedCells[i][0], `interactspot ${i}: cellX should be ${expectedCells[i][0]}`)
 		assert.equal(cellY, expectedCells[i][1], `interactspot ${i}: cellY should be ${expectedCells[i][1]}`)
 	}
-}
+})
 
 
 // ─── 8-direction pathfinding tests ───
@@ -605,7 +594,7 @@ function makeGridFloor(id: string, w: number, h: number, blocked: string[] = [])
 	}
 }
 
-{
+test('8-way pathfinding: open grid yields a diagonal path from corner to corner', () => {
 	const floor = makeGridFloor('F1', 5, 5)
 	const path = findNpcGridPath(floor, { x: 0, y: 0 }, { x: 4, y: 4 })
 	assert.ok(path.length > 0, '8-way: should find diagonal path on open grid')
@@ -613,17 +602,17 @@ function makeGridFloor(id: string, w: number, h: number, blocked: string[] = [])
 	assert.deepEqual(path[path.length - 1], { x: 4, y: 4 }, '8-way: path ends at goal')
 	const diagonalSteps = path.filter((p, i) => i > 0 && p.x !== path[i - 1].x && p.y !== path[i - 1].y).length
 	assert.ok(diagonalSteps > 0, '8-way: path should use diagonal moves on open grid')
-}
+})
 
-{
+test('8-way pathfinding: routes around blocked center cells without entering them', () => {
 	const blocked = ['1,1', '2,1', '1,2']
 	const floor = makeGridFloor('F1', 4, 4, blocked)
 	const path = findNpcGridPath(floor, { x: 0, y: 0 }, { x: 2, y: 2 })
 	assert.ok(path.length > 0, '8-way: should find path around blocked center')
 	for (const p of path) assert.ok(!blocked.includes(`${p.x},${p.y}`), `8-way: path must not enter blocked cell ${p.x},${p.y}`)
-}
+})
 
-{
+test('8-way pathfinding: no corner cut through a blocked center', () => {
 	const blocked = ['1,1']
 	const floor = makeGridFloor('F1', 3, 3, blocked)
 	const path = findNpcGridPath(floor, { x: 0, y: 0 }, { x: 2, y: 2 })
@@ -631,9 +620,9 @@ function makeGridFloor(id: string, w: number, h: number, blocked: string[] = [])
 	for (const p of path) assert.ok(p.x !== 1 || p.y !== 1, '8-way: path must not pass through blocked center')
 	const hasDiagonal = path.some((p, i) => i > 0 && p.x !== path[i - 1].x && p.y !== path[i - 1].y)
 	assert.equal(hasDiagonal, false, '8-way: must not cut corner through blocked cell (no diagonal from 0,0 to 2,2 when 1,1 is blocked but 1,0 and 0,1 are open — diagonal is allowed here because both sides are walkable)')
-}
+})
 
-{
+test('8-way pathfinding: no corner cut when the adjacent side cell is blocked', () => {
 	const blocked = ['1,0']
 	const floor = makeGridFloor('F1', 3, 3, blocked)
 	const path = findNpcGridPath(floor, { x: 0, y: 0 }, { x: 2, y: 2 })
@@ -641,46 +630,46 @@ function makeGridFloor(id: string, w: number, h: number, blocked: string[] = [])
 	for (const p of path) assert.ok(p.x !== 1 || p.y !== 0, '8-way: path must not enter blocked 1,0')
 	const diagonalFrom00 = path.some((p, i) => i === 1 && p.x === 1 && p.y === 1)
 	assert.equal(diagonalFrom00, false, '8-way: must not cut corner from 0,0 to 1,1 when 1,0 is blocked')
-}
+})
 
-{
+test('8-way pathfinding: routes around a tile wall', () => {
 	const floor = makeGridFloor('F1', 3, 3, ['1,0', '1,1'])
 	const path = findNpcGridPath(floor, { x: 0, y: 0 }, { x: 2, y: 2 })
 	assert.ok(path.length > 0, '8-way: should find path around a tile wall')
 	for (const p of path) assert.ok(!(p.x === 1 && (p.y === 0 || p.y === 1)), '8-way: path must not enter wall tiles')
-}
+})
 
-{
+test('8-way pathfinding: avoids a transient blocked cell', () => {
 	const floor = makeGridFloor('F1', 5, 5)
 	const blocked = new Set<string>(['2,2'])
 	const path = findNpcGridPath(floor, { x: 0, y: 0 }, { x: 4, y: 4 }, blocked)
 	assert.ok(path.length > 0, '8-way: should find path avoiding transient blocked cell')
 	for (const p of path) assert.ok(p.x !== 2 || p.y !== 2, '8-way: path must not enter transient blocked cell')
-}
+})
 
-{
+test('8-way pathfinding: straight horizontal path has one point per cell', () => {
 	const floor = makeGridFloor('F1', 3, 1)
 	const path = findNpcGridPath(floor, { x: 0, y: 0 }, { x: 2, y: 0 })
 	assert.ok(path.length > 0, '8-way: should find straight horizontal path')
 	assert.equal(path.length, 3, '8-way: straight path should have 3 points')
-}
+})
 
-{
+test('8-way pathfinding: corridor path stays in its column', () => {
 	const floor = makeGridFloor('F1', 3, 3, ['0,1', '2,1'])
 	const path = findNpcGridPath(floor, { x: 1, y: 0 }, { x: 1, y: 2 })
 	assert.ok(path.length > 0, '8-way: should find vertical path through corridor')
 	for (const p of path) assert.ok(p.x === 1, '8-way: corridor path should stay in column 1')
-}
+})
 
-{
+test('8-way pathfinding: no diagonal when both corner sides are blocked', () => {
 	const floor = makeGridFloor('F1', 2, 2, ['1,0', '0,1'])
 	const path = findNpcGridPath(floor, { x: 0, y: 0 }, { x: 1, y: 1 })
 	assert.equal(path.length, 0, '8-way: should return empty when diagonal sides are both blocked (no corner cutting)')
-}
+})
 
 // ─── Reservation grid + two-stage movement tests ───
 
-{
+test('reservation: no two agents should occupy the same cell', () => {
 	const floor = makeGridFloor('F1', 6, 1)
 	const targets: NpcEngineInteractionTarget[] = [{
 		floorId: 'F1', itemId: 'item1', interactSpotId: 'a0', x: 5, y: 0, tags: [],
@@ -699,9 +688,9 @@ function makeGridFloor(id: string, w: number, h: number, blocked: string[] = [])
 	const positions = agents.map(a => `${a.x},${a.y}`)
 	const unique = new Set(positions)
 	assert.equal(unique.size, positions.length, 'reservation: no two agents should occupy the same cell')
-}
+})
 
-{
+test('repath: a 2-row grid leaves room to maneuver without repath-failed events', () => {
 	const floor = makeGridFloor('F1', 6, 2)
 	const targets: NpcEngineInteractionTarget[] = [{
 		floorId: 'F1', itemId: 'item1', interactSpotId: 'a0', x: 5, y: 0, tags: [],
@@ -722,9 +711,9 @@ function makeGridFloor(id: string, w: number, h: number, blocked: string[] = [])
 	const events = engine.drainEvents()
 	const failedEvents = events.filter(e => e.type === 'repath-failed')
 	assert.equal(failedEvents.length, 0, 'repath: should not produce repath-failed on a 2-row grid with room to maneuver')
-}
+})
 
-{
+test('repath: agent blocked by an occupied target stops walking', () => {
 	const floor = makeGridFloor('F1', 5, 1)
 	const targets: NpcEngineInteractionTarget[] = [{
 		floorId: 'F1', itemId: 'item1', interactSpotId: 'a0', x: 4, y: 0, tags: [],
@@ -742,9 +731,9 @@ function makeGridFloor(id: string, w: number, h: number, blocked: string[] = [])
 	const a = engine.getAgents().find(ag => ag.id === 'A')
 	assert.ok(a, 'repath: agent A should exist')
 	assert.notEqual(a!.status, 'walking', 'repath: agent blocked by occupied target should not be walking indefinitely')
-}
+})
 
-{
+test('watchdog: agent keeps progressing on an open corridor', () => {
 	const floor = makeGridFloor('F1', 10, 1)
 	const targets: NpcEngineInteractionTarget[] = [{
 		floorId: 'F1', itemId: 'item1', interactSpotId: 'a0', x: 9, y: 0, tags: [],
@@ -761,9 +750,9 @@ function makeGridFloor(id: string, w: number, h: number, blocked: string[] = [])
 	const a = engine.getAgents().find(ag => ag.id === 'A')
 	assert.ok(a, 'watchdog: agent should exist')
 	assert.ok(a!.x > 0, 'watchdog: agent should have made progress on open corridor')
-}
+})
 
-{
+test('non-overlap: two agents never overlap after a two-stage move', () => {
 	const floor = makeGridFloor('F1', 4, 4)
 	const targets: NpcEngineInteractionTarget[] = [{
 		floorId: 'F1', itemId: 'item1', interactSpotId: 'a0', x: 3, y: 3, tags: [],
@@ -785,9 +774,7 @@ function makeGridFloor(id: string, w: number, h: number, blocked: string[] = [])
 			assert.ok(Math.hypot(a.x - b.x, a.y - b.y) > 0.4, `non-overlap: ${a.id} and ${b.id} should not overlap`)
 		}
 	}
-}
-
-console.log('Shared NPC engine checks passed')
+})
 
 
 // ─── Target scoring tests ───
@@ -800,48 +787,48 @@ function makeTarget(itemId: string, x: number, y: number): NpcEngineInteractionT
 	return { floorId: 'F1', itemId, interactSpotId: 'a0', x, y, tags: [], capacity: 1, durationMinSeconds: 1, durationMaxSeconds: 1 }
 }
 
-{
+test('scoring: selects the nearest target', () => {
 	const agent = makeAgent('A', 0, 0)
 	const near = makeTarget('near', 1, 0)
 	const far = makeTarget('far', 10, 0)
 	const selected = selectBestTarget({ agent, targets: [far, near], currentTick: 0 })
 	assert.equal(selected?.itemId, 'near', 'scoring: should select nearest target')
-}
+})
 
-{
+test('scoring: ties break deterministically by id', () => {
 	const agent = makeAgent('A', 0, 0)
 	const t1 = makeTarget('t1', 5, 0)
 	const t2 = makeTarget('t2', 5, 0)
 	const selected = selectBestTarget({ agent, targets: [t2, t1], currentTick: 0 })
 	assert.equal(selected?.itemId, 't1', 'scoring: tie-break should be deterministic by id')
-}
+})
 
-{
+test('scoring: prefers the staler target via novelty bonus', () => {
 	const agent = makeAgent('A', 0, 0)
 	const stale = makeTarget('stale', 3, 0)
 	const fresh = makeTarget('fresh', 3, 0)
 	const lastSelected = new Map<string, number>([['F1:stale:a0', 0], ['F1:fresh:a0', 100]])
 	const selected = selectBestTarget({ agent, targets: [stale, fresh], currentTick: 100, targetLastSelectedTick: lastSelected })
 	assert.equal(selected?.itemId, 'stale', 'scoring: should prefer target with higher age/novelty bonus')
-}
+})
 
-{
+test('scoring: empty targets return null', () => {
 	const agent = makeAgent('A', 0, 0)
 	const selected = selectBestTarget({ agent, targets: [], currentTick: 0 })
 	assert.equal(selected, null, 'scoring: empty targets should return null')
-}
+})
 
-{
+test('scoring: a single target is returned', () => {
 	const agent = makeAgent('A', 0, 0)
 	const only = makeTarget('only', 5, 5)
 	const selected = selectBestTarget({ agent, targets: [only], currentTick: 0 })
 	assert.equal(selected?.itemId, 'only', 'scoring: single target should return it')
-}
+})
 
 
 // ─── Wander memory tests ───
 
-{
+test('wander: prefers an unvisited tile', () => {
 	const mem = new WanderMemory(4, 3)
 	mem.recordVisit({ x: 0, y: 0 }, 0)
 	mem.recordVisit({ x: 1, y: 0 }, 10)
@@ -849,9 +836,9 @@ function makeTarget(itemId: string, x: number, y: number): NpcEngineInteractionT
 	const candidates = [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 3, y: 0 }]
 	const selected = mem.selectWanderTile(candidates, makeAgent('A', 0, 0))
 	assert.deepEqual(selected, { x: 3, y: 0 }, 'wander: should prefer unvisited tile')
-}
+})
 
-{
+test('wander: picks the least recently visited tile when all are visited', () => {
 	const mem = new WanderMemory(4, 3)
 	mem.recordVisit({ x: 0, y: 0 }, 0)
 	mem.recordVisit({ x: 1, y: 0 }, 10)
@@ -859,9 +846,9 @@ function makeTarget(itemId: string, x: number, y: number): NpcEngineInteractionT
 	const candidates = [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 2, y: 0 }]
 	const selected = mem.selectWanderTile(candidates, makeAgent('A', 0, 0))
 	assert.deepEqual(selected, { x: 0, y: 0 }, 'wander: should pick least recently visited when all visited')
-}
+})
 
-{
+test('wander: still returns a tile when memory is full', () => {
 	const mem = new WanderMemory(2, 10)
 	mem.recordVisit({ x: 0, y: 0 }, 0)
 	mem.recordVisit({ x: 1, y: 0 }, 10)
@@ -869,28 +856,28 @@ function makeTarget(itemId: string, x: number, y: number): NpcEngineInteractionT
 	const candidates = [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 2, y: 0 }]
 	const selected = mem.selectWanderTile(candidates, makeAgent('A', 0, 0))
 	assert.ok(selected, 'wander: should still return a tile when memory is full')
-}
+})
 
-{
+test('wander: small map still returns a tile', () => {
 	const mem = new WanderMemory(10, 3)
 	const candidates = [{ x: 0, y: 0 }, { x: 1, y: 0 }]
 	const selected = mem.selectWanderTile(candidates, makeAgent('A', 0, 0))
 	assert.ok(selected, 'wander: small map should still return a tile')
-}
+})
 
-{
+test('wander: empty candidates return null', () => {
 	const mem = new WanderMemory()
 	const selected = mem.selectWanderTile([], makeAgent('A', 0, 0))
 	assert.equal(selected, null, 'wander: empty candidates should return null')
-}
+})
 
-{
+test('wander: handles memory eviction gracefully', () => {
 	const mem = new WanderMemory(3, 10)
 	for (let i = 0; i < 10; i++) mem.recordVisit({ x: i, y: 0 }, i)
 	const candidates = [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 2, y: 0 }]
 	const selected = mem.selectWanderTile(candidates, makeAgent('A', 0, 0))
 	assert.ok(selected, 'wander: should handle eviction gracefully')
-}
+})
 
 // --- Tile door walkability tests (doors are walkable cells, no edge events) ---
 
@@ -916,75 +903,79 @@ const doorPathfinder = (_floor: NpcEngineFloor, from: { x: number; y: number }, 
 	return path
 }
 
-const doorEngine = new NpcEngine(doorLayout, {
-	...NPC_ENGINE_DEFAULT_OPTIONS,
-	ticksPerSecond: 1,
-	agentClearance: 0.5,
-	random: rngSeq(),
-	pathfinder: doorPathfinder,
-	targetSelector: () => null,
-	wanderSelector: (_agent) => ({ x: 2, y: 5 }),
+test('tile doors: NPC walks straight through door tiles to the wander target', () => {
+	const doorEngine = new NpcEngine(doorLayout, {
+		...NPC_ENGINE_DEFAULT_OPTIONS,
+		ticksPerSecond: 1,
+		agentClearance: 0.5,
+		random: rngSeq(),
+		pathfinder: doorPathfinder,
+		targetSelector: () => null,
+		wanderSelector: (_agent) => ({ x: 2, y: 5 }),
+	})
+
+	doorEngine.addAgent({ id: 'door-npc', floorId: 'F1', x: 2, y: 1, targetX: 2, targetY: 5, speed: 1 })
+	doorEngine.tick(5)
+	const doorEvents1 = doorEngine.drainEvents()
+	assert.ok(Array.isArray(doorEvents1), 'walk across tile doors drains events cleanly')
+	const doorNpc = doorEngine.getAgent('door-npc')!
+	assert.equal(doorNpc.x, 2, 'NPC walks straight through door tiles (x)')
+	assert.equal(doorNpc.y, 5, 'NPC reaches target across door tiles (y)')
 })
 
-doorEngine.addAgent({ id: 'door-npc', floorId: 'F1', x: 2, y: 1, targetX: 2, targetY: 5, speed: 1 })
-doorEngine.tick(5)
-const doorEvents1 = doorEngine.drainEvents()
-assert.ok(Array.isArray(doorEvents1), 'walk across tile doors drains events cleanly')
-const doorNpc = doorEngine.getAgent('door-npc')!
-assert.equal(doorNpc.x, 2, 'NPC walks straight through door tiles (x)')
-assert.equal(doorNpc.y, 5, 'NPC reaches target across door tiles (y)')
-
-const noDoorFloor: NpcEngineFloor = {
-	id: 'F2',
-	width: 6,
-	height: 6,
-	tileSize: 1,
-	walkable: doorFloor.walkable,
-}
-const noDoorLayout: NpcEngineLayout = { floors: [noDoorFloor], interactionTargets: [] }
-const noDoorEngine = new NpcEngine(noDoorLayout, {
-	...NPC_ENGINE_DEFAULT_OPTIONS,
-	ticksPerSecond: 1,
-	agentClearance: 0.5,
-	random: rngSeq(),
-	pathfinder: doorPathfinder,
-	targetSelector: () => null,
-	wanderSelector: (_agent) => ({ x: 5, y: 5 }),
+test('plain floor: events drain cleanly on a floor without doors', () => {
+	const noDoorFloor: NpcEngineFloor = {
+		id: 'F2',
+		width: 6,
+		height: 6,
+		tileSize: 1,
+		walkable: doorFloor.walkable,
+	}
+	const noDoorLayout: NpcEngineLayout = { floors: [noDoorFloor], interactionTargets: [] }
+	const noDoorEngine = new NpcEngine(noDoorLayout, {
+		...NPC_ENGINE_DEFAULT_OPTIONS,
+		ticksPerSecond: 1,
+		agentClearance: 0.5,
+		random: rngSeq(),
+		pathfinder: doorPathfinder,
+		targetSelector: () => null,
+		wanderSelector: (_agent) => ({ x: 5, y: 5 }),
+	})
+	noDoorEngine.addAgent({ id: 'npc-no-door', floorId: 'F2', x: 0, y: 0, targetX: 5, targetY: 5, speed: 1 })
+	noDoorEngine.tick(20)
+	const noDoorEvents = noDoorEngine.drainEvents()
+	assert.ok(Array.isArray(noDoorEvents), 'plain floor drains events cleanly')
 })
-noDoorEngine.addAgent({ id: 'npc-no-door', floorId: 'F2', x: 0, y: 0, targetX: 5, targetY: 5, speed: 1 })
-noDoorEngine.tick(20)
-const noDoorEvents = noDoorEngine.drainEvents()
-assert.ok(Array.isArray(noDoorEvents), 'plain floor drains events cleanly')
 
-const twoDoorFloor: NpcEngineFloor = {
-	id: 'F3',
-	width: 8,
-	height: 8,
-	tileSize: 1,
-	walkable: Array.from({ length: 8 }, (_, y) => Array.from({ length: 8 }, (_, x) => ({ x, y }))).flat(),
-}
-const twoDoorLayout: NpcEngineLayout = { floors: [twoDoorFloor], interactionTargets: [] }
-const twoDoorEngine = new NpcEngine(twoDoorLayout, {
-	...NPC_ENGINE_DEFAULT_OPTIONS,
-	ticksPerSecond: 1,
-	agentClearance: 0.5,
-	random: rngSeq(),
-	pathfinder: doorPathfinder,
-	targetSelector: () => null,
-	wanderSelector: (_agent) => ({ x: 5, y: 7 }),
+test('tile doors: agent crosses a larger floor freely and drains events cleanly', () => {
+	const twoDoorFloor: NpcEngineFloor = {
+		id: 'F3',
+		width: 8,
+		height: 8,
+		tileSize: 1,
+		walkable: Array.from({ length: 8 }, (_, y) => Array.from({ length: 8 }, (_, x) => ({ x, y }))).flat(),
+	}
+	const twoDoorLayout: NpcEngineLayout = { floors: [twoDoorFloor], interactionTargets: [] }
+	const twoDoorEngine = new NpcEngine(twoDoorLayout, {
+		...NPC_ENGINE_DEFAULT_OPTIONS,
+		ticksPerSecond: 1,
+		agentClearance: 0.5,
+		random: rngSeq(),
+		pathfinder: doorPathfinder,
+		targetSelector: () => null,
+		wanderSelector: (_agent) => ({ x: 5, y: 7 }),
+	})
+	twoDoorEngine.addAgent({ id: 'npc-2door', floorId: 'F3', x: 3, y: 0, targetX: 5, targetY: 7, speed: 1 })
+	twoDoorEngine.tick(20)
+	const twoDoorEvents = twoDoorEngine.drainEvents()
+	assert.ok(Array.isArray(twoDoorEvents), 'tile-door floor drains events cleanly')
+	const twoDoorNpc = twoDoorEngine.getAgent('npc-2door')!
+	assert.equal(twoDoorNpc.x, 5, 'NPC crosses tile doors freely (x)')
+	assert.equal(twoDoorNpc.y, 7, 'NPC crosses tile doors freely (y)')
 })
-twoDoorEngine.addAgent({ id: 'npc-2door', floorId: 'F3', x: 3, y: 0, targetX: 5, targetY: 7, speed: 1 })
-twoDoorEngine.tick(20)
-const twoDoorEvents = twoDoorEngine.drainEvents()
-assert.ok(Array.isArray(twoDoorEvents), 'tile-door floor drains events cleanly')
-const twoDoorNpc = twoDoorEngine.getAgent('npc-2door')!
-assert.equal(twoDoorNpc.x, 5, 'NPC crosses tile doors freely (x)')
-assert.equal(twoDoorNpc.y, 7, 'NPC crosses tile doors freely (y)')
-
-console.log('Tile door walkability checks passed')
 
 // Arrival bounce: physically blocked spot applies backoff instead of instant re-reserve
-{
+test('arrival bounce: a physically blocked spot applies backoff instead of an instant re-reserve', () => {
 	const bounceFloor: NpcEngineFloor = {
 		id: 'F1', width: 12, height: 12, tileSize: 1,
 		walkable: Array.from({ length: 144 }, (_, index) => ({ x: index % 12, y: Math.floor(index / 12) })),
@@ -1024,10 +1015,10 @@ console.log('Tile door walkability checks passed')
 		if (bounceEngine.getAgent('walker')!.reservationItemId !== null) { reReserved = true; break }
 	}
 	assert.equal(reReserved, false, 'no instant re-reserve inside the backoff window')
-}
+})
 
 // Portal throughput: a shared stairwell drains every traveller (pins serialized behavior)
-{
+test('portal throughput: a shared stairwell drains every traveller', () => {
 	function throughRandom(): () => number {
 		let a = 7
 		return () => {
@@ -1066,10 +1057,10 @@ console.log('Tile door walkability checks passed')
 		}
 	}
 	assert.deepEqual([...crossed].sort(), ['npc-t1', 'npc-t2', 'npc-t3'], 'every traveller crosses the shared portal')
-}
+})
 
 // Portal dest-occupied: backoff instead of hammering the route
-{
+test('portal destination occupied: bounce applies a backoff window instead of hammering the route', () => {
 	const portals = makePortalPair('F1', 'F2', 'p1', 'p2', [5, 5], [8, 8])
 	const hammerLayout: NpcEngineLayout = {
 		floors: [
@@ -1115,10 +1106,10 @@ console.log('Tile door walkability checks passed')
 	if (bounceTicks.length >= 2) {
 		assert.ok(bounceTicks[1] - bounceTicks[0] > 100, 'portal re-attempt waits out the backoff window')
 	}
-}
+})
 
 // Station posts: adapter tags + posted stay-loop + guest invisibility + shared capacity
-{
+test('station posts: staff holds the post spot while guests use front spots within shared capacity', () => {
 	const barAsset: AssetDef = {
 		id: 'bar',
 		name: 'Bar',
@@ -1212,14 +1203,12 @@ console.log('Tile door walkability checks passed')
 	const after = postEngine.getAgents().find(a => a.id === 'bartender')!
 	assert.equal(after.reservationInteractSpotId, heldKey, 'posted reservation survives past durationMax (stay-loop holds the spot)')
 	assert.equal(after.reservationInteractSpotId, 'object:bar1:3', 'still the same post spot')
-}
-
-console.log('Shared NPC engine checks passed')
+})
 
 
 // ─── Room occupancy gate: private rooms claim a single occupant ───
 
-{
+test('room gate: a private room claims a single occupant and becomes claimable again when freed', () => {
 	const floor = makeGridFloor('R1', 12, 4)
 	const targets: NpcEngineInteractionTarget[] = [
 		{ floorId: 'R1', itemId: 'toilet-a', interactSpotId: 'a0', x: 2, y: 2, tags: ['hygiene'], capacity: 1, durationMinSeconds: 100, durationMaxSeconds: 100, roomId: 'room-1', roomType: 'bathroom', roomPrivate: true },
@@ -1245,9 +1234,9 @@ console.log('Shared NPC engine checks passed')
 	engine.tick(30)
 	const c = engine.getAgents().find(ag => ag.id === 'guest-c')!
 	assert.equal(c.reservationItemId, 'toilet-a', 'room gate: freed room becomes claimable again')
-}
+})
 
-{
+test('room gate: an open room keeps shared capacity', () => {
 	const floor = makeGridFloor('R2', 8, 4)
 	const targets: NpcEngineInteractionTarget[] = [
 		{ floorId: 'R2', itemId: 'treadmill', interactSpotId: 'a0', x: 2, y: 2, tags: ['fitness'], capacity: 2, durationMinSeconds: 100, durationMaxSeconds: 100, roomId: 'room-3', roomType: 'gym', roomPrivate: false },
@@ -1264,11 +1253,11 @@ console.log('Shared NPC engine checks passed')
 	engine.tick(30)
 	const holders = engine.getAgents().filter(ag => ag.reservationItemId === 'treadmill').length
 	assert.equal(holders, 2, 'room gate: open room keeps shared capacity (both occupants reserve)')
-}
+})
 
 // ─── Layout derives rooms: hygiene fixtures in walled rooms flagged private ───
 
-{
+test('layout rooms: hygiene fixtures in walled rooms are flagged private with distinct ids', () => {
 	const toiletAsset: AssetDef = {
 		id: 'toilet-t', name: 'Toilet', w: 1, h: 1, tags: ['hygiene'], walkable: false,
 		tileStates: [['blocked']], interactSpots: [{ x: 0.5, y: 1.5 }],
@@ -1296,6 +1285,4 @@ console.log('Shared NPC engine checks passed')
 	assert.ok(toiletTargets.every(t => t.roomPrivate === true), 'layout rooms: hygiene fixtures flagged private')
 	assert.ok(toiletTargets.every(t => t.roomType === 'bathroom'), 'layout rooms: hygiene rooms typed bathroom')
 	assert.equal(new Set(toiletTargets.map(t => t.roomId)).size, 2, 'layout rooms: separated rooms get distinct ids')
-}
-
-console.log('Room occupancy gate checks passed')
+})

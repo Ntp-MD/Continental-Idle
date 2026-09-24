@@ -319,6 +319,9 @@ function buildPortalInteractionTargets(
 		const interactSpots = definition.interactSpots
 		if (!interactSpots?.length) continue
 		const itemId = `portal:${object.id}`
+		// the car's own capacity, not one: with capacity 1 a single holder blocks every spot and
+		// every destination of that car, so the lift lobby queues behind one agent at a time
+		const resolved = resolveInteractForTarget(definition.interact, interactSpots.length)
 		const destinationFloorIds = [...portalFloorIds].filter(floorId => floorId !== floor.id)
 
 		interactSpots.forEach((interactSpot, interactSpotIndex) => {
@@ -345,7 +348,7 @@ function buildPortalInteractionTargets(
 					x: cell.x,
 					y: cell.y,
 					tags: [PORTAL_TAG, `${PORTAL_TAG}:${destinationFloorId}`],
-					capacity: 1,
+					capacity: resolved.capacity,
 					durationMinSeconds: 0,
 					durationMaxSeconds: 0,
 					transitionToFloorId: destinationFloorId,

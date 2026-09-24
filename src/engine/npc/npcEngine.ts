@@ -10,7 +10,7 @@ import type {
 	NpcEngineWaitReason,
 } from './types'
 import { hasPostTag } from './tagMatching'
-import { interactionTargetKey } from './keys'
+import { interactionTargetKey, reservationItemKey } from './keys'
 import { NPC_ENGINE_DEFAULT_OPTIONS, type NpcEngineResolvedOptions } from './config'
 
 const EPSILON = 0.000001
@@ -58,6 +58,63 @@ export class NpcEngine {
 	private readonly claimedRooms = new Map<string, string>()
 	private readonly claimedRoomByAgent = new Map<string, string>()
 	private readonly queueMembers = new Map<string, string[]>()
+	private readonly occupancyByFloor = new Map<string, Set<string>>()
+	private readonly pendingByQueue = new Map<string, number>()
+	private readonly proposalCellOwner = new Map<string, string>()
+	private readonly proposalCellTouches = new Map<string, number>()
+	private readonly walkerOrderScratch: MutableAgent[] = []
+	private readonly busyQueuesScratch = new Set<string>()
+	private readonly fullItemKeys = new Set<string>()
+	private capacityByItem?: Map<string, number>
+
+	// Items at capacity are a property of the reservation tables, not of the agent asking:
+	// listing them once per tick replaces a canReserve call per candidate target per attempt,
+	// which was a third of the whole tick once agents started riding for real.
+	private rebuildFullItemKeys(): void {
+		this.fullItemKeys.clear()
+		if (this.reservations.size === 0) return
+		if (!this.capacityByItem) {
+			this.capacityByItem = new Map()
+			for (const target of this.layout.interactionTargets) {
+				const key = reservationItemKey(target)
+				if (!this.capacityByItem.has(key)) this.capacityByItem.set(key, Math.max(1, Math.floor(target.capacity ?? 1)))
+			}
+		}
+		for (const [itemKey, holders] of this.reservations) {
+			if (holders.size >= (this.capacityByItem.get(itemKey) ?? 1)) this.fullItemKeys.add(itemKey)
+		}
+	}
+	private queuesByFloor?: Map<string, NonNullable<NpcEngineLayout['queues']>[number][]>
+
+	// Queues belong to one floor for the life of the layout, so the floor lookup and the
+	// "is every spot taken" test are worked out once per tick instead of per path request.
+	private queuesForFloor(floorId: string): NonNullable<NpcEngineLayout['queues']>[number][] {
+		let list = this.queuesByFloor?.get(floorId)
+		if (!list) {
+			list = (this.layout.queues ?? []).filter(queue => queue.targetKeys.some(targetKey => targetKey.startsWith(`${floorId}:`)))
+			this.queuesByFloor ??= new Map()
+			this.queuesByFloor.set(floorId, list)
+		}
+		return list
+	}
+
+	private rebuildBusyQueues(): void {
+		this.busyQueuesScratch.clear()
+		this.rebuildFullItemKeys()
+		if (!this.layout.queues?.length) return
+		for (const queue of this.layout.queues) {
+			if (queue.targetKeys.length === 0) continue
+			let allBusy = true
+			for (const targetKey of queue.targetKeys) {
+				const target = this.targetsByKey.get(targetKey)
+				if (!target) { allBusy = false; break }
+				const holders = this.reservations.get(reservationItemKey(target))
+				const busy = this.interactSpotReservations.has(targetKey) || (holders?.size ?? 0) >= Math.max(1, Math.floor(target.capacity ?? 1))
+				if (!busy) { allBusy = false; break }
+			}
+			if (allBusy) this.busyQueuesScratch.add(queue.key)
+		}
+	}
 	private readonly queueSlotReservations = new Map<string, string>()
 	private readonly queueArrivalSequence = new Map<string, number>()
 	private readonly queueJoinTick = new Map<string, number>()
@@ -89,7 +146,6 @@ export class NpcEngine {
 	private readonly proposalsScratch = new Map<string, MoveProposal>()
 	private readonly agentByFromCellScratch = new Map<string, string>()
 	private readonly yieldedScratch = new Set<string>()
-	private readonly priorityScratch = new Map<string, number>()
 
 	constructor(layout: NpcEngineLayout, options: NpcEngineOptions) {
 		this.layout = layout
@@ -231,6 +287,8 @@ export class NpcEngine {
 		this.pathCallsThisTick = 0
 		this.chooseTargetCallsThisTick = 0
 		this.releasedThisTick.clear()
+		this.rebuildPerTickIndexes()
+		this.rebuildBusyQueues()
 
 		for (const agent of this.agents.values()) {
 			if (agent.status === 'queued') {
@@ -445,15 +503,25 @@ export class NpcEngine {
 		const agentByFromCell = this.agentByFromCellScratch
 		agentByFromCell.clear()
 		for (const proposal of proposals.values()) agentByFromCell.set(proposal.fromKey, proposal.agentId)
-		const priorityByAgentId = this.priorityScratch
-		priorityByAgentId.clear()
-		walkers.forEach((agent, index) => priorityByAgentId.set(agent.id, (index + this.priorityOffset) % walkers.length))
-		const priorityOf = (id: string): number => priorityByAgentId.get(id) ?? Infinity
-		const sortedWalkers = walkers.sort((a, b) => {
-			const ra = this.releasedThisTick.has(a.id) ? -1 : 0
-			const rb = this.releasedThisTick.has(b.id) ? -1 : 0
-			return ra - rb || priorityOf(a.id) - priorityOf(b.id)
-		})
+		this.proposalCellOwner.clear()
+		this.proposalCellTouches.clear()
+		for (const proposal of proposals.values()) {
+			this.touchProposalCell(proposal.fromKey, proposal.agentId)
+			this.touchProposalCell(proposal.toKey, proposal.agentId)
+		}
+		// Released agents first, then the rotated arrival order. That is exactly what the old
+		// comparator produced - priority is (index + offset) % n, a bijection over the array -
+		// but in two linear passes instead of n log n comparator calls over a Map.
+		const n = walkers.length
+		const start = n > 0 ? (n - this.priorityOffset % n) % n : 0
+		const sortedWalkers = this.walkerOrderScratch
+		sortedWalkers.length = 0
+		for (let pass = 0; pass < 2; pass++) {
+			for (let k = 0; k < n; k++) {
+				const agent = walkers[(start + k) % n]
+				if ((pass === 0) === this.releasedThisTick.has(agent.id)) sortedWalkers.push(agent)
+			}
+		}
 		const yielded = this.yieldedScratch
 		yielded.clear()
 		const claimed = new Set<string>()
@@ -500,7 +568,7 @@ export class NpcEngine {
 			if (Math.abs(tx - fx) === 1 && Math.abs(ty - fy) === 1) {
 				const c1 = cellKey(agent.floorId, tx, fy)
 				const c2 = cellKey(agent.floorId, fx, ty)
-				if (this.isCornerBlocked(agent.id, c1, proposals) || this.isCornerBlocked(agent.id, c2, proposals)) {
+				if (this.isCornerBlocked(agent.id, c1) || this.isCornerBlocked(agent.id, c2)) {
 					yielded.add(agent.id)
 					continue
 				}
@@ -530,9 +598,9 @@ export class NpcEngine {
 	}
 
 	private cellCoords(key: string): [number, number] {
-		const cell = key.slice(key.lastIndexOf(':') + 1)
-		const [x, y] = cell.split(',').map(Number)
-		return [x, y]
+		const head = key.lastIndexOf(':')
+		const comma = key.indexOf(',', head)
+		return [Number(key.slice(head + 1, comma)), Number(key.slice(comma + 1))]
 	}
 
 	private releaseWaypointIntent(agent: MutableAgent): void {
@@ -555,14 +623,23 @@ export class NpcEngine {
 		return Math.hypot(next.x - holder.x, next.y - holder.y) <= step + EPSILON
 	}
 
-	private isCornerBlocked(agentId: string, cell: string, proposals: Map<string, MoveProposal>): boolean {
+	private touchProposalCell(cell: string, agentId: string): void {
+		const owner = this.proposalCellOwner.get(cell)
+		if (owner === undefined) {
+			this.proposalCellOwner.set(cell, agentId)
+			this.proposalCellTouches.set(cell, 1)
+			return
+		}
+		if (owner !== agentId) this.proposalCellTouches.set(cell, (this.proposalCellTouches.get(cell) ?? 1) + 1)
+	}
+
+	// Same answer as scanning every proposal for a touch on this cell, in two lookups.
+	private isCornerBlocked(agentId: string, cell: string): boolean {
 		const holder = this.cellReservations.get(cell)
 		if (holder && holder !== agentId) return true
-		for (const proposal of proposals.values()) {
-			if (proposal.agentId === agentId) continue
-			if (proposal.fromKey === cell || proposal.toKey === cell) return true
-		}
-		return false
+		const owner = this.proposalCellOwner.get(cell)
+		if (owner === undefined) return false
+		return owner !== agentId || (this.proposalCellTouches.get(cell) ?? 1) > 1
 	}
 
 	private detectSwapConflict(agent: MutableAgent, proposal: MoveProposal, proposals: Map<string, MoveProposal>, agentByFromCell: Map<string, string>): string | null {
@@ -717,33 +794,34 @@ export class NpcEngine {
 		this.attemptRepath(agent)
 	}
 
+	// Built once per tick: collectBlockedCells used to walk every agent on the floor for every
+	// path request, which at 2000+ agents cost more than the pathfinding itself.
+	private rebuildPerTickIndexes(): void {
+		this.occupancyByFloor.clear()
+		this.pendingByQueue.clear()
+		for (const agent of this.agents.values()) {
+			let cells = this.occupancyByFloor.get(agent.floorId)
+			if (!cells) { cells = new Set<string>(); this.occupancyByFloor.set(agent.floorId, cells) }
+			cells.add(`${Math.floor(agent.x)},${Math.floor(agent.y)}`)
+			if (agent.queuePendingKey) this.pendingByQueue.set(agent.queuePendingKey, (this.pendingByQueue.get(agent.queuePendingKey) ?? 0) + 1)
+		}
+	}
+
 	private collectBlockedCells(agent: MutableAgent): ReadonlySet<string> {
 		const blocked = this.scratchBlockedCells
 		blocked.clear()
 		const floorId = agent.floorId
-		for (const other of this.agents.values()) {
-			if (other.id === agent.id || other.floorId !== floorId) continue
-			blocked.add(`${Math.floor(other.x)},${Math.floor(other.y)}`)
-		}
-		for (const queue of this.layout.queues ?? []) {
-			if (queue.targetKeys.length === 0) continue
-			if (!queue.targetKeys.some(targetKey => targetKey.startsWith(`${floorId}:`))) continue
+		const occupants = this.occupancyByFloor.get(floorId)
+		if (occupants) for (const cell of occupants) blocked.add(cell)
+		blocked.delete(`${Math.floor(agent.x)},${Math.floor(agent.y)}`)
+		for (const queue of this.queuesForFloor(floorId)) {
+			if (!this.busyQueuesScratch.has(queue.key)) continue
 			if (agent.queueKey === queue.key || agent.queuePendingKey === queue.key) continue
 			if (agent.reservationItemId !== null && queue.targetKeys.some(targetKey => targetKey.startsWith(`${floorId}:${agent.reservationItemId}:`))) continue
-			let allBusy = true
-			for (const targetKey of queue.targetKeys) {
-				const target = this.targetsByKey.get(targetKey)
-				if (!target) { allBusy = false; break }
-				const holders = this.reservations.get(`${target.floorId}:${target.itemId}`)
-				const busy = this.interactSpotReservations.has(targetKey) || (holders?.size ?? 0) >= Math.max(1, Math.floor(target.capacity ?? 1))
-				if (!busy) { allBusy = false; break }
-			}
-			if (!allBusy) continue
 			for (const point of queue.slots) blocked.add(`${Math.floor(point.x)},${Math.floor(point.y)}`)
-			let lineSize = this.queueMembers.get(queue.key)?.length ?? 0
-			for (const other of this.agents.values()) {
-				if (other.id !== agent.id && other.floorId === floorId && other.queuePendingKey === queue.key) lineSize++
-			}
+			// the agent is never counted here: the queue it belongs to (or is pending on)
+			// was skipped above, so the per-tick pending index needs no self-exclusion
+			const lineSize = (this.queueMembers.get(queue.key)?.length ?? 0) + (this.pendingByQueue.get(queue.key) ?? 0)
 			const lineCapacity = Math.min(Math.max(0, Math.floor(queue.maxMembers)), queue.slots.length)
 			if (lineSize < lineCapacity) continue
 			for (const point of queue.admissionPoints) blocked.add(`${Math.floor(point.x)},${Math.floor(point.y)}`)
@@ -935,6 +1013,20 @@ export class NpcEngine {
 
 	private sameFloorTargetsCache = new Map<string, NpcEngineInteractionTarget[]>()
 
+	// Which floors an agent could travel to is a property of the layout, not of the agent:
+	// rebuilding the ~9k-entry candidate list on every cross-floor attempt dominated the tick
+	// once agents actually started riding. Per-agent eligibility is still filtered on top.
+	private crossFloorTargetsCache = new Map<string, NpcEngineInteractionTarget[]>()
+
+	private getCrossFloorTargets(floorId: string): NpcEngineInteractionTarget[] {
+		let targets = this.crossFloorTargetsCache.get(floorId)
+		if (!targets) {
+			targets = this.layout.interactionTargets.filter(target => target.floorId !== floorId && !target.transitionToFloorId)
+			this.crossFloorTargetsCache.set(floorId, targets)
+		}
+		return targets
+	}
+
 	private getSameFloorTargets(floorId: string): NpcEngineInteractionTarget[] {
 		let targets = this.sameFloorTargetsCache.get(floorId)
 		if (!targets) {
@@ -959,13 +1051,10 @@ export class NpcEngine {
 
 
 		if (!selected && agent.crossFloorCooldownUntil <= this.tickCount && this.options.crossFloorSelector) {
-			const crossCandidates = this.layout.interactionTargets.filter(t =>
-				t.floorId !== agent.floorId &&
-				!t.transitionToFloorId &&
-				this.canReserve(t, agent.id) &&
-				this.isRoleAllowedOnFloor(agent, t.floorId) &&
-				(blocked?.get(interactionTargetKey(t)) ?? 0) <= this.tickCount,
-			)
+			const agentBusy = this.reservationKeyByAgent.has(agent.id)
+			const crossCandidates = agentBusy
+				? this.layout.interactionTargets.filter(t => t.floorId !== agent.floorId && !t.transitionToFloorId && this.canReserve(t, agent.id) && this.isRoleAllowedOnFloor(agent, t.floorId) && (blocked?.get(interactionTargetKey(t)) ?? 0) <= this.tickCount)
+				: this.getCrossFloorTargets(agent.floorId).filter(t => !this.fullItemKeys.has(reservationItemKey(t)) && this.isRoleAllowedOnFloor(agent, t.floorId) && (blocked?.get(interactionTargetKey(t)) ?? 0) <= this.tickCount)
 			if (crossCandidates.length > 0) {
 				const dest = this.options.crossFloorSelector(agent, crossCandidates, this.layout.floors)
 				if (dest && this.isValidCrossFloorResult(dest, crossCandidates)) {
@@ -1115,7 +1204,7 @@ export class NpcEngine {
 
 			agent.crossFloorCooldownUntil = this.tickCount + this.options.crossFloorCooldownSeconds * this.ticksPerSecond
 
-			this.emit({ type: 'floor-transition', agentId: agent.id, floorId: target.transitionToFloorId, fromFloorId, toFloorId: target.transitionToFloorId })
+			this.emit({ type: 'floor-transition', agentId: agent.id, floorId: target.transitionToFloorId, itemId: agent.reservationItemId ?? target.itemId, fromFloorId, toFloorId: target.transitionToFloorId })
 
 			return
 		}
@@ -1243,7 +1332,7 @@ export class NpcEngine {
 	}
 
 	private canReserve(target: NpcEngineInteractionTarget, agentId: string): boolean {
-		const key = `${target.floorId}:${target.itemId}`
+		const key = reservationItemKey(target)
 		const interactSpotKey = interactionTargetKey(target)
 		const holders = this.reservations.get(key)
 		if (holders?.has(agentId)) return true
@@ -1256,7 +1345,7 @@ export class NpcEngine {
 	}
 
 	private reserve(target: NpcEngineInteractionTarget, agentId: string): boolean {
-		const key = `${target.floorId}:${target.itemId}`
+		const key = reservationItemKey(target)
 		const interactSpotKey = interactionTargetKey(target)
 		const holders = this.reservations.get(key) ?? new Set<string>()
 		const capacity = Math.max(1, Math.floor(target.capacity ?? 1))

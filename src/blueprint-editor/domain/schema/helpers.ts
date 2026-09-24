@@ -40,6 +40,14 @@ export function clampInt(value: number, min: number, max: number): number {
 	return Math.max(min, Math.min(max, Math.floor(value)))
 }
 
+export function positiveNumber(value: unknown, fallback: number): number {
+	return isFiniteNumber(value) && value > 0 ? value : fallback
+}
+
+export function positiveInt(value: unknown, fallback: number): number {
+	return isFiniteNumber(value) && value > 0 ? Math.floor(value) : fallback
+}
+
 export function normalizeTags(value: unknown): string[] | undefined {
 	if (value === undefined || value === null) return undefined
 	if (!Array.isArray(value) || value.length > 256) return undefined

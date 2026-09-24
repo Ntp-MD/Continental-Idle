@@ -54,11 +54,10 @@ Persistence selection is automatic and can be overridden with `VITE_PERSISTENCE`
 | `npm run dev` | Vite dev server with the blueprint-data middleware |
 | `npm run build` | Type-check and build to `dist/` |
 | `npm run preview` | Serve the production build |
-| `npm test` | Full test runner (vitest + the tsx suites + asset verification) |
-| `npm run test:unit` | vitest only |
+| `npm run test:unit` | vitest only (unit + component suites) |
 | `npm run test:e2e` | Playwright browser smoke against the production build |
 | `npm run test:e2e:install` | Download the Chromium browser (once per machine) |
-| `npm run verify` | typecheck + lint + BEM/CSS lint + unit + full test runner |
+| `npm run verify` | typecheck + lint + BEM/CSS lint + unit + asset verification |
 | `npm run verify:assets` | Validate the origin assets in `blueprint-data.json` |
 | `npm run typecheck` / `npm run lint` | Type and lint gates |
 
