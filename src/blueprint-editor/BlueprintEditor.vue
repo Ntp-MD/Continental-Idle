@@ -18,16 +18,19 @@ const loadError = ref('')
 onMounted(async () => {
   // The static seed is validated here, inside the boot UI, so a malformed or
   // future-version data file reaches the load-error state instead of
-  // white-screening during module evaluation.
-  const seedError = await seedVersionError()
-  if (seedError) {
-    loadError.value = `Static blueprint data is invalid: ${seedError.message}`
-    return
-  }
+  // white-screening during module evaluation. The check starts with the endpoint
+  // load instead of before it: the seed chunk is a 92 KB parse that the editor
+  // data does not depend on, and awaiting it first delayed every boot.
+  const seedCheck = seedVersionError()
   try {
     await store.reloadEditorData()
   } catch (err) {
     loadError.value = err instanceof Error ? err.message : String(err)
+    return
+  }
+  const seedError = await seedCheck
+  if (seedError) {
+    loadError.value = `Static blueprint data is invalid: ${seedError.message}`
     return
   }
   ready.value = true

@@ -3,6 +3,13 @@ export interface NpcEnginePoint {
 	y: number
 }
 
+export interface NpcWalkableMap {
+	tiles: Set<string>
+	width: number
+	height: number
+	cellSize: number
+}
+
 export interface NpcEngineFloor {
 	id: string
 	width: number

@@ -5,7 +5,8 @@ import { validatePortalConfiguration } from '../assets/validation'
 import { normalizeObject } from '../domain/geometry'
 import { recalcCollapsed } from '../domain/collision'
 import { EDITOR_CONFIG } from '../editorConfig'
-import { editorLog, genId, emptyNpcConfig } from './storeUtils'
+import { genId, emptyNpcConfig } from './storeUtils'
+import { editorLog } from '../domain/logger'
 import { MIN_STREET_WIDTH_TILES, MAX_STREET_WIDTH_TILES } from '../limits'
 
 const LAYOUT_VERSION = EDITOR_CONFIG.layoutVersion

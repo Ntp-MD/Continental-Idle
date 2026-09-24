@@ -1,7 +1,7 @@
 import type { BlueprintDataFile, SyncedLayoutPayload } from '../domain/types'
 import { EDITOR_CONFIG } from '../editorConfig'
 import { MAX_PAYLOAD_BYTES } from '../limits'
-import { editorLog } from './storeUtils'
+import { editorLog } from '../domain/logger'
 import { readBlueprintDataFile } from './schemaMigration'
 import { PayloadTooLargeError, type PersistencePort, type SyncPort } from './ports'
 

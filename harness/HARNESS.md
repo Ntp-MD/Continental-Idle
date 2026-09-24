@@ -49,6 +49,18 @@ Every task walks the loop below - inspect, plan, implement, test, fix, review, d
 - `table` validates the verify table against `package.json`; `check` gates slot headers, secrets, scope, and the table. Run `check` before reporting done.
 - Harness-owned convention: temp diagnostics go in `tests/_*.tmp.ts`, deleted same session, never committed - the router filters them out.
 
+## Delegation (subagents)
+
+Applies whenever work fans out (research, migration, audit, multi-file generation). A subagent has a HARD turn limit (150) - treat it as the task's whole budget, never as room to spend. Root cause of the failure this section exists to prevent: "research deeply, then write" + a long research pass = the agent dies at the cap with zero output.
+
+- Deliverable first. The brief names the exact output path and required structure, and orders: create the file with Write by the 5th tool call (full skeleton, one line per entry), then fold each source in with Edit immediately after reading it. Never batch research to the end, never "write when research is done".
+- Checkpoints stated in the brief: file exists early; substantially complete draft by ~turn 100; if writing has not started by ~turn 40-50, stop broad research and write the best complete draft from what is already collected, documenting the gaps.
+- Research is bounded. Name the source types that count and cap retrieval calls. After each batch ask: will this materially improve the deliverable? No -> stop, synthesize, continue. Depth comes from cross-checking, contradiction detection and verification of load-bearing claims - not from search count, tool-call count, or tokens read.
+- Continue, never restart. A replacement brief points at the existing file(s), says what is already done, and asks only for the missing part. Partial work is preserved and built on. Fanning out a second agent for a domain that already has a valid active agent or a completed file is a defect.
+- Identity safety. Never stop, cancel or replace an in-flight agent whose id-to-domain mapping or state is uncertain - a wrong stop destroys work. Preserve healthy and unknown agents; wait for completion notices instead of guessing.
+- Success = usable deliverable. Many tool calls prove nothing; a file with honestly labelled `UNCITED` gaps beats perfect research with no output. The brief requires the agent to confirm the file exists and quantify it (sections, item count) before reporting.
+- Verification is the orchestrator's job and is mechanical: required-file list, per-item field alignment, cross-reference existence, required-section presence. Scripted, not read by eye - and re-run after the LAST agent lands, because files get rewritten underneath you and citations drift.
+
 ## Report format
 
 Full template + rules live in `skills/report-gaps/SKILL.md` (read at Done time). Shape: verdict headline `<task> - DONE|PARTIAL|BLOCKED (<n>/<total>)`, then fixed headings Changed / Decisions (veto-able) / Gaps (mandatory, `(none)` when empty) / Verify (exact commands + result). No tables; <2-file tasks collapse to Changed + Verify; opinion/question answers use Evidence + Options instead; audits are read-only (Findings replaces Changed, verdict says "read-only").

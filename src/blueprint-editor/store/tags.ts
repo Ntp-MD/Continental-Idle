@@ -74,5 +74,3 @@ export function createTagCommands(store: BlueprintStore) {
 
 	return { globalTags, managedTagSet, addTag, removeTag, ensureTag }
 }
-
-export type TagCommands = ReturnType<typeof createTagCommands>

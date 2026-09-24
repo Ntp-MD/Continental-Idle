@@ -188,5 +188,3 @@ export function createModeCommands(store: BlueprintStore) {
 		setStreetWidth, setEditorSettings, resetEditorSettings,
 	}
 }
-
-export type ModeCommands = ReturnType<typeof createModeCommands>

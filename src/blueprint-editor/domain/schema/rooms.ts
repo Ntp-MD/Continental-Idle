@@ -37,8 +37,4 @@ export function resolveRoomType(fixtureTagSets: readonly (readonly string[])[]):
 	return best ?? HALL_ROOM_TYPE
 }
 
-export function isPrivateRoomType(typeId: string): boolean {
-	const spec = typeId === HALL_ROOM_TYPE.id ? HALL_ROOM_TYPE : ROOM_TYPE_SPECS.find(candidate => candidate.id === typeId)
-	return spec?.privacy === 'private'
-}
 

@@ -252,5 +252,3 @@ export function createAssetCommands(store: BlueprintStore) {
 
 	return { addSvgAsset, updateAsset, reorderAssets, duplicateAsset, deleteAsset, deleteAllAssets }
 }
-
-export type AssetCommands = ReturnType<typeof createAssetCommands>

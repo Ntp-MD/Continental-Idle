@@ -14,7 +14,6 @@ export {
 	cellSizeOf,
 	cellToPixel,
 	pixelToCell,
-	tileKey,
 	toEngineWalkablePoints,
 } from './layoutBuild'
 export type {
@@ -22,9 +21,8 @@ export type {
 	GetAssetTags,
 	NpcCanvasBounds,
 	NpcLayoutBuildResult,
-	NpcWalkableMap,
 } from './layoutBuild'
-export { interactionTargetKey } from './keys'
+export { interactionTargetKey, tileKey } from './keys'
 export { chatPairKey, resolveChatExchange } from './socialLines'
 export { createNpcEnginePolicy } from './policy'
 export type { NpcEnginePolicy, NpcPolicyContext } from './policy'
@@ -38,6 +36,7 @@ export type {
 	NpcEngineLayout,
 	NpcEngineOptions,
 	NpcEngineQueue,
+	NpcWalkableMap,
 	NpcEnginePathfinder,
 	NpcEnginePoint,
 	NpcEngineWaitReason,

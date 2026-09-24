@@ -1,6 +1,6 @@
 import type { BlueprintDataFile } from '../domain/types'
 import { MAX_PAYLOAD_BYTES } from '../limits'
-import { editorLog } from './storeUtils'
+import { editorLog } from '../domain/logger'
 import { readBlueprintDataFile } from './schemaMigration'
 import { PayloadTooLargeError, type PersistencePort } from './ports'
 

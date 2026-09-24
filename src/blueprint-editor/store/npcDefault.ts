@@ -50,5 +50,3 @@ export function createNpcCommands(store: BlueprintStore) {
 
 	return { syncNpcConfigToState, persistNpcConfigToDisk, updateNpcConfig }
 }
-
-export type NpcCommands = ReturnType<typeof createNpcCommands>

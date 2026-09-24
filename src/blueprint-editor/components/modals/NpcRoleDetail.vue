@@ -404,7 +404,7 @@ function commitHat(value: string) {
           <div class="form__row">
             <div class="size--stretch">Spawn Zones</div>
             <span class="badge" :class="{ 'flag--warning': zoneCoverage.zones === 0 }">{{ zoneCoverage.zones }}</span>
-            <button type="button" @click="emit('view-zones')">Open Floor Manager</button>
+            <button type="button" @click="emit('view-zones')">Open Spawn Zones</button>
           </div>
           <p class="form__hint">
             {{

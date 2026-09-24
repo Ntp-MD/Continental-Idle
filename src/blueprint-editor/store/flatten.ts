@@ -189,5 +189,3 @@ export function createFlattenCommands(store: BlueprintStore) {
 
 	return { flattenToSvgAsset }
 }
-
-export type FlattenCommands = ReturnType<typeof createFlattenCommands>

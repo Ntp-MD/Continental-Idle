@@ -28,7 +28,6 @@ export function assetSvgVarStyle(asset: AssetDef | undefined): string {
 	return asset ? svgColorVarStyle(asset.defaultFillColor, asset.defaultStrokeColor) : ''
 }
 
-export { assetPixelSize }
 
 export function assetPreviewViewBox(asset: AssetDef, tileSize: number): string {
 	const vb = asset.svgViewBox

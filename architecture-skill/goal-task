@@ -1,0 +1,1722 @@
+# MASTER TASK
+
+# Research, Synthesize, Validate, and Build a Production-Grade Architecture Design Skill
+
+You are an autonomous research and knowledge-engineering agent.
+
+Your task is to research real-world architecture, engineering, construction, building science, spatial planning, BIM/CAD, human behavior, operations, and professional architectural practice, then transform the research into a reusable and operational `SKILL.md` for an AI agent that designs buildings.
+
+The target environment is a **grid/tile-based architectural design system**, similar in spatial abstraction to games such as RimWorld or Prison Architect, but the design logic must be grounded in real-world architecture.
+
+---
+
+# 0. PRIMARY OBJECTIVE
+
+Build an Architecture Design Skill that enables an AI agent to:
+
+```text
+Understand requirements
+        ↓
+Research missing information
+        ↓
+Analyze site and context
+        ↓
+Program the building
+        ↓
+Build spatial relationships
+        ↓
+Create zoning
+        ↓
+Design circulation
+        ↓
+Develop structural and service logic
+        ↓
+Generate architectural layouts
+        ↓
+Translate real-world dimensions into grid/tile geometry
+        ↓
+Validate the design
+        ↓
+Identify failures
+        ↓
+Generate alternatives
+        ↓
+Evaluate trade-offs
+        ↓
+Iterate
+        ↓
+Produce a coherent final design
+```
+
+The final result must NOT be a generic:
+
+> "Act as a professional architect."
+
+It must be an **operational reasoning framework** that an autonomous agent can execute.
+
+---
+
+# 1. CORE PRINCIPLE
+
+Do not attempt to teach the model everything about architecture.
+
+Assume the underlying AI model already possesses substantial general knowledge.
+
+Your job is to provide:
+
+* structured architectural reasoning
+* reliable external evidence
+* decision frameworks
+* constraints
+* validation methods
+* failure detection
+* project-specific reasoning procedures
+
+The skill should function as:
+
+```text
+MODEL KNOWLEDGE
++
+RESEARCH
++
+ARCHITECTURAL REASONING
++
+PROJECT CONSTRAINTS
++
+VALIDATION
++
+ITERATION
+```
+
+---
+
+# 2. RESEARCH DOMAINS
+
+Research ALL of the following domains.
+
+Do not omit a domain simply because information appears difficult to obtain.
+
+---
+
+## DOMAIN A — FLOOR PLANS
+
+Research:
+
+* CubiCasa5K
+* RPLAN
+* FloorPlanCAD
+* Swiss Dwellings
+* other reputable floor-plan datasets
+* floor-plan generation research
+
+Study:
+
+* rooms
+* walls
+* doors
+* windows
+* stairs
+* elevators
+* corridors
+* circulation
+* adjacency
+* room proportions
+* zoning
+* public/private relationships
+* service spaces
+* spatial hierarchy
+* repeated modules
+* layout failures
+
+Determine which findings are:
+
+* residential
+* commercial
+* hospitality
+* healthcare
+* office
+* industrial
+* generally applicable
+
+Do not generalize residential layouts to other building types without evidence.
+
+---
+
+# 3. DOMAIN B — REAL-WORLD ARCHITECTURAL PROJECTS
+
+Research real projects from sources such as:
+
+* ArchDaily
+* Dezeen
+* Divisare
+* RIBA
+* AIA
+* architect firm websites
+* university architecture repositories
+* reputable architecture publications
+
+Prioritize projects containing:
+
+* floor plans
+* sections
+* elevations
+* diagrams
+* site plans
+* program descriptions
+* architect explanations
+
+For each useful project extract:
+
+```text
+Building type
+Program
+Site
+Context
+Constraints
+Area
+Number of floors
+Zoning
+Circulation
+Vertical circulation
+Structure
+Services
+Public/private separation
+Environmental strategy
+Operational strategy
+Important design decisions
+Trade-offs
+```
+
+Focus on:
+
+> WHY the design decisions were made.
+
+Do not merely collect images.
+
+---
+
+# 4. DOMAIN C — BIM / CAD / IFC
+
+Research:
+
+* buildingSMART
+* IFC
+* IFC datasets
+* BIMNet
+* BIM research
+* CAD / computational architecture research
+
+Study:
+
+* spatial hierarchy
+* building elements
+* geometry
+* relationships
+* containment
+* connectivity
+* floors
+* spaces
+* zones
+* doors
+* windows
+* stairs
+* elevators
+* structural elements
+* MEP
+* openings
+* materials
+
+Determine which BIM concepts can be translated into a discrete grid/tile architecture system.
+
+---
+
+# 5. DOMAIN D — ARCHITECTURAL THEORY
+
+Research:
+
+* architecture textbooks
+* university repositories
+* peer-reviewed research
+* architectural institutions
+* architectural theory
+
+Focus on practical concepts:
+
+* architectural programming
+* spatial hierarchy
+* adjacency
+* zoning
+* circulation
+* privacy gradients
+* public/private/service separation
+* proportion
+* modularity
+* repetition
+* human scale
+* spatial sequence
+* wayfinding
+* flexibility
+* adaptability
+
+Avoid filling the final skill with historical theory that cannot influence design decisions.
+
+---
+
+# 6. DOMAIN E — CONSTRUCTION
+
+Research:
+
+* construction manuals
+* AEC publications
+* engineering publications
+* construction documentation
+* professional construction references
+
+Study relationships between:
+
+```text
+Architecture
+→ Structure
+→ Materials
+→ Construction
+→ MEP
+→ Maintenance
+```
+
+Research:
+
+* structural grids
+* columns
+* beams
+* slabs
+* spans
+* shafts
+* plant rooms
+* plumbing
+* electrical
+* HVAC
+* maintenance access
+* construction sequencing
+* material logic
+
+Prevent the agent from creating layouts that look plausible but cannot realistically be constructed.
+
+---
+
+# 7. DOMAIN F — BUILDING CODES & SAFETY
+
+Research authoritative sources such as:
+
+* ICC
+* NFPA
+* ADA
+* government regulations
+* local building regulations
+* official standards
+
+Study:
+
+* occupancy
+* occupant load
+* egress
+* exits
+* travel distance
+* stairs
+* corridors
+* doors
+* accessibility
+* fire separation
+* emergency circulation
+* building height
+* fire safety
+
+For every code-derived rule:
+
+* identify jurisdiction
+* identify edition/year where possible
+* cite source
+* identify limitations
+
+NEVER invent exact code requirements.
+
+NEVER claim code compliance without sufficient information.
+
+If information is unavailable:
+
+```text
+Flag for verification.
+```
+
+---
+
+# 8. DOMAIN G — PROFESSIONAL / REAL-WORLD EXPERIENCE
+
+Research:
+
+* Architecture Stack Exchange
+* Reddit architecture communities
+* AEC forums
+* professional discussions
+* architect discussions
+* engineer discussions
+
+Use these sources to identify:
+
+* practical heuristics
+* common mistakes
+* hidden constraints
+* operational problems
+* design trade-offs
+* maintenance problems
+* workflow problems
+
+Treat community information as anecdotal evidence.
+
+Do not treat Reddit as equivalent to codes, standards, or peer-reviewed research.
+
+Cross-check important claims.
+
+---
+
+# 9. DOMAIN H — SITE & CONTEXT
+
+Research how architects respond to:
+
+* site boundaries
+* neighboring buildings
+* roads
+* pedestrian access
+* vehicle access
+* transportation
+* topography
+* views
+* noise
+* privacy
+* climate
+* orientation
+* surrounding density
+* existing structures
+
+Determine how these affect:
+
+* building orientation
+* massing
+* entrances
+* circulation
+* zoning
+* open space
+* floor-plan organization
+
+---
+
+# 10. DOMAIN I — ENVIRONMENTAL DESIGN
+
+Research:
+
+* daylight
+* solar exposure
+* solar heat gain
+* ventilation
+* thermal comfort
+* shading
+* glazing
+* passive cooling
+* passive heating
+* acoustic comfort
+* energy efficiency
+* indoor environmental quality
+
+Connect:
+
+```text
+Climate
+→ Orientation
+→ Envelope
+→ Openings
+→ Room placement
+→ Circulation
+→ Mechanical systems
+```
+
+Treat environmental design as a spatial planning problem, not decoration.
+
+---
+
+# 11. DOMAIN J — HUMAN BEHAVIOR
+
+Research:
+
+* pedestrian movement
+* crowd flow
+* wayfinding
+* visibility
+* decision points
+* privacy
+* social interaction
+* waiting
+* queues
+* staff movement
+* visitor movement
+* user behavior
+
+Use:
+
+* environmental psychology
+* space syntax
+* pedestrian research
+* healthcare research
+* hospitality research
+* architecture research
+
+Convert findings into actionable design principles.
+
+---
+
+# 12. DOMAIN K — SPACE PROGRAMMING
+
+Research how architects determine:
+
+* room types
+* room quantities
+* room sizes
+* occupancy
+* capacity
+* area allocation
+* circulation area
+* service area
+* support spaces
+* storage
+* mechanical spaces
+* staff spaces
+
+Understand:
+
+```text
+Gross Floor Area
+→ Net Area
+→ Program Area
+→ Circulation
+→ Structure
+→ Services
+→ Mechanical
+```
+
+Do not assume universal percentages.
+
+Classify ratios as:
+
+* general
+* building-type specific
+* project-specific
+* approximate heuristic
+
+---
+
+# 13. DOMAIN L — ADJACENCY & SPATIAL GRAPHS
+
+Research how buildings can be represented as spatial relationships.
+
+Study:
+
+* required adjacency
+* preferred adjacency
+* separation
+* prohibited adjacency
+* circulation relationships
+* public/private relationships
+* service relationships
+* vertical relationships
+
+Model conceptually as:
+
+```text
+Nodes = Spaces
+Edges = Relationships
+Weights = Importance
+```
+
+Research computational architecture and space-planning approaches that use graph-based reasoning.
+
+Convert useful concepts into executable agent procedures.
+
+---
+
+# 14. DOMAIN M — HUMAN SCALE & ERGONOMICS
+
+Research:
+
+* human dimensions
+* furniture
+* clearances
+* turning radius
+* reach
+* accessibility
+* door clearance
+* bathroom layouts
+* kitchen layouts
+* workspace layouts
+* seating
+* circulation
+
+Connect:
+
+```text
+Human
+→ Furniture
+→ Room
+→ Corridor
+→ Building
+```
+
+Prevent geometrically valid but physically unusable designs.
+
+---
+
+# 15. DOMAIN N — OPERATIONS & MAINTENANCE
+
+Research:
+
+* cleaning
+* waste
+* deliveries
+* loading
+* housekeeping
+* maintenance
+* equipment replacement
+* service elevators
+* storage
+* plant rooms
+* utility access
+* staff circulation
+* security
+* back-of-house
+
+Pay particular attention to:
+
+* hotels
+* hospitals
+* offices
+* retail
+* large public buildings
+
+Architecture must support how the building actually operates.
+
+---
+
+# 16. DOMAIN O — BUILDING LIFECYCLE
+
+Research:
+
+```text
+Planning
+→ Design
+→ Construction
+→ Operation
+→ Maintenance
+→ Renovation
+→ Adaptation
+→ Reuse / Demolition
+```
+
+Study:
+
+* adaptability
+* flexible floor plans
+* future expansion
+* changing room functions
+* structural flexibility
+* service flexibility
+* renovation
+* durability
+* maintainability
+
+---
+
+# 17. DOMAIN P — ECONOMICS & SPATIAL EFFICIENCY
+
+Research relationships between:
+
+* construction cost
+* usable area
+* circulation
+* structural complexity
+* façade complexity
+* MEP complexity
+* operational cost
+* maintenance cost
+* rentable area
+* user experience
+
+Study trade-offs:
+
+```text
+Efficiency
+vs
+Quality
+vs
+Cost
+vs
+Flexibility
+vs
+Experience
+```
+
+Do not assume maximum area efficiency is always desirable.
+
+---
+
+# 18. DOMAIN Q — DESIGN ALTERNATIVES
+
+Research professional workflows for creating and comparing alternatives.
+
+Generate alternatives based on different objectives:
+
+```text
+Option A
+→ Efficiency
+
+Option B
+→ Circulation
+
+Option C
+→ User experience
+
+Option D
+→ Structural simplicity
+
+Option E
+→ Operational efficiency
+```
+
+Do not declare one universal winner.
+
+Instead expose:
+
+* advantages
+* disadvantages
+* constraints
+* trade-offs
+* consequences
+
+---
+
+# 19. DOMAIN R — FAILURE PATTERNS
+
+Research real architectural failures.
+
+Study:
+
+* circulation bottlenecks
+* dead-end corridors
+* excessive circulation
+* unusable leftover spaces
+* bad adjacency
+* privacy problems
+* service/public conflicts
+* poor storage
+* maintenance problems
+* poor daylight
+* acoustic problems
+* structural conflicts
+* MEP conflicts
+* accessibility problems
+* unrealistic furniture layouts
+* operational inefficiency
+
+For each:
+
+```text
+Failure
+→ Cause
+→ Detection method
+→ Prevention
+→ Correction
+```
+
+---
+
+# 20. DOMAIN S — MULTI-SCALE REASONING
+
+The agent must reason across:
+
+```text
+City
+↓
+Site
+↓
+Building
+↓
+Floor
+↓
+Zone
+↓
+Room
+↓
+Furniture
+↓
+Human
+```
+
+And vertically:
+
+```text
+Floor 01
+↓
+Floor 02
+↓
+Floor 03
+↓
+...
+↓
+Floor N
+```
+
+Research:
+
+* vertical alignment
+* structural alignment
+* core alignment
+* shafts
+* service distribution
+* program stacking
+* repeated modules
+
+Prevent designing each floor independently without considering the whole building.
+
+---
+
+# 21. DOMAIN T — ARCHITECTURAL DECISION MAKING
+
+This is one of the highest-priority domains.
+
+Research how architects make decisions when requirements conflict.
+
+Examples:
+
+```text
+More corridor
+→ better circulation
+→ less usable area
+
+Larger core
+→ better vertical circulation
+→ less floor efficiency
+
+Longer structural span
+→ more flexibility
+→ greater structural complexity
+
+More glazing
+→ more daylight
+→ more heat gain / façade cost
+
+Separate service circulation
+→ better operations
+→ more area / cost
+```
+
+Develop a reasoning framework:
+
+```text
+Constraints
+→ Objectives
+→ Alternatives
+→ Trade-offs
+→ Evaluation
+→ Decision
+→ Validation
+```
+
+The agent must not assume that one metric is universally superior.
+
+---
+
+# 22. DOMAIN U — UNCERTAINTY & ASSUMPTIONS
+
+The agent must classify information as:
+
+```text
+Known
+Assumed
+Estimated
+Unknown
+Requires research
+Requires engineering verification
+Requires code verification
+Requires professional review
+```
+
+Never fabricate precision.
+
+Every major assumption should include:
+
+* assumption
+* reason
+* confidence
+* potential consequence
+* verification requirement
+
+---
+
+# 23. DOMAIN V — GRID / TILE TRANSLATION
+
+This is critical.
+
+Research how real-world architecture can be converted into discrete geometry.
+
+Study:
+
+```text
+Real-world dimensions
+→ Modular dimensions
+→ Grid units
+→ Room geometry
+→ Circulation
+→ Structure
+→ Services
+```
+
+Research:
+
+* modular coordination
+* structural grids
+* repeated room modules
+* corridor modules
+* core modules
+* room proportions
+* tile quantization
+* rounding
+* leftover space
+* grid alignment
+
+The agent must understand:
+
+> The grid represents physical architecture.
+
+It is NOT merely a visual pixel canvas.
+
+---
+
+# 24. DOMAIN W — MULTI-LEVEL VALIDATION
+
+Research validation at:
+
+### Human level
+
+Can a person use the space?
+
+### Room level
+
+Is the room functional?
+
+### Zone level
+
+Are related spaces organized correctly?
+
+### Floor level
+
+Does circulation work?
+
+### Building level
+
+Do floors, cores, structure and services work together?
+
+### Site level
+
+Does the building respond to context?
+
+### Lifecycle level
+
+Can it be constructed, operated, maintained and adapted?
+
+Create a hierarchical validation framework.
+
+---
+
+# 25. DOMAIN X — DESIGN QUALITY
+
+Research architectural quality beyond simple functionality.
+
+Consider:
+
+* spatial hierarchy
+* legibility
+* wayfinding
+* proportion
+* rhythm
+* repetition
+* visual relationships
+* daylight
+* views
+* privacy
+* human scale
+* spatial sequence
+* user experience
+
+Do not allow aesthetic quality to override fundamental safety or functionality.
+
+---
+
+# 26. SOURCE HIERARCHY
+
+Use this evidence hierarchy:
+
+## Tier 1 — Highest authority
+
+* government
+* official building codes
+* official standards
+* standards organizations
+* buildingSMART
+
+## Tier 2
+
+* peer-reviewed research
+* universities
+* professional institutions
+
+## Tier 3
+
+* established architecture publications
+* engineering publications
+* architect project documentation
+
+## Tier 4
+
+* professional discussions
+* expert forums
+
+## Tier 5
+
+* Reddit
+* anecdotal experience
+
+When sources conflict:
+
+1. identify the conflict
+2. determine jurisdiction/context
+3. prefer higher-authority evidence
+4. preserve uncertainty when unresolved
+
+Never silently convert a weak source into a fact.
+
+---
+
+# 27. RESEARCH QUALITY CONTROL
+
+For every major architectural principle:
+
+1. Find multiple sources.
+2. Compare them.
+3. Identify common patterns.
+4. Identify disagreements.
+5. Determine applicability.
+6. Determine evidence strength.
+7. Determine limitations.
+8. Convert only sufficiently supported knowledge into rules.
+
+Classify findings as:
+
+```text
+FACT
+STANDARD
+CODE REQUIREMENT
+DESIGN PRINCIPLE
+HEURISTIC
+BUILDING-TYPE CONVENTION
+ENGINEERING CONSTRAINT
+EXPERIENCE-BASED ADVICE
+```
+
+Never mix these categories.
+
+---
+
+# 28. BUILDING-TYPE DIFFERENTIATION
+
+Do not create a single universal architecture model.
+
+Research differences between:
+
+* residential
+* hotel
+* hospital
+* office
+* retail
+* school
+* industrial
+* public buildings
+
+For each building type identify:
+
+* program
+* adjacency
+* circulation
+* operational model
+* service requirements
+* vertical circulation
+* privacy
+* safety
+* structural patterns
+* MEP requirements
+
+---
+
+# 29. RESEARCH ARTIFACTS
+
+Create:
+
+```text
+architecture-research/
+├── sources.md
+├── floor-plans.md
+├── real-projects.md
+├── bim-cad.md
+├── architecture-theory.md
+├── construction.md
+├── building-codes.md
+├── professional-practice.md
+├── site-context.md
+├── environmental-design.md
+├── human-behavior.md
+├── space-programming.md
+├── adjacency-graphs.md
+├── human-scale.md
+├── operations-maintenance.md
+├── lifecycle.md
+├── economics.md
+├── design-alternatives.md
+├── failure-patterns.md
+├── multi-scale.md
+├── decision-making.md
+├── uncertainty.md
+├── grid-translation.md
+├── validation.md
+└── synthesized-rules.md
+```
+
+Do not dump raw information into these files.
+
+Extract useful knowledge.
+
+---
+
+# 30. EVIDENCE RECORD FORMAT
+
+For important findings use:
+
+```text
+Principle:
+Source:
+Source Type:
+Evidence Strength:
+Applicability:
+Limitations:
+Trade-offs:
+Agent Action:
+```
+
+Example:
+
+```text
+Principle:
+Separate public and service circulation when operational traffic is significant.
+
+Source:
+Multiple hospitality case studies + operational research.
+
+Source Type:
+Architectural case study / professional research.
+
+Evidence Strength:
+High.
+
+Applicability:
+Hotels and operationally complex buildings.
+
+Limitations:
+Not necessary for every small building.
+
+Trade-offs:
+Requires additional circulation area.
+
+Agent Action:
+Evaluate operational traffic before deciding whether dedicated service circulation is justified.
+```
+
+---
+
+# 31. SYNTHESIS
+
+After research, create:
+
+```text
+synthesized-rules.md
+```
+
+Transform research into operational principles.
+
+Do NOT copy source material.
+
+The objective is:
+
+```text
+Evidence
+→ Principle
+→ Rule
+→ Agent behavior
+```
+
+---
+
+# 32. ARCHITECTURAL DESIGN WORKFLOW
+
+The final skill must enforce this workflow:
+
+```text
+1. Understand requirements
+
+2. Identify missing information
+
+3. Research missing information
+
+4. Analyze site/context
+
+5. Identify building type
+
+6. Define program
+
+7. Estimate capacity
+
+8. Establish adjacency graph
+
+9. Establish zoning
+
+10. Design circulation
+
+11. Design vertical circulation
+
+12. Establish structural strategy
+
+13. Establish MEP/service strategy
+
+14. Establish environmental strategy
+
+15. Develop floor-plan alternatives
+
+16. Translate to physical dimensions
+
+17. Convert to grid/tile geometry
+
+18. Validate
+
+19. Detect failures
+
+20. Compare alternatives
+
+21. Iterate
+
+22. Validate the entire building
+
+23. Report assumptions and unresolved issues
+```
+
+Do not jump directly from requirements to coordinates.
+
+---
+
+# 33. DESIGN ALGORITHM
+
+The final skill should encourage the agent to reason in this order:
+
+```text
+Requirements
+↓
+Constraints
+↓
+Program
+↓
+Relationships
+↓
+Zoning
+↓
+Circulation
+↓
+Core
+↓
+Structure
+↓
+Services
+↓
+Environment
+↓
+Geometry
+↓
+Grid
+↓
+Validation
+```
+
+Do not reverse this order without a clear reason.
+
+---
+
+# 34. ITERATION LOOP
+
+The agent must NOT assume the first design is correct.
+
+Use:
+
+```text
+Generate
+↓
+Evaluate
+↓
+Find failures
+↓
+Prioritize failures
+↓
+Modify
+↓
+Re-evaluate
+↓
+Repeat
+```
+
+When modifying:
+
+* preserve valid constraints
+* avoid unnecessary changes
+* explain major changes
+* detect cascading failures
+
+---
+
+# 35. VALIDATION MATRIX
+
+The final skill must validate:
+
+## Functional
+
+* required spaces exist
+* required relationships exist
+* correct zoning
+
+## Circulation
+
+* pedestrian flow
+* service flow
+* emergency flow
+* vertical circulation
+* bottlenecks
+
+## Spatial
+
+* proportions
+* usable area
+* dead space
+* furniture fit
+* human scale
+
+## Structural
+
+* structural grid
+* columns
+* spans
+* vertical alignment
+* load-path plausibility
+
+## MEP
+
+* shafts
+* plumbing
+* electrical
+* HVAC
+* maintenance access
+
+## Safety
+
+* egress
+* exits
+* fire separation
+* accessibility
+
+## Construction
+
+* constructability
+* repetition
+* modularity
+* material logic
+
+## Operations
+
+* cleaning
+* waste
+* deliveries
+* maintenance
+* staff circulation
+
+## Environmental
+
+* daylight
+* orientation
+* ventilation
+* thermal conditions
+* acoustics
+
+## Experience
+
+* wayfinding
+* privacy
+* hierarchy
+* comfort
+* spatial sequence
+
+## Lifecycle
+
+* flexibility
+* adaptability
+* renovation
+* maintenance
+
+---
+
+# 36. FAILURE PRIORITIZATION
+
+When multiple problems exist, classify them:
+
+```text
+Critical
+Major
+Moderate
+Minor
+```
+
+Critical issues should be resolved before aesthetic optimization.
+
+Example priority:
+
+```text
+Safety
+>
+Structural feasibility
+>
+Basic functionality
+>
+Circulation
+>
+Operations
+>
+Environmental performance
+>
+Efficiency
+>
+Experience
+>
+Aesthetic refinement
+```
+
+This is a default reasoning order, not an immutable rule.
+
+Project-specific requirements may change priorities.
+
+---
+
+# 37. MULTI-OPTION DESIGN
+
+When the problem has significant uncertainty or conflicting objectives, generate multiple options.
+
+For each option document:
+
+```text
+Strategy
+Strengths
+Weaknesses
+Major assumptions
+Trade-offs
+Risks
+Best suited objective
+```
+
+Do not hide trade-offs.
+
+---
+
+# 38. ASSUMPTION MANAGEMENT
+
+The final agent must maintain an assumption list:
+
+```text
+Assumption
+Reason
+Confidence
+Impact if wrong
+Verification needed
+```
+
+This is mandatory when designing with incomplete requirements.
+
+---
+
+# 39. FINAL SKILL STRUCTURE
+
+Produce:
+
+```text
+architecture-skill/
+└── SKILL.md
+```
+
+The `SKILL.md` should contain:
+
+```text
+# Architecture Design Skill
+
+## Purpose
+
+## Scope
+
+## Core Principles
+
+## Evidence Rules
+
+## Design Workflow
+
+## Requirement Analysis
+
+## Site & Context
+
+## Building Programming
+
+## Adjacency & Zoning
+
+## Circulation
+
+## Human Scale
+
+## Environmental Design
+
+## Structural Reasoning
+
+## MEP / Services
+
+## Operations & Maintenance
+
+## Building Lifecycle
+
+## Grid / Tile Translation
+
+## Building-Type Rules
+
+## Design Alternatives
+
+## Decision Making
+
+## Validation
+
+## Failure Detection
+
+## Iteration
+
+## Uncertainty & Assumptions
+
+## Output Requirements
+
+## Research References
+```
+
+Keep `SKILL.md` operational.
+
+Do NOT turn it into an encyclopedia.
+
+---
+
+# 40. SKILL DESIGN PRINCIPLE
+
+The final skill should tell the agent:
+
+```text
+WHAT to consider
+WHY it matters
+WHEN it applies
+HOW to reason about it
+HOW to validate it
+WHAT can go wrong
+```
+
+It should NOT attempt to provide every possible architectural fact.
+
+---
+
+# 41. SELF-TEST
+
+After creating `SKILL.md`, perform a simulated design task:
+
+> Design a realistic 21-floor hotel using a discrete grid/tile system.
+
+The test must consider:
+
+* site
+* orientation
+* program
+* room allocation
+* adjacency
+* zoning
+* public/private/service circulation
+* guest rooms
+* back-of-house
+* elevators
+* stairs
+* shafts
+* structure
+* MEP
+* fire/egress
+* accessibility
+* daylight
+* operations
+* maintenance
+* construction
+* economics
+* vertical stacking
+* repeated modules
+* grid conversion
+* floor-to-floor consistency
+* failure detection
+* alternative layouts
+* trade-offs
+* lifecycle
+
+Do NOT actually spend excessive time creating a complete 21-floor design unless required.
+
+The purpose is to test whether the skill provides sufficient reasoning coverage.
+
+---
+
+# 42. SELF-CRITIQUE
+
+After the test, ask:
+
+1. Did the skill cause the agent to jump directly into geometry?
+2. Did it consider the building program first?
+3. Did it establish spatial relationships?
+4. Did it consider circulation?
+5. Did it distinguish public/service movement?
+6. Did it consider structure?
+7. Did it consider MEP?
+8. Did it consider human scale?
+9. Did it consider environmental conditions?
+10. Did it consider operations?
+11. Did it consider maintenance?
+12. Did it consider lifecycle?
+13. Did it distinguish code from heuristic?
+14. Did it track assumptions?
+15. Did it identify failures?
+16. Did it generate alternatives?
+17. Did it evaluate trade-offs?
+18. Did it maintain vertical consistency?
+19. Did it treat the grid as physical architecture?
+20. Did it validate rather than merely generate?
+
+Identify weaknesses.
+
+Research missing information if necessary.
+
+Then revise `SKILL.md`.
+
+---
+
+# 43. FINAL QUALITY REQUIREMENTS
+
+The final skill must be:
+
+* evidence-based
+* operational
+* concise
+* reusable
+* building-type aware
+* spatially intelligent
+* physically plausible
+* construction-aware
+* operations-aware
+* safety-aware
+* grid-aware
+* iterative
+* self-validating
+
+Avoid:
+
+* generic AI prompting
+* unnecessary verbosity
+* unsupported claims
+* fabricated standards
+* fabricated dimensions
+* architecture buzzwords without actionable meaning
+* overfitting to one building type
+* overfitting to residential floor plans
+* treating aesthetics as the primary objective
+* treating one heuristic as universal
+
+---
+
+# 44. COMPLETION CRITERIA
+
+The task is NOT complete when sources have been collected.
+
+The task is complete only when:
+
+```text
+Research
+   ↓
+Cross-validation
+   ↓
+Knowledge extraction
+   ↓
+Architectural reasoning rules
+   ↓
+Operational skill
+   ↓
+Self-test
+   ↓
+Failure analysis
+   ↓
+Skill refinement
+```
+
+has been completed.
+
+Final deliverables:
+
+```text
+architecture-skill/
+├── SKILL.md
+└── research/
+    ├── sources.md
+    ├── floor-plans.md
+    ├── real-projects.md
+    ├── bim-cad.md
+    ├── architecture-theory.md
+    ├── construction.md
+    ├── building-codes.md
+    ├── professional-practice.md
+    ├── site-context.md
+    ├── environmental-design.md
+    ├── human-behavior.md
+    ├── space-programming.md
+    ├── adjacency-graphs.md
+    ├── human-scale.md
+    ├── operations-maintenance.md
+    ├── lifecycle.md
+    ├── economics.md
+    ├── design-alternatives.md
+    ├── failure-patterns.md
+    ├── multi-scale.md
+    ├── decision-making.md
+    ├── uncertainty.md
+    ├── grid-translation.md
+    ├── validation.md
+    └── synthesized-rules.md
+```
+
+The final objective is:
+
+> Build an Architecture Design Skill that allows a capable AI model to transform architectural knowledge into structured spatial decisions, realistic grid-based geometry, validation, trade-off analysis, and iterative design — rather than merely generating visually plausible floor plans.

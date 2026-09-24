@@ -5,7 +5,7 @@ import { svgColorVarStyle } from '../../assets/assetUtils'
 import { isGuestRoleId } from '../../assets/validation'
 import { svgTransform as svgTransformGeo, roundedRectPath, resolveBuildingArea } from '../../domain/geometry'
 import { unionRects } from '../../domain/collision'
-import { resolveStreetTiles, normalizeEditorSettings } from '../../domain/types'
+import { resolveStreetTiles } from '../../domain/types'
 import { useConfirm } from '@/composables/useConfirm'
 import { useToast } from '@/composables/useToast'
 import type { ObjectData, EntityRef, AssetDef, Rect } from '../../domain/types'
@@ -17,6 +17,7 @@ import ModalShell from '../shell/ModalShell.vue'
 import { useNpcSimulation } from '../../composables/useNpcSimulation'
 import { chatPairKey, resolveChatExchange } from '@/engine/npc'
 import { useNpcOverlayDraw, type ChatBubble } from '../../composables/useNpcOverlayDraw'
+import { useCanvasDefaults } from '../../composables/useCanvasDefaults'
 import { useCanvasRuns } from '../../composables/useCanvasRuns'
 import { useCanvasTilePaint } from '../../composables/useCanvasTilePaint'
 import { useDoorTileAnimation, type DoorCellRect } from '../../composables/useDoorTileAnimation'
@@ -188,7 +189,7 @@ const modeHint = computed(() => {
 })
 
 const buildingAreaRect = computed(() => resolveBuildingArea(store.state.layout))
-const editorSettings = computed(() => normalizeEditorSettings(store.state.layout.editorSettings))
+const { editorSettings } = useCanvasDefaults()
 const streetSidewalkTiles = computed(() =>
   Math.max(1, Math.floor(streetTotalTiles.value * editorSettings.value.sidewalkTileRatio)),
 )
@@ -312,7 +313,7 @@ async function onZoneComplete(rect: { x: number; y: number; w: number; h: number
     staged?.roleIds,
   )
   store.setMode('object')
-  if (zone) toast.success(`Zone "${zone.label}" added - refine roles in Floor Manager`)
+  if (zone) toast.success(`Zone "${zone.label}" added - refine roles in Spawn Zones`)
   else toast.error('Failed to add zone')
 }
 

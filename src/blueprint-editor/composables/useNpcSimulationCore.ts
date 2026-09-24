@@ -21,7 +21,8 @@ import {
 	NPC_OPTION_DEFAULTS,
 	NPC_FRAME_DEFAULTS,
 } from '@/blueprint-editor/domain/types'
-import { mergeNpcConfig, editorLog, cloneDeepRaw } from '@/blueprint-editor/blueprintStore'
+import { mergeNpcConfig, cloneDeepRaw } from '@/blueprint-editor/blueprintStore'
+import { editorLog } from '@/blueprint-editor/domain/logger'
 import { updateSimDot, pruneStaleDots, pruneWaitReasons, filterDotsForFloor, type NpcSimLook } from './npcSimProjection'
 
 const MAX_ROLE_SPAWN_COUNT = 100

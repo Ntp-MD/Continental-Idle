@@ -177,9 +177,10 @@ export function findNpcGridPath(
 			const path: NpcEnginePoint[] = []
 			let cursor = currentNode
 			while (cursor !== -1) {
-				path.unshift({ x: xs[cursor], y: ys[cursor] })
+				path.push({ x: xs[cursor], y: ys[cursor] })
 				cursor = parent[cursor]
 			}
+			path.reverse()
 			return path
 		}
 

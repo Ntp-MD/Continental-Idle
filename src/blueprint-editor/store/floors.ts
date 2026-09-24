@@ -182,6 +182,16 @@ export function createFloorCommands(store: BlueprintStore) {
 		})
 	}
 
+	async function clearSpawnZones(floorId: string): Promise<boolean> {
+		return withStateLock(async () => {
+			const floor = state.layout.floors.find(f => f.id === floorId)
+			if (!floor) return false
+			if (!floor.spawnZones?.length) return true
+			delete floor.spawnZones
+			return saveBlueprintData()
+		})
+	}
+
 	async function paintFloorTiles(
 		floorId: string,
 		brush: TileBrush,
@@ -210,8 +220,6 @@ export function createFloorCommands(store: BlueprintStore) {
 	return {
 		addFloor, clearFloor, deleteFloor, duplicateFloor, renameFloor,
 		reorderFloors, selectFloor, updateFloor, paintFloorTiles,
-		armZoneDraw, takeZoneDraft, addSpawnZone,
+		armZoneDraw, takeZoneDraft, addSpawnZone, clearSpawnZones,
 	}
 }
-
-export type FloorCommands = ReturnType<typeof createFloorCommands>

@@ -43,6 +43,24 @@ export function useDoorTileAnimation(opts: {
 	const openKeys = ref<Set<string>>(new Set())
 	const closeTimers = new Map<string, ReturnType<typeof setTimeout>>()
 
+	// Door geometry only moves when the groups or the tile size move; the NPC watcher runs
+	// every frame, so the per-group bounds belong here and not inside that loop.
+	const groupBounds = computed(() => {
+		const size = opts.tileSize()
+		const pad = APPROACH_TILES * size
+		return groups.value.map((group) => {
+			const rows = group.cells.map((cell) => cell.row)
+			const cols = group.cells.map((cell) => cell.col)
+			return {
+				key: group.key,
+				minX: Math.min(...cols) * size - pad,
+				maxX: (Math.max(...cols) + 1) * size + pad,
+				minY: Math.min(...rows) * size - pad,
+				maxY: (Math.max(...rows) + 1) * size + pad,
+			}
+		})
+	})
+
 	watch(groups, () => {
 		for (const timer of closeTimers.values()) clearTimeout(timer)
 		closeTimers.clear()
@@ -52,20 +70,13 @@ export function useDoorTileAnimation(opts: {
 	watch(
 		() => opts.npcs(),
 		(dots) => {
+			const bounds = groupBounds.value
 			const floorId = opts.floorId()
-			const size = opts.tileSize()
-			const pad = APPROACH_TILES * size
 			const near = new Set<string>()
-			for (const group of groups.value) {
-				const rows = group.cells.map((cell) => cell.row)
-				const cols = group.cells.map((cell) => cell.col)
-				const minX = Math.min(...cols) * size - pad
-				const maxX = (Math.max(...cols) + 1) * size + pad
-				const minY = Math.min(...rows) * size - pad
-				const maxY = (Math.max(...rows) + 1) * size + pad
+			for (const group of bounds) {
 				for (const dot of dots) {
 					if (dot.floorId !== floorId) continue
-					if (dot.x >= minX && dot.x <= maxX && dot.y >= minY && dot.y <= maxY) {
+					if (dot.x >= group.minX && dot.x <= group.maxX && dot.y >= group.minY && dot.y <= group.maxY) {
 						near.add(group.key)
 						break
 					}

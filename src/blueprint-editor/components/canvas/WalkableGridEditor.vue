@@ -209,6 +209,19 @@ function interactSpotIndexAtPx(x: number, y: number): number {
 
 const EMPTY_SPOTS: { x: number; y: number; title: string }[] = []
 
+// The spot lists are spliced in place, so an index key would leave every later row bound to
+// the DOM node of the row that was removed; each spot object keeps one stable key instead.
+let spotKeySeq = 0
+const spotKeyMap = new WeakMap<object, number>()
+function spotKey(spot: object): number {
+  let key = spotKeyMap.get(spot)
+  if (key === undefined) {
+    key = ++spotKeySeq
+    spotKeyMap.set(spot, key)
+  }
+  return key
+}
+
 function spotTitle(spot: InteractSpot): string {
   const named = spot.post ? ` ${spot.post}` : ''
   if (spot.kind === 'edge') return `NPC edge spot${named} (${spot.edge} ${spot.offset} at ${spot.x}, ${spot.y})`
@@ -220,14 +233,14 @@ const spotsByTile = computed(() => {
   const scale = tilePx.value / t
   const rows = gridTiles.value.length
   const cols = gridCols.value
-  const map = new Map<string, { x: number; y: number; title: string }[]>()
+  const map = new Map<number, { x: number; y: number; title: string }[]>()
   for (const spot of [...gridInteractSpots.value, ...gridEdgeSpots.value]) {
     const { x: ax, y: ay } = spot
     let ac = Math.floor(ax / t)
     let ar = Math.floor(ay / t)
     if (ac >= cols) ac = cols - 1
     if (ar >= rows) ar = rows - 1
-    const key = `${ar}:${ac}`
+    const key = ar * cols + ac
     const entry = { x: (ax - ac * t) * scale, y: (ay - ar * t) * scale, title: spotTitle(spot) }
     const list = map.get(key)
     if (list) list.push(entry)
@@ -237,7 +250,7 @@ const spotsByTile = computed(() => {
 })
 
 function interactSpotsInTile(r: number, c: number): { x: number; y: number; title: string }[] {
-  return spotsByTile.value.get(`${r}:${c}`) ?? EMPTY_SPOTS
+  return spotsByTile.value.get(r * gridCols.value + c) ?? EMPTY_SPOTS
 }
 
 const standDiagrams = computed(() => gridInteractSpots.value.map(spotDiagram))
@@ -643,7 +656,7 @@ watch([gridTiles, gridInteractSpots, gridEdgeSpots], () => {
         <div v-if="activeGridConfig?.key === 'interactspots'" class="form__row form__row--border">
           <span class="form__hint">Spots ({{ gridInteractSpots.length + gridEdgeSpots.length }}): stand = fixed point, edge = anchor sliding along one object side.</span>
           <ul class="form__row form--wrap">
-            <li v-for="(spot, i) in gridInteractSpots" :key="'stand-spot-' + i">
+            <li v-for="(spot, i) in gridInteractSpots" :key="spotKey(spot)">
               <svg :viewBox="standDiagrams[i]?.viewBox" width="56" role="img" :aria-label="`Stand spot ${i + 1} position`">
                 <rect x="0" y="0" :width="standDiagrams[i]?.width ?? 0" :height="standDiagrams[i]?.height ?? 0" fill="none" stroke="var(--border-dim)" :stroke-width="standDiagrams[i]?.lineWidth ?? 1" />
                 <circle :cx="standDiagrams[i]?.dotX ?? 0" :cy="standDiagrams[i]?.dotY ?? 0" :r="standDiagrams[i]?.dotR ?? 2" fill="var(--accent-green)" />
@@ -659,7 +672,7 @@ watch([gridTiles, gridInteractSpots, gridEdgeSpots], () => {
               />
               <button type="button" @click="convertSpotToEdge(i)">To edge</button>
             </li>
-            <li v-for="(spot, i) in gridEdgeSpots" :key="'edge-spot-' + i">
+            <li v-for="(spot, i) in gridEdgeSpots" :key="spotKey(spot)">
               <svg :viewBox="edgeDiagrams[i]?.viewBox" width="56" role="img" :aria-label="`Edge spot ${i + 1} anchor`">
                 <rect x="0" y="0" :width="edgeDiagrams[i]?.width ?? 0" :height="edgeDiagrams[i]?.height ?? 0" fill="none" stroke="var(--border-dim)" :stroke-width="edgeDiagrams[i]?.lineWidth ?? 1" />
                 <line

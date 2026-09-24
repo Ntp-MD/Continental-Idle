@@ -1,11 +1,12 @@
 import type { FloorData, NpcRole, NpcSimulationConfig } from '../../blueprint-editor/domain/types'
-import { buildRoleWalkableMap, tileKey, toEngineWalkablePoints, type GetAssetTags, type NpcWalkableMap } from './layoutBuild'
-import { interactionTargetKey } from './keys'
+import { buildRoleWalkableMap, toEngineWalkablePoints, type GetAssetTags } from './layoutBuild'
+import { interactionTargetKey, roleFloorCacheKey, tileKey } from './keys'
+import { queueLineCapacity } from './queueBuild'
 import { findNpcGridPath } from './pathfinding'
 import { selectBestTarget } from './targetScoring'
 import { getRoleFocusTags, hasMatchingTag, hasPostTag } from './tagMatching'
 import { WanderMemory } from './wanderMemory'
-import type { NpcEngineAgent, NpcEngineFloor, NpcEngineInteractionTarget, NpcEngineOptions, NpcEnginePoint } from './types'
+import type { NpcEngineAgent, NpcEngineFloor, NpcEngineInteractionTarget, NpcEngineOptions, NpcEnginePoint, NpcWalkableMap } from './types'
 
 export interface NpcPolicyContext {
 	getConfig: () => NpcSimulationConfig
@@ -26,6 +27,19 @@ export type NpcEnginePolicy = Required<Pick<
 	'pathfinder' | 'targetSelector' | 'queueSelector' | 'crossFloorSelector' | 'wanderSelector' | 'socialSelector'
 >>
 
+// A queue's target keys never change for the life of the layout, so membership tests run
+// against a cached set instead of an `includes` scan per candidate target per queue.
+const targetKeysByQueue = new WeakMap<object, Set<string>>()
+
+function targetKeySetOf(queue: { targetKeys: readonly string[] }): Set<string> {
+	let set = targetKeysByQueue.get(queue)
+	if (set === undefined) {
+		set = new Set(queue.targetKeys)
+		targetKeysByQueue.set(queue, set)
+	}
+	return set
+}
+
 interface RoleContext {
 	role: NpcRole
 	map: NpcWalkableMap
@@ -41,6 +55,7 @@ interface PolicyState {
 	wanderMemoryByAgent: Map<string, WanderMemory>
 	targetLastSelectedTick: Map<string, number>
 	furnishedTileCache: Map<string, Set<string>>
+	wanderPoolCache: Map<string, NpcEnginePoint[]>
 	wanderAvoidByFloor: Map<string, NpcEnginePoint[]>
 	wanderAvoidTick: number
 	wanderMemoryCalls: number
@@ -62,7 +77,7 @@ function resolveRoleContext(
 	const map = context.floorMaps.get(floorId)
 	const floor = context.floorDataMap.get(floorId)
 	if (!role || !map || !floor) return null
-	const cacheKey = `${role.id}:${floorId}:${JSON.stringify(role.restrictedTags)}`
+	const cacheKey = roleFloorCacheKey(role, floorId)
 	let roleMap = state.roleMapCache.get(cacheKey)
 	if (!roleMap) {
 		roleMap = buildRoleWalkableMap(map, floor, role, context.getAssetTags)
@@ -73,7 +88,7 @@ function resolveRoleContext(
 
 function resolveRoleFloor(state: PolicyState, engineFloor: NpcEngineFloor, roleContext: RoleContext): NpcEngineFloor {
 	if (!roleContext.role.restrictedTags.length) return engineFloor
-	const cacheKey = `${roleContext.role.id}:${engineFloor.id}:${JSON.stringify(roleContext.role.restrictedTags)}`
+	const cacheKey = roleFloorCacheKey(roleContext.role, engineFloor.id)
 	let roleFloor = state.roleFloorCache.get(cacheKey)
 	if (!roleFloor) {
 		roleFloor = { ...engineFloor, walkable: toEngineWalkablePoints(roleContext.roleMap.tiles) }
@@ -93,7 +108,7 @@ function resolveBaseFloor(context: NpcPolicyContext, state: PolicyState, floorId
 }
 
 function resolveWanderCandidates(state: PolicyState, roleContext: RoleContext, floorId: string): NpcEnginePoint[] {
-	const cacheKey = `${roleContext.role.id}:${floorId}:${JSON.stringify(roleContext.role.restrictedTags)}`
+	const cacheKey = roleFloorCacheKey(roleContext.role, floorId)
 	let candidates = state.roleWanderCandidateCache.get(cacheKey)
 	if (!candidates) {
 		candidates = toEngineWalkablePoints(roleContext.roleMap.tiles)
@@ -215,8 +230,9 @@ function pickNearestFloorTarget(
 	floors: readonly NpcEngineFloor[],
 ): NpcEngineInteractionTarget | null {
 	if (!targets.length) return null
-	const floorIds = floors.map(floor => floor.id)
-	const currentIndex = Math.max(0, floorIds.indexOf(currentFloorId))
+	const floorIndex = new Map<string, number>()
+	floors.forEach((floor, i) => { if (!floorIndex.has(floor.id)) floorIndex.set(floor.id, i) })
+	const currentIndex = Math.max(0, floorIndex.get(currentFloorId) ?? 0)
 	const countByFloor = new Map<string, number>()
 	for (const target of targets) {
 		if (target.floorId === currentFloorId) continue
@@ -226,7 +242,7 @@ function pickNearestFloorTarget(
 	let bestScore = Number.NEGATIVE_INFINITY
 	for (const target of targets) {
 		if (target.floorId === currentFloorId) continue
-		const score = (countByFloor.get(target.floorId) ?? 0) * 100 - Math.abs(floorIds.indexOf(target.floorId) - currentIndex)
+		const score = (countByFloor.get(target.floorId) ?? 0) * 100 - Math.abs((floorIndex.get(target.floorId) ?? 0) - currentIndex)
 		if (score > bestScore) { bestScore = score; best = target }
 	}
 	return best
@@ -254,6 +270,24 @@ function resolveFurnishedTiles(context: NpcPolicyContext, state: PolicyState, fl
 	}
 	state.furnishedTileCache.set(floorId, furnished)
 	return furnished
+}
+
+// Candidates and furnished tiles are both per-(role, floor) caches, so the exclusion is
+// filtered once here instead of copying several thousand points on every wander pick.
+function resolveWanderPool(
+	context: NpcPolicyContext,
+	state: PolicyState,
+	roleContext: RoleContext,
+	floorId: string,
+): NpcEnginePoint[] {
+	const cacheKey = roleFloorCacheKey(roleContext.role, floorId)
+	const cached = state.wanderPoolCache.get(cacheKey)
+	if (cached) return cached
+	const candidates = resolveWanderCandidates(state, roleContext, floorId)
+	const furnished = resolveFurnishedTiles(context, state, floorId)
+	const pool = furnished ? candidates.filter(point => !furnished.has(tileKey(point.x, point.y))) : candidates
+	state.wanderPoolCache.set(cacheKey, pool)
+	return pool
 }
 
 function makePathfinder(context: NpcPolicyContext, state: PolicyState): NpcEnginePolicy['pathfinder'] {
@@ -330,14 +364,16 @@ function makeQueueSelector(context: NpcPolicyContext, state: PolicyState): NpcEn
 			if (other.queueKey) occupantsByQueue.set(other.queueKey, (occupantsByQueue.get(other.queueKey) ?? 0) + 1)
 			if (other.queuePendingKey) occupantsByQueue.set(other.queuePendingKey, (occupantsByQueue.get(other.queuePendingKey) ?? 0) + 1)
 		}
-		const withSpace = candidates.filter(queue => (occupantsByQueue.get(queue.key) ?? 0) < Math.min(Math.max(0, Math.floor(queue.maxMembers)), queue.slots.length))
+		const withSpace = candidates.filter(queue => (occupantsByQueue.get(queue.key) ?? 0) < queueLineCapacity(queue))
 		if (!withSpace.length) return null
 
-		const distanceByQueue = new Map<string, number>()
+		let best: typeof withSpace[number] | null = null
+		let bestDistance = Number.POSITIVE_INFINITY
 		for (const queue of withSpace) {
+			const queueKeys = targetKeySetOf(queue)
 			let shortest = Number.POSITIVE_INFINITY
 			for (const target of matchingTargets) {
-				if (!queue.targetKeys.includes(interactionTargetKey(target))) continue
+				if (!queueKeys.has(interactionTargetKey(target))) continue
 				const dist = Math.abs(target.x - agent.x) + Math.abs(target.y - agent.y)
 				if (dist < shortest) shortest = dist
 			}
@@ -346,13 +382,11 @@ function makeQueueSelector(context: NpcPolicyContext, state: PolicyState): NpcEn
 				const slotDist = Math.abs(slot.x - agent.x) + Math.abs(slot.y - agent.y)
 				if (slotDist < shortest) shortest = slotDist
 			}
-			distanceByQueue.set(queue.key, shortest)
+			// stable-sort equivalent: a strict `<` keeps the first minimum, exactly as the
+			// previous slice().sort() did, without copying and ordering the whole list
+			if (shortest < bestDistance) { bestDistance = shortest; best = queue }
 		}
-
-		return withSpace
-			.slice()
-			.sort((a, b) => (distanceByQueue.get(a.key) ?? Number.POSITIVE_INFINITY) - (distanceByQueue.get(b.key) ?? Number.POSITIVE_INFINITY))[0]
-			?? null
+		return best
 	}
 }
 
@@ -420,8 +454,7 @@ function makeWanderSelector(
 			}
 		}
 		const memory = resolveWanderMemory(context, state, random, agent.id)
-		const furnished = resolveFurnishedTiles(context, state, agent.floorId)
-		const pool = furnished ? candidates.filter(point => !furnished.has(tileKey(point.x, point.y))) : candidates
+		const pool = resolveWanderPool(context, state, roleContext, agent.floorId)
 		const selected = memory.selectWanderTile(pool.length ? pool : candidates, agent, state.wanderAvoidByFloor.get(agent.floorId) ?? [])
 		if (selected) memory.recordVisit(selected, context.getTickNumber())
 		return selected
@@ -438,6 +471,7 @@ export function createNpcEnginePolicy(context: NpcPolicyContext): NpcEnginePolic
 		wanderMemoryByAgent: new Map(),
 		targetLastSelectedTick: new Map(),
 		furnishedTileCache: new Map(),
+		wanderPoolCache: new Map(),
 		wanderAvoidByFloor: new Map(),
 		wanderAvoidTick: -1,
 		wanderMemoryCalls: 0,

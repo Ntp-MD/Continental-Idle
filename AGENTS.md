@@ -7,6 +7,7 @@ Project instructions for AI agents. Full rules (operating mode, loop, report for
 - Read before writing: reuse repo patterns, verify the dependency is already used. Zero-duplication - never a second way to do the same thing.
 - Decide, don't stall: reversible in-repo choices (scope growth, dependencies, interface picks) are decided + logged as veto-able decisions. STOP + ask ONLY for: secrets/auth, irreversible actions outside the repo, missing information. Asking is the last resort, never the default.
 - Claim then impact: verify user-reported issues against code first. Keep scope; user correction persists for the session.
+- Delegation (full text: `harness/HARNESS.md` - Delegation): deliverable first - the subagent creates its file early and folds evidence in as it researches; bounded retrieval with checkpoints; continue existing work, never restart it; never stop an agent whose identity or state is uncertain; verify the fan-out mechanically after the last agent lands.
 - Report in the HARNESS.md Report format (Changed / Decisions / Gaps / Verify under a verdict headline) - audits and question answers have their own variants there.
 - Direction-level decisions -> `harness/state/history.md` `- decision:` bullets. Routine fixes are not recorded.
 
@@ -62,6 +63,8 @@ PROJECT ADAPTER - the rows and banned names below are this project's values. A n
 | Schema/persistence/sync (`**/*schema*`, `**/*migrat*`, `**/*persist*`, `**/*sync*`, `**/*payload*`, `**/*Payload*`, `src/blueprint-editor/data/**`) | the single matching schema suite (human pick)                            |
 
 Router: `node harness/scripts/verify.mjs` (route/run/check/drift/audit) parses THIS table - backticked globs in Changed match `git status` (no-slash globs match basenames, slash globs match paths), backticked npm scripts in Run are the route; a row with no concrete script is human-pick (the router lists the project's `test:` scripts, never auto-runs). The table is the only routing source - the harness ships no suite names.
+
+Artifact hygiene: generated files never stay in the tree - `npm run clean:check` fails when they exist (`dist/`, `test-results/`, `playwright-report/`, `tests/e2e/__screenshots__/`, `*.cpuprofile|*.log|*.tmp|*.old|*.bak`), `npm run clean` removes them. E2E baselines live in `tests/e2e/__snapshots__` (committed); `__screenshots__` is manual capture output only.
 
 Bans: no `verify` / `test` matrix unless asked. Never `test:npc-perf`, `test:npc-scale`, `test:behavior`, `observe:hotel` unless asked. Never run `git` at all - the user runs git manually (push/pull/fetch/commit); the ONLY unlock is the user naming git in the current prompt - no agent-side bypass, no workaround (scripts/aliases/other tools), no self-granted exception, never claim prior permission (hard-enforced by the harness-gate plugin). Temp diagnostics go in `tests/_*.tmp.ts`, deleted same session, never committed.
 <!-- verify:end -->

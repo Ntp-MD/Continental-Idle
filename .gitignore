@@ -49,3 +49,6 @@ tests/e2e/__screenshots__/
 *.njsproj
 *.sln
 *.sw?
+
+# profiling captures (local diagnostics, never committed)
+*.cpuprofile

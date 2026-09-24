@@ -10,8 +10,9 @@ import type {
 	NpcEngineWaitReason,
 } from './types'
 import { hasPostTag } from './tagMatching'
-import { interactionTargetKey, reservationItemKey } from './keys'
+import { interactionTargetKey, reservationItemKey, tileKey } from './keys'
 import { NPC_ENGINE_DEFAULT_OPTIONS, type NpcEngineResolvedOptions } from './config'
+import { queueLineCapacity } from './queueBuild'
 
 const EPSILON = 0.000001
 
@@ -23,14 +24,13 @@ const EXIT_DIRECTIONS: readonly NpcEnginePoint[] = [
 ]
 
 type MutableAgent = NpcEngineAgent & {
-	path: NpcEnginePoint[]
+	path: readonly NpcEnginePoint[]
 }
 
 interface MoveProposal {
 	agentId: string
 	fromKey: string
 	toKey: string
-	toPoint: NpcEnginePoint
 }
 
 function samePoint(a: NpcEnginePoint, b: NpcEnginePoint): boolean {
@@ -66,6 +66,26 @@ export class NpcEngine {
 	private readonly busyQueuesScratch = new Set<string>()
 	private readonly fullItemKeys = new Set<string>()
 	private capacityByItem?: Map<string, number>
+	private reservationStateDirty = true
+
+	// `${x},${y}` keys were rebuilt for every occupant and every queue slot on every path
+	// request; a floor's grid is fixed, so each touched cell's key is made once and reused.
+	private readonly cellKeysByFloor = new Map<string, string[]>()
+
+	private cellKeyAt(floorId: string, x: number, y: number): string {
+		const cx = Math.floor(x)
+		const cy = Math.floor(y)
+		const floor = this.floorById.get(floorId)
+		if (!floor) return tileKey(cx, cy)
+		let table = this.cellKeysByFloor.get(floorId)
+		if (!table) { table = []; this.cellKeysByFloor.set(floorId, table) }
+		const index = cy * floor.width + cx
+		const cached = table[index]
+		if (cached !== undefined) return cached
+		const key = tileKey(cx, cy)
+		table[index] = key
+		return key
+	}
 
 	// Items at capacity are a property of the reservation tables, not of the agent asking:
 	// listing them once per tick replaces a canReserve call per candidate target per attempt,
@@ -99,6 +119,10 @@ export class NpcEngine {
 	}
 
 	private rebuildBusyQueues(): void {
+		// Inputs are the reservation tables only: rebuilding on every tick re-scanned every
+		// queue's target list even when nobody reserved or released anything.
+		if (!this.reservationStateDirty) return
+		this.reservationStateDirty = false
 		this.busyQueuesScratch.clear()
 		this.rebuildFullItemKeys()
 		if (!this.layout.queues?.length) return
@@ -235,6 +259,7 @@ export class NpcEngine {
 		this.agents.clear()
 		this.agentListCache = null
 		this.reservations.clear()
+		this.reservationStateDirty = true
 		this.reservationKeyByAgent.clear()
 		this.interactSpotReservations.clear()
 		this.queueMembers.clear()
@@ -488,7 +513,6 @@ export class NpcEngine {
 					agentId: agent.id,
 					fromKey: cellKey(agent.floorId, agent.x, agent.y),
 					toKey: cellKey(agent.floorId, agent.x, agent.y),
-					toPoint: { x: agent.x, y: agent.y },
 				})
 				continue
 			}
@@ -496,7 +520,6 @@ export class NpcEngine {
 				agentId: agent.id,
 				fromKey: cellKey(agent.floorId, agent.x, agent.y),
 				toKey: cellKey(agent.floorId, next.x, next.y),
-				toPoint: { x: next.x, y: next.y },
 			})
 		}
 
@@ -781,7 +804,7 @@ export class NpcEngine {
 			return
 		}
 
-		agent.path = path.map(point => ({ x: point.x, y: point.y }))
+		agent.path = path
 		agent.pathIndex = samePoint(agent.path[0], agent) ? 1 : 0
 		this.emit({ type: 'repath', agentId: agent.id, floorId: agent.floorId })
 		this.repathAttempts.set(agent.id, attempts + 1)
@@ -802,7 +825,7 @@ export class NpcEngine {
 		for (const agent of this.agents.values()) {
 			let cells = this.occupancyByFloor.get(agent.floorId)
 			if (!cells) { cells = new Set<string>(); this.occupancyByFloor.set(agent.floorId, cells) }
-			cells.add(`${Math.floor(agent.x)},${Math.floor(agent.y)}`)
+			cells.add(this.cellKeyAt(agent.floorId, agent.x, agent.y))
 			if (agent.queuePendingKey) this.pendingByQueue.set(agent.queuePendingKey, (this.pendingByQueue.get(agent.queuePendingKey) ?? 0) + 1)
 		}
 	}
@@ -813,18 +836,18 @@ export class NpcEngine {
 		const floorId = agent.floorId
 		const occupants = this.occupancyByFloor.get(floorId)
 		if (occupants) for (const cell of occupants) blocked.add(cell)
-		blocked.delete(`${Math.floor(agent.x)},${Math.floor(agent.y)}`)
+		blocked.delete(this.cellKeyAt(floorId, agent.x, agent.y))
 		for (const queue of this.queuesForFloor(floorId)) {
 			if (!this.busyQueuesScratch.has(queue.key)) continue
 			if (agent.queueKey === queue.key || agent.queuePendingKey === queue.key) continue
 			if (agent.reservationItemId !== null && queue.targetKeys.some(targetKey => targetKey.startsWith(`${floorId}:${agent.reservationItemId}:`))) continue
-			for (const point of queue.slots) blocked.add(`${Math.floor(point.x)},${Math.floor(point.y)}`)
+			for (const point of queue.slots) blocked.add(this.cellKeyAt(floorId, point.x, point.y))
 			// the agent is never counted here: the queue it belongs to (or is pending on)
 			// was skipped above, so the per-tick pending index needs no self-exclusion
 			const lineSize = (this.queueMembers.get(queue.key)?.length ?? 0) + (this.pendingByQueue.get(queue.key) ?? 0)
-			const lineCapacity = Math.min(Math.max(0, Math.floor(queue.maxMembers)), queue.slots.length)
+			const lineCapacity = queueLineCapacity(queue)
 			if (lineSize < lineCapacity) continue
-			for (const point of queue.admissionPoints) blocked.add(`${Math.floor(point.x)},${Math.floor(point.y)}`)
+			for (const point of queue.admissionPoints) blocked.add(this.cellKeyAt(floorId, point.x, point.y))
 		}
 		return blocked
 	}
@@ -865,7 +888,7 @@ export class NpcEngine {
 
 	private queueHasCapacity(queue: NpcEngineQueue): boolean {
 		const members = this.queueMembers.get(queue.key)?.length ?? 0
-		return members < Math.min(Math.max(0, Math.floor(queue.maxMembers)), queue.slots.length)
+		return members < queueLineCapacity(queue)
 	}
 
 	private beginQueueApproach(queue: NpcEngineQueue, agent: MutableAgent): boolean {
@@ -886,7 +909,7 @@ export class NpcEngine {
 		agent.queuePendingKey = queue.key
 		agent.targetX = point.x
 		agent.targetY = point.y
-		agent.path = path.map(value => ({ x: value.x, y: value.y }))
+		agent.path = path
 		agent.pathIndex = samePoint(agent.path[0], agent) ? 1 : 0
 		agent.status = 'walking'
 		return true
@@ -918,7 +941,7 @@ export class NpcEngine {
 		agent.queueSlotIndex = slotIndex
 		agent.targetX = point.x
 		agent.targetY = point.y
-		agent.path = path.map(value => ({ x: value.x, y: value.y }))
+		agent.path = path
 		agent.pathIndex = samePoint(agent.path[0], agent) ? 1 : 0
 		agent.status = 'walking'
 		return true
@@ -927,7 +950,7 @@ export class NpcEngine {
 	private joinQueue(queue: NpcEngineQueue, agent: MutableAgent): boolean {
 		if (agent.queueKey === queue.key) return true
 		const members = this.queueMembers.get(queue.key) ?? []
-		const maxMembers = Math.min(Math.max(0, Math.floor(queue.maxMembers)), queue.slots.length)
+		const maxMembers = queueLineCapacity(queue)
 		if (members.length >= maxMembers) return false
 		const slotIndex = members.length
 		const slotKey = this.queueSlotKey(queue.key, slotIndex)
@@ -1053,7 +1076,7 @@ export class NpcEngine {
 		if (!selected && agent.crossFloorCooldownUntil <= this.tickCount && this.options.crossFloorSelector) {
 			const agentBusy = this.reservationKeyByAgent.has(agent.id)
 			const crossCandidates = agentBusy
-				? this.layout.interactionTargets.filter(t => t.floorId !== agent.floorId && !t.transitionToFloorId && this.canReserve(t, agent.id) && this.isRoleAllowedOnFloor(agent, t.floorId) && (blocked?.get(interactionTargetKey(t)) ?? 0) <= this.tickCount)
+				? this.getCrossFloorTargets(agent.floorId).filter(t => this.canReserve(t, agent.id) && this.isRoleAllowedOnFloor(agent, t.floorId) && (blocked?.get(interactionTargetKey(t)) ?? 0) <= this.tickCount)
 				: this.getCrossFloorTargets(agent.floorId).filter(t => !this.fullItemKeys.has(reservationItemKey(t)) && this.isRoleAllowedOnFloor(agent, t.floorId) && (blocked?.get(interactionTargetKey(t)) ?? 0) <= this.tickCount)
 			if (crossCandidates.length > 0) {
 				const dest = this.options.crossFloorSelector(agent, crossCandidates, this.layout.floors)
@@ -1096,7 +1119,7 @@ export class NpcEngine {
 					this.pathCallsThisTick++
 					const path = floor ? this.options.pathfinder(floor, agent, { x: wander.x, y: wander.y }, blockedCells) : null
 					if (path && path.length > 0) {
-						agent.path = path.map(point => ({ x: point.x, y: point.y }))
+						agent.path = path
 						agent.pathIndex = samePoint(agent.path[0], agent) ? 1 : 0
 						agent.status = 'walking'
 						return
@@ -1152,7 +1175,7 @@ export class NpcEngine {
 			this.emit({ type: 'repath-failed', agentId: agent.id, floorId: agent.floorId, itemId: selected.itemId, interactSpotId: selected.interactSpotId })
 			return
 		}
-		agent.path = path.map(point => ({ x: point.x, y: point.y }))
+		agent.path = path
 		agent.pathIndex = samePoint(agent.path[0], agent) ? 1 : 0
 		agent.status = 'walking'
 	}
@@ -1243,14 +1266,19 @@ export class NpcEngine {
 		}
 	}
 
+	private spotCellsByFloor = new Map<string, Set<string>>()
+
 	private standsOnInteractionSpot(agent: MutableAgent): boolean {
-		const cx = Math.floor(agent.x)
-		const cy = Math.floor(agent.y)
-		for (const target of this.targetsByKey.values()) {
-			if (target.transitionToFloorId) continue
-			if (target.floorId === agent.floorId && target.x === cx && target.y === cy) return true
+		let cells = this.spotCellsByFloor.get(agent.floorId)
+		if (cells === undefined) {
+			cells = new Set<string>()
+			for (const target of this.targetsByKey.values()) {
+				if (target.transitionToFloorId || target.floorId !== agent.floorId) continue
+				cells.add(`${Math.floor(target.x)},${Math.floor(target.y)}`)
+			}
+			this.spotCellsByFloor.set(agent.floorId, cells)
 		}
-		return false
+		return cells.has(`${Math.floor(agent.x)},${Math.floor(agent.y)}`)
 	}
 
 	private walkableCellSet(floorId: string): Set<string> | null {
@@ -1277,7 +1305,7 @@ export class NpcEngine {
 			this.pathCallsThisTick++
 			const path = this.options.pathfinder(floor, agent, exit, this.collectBlockedCells(agent))
 			if (!path || path.length === 0) continue
-			agent.path = path.map(point => ({ x: point.x, y: point.y }))
+			agent.path = path
 			agent.pathIndex = samePoint(agent.path[0], agent) ? 1 : 0
 			agent.status = 'walking'
 			return true
@@ -1366,6 +1394,7 @@ export class NpcEngine {
 			agent.reservationItemId = target.itemId
 			agent.reservationInteractSpotId = target.interactSpotId
 		}
+		this.reservationStateDirty = true
 		return true
 	}
 
@@ -1383,6 +1412,7 @@ export class NpcEngine {
 			this.interactSpotReservations.delete(interactSpotKey)
 			this.reservationKeyByAgent.delete(agent.id)
 			if (holders?.size === 0) this.reservations.delete(key)
+			this.reservationStateDirty = true
 		}
 		agent.reservationItemId = null
 		agent.reservationInteractSpotId = null

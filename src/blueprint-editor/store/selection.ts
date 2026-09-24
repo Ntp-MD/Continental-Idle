@@ -61,5 +61,3 @@ export function createSelectionCommands(store: BlueprintStore) {
 
 	return { selectAsset, selectedAsset, select, setSelection, clearSelection, selectedObject, selectedObjectIds, toggleMultiSelect }
 }
-
-export type SelectionCommands = ReturnType<typeof createSelectionCommands>

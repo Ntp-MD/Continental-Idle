@@ -1,6 +1,7 @@
 import { computed, ref } from 'vue'
 import type { AssetDef, BlueprintTagDefinition, FloorLayoutData, Rect } from '../domain/types'
 import { buildAssetMap } from '../assets/assetUtils'
+import { collectWiringIssues } from '../assets/validation'
 import { snap as _snap, clamp as _clamp, resolveBuildingArea } from '../domain/geometry'
 import { buildBlueprintData } from './dataLoader'
 import { migrate } from './migrate'
@@ -87,21 +88,23 @@ export function createBlueprintStore(deps: BlueprintStoreDeps): BlueprintStore {
 	const historyDepth = ref(0)
 
 	function pushHistory(): void {
+		// Compare the live state against the stored top first: cloning three full trees to
+		// discover the state had not changed was the common case for no-op commits.
+		const top = history[history.length - 1]
+		if (
+			top &&
+			top.floorId === state.currentFloorId &&
+			deepEqualRaw(top.layout, state.layout) &&
+			deepEqualRaw(top.assetRegistry, state.assetRegistry) &&
+			deepEqualRaw(top.tagDefinitions, state.tagDefinitions)
+		)
+			return
 		const snap = {
 			layout: cloneDeepRaw(state.layout),
 			assetRegistry: cloneDeepRaw(state.assetRegistry),
 			tagDefinitions: cloneDeepRaw(state.tagDefinitions),
 			floorId: state.currentFloorId,
 		}
-		const top = history[history.length - 1]
-		if (
-			top &&
-			top.floorId === snap.floorId &&
-			deepEqualRaw(top.layout, snap.layout) &&
-			deepEqualRaw(top.assetRegistry, snap.assetRegistry) &&
-			deepEqualRaw(top.tagDefinitions, snap.tagDefinitions)
-		)
-			return
 		history.push(snap)
 		while (history.length > HISTORY_LIMIT) history.shift()
 		historyDepth.value = history.length
@@ -195,8 +198,8 @@ export function createBlueprintStore(deps: BlueprintStoreDeps): BlueprintStore {
 			if (!combined) return
 			const migrated = migrate(combined.layout, combined.originAssets, combined.npcConfig)
 			state.layout = migrated.layout
-			state.layout.npcConfig = structuredClone(combined.npcConfig ?? emptyNpcConfig())
-			state.assetRegistry = combined.originAssets.map(asset => structuredClone(asset))
+			state.layout.npcConfig = cloneDeepRaw(combined.npcConfig ?? emptyNpcConfig())
+			state.assetRegistry = combined.originAssets.map(asset => cloneDeepRaw(asset))
 			state.tagDefinitions = combined.tags.map(tag => ({ ...tag }))
 			for (const asset of state.assetRegistry) initAssetFields(asset)
 			if (!state.layout.floors.some(f => f.id === state.currentFloorId)) {
@@ -229,9 +232,15 @@ export function createBlueprintStore(deps: BlueprintStoreDeps): BlueprintStore {
 	}
 
 	const s = store as unknown as BlueprintStore
+	// Wiring issues are one derivation over the whole layout; the toolbar badge and the
+	// spawn-zones modal both recomputed it per component instance.
+	const wiringIssues = computed(() =>
+		collectWiringIssues(state.layout, assetMapComputed.value, state.layout.npcConfig, s.managedTagSet.value),
+	)
 	// One spread source, then the declared contract is checked: a slice key that is
 	// missing or mistyped fails typecheck instead of hiding behind the cast above.
 	const composed: BlueprintStore = Object.assign(store, {
+		wiringIssues,
 		...createSelectionCommands(s),
 		...createTagCommands(s),
 		...createFloorCommands(s),

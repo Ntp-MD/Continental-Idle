@@ -10,6 +10,22 @@ export interface SettingsCompletenessResult {
 	issues: string[]
 }
 
+// The wiring subset of validateSettingsCompleteness: leftover or mismatched
+// spawn/post/tag references that make NPCs idle or unreachable. Single source
+// for the toolbar badge and the Spawn Zones check.
+export function isWiringIssue(issue: string): boolean {
+	return /spawn zone|post|pool|Task "|Role "/i.test(issue)
+}
+
+export function collectWiringIssues(
+	layout: FloorLayoutData,
+	assetMap: Map<string, AssetDef>,
+	npcConfig: NpcSimulationConfig | undefined,
+	managedTags?: ReadonlySet<string>,
+): string[] {
+	return validateSettingsCompleteness(layout, assetMap, npcConfig, managedTags).issues.filter(isWiringIssue)
+}
+
 function collectFloorAssetTags(layout: FloorLayoutData, assetMap: Map<string, AssetDef>): Set<string> {
 	const tags = new Set<string>()
 	for (const floor of layout.floors) {
@@ -22,10 +38,8 @@ function collectFloorAssetTags(layout: FloorLayoutData, assetMap: Map<string, As
 	return tags
 }
 
-function floorHasSpawnZoneForRole(floor: FloorData, roleId: string): boolean {
-	const zones = floor.spawnZones
-	if (!zones?.length) return false
-	return zones.some(zone => spawnZoneAllowsRole(zone, roleId))
+function floorAllowsRole(floor: FloorData, roleId: string): boolean {
+	return !floor.allowedRoleIds?.length || floor.allowedRoleIds.includes(roleId)
 }
 
 function roleCanReachFloor(roleId: string, floor: FloorData, poolFloorIds: string[] | undefined): boolean {
@@ -165,11 +179,23 @@ export function validateSettingsCompleteness(
 		}
 
 		for (const floor of layout.floors) {
-			const allowed = !floor.allowedRoleIds?.length || floor.allowedRoleIds.includes(role.id)
-			if (!allowed) continue
-			if (!floorHasSpawnZoneForRole(floor, role.id)) {
-				issues.push(`Floor "${floor.label}" allows role "${role.label}" but has no spawn zone for it`)
+			if (!floorAllowsRole(floor, role.id)) continue
+			const zones = floor.spawnZones ?? []
+			// Zero zones is the engine's "spawn anywhere walkable" fallback and is
+			// reported once per floor below - never as a per-role failure.
+			if (zones.length > 0 && !zones.some(zone => spawnZoneAllowsRole(zone, role.id))) {
+				issues.push(`Floor "${floor.label}" allows role "${role.label}" but no spawn zone allows it - NPCs cannot spawn here`)
 			}
+		}
+	}
+
+	// One aggregate note per zone-less floor instead of one per role: when a floor
+	// has no zones the engine spawns every allowed, pooled role anywhere walkable.
+	for (const floor of layout.floors) {
+		if (floor.spawnZones?.length) continue
+		const pooled = npcConfig.pool.filter(entry => entry.count > 0 && floorAllowsRole(floor, entry.roleId))
+		if (pooled.length > 0) {
+			issues.push(`Floor "${floor.label}" has no spawn zones - ${pooled.length} allowed pool role(s) will spawn anywhere walkable`)
 		}
 	}
 

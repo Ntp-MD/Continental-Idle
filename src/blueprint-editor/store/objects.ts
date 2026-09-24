@@ -394,5 +394,3 @@ export function createObjectCommands(store: BlueprintStore) {
 		linkObjects, unlinkObject, toggleObjectLock,
 	}
 }
-
-export type ObjectCommands = ReturnType<typeof createObjectCommands>

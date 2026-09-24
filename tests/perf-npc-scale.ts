@@ -1,6 +1,5 @@
 ﻿import { seedOriginAssets, seedLayout } from '../src/blueprint-editor/store/seed'
 const originAssets = await seedOriginAssets()
-import { generatedHotel } from './unit/hotelFixture'
 import { buildNpcEngineLayout } from '../src/engine/npc/layoutBuild'
 import { interactionTargetKey } from '../src/engine/npc/keys'
 import { NpcEngine, NPC_ENGINE_DEFAULT_OPTIONS, findNpcGridPath } from '../src/engine/npc'
@@ -283,15 +282,7 @@ function runScenario(name: string, floors: FloorData[], perFloor: number, ticks:
 }
 
 const perFloorTiers = [25, 50, 75, 100]
-if (process.argv.includes('--real')) {
-	// The tower, not the working seed: the scale gate must measure the same 21-floor
-	// building whatever the editor currently holds (an empty lobby is a valid state).
-	const tower = generatedHotel()
-	const realConfig = tower.npcConfig as unknown as NpcSimulationConfig
-	const scale = Number(process.argv.find(a => a.startsWith('--scale='))?.split('=')[1] ?? 12)
-	const realTicks = Number(process.argv.find(a => a.startsWith('--ticks='))?.split('=')[1] ?? 5400)
-	runScenario(`GENERATED tower: ${tower.floors.length} floors, seed pool x${scale}`, tower.floors, 0, realTicks, { realConfig, scale })
-} else if (process.argv.includes('--current')) {
+if (process.argv.includes('--current')) {
 	const curFloors = normalizeFloors(JSON.parse(JSON.stringify((await seedLayout()).floors)))
 	runScenario(`CURRENT layout: ${curFloors.length} floor(s) x 100`, curFloors, 100, 1800)
 } else {

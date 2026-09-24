@@ -68,6 +68,7 @@ export interface BlueprintStore {
 	readonly isNpcPreview: ComputedRef<boolean>
 	readonly globalTags: ComputedRef<string[]>
 	readonly managedTagSet: ComputedRef<Set<string>>
+	readonly wiringIssues: ComputedRef<string[]>
 	readonly selectedAsset: ComputedRef<AssetDef | null>
 
 	assetMap(): Map<string, AssetDef>
@@ -95,6 +96,7 @@ export interface BlueprintStore {
 	armZoneDraw(draft: { label: string; roleIds: string[] }): void
 	takeZoneDraft(): { label: string; roleIds: string[] } | null
 	addSpawnZone(floorId: string, rect: Rect, label?: string, roleIds?: string[]): Promise<NpcSpawnZone | null>
+	clearSpawnZones(floorId: string): Promise<boolean>
 
 	beginDrawnObject(name: string, w: number, h: number, x: number, y: number): Promise<{ asset: AssetDef; object: ObjectData } | null>
 	addObject(type: string, x: number, y: number): Promise<ObjectData | null>

@@ -47,5 +47,3 @@ export function createPersistenceCommands(store: BlueprintStore) {
 
 	return { exportWorkspace, importWorkspace }
 }
-
-export type PersistenceCommands = ReturnType<typeof createPersistenceCommands>

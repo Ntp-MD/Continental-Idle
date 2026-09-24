@@ -154,3 +154,9 @@ export function buildNpcQueues(
 	}
 	return queues
 }
+
+// A line never holds more agents than the queue declares or the slots it physically has:
+// the same clamp was spelled out inline at four call sites in two modules.
+export function queueLineCapacity(queue: NpcEngineQueue): number {
+	return Math.min(Math.max(0, Math.floor(queue.maxMembers)), queue.slots.length)
+}

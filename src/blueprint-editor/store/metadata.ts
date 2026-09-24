@@ -111,5 +111,3 @@ export function createMetadataCommands(store: BlueprintStore) {
 
 	return { copySelected, pasteObjects }
 }
-
-export type MetadataCommands = ReturnType<typeof createMetadataCommands>

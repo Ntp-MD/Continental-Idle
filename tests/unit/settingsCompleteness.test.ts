@@ -176,6 +176,25 @@ test('street hint suppresses without a street floor, for off-street pools and fo
 	assert.equal(hasStreetHint(restrictedFloor.issues), false)
 })
 
+test('zero-zone floor reports one aggregate note, not one failure per role', () => {
+	const result = validateSettingsCompleteness(
+		makeLayout({}),
+		new Map(),
+		makeConfig([{ roleId: 'role-staff', count: 2 }, { roleId: 'role-guest', count: 6 }]),
+	)
+	const aggregate = result.issues.filter(issue => issue.includes('has no spawn zones'))
+	assert.equal(aggregate.length, 1, 'one aggregate note per floor')
+	assert.ok(aggregate[0].includes('2 allowed pool role(s)'), 'counts the allowed pooled roles')
+	assert.equal(result.issues.some(issue => issue.includes('no spawn zone allows it')), false)
+})
+
+test('floor with zones that exclude a role complains per role, not as a zero-zone note', () => {
+	const layout = makeLayout({ zones: [{ x: 0, y: 0, w: 100, h: 100, roleIds: ['role-guest'] }] })
+	const result = validateSettingsCompleteness(layout, new Map(), makeConfig([{ roleId: 'role-staff', count: 1 }]))
+	assert.ok(result.issues.some(issue => issue.includes('but no spawn zone allows it')), 'excluded role cannot spawn')
+	assert.equal(result.issues.some(issue => issue.includes('has no spawn zones')), false)
+})
+
 test('collectFloorEntrances only counts door tiles crossing the street ring', () => {
 	const entrances = collectFloorEntrances(
 		{ id: 'F1', name: 'Lobby', label: 'Lobby', objects: [], walkable: makeWalkable([BOUNDARY_DOOR, INTERIOR_DOOR, STREET_DOOR]) },

@@ -16,7 +16,7 @@ import NpcTaskCard from './NpcTaskCard.vue'
 import SearchInput from '../inputs/SearchInput.vue'
 
 const props = defineProps<{ open: boolean }>()
-const emit = defineEmits<{ (e: 'close'): void; (e: 'open-floor-manager'): void }>()
+const emit = defineEmits<{ (e: 'close'): void; (e: 'open-spawn-zones'): void }>()
 
 const store = useAssetsStore()
 const confirm = useConfirm().confirm
@@ -493,7 +493,7 @@ function onClose() {
 
 function onViewZones() {
   queuePersist.cancel()
-  void persistConfig().then(() => emit('open-floor-manager'))
+  void persistConfig().then(() => emit('open-spawn-zones'))
 }
 
 onUnmounted(() => {

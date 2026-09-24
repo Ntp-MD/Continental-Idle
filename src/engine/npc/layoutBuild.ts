@@ -3,18 +3,11 @@ import { resolveInteractForTarget, resolveObjectDef, resolveRoomType, resolveDef
 import { buildNpcQueues } from './queueBuild'
 import { deriveFloorRooms } from './rooms'
 import { getObjectTags, hasMatchingTag } from './tagMatching'
-import type { NpcEngineFloor, NpcEngineInteractionTarget, NpcEngineLayout, NpcEnginePoint } from './types'
-import { interactionTargetKey } from './keys'
+import type { NpcEngineFloor, NpcEngineInteractionTarget, NpcEngineLayout, NpcEnginePoint, NpcWalkableMap } from './types'
+import { interactionTargetKey, tileKey } from './keys'
 
 const PORTAL_TAG = 'portal'
 const INTERACT_SPOT_SEARCH_RADIUS = 5
-
-export interface NpcWalkableMap {
-	tiles: Set<string>
-	width: number
-	height: number
-	cellSize: number
-}
 
 export interface NpcCanvasBounds {
 	w: number
@@ -36,10 +29,6 @@ export type GetAssetTags = (type: string) => string[] | undefined
 
 export function cellSizeOf(tileSize: number): number {
 	return Math.max(1, Math.round(tileSize) || 1)
-}
-
-export function tileKey(x: number, y: number): string {
-	return `${x},${y}`
 }
 
 export function pixelToCell(value: number, tileSize: number): number {

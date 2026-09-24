@@ -8,5 +8,5 @@ export {
 	serializeWorkspace, parseWorkspace,
 } from './store/index'
 export type { BlueprintStore, PersistencePort, SyncPort, BlueprintStoreDeps, BlueprintStoreSeed, BlueprintStorage } from './store/index'
-export { genId, emptyNpcConfig, taskMatchesQuery, editorLog, cloneDeepRaw } from './store/storeUtils'
+export { genId, emptyNpcConfig, taskMatchesQuery, cloneDeepRaw } from './store/storeUtils'
 export { mergeNpcConfig } from './store/npcDefault'

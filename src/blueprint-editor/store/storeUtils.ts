@@ -120,7 +120,9 @@ export function pruneNpcReferences(layout: FloorLayoutData, assets: readonly Ass
 }
 
 export function cloneDeepRaw<T>(value: T): T {
-	return structuredClone(deepToRaw(value))
+	// deepToRaw already rebuilds every array and object, so its result is a fresh tree:
+	// a second structuredClone over it doubled the cost of every snapshot.
+	return deepToRaw(value)
 }
 
 function deepToRaw<T>(value: T): T {
@@ -177,4 +179,3 @@ export function genAssetId(prefix: string, name: string, isTaken: (candidate: st
 	return `${base}-${n}`
 }
 
-export { editorLog } from '../domain/logger'

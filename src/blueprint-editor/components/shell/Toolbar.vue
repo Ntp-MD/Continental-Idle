@@ -6,12 +6,12 @@ import { useAsyncAction } from '../../composables/useAsyncAction'
 import ErrorBoundary from '@/components/overlays/ErrorBoundary.vue'
 const NpcManagerModal = defineAsyncComponent(() => import('../modals/NpcManagerModal.vue'))
 const FloorModal = defineAsyncComponent(() => import('../modals/FloorModal.vue'))
+const SpawnZonesModal = defineAsyncComponent(() => import('../modals/SpawnZonesModal.vue'))
 const DeployNpcModal = defineAsyncComponent(() => import('../modals/DeployNpcModal.vue'))
 const SettingsModal = defineAsyncComponent(() => import('../modals/SettingsModal.vue'))
 const WorkspaceModal = defineAsyncComponent(() => import('../modals/WorkspaceModal.vue'))
 const ShortcutsModal = defineAsyncComponent(() => import('./ShortcutsModal.vue'))
 import { useNpcSimulation } from '../../composables/useNpcSimulation'
-import { validateSettingsCompleteness } from '../../assets/validation'
 
 const store = useAssetsStore()
 const toast = useToast()
@@ -21,6 +21,7 @@ const { pending, run } = useAsyncAction()
 const npcSimulation = inject('npcSimulation') as ReturnType<typeof useNpcSimulation>
 const showNpcManager = ref(false)
 const showFloorModal = ref(false)
+const showSpawnZones = ref(false)
 const showDeployModal = ref(false)
 const showSettings = ref(false)
 const showWorkspace = ref(false)
@@ -37,18 +38,7 @@ function onHelpKey(e: KeyboardEvent) {
 onMounted(() => window.addEventListener('keydown', onHelpKey))
 onUnmounted(() => window.removeEventListener('keydown', onHelpKey))
 
-function isWiringIssue(issue: string): boolean {
-  return /spawn zone|post|pool|Task "|Role "|trigger rate/i.test(issue)
-}
-
-const wiringIssues = computed(() =>
-  validateSettingsCompleteness(
-    store.state.layout,
-    store.assetMap(),
-    store.state.layout.npcConfig,
-    store.managedTagSet.value,
-  ).issues.filter(isWiringIssue),
-)
+const wiringIssues = store.wiringIssues
 
 function onNpcManager() {
   if (showDeployModal.value) {
@@ -76,9 +66,9 @@ function onDeployNpc() {
   showDeployModal.value = true
 }
 
-function openFloorFromNpc() {
+function openSpawnZonesFromNpc() {
   showNpcManager.value = false
-  showFloorModal.value = true
+  showSpawnZones.value = true
 }
 
 function openNpcFromDeploy() {
@@ -219,6 +209,14 @@ onUnmounted(() => window.removeEventListener('keydown', onUndoKey))
         Floor Manager
       </button>
       <button
+        :disabled="previewActive"
+        title="Manage this floor's spawn zones: add, draw, assign roles, clear all"
+        aria-label="Open spawn zones"
+        @click="showSpawnZones = true"
+      >
+        Spawn Zones
+      </button>
+      <button
         title="Configure NPC roles and tags"
         aria-label="Open NPC manager"
         :disabled="previewActive"
@@ -263,8 +261,8 @@ onUnmounted(() => window.removeEventListener('keydown', onUndoKey))
       >
         Create first floor
       </button>
-      <button :disabled="previewActive" aria-label="Import a workspace file" @click="showWorkspace = true">
-        Import workspace
+      <button :disabled="previewActive" aria-label="Open workspace import and export" @click="showWorkspace = true">
+        Workspace
       </button>
     </div>
 
@@ -289,8 +287,9 @@ onUnmounted(() => window.removeEventListener('keydown', onUndoKey))
     <button title="Keyboard shortcuts" aria-label="Keyboard shortcuts" @click="showShortcuts = true">?</button>
 
     <ErrorBoundary>
-      <NpcManagerModal :open="showNpcManager" @close="showNpcManager = false" @open-floor-manager="openFloorFromNpc" />
+      <NpcManagerModal :open="showNpcManager" @close="showNpcManager = false" @open-spawn-zones="openSpawnZonesFromNpc" />
       <FloorModal :open="showFloorModal" @close="showFloorModal = false" />
+      <SpawnZonesModal :open="showSpawnZones" @close="showSpawnZones = false" />
       <DeployNpcModal
         :open="showDeployModal"
         @close="showDeployModal = false"
