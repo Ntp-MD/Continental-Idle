@@ -239,6 +239,11 @@ SR-27, SR-30, SR-37 (and SR-21 partially).
 - Convergence: MS-10, MS-11, MS-21, MS-23, MS-24, TH-29, PP-04, CODE-17 (high-rise two-stair
   package). Confidence on specific handling-capacity figures: Medium — traffic-handling constants are
   source-dependent.
+- Extension (v3): the arithmetic this row only demanded now exists as its own domain — traffic period and
+  five-minute arrival share, trip statistics, round-trip-time built term by term, car count from capacity
+  *and* interval, and the utilisation ceiling (`vertical-transport.md` VT-01…VT-14, worked 250-key example).
+  Where a count is needed, compute it there; this row keeps the stacking and two-path duties (MS-11, MS-21)
+  and the queue model (MS-23), and no longer stands alone as the sizing authority.
 
 ### SR-18 Capacity basis before area
 - Rule: every area figure names its capacity basis (persons per space, per m², activity footprint), one
@@ -405,6 +410,71 @@ SR-27, SR-30, SR-37 (and SR-21 partially).
   the escalation list; flag any bearing line that dies mid-floor.
 - Convergence: CN-* (28 rules), MS-05/06/07, GT-15/GT-21, BIM-09, PP-17/18/19, UN-07.
 
+### SR-38 Compute before deciding, and publish the computation
+- Rule: When a decision turns on a magnitude, produce the arithmetic — inputs, formula, result, units in
+  both metres and tiles — before the verdict, and treat the result as a *check* on plausibility, never as a
+  certificate. A design that cannot show its numbers has not been sized, it has been guessed.
+- Agent behavior: Emit the four-part record the sizing domains require (ST-01), the five traffic measures
+  rather than a headcount (VT-01) with one verdict taken from all of them together (VT-09), and the egress
+  budget as time not width (FQ-01). Where a check fails, flag and escalate to the discipline that owns the
+  stamped design; do not downgrade the check to make the plan fit.
+- Convergence: ST-01, VT-01, VT-09, FQ-01, MS-10, GT-05. Confidence: High on the protocol; the underlying
+  constants are source-dependent and carry their own flags (`coverage-map.md` §5).
+
+### SR-39 Publish the vector, never the scalar alone
+- Rule: Report the measured KPI set with its bands and band sources; a composite score may accompany it but
+  never replace it. Separation of the three measurement questions (formal validity, functional performance,
+  human preference) is part of the rule — one instrument may not answer another's question.
+- Agent behavior: Freeze metric list, harness and inputs before any option exists (EV-03), show the Pareto
+  front before ranking (EV-21), offer lexicographic ordering where weights are contested (EV-22), and publish
+  the flip points from the sensitivity sweep (EV-23) with the concession ledger (EV-24).
+- Convergence: EV-01, EV-02, EV-03, EV-20, EV-21, EV-22, EV-23, EV-24. Confidence: High — this is method, and
+  it is the rule that protects every other one from Goodhart.
+
+### SR-40 Declare which generator produced the plan, and report its status verbatim
+- Rule: A layout has a provenance: hand-drawn, grammar-derived, sliced, searched, or constraint-solved — and
+  each leaves a characteristic defect signature. State it, state the solver's own status (FEASIBLE is not
+  OPTIMAL), and publish the unsat core when a model refuses to solve instead of quietly relaxing a constraint.
+- Agent behavior: Run coarse → refine → validate → repair with validation re-entered after every repair
+  (LA-26); record the generator selection as a decision with the rejected alternatives (LA-28); keep topology
+  and geometry as separate artefacts and say which one the numbers describe (LA-10, LA-12).
+- Convergence: LA-10, LA-11, LA-12, LA-18, LA-19, LA-26, LA-27, LA-28. Confidence: High within the domain;
+  these are properties of the methods, not of any jurisdiction.
+
+### SR-41 Every borrowed number carries its jurisdiction, edition, datum and units — with the arithmetic shown
+- Rule: A figure without its provenance and its basis is not usable, and a figure whose *datum* is unstated is
+  worse than no figure, because it silently doubles or halves a plan. Where an inherited number fails its own
+  arithmetic, quarantine it with the failing decomposition printed rather than deleting the evidence.
+- Agent behavior: Take loads from a named table row with the jurisdiction and legibility of the range visible
+  (ST-03, ST-04); take headcount from a named density or load factor with its area basis (FQ-02); take the
+  five-minute arrival share from the tier-stated table (VT-03); state which integration definition and which
+  LOS system is meant (SA-03, FQ-08). The worked negative case is `PO-23`: an area-per-hour labour figure
+  circulating as a walking budget, rejected by unit decomposition — 18 m²/h ÷ 30 m/min is a band width, not a
+  speed.
+- Convergence: ST-03, ST-04, FQ-02, FQ-08, VT-03, SA-03, PO-23, CN-17→SV-26 (the supersession pattern).
+  Confidence: High on protocol; per-figure confidence lives in each domain's `Confidence` field.
+
+### SR-42 Normalise before comparing anything across plans, and compare only like with like
+- Rule: Raw configurational, traffic and sizing numbers are size-dependent; cross-plan comparison requires the
+  normalised form and a stated reference graph, or the ranking measures the room count rather than the design.
+- Agent behavior: Publish the normalisation and its anchors, and reject any implementation that fails them
+  (SA-03); compute density from flow with Little's law before reading a level-of-service band (SA-14); compare
+  handling capacity to the type's band rather than to another building's number (VT-09); adopt a benchmark's
+  self-consistency set verbatim instead of inventing a private definition of "valid" (EV-06).
+- Convergence: SA-03, SA-14, SA-07, EV-04, EV-05, EV-06, VT-09, FQ-08. Confidence: High on the requirement,
+  Medium on any specific published band.
+
+### SR-43 A capacity chain binds at its weakest component, in series
+- Rule: Egress, vertical transport, services and staff routes are series systems: the binding capacity is the
+  smallest component's, not the widest corridor's, and utilisation near capacity behaves nonlinearly. Sizing
+  one link while ignoring the next is the commonest way a plan looks adequate and operates badly.
+- Agent behavior: Solve the series and name the binding component (FQ-07); size car count from capacity *and*
+  interval and take the larger (VT-08); refuse to design above the published group-utilisation ceiling
+  (VT-14); price the stair as a component that can bind (FQ-09); keep the queue's service rate explicit where
+  the host models a portal at all (MS-23).
+- Convergence: FQ-07, FQ-09, VT-08, VT-14, MS-10, MS-23, OM-16. Confidence: High (arithmetic of series
+  systems), Medium (the specific ceilings).
+
 ## Tension register (unresolved disagreements — the agent must not silently pick a side)
 
 1. **Passing width vs legal width.** Practitioner geometry says 2 tiles is the first passing width;
@@ -453,12 +523,28 @@ SR-27, SR-30, SR-37 (and SR-21 partially).
     are `UNCITED — heuristic` with its own honesty note; `floor-plans.md` likewise withholds its
     circulation-share and aspect figures. Status: **no agent may quote a room area as a standard from
     this set** — quote it as a project assumption with a falsifier, or retrieve the primary text.
+12. **The quantitative layer (Domains Y–AG) opened twelve further disagreements, and they are registered
+    once, in `coverage-map.md` §4** — drain-run placeholders vs the computed slope budget (adjudicated in
+    favour of `SV-26`, with `CN-17` superseded in place), service-band width vs the ducts that actually
+    have to fit, the lift-arrival heuristic in `FL-17` vs published up-peak bands, the space-syntax
+    normalisation that failed a tree sanity test, C/VM2's self-contradictory smoke-yield factor, the four
+    tenability limits no opened source supports, and the rest. Status: read that table before quoting a
+    contested magnitude; **do not average two conflicting figures, and do not silently pick one** — the
+    register says which side won and why.
+13. **Item 2 advanced by the v3 daylight domain.** `envelope-daylight-quantification.md` found that the
+    depth multipliers in play are measured against **different datums** — `EN-04`'s own 2.5 × figure is
+    quoted from a source that means 2.5 × *window height*, not head height, which is roughly half the
+    depth the rule applies it to. Status: item 2 stays unresolved as a choice, but is no longer a
+    disagreement about numbers only — **name the datum with the multiplier, or the same plan scores two
+    different daylight shares.**
 
 ## Ledger (regenerable)
 
-23 domain files, 568 source rules pooled (per-domain counts in the status header above); 37 master
-rules SR-01…SR-37. Convergence is counted per SR in the ledger table; where an SR rests on one domain
-only it is single-source and may warn but not fail a design (UN-10). Regenerate with:
+43 domain files and 1008 source rules counted at this pass (per-domain counts regenerate with the command
+below); **43 master rules, SR-01…SR-37 for Domains A–X and SR-38…SR-43 added for the quantitative layer
+(Domains Y–AP)**. Convergence is counted per SR in the ledger table; where an SR rests on one domain
+only it is single-source and may warn but not fail a design (UN-10). The six new rows cite only rule ids
+whose titles were read at the pass that wrote them. Regenerate with:
 `grep -c '^### [A-Z]\{2,4\}-' research/*.md`.
 
 ## Cross-domain findings that only the pooling made visible

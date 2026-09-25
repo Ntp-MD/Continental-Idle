@@ -380,6 +380,10 @@ export class NpcEngine {
 	}
 
 	private static readonly SOCIAL_ATTEMPT_INTERVAL = 30
+	// Ticks an agent stands its ground on a blocked step before it is worth re-planning. Kept short on
+	// purpose: from 8 upward a head-on pair in a narrow corridor re-plans in lockstep and mirrors onto
+	// each other's detour forever (pinned by tests/unit/movementCorridor.test.ts).
+	private static readonly YIELD_REPATH_GRACE_TICKS = 4
 
 	private socialRadius(): number {
 		return Math.max(0, this.options.socialRadius)
@@ -732,7 +736,10 @@ export class NpcEngine {
 			this.forceRepath(agent)
 			return
 		}
-
+		// A momentary brush with another body is normally resolved by the reservation and swap logic
+		// on the next tick. Re-planning the whole route for it costs an A* per bump, which at crowd
+		// density is what makes the floor slow rather than what makes it move.
+		if (stuckTicks < NpcEngine.YIELD_REPATH_GRACE_TICKS) return
 		if (this.canRepath(agent)) {
 			this.attemptRepath(agent)
 			return

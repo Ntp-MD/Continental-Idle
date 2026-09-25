@@ -1,16 +1,22 @@
 ---
 name: architecture-design
-description: Operational reasoning framework for designing buildings on a discrete tile grid. Enforce programme → relationships → zoning → circulation → structure → services → environment → geometry → grid → validation → iteration. Use for any task that generates, reviews, repairs or compares architectural layouts (hotel, hospital, office, residential, retail, school, industrial, civic) in the Continental-Idle blueprint editor / engine.
+description: Operational reasoning framework for designing buildings on a discrete tile grid. Enforce programme → relationships → zoning → circulation → structure → services → environment → geometry → grid → validation → iteration, with a quantitative layer that supplies the magnitudes (traffic, egress, structural, services, daylight, cost, programme ratios) and the measurement that judges the result. Use for any task that generates, reviews, repairs or compares architectural layouts (hotel, hospital, office, residential, retail, school, industrial, civic/public) in a grid/tile builder; the reference host in this repo is the Continental-Idle blueprint editor and engine, where 1 tile = 500 mm.
 ---
 
 # Architecture Design Skill
 
-Version 2.0 — drafted as v1, traced through the §41 self-test (21-floor hotel) and the §42
-20-question critique, then rebuilt against the **completed** evidence base: 23 domain files, 540 source
-rules, 37 master rules and 11 recorded cross-source tensions in `architecture-skill/research/`. Every
-section below names the file that carries its citations, and the closing section maps each section to
-the master rules that license it. This file is the reasoning procedure; the research files are the
-evidence.
+Version 3.0 — v1 was traced through the §41 self-test (21-floor hotel) and the §42 20-question critique,
+then rebuilt against the completed evidence base; v3 adds the **quantitative layer** (Domains Y–AP:
+layout solvers, spatial analytics, evaluation, vertical transport, fire quantification, structural
+sizing, services sizing, envelope/daylight, hospitality operating standards, compliance-as-code,
+construction programme, massing and site metrics, inclusive-use sequencing, indoor-environment outcomes,
+post-occupancy feedback). Current base, measured: **40 domain files (+3 index/reference files), 1070 source
+rules, 43 master rules
+(SR-01…SR-37 for Domains A–X, SR-38…SR-43 for the quantitative layer) and 13 numbered cross-source
+tensions** in `architecture-skill/research/`, with an adversarial evidence audit in
+`architecture-skill/audit/` and the non-duplication/conflict register in `research/coverage-map.md`.
+Every section below names the file that carries its citations, and the closing section maps each section to
+the master rules that license it. This file is the reasoning procedure; the research files are the evidence.
 Never restate a research file's content as if it were a fact here; reference it.
 
 ## Purpose
@@ -32,11 +38,20 @@ service/MEP logic expressed as shafts, zones and stacks; environmental logic as 
 aspect allocation; back-of-house and operations; lifecycle and adaptability; grid quantisation;
 multi-level validation; alternatives and trade-off reporting; assumption management.
 
-**Out of scope (state it, do not fake it):** structural calculation, fire-engineering design, code
-compliance decisions, cost quantification without a cited source, energy simulation, acoustic
-calculation, and anything the host model cannot represent — heights, sections, slab and beam
+**In scope since v3 — the quantitative layer:** preliminary structural sizing and load take-down, egress
+and flow arithmetic, elevator traffic analysis, services load sizing, solar and daylight geometry,
+envelope and acoustic rules of thumb, spatial-analytics metrics (integration, choice, isovist),
+layout-solver selection, hospitality operating ratios, and the measurement of a generated design. These
+are order-of-magnitude engineering *checks* that decide whether a plan is worth drawing. They are not
+engineering.
+
+**Out of scope (state it, do not fake it):** any stamped design — structural calculation beyond
+preliminary sizing, fire-engineering design beyond the ASET/RSET arithmetic, code compliance decisions,
+cost quantification without a cited source, dynamic energy simulation, measured acoustics, and anything
+the host model cannot represent — heights, sections, slab and beam
 geometry, material build-ups, construction sequence, occupant behaviour simulation beyond A\*
-movement and portal queues. Where such a thing decides the question, emit a
+movement and portal queues. A failed check is a flag on the design, never a substitute for the engineer's,
+fire engineer's or code official's verdict. Where such a thing decides the question, emit a
 `REQUIRES … VERIFICATION` flag (`research/validation.md`, `research/uncertainty.md`).
 
 **Applies to:** the Continental-Idle blueprint editor and NPC engine. Building types: residential,
@@ -77,6 +92,10 @@ building-type marked; never transfer a residential finding to a hospital or hote
    wayfinding, operability and resilience; report the metric, do not worship it
    (`research/economics.md`).
 12. **Never fabricate precision.** Unknowns stay visible; assumption registers are mandatory output.
+13. **A magnitude that decides the plan is computed or flagged — never invented.** The quantitative layer
+    (`## Quantitative Layer`, Domains Y–AP) owns the arithmetic; if it holds no evidenced number for the
+    question in front of you, that absence is not licence to produce one. Print the formula with the
+    missing constant named, and say which document would settle it.
 
 ## Evidence Rules
 
@@ -92,8 +111,14 @@ building-type marked; never transfer a residential finding to a hospital or hote
   higher tier, preserve the uncertainty. Record both readings.
 - For anything code-derived, state jurisdiction + edition/year + clause (or `section: UNKNOWN
   (verify)`) + limitation. Then choose the conservative default and say that you did.
-- Important claims get the record format: Principle / Source / Source Type / Evidence Strength /
-  Applicability / Limitations / Trade-offs / Agent Action.
+- Important claims get the corpus record format, one field per line, in this order: `Rule` / `Evidence` /
+  `Source` / `Class` / `Scope` / `Confidence` / `Grid translation` / `Exceptions / failure mode`. The v1
+  variant (`Principle / Source Type / Evidence Strength / Applicability / Limitations / Trade-offs / Agent
+  Action`) is retired — every domain file publishes the eight fields above, except `failure-patterns.md`,
+  whose records keep the `Failure / Cause / Detection / Severity / Prevention / Correction` shape that a
+  failure diagnosis needs and a claim does not. Trade-offs get no field of their own: they live in the
+  rule sentence or in `Exceptions / failure mode`, because a separate field let a rule read as
+  unconditional.
 - Research is an input, not a licence: if a decision depends on data you do not have, either
   retrieve it or flag it. "Flag for verification" is a legitimate, complete answer; an invented
   number is not.
@@ -118,25 +143,26 @@ product. Never jump from requirements to coordinates.
 | 4 | Analyse site/context | Factor → consequence map: boundary, access, neighbours, roads, transit, views, noise, climate, orientation, density |
 | 5 | Identify building type | Type + hybrid-type register; select that type's rule set and its divergences |
 | 6 | Define programme | Programme table: per space type — users, activity, capacity, net area, fixtures, services, environment need, relationships |
-| 7 | Estimate capacity | Occupant load per space + per floor, with basis (programme-derived or code-derived-with-source) |
+| 7 | Estimate capacity | Occupant load per space + per floor, with basis (programme-derived or code-derived-with-source); hospitality programmes start from the operating ratios (`space-programming.md`, `hotel-operating-standards.md` HO-*) |
 | 8 | Establish adjacency graph | Graded adjacency matrix (A/E/I/O/U or 0-4) + bubble diagram + must-touch/must-not-touch conflict list |
 | 9 | Establish zoning | Public / semi-public / private / service bands per floor, + vertical zoning (stacking plan) |
-| 10 | Design circulation | Route hierarchy with widths in tiles, capacity check, desire-line test, decision-point count |
-| 11 | Design vertical circulation | Core plan: lift/stair portal positions, counts sized to peak demand, queue targets, stop coverage per floor |
-| 12 | Establish structural strategy | Bay grid in tiles, which walls are load-bearing proxies, span table, lateral core location |
-| 13 | Establish MEP/service strategy | Shaft stack, service band widths, wet-cell stack, plant locations, maintenance access tiles |
-| 14 | Establish environmental strategy | Façade allocation per aspect, room depth vs daylight rule, ventilation path, acoustic buffers |
+| 10 | Design circulation | Route hierarchy with widths in tiles, capacity check, desire-line test, decision-point count; measured, not asserted — connectivity/integration/choice/isovist values from `spatial-analytics.md` SA-* |
+| 11 | Design vertical circulation | Core plan: lift/stair portal positions, counts sized by round-trip-time / handling-capacity / interval arithmetic (`vertical-transport.md` VT-*), queue targets, stop coverage per floor |
+| 12 | Establish structural strategy | Bay grid in tiles, which walls are load-bearing proxies, span table from the system's evidenced band, lateral core location, preliminary member sizes and floor-by-floor take-down (`structural-sizing.md` ST-*) |
+| 13 | Establish MEP/service strategy | Shaft stack, service band widths, wet-cell stack, plant locations, maintenance access tiles — all derived from computed air/water/electric load, not habit (`mep-sizing.md` SV-*) |
+| 14 | Establish environmental strategy | Façade allocation per aspect from sun geometry, room depth vs daylight rule with the metric threshold, ventilation opening areas, acoustic buffers (`envelope-daylight-quantification.md` EQ-*) |
 | 15 | Develop floor-plan alternatives | ≥1 option (≥3 when objectives conflict) documented per `## Design Alternatives` |
 | 16 | Translate to physical dimensions | Metres per element, with source or class label |
 | 17 | Convert to grid/tile geometry | Tile coordinates per floor, rounding report, remainder absorbed into wall/service/tolerance bands |
 | 18 | Validate | Per-check records at 7 scales × 11 categories, verdict + severity |
 | 19 | Detect failures | Failure list with cause + detection evidence |
-| 20 | Compare alternatives | Same-metric comparison table; no universal winner |
+| 20 | Compare alternatives | Same-metric comparison table built from the KPI vector; no universal winner; report the weight-sensitivity of the ranking (`evaluation.md` EV-*) |
 | 21 | Iterate | Modification log preserving satisfied constraints, cascade check |
 | 22 | Validate the entire building | Cross-floor consistency + whole-building egress/stack/programme totals |
 | 23 | Report assumptions and unresolved issues | Assumption register + flag register + limitations statement |
+| 24 | Report the measured design KPI vector | Per-KPI value, unit, band, band source, gate flag — the full vector, never a single score (`evaluation.md` EV-20…EV-30) |
 
-Steps 6-14 are the design; steps 15-23 are the checking of the design. A report that contains 17
+Steps 6-14 are the design; steps 15-24 are the checking of the design. A report that contains 17
 and 18 but skipped 8-14 is invalid output, not a shortcut.
 
 **Design algorithm order (do not reverse without a stated reason):**
@@ -164,9 +190,12 @@ massing problem, and drawing a floor to hide it is the single most common agent 
    ratio says the programme cannot fit, the site, floor count or programme is wrong; say so before
    drawing rather than discovering it in a plan that over-promises.
 2. **Occupant load and egress budget:** per-floor load with basis, required exit count and total
-   egress width in tiles, against the planned core. (Sourced values or flags, `CODE-01…CODE-08`.)
+   egress width in tiles, against the planned core. (Sourced limits: `CODE-01…CODE-08`; the demand-vs-
+   capacity arithmetic and the flow/level-of-service method: `fire-safety-quantification.md` `FQ-*`.)
 3. **Vertical demand:** peak-period movement (arrivals/departures waves, shift change, meal peaks) →
-   required portal throughput → lift/stair count and lobby area in tiles. The host has **no time
+   required portal throughput → lift/stair count and lobby area in tiles, by round-trip-time, interval and
+   handling-capacity calculation (`vertical-transport.md` `VT-*`, which is what MS-10 tells you to do and
+   this file tells you how). The host has **no time
    dimension**, so the arrival profile and trip rates are inputs the agent declares — name them in the
    report and test the conclusion's sensitivity to them (`human-behavior.md` HB-26). If the core cannot
    move the peak, the floor count or plate size is wrong, not the decoration.
@@ -179,14 +208,19 @@ massing problem, and drawing a floor to hide it is the single most common agent 
    by one of the four levers, cheapest lever recorded (TH-05).
 5. **Module register:** every repeated space type fixed to a whole-tile footprint before the plate is
    drawn (TH-23), with the bay multiple it sits on.
-6. **Daylight envelope:** maximum plan depth in tiles from a façade vs the room types that need light;
+6. **Daylight envelope:** maximum plan depth in tiles from a façade vs the room types that need light,
+   from the sun geometry and the depth-to-head-height relation with its datum named
+   (`envelope-daylight-quantification.md` `EQ-*`; the multiplier choice itself is `EN-04`'s decision, and
+   the metric you are actually aiming at is sDA/DF/EN 17037 per `EQ-*`);
    if the required plate is deeper than the daylight rule allows, the massing (not the room layout)
    is the thing to change.
 7. **Service stacks:** wet cells, shaft positions and drain-slope budget exist as a stack plan before
-   the room layout does.
+   the room layout does — sized from the computed air, water and load quantities, not from habit
+   (`mep-sizing.md` `SV-*`; the drain-run budget is `SV-26`, which supersedes `CN-17`'s placeholders).
 8. **Structural plausibility:** the chosen system's bay range and the longest span the plate demands,
    both in whole tiles, plus whether the bearing lines the plan will need can run continuously to the
-   ground. A plate that requires, say, a 12 m clear span over an unsupportable core position is a massing
+   ground — checked by load take-down and span/depth limits, not by eye
+   (`structural-sizing.md` `ST-*`). A plate that requires, say, a 12 m clear span over an unsupportable core position is a massing
    problem to fix now, not a detail to hide in a section the model cannot draw. Spans beyond the
    system's evidenced range are a flag (`REQUIRES ENGINEERING VERIFICATION`), not an assertion.
 9. **Control grid published:** one coordinate set all floors inherit — datum/origin, bay pitch in tiles,
@@ -198,6 +232,7 @@ massing problem, and drawing a floor to hide it is the single most common agent 
 Do not pack rooms into a blank grid. Derive the plan in this order, each step in whole tiles:
 
 ```
+0 solution strategy + evidence file        → hand | grammar | slicing | search | CP-SAT, recorded (LA-27/28)
 1 site envelope + cardinal assignment      → buildable rectangle, façade edges, access points
 2 structural bay grid                      → bay multiples across the plate
 3 core + vertical portals (fixed coords)   → lifts, stairs, shafts, refuge; same coords every floor
@@ -702,19 +737,19 @@ every level; validate before reporting success, and validate the whole building,
 Seven scales: Human → Room → Zone → Floor → Building → Site → Lifecycle.
 Eleven categories, each with its checks:
 
-| Category | Checks (grid-executable) |
-|---|---|
-| Functional | every programme row exists as tagged rooms; totals ≥ required; relationships satisfied |
-| Circulation | flow capacity per route, service flow separation, egress paths/widths/distances, vertical portals and queues, bottleneck and cut-vertex scan |
-| Spatial | proportions, usable area after wall tax, tile-class reconciliation (occupied + circulation incl. doors + structure = grid), door-formed room division (a door line spanning a region width; isolated door tiles do not divide - test the derived room count), dead-space detection, furniture fit, human scale, room-type resolution (does each room type to its intended tag, and does any room collapse to hallway?) |
-| Structural | grid regularity in tiles, bearing-line continuity, span ranges, vertical alignment, load-path plausibility |
-| MEP | shaft stacking, service band widths, wet-cell alignment, drain-slope budget, plant access, maintenance tiles |
-| Safety | egress count and remoteness, dead ends, travel distance, fire separation as adjacency, accessibility route continuity |
-| Construction | constructability, module repetition count, non-standard geometry share, material logic |
-| Operations | cleaning/waste/delivery/staff routes and crossings, catchment bounds, BOH area, storage |
-| Environmental | daylight depth per room vs façade, aspect allocation, ventilation path, acoustic buffer presence |
-| Experience | wayfinding decision points, hierarchy and legibility, threshold sequence, privacy gradients, comfort |
-| Lifecycle | change-friendliness of tag/room boundaries, spare capacity, expansion and conversion risk |
+| Category | Checks (grid-executable) | Magnitude source |
+|---|---|---|
+| Functional | every programme row exists as tagged rooms; totals ≥ required; relationships satisfied | `HO-*` ratios, `SP-*` area chain |
+| Circulation | flow capacity per route, service flow separation, egress paths/widths/distances, vertical portals and queues, bottleneck and cut-vertex scan | `SA-*` (integration/choice/min-cut), `VT-*` (queues), `FQ-*` (flow) |
+| Spatial | proportions, usable area after wall tax, tile-class reconciliation (occupied + circulation incl. doors + structure = grid), door-formed room division (a door line spanning a region width; isolated door tiles do not divide - test the derived room count), dead-space detection, furniture fit, human scale, room-type resolution (does each room type to its intended tag, and does any room collapse to hallway?) | `HS-*`, `SA-*` isovist/enclosure |
+| Structural | grid regularity in tiles, bearing-line continuity, span ranges, vertical alignment, load-path plausibility | `ST-*` take-down, span/depth, drift |
+| MEP | shaft stacking, service band widths, wet-cell alignment, drain-slope budget, plant access, maintenance tiles | `SV-*` loads → shaft/plant areas |
+| Safety | egress count and remoteness, dead ends, travel distance, fire separation as adjacency, accessibility route continuity | `FQ-*` demand vs capacity, `CODE-*` limits |
+| Construction | constructability, module repetition count, non-standard geometry share, material logic | `CP-*` cycle time, `CM-*` geometry premium |
+| Operations | cleaning/waste/delivery/staff routes and crossings, catchment bounds, BOH area, storage | `HO-*` labour and flow, `FO-*` transport ratio |
+| Environmental | daylight depth per room vs façade, aspect allocation, ventilation path, acoustic buffer presence | `EQ-*` sun geometry, thresholds |
+| Experience | wayfinding decision points, hierarchy and legibility, threshold sequence, privacy gradients, comfort | `SA-*` `wayfinding_load`, `AX-*` route continuity |
+| Lifecycle | change-friendliness of tag/room boundaries, spare capacity, expansion and conversion risk | `LC-*`, `CM-*` life-cycle cost |
 
 Verdicts are three-valued: `PASS`, `FAIL`, `UNKNOWN — not representable / data missing`. An
 `UNKNOWN` is never converted to a `PASS`. Codes report "consistent / inconsistent with <source>,
@@ -729,9 +764,17 @@ Four standing conditions frame every matrix run above (VA-01, VA-07, VA-10, VA-2
   regions, tile-class reconciliation closing, portals anchored and walkable, no zero-interior rooms,
   no room divided in two by a door line spanning its width. On a gate failure every other verdict is `unknown: model invalid`,
   never `pass` — phantom geometry is how unsafe plans score well.
-- **Capability manifest.** Publish which checks this host *cannot* run (heights, structure sizing,
-  smoke control, daylight factors, real time, acoustics) as a property of the suite, so a green
-  report is never read as an all-clear.
+- **Capability manifest.** Publish which checks this host *cannot* run as a property of the suite, so a
+  green report is never read as an all-clear. Since v3 the line has moved: the host **can** now run
+  order-of-magnitude arithmetic — preliminary member sizing and take-down (`ST-*`), egress demand against
+  flow capacity (`FQ-*`), lift handling capacity and interval (`VT-*`), service loads to shaft and plant
+  areas (`SV-*`), sun geometry and daylight-depth proxies (`EQ-*`), configurational and visibility metrics
+  (`SA-*`), transport-cost and adjacency performance (`FO-*`), and the KPI vector itself (`EV-*`). What it
+  still **cannot** run: measured illuminance or climate-based daylight simulation, transient smoke filling
+  and tenability over time, dynamic crowd behaviour beyond A\* plus portal queues, thermal and energy
+  simulation, acoustic measurement, anything needing a section, and real time. Every arithmetic check that
+  stands in for a simulation is reported as a proxy with its rule id — a proxy that is never named is how
+  a check starts reading as a certificate.
 - **Closure rights.** The agent may close geometry and logic findings itself; code-jurisdiction,
   structural, fire, access and operational-capacity findings stay open for a qualified reviewer
   regardless of what the arithmetic shows.
@@ -902,13 +945,68 @@ Every design response contains, in this order:
 Language: player/user vocabulary in UI-facing text; schema names stay internal. Numbers always
 paired with units and tile counts. Claims carry class labels. "Should be fine" is not an output.
 
+## Quantitative Layer
+
+The domains below exist because the 23 original domains say *what to consider and why* but not
+*how much*. Whenever a decision in the workflow turns on a magnitude, this layer is the file that
+supplies it; when it does not, the answer is a flag, never a guess. Rule prefixes are unique corpus-wide
+(checked: no prefix appears in two files), and the domain letters Y–AP are claimed as needed — a gap in
+the letter sequence means no domain has been written for it yet, not that one was lost.
+
+| Domain | File | Prefix | Supplies | Enters the workflow at |
+|---|---|---|---|---|
+| Y | `layout-algorithms.md` | `LA-` | Solver families (shape grammar, slicing, CP/MILP, annealing, graph placement, ML generators), constraint catalogue, coarse→refine→validate pipeline | Before the generation ladder: pick the strategy (see below) |
+| Z | `spatial-analytics.md` | `SA-` | Integration / choice / connectivity / control / depth / isovist definitions with their exact normalisations, raster recipes, interpretation bands, published prediction correlations and their criticisms | Steps 10, 18, 20 (circulation, validation, comparison) |
+| AA | `evaluation.md` | `EV-` | Correctness and validity metrics, KPI catalogue with bands and band sources, composite scoring done honestly (weight sensitivity, Pareto), human-eval and LLM-judge protocols, skill ablation and regression | Steps 20, 24, and any claim that one design is better |
+| AB | `vertical-transport.md` | `VT-` | Round-trip-time, interval, handling capacity, car/speed/shaft selection, traffic patterns and % population per 5 min, queue blow-up, escalator throughput, worked 250-key hotel | Steps 3, 11 + gate item 3 |
+| AC | `fire-safety-quantification.md` | `FQ-` | Egress demand arithmetic, specific flow and LOS, pre-travel/travel time, ASET/RSET method, tenability criteria as actually sourced (plus the limits that could not be verified), smoke and worked hotel lobby numbers | Steps 7, 10, 18 + gate item 2 |
+| AD | `structural-sizing.md` | `ST-` | Load tables, tributary areas, floor-by-floor take-down, span/depth limits, system selection by span, lateral system by height, punching and drift sanity checks, plausibility checklist | Steps 12, 18 + gate item 8 |
+| AE | `mep-sizing.md` | `SV-` | Outdoor air and load densities, hydronic and electrical arithmetic, fixture units → stack size, sprinkler demand, riser schedule and plant-room areas | Steps 13, 18 + gate item 7 |
+| AF | `envelope-daylight-quantification.md` | `EQ-` | Sun altitude/azimuth and shadow geometry, daylight metrics and thresholds, depth-of-daylight relations, solar heat gain, envelope build-up as plan geometry, mass law | Steps 14, 18 + gate item 6 |
+| AG | `hotel-operating-standards.md` | `HO-` | Hospitality operating ratios (labour minutes, keys per staff, covers, seats per key, laundry, BOH area) and each ratio's translation into tiles | Steps 6, 7, 11, 13 |
+| AH | `compliance-as-code.md` | `CA-` | How a spatial rule becomes a deterministic check: rule anatomy with worked encodings, a computability matrix (what is decidable on a grid vs what must be advisory), three-valued verdicts at engine level, unit/datum/id-stability discipline, rule-pack versioning against a code edition, false-positive governance, and testing the checker | Steps 18–19 and the whole validation loop; it is also how a reader ports this skill into their own engine |
+| AJ | `construction-programme.md` | `CP-` | Floor cycle time by formwork system, crew registers per 100 m², takt feasibility read off plate repetition, learning-curve values and their misuse, offsite/DfMA demands on a design, geometry→duration penalties, and a worked 21-floor programme | Steps 12–14, 20 + gate item 8 (repetition and regularity stop being aesthetic preferences here) |
+| AK | `massing-and-site-metrics.md` | `MU-` | Site-yield arithmetic with each jurisdiction's GFA/FAR inclusion rules, coverage and setback envelopes, bulk and form controls as computable geometry, massing-typology metrics (plate vs core vs units per core), worked 60×45 m and 40×60 m site examples | Steps 4–6 + gate item 1 (the envelope-fit number now has a derivation) |
+| AL | `cost-mathematics.md` | `CM-` | Rate literacy (what a currency/m² figure includes and is divided by), elemental split ranges by type with region and year, the computed price of geometry, cost-of-height thresholds, cost-per-key build-up, estimate-class tolerance bands, and life-cycle arithmetic with discounting — with money cells left as parameters rather than invented | Steps 15, 20, 24 |
+| AM | `facility-layout-optimization.md` | `FO-` | The flow × distance objective `Σ W_ij·D_ij`, transport ratio with its baseline named, AARC/AVRC and their inflation traps, W-matrix construction and unit-currency discipline, CRAFT/ALDEP/CORELAP executed, QAP hardness and the exact-solve ceiling, multi-floor distance through portals | Steps 8–10, 20, 24 (weakest locator base in this layer — see `coverage-map.md` §5) |
+| AN | `accessibility-usability-sequencing.md` | `AX-` | The task chain from street to bed as a per-floor checklist: device envelopes that must actually fit pinch points, passing and reversal spacing, transfer and latch-side clearances as measurable keys, sensory and cognitive accessibility, evacuation with assistance — dimension *rules* deferred to `HS-*`/`CODE-*` by id, values quoted from the primary clause where needed | Steps 10, 18 + gate item 2; it is the usability half of the `HS-*`/`CODE-*` minima |
+| AO | `indoor-environment-outcomes.md` | `IE-` | Outcome thresholds the service quantities aim at (WHO pollutant limits, thermal comfort bands with accepted-deviation percentages, light for people not for lux, sound as an outcome), the effect-size evidence and its limits, and what a plan engine may claim vs must flag | Steps 13–14, validation categories Environmental/Experience |
+| AP | `post-occupancy-feedback.md` | `PO-` | How a building is measured once occupied and how that evidence becomes a rule again: POE typology and cost/cadence, instrument and sampling discipline, the conversion record (measurement → finding → transfer test → rule), and the documented ways feedback corrupts | The loop that keeps this corpus honest between versions; it is not a design step |
+
+Four rules govern the layer:
+
+1. **Compute or flag, never guess.** If a magnitude decides the layout and this layer has no evidenced
+   number for it, emit `NEEDS VERIFICATION` with the specific document that would settle it
+   (`uncertainty.md` UN-20). A formula whose constant is unknown is still usable symbolically — print it
+   that way.
+2. **A check is not a certificate.** Preliminary sizing, traffic arithmetic and egress flow results say
+   a design is plausible or implausible at the order of magnitude available; they never say it is
+   engineered, tenable or compliant (VA-04, and this file's Scope).
+3. **Units and jurisdiction travel with the number.** Every borrowed figure is cited with its
+   standard, edition, jurisdiction and climate/vintage, and converted once, explicitly (GT-04, GT-05).
+   Two numbers from different jurisdictions may not be averaged.
+4. **Report the vector, not the scalar.** KPIs are published as the full measured set with bands and
+   sources; a single composite score is reported only beside its weights and their sensitivity
+   (EV-20…EV-30). Optimising one number is how Goodhart's failure modes enter a design.
+
+**Choose the solution strategy before drawing** (this is step 0 of the ladder, not an afterthought):
+hand-placed, rule-derived (grammar/slicing), search-based (annealing/genetic), or constraint-solved
+(CP/MILP) — each has a different input contract, guarantee and failure mode (`layout-algorithms.md`
+LA-27, LA-28). State the choice in the report; a plan's defects are read differently depending on which
+generator produced it.
+
 ## Research References
 
-Evidence base complete: 23 domain files, 568 source rules, pooled into 37 master rules (SR-01…SR-37) in
-`research/synthesized-rules.md`, which also holds the tension register (11 unresolved cross-source
-disagreements) and the cross-domain findings. Every domain file carries its own `## Sources` with tier
-labels, a `## Weak or contested` section naming what could not be retrieved, and a
-`## Type-specificity audit`. `research/sources.md` is the consolidated index (500 URL-bearing entries).
+Evidence base: 40 domain files and 1070 source rules, pooled into 43 master rules — SR-01…SR-37 for
+Domains A–X, and SR-38…SR-43 for the quantitative layer (compute-then-decide, vector-not-scalar, generator
+provenance, number-provenance discipline, normalise-before-comparing, series-capacity binding). The tension
+register now carries 13 numbered entries and points at `research/coverage-map.md` §4 for the conflicts the
+new domains opened. `research/sources.md` **is** current: a regenerable index of every domain file's own
+`## Sources` blocks (691 URL-bearing entries at the last regeneration, reconciled 691/691 against the files),
+each entry keeping its tier, jurisdiction and read/unread status; re-run it after editing any `## Sources`.
+Read `research/coverage-map.md` first when the question is "which file owns this number, and does this
+research duplicate that one?". Every domain file carries its own `## Sources` with tier labels, a
+`## Weak or contested` section naming what could not be retrieved, and a `## Type-specificity audit`.
 
 Section → evidence map (jump from procedure to the rule that licenses it):
 
@@ -936,11 +1034,25 @@ Section → evidence map (jump from procedure to the rule that licenses it):
 | Iteration | SR-11, SR-21 | `validation.md`, `adjacency-graphs.md` (AG-18 repair ladder) |
 | Uncertainty & Assumptions | SR-14, SR-22 | `uncertainty.md` |
 | Output Requirements | SR-20, SR-25, SR-28 | `synthesized-rules.md` |
+| Quantitative Layer — how much (v3) | SR-38, SR-39, SR-40, SR-41, SR-42, SR-43 (+ SR-02, SR-08, SR-10, SR-17, SR-37) | `layout-algorithms.md`, `spatial-analytics.md`, `evaluation.md`, `vertical-transport.md`, `fire-safety-quantification.md`, `structural-sizing.md`, `mep-sizing.md`, `envelope-daylight-quantification.md`, `hotel-operating-standards.md` |
+| …how to solve a layout | SR-01, SR-16 | `layout-algorithms.md` (LA-27 selection table, LA-28 pipeline) |
+| …how to measure a layout | SR-05, SR-10, SR-31 | `spatial-analytics.md` (SA metric catalogue + interpretation bands) |
+| …how to judge one design better than another | SR-21, SR-28 | `evaluation.md` (EV-20…EV-30 KPI vector, weight sensitivity, ablation) |
+| …how big the core is | SR-06, SR-17 | `vertical-transport.md` (RTT/INT/HC5 + worked 250-key hotel) |
+| …whether people can get out | SR-10, SR-36 | `fire-safety-quantification.md` (flow, LOS, ASET/RSET, worked lobby) |
+| …whether it stands up, preliminarily | SR-37 | `structural-sizing.md` (take-down, span/depth, system by span) |
+| …what the services eat | SR-08, SR-24 | `mep-sizing.md` (riser schedule, plant areas, all-air vs water) |
+| …what the façade can do | SR-32, SR-33 | `envelope-daylight-quantification.md` (sun table, daylight thresholds, mass law) |
+| …what a hotel actually needs | SR-18, SR-19 | `hotel-operating-standards.md` (segment × space matrix, standard → tiles) |
+| Non-duplication of the v3 domains | — | `coverage-map.md` (which existing rule each new domain borders, and what it deliberately does not repeat) |
 
 Read order for a design task: `synthesized-rules.md` → the type's entries in the domain files →
 `grid-translation.md` → `validation.md` → `failure-patterns.md` → the domain files the task touches.
 
-**Reading budget: never read a domain file whole** (23 files, 568 rules, ~2 MB). Enter through the SR
-ledger, then pull only the rules whose ids the SR names for the building type in play, plus that file's
-`## Type-specificity audit` and `## Weak or contested`. An agent that reads everything has, by
-definition, stopped reasoning and started memorising.
+**Reading budget: never read a domain file whole** (43 files in `research/`, 1070 rules, ~3.8 MB). Enter through the SR
+ledger — `research/synthesized-rules.md`, SR-01…SR-37 for the qualitative domains and SR-38…SR-43 for the
+quantitative layer — then pull only the rules whose ids the SR names for the building type in play, plus that
+file's `## Type-specificity audit` and `## Weak or contested`. For a magnitude question, `## Quantitative
+Layer` below maps it to its file and rule prefix; for "which file owns this number, and is this a duplicate?",
+read `research/coverage-map.md`. An agent that reads everything has, by definition, stopped reasoning and
+started memorising.

@@ -630,3 +630,171 @@ that measures. And it means the earlier counts produced with the flawed normalis
 findings are untouched by this, because each was established by an independent route: the door-bisection
 error by executing the engine's flood-fill, the unsourced span and area bands by re-opening the cited
 pages, the single-origin convergence counts by the host census, and the mis-citations by Crossref.
+
+## 23. The v3 quantitative layer, audited the same way (Domains Y–AG)
+
+Nine new domains and 245 rules were added after this audit, on a deliberate axis of difference: the
+original 23 files say what to consider and why; the new files supply the magnitudes and the methods —
+formulas, algorithms, worked examples, measurement protocols (`research/coverage-map.md` §1–§3 records how
+non-duplication was tested). This section records how that material was checked, including one loss, one
+error by the checker, and what is still unchecked.
+
+**Schema conversion, and why it was needed.** Seven of the nine files arrived in the *retired* v1 record
+format, because the commissioning brief specified `Principle / Source Type / Evidence Strength / …` while
+the corpus had already standardised on `Rule / Evidence / Source / Class / Scope / Confidence / Grid
+translation / Exceptions / failure mode` across 514 rules. The artifact beat the instruction: conversion
+was applied to the new files, and `SKILL.md` § Evidence Rules was corrected to state the eight fields and
+to stop naming a format nothing in the corpus uses. `failure-patterns.md` remains the one legitimate
+exception (a failure record needs Cause/Detection/Severity/Prevention/Correction), and both the skill and
+this audit now say so explicitly rather than claiming uniformity.
+
+**Zero-content-loss was measured, not asserted.** Every new file was fingerprinted before conversion
+(URL multiset, numeric-token multiset, count of lines carrying a verification obligation) and re-diffused
+after. Nothing was lost: `structural-sizing` 348/348 distinct numeric values, `fire-safety-quantification`
+319/319 with no value's occurrence count reduced, `envelope-daylight-quantification` 264/264,
+`vertical-transport` 204→208 (restatements only), `evaluation` and `hotel-operating-standards` with
+identical unique URL sets (56 and 13) and unchanged obligation counts (14 and 18). Two files *shrank*
+sharply (719→530 and 626→503 lines); both were checked specifically because a line-count drop is where
+content loss hides, and both proved to be de-wrapping, not deletion. A reported drop in one file's
+obligation count (25→21) turned out to be an artifact of counting lines rather than occurrences — and
+catching that required reading the flagged items themselves, not the diff.
+
+**One file was destroyed, recovered twice, and ended up better documented than before.**
+`layout-algorithms.md` was found at 0 bytes mid-pass: the writing agent had run a batch where
+`open(p,'w')` was evaluated before its own failing argument, truncating the file. There is no git recovery
+in this project and none was sought. The agent rebuilt the file from its own in-context copy, and the
+fingerprint proved the recovery was complete (28 rules, the numeric multiset intact, the URL set identical
+to the pre-edit fingerprint at 17 links — nothing dropped).
+
+Then the orchestrator made its own error, and it is recorded here rather than smoothed over: not knowing
+which of the two was true, it commissioned a **second** rebuild against the same path while the first
+recovery was already committed. The second writer won. That should not have happened — two agents owning
+one artifact is a coordination failure, and the only reason it did no damage is that both versions were
+complete and the survivor happened to be the more honest one. The final file (518 lines, 28 rules, 8 fields
+each) carries a per-source status table stating what was **actually re-opened on this date** (10 of the 17
+recovered links; 7 failed — undecodable PDF streams, 403s, one redirect) versus what is carried as a record
+only, and it corrected a citation the first version had inherited: the Wonka-file URL resolves to
+*"Generating and Exploring Good Building Layouts"*, not to "Smart Layout", so the operator/cost detail that
+was attributed to it is now marked `UNVERIFIED` rather than cited. Verification obligations rose from 5 to
+12 — which is the correct direction for a rebuild that refuses to pretend it re-read what it could not.
+
+A second detector hole, caught in the same pass and worth recording for the reason §22's was: the first
+count of the rebuilt file reported **18** URLs against a fingerprint of 17, and it was wrong. The extra
+"URL" was the same ResearchGate figure link, present in the fingerprint with a trailing comma captured by
+that pattern and in the file without it. Two greps with different punctuation classes had been compared as
+if they were the same measure. Re-run with a normalised trailing-punctuation strip, the sets are equal. The
+lesson generalises: a diff is only as good as the tokeniser on both sides of it, and a *surplus* in a safety
+check deserves the same suspicion as a deficit.
+
+**Two published tables were recomputed independently rather than trusted.** The sun-position table
+(φ = 40°N and 25°N) reproduces the standard altitude/azimuth relations to 0.1° on every checked cell
+(48.8°/99.8°/SF 0.88 at 09:00 summer solstice; 73.4°/180°/0.30 at noon; 26.6° winter noon), and its
+equinox row honestly uses the formula's own δ = −0.91° instead of a convenient zero. The space-syntax
+metric chain was checked the other way round: the **commissioning brief's** normalisation
+`3(M−1)(k−2)/((n−2)(n−1))` fails a tree sanity test — evaluated at a 7-node star centre it returns its
+*maximum*, where an asymmetry measure must be at its minimum — so it was rejected, the literature form
+`RRA = 2(ℓ−1)/(D_N(N−2))` was used instead, and the file publishes anchor values any implementation must
+reproduce (star centre 0, star leaf 0.98; line middle 1.18, line end 2.94). That is the corpus's own
+standard applied to its own commissioner.
+
+**Twelve cross-file conflicts are registered in one place, with a status each**
+(`coverage-map.md` §4): four adjudicated (the drain-run placeholders superseded by the computed slope
+budget in place; the rejected normalisation; the daylight-multiplier datum, which *advances* this audit's
+own tension item 2 rather than opening a new quarrel; and the explicit exclusion of four tenability limits
+no opened source supports), the rest held open or marked reported-but-unverified. Nothing was averaged,
+and nothing was quietly chosen.
+
+**The checker's own error, recorded as §21 requires.** The coverage map was first published with two
+prefix rows wrong — `FP`/`FL` (floor-plans vs failure-patterns) reversed and `SC` attributed to the
+synthesis file instead of site-context — and it cited a conflict in a rule (`FL-17`) that had not been
+re-read. Both were caught by grepping the owning files rather than trusting the map, and both are fixed;
+the `FL-17` arrival-heuristic conflict was then upgraded from "reported" to "adjudicated" only after
+reading its text and confirming the order-of-magnitude disagreement is real. A detector that cannot
+disprove itself is not a detector.
+
+**Wave 2–4, and one case where the arithmetic caught a number the project was repeating.** Six more
+domains landed after the census above (AH compliance-as-code, AJ construction programme, AK massing and site
+metrics, AN inclusive-use sequencing, AO indoor-environment outcomes, AP post-occupancy feedback; AL cost
+mathematics and AM facility-layout optimisation were still being written as this section was composed). Each
+was checked the same way: 8-field completeness, prefix uniqueness across the whole corpus (mechanically —
+**no prefix is used by two files**), section presence, URL and verification-obligation counts.
+
+`PO-23` is worth recording on its own terms because it is the corpus doing its job rather than being
+described. A hospitality planning figure in circulation — about 18 m² of cleaned floor per attendant per hour,
+used as a *walking* budget — was decomposed rather than accepted, and it failed four arithmetic checks:
+`30 m/min` is 0.5 m/s, not the ~1.35 m/s it had been paired with; dividing an area rate by a speed yields a
+**band width**, not a pace; the implied ~107 min/room of travel alone exceeds `HO-10`'s whole-task allowance
+of ≈27–40 min/room; and therefore the figure is an all-in labour productivity rate that cannot size
+corridors at all. The same check found that the host file the constant was attributed to
+(`src/engine/hotel/hotelSim.ts`) **does not exist**. Both claims were re-verified by the orchestrator rather
+than accepted: `src/engine/` contains only `npc/`, and a grep across the whole skill finds the 18 m²/h figure
+*only* inside `post-occupancy-feedback.md`'s own rejection of it — so no shipped rule carries it. It is
+quarantined as a worked negative result, with the arithmetic shown, which is the correct disposition for a
+number that cannot be traced: not deleted, not believed.
+
+The pattern to note for anyone reusing this method: the failure was found by checking a number's *units and
+decomposition* before checking its source. Every figure this corpus carries should survive that test, and the
+ones that do not are exactly the ones that would have been inherited silently.
+
+**Reference integrity, and a test that lied.** Every rule id cited anywhere in `research/`, `SKILL.md`,
+`README.md` or this audit was checked against the ids actually defined. Two findings, one of them about the
+checker:
+
+- A first pass reported **zero dangling references**. It was wrong, and the correct result was obtained only
+  by re-running the same comparison for a single prefix with its intermediates printed, because that is the
+  one prefix where the expected answer was already known to be non-empty: `facility-layout-optimization.md`
+  carries seven forward references to its own planned rules (`FO-05`, `08`, `10`, `11`, `25`, `26`, `27`) while
+  only `FO-01…FO-04` exist, with a marker comment saying the rest arrive as evidence lands. That file is mid
+  -write, so those references are expected to resolve — but the point stands: a loop over 41 prefixes that
+  prints nothing is not a passing test, it is a test nobody confirmed can fail. A verification is only worth
+  what it reports once it has been shown capable of reporting something false.
+- A corpus-wide shape collision worth fixing in the next pass: some files use `XX-nn` numbering for **local**
+  registers that read exactly like global rule ids — `CR-01…CR-21` and `EG-01/02`, `DR-14` in
+  `real-projects.md`, plus per-file conflict tables. In a naive scan these are indistinguishable from rule
+  references, which is how the first pass absorbed seven genuine dangling ids into a field of ~40 false
+  positives (external document codes such as `MERV-11`, `FHWA-RD-98`, `IGLC-22`, `CAN-ASC-24` were the other
+  half). Local registers should be numbered so they cannot be mistaken for corpus ids — the §4 conflict
+  table's plain `1…12` form is already safe; a prefix-free `CR-01` is not.
+
+After the collision is excluded, the remaining rule-id graph is consistent: every citation to a *finished*
+domain resolves to a defined rule in the file that owns its prefix, and no prefix is defined in two files.
+
+**Final mechanical sweep (all 43 files, 1070 rule records, 3.8 MB).** Record-completeness, prefix
+uniqueness and reference integrity were run over the whole corpus after the last write. Result: 41 distinct
+prefixes, none shared by two files; rule-id graph **clean** (the `FO-21/25/27/28` forward references
+resolved when that file reached 28 rules); `sources.md` regenerated and reconciled at 691 URL-bearing
+entries on both sides (files → index, 691/691). Three files trip the naive completeness check and are
+accounted for rather than "fixed": `failure-patterns.md` (declared exception, Cause/Detection/Severity
+shape), `synthesized-rules.md` (its own `Rule / Agent behavior / Convergence` shape — this is the SR ledger,
+not a domain file), and one **genuine pre-existing defect** the sweep surfaced: a single rule in
+`space-programming.md` is missing its `Grid translation:` field (23 of 24). It is reported rather than
+quietly patched, because filling that field means deciding the tile translation for a rule this pass did
+not read — which is exactly the kind of plausible-looking completion this audit exists to refuse.
+
+**A note on the two files whose authors never reported.** `compliance-as-code.md` died on a tool-turn cap
+mid-cleanup, leaving scratch copies in the folder; `facility-layout-optimization.md` finished thin on
+locators. Both were accepted on measured grounds — structure, field completeness, id continuity, reference
+integrity — and neither was accepted on the strength of a summary. The facility file's evidence base is
+recorded in the census as the weakest in the layer (4 locators, no Tier-1), with the reason: nearly every
+reachable primary in the classical FLO literature is an image-encoded PDF, so its solver internals are
+honest reconstructions and it says so.
+
+**One substantive error found and corrected in a *new* file, not a citation but an argument.** `FO-05`
+defined `transport_ratio = TC(achieved) / TC(minimum)` and then warned that using a weak lower bound as the
+baseline makes the ratio "read falsely optimal". The direction is wrong: dividing by a baseline that is too
+small inflates the ratio *away* from 1, so the plan reads falsely **poor** (its own worked numbers show it —
+25 440 ÷ 15 520 = 1.639 against a trivial bound, where an honest baseline sits nearer 1.06). Fixed in place.
+Worth recording because the error was invisible to every structural check and visible only to arithmetic
+sanity — which is the argument for keeping worked numbers in the file rather than the conclusion alone.
+
+Three of this pass's false signals came from the measuring tools rather than the corpus, and they are
+recorded together because they are the same failure wearing three faces: a URL count that gained one because
+one grep captured a trailing comma and another did not; the 41-prefix reference loop that reported clean
+because of how its quoting nested, while the known-good case it should have caught was still sitting in the
+file; and a section count that read zero for two complete files because `'## '` had been nested inside
+double quotes and was therefore searching for a literal quote-hash pair. None of the three was caught by
+looking at the number; each was caught by checking a case whose answer was already known, or by re-running
+the measure in a form that could not hide the pattern. So the rule this audit now applies to its own tooling:
+**a check earns trust only by being shown to fail on a known-bad input**, and a result that arrives exactly
+as expected — especially a clean one — is the one worth re-measuring.
+

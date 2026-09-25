@@ -25,7 +25,9 @@ import { mergeNpcConfig, cloneDeepRaw } from '@/blueprint-editor/blueprintStore'
 import { editorLog } from '@/blueprint-editor/domain/logger'
 import { updateSimDot, pruneStaleDots, pruneWaitReasons, filterDotsForFloor, type NpcSimLook } from './npcSimProjection'
 
-const MAX_ROLE_SPAWN_COUNT = 100
+// Matches the pool-count ceiling the ingress normalizer accepts (domain/schema/npc.ts), so a pool
+// saved at 500 does not silently deploy as 100.
+const MAX_ROLE_SPAWN_COUNT = 1000
 const SYNC_INTERVAL_MS = 250
 
 export interface NpcSimulationCoreHost {
@@ -200,13 +202,15 @@ function spawnAgents(state: NpcSimCoreState, host: NpcSimulationCoreHost, floors
 			for (let i = 0; i < count; i++) {
 				let spawnIndex = (spawnCursor + spawnOffset + i) % keys.length
 				let attempts = 0
-				while (attempts < keys.length && occupiedSpawnKeys.has(`${floor.id}:${keys[spawnIndex]}`)) {
+				// Keyed per role: two roles whose zones overlap must not evict each other, which at
+				// crowd scale silently deleted whichever role was deployed last.
+				while (attempts < keys.length && occupiedSpawnKeys.has(`${floor.id}:${role.id}:${keys[spawnIndex]}`)) {
 					spawnIndex = (spawnIndex + 1) % keys.length
 					attempts++
 				}
-				if (attempts >= keys.length) { skip('occupied-cells', count - i); break }
+				if (attempts >= keys.length) { skip(`occupied-cells:${role.id}`, count - i); break }
 				const spawnKey = keys[spawnIndex]
-				occupiedSpawnKeys.add(`${floor.id}:${spawnKey}`)
+				occupiedSpawnKeys.add(`${floor.id}:${role.id}:${spawnKey}`)
 				const [x, y] = spawnKey.split(',').map(Number)
 				const id = `${host.idPrefix}${state.nextId++}`
 				const speed = Math.max(0.01, state.config.value.speed || 1 / 30) + (rand() - 0.5) * 0.02
