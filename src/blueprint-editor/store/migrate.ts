@@ -78,7 +78,7 @@ export function migrate(data: unknown, availableAssets: readonly AssetDef[], npc
 		for (const obj of floor.objects) {
 			normalizeObject(obj, migrated.canvas.tileSize, migratedAssetMap)
 		}
-		recalcCollapsed(floor, migratedAssetMap)
+		recalcCollapsed(floor, migratedAssetMap, migrated.canvas.tileSize)
 	}
 	const integrityIssues = validateLayoutIntegrity(migrated)
 	if (integrityIssues.length > 0) {

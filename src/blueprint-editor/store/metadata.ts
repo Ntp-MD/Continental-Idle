@@ -1,5 +1,6 @@
 import type { ObjectData, Rect } from '../domain/types'
 import { recalcCollapsed, unionRects } from '../domain/collision'
+import { findAssetCached } from '../assets/assetUtils'
 import type { BlueprintStore } from './state'
 import { genId } from './storeUtils'
 import { MAX_OBJECTS_PER_FLOOR } from '../limits'
@@ -38,15 +39,21 @@ export function createMetadataCommands(store: BlueprintStore) {
 				if (o) {
 					clipboard = [{ ...o }]
 					toast.info('Copied 1 object')
+					return
 				}
 			}
+			toast.warning('Nothing to copy')
 		}
 	}
 
 	async function pasteObjects(): Promise<void> {
 		return withStateLock(async () => {
 			const floor = currentFloor.value
-			if (!floor || !clipboard || clipboard.length === 0) return
+			if (!floor) return
+			if (!clipboard || clipboard.length === 0) {
+				toast.warning('Nothing to paste')
+				return
+			}
 			const tileSize = state.layout.canvas.tileSize
 			const bounds = unionRects(clipboard)
 			const offsetX = bounds && bounds.w > 0 ? Math.ceil(bounds.w / tileSize) * tileSize : tileSize
@@ -55,11 +62,24 @@ export function createMetadataCommands(store: BlueprintStore) {
 			const idMap = new Map<string, string>()
 			const pendingCopies: ObjectData[] = []
 			for (const c of clipboard) {
+				if (floor.objects.length >= MAX_OBJECTS_PER_FLOOR) {
+					toast.warning(`Object limit reached for this floor (${MAX_OBJECTS_PER_FLOOR})`)
+					break
+				}
 				const newId = genId('obj')
 				idMap.set(c.id, newId)
 				const rawX = c.x + offsetX
 				const rawY = c.y + offsetY
 				const rect = clamp({ x: snap(rawX), y: snap(rawY), w: c.w, h: c.h })
+				// The clipboard can outlive the origin it references - deleting the asset,
+				// undoing its creation, or importing a different workspace all strand a copy.
+				// The placement gate never checks the origin exists, so without this the object
+				// is created with no asset, renders blank, and is then silently dropped by
+				// migrate's unknown-type filter the next time the file loads.
+				if (!findAssetCached(assetMap(), c.type)) {
+					toast.warning(`Skipped pasting "${c.type}" - its origin asset no longer exists`)
+					continue
+				}
 				if (store.placementBlocked(rect, c.type)) {
 					toast.warning(`Skipped pasting "${c.type}" - would overlap another object or wall geometry`)
 					continue
@@ -74,18 +94,15 @@ export function createMetadataCommands(store: BlueprintStore) {
 					w: rect.w,
 					h: rect.h,
 				}
+				// Land each copy before gating the next one: `clamp` pulls out-of-building
+				// copies back onto the same boundary, so without this a multi-object paste
+				// near an edge stacks them on top of each other.
 				pendingCopies.push(copy)
+				floor.objects.push(copy)
 			}
 			if (pendingCopies.length === 0) {
 				toast.warning('Paste failed - every object would overlap another object or wall geometry')
 				return
-			}
-			if (floor.objects.length + pendingCopies.length > MAX_OBJECTS_PER_FLOOR) {
-				toast.warning(`Paste would exceed the object limit for this floor (${MAX_OBJECTS_PER_FLOOR})`)
-				return
-			}
-			for (const copy of pendingCopies) {
-				floor.objects.push(copy)
 			}
 			const pastedGroups = new Map<string, string>()
 			const pastedSet = new Set(newIds)
@@ -103,7 +120,7 @@ export function createMetadataCommands(store: BlueprintStore) {
 				if (obj) obj.linkGroupId = groupId
 			}
 			store.setSelection(newIds.map(id => ({ type: 'object' as const, id })))
-			recalcCollapsed(floor, assetMap(), unionRects(pendingCopies) ?? undefined)
+			recalcCollapsed(floor, assetMap(), tileSize, unionRects(pendingCopies) ?? undefined)
 			await saveBlueprintData()
 			toast.success(`Pasted ${newIds.length} object(s)`)
 		})

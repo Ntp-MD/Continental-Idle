@@ -494,3 +494,57 @@ mod-cli records, no harness-meta records.
 - added `removeAsset(asset)` mirroring `AssetProperties.deleteAsset`: guards `isNpcPreview`, confirm shows the placed-object cascade count, `run(deleteAsset)`, clears selection when the deleted asset was selected, success toast
 - per-item `.picker__delete` (`flag--danger`) revealed on item hover / button focus; `@click.stop` + `@keydown.stop` so it never triggers pick or pick-on-enter
 - verified: `lint:bem` pass (37 files) + `lint:css` pass (37 files) + `typecheck` pass
+
+### Collision audit + fixes - finished (qoder-agent)
+
+`2026-09-28 10:35 UTC+7`
+
+- Audited the whole placement/collision path (gate wiring, function behavior, every factor, dead code) and found 8 issues; fixed 7, rejected 1 as my own misdiagnosis.
+- F1 (the real defect): `addObject` gated a tile-snapped, clamped rect and then `normalizeObject` overwrote `w`/`h` with the raw asset footprint, so the object landed somewhere the gate never inspected - proven at 32px overhang past the building edge and 96x32 gated vs 100x40 landed for a `usePx` asset. Fixed with one `placementRect(type, x, y, assets?)` helper that normalizes then clamps; `addObject`, `canPlaceObject` and `beginDrawnObject` all gate that rect and write it back over the normalized object.
+- F3: `recalcCollapsed` now takes `tileSize` and treats painted wall/door cells under an object as a clash, `paintFloorTiles` recalcs after painting, and load-time recalc passes the tile size - buried objects keep the persistent red state instead of only a fading toast.
+- F4: paste pushes each accepted copy onto the floor before gating the next, so `clamp` can no longer stack out-of-building copies on the same cell; the object limit moved into the loop.
+- F5/F6/F7/F8: removed the second inline `collapsed` implementation in `moveSelectedTo`, added the missing `commitMove` refusal toast and dropped the redundant pre-check that made `addObject`'s toast unreachable, routed the drag ghost through `store.placementRect` and flatten through `unionRects`, unexported three same-file-only helpers.
+- Verified: `npm run typecheck` clean, `npm run test:unit` 262 passed / 24 files (6 new regression tests), `npm run lint` clean, `verify.mjs audit` pass.
+- decision: `collapsed` carries painted-geometry burial as well as body overlap rather than adding a second flag and canvas style - most reversible, reuses the only existing red state. Veto-able: it widens a persisted field's meaning and objects already buried in the workspace now render red on load.
+- decision: paste fills until the object limit instead of refusing the whole batch, matching per-item `addObject` behavior. Veto-able.
+- decision: the asymmetric art exemption in `placementCollides` is correct as written and is now test-pinned - the exemption belongs to the side already on the floor, and since art is never collapsed, letting art land on a body would create an unflaggable overlap. An attempt to symmetrize it was reverted after two existing tests failed.
+
+### Overlap e2e + first-floor fix - finished (qoder-agent)
+
+`2026-09-28 11:25 UTC+7`
+
+- Wrote `tests/e2e/overlap.spec.ts` - 3 tests against the production build driving a real palette drag (mousedown on the asset row, window mousemove, mouseup on the canvas). Covers the wall-cell refusal adding nothing, the ghost rectangle equalling the landed object's transform (F1), and the buried object gaining `editor__object--collapsed` (F3). 3 repeats in parallel 9/9 green, full e2e 6/6.
+- F9, found only because the spec drives the real UI: `addFloor` (`src/blueprint-editor/store/floors.ts:21`) pushed the floor without touching `currentFloorId`, unlike the boot/undo/reload paths which all repair a stale id. On a cold workspace `currentFloor` stayed undefined, so `addObject` hit its `!floor` guard and returned null with no toast and painting did nothing - a fresh install could not author at all, silently. Fixed with the same stale-id repair inside `addFloor`.
+- Verified: `npm run typecheck` clean, `npm run lint` clean, `npm run test:unit` 262/262, full `npx playwright test` 6/6, `npm run clean` then `clean:check` clean, `verify.mjs audit` pass.
+- decision: the e2e spec asserts behavior through the DOM (`[data-obj-id]`, `editor__object--collapsed`, role=alert toasts) and derives every canvas coordinate from the rendered svg via `getScreenCTM`, never from a hardcoded canvas size - the view opens at ~15% zoom, so assuming the viewBox span equals the canvas dropped targets off-canvas. Veto-able: a future zoom change could need the Fit button swapped for an explicit zoom set.
+- note: `tests/unit/storeCrud.test.ts` assigns `state.currentFloorId = floor.id` by hand in its harness, which is why 262 unit tests could not see F9. Any other first-run path may be pre-seeded the same way.
+
+### Pointer-path seams: group drag, silent refusals, stale cycle cache - finished (qoder-agent)
+
+`2026-09-28 13:35 UTC+7`
+
+- Three real defects found only by driving the production build in a browser, after twelve loops of static auditing and jsdom tests had missed them. (1) Group dragging never worked: `onObjectMouseDown` collapsed the selection on mousedown, and even keeping it left a stale primary that `moveSelectedTo` measures its delta from, so the group would jump - fixed in `src/blueprint-editor/components/canvas/EditorCanvas.vue:759-769`. (2) A group containing a locked object aborted silently, newly reachable because of (1) - fixed with a warn-once-per-gesture helper `applyDragTarget` (`:791`) that also covers dragging into painted geometry. (3) The alt-cycle cache was floor-scoped but only ever cleared inside `tryCycleSelect`, so after a floor switch a click could select an object from the previous floor - now reset by a watcher on `currentFloorId`.
+- New e2e coverage 3 -> 16 tests: `groupDrag.spec.ts`, `burial.spec.ts` (escape hatch: a wall-buried object can be dragged out and the flag clears), `marquee.spec.ts` (marquee select, empty marquee clears, alt-cycle), `cycleFloor.spec.ts`, plus shared `canvasFixtures.ts`. Full suite 32/32 over 2 parallel repeats; unit 270.
+- Verified the cycle test has teeth rather than trusting a green run: backed up the file, deleted the fix, saw `Expected: 1, Received: 0`, restored. Same method used earlier for the `ObjectData` field manifest.
+- decision: a locked member still halts the whole group drag; the fix reports why instead of changing which objects move. A selection can be a link group, and letting half a linked pair drift apart is a product call, not a bug fix. Veto-able.
+- decision: `dropBrush` in the e2e fixtures disarms the tile brush by toggling the brush button, not by switching to move mode - in move mode a canvas drag pans instead of marquee-selecting, so the earlier version would have made marquee tests silently no-ops.
+- note: e2e duplication was producing false failures (`paintWall` clicked a toggle button, so a second paint in one test disarmed the brush), which is what prompted the shared fixture module. Several `role="dialog"` nodes exist at once and the Floor Manager has its own button named "Close", so modal targets must be addressed by element id or class.
+
+### Orphan paste, Escape drag, rotate/flatten coverage - finished (qoder-agent)
+
+`2026-09-28 13:50 UTC+7`
+
+- Fixed a silent data-loss path: `pasteObjects` checked only the placement gate, which never asks whether the copied object's origin asset is still registered, so a copy stranded by `deleteAsset`, by undo, or by importing another workspace went straight back onto the floor. It renders with no asset and `src/blueprint-editor/store/migrate.ts:72` drops unknown-type objects on the next load, so it disappears after a save/reload. Guarded at the one choke point (`src/blueprint-editor/store/metadata.ts:71-79`) rather than per cause; the whole class was swept and paste was the only hole.
+- Fixed Escape not cancelling an in-flight object drag: `cancelObjectDrag` had one caller (npc-preview exit), so Escape left `moving` set and the object rendered grabbed while tracking nothing (`src/blueprint-editor/components/canvas/EditorCanvas.vue:966-972`).
+- Added the last unexercised canvas gestures to the browser suite: rotate 360-degree cycle, rotation refused by painted geometry, flatten merge, plus three fixture additions (non-square SVG, named palette row, drag-hold helper).
+- Verified: unit 271/271 (both new tests written failing first, then flipped), e2e 20/20, typecheck 0, lint/bem/css 0, clean, audit 74 quotes.
+- decision: Escape aborts a drag but does not roll back the part already applied, because moveMembersTo mutates live positions per mousemove; a true cancel needs pre-gesture positions restored. Left as an open question rather than changing what Escape means mid-drag.
+- note: three bugs found in my own tests on the way (art-on-art is exempt so it cannot demonstrate a refusal; `expect(promise).resolves` is one-shot with no retry; reading a rendered attribute right after a keypress catches the pre-render frame). Each would have looked like a product defect.
+
+### Load path left a degenerate floor area - finished (qoder-agent)
+
+`2026-09-28 13:57 UTC+7`
+
+- Loop 17 guarded the interactive ingresses against a street band wider than the canvas; the load paths were still open. `src/blueprint-editor/store/migrate.ts:64` and `src/blueprint-editor/domain/schema/dataFile.ts:125` bound `streetWidthTiles` by tile count only, so a small-canvas file loads with a 0-sized building area, against what `limits.ts` states as the rule for every ingress normalizer.
+- Stopped the harm at placement instead of rewriting loaded data: `addObject`/`canPlaceObject` now refuse a clamped rect of non-positive size (`src/blueprint-editor/store/objects.ts:101-110`) and say why, instead of creating an invisible zero-size object that passes the gate because it overlaps nothing. Repairing the data itself (clamping the band, enlarging the canvas) would mutate a user's file to fit an invalid combination and is left on the open decision list with `usePx`.
+- Verified: unit 273 (+1, falsified by deleting the guard and watching it fail, then restored), e2e 20, typecheck 0, lint 0, tree clean.

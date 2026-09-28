@@ -1,6 +1,6 @@
-import type { AssetDef, Rect } from '../domain/types'
+import type { AssetDef, ObjectData, Rect } from '../domain/types'
 import { isSafeSvgMarkup, isValidColor, normalizeOriginAsset, applySvgColorConvention } from '../domain/types'
-import { recalcCollapsed } from '../domain/collision'
+import { recalcCollapsed, unionRects } from '../domain/collision'
 import { assetSizeFor, originSnapshot } from '../domain/geometry'
 import { parseSvgViewBox, serializeAsset } from '../assets/assetUtils'
 import type { BlueprintStore, AssetPatch } from './state'
@@ -140,6 +140,7 @@ export function createAssetCommands(store: BlueprintStore) {
 			const assets = assetMap()
 
 			for (const floor of state.layout.floors) {
+				const instances: ObjectData[] = []
 				for (const obj of floor.objects) {
 					if (obj.type !== id) continue
 					const size = assetSizeFor(obj.type, obj.rotation, t, assets)
@@ -156,8 +157,14 @@ export function createAssetCommands(store: BlueprintStore) {
 				// prevLocked above) and fill/stroke colors (never copied).
 				Object.assign(obj, originSnapshot(asset))
 				if (obj.locked === prevLocked) obj.locked = asset.defaultLocked
+					instances.push(obj)
 				}
-				recalcCollapsed(floor, assets)
+				// Only instances of the edited origin, and objects touching them, can change
+				// collision state. An unscoped pass is O(objects²) on every floor - including
+				// floors holding none of this asset - which freezes the canvas on a one-field
+				// origin edit.
+				if (instances.length === 0) continue
+				recalcCollapsed(floor, assets, t, unionRects(instances) ?? undefined)
 			}
 			const collapsedIds = state.layout.floors.flatMap(floor => floor.objects.filter(o => o.type === id && o.collapsed).map(o => o.id))
 
@@ -215,7 +222,7 @@ export function createAssetCommands(store: BlueprintStore) {
 			for (const o of removed) removedObjectIds.add(o.id)
 			floor.objects = floor.objects.filter(o => !assetIds.has(o.type))
 			store.dissolveGroupsIfSmall(floor, new Set(removed.map(o => o.linkGroupId).filter((gid): gid is string => !!gid)))
-			recalcCollapsed(floor, assetMap())
+			recalcCollapsed(floor, assetMap(), state.layout.canvas.tileSize, unionRects(removed) ?? undefined)
 		}
 		if (removedObjectIds.size > 0) {
 			const items = state.selectionState.items.filter(item => !removedObjectIds.has(item.id))

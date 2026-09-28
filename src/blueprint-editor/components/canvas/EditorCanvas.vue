@@ -691,6 +691,17 @@ const moving = ref<{
 let _cycleClickPos: { x: number; y: number } | null = null
 let _cycleCandidates: EntityRef[] = []
 let _cycleIndex = 0
+// The cycle cache holds object refs belonging to whichever floor was active when it was built.
+// Only tryCycleSelect ever cleared it, so after a floor switch a click on a cluster could hand
+// back an id from the previous floor - selecting an object that is not on the visible canvas.
+watch(
+  () => store.state.currentFloorId,
+  () => {
+    _cycleClickPos = null
+    _cycleCandidates = []
+    _cycleIndex = 0
+  },
+)
 const cycleThreshold = computed(() => Math.max(2, editorSettings.value.cycleThresholdPx / zoom.value))
 const overlayScale = computed(() => 1 / zoom.value)
 const interactSpotRadius = computed(() => Math.max(1, editorSettings.value.interactSpotRadiusPx * overlayScale.value))
@@ -758,6 +769,14 @@ function onObjectMouseDown(e: MouseEvent, id: string) {
   if (cycled) {
     store.select(cycled)
     if (cycled.type !== 'object' || cycled.id !== id) return
+  } else if (isObjectSelected(id)) {
+    // Grabbing a member of an existing selection must keep the rest selected, and must make
+    // the grabbed object the primary: `moveSelectedTo` treats the primary as the anchor the
+    // pointer delta is measured from, so leaving a stale primary would jump the group.
+    store.setSelection([
+      { type: 'object' as const, id },
+      ...store.state.selectionState.items.filter(item => item.id !== id),
+    ])
   } else {
     store.select({ type: 'object', id })
   }
@@ -772,11 +791,25 @@ function onObjectMouseDown(e: MouseEvent, id: string) {
     startY: p.y,
   }
   dragHasMoved.value = false
+  dragWarned.value = false
   window.addEventListener('mousemove', onMoveMouseMove)
   window.addEventListener('mouseup', onMoveMouseUp)
 }
 
 const dragHasMoved = ref(false)
+// One refusal message per drag gesture. The pointer path calls moveSelectedTo on every
+// animation frame, so warning there would spam while the cursor moves; the keyboard nudge
+// is one action per press and reports directly in the store instead.
+const dragWarned = ref(false)
+
+function applyDragTarget(x: number, y: number): void {
+	const attempt = store.moveSelectedTo(x, y)
+	if (dragWarned.value || (attempt !== 'blocked' && attempt !== 'locked')) return
+	dragWarned.value = true
+	toast.warning(attempt === 'locked'
+		? 'Cannot move this selection - it includes a locked object. Unlock it first.'
+		: 'Cannot move there - it overlaps another object or wall geometry')
+}
 let _moveRafId: number | null = null
 let _movePending: { x: number; y: number } | null = null
 
@@ -787,6 +820,7 @@ function cancelObjectDrag(): void {
   }
   _movePending = null
   dragHasMoved.value = false
+  dragWarned.value = false
   moving.value = null
   window.removeEventListener('mousemove', onMoveMouseMove)
   window.removeEventListener('mouseup', onMoveMouseUp)
@@ -807,7 +841,7 @@ function onMoveMouseMove(e: MouseEvent) {
     _moveRafId = requestAnimationFrame(() => {
       _moveRafId = null
       if (_movePending && moving.value) {
-        store.moveSelectedTo(_movePending.x, _movePending.y)
+        applyDragTarget(_movePending.x, _movePending.y)
         _movePending = null
       }
     })
@@ -822,13 +856,14 @@ async function onMoveMouseUp() {
     _moveRafId = null
   }
   if (_movePending && moving.value) {
-    store.moveSelectedTo(_movePending.x, _movePending.y)
+    applyDragTarget(_movePending.x, _movePending.y)
     _movePending = null
   }
   if (moving.value) {
     if (dragHasMoved.value) await store.commitMove()
   }
   dragHasMoved.value = false
+  dragWarned.value = false
   moving.value = null
 }
 
@@ -913,13 +948,28 @@ async function onKeyDown(e: KeyboardEvent) {
       if (sel?.type === 'object') {
         const o = store.selectedObject()
         if (o) {
-          store.moveSelectedTo(o.x + dx, o.y + dy)
+          // One action per keypress, so this is where a refusal has to say why - the
+          // pointer-drag caller of moveSelectedTo runs on every mousemove and stays silent.
+          const attempt = store.moveSelectedTo(o.x + dx, o.y + dy)
+          if (attempt === 'locked') {
+            toast.warning('Cannot move a locked object - unlock first')
+            return
+          }
+          if (attempt === 'blocked') {
+            toast.warning('Cannot move there - it overlaps another object or wall geometry')
+            return
+          }
           await store.commitMove()
         }
       }
     }
   } else if (e.key === 'Escape') {
     if (dragState.assetId) endAssetDrag()
+    // Escape already aborted a palette drag but not an object one: `moving` stayed set, the
+    // window mousemove/mouseup listeners stayed attached and the object kept its grabbed
+    // styling while following nothing, until the next mouseup. Whether Escape should also roll
+    // back the part of the drag already applied is a separate decision, recorded in task-context.
+    if (moving.value) cancelObjectDrag()
     clearTileSelection()
     store.clearSelection()
   } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'l') {
@@ -1599,7 +1649,16 @@ async function cancelDrawnOrigin() {
             </g>
             <template
               v-if="renderInteractSpots && objDef(obj).interactSpots && objDef(obj).interactSpots!.length > 0"
-              v-memo="[obj.id, obj.x, obj.y, renderInteractSpots, objDef(obj).interactSpots]"
+              v-memo="[
+                obj.id,
+                obj.x,
+                obj.y,
+                renderInteractSpots,
+                objDef(obj).interactSpots,
+                showLabels,
+                interactSpotRadius,
+                interactSpotFontSize,
+              ]"
             >
               <g
                 v-for="(interactSpot, interactSpotIdx) in objDef(obj).interactSpots"

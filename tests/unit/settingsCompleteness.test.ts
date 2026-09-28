@@ -103,6 +103,26 @@ test('street hint absent and entrance hint fires for a served sidewalk zone, bot
 	assert.equal(hasEntranceHint(withInteriorDoor.issues), true)
 })
 
+test('a street-band zone holding no cell center cannot spawn a guest, so the hint still fires', () => {
+	// On this canvas (25px tiles) centers sit at 12.5, 37.5, 62.5... A 10px zone at 20,20 spans
+	// 20..30 and contains none of them, so no guest can ever spawn there. Guards the bounded
+	// scan in zoneOverlapsStreetRing: narrowing the searched cells must not start accepting a
+	// zone that only nominally overlaps the street band.
+	const narrow = validateSettingsCompleteness(
+		makeLayout({ streetFloorId: 'F1', zones: [{ x: 20, y: 20, w: 10, h: 10 }] }),
+		new Map(),
+		makeConfig([{ roleId: 'role-guest', count: 6 }]),
+	)
+	assert.equal(hasStreetHint(narrow.issues), true, 'a zone with no street cell center still asks for one')
+
+	const onCenter = validateSettingsCompleteness(
+		makeLayout({ streetFloorId: 'F1', zones: [{ x: 20, y: 20, w: 20, h: 20 }] }),
+		new Map(),
+		makeConfig([{ roleId: 'role-guest', count: 6 }]),
+	)
+	assert.equal(hasStreetHint(onCenter.issues), false, 'widening to 20..40 captures the 37.5 center and satisfies the convention')
+})
+
 test('street hint fires for a missing zone and reports the zone hint only', () => {
 	const result = validateSettingsCompleteness(
 		makeLayout({ streetFloorId: 'F1' }),
@@ -286,6 +306,31 @@ test('post-bound task stays quiet on the live post name and fires once the post 
 	assert.equal(validateSettingsCompleteness(layout, assetMap, config).issues.some(issue => issue.includes('none of its tasks')), false)
 	config.tasks[0].post = { assetId: 'desk', post: 'renamed' }
 	assert.ok(validateSettingsCompleteness(layout, assetMap, config).issues.some(issue => issue.includes('none of its tasks')), 'renamed post flagged')
+})
+
+test('a posting task fires only for an origin that is genuinely unplaced', () => {
+	const assetMap = new Map([
+		['desk', { id: 'desk', name: 'Desk', w: 1, h: 1, tags: [], interactSpots: [{ kind: 'stand', x: 1, y: 1, post: 'station' }] } as never],
+		['ghost', { id: 'ghost', name: 'Ghost', w: 1, h: 1, tags: [], interactSpots: [{ kind: 'stand', x: 1, y: 1, post: 'station' }] } as never],
+	])
+	const config = makeConfig([{ roleId: 'role-staff', count: 1 }])
+	config.roles.find(r => r.id === 'role-staff')!.taskIds = ['task-desk', 'task-ghost']
+	config.tasks = [
+		{ id: 'task-desk', label: 'Desk', tags: [], post: { assetId: 'desk', post: 'station' } },
+		{ id: 'task-ghost', label: 'Ghost', tags: [], post: { assetId: 'ghost', post: 'station' } },
+	]
+	// Two instances of one origin on the same floor: the placed-origin index has to report the
+	// floor once, and must never read a duplicate as an absence.
+	const layout = makeLayout({
+		objects: [
+			{ id: 'o1', type: 'desk', x: 0, y: 0, rotation: 0, w: 20, h: 20 },
+			{ id: 'o2', type: 'desk', x: 30, y: 0, rotation: 0, w: 20, h: 20 },
+		],
+	})
+	const issues = validateSettingsCompleteness(layout, assetMap, config).issues
+		.filter(issue => issue.includes('is not placed on any floor'))
+	assert.equal(issues.length, 1, 'only the genuinely unplaced origin is flagged')
+	assert.ok(issues[0].includes('"Ghost"'), 'the unplaced origin is the one named')
 })
 
 test('role focus tags: unmatched fires, matched and defined stays quiet', () => {

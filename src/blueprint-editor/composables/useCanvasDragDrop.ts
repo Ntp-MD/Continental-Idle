@@ -2,7 +2,6 @@ import { ref, computed, watch, onUnmounted, type Ref, type ComputedRef } from 'v
 import { dragState, endAssetDrag } from '../blueprintStore'
 import { findAssetCached } from '../assets/assetUtils'
 import { assetPixelSize } from '../domain/types'
-import { resolveBuildingArea } from '../domain/geometry'
 import { useToast } from '@/composables/useToast'
 import type { FloorData } from '../domain/types'
 import type { AssetsStore } from '../store/index'
@@ -32,22 +31,16 @@ export function useCanvasDragDrop(
 		if (!dragState.assetId) return null
 		const asset = findAssetCached(opts.store.assetMap(), dragState.assetId)
 		if (!asset) return null
-		const t = opts.tileSize()
-		const { w, h } = assetPixelSize(asset, t)
-		return { w: opts.store.snap(w), h: opts.store.snap(h) }
+		return assetPixelSize(asset, opts.tileSize())
 	})
 
+	// Resolved through the same `placementRect` the drop uses, so the preview is exactly the
+	// rect that gets gated - an inline clamp here would never shrink an oversized asset the
+	// way `store.clamp` does, and the ghost would promise a spot the object does not take.
 	const paletteGhostRect = computed(() => {
 		const ghost = paletteGhost.value
-		if (!ghost) return null
-		const b = resolveBuildingArea(opts.store.state.layout)
-		let x = opts.store.snap(mousePos.value.x - ghost.w / 2)
-		let y = opts.store.snap(mousePos.value.y - ghost.h / 2)
-		x -= Math.max(0, x + ghost.w - (b.x + b.w))
-		y -= Math.max(0, y + ghost.h - (b.y + b.h))
-		if (x < b.x) x = b.x
-		if (y < b.y) y = b.y
-		return { x, y, w: ghost.w, h: ghost.h }
+		if (!ghost || !dragState.assetId) return null
+		return opts.store.placementRect(dragState.assetId, mousePos.value.x - ghost.w / 2, mousePos.value.y - ghost.h / 2)
 	})
 
 	function onWindowMouseMoveForDrag(e: MouseEvent) {
@@ -71,7 +64,8 @@ export function useCanvasDragDrop(
 		if (!inside) return
 		const p = opts.localPoint(e)
 		if (!p) return
-		if (!opts.store.canPlaceObject(assetId, p.x - ghost.w / 2, p.y - ghost.h / 2)) return
+		// No pre-check here: `addObject` runs the same gate and owns the refusal toast, so an
+		// early return would swallow the only feedback the drop gives.
 		opts.store.addObject(assetId, p.x - ghost.w / 2, p.y - ghost.h / 2).catch((err: unknown) => {
 			toast.error(err instanceof Error ? err.message : 'Failed to place object')
 		})

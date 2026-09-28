@@ -18,8 +18,10 @@ export function unionRects(rects: Rect[]): Rect | null {
 	return { x: minX, y: minY, w: maxX - minX, h: maxY - minY }
 }
 
-// A wall or a door is geometry, so it never shares space; decorative SVG art keeps the
-// standing exemption and is not a body by itself.
+// A wall or a door is geometry, so it never shares space. Decorative SVG art keeps the
+// standing exemption, and the exemption belongs to the side that is already on the floor:
+// a new object may land on existing art, but art is a real footprint while it is being
+// placed, so it may not land on a body - and `recalcCollapsed` would never flag it if it did.
 export function placementCollides(
 	moving: AssetDef | undefined | null,
 	placed: AssetDef | undefined | null,
@@ -43,23 +45,29 @@ export function objectOverlapsAny(
 	})
 }
 
+// `collapsed` is the canvas's only persistent clash state, so it carries both halves of
+// the rule: another object's body, and painted wall or door cells under the object.
 export function recalcCollapsed(
-	floor: { objects: ObjectData[] },
+	floor: { objects: ObjectData[]; walkable?: FloorWalkable },
 	assetMap: Map<string, AssetDef>,
+	tileSize: number,
 	changedRect?: Rect,
 ): void {
 	const objCount = floor.objects.length
-	if (objCount <= 1) {
-		if (objCount === 1) floor.objects[0].collapsed = false
-		return
-	}
+	if (objCount === 0) return
 	function getAsset(type: string): AssetDef | undefined {
 		return findAssetCached(assetMap, type)
+	}
+	const buried = (o: ObjectData) => rectHitsStructure(floor, o, tileSize)
+	if (objCount === 1) {
+		floor.objects[0].collapsed = buried(floor.objects[0])
+		return
 	}
 	const candidates = changedRect
 		? floor.objects.filter(o => aabbOverlap(o, changedRect))
 		: floor.objects
 	for (const obj of candidates) {
+		if (buried(obj)) { obj.collapsed = true; continue }
 		const asset = getAsset(obj.type)
 		if (!assetIsStructural(asset) && assetIsSvg(asset)) { obj.collapsed = false; continue }
 		obj.collapsed = floor.objects.some(o => {

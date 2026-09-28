@@ -1,8 +1,8 @@
 import { test } from 'vitest'
 import assert from 'node:assert/strict'
-import { ASSET_DEF_FIELD_COVERAGE, serializeAsset } from '../../src/blueprint-editor/assets/assetUtils'
+import { ASSET_DEF_FIELD_COVERAGE, OBJECT_DATA_FIELD_COVERAGE, serializeAsset, serializeObject } from '../../src/blueprint-editor/assets/assetUtils'
 import { normalizeOriginAsset, resolveObjectDef } from '../../src/blueprint-editor/domain/types'
-import type { AssetDef } from '../../src/blueprint-editor/domain/types'
+import type { AssetDef, ObjectData } from '../../src/blueprint-editor/domain/types'
 
 // Sample fixture must populate EVERY AssetDef field (see ASSET_DEF_FIELD_COVERAGE).
 // When adding a field to AssetDef (types.ts): add it to ASSET_DEF_FIELD_COVERAGE
@@ -73,4 +73,36 @@ test('derived fields are not persisted, legacy values still load, resolve derive
 	const resolved = resolveObjectDef(0, statesOnly, { w: 25, h: 25 })
 	assert.deepEqual(resolved.walkableGrid, [[true]], 'resolve derives the grid from tileStates when none is stored')
 	assert.deepEqual(resolved.tileStates, [['door']], 'tileStates pass through untouched')
+})
+
+// When adding a field to ObjectData (domain/schema/objects.ts) typecheck fails until it is
+// classified here; then this test fails until serializeObject matches the classification.
+test('serializeObject writes exactly the fields the object manifest marks persisted', () => {
+	const full: ObjectData = {
+		id: 'o1', type: 'grill', x: 10, y: 20, w: 30, h: 40, rotation: 90,
+		linkGroupId: 'g1', locked: true, fillColor: '#ffffff', strokeColor: '#000000',
+		radius: 2, rx: { tl: 1, tr: 2, br: 3, bl: 4 }, labelPadding: 5, padding: 6,
+		collapsed: true, label: 'Grill',
+	}
+	assert.deepEqual(
+		Object.keys(full).sort(),
+		Object.keys(OBJECT_DATA_FIELD_COVERAGE).sort(),
+		'the sample object must exercise every manifest key - extend it with the new field',
+	)
+
+	const persisted = (Object.keys(OBJECT_DATA_FIELD_COVERAGE) as (keyof ObjectData)[])
+		.filter(key => OBJECT_DATA_FIELD_COVERAGE[key] === 'persisted')
+	const derived = (Object.keys(OBJECT_DATA_FIELD_COVERAGE) as (keyof ObjectData)[])
+		.filter(key => OBJECT_DATA_FIELD_COVERAGE[key] === 'derived')
+
+	const out = serializeObject(full) as unknown as Record<string, unknown>
+	assert.deepEqual(
+		Object.keys(out).sort(),
+		[...persisted].sort(),
+		'serializeObject must write every persisted field and no derived one',
+	)
+	for (const key of derived) {
+		assert.equal(out[key], undefined, `derived ObjectData field "${key}" must not reach the payload`)
+	}
+	assert.equal(persisted.length, 9, 'the persisted half of ObjectData is w/h-free by design')
 })

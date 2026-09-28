@@ -1,6 +1,6 @@
 import type { FloorData, NpcSpawnZone, Rect, TileBrush } from '../domain/types'
 import { applyTileBrush, normalizeAllowedRoleIds, normalizeFloorWalkable, normalizeNpcSpawnZones, normalizeText, resolveFloorTileStates, resolveStreetTiles, tileStatesToWalkableGrid } from '../domain/types'
-import { rectHitsStructure } from '../domain/collision'
+import { rectHitsStructure, recalcCollapsed } from '../domain/collision'
 import type { BlueprintStore, FloorPatch } from './state'
 import { genId, cloneDeepRaw } from './storeUtils'
 import { MAX_FLOORS } from '../limits'
@@ -14,12 +14,18 @@ export function createFloorCommands(store: BlueprintStore) {
 
 	async function addFloor(): Promise<FloorData | null> {
 		return withStateLock(async () => {
-			if (state.layout.floors.length >= MAX_FLOORS) return null
+			if (state.layout.floors.length >= MAX_FLOORS) { toast.warning(`Floor limit reached (${MAX_FLOORS})`); return null }
 			const existing = new Set(state.layout.floors.map(f => f.label))
 			let n = 1
 			while (existing.has(`F${n}`)) n++
 			const floor: FloorData = { id: genId('floor'), name: `Floor ${n}`, label: `F${n}`, objects: [], defaultWalkable: true }
 			state.layout.floors.push(floor)
+			// Same stale-id repair the boot, undo and reload paths already do. Without it the
+			// very first floor leaves currentFloorId pointing at nothing, so currentFloor is
+			// undefined and every placement silently returns null with no floor to answer.
+			if (!state.layout.floors.some(f => f.id === state.currentFloorId)) {
+				state.currentFloorId = floor.id
+			}
 			const saved = await saveBlueprintData()
 			return saved ? floor : null
 		})
@@ -55,7 +61,7 @@ export function createFloorCommands(store: BlueprintStore) {
 
 	async function duplicateFloor(id: string): Promise<boolean> {
 		return withStateLock(async () => {
-			if (state.layout.floors.length >= MAX_FLOORS) return false
+			if (state.layout.floors.length >= MAX_FLOORS) { toast.warning(`Floor limit reached (${MAX_FLOORS})`); return false }
 			const floor = state.layout.floors.find(f => f.id === id)
 			if (!floor) return false
 			const copy: FloorData = cloneDeepRaw(floor)
@@ -216,8 +222,22 @@ export function createFloorCommands(store: BlueprintStore) {
 			const walkableGrid = tileStatesToWalkableGrid(states)
 			floor.walkable = { walkableGrid, tileStates: states }
 			// Painting over a placed object stays allowed - the wall is the authoring act -
-			// but the buried object must not become a silent defect.
+			// but the buried object must not become a silent defect, so it keeps the red
+			// collapsed state until it is moved out, not just a toast that fades.
 			const buried = floor.objects.filter(o => rectHitsStructure(floor, o, tileSize)).length
+			// Scope the recompute to the stroke: only objects touching the painted cells can
+			// change state, and an unscoped pass is O(objects²) per stroke - up to 10k objects
+			// per floor, which freezes the canvas on every brush release.
+			const paintMinCol = Math.min(rect.col0, rect.col1)
+			const paintMaxCol = Math.max(rect.col0, rect.col1)
+			const paintMinRow = Math.min(rect.row0, rect.row1)
+			const paintMaxRow = Math.max(rect.row0, rect.row1)
+			recalcCollapsed(floor, store.assetMap(), tileSize, {
+				x: paintMinCol * tileSize,
+				y: paintMinRow * tileSize,
+				w: (paintMaxCol - paintMinCol + 1) * tileSize,
+				h: (paintMaxRow - paintMinRow + 1) * tileSize,
+			})
 			if (buried) toast.warning(`${buried} object(s) now sit on wall geometry - move them out`)
 			return saveBlueprintData()
 		})

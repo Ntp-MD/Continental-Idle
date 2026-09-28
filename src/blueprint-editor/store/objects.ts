@@ -1,9 +1,9 @@
 import type { ObjectData, AssetDef, Rotation, FloorData, Rect } from '../domain/types'
-import { assetPixelSize, resolveObjectDef } from '../domain/types'
+import { resolveObjectDef } from '../domain/types'
 import { findAssetCached } from '../assets/assetUtils'
 import { resolveBuildingArea, normalizeObject } from '../domain/geometry'
-import { aabbOverlap, objectOverlapsAny, rectHitsStructure, recalcCollapsed, unionRects } from '../domain/collision'
-import type { BlueprintStore } from './state'
+import { objectOverlapsAny, rectHitsStructure, recalcCollapsed, unionRects } from '../domain/collision'
+import type { BlueprintStore, MoveAttempt } from './state'
 import { genId, genAssetId } from './storeUtils'
 import { MAX_ASSET_TILES, MAX_OBJECTS_PER_FLOOR } from '../limits'
 
@@ -20,6 +20,7 @@ export function createObjectCommands(store: BlueprintStore) {
 	const selectedObject = () => store.selectedObject()
 	const selectedObjectIds = () => store.selectedObjectIds()
 	const clearSelection = () => store.clearSelection()
+	const tileSize = () => state.layout.canvas.tileSize
 
 	function getLinkedObjects(obj: ObjectData): ObjectData[] {
 		const floor = currentFloor.value
@@ -51,7 +52,19 @@ export function createObjectCommands(store: BlueprintStore) {
 	function placementBlocked(rect: Rect, type: string, excludeIds?: string | string[]): boolean {
 		const floor = currentFloor.value
 		if (objectOverlapsAny(floor?.objects ?? [], assetMap(), rect, excludeIds, findAssetCached(assetMap(), type))) return true
-		return rectHitsStructure(floor, rect, state.layout.canvas.tileSize)
+		return rectHitsStructure(floor, rect, tileSize())
+	}
+
+	// The rect an object of this type actually lands on. `normalizeObject` resolves the true
+	// asset footprint (raw pixels, not tile-snapped) and rounds the origin, so the gate has to
+	// see that rect - gating a pre-normalized one clears space the object never occupies and
+	// misses the strip it does. Callers write the result back over the normalized object.
+	function placementRect(type: string, x: number, y: number, assets?: Map<string, AssetDef>): Rect | null {
+		const lookup = assets ?? assetMap()
+		if (!findAssetCached(lookup, type)) return null
+		const probe: ObjectData = { id: '', type, rotation: 0, x, y, w: 0, h: 0 }
+		normalizeObject(probe, tileSize(), lookup)
+		return clamp({ x: probe.x, y: probe.y, w: probe.w, h: probe.h })
 	}
 
 	async function beginDrawnObject(name: string, w: number, h: number, x: number, y: number): Promise<{ asset: AssetDef; object: ObjectData } | null> {
@@ -64,16 +77,18 @@ export function createObjectCommands(store: BlueprintStore) {
 				toast.warning('Drawn asset input is invalid')
 				return null
 			}
-			const t = state.layout.canvas.tileSize
 			const asset: AssetDef = { origin: 'drawn', id: genAssetId('custom', safeName, c => state.assetRegistry.some(a => a.id === c)), name: safeName, w: Math.max(1, Math.floor(w)), h: Math.max(1, Math.floor(h)), defaultFillColor: '#ffffff' }
 			initAssetFields(asset)
-			const rect = clamp({ x: snap(x), y: snap(y), w: asset.w * t, h: asset.h * t })
-			if (placementBlocked(rect, asset.id)) {
+			// The draft asset is not in the registry yet, so it needs its own lookup.
+			const assets = new Map([...assetMap(), [asset.id, asset]])
+			const rect = placementRect(asset.id, x, y, assets)
+			if (!rect || placementBlocked(rect, asset.id)) {
 				toast.warning('Cannot place object - it overlaps another object or wall geometry')
 				return null
 			}
 			const object: ObjectData = { id: genId('obj'), type: asset.id, rotation: 0, ...rect }
-			normalizeObject(object, t, new Map([...assetMap(), [asset.id, asset]]))
+			normalizeObject(object, tileSize(), assets)
+			Object.assign(object, rect)
 			state.assetRegistry.push(asset)
 			floor.objects.push(object)
 			store.setSelection([{ type: 'object', id: object.id }])
@@ -84,24 +99,25 @@ export function createObjectCommands(store: BlueprintStore) {
 	async function addObject(type: string, x: number, y: number): Promise<ObjectData | null> {
 		return withStateLock(async () => {
 			const floor = currentFloor.value
-			const asset = findAssetCached(assetMap(), type)
-			if (!floor || !asset) return null
+			if (!floor) return null
 			if (floor.objects.length >= MAX_OBJECTS_PER_FLOOR) { toast.warning(`Object limit reached for this floor (${MAX_OBJECTS_PER_FLOOR})`); return null }
-			const t = state.layout.canvas.tileSize
-			const { w: aw, h: ah } = assetPixelSize(asset, t)
-			const w = snap(aw)
-			const h = snap(ah)
-			const rect = clamp({ x: snap(x), y: snap(y), w, h })
-
+			const rect = placementRect(type, x, y)
+			if (!rect) return null
+			// A loaded layout can still end up with no interior - migrate and the data-file
+			// schema bound the street band by tile count only, never against the canvas - and a
+			// clamped rect of zero size would pass the gate (it overlaps nothing and covers no
+			// cells) while producing an invisible object.
+			if (rect.w <= 0 || rect.h <= 0) {
+				toast.warning('Cannot place object - the street band leaves no floor area at this canvas size')
+				return null
+			}
 			if (placementBlocked(rect, type)) {
 				toast.warning('Cannot place object - it overlaps another object or wall geometry')
 				return null
 			}
-			const obj: ObjectData = {
-				id: genId('obj'), type, rotation: 0,
-				x: rect.x, y: rect.y, w: rect.w, h: rect.h,
-			}
-			normalizeObject(obj, t, assetMap())
+			const obj: ObjectData = { id: genId('obj'), type, rotation: 0, ...rect }
+			normalizeObject(obj, tileSize(), assetMap())
+			Object.assign(obj, rect)
 			floor.objects.push(obj)
 			store.setSelection([{ type: 'object', id: obj.id }])
 			await saveBlueprintData()
@@ -110,13 +126,8 @@ export function createObjectCommands(store: BlueprintStore) {
 	}
 
 	function canPlaceObject(type: string, x: number, y: number): boolean {
-		const asset = findAssetCached(assetMap(), type)
-		if (!asset) return false
-		const t = state.layout.canvas.tileSize
-		const { w: aw, h: ah } = assetPixelSize(asset, t)
-		const w = snap(aw)
-		const h = snap(ah)
-		const rect = clamp({ x: snap(x), y: snap(y), w, h })
+		const rect = placementRect(type, x, y)
+		if (!rect || rect.w <= 0 || rect.h <= 0) return false
 		return !placementBlocked(rect, type)
 	}
 
@@ -149,7 +160,7 @@ export function createObjectCommands(store: BlueprintStore) {
 				floor.objects = survivors
 				dissolveGroupsIfSmall(floor, removedGroupIds)
 				clearSelection()
-				recalcCollapsed(floor, assetMap(), unionRects(removed) ?? undefined)
+				recalcCollapsed(floor, assetMap(), tileSize(), unionRects(removed) ?? undefined)
 				const saved = await saveBlueprintData()
 				if (saved) toast.success(`${ids.length} object${ids.length === 1 ? '' : 's'} deleted`)
 				return
@@ -167,7 +178,7 @@ export function createObjectCommands(store: BlueprintStore) {
 			floor.objects = floor.objects.filter(o => o.id !== primary.id)
 			if (deletedGroupId) dissolveGroupsIfSmall(floor, new Set([deletedGroupId]))
 			clearSelection()
-			recalcCollapsed(floor, assetMap(), deletedRect)
+			recalcCollapsed(floor, assetMap(), tileSize(), deletedRect)
 			const saved = await saveBlueprintData()
 			if (saved) toast.success('Object deleted')
 		})
@@ -222,8 +233,7 @@ export function createObjectCommands(store: BlueprintStore) {
 		// buried by paint - legacy layout, or a wall painted over it - is always allowed to
 		// move, otherwise the only way out is deleting it.
 		const floor = currentFloor.value
-		const tileSize = state.layout.canvas.tileSize
-		const buried = (rect: Rect) => rectHitsStructure(floor, rect, tileSize)
+		const buried = (rect: Rect) => rectHitsStructure(floor, rect, tileSize())
 		const moved = members.map(member => ({ x: member.x + dx, y: member.y + dy, w: member.w, h: member.h }))
 		if (moved.some((rect, index) => !buried(members[index]!) && buried(rect))) return false
 		for (const member of members) {
@@ -233,25 +243,29 @@ export function createObjectCommands(store: BlueprintStore) {
 		return dx !== 0 || dy !== 0
 	}
 
-	function moveSelectedTo(x: number, y: number): void {
+	// Returns why the attempt ended the way it did. The pointer-drag caller runs on every
+	// mousemove and must stay silent, while the keyboard nudge is one action per keypress and
+	// owes the user a reason - `moveMembersTo` refuses before mutating, so nothing moves and
+	// `commitMove` then re-checks an unchanged rect and never reports it.
+	function moveSelectedTo(x: number, y: number): MoveAttempt {
 		const floor = currentFloor.value
-		if (!floor) return
+		if (!floor) return 'none'
 
 		if (state.selectionState.items.length > 1) {
 			const members = multiSelectionMembers(floor)
 			const primary = state.selectionState.primary
 			const anchor = primary ? floor.objects.find(object => object.id === primary.id) : null
-			if (!anchor || members.length === 0 || members.some(member => member.locked)) return
-			moveMembersTo(members, anchor, x, y)
-			return
+			if (!anchor || members.length === 0) return 'none'
+			if (members.some(member => member.locked)) return 'locked'
+			return moveMembersTo(members, anchor, x, y) ? 'moved' : 'blocked'
 		}
 
 		const primary = state.selectionState.primary
-		if (!primary) return
+		if (!primary) return 'none'
 		const obj = selectedObject()
-		if (!obj || obj.locked) return
-		moveMembersTo(objectMoveMembers(obj), obj, x, y)
-		obj.collapsed = floor.objects.some(other => other.id !== obj.id && aabbOverlap(obj, other))
+		if (!obj) return 'none'
+		if (obj.locked) return 'locked'
+		return moveMembersTo(objectMoveMembers(obj), obj, x, y) ? 'moved' : 'blocked'
 	}
 
 	async function commitMove(): Promise<void> {
@@ -281,6 +295,7 @@ export function createObjectCommands(store: BlueprintStore) {
 					const member = members.find(candidate => candidate.id === old.id)
 					if (member) { member.x = old.x; member.y = old.y }
 				}
+				toast.warning('Cannot move there - it overlaps another object or wall geometry')
 			}
 			const beforeMove = unionRects(oldPositions.map(old => {
 				const moved = members.find(candidate => candidate.id === old.id)
@@ -288,7 +303,7 @@ export function createObjectCommands(store: BlueprintStore) {
 			}))
 			const afterMove = unionRects(members)
 			const movedBounds = beforeMove && afterMove ? unionRects([beforeMove, afterMove]) ?? undefined : (beforeMove ?? afterMove) ?? undefined
-			recalcCollapsed(floor, assetMap(), movedBounds)
+			recalcCollapsed(floor, assetMap(), tileSize(), movedBounds)
 			await saveBlueprintData()
 		})
 	}
@@ -324,7 +339,7 @@ export function createObjectCommands(store: BlueprintStore) {
 			}
 
 			const cf = currentFloor.value
-			if (cf) recalcCollapsed(cf, assetMap(), unionRects([prevRect, { x: o.x, y: o.y, w: o.w, h: o.h }]) ?? undefined)
+			if (cf) recalcCollapsed(cf, assetMap(), tileSize(), unionRects([prevRect, { x: o.x, y: o.y, w: o.w, h: o.h }]) ?? undefined)
 			const saved = await saveBlueprintData()
 			if (saved) {
 				const def = resolveObjectDef(o.rotation, findAssetCached(assetMap(), o.type), { w: o.w, h: o.h })
@@ -405,7 +420,7 @@ export function createObjectCommands(store: BlueprintStore) {
 
 	return {
 		getLinkedObjects, dissolveGroupsIfSmall, beginDrawnObject, addObject, canPlaceObject,
-		placementBlocked, deleteSelected, moveSelectedTo, commitMove, rotateSelected,
+		placementBlocked, placementRect, deleteSelected, moveSelectedTo, commitMove, rotateSelected,
 		linkObjects, unlinkObject, toggleObjectLock,
 	}
 }

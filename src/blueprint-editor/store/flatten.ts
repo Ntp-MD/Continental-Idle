@@ -49,18 +49,12 @@ export function createFlattenCommands(store: BlueprintStore) {
 				return null
 			}
 
-			let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
-			for (const obj of objs) {
-				minX = Math.min(minX, obj.x)
-				minY = Math.min(minY, obj.y)
-				maxX = Math.max(maxX, obj.x + obj.w)
-				maxY = Math.max(maxY, obj.y + obj.h)
-			}
-			if (!Number.isFinite(minX) || !Number.isFinite(minY)) return null
-			minX = snap(Math.round(minX))
-			minY = snap(Math.round(minY))
-			maxX = snap(Math.round(maxX))
-			maxY = snap(Math.round(maxY))
+			const bounds = unionRects(objs)
+			if (!bounds) return null
+			const minX = snap(Math.round(bounds.x))
+			const minY = snap(Math.round(bounds.y))
+			const maxX = snap(Math.round(bounds.x + bounds.w))
+			const maxY = snap(Math.round(bounds.y + bounds.h))
 			const totalW = maxX - minX
 			const totalH = maxY - minY
 			const t = state.layout.canvas.tileSize
@@ -184,7 +178,7 @@ export function createFlattenCommands(store: BlueprintStore) {
 			floor.objects.push(newObj)
 			dissolveGroupsIfSmall(floor, removedGroupIds)
 
-			recalcCollapsed(floor, assetMap(), unionRects([...objs, newObj]) ?? undefined)
+			recalcCollapsed(floor, assetMap(), t, unionRects([...objs, newObj]) ?? undefined)
 			clearSelection()
 			select({ type: 'object', id: newObj.id })
 			await saveBlueprintData()

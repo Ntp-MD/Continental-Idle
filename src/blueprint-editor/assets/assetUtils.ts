@@ -1,6 +1,6 @@
 import { assetPixelSize, isValidColor } from '../domain/types'
 import { MAX_GRID_COLUMNS, MAX_GRID_ROWS } from '../limits'
-import type { AssetDef, FloorData, ObjectPlacement, SvgRole, SvgRoleInfo, WalkableGrid, TileState } from '../domain/types'
+import type { AssetDef, FloorData, ObjectData, ObjectPlacement, SvgRole, SvgRoleInfo, WalkableGrid, TileState } from '../domain/types'
 
 export function findAsset(assets: readonly AssetDef[], type: string): AssetDef | undefined {
 	return assets.find(a => a.id === type)
@@ -38,7 +38,7 @@ export function assetPreviewViewBox(asset: AssetDef, tileSize: number): string {
 	return `0 0 ${vb.w} ${vb.h}`
 }
 
-export function assetFallbackShapeSvg(asset: AssetDef, tileSize: number): string {
+function assetFallbackShapeSvg(asset: AssetDef, tileSize: number): string {
 	const { w, h } = assetPixelSize(asset, tileSize)
 	const rx = Math.max(asset.defaultRx?.tl ?? 0, asset.defaultRx?.tr ?? 0, asset.defaultRx?.br ?? 0, asset.defaultRx?.bl ?? 0)
 	const rawFill = asset.defaultFillColor ?? 'none'
@@ -62,7 +62,7 @@ export function parseSvgViewBox(svg: string): { w: number; h: number } | null {
 	return { w: vbW, h: vbH }
 }
 
-export const ASSET_ORIGIN_LABELS: Record<string, string> = {
+const ASSET_ORIGIN_LABELS: Record<string, string> = {
 	drawn: 'Drawn',
 	'svg-import': 'SVG',
 	flattened: 'Flattened',
@@ -175,6 +175,31 @@ export function buildWalkableGrid(
 }
 
 
+// The object-side counterpart of ASSET_DEF_FIELD_COVERAGE: every ObjectData field is
+// classified, so a new field cannot be added without saying whether it survives a save.
+// `persisted` fields are what serializeObject writes; `derived` ones come back from the
+// origin asset through normalizeObject on load - w/h included, which is why they are absent
+// from ObjectPlacement and from the payload.
+export const OBJECT_DATA_FIELD_COVERAGE: Record<keyof ObjectData, 'persisted' | 'derived'> = {
+	id: 'persisted',
+	type: 'persisted',
+	x: 'persisted',
+	y: 'persisted',
+	rotation: 'persisted',
+	linkGroupId: 'persisted',
+	locked: 'persisted',
+	fillColor: 'persisted',
+	strokeColor: 'persisted',
+	w: 'derived',
+	h: 'derived',
+	radius: 'derived',
+	rx: 'derived',
+	labelPadding: 'derived',
+	padding: 'derived',
+	collapsed: 'derived',
+	label: 'derived',
+}
+
 export function serializeObject(obj: ObjectPlacement): ObjectPlacement {
 	const out: ObjectPlacement = {
 		id: obj.id,
@@ -255,7 +280,7 @@ export function serializeAsset(asset: AssetDef): AssetDef {
 }
 
 
-export function assetSettingsIssues(asset: AssetDef): string[] {
+function assetSettingsIssues(asset: AssetDef): string[] {
 	const issues: string[] = []
 	if (!asset.walkable) {
 		if (!asset.walkableGrid) issues.push('walkable grid')

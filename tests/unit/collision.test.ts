@@ -1,6 +1,6 @@
 import { test } from 'vitest'
 import assert from 'node:assert/strict'
-import { aabbOverlap, unionRects, objectOverlapsAny, rectHitsStructure, recalcCollapsed } from '../../src/blueprint-editor/domain/collision'
+import { aabbOverlap, unionRects, objectOverlapsAny, placementCollides, rectHitsStructure, recalcCollapsed } from '../../src/blueprint-editor/domain/collision'
 import type { AssetDef, ObjectData, Rect, SvgRole, TileState } from '../../src/blueprint-editor/domain/types'
 
 const rect = (x: number, y: number, w: number, h: number): Rect => ({ x, y, w, h })
@@ -73,33 +73,72 @@ test('rectHitsStructure keeps objects off painted wall and door cells', () => {
 	assert.equal(rectHitsStructure({}, rect(0, 0, 20, 20), 20), false, 'an unpainted floor has no geometry yet')
 })
 
+test('the art exemption belongs to the side already on the floor', () => {
+	const art = asset('svg', true)
+	const chair = asset('a')
+	assert.equal(placementCollides(chair, art), false, 'a new body may land on existing art')
+	assert.equal(placementCollides(art, chair), true, 'art being placed is a real footprint and may not land on a body')
+	assert.equal(placementCollides(art, art), false, 'art on art stays exempt')
+	assert.equal(placementCollides(chair, chair), true, 'two bodies still collide')
+	assert.equal(placementCollides(art, wall), true, 'art may not cover a wall')
+	assert.equal(placementCollides(wall, art), true, 'a wall may not cover art')
+	assert.equal(placementCollides(undefined, chair), true, 'an unknown moving asset is treated as a body')
+})
+
+test('recalcCollapsed flags an object buried by painted geometry', () => {
+	const tileStates: TileState[][] = [
+		['walkable', 'blocked'],
+		['walkable', 'walkable'],
+	]
+	const painted = { objects: [obj('o1', 'a', 20, 0, 10, 10)], walkable: { tileStates } }
+	recalcCollapsed(painted, assetMap, 20)
+	assert.equal(painted.objects[0].collapsed, true, 'a lone object on a wall cell is flagged')
+
+	const open = { objects: [obj('o1', 'a', 0, 0, 10, 10)], walkable: { tileStates } }
+	recalcCollapsed(open, assetMap, 20)
+	assert.equal(open.objects[0].collapsed, false, 'an object on open floor is not flagged')
+
+	// Art is exempt from body clashes but not from being inside a wall.
+	const buriedArt = { objects: [obj('o1', 'svg', 20, 0, 10, 10), obj('o2', 'a', 0, 0, 10, 10)], walkable: { tileStates } }
+	recalcCollapsed(buriedArt, assetMap, 20)
+	assert.equal(buriedArt.objects[0].collapsed, true, 'buried art is flagged')
+	assert.equal(buriedArt.objects[1].collapsed, false, 'its neighbour is untouched')
+
+	const cleared = { objects: [obj('o1', 'a', 20, 0, 10, 10)], walkable: { tileStates } }
+	recalcCollapsed(cleared, assetMap, 20)
+	assert.equal(cleared.objects[0].collapsed, true, 'flagged before the wall is erased')
+	cleared.objects[0].x = 0
+	recalcCollapsed(cleared, assetMap, 20)
+	assert.equal(cleared.objects[0].collapsed, false, 'moving it out clears the flag')
+})
+
 test('recalcCollapsed', () => {
 	const single = { objects: [obj('o1', 'a', 0, 0)] }
-	recalcCollapsed(single, assetMap)
+	recalcCollapsed(single, assetMap, 20)
 	assert.equal(single.objects[0].collapsed, false, 'single object not collapsed')
 
 	const pair = { objects: [obj('o1', 'a', 0, 0), obj('o2', 'a', 5, 5)] }
-	recalcCollapsed(pair, assetMap)
+	recalcCollapsed(pair, assetMap, 20)
 	assert.equal(pair.objects[0].collapsed, true, 'overlapping objects collapsed')
 	assert.equal(pair.objects[1].collapsed, true, 'both overlapping objects collapsed')
 
 	const disjoint = { objects: [obj('o1', 'a', 0, 0), obj('o2', 'a', 100, 100)] }
-	recalcCollapsed(disjoint, assetMap)
+	recalcCollapsed(disjoint, assetMap, 20)
 	assert.equal(disjoint.objects[0].collapsed, false, 'disjoint objects not collapsed')
 	assert.equal(disjoint.objects[1].collapsed, false, 'disjoint objects not collapsed')
 
 	const withSvg = { objects: [obj('o1', 'svg', 0, 0), obj('o2', 'a', 5, 5)] }
-	recalcCollapsed(withSvg, assetMap)
+	recalcCollapsed(withSvg, assetMap, 20)
 	assert.equal(withSvg.objects[0].collapsed, false, 'svg object never collapsed')
 	assert.equal(withSvg.objects[1].collapsed, false, 'overlap with svg body does not collapse')
 
 	const wallOnDesk = { objects: [obj('o1', 'wall', 0, 0), obj('o2', 'a', 5, 5)] }
-	recalcCollapsed(wallOnDesk, assetMap)
+	recalcCollapsed(wallOnDesk, assetMap, 20)
 	assert.equal(wallOnDesk.objects[0].collapsed, true, 'the wall reports the clash')
 	assert.equal(wallOnDesk.objects[1].collapsed, true, 'the furniture reports the clash')
 
 	const artOnDoor = { objects: [obj('o1', 'door', 0, 0), obj('o2', 'svg', 5, 5)] }
-	recalcCollapsed(artOnDoor, assetMap)
+	recalcCollapsed(artOnDoor, assetMap, 20)
 	assert.equal(artOnDoor.objects[0].collapsed, true, 'the door reports the clash')
 	assert.equal(artOnDoor.objects[1].collapsed, false, 'decorative art is never collapsed')
 })

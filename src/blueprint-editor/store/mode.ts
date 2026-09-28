@@ -1,5 +1,5 @@
 import type { EditorMode, EditorSettings, Rect, TileBrush } from '../domain/types'
-import { isValidColor, normalizeEditorSettings, EDITOR_FIELD_SPECS, rescaleFloorWalkable, canvasWithinGridCaps, resolveStreetTiles } from '../domain/types'
+import { isValidColor, normalizeEditorSettings, EDITOR_FIELD_SPECS, rescaleFloorWalkable, canvasWithinGridCaps, canvasLeavesBuildingArea, resolveStreetTiles } from '../domain/types'
 import type { BlueprintStore } from './state'
 import { normalizeObject } from '../domain/geometry'
 import { layoutHasContent } from './storeUtils'
@@ -31,6 +31,7 @@ export function createModeCommands(store: BlueprintStore) {
 			const w = Math.max(t, Math.round(width / t) * t)
 			const h = Math.max(t, Math.round(height / t) * t)
 			if (!canvasWithinGridCaps({ width: w, height: h, tileSize: t })) return false
+			if (!canvasLeavesBuildingArea({ width: w, height: h, tileSize: t }, resolveStreetTiles(state.layout))) return false
 			const changed = w !== state.layout.canvas.width || h !== state.layout.canvas.height || t !== state.layout.canvas.tileSize
 			if (changed && layoutHasContent(state.layout)) return false
 			state.layout.canvas = { ...state.layout.canvas, width: w, height: h, tileSize: t }
@@ -126,6 +127,8 @@ export function createModeCommands(store: BlueprintStore) {
 	async function setStreetWidth(tiles: number | null): Promise<boolean> {
 		return withStateLock(async () => {
 			if (tiles !== null && (!Number.isInteger(tiles) || tiles < MIN_STREET_WIDTH_TILES || tiles > MAX_STREET_WIDTH_TILES)) return false
+			// Same invariant approached from the other side: the band may not outgrow the canvas.
+			if (tiles !== null && !canvasLeavesBuildingArea(state.layout.canvas, tiles)) return false
 			if (tiles !== null) state.layout.streetWidthTiles = tiles
 			else delete state.layout.streetWidthTiles
 			const tileSize = Math.max(1, Math.round(state.layout.canvas.tileSize))

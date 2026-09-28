@@ -8,6 +8,7 @@ import { defaultSeed } from '../../src/blueprint-editor/store/seed'
 import { cloneDeepRaw, floorHasContent } from '../../src/blueprint-editor/store/storeUtils'
 import { resolveBuildingArea, assetSizeFor, roundedRectPath } from '../../src/blueprint-editor/domain/geometry'
 import { resolveFloorTileStates } from '../../src/blueprint-editor/domain/types'
+import { aabbOverlap } from '../../src/blueprint-editor/domain/collision'
 import type { AssetDef, BlueprintDataFile, FloorData, FloorWalkable, ObjectData } from '../../src/blueprint-editor/domain/types'
 
 // ── Harness: in-memory ports + state snapshot/restore ──
@@ -75,10 +76,10 @@ function walkableOf(floor: FloorData): FloorWalkable | undefined {
 }
 
 function selectObjects(ids: string[]): void {
-	state.selectionState = {
-		primary: { type: 'object', id: ids[0] },
-		items: ids.map(id => ({ type: 'object' as const, id })),
-	}
+	// Through the store's own writer, not a hand-built `selectionState`. `setSelection` is
+	// the single owner of the selection shape, and the old literal here meant 30+ tests never
+	// exercised it - the same pre-seeding that hid F9's `currentFloorId`.
+	store.setSelection(ids.map(id => ({ type: 'object' as const, id })))
 }
 
 const baseline = snapshot()
@@ -115,6 +116,42 @@ test('caps: resizeCanvas() rejects a grid past the tile cap and keeps the canvas
 	const before = { ...state.layout.canvas }
 	assert.equal(await resizeCanvas(100_000, 100_000, 25), false, 'over-cap resize is rejected')
 	assert.deepEqual({ ...state.layout.canvas }, before, 'canvas is unchanged after the rejected resize')
+})
+
+test('a canvas too small for the street band is refused from both directions', async () => {
+	restore(baseline)
+	state.layout.floors = []
+	state.currentFloorId = ''
+	state.layout.streetWidthTiles = 8
+	const t = 25
+	// 8 tiles of street on each side needs MORE than 16 tiles of canvas; 200px at t=25 is 8.
+	assert.equal(await resizeCanvas(200, 200, t), false, 'a canvas the band swallows is refused')
+	assert.ok(resolveBuildingArea(state.layout).w > 0, 'the refused resize left a usable building area')
+	assert.equal(await resizeCanvas(600, 600, t), true, 'a 24x24 tile canvas fits an 8-tile band')
+	assert.ok(resolveBuildingArea(state.layout).w > 0, 'the accepted canvas leaves a building area')
+	assert.equal(await setStreetWidth(20), false, 'a band wider than the canvas is refused')
+	assert.equal(state.layout.streetWidthTiles, 8, 'the refused band width was not stored')
+	assert.equal(await setStreetWidth(5), true, 'a band that fits is accepted')
+	assert.ok(resolveBuildingArea(state.layout).w > 0, 'the accepted band still leaves a building area')
+})
+
+test('a degenerate building area refuses placement instead of creating a zero-size object', async () => {
+	restore(baseline)
+	installTestAsset()
+	const floor = state.layout.floors[0]
+	floor.objects = []
+	state.currentFloorId = floor.id
+	// Reachable from a loaded file: migrate and the data-file schema bound the street band by
+	// tile count only, never against the canvas, so 8 tiles each side of an 8x8 canvas loads.
+	state.layout.canvas = { width: 200, height: 200, tileSize: 25 }
+	state.layout.streetWidthTiles = 8
+	resetWalkable(floor)
+	const area = resolveBuildingArea(state.layout)
+	assert.equal(area.w, 0, 'the layout really has no interior left')
+
+	assert.equal(canPlaceObject('grill-asset', area.x, area.y), false, 'the ghost reports the spot unplaceable')
+	await addObject('grill-asset', area.x, area.y)
+	assert.equal(floor.objects.length, 0, 'no invisible zero-size object is created')
 })
 
 test('caps: addSvgAsset() rejects an asset past the tile cap without registering it', async () => {
@@ -235,6 +272,118 @@ test('an object cannot land on painted wall or door cells', async () => {
 	assert.equal(floor.objects[0]!.x, open, 'a drag into wall geometry stops dead')
 })
 
+test('an object lands on exactly the rect the placement gate validated', async () => {
+	restore(baseline)
+	const t = 32
+	state.layout.canvas = { width: 1600, height: 1200, tileSize: t }
+	// A px-sized footprint is not a tile multiple, so gate-snapping the size used to
+	// validate a smaller box than `normalizeObject` then wrote onto the object.
+	const pxAsset: AssetDef = { id: 'px-asset', name: 'Px', w: 1, h: 1, usePx: true, pxW: 100, pxH: 40, walkable: false, defaultFillColor: '#ffffff' }
+	state.assetRegistry.push(pxAsset)
+	const floor = state.layout.floors[0]
+	floor.objects = []
+	resetWalkable(floor)
+	state.currentFloorId = floor.id
+	const area = resolveBuildingArea(state.layout)
+	assert.ok(area.w > 200, 'the building area is wide enough for the assertion to mean anything')
+	const x = area.x + t * 4
+	const y = area.y + t * 4
+
+	const gated = store.placementRect('px-asset', x, y)
+	assert.ok(gated, 'the landing rect resolves')
+	assert.equal(gated!.w, 100, 'the gate sees the raw px width, not a tile-snapped one')
+	const placed = await addObject('px-asset', x, y)
+	assert.ok(placed, 'a px-sized asset places')
+	assert.deepEqual(
+		{ x: placed!.x, y: placed!.y, w: placed!.w, h: placed!.h },
+		gated,
+		'the landed object is the rect that was gated',
+	)
+})
+
+test('a placement near the building edge does not overhang it', async () => {
+	restore(baseline)
+	const t = 25
+	state.layout.canvas = { width: 600, height: 600, tileSize: t }
+	// 12 tiles wide against a building area 8 tiles wide, so `clamp` has to shrink it.
+	const wide: AssetDef = { id: 'wide-asset', name: 'Wide', w: 12, h: 1, walkable: false, defaultFillColor: '#ffffff' }
+	state.assetRegistry.push(wide)
+	const floor = state.layout.floors[0]
+	floor.objects = []
+	resetWalkable(floor)
+	state.currentFloorId = floor.id
+	const area = resolveBuildingArea(state.layout)
+	assert.ok(area.w > 0 && area.w < wide.w * t, 'the asset is wider than the building area')
+
+	const placed = await addObject('wide-asset', area.x, area.y)
+	assert.ok(placed, 'an oversized asset still places, shrunk to the building')
+	assert.equal(placed!.w, area.w, 'the landed width is the clamped width the gate validated')
+	assert.ok(placed!.x >= area.x, 'the left edge stays inside')
+	assert.ok(placed!.x + placed!.w <= area.x + area.w, 'the object does not overhang the right edge')
+	assert.ok(placed!.y + placed!.h <= area.y + area.h, 'the object does not overhang the bottom edge')
+})
+
+test('painting a wall over an object keeps it flagged until it moves out', async () => {
+	restore(baseline)
+	installTestAsset()
+	const floor = state.layout.floors[0]
+	floor.objects = []
+	state.currentFloorId = floor.id
+	const t = state.layout.canvas.tileSize
+	const area = resolveBuildingArea(state.layout)
+	const col = Math.ceil(area.x / t) + 2
+	const row = Math.ceil(area.y / t) + 2
+
+	const placed = await addObject('grill-asset', col * t, row * t)
+	assert.ok(placed, 'the object places on open floor')
+	assert.ok(!placed!.collapsed, 'nothing to flag yet')
+
+	assert.equal(await paintFloorTiles(floor.id, 'blocked', { row0: row, col0: col, row1: row + 1, col1: col + 1 }), true, 'a wall is painted over it')
+	assert.equal(placed!.collapsed, true, 'the buried object keeps the red state after the toast fades')
+
+	selectObjects([placed!.id])
+	moveSelectedTo((col + 10) * t, row * t)
+	await store.commitMove()
+	assert.equal(placed!.collapsed, false, 'moving it out of the wall clears the flag')
+})
+
+test('paste gates each copy against the copies already accepted', async () => {
+	restore(baseline)
+	installTestAsset()
+	const floor = state.layout.floors[0]
+	// Isolate the object-vs-object rule: the seed's painted geometry would otherwise
+	// decide this paste on its own.
+	resetWalkable(floor)
+	const t = state.layout.canvas.tileSize
+	const area = resolveBuildingArea(state.layout)
+	// Two 1-tile objects hard against the right edge: the paste offset pushes the second
+	// copy past the boundary, so `clamp` pulls it back onto the first copy's cell.
+	const x0 = area.x + area.w - t * 3
+	const y0 = area.y + t * 2
+	floor.objects = [
+		makeObject('pa', x0, y0, { w: t, h: t }),
+		makeObject('pb', x0 + t, y0, { w: t, h: t }),
+	]
+	state.currentFloorId = floor.id
+	selectObjects(['pa', 'pb'])
+	copySelected()
+	const before = floor.objects.length
+
+	await pasteObjects()
+
+	const added = floor.objects.slice(before)
+	assert.equal(added.length, 1, 'the copy that clamp stacked on its sibling is refused')
+	for (const a of floor.objects) {
+		for (const b of floor.objects) {
+			if (a.id >= b.id) continue
+			assert.equal(aabbOverlap(a, b), false, `no pair overlaps after paste (${a.id} / ${b.id})`)
+		}
+	}
+	for (const copy of added) {
+		assert.ok(!copy.collapsed, 'a pasted copy is never born collapsed')
+	}
+})
+
 test('rotateSelected() rotates rx corners and swaps w/h', async () => {
 	restore(baseline)
 	installTestAsset()
@@ -330,6 +479,160 @@ test('addFloor() picks a label that is not already used', async () => {
 	assert.ok(floor, 'floor is created')
 	assert.equal(state.layout.floors.length, before + 1)
 	assert.ok(!labels.has(floor.label), `new label "${floor.label}" was already taken`)
+})
+
+test('addFloor() makes the new floor current, so a cold workspace is authorable', async () => {
+	restore(baseline)
+	installTestAsset()
+	const t = state.layout.canvas.tileSize
+	const area = resolveBuildingArea(state.layout)
+	// Reproduce the real cold start. Every other test in this file hand-assigns
+	// `state.currentFloorId = floor.id`, which is exactly the pre-seeding that hid F9:
+	// addFloor pushed the floor without selecting it, so `currentFloor` stayed undefined
+	// and the first placement returned null with nothing on screen to say why.
+	state.layout.floors = []
+	state.currentFloorId = ''
+	// No assertion is made on `store.currentFloor.value` before the call: TS's aliased
+	// condition narrowing keeps a truthiness assertion attached to that property path for the
+	// whole scope, which then types it as `never` for every later read.
+	const first = await addFloor()
+	assert.ok(first, 'the first floor is created')
+	const firstId = first.id
+	assert.equal(state.currentFloorId, firstId, 'creating the first floor makes it current')
+	assert.equal(store.currentFloor.value?.id, firstId, 'currentFloor resolves to the new floor')
+
+	const placed = await addObject('grill-asset', area.x + t * 2, area.y + t * 2)
+	assert.ok(placed, 'the floor just created is immediately authorable')
+
+	assert.ok(await addFloor(), 'a second floor is created')
+	assert.equal(state.currentFloorId, firstId, 'adding a later floor leaves you where you were')
+})
+
+test('moveSelectedTo() reports why a nudge was refused instead of swallowing it', async () => {
+	restore(baseline)
+	installTestAsset()
+	const floor = state.layout.floors[0]
+	floor.objects = []
+	state.currentFloorId = floor.id
+	const t = state.layout.canvas.tileSize
+	const area = resolveBuildingArea(state.layout)
+	const col = Math.ceil(area.x / t) + 2
+	const row = Math.ceil(area.y / t) + 2
+
+	const placed = await addObject('grill-asset', col * t, row * t)
+	assert.ok(placed, 'the object places on open floor')
+	selectObjects([placed!.id])
+	await paintFloorTiles(floor.id, 'blocked', { row0: row + 3, col0: col, row1: row + 4, col1: col + 1 })
+
+	// moveMembersTo refuses before mutating, so commitMove re-checks an unchanged rect and
+	// cannot report it - the status has to come from the attempt itself.
+	assert.equal(moveSelectedTo(col * t, (row + 3) * t), 'blocked', 'a nudge into painted wall geometry is reported')
+	assert.equal(placed!.x, col * t, 'the refused object did not move')
+	assert.equal(placed!.y, row * t, 'the refused object kept its y')
+
+	assert.equal(moveSelectedTo((col + 2) * t, row * t), 'moved', 'a nudge onto open floor reports success')
+
+	const locked = makeObject('lk', (col + 10) * t, row * t)
+	floor.objects.push(locked)
+	await store.toggleObjectLock(locked.id)
+	assert.equal(locked.locked, true, 'the second object is locked')
+	selectObjects(['lk'])
+	assert.equal(moveSelectedTo((col + 11) * t, row * t), 'locked', 'nudging a locked object is reported, not swallowed')
+})
+
+test('paintFloorTiles() recomputes the collapsed flag only for objects the stroke touches', async () => {
+	restore(baseline)
+	installTestAsset()
+	const floor = state.layout.floors[0]
+	floor.objects = []
+	state.currentFloorId = floor.id
+	const t = state.layout.canvas.tileSize
+	const area = resolveBuildingArea(state.layout)
+	const col = Math.ceil(area.x / t) + 2
+	const row = Math.ceil(area.y / t) + 2
+	const far = col + 14
+
+	const a = await addObject('grill-asset', col * t, row * t)
+	const b = await addObject('grill-asset', far * t, row * t)
+	assert.ok(a && b, 'both objects place on open floor')
+
+	await paintFloorTiles(floor.id, 'blocked', { row0: row, col0: col, row1: row + 1, col1: col + 1 })
+	assert.equal(a!.collapsed, true, 'the buried object is flagged')
+	// Falsy, not `false`: a fresh object never gets `collapsed` written, and a scoped recompute
+	// deliberately leaves objects outside the stroke at whatever they already held.
+	assert.ok(!b!.collapsed, 'the object the stroke missed is not flagged')
+
+	// Scoping must not lose state: a stroke far from A leaves A correctly flagged.
+	await paintFloorTiles(floor.id, 'blocked', { row0: row, col0: far, row1: row + 1, col1: far + 1 })
+	assert.equal(b!.collapsed, true, 'the new stroke flags the object it covers')
+	assert.equal(a!.collapsed, true, 'A keeps its flag - it is still under its own wall')
+
+	// And clearing a wall has to reach the object that was under it.
+	await paintFloorTiles(floor.id, 'walkable', { row0: row, col0: col, row1: row + 1, col1: col + 1 })
+	assert.equal(a!.collapsed, false, 'erasing the wall over A clears its flag')
+	assert.equal(b!.collapsed, true, 'B is still buried and stays flagged')
+})
+
+test('updateAsset() refreshes overlap flags on every floor that holds an instance', async () => {
+	restore(baseline)
+	installTestAsset()
+	const t = state.layout.canvas.tileSize
+	const f1 = state.layout.floors[0]
+	const second = await addFloor()
+	assert.ok(second, 'a second floor is created')
+	// Offset by one tile: `updateAsset` rewrites w/h from the origin, and the grill origin is
+	// two tiles, so a one-tile offset overlaps while a two-tile one only touches.
+	f1.objects = [makeObject('oa', 600, 600), makeObject('ob', 600 + t, 600 + t)]
+	second!.objects = [makeObject('oc', 600, 600)]
+	state.currentFloorId = f1.id
+
+	await store.updateAsset('grill-asset', { defaultLabel: 'Grill' })
+
+	assert.equal(f1.objects[0].collapsed, true, 'both members of the overlapping pair flag')
+	assert.equal(f1.objects[1].collapsed, true, 'both members of the overlapping pair flag')
+	assert.equal(second!.objects[0].collapsed, false, 'the lone instance on the other floor is recomputed clear')
+
+	// A floor holding no instance of the edited origin is skipped outright. Asserting
+	// `undefined` - not `false` - is what distinguishes the skip from a recompute.
+	state.assetRegistry.push({ id: 'other-asset', name: 'Other', w: 2, h: 2 })
+	const third = await addFloor()
+	third!.objects = [
+		makeObject('od', 700, 700, { type: 'other-asset' }),
+		makeObject('oe', 700 + t, 700 + t, { type: 'other-asset' }),
+	]
+	await store.updateAsset('grill-asset', { defaultLabel: 'Grill 2' })
+	assert.equal(third!.objects[0].collapsed, undefined, 'a floor with no instance of the edited origin is skipped, not recomputed')
+})
+
+test('pasteObjects() refuses to re-create an object whose origin no longer exists', async () => {
+	restore(baseline)
+	installTestAsset()
+	const floor = state.layout.floors[0]
+	floor.objects = []
+	state.currentFloorId = floor.id
+	const t = state.layout.canvas.tileSize
+	const area = resolveBuildingArea(state.layout)
+
+	const placed = await addObject('grill-asset', area.x + t * 2, area.y + t * 2)
+	assert.ok(placed, 'the object places')
+	selectObjects([placed!.id])
+	copySelected()
+
+	// Deleting the origin is one of several ways the clipboard can outlive the asset it
+	// references - importing a workspace and undoing an asset creation do the same.
+	assert.equal(await deleteAsset('grill-asset'), true, 'the origin is deleted')
+	assert.equal(floor.objects.length, 0, 'its instances went with it')
+
+	await pasteObjects()
+
+	// Without a guard the copy is pushed straight back onto the floor: the placement gate never
+	// checks the origin exists, so the object renders with no asset and is then silently
+	// dropped on the next load by migrate's unknown-type filter - data loss after a save.
+	assert.equal(floor.objects.length, 0, 'the orphaned clipboard copy is not re-created')
+	assert.ok(
+		floor.objects.every(o => state.assetRegistry.some(a => a.id === o.type)),
+		'no placed object references a missing origin',
+	)
 })
 
 test('renameFloor()/updateFloor() reject a blank name or label instead of breaking every later save', async () => {
@@ -454,6 +757,33 @@ test('resolveFloorTileStates() falls back to defaultWalkable', () => {
 		['blocked', 'blocked', 'blocked'],
 		['blocked', 'blocked', 'blocked'],
 	])
+})
+
+test('setMode() and setTileBrush() keep the paint brush and the object tools exclusive', () => {
+	restore(baseline)
+	installTestAsset()
+	const floor = state.layout.floors[0]
+	floor.objects = [makeObject('tm', 400, 400)]
+	state.currentFloorId = floor.id
+	// The canvas branches on `state.tileBrush` to decide whether a mousedown paints or
+	// selects, so a brush surviving a tool switch would silently turn object clicks into
+	// wall painting. Nothing in the repo used to set mode or brush in a test at all.
+	store.setTileBrush('blocked')
+	assert.equal(state.tileBrush, 'blocked', 'the wall brush is armed')
+	assert.equal(state.selectionState.primary, null, 'arming a brush clears the selection')
+
+	selectObjects(['tm'])
+	assert.ok(state.selectionState.primary, 'an object stays selectable while a brush is armed')
+
+	store.setMode('object')
+	assert.equal(state.mode, 'object', 'the tool is object mode')
+	assert.equal(state.tileBrush, null, 'switching tool clears the brush')
+	assert.equal(state.selectionState.primary, null, 'switching tool clears the selection')
+
+	store.setTileBrush('door')
+	store.setTileBrush(null)
+	assert.equal(state.tileBrush, null, 'the brush can be disarmed explicitly')
+	assert.equal(state.mode, 'object', 'disarming the brush leaves the tool alone')
 })
 
 test('paintFloorTiles() paints the interior and protects the street ring', async () => {

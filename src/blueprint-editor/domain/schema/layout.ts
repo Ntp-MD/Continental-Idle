@@ -58,6 +58,17 @@ export function canvasWithinGridCaps(canvas: { width: number; height: number; ti
 	return cols <= MAX_GRID_COLUMNS && rows <= MAX_GRID_ROWS
 }
 
+// The street band is inset on BOTH edges of both axes, so a canvas no wider than twice the
+// band leaves no building area at all - `resolveBuildingArea` floors to 0 there, and every
+// placement gets clamped down to a zero-size box. Mirrors the engine's own "no street cells
+// exist when the ring covers the whole canvas" condition, so the two never disagree.
+export function canvasLeavesBuildingArea(canvas: { width: number; height: number; tileSize: number }, streetTiles: number): boolean {
+	if (!Number.isFinite(canvas.tileSize) || canvas.tileSize <= 0) return false
+	const cols = Math.ceil(canvas.width / canvas.tileSize)
+	const rows = Math.ceil(canvas.height / canvas.tileSize)
+	return cols > streetTiles * 2 && rows > streetTiles * 2
+}
+
 export function parseCanvasConfig(raw: unknown, strict: boolean): CanvasConfig | null {
 	if (!raw || typeof raw !== 'object') return null
 	const rec = raw as Record<string, unknown>

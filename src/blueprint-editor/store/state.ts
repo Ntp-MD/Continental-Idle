@@ -61,6 +61,8 @@ export interface FloorPatch {
 	spawnZones?: FloorData['spawnZones']
 }
 
+export type MoveAttempt = 'moved' | 'blocked' | 'locked' | 'none'
+
 export interface BlueprintStore {
 	readonly state: EditorState
 	readonly toast: ToastApi
@@ -102,8 +104,9 @@ export interface BlueprintStore {
 	addObject(type: string, x: number, y: number): Promise<ObjectData | null>
 	canPlaceObject(type: string, x: number, y: number): boolean
 	placementBlocked(rect: Rect, type: string, excludeIds?: string | string[]): boolean
+	placementRect(type: string, x: number, y: number, assets?: Map<string, AssetDef>): Rect | null
 	deleteSelected(): Promise<void>
-	moveSelectedTo(x: number, y: number): void
+	moveSelectedTo(x: number, y: number): MoveAttempt
 	commitMove(): Promise<void>
 	rotateSelected(): Promise<void>
 	linkObjects(ids: string[]): Promise<boolean>
@@ -154,7 +157,7 @@ export interface BlueprintStore {
 
 	addTag(tag: string): Promise<void>
 	removeTag(tag: string): Promise<boolean>
-	ensureTag(tag: string): void
+	ensureTag(tag: string): Promise<void>
 }
 
 export function initAssetFields(asset: AssetDef): void {
