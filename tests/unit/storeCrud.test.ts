@@ -5,7 +5,7 @@ import {
 	type BlueprintStore, type PersistencePort, type SyncPort,
 } from '../../src/blueprint-editor/store/index'
 import { defaultSeed } from '../../src/blueprint-editor/store/seed'
-import { cloneDeepRaw } from '../../src/blueprint-editor/store/storeUtils'
+import { cloneDeepRaw, floorHasContent } from '../../src/blueprint-editor/store/storeUtils'
 import { resolveBuildingArea, assetSizeFor, roundedRectPath } from '../../src/blueprint-editor/domain/geometry'
 import { resolveFloorTileStates } from '../../src/blueprint-editor/domain/types'
 import type { AssetDef, BlueprintDataFile, FloorData, FloorWalkable, ObjectData } from '../../src/blueprint-editor/domain/types'
@@ -25,7 +25,7 @@ const {
 	linkObjects, unlinkObject,
 	copySelected, pasteObjects, removeTag, clamp, setStreetWidth,
 	addSvgAsset, resizeCanvas, flattenToSvgAsset, deleteAsset, deleteAllAssets,
-	importWorkspace,
+	canPlaceObject, importWorkspace,
 } = store
 
 function snapshot() {
@@ -48,6 +48,16 @@ function restore(base: Snap): void {
 
 function installTestAsset(): AssetDef {
 	const asset: AssetDef = { id: 'grill-asset', name: 'Grill', w: 2, h: 2, walkable: false, defaultFillColor: '#ffffff' }
+	state.assetRegistry.push(asset)
+	return asset
+}
+
+function installRoleAsset(id: string, role: 'wall' | 'door' | 'fixture'): AssetDef {
+	const asset: AssetDef = {
+		id, name: id, w: 2, h: 2, walkable: role === 'door',
+		svg: `<svg viewBox="0 0 10 10"><rect data-role="${role}" x="0" y="0" width="10" height="10"/></svg>`,
+		svgRoles: [{ role, tag: 'rect' }],
+	}
 	state.assetRegistry.push(asset)
 	return asset
 }
@@ -171,6 +181,58 @@ test('addObject rejects an overlapping placement', async () => {
 	const second = await addObject('grill-asset', 400, 400)
 	assert.equal(second, null, 'overlapping placement is rejected')
 	assert.equal(floor.objects.length, 1, 'floor keeps exactly one object')
+})
+
+test('a wall or door never shares a cell with another object', async () => {
+	restore(baseline)
+	installTestAsset()
+	installRoleAsset('wall-asset', 'wall')
+	installRoleAsset('poster-asset', 'fixture')
+	const floor = state.layout.floors[0]
+	floor.objects = []
+	state.currentFloorId = floor.id
+	const t = state.layout.canvas.tileSize
+	const area = resolveBuildingArea(state.layout)
+	const col = Math.ceil(area.x / t) + 2
+	const y = (Math.ceil(area.y / t) + 2) * t
+	const at = (offset: number) => (col + offset) * t
+
+	assert.ok(await addObject('grill-asset', at(0), y), 'furniture places on a free cell')
+	assert.equal(await addObject('wall-asset', at(0), y), null, 'a wall cannot be dropped onto furniture')
+	assert.equal(canPlaceObject('wall-asset', at(0), y), false, 'the drag ghost reports the same refusal')
+	assert.equal(await addObject('poster-asset', at(0), y), null, 'art still cannot be dropped onto furniture')
+
+	assert.ok(await addObject('wall-asset', at(4), y), 'a wall places on a free cell')
+	assert.equal(canPlaceObject('grill-asset', at(4), y), false, 'furniture cannot cover a wall')
+	assert.equal(canPlaceObject('poster-asset', at(4), y), false, 'art cannot cover a wall either')
+
+	assert.ok(await addObject('poster-asset', at(8), y), 'art places on a free cell')
+	assert.equal(canPlaceObject('poster-asset', at(8), y), true, 'decorative art keeps its overlap exemption')
+})
+
+test('an object cannot land on painted wall or door cells', async () => {
+	restore(baseline)
+	installTestAsset()
+	const floor = state.layout.floors[0]
+	floor.objects = []
+	state.currentFloorId = floor.id
+	const t = state.layout.canvas.tileSize
+	const area = resolveBuildingArea(state.layout)
+	const col = Math.ceil(area.x / t) + 2
+	const row = Math.ceil(area.y / t) + 2
+	const open = (col + 10) * t
+
+	assert.equal(await paintFloorTiles(floor.id, 'blocked', { row0: row, col0: col, row1: row + 1, col1: col + 1 }), true, 'wall cells painted')
+	assert.equal(canPlaceObject('grill-asset', col * t, row * t), false, 'a wall cell refuses the placement')
+	assert.equal(await addObject('grill-asset', col * t, row * t), null, 'the drop is rejected')
+	assert.equal(await paintFloorTiles(floor.id, 'door', { row0: row + 6, col0: col, row1: row + 6, col1: col }), true, 'a door cell painted')
+	assert.equal(canPlaceObject('grill-asset', col * t, (row + 6) * t), false, 'a door cell refuses it too')
+
+	const placed = await addObject('grill-asset', open, row * t)
+	assert.ok(placed, 'an open cell still takes the object')
+	selectObjects([placed!.id])
+	moveSelectedTo(col * t, row * t)
+	assert.equal(floor.objects[0]!.x, open, 'a drag into wall geometry stops dead')
 })
 
 test('rotateSelected() rotates rx corners and swaps w/h', async () => {
@@ -316,6 +378,55 @@ test('flattenToSvgAsset() merges into a walkable asset by default', async () => 
 	assert.equal(asset.walkable, true, 'the merged asset defaults to walkable')
 	assert.ok(asset.walkableGrid?.every(row => row.every(cell => cell)), 'every merged grid cell is walkable')
 	assert.ok(asset.tileStates?.every(row => row.every(cell => cell === 'walkable')), 'merged tile states are walkable')
+})
+
+test('flattenToSvgAsset() refuses a merged footprint that covers another object', async () => {
+	restore(baseline)
+	installTestAsset()
+	state.layout.canvas = { width: 1600, height: 1200, tileSize: 25 }
+	const floor = state.layout.floors[0]
+	const assetsBefore = state.assetRegistry.length
+	floor.objects = [makeObject('ga', 300, 300), makeObject('gb', 450, 300), makeObject('gc', 380, 310)]
+	state.currentFloorId = floor.id
+	selectObjects(['ga', 'gb'])
+
+	assert.equal(await flattenToSvgAsset('Merged'), null, 'the union box covers gc, so the merge is refused')
+	assert.equal(state.assetRegistry.length, assetsBefore, 'the merged asset is not left registered')
+	assert.equal(floor.objects.length, 3, 'both sources stay on the floor')
+
+	floor.objects = [makeObject('gd', 300, 300), makeObject('ge', 350, 300)]
+	selectObjects(['gd', 'ge'])
+	assert.ok(await flattenToSvgAsset('Merged'), 'a pair with nothing under its box still merges')
+})
+
+test('an object buried by painted wall geometry is not trapped', async () => {
+	restore(baseline)
+	installTestAsset()
+	const floor = state.layout.floors[0]
+	floor.objects = []
+	state.currentFloorId = floor.id
+	const t = state.layout.canvas.tileSize
+	const area = resolveBuildingArea(state.layout)
+	const col = Math.ceil(area.x / t) + 2
+	const row = Math.ceil(area.y / t) + 2
+	const buriedX = (col + 10) * t
+
+	const placed = await addObject('grill-asset', buriedX, row * t)
+	assert.ok(placed, 'the object starts on an open cell')
+	assert.equal(await paintFloorTiles(floor.id, 'blocked', { row0: row, col0: col + 10, row1: row + 3, col1: col + 13 }), true, 'a wall block is painted over it')
+
+	selectObjects([placed!.id])
+	const insideX = (col + 11) * t
+	const insideY = (row + 1) * t
+	moveSelectedTo(insideX, insideY)
+	assert.equal(floor.objects[0]!.x, insideX, 'a buried object slides inside its own wall block')
+
+	const freeX = (col + 4) * t
+	moveSelectedTo(freeX, row * t)
+	assert.equal(floor.objects[0]!.x, freeX, 'and it drags out onto open floor')
+
+	moveSelectedTo(buriedX, row * t)
+	assert.equal(floor.objects[0]!.x, freeX, 'once free, it cannot be dragged back into the wall')
 })
 
 test('copySelected()/pasteObjects() offsets a single-tile copy and gives it a new id', async () => {
@@ -720,4 +831,20 @@ test('save() strips the dead spawnRule.count field', async () => {
 	assert.equal(await store.save(), true)
 	assert.equal(npc.roles[0].spawnRule?.count, undefined, 'engine-ignored count is removed')
 	assert.deepEqual(npc.roles[0].spawnRule?.targetTags, [], 'live targetTags survive')
+})
+
+test('floorHasContent: walkable-only paint is not content (canvas resize stays unlocked)', () => {
+	const floor: FloorData = { id: 'f-content', name: 'F', label: 'F', objects: [], defaultWalkable: false }
+	assert.equal(floorHasContent(floor), false, 'empty floor has no content')
+	floor.walkable = { tileStates: [['walkable', 'walkable'], ['walkable', 'walkable']] }
+	assert.equal(floorHasContent(floor), false, 'full walkable paint on a blocked-default base is not content')
+	floor.walkable = { tileStates: [['walkable', 'blocked'], ['walkable', 'walkable']] }
+	assert.equal(floorHasContent(floor), true, 'a wall tile is content')
+	floor.walkable = { tileStates: [['door', 'walkable']] }
+	assert.equal(floorHasContent(floor), true, 'a door tile is content')
+	floor.walkable = { walkableGrid: [[true, false]] }
+	assert.equal(floorHasContent(floor), true, 'a blocked walkableGrid cell is content')
+	floor.walkable = undefined
+	floor.spawnZones = [{ id: 'z', label: 'Z', x: 0, y: 0, w: 10, h: 10, roleIds: ['role-guest'] }]
+	assert.equal(floorHasContent(floor), true, 'a spawn zone is content')
 })

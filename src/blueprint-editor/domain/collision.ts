@@ -1,5 +1,5 @@
-import type { ObjectData, AssetDef, Rect } from './types'
-import { findAssetCached } from '../assets/assetUtils'
+import type { ObjectData, AssetDef, Rect, FloorWalkable } from './types'
+import { findAssetCached, assetIsSvg, assetIsStructural } from '../assets/assetUtils'
 
 export function aabbOverlap(a: Rect, b: Rect): boolean {
 	return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y
@@ -18,17 +18,27 @@ export function unionRects(rects: Rect[]): Rect | null {
 	return { x: minX, y: minY, w: maxX - minX, h: maxY - minY }
 }
 
+// A wall or a door is geometry, so it never shares space; decorative SVG art keeps the
+// standing exemption and is not a body by itself.
+export function placementCollides(
+	moving: AssetDef | undefined | null,
+	placed: AssetDef | undefined | null,
+): boolean {
+	if (assetIsStructural(moving) || assetIsStructural(placed)) return true
+	return !assetIsSvg(placed)
+}
+
 export function objectOverlapsAny(
 	objects: ObjectData[],
 	assetMap: Map<string, AssetDef>,
 	rect: Rect,
 	excludeId?: string | string[],
+	movingAsset?: AssetDef | null,
 ): boolean {
 	const excluded = Array.isArray(excludeId) ? new Set(excludeId) : excludeId ? new Set([excludeId]) : null
 	return objects.some(o => {
 		if (excluded && excluded.has(o.id)) return false
-		const asset = findAssetCached(assetMap, o.type)
-		if (asset?.svg) return false
+		if (!placementCollides(movingAsset, findAssetCached(assetMap, o.type))) return false
 		return aabbOverlap(rect, o)
 	})
 }
@@ -51,13 +61,36 @@ export function recalcCollapsed(
 		: floor.objects
 	for (const obj of candidates) {
 		const asset = getAsset(obj.type)
-		if (asset?.svg) { obj.collapsed = false; continue }
+		if (!assetIsStructural(asset) && assetIsSvg(asset)) { obj.collapsed = false; continue }
 		obj.collapsed = floor.objects.some(o => {
 			if (o.id === obj.id) return false
 			if (!aabbOverlap(obj, o)) return false
-			const oAsset = getAsset(o.type)
-			if (oAsset?.svg) return false
-			return true
+			return placementCollides(asset, getAsset(o.type))
 		})
 	}
+}
+
+// Painted wall and door cells are geometry, so no object may cover them. A floor with no
+// painted walkable data has no authored geometry to respect yet, and cells outside the
+// painted region stay open floor.
+export function rectHitsStructure(
+	floor: { walkable?: FloorWalkable } | undefined,
+	rect: Rect,
+	tileSize: number,
+): boolean {
+	const painted = floor?.walkable
+	if (!painted || tileSize <= 0) return false
+	const { tileStates, walkableGrid } = painted
+	if (!tileStates?.length && !walkableGrid?.length) return false
+	const firstCol = Math.floor(rect.x / tileSize)
+	const lastCol = Math.ceil((rect.x + rect.w) / tileSize) - 1
+	const firstRow = Math.floor(rect.y / tileSize)
+	const lastRow = Math.ceil((rect.y + rect.h) / tileSize) - 1
+	for (let row = Math.max(0, firstRow); row <= lastRow; row++) {
+		for (let col = Math.max(0, firstCol); col <= lastCol; col++) {
+			const state = tileStates?.[row]?.[col]
+			if (state ? state !== 'walkable' : walkableGrid?.[row]?.[col] === false) return true
+		}
+	}
+	return false
 }

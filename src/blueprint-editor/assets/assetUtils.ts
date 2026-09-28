@@ -72,6 +72,12 @@ export function assetIsSvg(asset: AssetDef | undefined | null): boolean {
 	return !!asset?.svg
 }
 
+// A wall or a door is geometry, not decoration: it arrives as SVG art, but unlike art it
+// may never share a cell with another object.
+export function assetIsStructural(asset: AssetDef | undefined | null): boolean {
+	return !!asset?.svgRoles?.some(r => r.role === 'wall' || r.role === 'door')
+}
+
 export function assetSizeLabel(asset: AssetDef): string {
 	if (asset.pxW || asset.pxH) return `${asset.pxW ?? asset.w}x${asset.pxH ?? asset.h}px`
 	return `${asset.w}x${asset.h}`

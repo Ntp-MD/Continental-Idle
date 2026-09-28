@@ -101,6 +101,7 @@ export interface BlueprintStore {
 	beginDrawnObject(name: string, w: number, h: number, x: number, y: number): Promise<{ asset: AssetDef; object: ObjectData } | null>
 	addObject(type: string, x: number, y: number): Promise<ObjectData | null>
 	canPlaceObject(type: string, x: number, y: number): boolean
+	placementBlocked(rect: Rect, type: string, excludeIds?: string | string[]): boolean
 	deleteSelected(): Promise<void>
 	moveSelectedTo(x: number, y: number): void
 	commitMove(): Promise<void>

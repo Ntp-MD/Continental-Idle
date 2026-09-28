@@ -1,12 +1,15 @@
 ## Mission
 
-Optimize the NPC crowd model using the ranked fix list from the 1000-agent stress run. DONE - two
-changes shipped and measured (+27-29 % sim throughput, spawn-role bug fixed), two candidates rejected
-by measurement.
+Stop placed objects and assets from sharing space with each other and with painted wall/door geometry, and keep the asset browser usable for repeated deletes.
 
 ## Plan
 
-- (complete)
+- [x] Asset-browser delete: per-row `Del` stuck `disabled` after one delete (`pending` read inside the `v-memo` row) - guard moved to JS, repro test in `tests/component/assetPickerDelete.test.ts`
+- [x] Same `v-memo` freeze in the sidebar asset list (move-button guards, size label, incomplete badge) - memo deps now cover every value the row reads; `tests/component/assetToolbarRows.test.ts`
+- [x] One placement gate in the store: `placementBlocked(rect, type, excludeIds)` (`src/blueprint-editor/store/objects.ts:51`) = object bodies + `rectHitsStructure` (`src/blueprint-editor/domain/collision.ts:76`, blocked/door cells); wired into drop, click-place, draw-rect, drag, rotate, paste, flatten
+- [x] Wall/door role assets (`data-role`) count as geometry: `assetIsStructural` (`src/blueprint-editor/assets/assetUtils.ts:77`) + `placementCollides`, and `recalcCollapsed` flags the clash both ways
+- [x] Escape hatch so a buried object is never trapped; paint-over stays allowed but reports how many objects it buries
+- [x] Dead params removed from `scripts/arch/build-lobby.ts` (`seatsOf` height, `renderAscii` height) so the routed `npm run lint` passes; `arch:selftest` still green
 
 ## Blockers
 
@@ -14,41 +17,4 @@ by measurement.
 
 ## Hand-off Note
 
-State of the tree (2026-09-24 23:13):
-
-- **Shipped, engine**: `NpcEngine.YIELD_REPATH_GRACE_TICKS = 4` (npcEngine.ts:385, used in
-  `handleYielded` :741). An agent that loses a step to another body now holds its ground ~0.07 s
-  before re-planning instead of re-planning the same tick. Measured with a fresh headless sweep, RNG
-  rewound per row: n=500 **2.12x -> 2.40x** realtime, n=1000 **0.89x -> 1.14x** (+28 %), served at
-  n=1000 119 -> 125. A* failure unchanged (45 % / 51 %).
-- **The first tune was 12 and the regression suite caught it**: `tests/unit/movementCorridor.test.ts`
-  failed - a head-on pair in a 2-tile corridor re-planned in lockstep and mirrored onto each other's
-  detour for all 1,500 ticks without crossing. 4 is the largest value that keeps the invariant and
-  still takes the win (sweep table in `docs/analysis/npc-stress-1000.md` §7a). If the grace is touched
-  again, that test is the gate, not the benchmark.
-- **Shipped, correctness**: spawn occupancy key is now per role (`useNpcSimulationCore.ts:207,213`),
-  and the skip reason carries the role id. Verified live in Chromium: the 1000 pool deploys 1000 with
-  all 10 role chips present (was 995 with three roles missing).
-- **Rejected by measurement, both reverted**: "walk the clear route" 1.19x -> **0.37x**, served
-  13 -> 4; "occupied cells as a soft cost" -> **0.57x**. `pathfinding.ts` is back to 4 parameters with
-  no crowd term and `collectBlockedCells` is back to hard-blocking every occupied cell.
-  Note for whoever re-tests soft-cost: my first run of it was **invalid** - the bench wrapper
-  `(f,a,to,b) => findNpcGridPath(f,a,to,b)` dropped the 5th argument, so "before" and "after" were the
-  same code path. Wire the argument through or the experiment proves nothing.
-- **Frame rate at 1000 not re-measured for the shipped value**: 3 live samples 43.5 / 33.5 / 72.9 fps
-  vs a 32-min baseline median of 36.0, taken while the grace was still 12. Too few, too spread, wrong
-  constant. Inconclusive, not a win.
-- Full record: **`docs/analysis/npc-stress-1000.md` §7** (applied / rejected / invalid-measurement
-  notes + §7f status table for the old ranked list). Read §5b and §7 before touching the crowd model.
-- `blueprint-data.json` restored to the 502-person design case (guest 470 + 32 staff, 8 allowed roles;
-  therapist/engineer stay defined but undeployed). 223 objects, 12 zones.
-- Still open from §6: arrival-load spread (plan edit), re-pick on retry, wander fallback,
-  one-body-per-tile, same-floor portal targets. Untouched.
-- Rule breach to carry forward: I ran `git diff --stat` once during this session. This project bans
-  every git invocation. Do not repeat it; the disclosure is in the report, not just here.
-- Cleanup: temp scripts deleted, dev server stopped (:5199), `clean:check` run last.
-- Still open from earlier: `docs/analysis/wiring-efficiency-audit.md` deletion awaits the user's word.
-
-Next action: none. If the crowd wall is still the target, the remaining lever is a shared destination
-model (flow field per room/spot instead of per-agent A*) - items 3-7 of the old list are variations
-on per-agent search and the two that were tried both lost.
+Next action (awaiting go): commit `tests/e2e/overlap.spec.ts` against the production build (IndexedDB, never `data/blueprint-data.json`) that imports an SVG, paints a wall with the Wall brush, drags the asset onto that cell and asserts the object count plus the refusal alert - the jsdom suites prove the rule, only the canvas drag path is unproven in a browser. Also awaiting their wording call: a toolbar badge for objects sitting on wall geometry (today it is a transient toast). Known inert: the `data-role` rule does not fire on the current workspace - its 29 assets carry no roles, walls are painted tiles (260 blocked + 8 door cells inside the building, 8% of it).

@@ -1,0 +1,397 @@
+# floor-g lobby - tile-exact plan, revision 3. Every coordinate is a TILE (0.5 m).
+# Walls are 1 tile thick, placed one run at a time; doors one tile at a time; fixtures one at a time.
+# Canvas 116 x 76. Street ring 8 -> facade ring at x=8/107, y=8/67. Plate interior x 9..106, y 9..66.
+#
+# Revision 2 scored 5/10: the north half read as architecture and the south half read as a field.
+# Revision 3 gives the south half its own rooms:
+#   - the brasserie takes the whole south-west as a TERRACE, joined to the dining room by a 9-tile
+#     arch, so the restaurant is an L and the west of the plate is programmed floor to facade
+#   - the street entry moves east off the restaurant's flank to cols 25..28, where the arrival axis
+#     runs north between two pinch screens into the forecourt - shorter route, real procession
+#   - the desk run stays off that axis under its screen, with the walled duty office behind it
+#   - the planted water court stays as the centre of gravity of the great room
+# Walls share lines rather than doubling: the seed guard "no wall is two tiles thick" is enforced
+# by `npm run test:unit`. GT-27: fixtures stay >= 3 tiles from a wall whose far side is another space.
+
+%%envelope
+street 8
+
+%%walls
+# ---- north service band, staggered frontage -------------------------------------------------
+arc-south          9 17  24 17
+arc-east          25  9  25 19
+kit-west          25  9  25 19
+kit-south         25 19  38 19
+kit-east          38  9  38 19
+sto-west          38  9  38 17
+sto-south         38 17  49 17
+pav-west          49  9  49 19
+pav-south         49 19  67 19
+pav-east          67  9  67 19
+pav-mid           56  9  56 18
+off-west          67  9  67 17
+off-south         67 17  83 17
+off-east          83  9  83 17
+off-mid           76  9  76 16
+lau-west          83  9  83 19
+lau-south         83 19  93 19
+lau-east          93  9  93 19
+kid-west          93  9  93 17
+kid-south         93 17 106 17
+
+# ---- brasserie: dining room on the gallery, terrace down to the south-west facade -----------
+cafe-north         9 23  22 23
+cafe-east         23 23  23 41
+cafe-south-w       9 41  11 41
+cafe-south-e      21 41  23 41
+terrace-east      23 41  23 66
+
+# ---- lift hall, L-shaped: the waiting room plus a bench alcove to the east ------------------
+lift-north        24 23  41 23
+lift-east         41 23  41 29
+alc-north         41 29  46 29
+alc-east          46 29  46 35
+lift-south        24 35  46 35
+
+# ---- duty office, and the screen the counters stand under -----------------------------------
+off2-north        52 26  62 26
+off2-south        52 35  62 35
+off2-west         52 26  52 35
+off2-east         62 26  62 35
+scr-west          44 35  51 35
+scr-east          63 35  70 35
+
+# ---- residents' meeting room, east of the desk ---------------------------------------------
+rdd-north         68 23  84 23
+rdd-west          68 23  68 39
+rdd-south         68 39  84 39
+rdd-east          84 23  84 39
+
+# ---- public WC group B ---------------------------------------------------------------------
+wcb-north         88 24 102 24
+wcb-south         88 33 102 33
+wcb-west          88 24  88 33
+wcb-east         102 24 102 33
+
+# ---- bar, L-shaped: a stub at its north-west, enclosed on every other side ------------------
+bar-north         88 44 106 44
+bar-nw-n          84 44  87 44
+bar-nw-w          84 44  84 48
+bar-nw            84 48  87 48
+bar-west          84 48  84 66
+
+# ---- screens: they shape the route without closing a room -----------------------------------
+l-screen-h        30 44  38 44
+l-screen-v        30 44  30 49
+pinch-west        25 55  25 57
+pinch-east        30 55  30 57
+
+# ---- arrival vestibule: two door lines, six tiles between them (LP-02) ----------------------
+vest-inner        24 61  29 61
+vest-east         29 61  29 66
+
+%%doors
+# arcade frontage onto the gallery
+door 13 17
+door 14 17
+door 21 17
+door 22 17
+# kitchen (service), store, stair, WC A, offices, laundry, children
+door 31 19
+door 43 17
+door 51 19
+door 52 19
+door 61 19
+door 62 19
+door 72 17
+door 79 17
+door 88 19
+door 98 17
+door 99 17
+door 104 17
+# brasserie dining room: two arches onto the gallery
+door 13 23
+door 14 23
+door 18 23
+door 19 23
+# lift hall: in from the gallery, out to the hall, and a door at the alcove
+door 31 23
+door 32 23
+door 36 35
+door 37 35
+door 43 35
+door 44 35
+# office: staff into the hall, and behind the counter
+door 57 35
+door 52 31
+# WC group B
+door 88 29
+door 88 30
+# bar: from the hall, from the east strip, and a terrace door
+door 84 54
+door 84 55
+door 94 44
+door 95 44
+# meeting room: onto the gallery, onto the hall, and through to the east strip
+door 74 23
+door 75 23
+door 68 32
+door 68 33
+door 84 30
+door 84 31
+# vestibule inner door line
+door 25 61
+door 26 61
+door 27 61
+door 28 61
+
+%%facade-doors
+south 14 15
+south 25 28
+south 34 35
+east 30 31
+east 58 59
+
+%%furniture
+# --- arcade: two shopfronts ------------------------------------------------------------------
+put display-case-3    shop-case-a    10 10 0
+put display-case-3    shop-case-b    14 10 0
+put kiosk-2           shop-kiosk     18 11 0
+put shop-shelf-3      shop-shelf-a   10 13 0
+put shop-shelf-3      shop-shelf-b   19 13 0
+
+# --- kitchen: the declared chef posts need stations ------------------------------------------
+put kitchen-table-1   kn-table       28 12 0
+put kitchen-sink      kn-sink        31 12 0
+put table-stove       kn-stove       33 12 0
+put staff-locker-1    kn-locker      36 12 0
+
+# --- store, stair, WC A, offices, laundry, children ------------------------------------------
+put linen-shelf-3     sto-shelf-a    40 12 0
+put linen-shelf-3     sto-shelf-b    40 14 0
+put stair-flight-4    stair-north    50 10 0
+put toilet            wca-closet-a   59 12 0
+put toilet            wca-closet-b   61 12 0
+put toilet            wca-closet-c   63 12 0
+put urinal-1          wca-urinal-a   65 12 0
+put washbasin         wca-basin-a    60 15 0
+put washbasin         wca-basin-b    62 15 0
+put washbasin         wca-basin-c    64 15 0
+put baby-change-1     wca-baby       65 15 0
+put wheelchair-space-2 wca-access    58 15 0
+put office-chair      off1-chair-a   69 11 0
+put office-chair      off1-chair-b   72 11 0
+put safe-deposit-2    off1-vault     73 14 0
+put printer-1         off2-printer   78 11 0
+put office-chair      off2-chair-a   80 11 0
+put office-chair      off2-chair-b   79 13 0
+put washer-1          cl-washer      85 12 0
+put mop-sink-2        cl-mop         87 12 0
+put bin-store-2       cl-bins        89 14 0
+put custom-table-set  kid-table      96 11 0
+put rug-4             kid-rug        100 11 0
+put bench-park-3      kid-bench      95 14 0
+
+# --- gallery: art on the band wall line, clear of every door beneath it ----------------------
+put painting-2        gal-art-a      10 18 0
+put painting-2        gal-art-b      17 18 0
+put painting-2        gal-art-c      41 18 0
+put painting-2        gal-art-d      45 18 0
+put painting-2        gal-art-e      69 18 0
+put painting-2        gal-art-f      74 18 0
+put painting-2        gal-art-g      80 18 0
+put painting-2        gal-art-h      96 18 0
+put sculpture-2       gal-sculpt-a   29 21 0
+put sculpture-2       gal-sculpt-b   79 21 0
+
+# --- brasserie dining room (north of the arch) ----------------------------------------------
+put dining-table-4    cafe-table-a   12 26 0
+grid dining-chair-1   cafe-chair-a   12 25 2 1 2 0 0
+grid dining-chair-1   cafe-chair-b   12 28 2 1 2 0 0
+put dining-table-4    cafe-table-c   18 26 0
+grid dining-chair-1   cafe-chair-c   18 25 2 1 2 0 0
+grid dining-chair-1   cafe-chair-d   18 28 2 1 2 0 0
+put dining-table-4    cafe-table-e   12 33 0
+grid dining-chair-1   cafe-chair-e   12 32 2 1 2 0 0
+grid dining-chair-1   cafe-chair-f   12 35 2 1 2 0 0
+put dining-table-4    cafe-table-f   18 33 0
+grid dining-chair-1   cafe-chair-g   18 32 2 1 2 0 0
+grid dining-chair-1   cafe-chair-h   18 35 2 1 2 0 0
+
+# --- brasserie terrace: the south-west was open ground, now it is the restaurant's second room
+put dining-table-4    terr-table-a   11 45 0
+grid dining-chair-1   terr-chair-a   11 44 2 1 2 0 0
+grid dining-chair-1   terr-chair-b   11 47 2 1 2 0 0
+put dining-table-4    terr-table-c   17 45 0
+grid dining-chair-1   terr-chair-c   17 44 2 1 2 0 0
+grid dining-chair-1   terr-chair-d   17 47 2 1 2 0 0
+put dining-table-4    terr-table-e   11 52 0
+grid dining-chair-1   terr-chair-e   11 51 2 1 2 0 0
+grid dining-chair-1   terr-chair-f   11 54 2 1 2 0 0
+put dining-table-4    terr-table-f   17 52 0
+grid dining-chair-1   terr-chair-g   17 51 2 1 2 0 0
+grid dining-chair-1   terr-chair-h   17 54 2 1 2 0 0
+put dining-table-4    terr-table-g   11 59 0
+grid dining-chair-1   terr-chair-i   11 58 2 1 2 0 0
+grid dining-chair-1   terr-chair-j   11 61 2 1 2 0 0
+put dining-table-4    terr-table-h   17 59 0
+grid dining-chair-1   terr-chair-k   17 58 2 1 2 0 0
+grid dining-chair-1   terr-chair-l   17 61 2 1 2 0 0
+put potted-plant-1    terr-plant-a   21 43 0
+put potted-plant-1    terr-plant-b   21 63 0
+put wayfinding-totem-1 entry-totem   26 52 0
+
+# --- lift hall: cars on the shaft wall, seats in the room, through-doors on two faces --------
+put elevator-1        lift-a         26 24 0
+put elevator-1        lift-b         30 24 0
+put elevator-1        lift-c         34 24 0
+put sofa-1            lift-sofa-a    27 33 0
+put sofa-1            lift-sofa-b    33 33 0
+put armchair-1        lift-chair-a   25 31 0
+put bench-park-3      lift-bench     30 31 0
+put potted-plant-1    lift-plant-a   24 27 0
+put sofa-1            alc-sofa-a     42 32 0
+put armchair-1        alc-chair-a    45 31 0
+put clock-1           lift-clock     45 30 0
+
+# --- duty office ----------------------------------------------------------------------------
+put office-chair      office-chair-a 54 29 0
+put office-chair      office-chair-b 56 29 0
+put printer-1         office-printer 60 33 0
+
+# --- reception: five positions in three zones, all open to the volume they serve ------------
+put reception-desk    desk-pos-1     44 39 0
+put reception-desk    desk-pos-2     52 39 0
+put reception-desk    desk-pos-3     60 39 0
+put reception-desk    desk-pos-4     76 40 90
+put reception-desk    desk-pos-5     30 50 0
+put safe-deposit-2    desk-vault     56 37 0
+put concierge-desk-4  concierge-desk 24 44 0
+put bell-stand-1      concierge-bell 28 44 0
+put luggage-cart-2    concierge-cart 28 45 0
+
+# --- arrival: street -> vestibule -> pinched forecourt -> great room ------------------------
+put tactile-path-1    entry-path     26 62 0
+put exit-sign-1       exit-sign-s    16 66 0
+put exit-sign-1       exit-sign-e   106 32 0
+put fire-extinguisher-1 ext-a        26 22 0
+put first-aid-1       ext-kit        24 22 0
+
+# --- planted water court: the centre of gravity of the great room ---------------------------
+grid hedge-3          court-hedge-n  40 50 8 1 3 0 0
+put hedge-3           court-hedge-wa 39 51 90
+put hedge-3           court-hedge-wb 39 54 90
+put hedge-3           court-hedge-wc 39 57 90
+put hedge-3           court-hedge-ea 64 51 90
+put hedge-3           court-hedge-eb 64 54 90
+put hedge-3           court-hedge-ec 64 57 90
+grid water-feature-3  court-water    43 52 3 1 3 0 0
+put sculpture-2       court-sculpt-a 46 57 0
+put sculpture-2       court-sculpt-b 56 57 0
+grid potted-plant-1   court-plant    42 56 4 1 7 0 0
+put grand-piano-3     hall-piano     66 48 0
+put rug-4             court-rug      52 61 0
+
+# --- residents' meeting room: seats only, so it types `conference` and reads as its own volume
+grid theatre-seat-1   mtg-seat-a     70 26 4 1 1 0 0
+grid theatre-seat-1   mtg-seat-b     70 28 4 1 1 0 0
+grid theatre-seat-1   mtg-seat-c     78 26 3 1 1 0 0
+put side-table-1      mtg-table-a    75 27 0
+put fireplace-3       mtg-fire       78 36 0
+grid theatre-seat-1   mtg-seat-d     70 32 4 1 1 0 0
+put side-table-1      mtg-table-b    75 33 0
+put potted-plant-1    mtg-plant-a    82 26 0
+put exit-sign-1       mtg-exit       83 38 0
+
+# --- east lounge strip: sofas along the glazed facade ---------------------------------------
+put sofa-1            east-sofa-a   105 26 0
+put sofa-1            east-sofa-b   105 30 0
+put sofa-1            east-sofa-c   105 34 0
+put armchair-1        east-chair-a  103 28 0
+put armchair-1        east-chair-b  103 32 0
+put potted-plant-1    east-plant-a  103 38 0
+
+# --- WC group B: fixtures kept deep inside, so `hygiene` never crosses the wall -------------
+put toilet            wcb-closet-a   91 28 0
+put toilet            wcb-closet-b   93 28 0
+put toilet            wcb-closet-c   95 28 0
+put urinal-1          wcb-urinal-a   97 28 0
+put washbasin         wcb-basin-a    91 31 0
+put washbasin         wcb-basin-b    93 31 0
+put washbasin         wcb-basin-c    95 31 0
+put baby-change-1     wcb-baby       98 31 0
+
+# --- bar: banquettes in the stub, a back bar on the east glass, two service rows ------------
+put bar-counter       bar-top-a      90 49 0
+put bar-counter       bar-top-b      94 49 0
+grid bar-stool-1      bar-stool      89 50 7 1 1 0 0
+put high-table-1      bar-high-a     88 56 0
+put high-table-1      bar-high-b     94 56 0
+put high-table-1      bar-high-c     100 56 0
+grid bar-stool-1      bar-stool-b    88 59 3 1 6 0 0
+put sofa-1            bar-sofa-a     88 64 0
+put sofa-1            bar-sofa-b     94 64 0
+put sofa-1            bar-sofa-c     100 64 0
+grid bar-stool-1      bar-stool-c     88 63 3 1 6 0 0
+put sofa-1            bar-banquette-a 86 45 0
+put sofa-1            bar-banquette-b 86 47 0
+put bar-counter       bar-back-a     103 48 90
+put bar-counter       bar-back-b     103 52 90
+put potted-plant-1    bar-plant-a    105 45 0
+put potted-plant-1    bar-plant-b    105 66 0
+put sculpture-2       bar-sculpt      97 46 0
+
+# --- great room and south daylit band: three cluster types, staggered, facing the court -----
+clover  26 42
+sofa-group 24 48
+clover  34 62
+sofa-group 36 61
+sofa-group 46 62
+bench-group 40 64
+sofa-group 56 64
+bench-group 64 60
+sofa-group 60 62
+clover  68 56
+bench-group 74 62
+sofa-group 80 58
+clover  82 44
+bench-group 78 48
+grid potted-plant-1   hall-plant    36 65 2 1 9 0 0
+grid potted-plant-1   hall-plant2   54 65 4 1 8 0 0
+put water-feature-3   hall-water     40 44 0
+put sculpture-2       hall-sculpt    70 44 0
+
+%%furniture
+# --- the 8-tile queue band in front of the counter has to stay walkable, so it is furnished
+#     with rugs only: they read as a designed forecourt without taking a tile of clearance
+put rug-4             queue-rug-a    46 41 0
+put rug-4             queue-rug-b    54 43 0
+put rug-4             queue-rug-c    62 41 0
+put clock-1           queue-clock    45 41 0
+put wayfinding-totem-1 queue-totem   66 46 0
+
+# --- bar: a third service row, so the volume is not two counters in an empty room
+put high-table-1      bar-high-g     88 52 0
+put high-table-1      bar-high-h     94 52 0
+put high-table-1      bar-high-i    100 52 0
+grid bar-stool-1      bar-stool-d    88 54 3 1 6 0 0
+put side-table-1      bar-side-a     91 64 0
+put side-table-1      bar-side-b     97 64 0
+put side-table-1      bar-side-c    103 64 0
+
+# --- the gap between the meeting room and the bar, east of the desk
+clover  72 44
+bench-group 80 44
+put potted-plant-1    east-plant-b   70 48 0
+put sculpture-2       east-sculpt    84 42 0
+
+%%parti
+# 1. service band north, staggered so the gallery breathes; WCs and stair on a projecting pavilion
+# 2. desk off the entry axis, open under a screen, walled duty office behind it
+# 3. arrival: street -> vestibule -> pinched forecourt -> great room -> court
+# 4. lift hall is a furnished L-shaped waiting room with through-doors, visible from the desk
+# 5. the brasserie owns the whole south-west as dining room + terrace, joined by an arch
+# 6. F&B bar in its own L-shaped volume east, kitchen behind the band, terrace door to the street
+# 7. a planted water court at the centre, so the hall is a sequence, not one void
+# 8. seats in three cluster types facing the court, on the daylit band
+# 9. two WC groups (LP-09), three street exits plus the stair core

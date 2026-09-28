@@ -1,5 +1,5 @@
 import type { ObjectData, Rect } from '../domain/types'
-import { objectOverlapsAny, recalcCollapsed, unionRects } from '../domain/collision'
+import { recalcCollapsed, unionRects } from '../domain/collision'
 import type { BlueprintStore } from './state'
 import { genId } from './storeUtils'
 import { MAX_OBJECTS_PER_FLOOR } from '../limits'
@@ -60,8 +60,8 @@ export function createMetadataCommands(store: BlueprintStore) {
 				const rawX = c.x + offsetX
 				const rawY = c.y + offsetY
 				const rect = clamp({ x: snap(rawX), y: snap(rawY), w: c.w, h: c.h })
-				if (objectOverlapsAny(floor.objects, assetMap(), rect)) {
-					toast.warning(`Skipped pasting "${c.type}" - would overlap existing object`)
+				if (store.placementBlocked(rect, c.type)) {
+					toast.warning(`Skipped pasting "${c.type}" - would overlap another object or wall geometry`)
 					continue
 				}
 				newIds.push(newId)
@@ -77,7 +77,7 @@ export function createMetadataCommands(store: BlueprintStore) {
 				pendingCopies.push(copy)
 			}
 			if (pendingCopies.length === 0) {
-				toast.warning('Paste failed - all objects would overlap')
+				toast.warning('Paste failed - every object would overlap another object or wall geometry')
 				return
 			}
 			if (floor.objects.length + pendingCopies.length > MAX_OBJECTS_PER_FLOOR) {

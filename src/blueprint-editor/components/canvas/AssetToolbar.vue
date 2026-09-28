@@ -22,11 +22,15 @@ const showImportSvg = ref(false)
 
 const { panelStyle, onResizeStart, onResizeKey, resetPanelWidth } = usePanelResize('left')
 
-const { searchQuery, incompleteMap, incompleteTitle, placedCounts, placedObjectCount, filteredAssets } =
-  useAssetListState()
+const {
+  searchQuery, reorderBlocked, incompleteMap, incompleteTitle, placedObjectCount, filteredAssets,
+} = useAssetListState()
 
 const incompleteCount = computed(() => incompleteMap.value.size)
 const totalAssets = computed(() => store.state.assetRegistry.length)
+// The move buttons read a row's position and whether it is last, so one position map is
+// computed per change instead of a findIndex per row.
+const registryPosition = computed(() => new Map(store.state.assetRegistry.map((a, i) => [a.id, i])))
 const totalInstances = computed(() => store.state.layout.floors.reduce((sum, f) => sum + f.objects.length, 0))
 const affectedFloors = computed(() => store.state.layout.floors.filter((f) => f.objects.length > 0).length)
 const isNpcPreview = computed(() => store.isNpcPreview.value)
@@ -61,7 +65,7 @@ function onItemClick(assetId: string) {
 }
 
 function registryIndex(assetId: string): number {
-  return store.state.assetRegistry.findIndex((a) => a.id === assetId)
+  return registryPosition.value.get(assetId) ?? -1
 }
 
 async function moveAsset(assetId: string, delta: -1 | 1) {
@@ -120,9 +124,14 @@ async function moveAsset(assetId: string, delta: -1 | 1) {
         v-memo="[
           asset.id,
           asset.name,
+          assetSizeLabel(asset),
+          originLabel(asset),
+          incompleteTitle(asset),
           store.state.selectedAssetId,
-          incompleteMap.get(asset.id),
-          placedCounts.get(asset.id),
+          reorderBlocked,
+          registryIndex(asset.id),
+          totalAssets,
+          placedObjectCount(asset.id),
         ]"
         class="card__item assets__item"
         role="button"
@@ -137,9 +146,7 @@ async function moveAsset(assetId: string, delta: -1 | 1) {
       >
         <span class="assets__tiles">{{ assetSizeLabel(asset) }} - {{ originLabel(asset) }}</span>
         <span class="size--stretch">{{ asset.name }}</span>
-        <span v-if="incompleteMap.get(asset.id)?.length" class="badge flag--warning" title="Incomplete settings"
-          >!</span
-        >
+        <span v-if="incompleteTitle(asset)" class="badge flag--warning" title="Incomplete settings">!</span>
         <span class="badge" :title="placedCountTitle(placedObjectCount(asset.id))">{{
           placedObjectCount(asset.id)
         }}</span>
@@ -147,7 +154,7 @@ async function moveAsset(assetId: string, delta: -1 | 1) {
           type="button"
           title="Move asset up"
           :aria-label="`Move ${asset.name} up`"
-          :disabled="registryIndex(asset.id) <= 0 || searchQuery.trim() !== ''"
+          :disabled="registryIndex(asset.id) <= 0 || reorderBlocked"
           @mousedown.stop
           @click.stop="moveAsset(asset.id, -1)"
           @keydown.stop
@@ -159,9 +166,7 @@ async function moveAsset(assetId: string, delta: -1 | 1) {
           title="Move asset down"
           :aria-label="`Move ${asset.name} down`"
           :disabled="
-            registryIndex(asset.id) < 0 ||
-            registryIndex(asset.id) >= store.state.assetRegistry.length - 1 ||
-            searchQuery.trim() !== ''
+            registryIndex(asset.id) < 0 || registryIndex(asset.id) >= totalAssets - 1 || reorderBlocked
           "
           @mousedown.stop
           @click.stop="moveAsset(asset.id, 1)"

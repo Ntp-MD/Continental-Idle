@@ -12,6 +12,9 @@ import {
 import { renderSvgInto } from '../../assets/svgSanitizer'
 import { useCanvasDefaults } from '../../composables/useCanvasDefaults'
 import { useAssetListState } from '../../composables/useAssetListState'
+import { useToast } from '@/composables/useToast'
+import { useConfirm } from '@/composables/useConfirm'
+import { useAsyncAction } from '../../composables/useAsyncAction'
 import type { AssetDef } from '../../domain/types'
 import ModalShell from '../shell/ModalShell.vue'
 import SearchInput from '../inputs/SearchInput.vue'
@@ -20,9 +23,11 @@ const props = defineProps<{ open: boolean }>()
 const emit = defineEmits<{ (e: 'close'): void }>()
 
 const store = useAssetsStore()
+const toast = useToast()
+const confirm = useConfirm().confirm
+const { pending, run } = useAsyncAction()
 
-const { searchQuery, incompleteMap, incompleteTitle, placedCounts, placedObjectCount, filteredAssets } =
-  useAssetListState()
+const { searchQuery, incompleteTitle, placedObjectCount, filteredAssets } = useAssetListState()
 
 const { canvasTileSize } = useCanvasDefaults()
 
@@ -66,6 +71,32 @@ function pick(asset: AssetDef) {
   startAssetDrag(asset.id)
   emit('close')
 }
+
+async function removeAsset(asset: AssetDef) {
+  // Guard in JS, not on the button: the row is v-memo'd, so a `disabled` binding written
+  // during a delete would stay frozen until the modal remounts.
+  if (pending.value) return
+  if (store.isNpcPreview.value) {
+    toast.warning('Cannot delete assets while NPCs are deployed. Exit NPC preview first.')
+    return
+  }
+  const instances = placedObjectCount(asset.id)
+  const confirmed = await confirm({
+    title: 'Remove asset',
+    message:
+      instances > 0
+        ? `Remove "${asset.name}" from the palette? ${instances} placed object(s) will be deleted too.`
+        : 'Remove this asset from the palette?',
+    confirmLabel: 'Remove',
+    cancelLabel: 'Cancel',
+    danger: true,
+  })
+  if (!confirmed) return
+  const deleted = await run(() => store.deleteAsset(asset.id))
+  if (!deleted) return
+  if (store.state.selectedAssetId === asset.id) store.selectAsset(null)
+  toast.success('Asset removed from palette')
+}
 </script>
 
 <template>
@@ -83,9 +114,11 @@ function pick(asset: AssetDef) {
           v-memo="[
             asset.id,
             asset.name,
+            assetSizeLabel(asset),
+            originLabel(asset),
+            incompleteTitle(asset),
             store.state.selectedAssetId,
-            incompleteMap.get(asset.id),
-            placedCounts.get(asset.id),
+            placedObjectCount(asset.id),
           ]"
           class="picker__item"
           :class="{ 'flag--active': store.state.selectedAssetId === asset.id }"
@@ -107,7 +140,7 @@ function pick(asset: AssetDef) {
             :style="assetSvgVarStyle(asset)"
           ></svg>
           <span
-            v-if="incompleteMap.get(asset.id)?.length"
+            v-if="incompleteTitle(asset)"
             class="badge flag--warning picker__badge"
             title="Incomplete settings"
             >!</span
@@ -120,6 +153,16 @@ function pick(asset: AssetDef) {
           >
           <span class="truncate">{{ asset.name }}</span>
           <span class="picker__meta truncate">{{ assetSizeLabel(asset) }} - {{ originLabel(asset) }}</span>
+          <button
+            type="button"
+            class="flag--danger picker__delete"
+            :aria-label="`Delete ${asset.name}`"
+            title="Delete asset"
+            @click.stop="removeAsset(asset)"
+            @keydown.stop
+          >
+            Del
+          </button>
         </li>
       </ul>
     </div>
@@ -184,6 +227,19 @@ svg.picker__thumb {
 .picker__badge--count {
   top: auto;
   bottom: var(--gap-xs);
+}
+
+.picker__delete {
+  position: absolute;
+  top: var(--gap-xs);
+  left: var(--gap-xs);
+  padding: 0 var(--gap-xxs);
+  opacity: 0;
+}
+
+.picker__item:hover .picker__delete,
+.picker__delete:focus-visible {
+  opacity: 1;
 }
 
 .picker__meta {

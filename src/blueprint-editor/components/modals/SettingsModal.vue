@@ -80,7 +80,7 @@ async function applyCanvasSize() {
   const changed =
     widthInput.value !== canvas.width || heightInput.value !== canvas.height || tileInput.value !== canvas.tileSize
   if (changed && store.hasContent()) {
-    toast.error('Clear all objects and painted tiles before changing the canvas size')
+    toast.error('Clear all objects, NPC spawn zones and wall/door tiles before changing the canvas size')
     return
   }
   const tileSize = tileInput.value > 0 ? tileInput.value : canvas.tileSize

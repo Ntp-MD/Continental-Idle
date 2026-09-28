@@ -1,11 +1,13 @@
 import type { FloorData, NpcSpawnZone, Rect, TileBrush } from '../domain/types'
 import { applyTileBrush, normalizeAllowedRoleIds, normalizeFloorWalkable, normalizeNpcSpawnZones, normalizeText, resolveFloorTileStates, resolveStreetTiles, tileStatesToWalkableGrid } from '../domain/types'
+import { rectHitsStructure } from '../domain/collision'
 import type { BlueprintStore, FloorPatch } from './state'
 import { genId, cloneDeepRaw } from './storeUtils'
 import { MAX_FLOORS } from '../limits'
 
 export function createFloorCommands(store: BlueprintStore) {
 	const state = store.state
+	const toast = store.toast
 	const withStateLock = <T>(fn: () => Promise<T>) => store.runExclusive(fn)
 	const saveBlueprintData = () => store.save()
 	const clearSelection = () => store.clearSelection()
@@ -213,6 +215,10 @@ export function createFloorCommands(store: BlueprintStore) {
 			applyTileBrush(states, brush, Math.min(rect.row0, rect.row1), Math.min(rect.col0, rect.col1), Math.max(rect.row0, rect.row1), Math.max(rect.col0, rect.col1))
 			const walkableGrid = tileStatesToWalkableGrid(states)
 			floor.walkable = { walkableGrid, tileStates: states }
+			// Painting over a placed object stays allowed - the wall is the authoring act -
+			// but the buried object must not become a silent defect.
+			const buried = floor.objects.filter(o => rectHitsStructure(floor, o, tileSize)).length
+			if (buried) toast.warning(`${buried} object(s) now sit on wall geometry - move them out`)
 			return saveBlueprintData()
 		})
 	}

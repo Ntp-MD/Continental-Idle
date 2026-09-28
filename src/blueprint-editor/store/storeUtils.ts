@@ -1,15 +1,16 @@
 import { toRaw } from 'vue'
-import { NPC_DEFAULT_SPEED, NPC_OPTION_DEFAULTS, NPC_FRAME_DEFAULTS, type AssetDef, type FloorData, type FloorLayoutData, type NpcSimulationConfig, type NpcTask, type TileState } from '../domain/types'
+import { NPC_DEFAULT_SPEED, NPC_OPTION_DEFAULTS, NPC_FRAME_DEFAULTS, type AssetDef, type FloorData, type FloorLayoutData, type NpcSimulationConfig, type NpcTask } from '../domain/types'
 
 export function floorHasContent(floor: FloorData): boolean {
 	if (floor.objects.length > 0) return true
 	if (floor.spawnZones?.length) return true
-	const defaultState: TileState = floor.defaultWalkable === false ? 'blocked' : 'walkable'
+	// Only walls and doors are authored geometry a canvas resize would distort;
+	// walkable paint is just floor - counting it locked resizing on a floor that
+	// reads as empty (full walkable paint on a blocked-default base).
 	const states = floor.walkable?.tileStates
-	if (states) return states.some(row => row.some(cell => cell !== defaultState))
-	const defaultCell = floor.defaultWalkable !== false
+	if (states) return states.some(row => row.some(cell => cell === 'blocked' || cell === 'door'))
 	const grid = floor.walkable?.walkableGrid
-	if (grid) return grid.some(row => row.some(cell => cell !== defaultCell))
+	if (grid) return grid.some(row => row.some(cell => cell === false))
 	return false
 }
 

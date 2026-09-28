@@ -8,7 +8,7 @@ Project instructions for AI agents. Full rules (operating mode, loop, report for
 - Decide, don't stall: reversible in-repo choices (scope growth, dependencies, interface picks) are decided + logged as veto-able decisions. STOP + ask ONLY for: secrets/auth, irreversible actions outside the repo, missing information. Asking is the last resort, never the default.
 - Claim then impact: verify user-reported issues against code first. Keep scope; user correction persists for the session.
 - Delegation (full text: `harness/HARNESS.md` - Delegation): deliverable first - the subagent creates its file early and folds evidence in as it researches; bounded retrieval with checkpoints; continue existing work, never restart it; never stop an agent whose identity or state is uncertain; verify the fan-out mechanically after the last agent lands.
-- Report in the HARNESS.md Report format (Changed / Decisions / Gaps / Verify under a verdict headline) - audits and question answers have their own variants there.
+- Report in the HARNESS.md Report format (Changed / Decisions / Gaps / Verify under a verdict headline, every item carrying an explicit status tag `[fixed]`/`[partial]`/`[not-fixed]`/`[untouched]`/`[decided]`/`[rejected]`/`[blocked]`) - audits and question answers have their own variants there.
 - Direction-level decisions -> `harness/state/history.md` `- decision:` bullets. Routine fixes are not recorded.
 
 ## Read chain

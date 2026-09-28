@@ -98,7 +98,7 @@ Explicit user instruction > this file > \`harness/HARNESS.md\` > general best pr
   new dependency/infra, secrets/auth change.
 - Confidence >80% -> do it and state the assumption; else ask with 2-4 options + recommendation.
 - Claim then impact: verify user reports against code first. Keep scope.
-- Report in the HARNESS.md Report format (Changed / Decisions / Gaps / Verify).
+- Report in the HARNESS.md Report format (Changed / Decisions / Gaps / Verify, every item carrying an explicit status tag).
 - Direction decisions -> \`harness/state/history.md\` \`- decision:\` bullets.
 
 ## Read chain

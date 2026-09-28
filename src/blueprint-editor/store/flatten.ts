@@ -169,6 +169,13 @@ export function createFlattenCommands(store: BlueprintStore) {
 			normalizeObject(newObj, t, assetMap())
 
 			const removeIds = new Set(objs.map(o => o.id))
+			// The merged footprint is a new object, so it passes the same gate as a drop:
+			// its bounding box may not bury another object or a painted wall.
+			if (store.placementBlocked(newObj, assetId, Array.from(removeIds))) {
+				state.assetRegistry.pop()
+				toast.warning('Cannot flatten - the merged area covers another object or wall geometry')
+				return null
+			}
 			if (floor.objects.some(o => !removeIds.has(o.id) && aabbOverlap(newObj, o))) {
 				toast.warning('Flattened asset overlaps another object - SVG art skips collision checks, review placement')
 			}

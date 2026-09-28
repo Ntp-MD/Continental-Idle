@@ -30,12 +30,16 @@ export function useAssetListState() {
     return placedCounts.value.get(assetId) ?? 0
   }
 
+  // Reordering a filtered view reorders registry positions the user cannot see, so the
+  // move buttons switch off together - one scalar, not a per-row recompute.
+  const reorderBlocked = computed(() => searchQuery.value.trim() !== '')
+
   return {
     searchQuery,
+    reorderBlocked,
     filteredAssets,
     incompleteMap,
     incompleteTitle,
-    placedCounts,
     placedObjectCount,
   }
 }

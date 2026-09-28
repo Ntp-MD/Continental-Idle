@@ -1,0 +1,35 @@
+{
+	"_note": "Design inputs the host payload does not carry. Read by the architecture harness only - never by the game. Every number here is either a user decision or a rule from architecture-skill/research with its file:line; nothing is inferred silently.",
+	"arrival": {
+		"_basis": "USER SPEC 2026-09-27: about 500 people walk in and 500 walk out per day, as a MINIMUM - not a point estimate. Every figure derived from it (desks, seats, queue area) is therefore a floor to be met or exceeded, and the sensitivity ranges in SC-04 run upward only.",
+		"isMinimum": true,
+		"walkInsPerDay": 500,
+		"walkOutsPerDay": 500,
+		"_split": "user spec 2026-09-26: 500 people walk in and 500 walk out per day at the lobby - 500 per direction, not 500 combined.",
+		"serviceMinutesPerArrival": 4,
+		"_service": "PP-08 professional-practice.md:311 - desks = ceil(peak_arrivals x 4 min / peak_window_min)",
+		"peakWindowMinutes": 120,
+		"_window": "PP-08 professional-practice.md:298 - sixty arrivals at four minutes each is 240 minutes",
+		"peakFactor": 3,
+		"_factor": "PP-08 professional-practice.md:301 - 15:00-17:00 lobbies carry 3-4x off-peak; the conservative 3 is used"
+	},
+	"seating": {
+		"_note": "Inputs for SC-01..SC-04 (architecture-skill/research/seating-capacity-model.md). Seats are sized by L = lambda x W, so the two numbers that decide the answer are seatedShare and dwellMinutes. Neither exists anywhere in the research corpus - they are project decisions, and changing them is the intended way to argue with the result.",
+		"seatedShareOfWalkIns": 0.35,
+		"_seatedShareOfWalkIns": "declared. share of arrivals who sit while waiting (room not ready, luggage, companion)",
+		"seatedShareOfWalkOuts": 0.15,
+		"_seatedShareOfWalkOuts": "declared. share of departures who sit while waiting for transport or bags",
+		"lobbyVisitsPerResidentPerDay": 1,
+		"_lobbyVisitsPerResidentPerDay": "declared. how often the 470 present guests use the lobby as a living room; a resort is 2-3, a city transit hotel 0.5",
+		"dwellMinutesSeated": 25,
+		"_dwellMinutesSeated": "declared, NO SOURCE FOUND in the corpus. weighted mix of a ~12 min wait and a ~35 min lounge sit. This is the single most sensitive input: 15 min -> ~23 seats, 25 -> ~50, 40 -> ~60",
+		"designMargin": 1.3,
+		"_designMargin": "declared. groups, chairs held by luggage, sub-hour spikes above the two-hour average",
+		"seatPitchMetres": 0.6,
+		"_seatPitchMetres": "declared convention, no source found. chair width used to turn a furniture footprint into a seat count (SC-05)",
+		"seatedAreaM2PerPerson": 3.3,
+		"_seatedAreaM2PerPerson": "LP-14 - the operator's own seated index (35 sq ft, meeting rooms), Module 12 12.6.C.3. Disclaimed there for fire capacity, so it is a programme figure only (SC-07)",
+		"standingAreaM2PerPerson": 1.4,
+		"_standingAreaM2PerPerson": "LP-14 - the operator's ballroom index (15 sq ft) for standing/event density. Programme only, never egress"
+	}
+}

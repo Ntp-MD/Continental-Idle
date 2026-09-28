@@ -52,3 +52,6 @@ tests/e2e/__screenshots__/
 
 # profiling captures (local diagnostics, never committed)
 *.cpuprofile
+
+# Architecture Agent Harness renders and reports (regenerable: npm run arch:selftest)
+scripts/arch/out/

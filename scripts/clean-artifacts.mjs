@@ -18,6 +18,7 @@ const ARTIFACTS = [
 	'.playwright-mcp',
 	'test-output.txt',
 	'tests/e2e/__screenshots__',
+	'scripts/arch/out',
 ];
 const PATTERNS = [/\.cpuprofile$/, /\.log$/, /\.tmp\d*$/, /\.old$/, /\.bak$/, /~$/, /^qr-.*\.png$/];
 const SKIP_DIRS = new Set(['node_modules', '.git']);

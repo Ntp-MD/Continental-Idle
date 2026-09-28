@@ -2,7 +2,7 @@ import type { ObjectData, AssetDef, Rotation, FloorData, Rect } from '../domain/
 import { assetPixelSize, resolveObjectDef } from '../domain/types'
 import { findAssetCached } from '../assets/assetUtils'
 import { resolveBuildingArea, normalizeObject } from '../domain/geometry'
-import { aabbOverlap, objectOverlapsAny, recalcCollapsed, unionRects } from '../domain/collision'
+import { aabbOverlap, objectOverlapsAny, rectHitsStructure, recalcCollapsed, unionRects } from '../domain/collision'
 import type { BlueprintStore } from './state'
 import { genId, genAssetId } from './storeUtils'
 import { MAX_ASSET_TILES, MAX_OBJECTS_PER_FLOOR } from '../limits'
@@ -47,6 +47,13 @@ export function createObjectCommands(store: BlueprintStore) {
 		return groupId
 	}
 
+	// One gate for every placement: another object's body, or painted wall and door cells.
+	function placementBlocked(rect: Rect, type: string, excludeIds?: string | string[]): boolean {
+		const floor = currentFloor.value
+		if (objectOverlapsAny(floor?.objects ?? [], assetMap(), rect, excludeIds, findAssetCached(assetMap(), type))) return true
+		return rectHitsStructure(floor, rect, state.layout.canvas.tileSize)
+	}
+
 	async function beginDrawnObject(name: string, w: number, h: number, x: number, y: number): Promise<{ asset: AssetDef; object: ObjectData } | null> {
 		return withStateLock(async () => {
 			const floor = currentFloor.value
@@ -61,8 +68,8 @@ export function createObjectCommands(store: BlueprintStore) {
 			const asset: AssetDef = { origin: 'drawn', id: genAssetId('custom', safeName, c => state.assetRegistry.some(a => a.id === c)), name: safeName, w: Math.max(1, Math.floor(w)), h: Math.max(1, Math.floor(h)), defaultFillColor: '#ffffff' }
 			initAssetFields(asset)
 			const rect = clamp({ x: snap(x), y: snap(y), w: asset.w * t, h: asset.h * t })
-			if (objectOverlapsAny(floor.objects, assetMap(), rect)) {
-				toast.warning('Cannot place object - overlaps existing object')
+			if (placementBlocked(rect, asset.id)) {
+				toast.warning('Cannot place object - it overlaps another object or wall geometry')
 				return null
 			}
 			const object: ObjectData = { id: genId('obj'), type: asset.id, rotation: 0, ...rect }
@@ -86,8 +93,8 @@ export function createObjectCommands(store: BlueprintStore) {
 			const h = snap(ah)
 			const rect = clamp({ x: snap(x), y: snap(y), w, h })
 
-			if (objectOverlapsAny(floor.objects, assetMap(), rect)) {
-				toast.warning('Cannot place object - overlaps existing object')
+			if (placementBlocked(rect, type)) {
+				toast.warning('Cannot place object - it overlaps another object or wall geometry')
 				return null
 			}
 			const obj: ObjectData = {
@@ -110,7 +117,7 @@ export function createObjectCommands(store: BlueprintStore) {
 		const w = snap(aw)
 		const h = snap(ah)
 		const rect = clamp({ x: snap(x), y: snap(y), w, h })
-		return !objectOverlapsAny(currentFloor.value?.objects ?? [], assetMap(), rect)
+		return !placementBlocked(rect, type)
 	}
 
 	async function deleteSelected(): Promise<void> {
@@ -211,6 +218,14 @@ export function createObjectCommands(store: BlueprintStore) {
 		const maxDy = (b.y + b.h) - (bounds.minY + bounds.h)
 		const dx = Math.max(minDx, Math.min(requestedDx, maxDx))
 		const dy = Math.max(minDy, Math.min(requestedDy, maxDy))
+		// A drag stops dead instead of resting inside painted geometry. An object already
+		// buried by paint - legacy layout, or a wall painted over it - is always allowed to
+		// move, otherwise the only way out is deleting it.
+		const floor = currentFloor.value
+		const tileSize = state.layout.canvas.tileSize
+		const buried = (rect: Rect) => rectHitsStructure(floor, rect, tileSize)
+		const moved = members.map(member => ({ x: member.x + dx, y: member.y + dy, w: member.w, h: member.h }))
+		if (moved.some((rect, index) => !buried(members[index]!) && buried(rect))) return false
 		for (const member of members) {
 			member.x += dx
 			member.y += dy
@@ -261,7 +276,7 @@ export function createObjectCommands(store: BlueprintStore) {
 				member.y += dy
 			}
 			const ids = members.map(member => member.id)
-			if (members.some(member => objectOverlapsAny(floor.objects, assetMap(), member, ids))) {
+			if (members.some(member => placementBlocked(member, member.type, ids))) {
 				for (const old of oldPositions) {
 					const member = members.find(candidate => candidate.id === old.id)
 					if (member) { member.x = old.x; member.y = old.y }
@@ -291,8 +306,8 @@ export function createObjectCommands(store: BlueprintStore) {
 				return
 			}
 			const rect = clamp({ x: o.x, y: o.y, w: o.h, h: o.w })
-			if (objectOverlapsAny(currentFloor.value?.objects ?? [], assetMap(), rect, o.id)) {
-				toast.warning('Cannot rotate - would overlap another object')
+			if (placementBlocked(rect, o.type, o.id)) {
+				toast.warning('Cannot rotate - would overlap another object or wall geometry')
 				return
 			}
 			const prevRect = { x: o.x, y: o.y, w: o.w, h: o.h }
@@ -390,7 +405,7 @@ export function createObjectCommands(store: BlueprintStore) {
 
 	return {
 		getLinkedObjects, dissolveGroupsIfSmall, beginDrawnObject, addObject, canPlaceObject,
-		deleteSelected, moveSelectedTo, commitMove, rotateSelected,
+		placementBlocked, deleteSelected, moveSelectedTo, commitMove, rotateSelected,
 		linkObjects, unlinkObject, toggleObjectLock,
 	}
 }

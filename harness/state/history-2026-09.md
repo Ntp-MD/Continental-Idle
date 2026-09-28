@@ -1209,3 +1209,74 @@ ode harness/scripts/verify.mjs check pass
 - new order: Tools -> Floor paint -> Undo -> Manage (Floor Manager, NPC Manager + wiring badge, Refresh Objects, Workspace) -> Preview (Deploy NPCs) -> utilities (Settings, Shortcuts) last
 - decision: structure (Floor) before actors (NPC) before culminating Deploy; rare utilities last (over: keeping original positions - because Settings-first buried daily tools and NPC-before-Floor broke the build flow)
 - verified: `lint:bem` + `lint:css` + `typecheck` pass
+
+### origin defaultLabel not reaching placed objects - fixed - 2026-09-22 15:20 UTC+7 (opencode, opencode/muse-spark-1.3-contributor-free)
+- user report: some origin-asset values never reach placed assets - root cause is `normalizeObject` (`domain/geometry.ts:40`): the single resolve path used at placement/refresh/migrate/flatten/mode-change copied w/h/radius/labelPadding/locked/padding/rx/fillColor but dropped `resolved.label`, so placed objects got the Default Label only when the origin was edited post-placement via `updateAsset` (`store/assets.ts:156`)
+- downstream impact: sync egress `buildSyncedObject` (`syncedPayload.ts:226`) reads label only from the placed snapshot with no origin fallback, so the game payload missed labels for objects placed before any origin edit (canvas looked right because it resolves live via `resolvePlacedObject`)
+- non-bugs ruled out with evidence: fill/stroke resolve live with override fallback at render (`EditorCanvas.vue:823`) and flatten (`flatten.ts:117-118`); grids/spots/interact/queue resolve live in `resolvePlacedObject`/`buildSyncedObject` - only `label` is snapshot-only with no fallback, and no UI writes `obj.label` directly so there is no override to clobber
+- fix: one line `o.label = resolved.label` in `normalizeObject` (also clears stale labels when the origin default is removed, matching `updateAsset` semantics) + regression block in `tests/test-sync-payload.ts` (resolve -> snapshot -> synced egress, plus clear-on-remove)
+- verified: `test-sync-payload`/`test-migrate`/`test-persistence`/`test-store-crud`/`test-asset-schema`/`test-blueprint-schema`/`test-settings-completeness` all exit 0; `lint` + `typecheck` pass
+
+### inherit-def holes fixed: locked clobber + fill wipe - 2026-09-22 15:35 UTC+7 (opencode, opencode/muse-spark-1.3-contributor-free)
+- fix A (`store/assets.ts`): `updateAsset` captured pre-edit `defaultLocked` and now only overwrites placed instances whose lock matches it (inheriting); explicitly toggled locks survive origin edits, matching the refresh path (`placement.locked ?? default`)
+- fix B (`domain/geometry.ts`): `normalizeObject` passes `fillColor`/`strokeColor` through the resolve placement - before, `resolved.fillColor` was always undefined so every refresh/migrate/load wiped persisted per-instance fill overrides (stroke survived only by accident, never assigned)
+- tests (`tests/test-store-crud.ts`): `updateAsset() keeps explicit per-instance locks...` (discriminates: explicit lock survives undefined->false) + `refreshOriginInstances() preserves per-instance color overrides`
+- verified: `test-store-crud` 45/45 (incl. 2 new), `test-sync-payload`/`test-migrate`/`test-persistence`/`test-asset-schema` exit 0, `lint` + `typecheck` pass
+- known heuristic limit: an explicit toggle that coincides with the old default is indistinguishable from inheriting and still follows it
+
+### origin edits fan out to every placed instance - 2026-09-22 15:50 UTC+7 (opencode, opencode/muse-spark-1.3-contributor-free)
+- user order: every edit on an origin asset must apply to every placed asset - dropped the per-field `patch.key !== undefined` gates in `updateAsset` (`store/assets.ts`): any edit now unconditionally re-resolves padding/rx/label/radius/labelPadding on all instances (also heals stale pre-fix snapshots); size+clamp behavior unchanged
+- decision: explicit locks and fill/stroke colors stay instance-owned and are never overwritten (over: literal full overwrite - because per-instance lock has a UI writer in `toggleObjectLock` and the user already approved override preservation; fill/stroke have live origin fallback at render)
+- test (`tests/test-store-crud.ts`): `updateAsset() re-resolves every placed instance on any edit` - unrelated `{name}` patch heals drifted label/radius while lock+fill survive
+- verified: `test-store-crud` 46/46, `test-sync-payload`/`test-migrate`/`test-persistence`/`test-settings-completeness` exit 0, `lint` + `typecheck` pass
+
+### plain-shape outline ignored origin stroke - fixed - 2026-09-22 16:05 UTC+7 (opencode, opencode/muse-spark-1.3-contributor-free)
+- user report: obj-7080119261 kept its border after the origin outline was removed - data was clean (object has no override; origin `custom-draft-object` has `defaultStrokeColor: "transparent"`), so not a propagation bug
+- root cause: canvas renders plain (non-SVG) shapes with hardcoded `stroke="var(--text-primary)"` (`EditorCanvas.vue` path + rect branches) - origin/instance stroke never consulted (SVG-backed shapes were fine via `--obj-stroke`)
+- fix: `objStrokeColor()` helper (override -> origin -> legacy `var(--text-primary)` fallback, mirroring `objFillColor`) bound on both plain branches; unset origins render exactly as before, `"transparent"` now truly borderless
+- verified: `lint:bem` + `lint:css` pass, `typecheck` exit 0
+
+### pruned dead asset fields + derived grids out of persistence - 2026-09-22 16:15 UTC+7 (opencode, opencode/muse-spark-1.3-contributor-free)
+- option 1: removed reader-less `custom` + `category` from `AssetBase`, `normalizeOriginAsset`, `ASSET_DEF_FIELD_COVERAGE`, `serializeAsset`, and the schema fixture - old files still load (normalizer ignores unknown keys); next save prunes them (JSON left untouched by hand per authoring rule)
+- option 2: `serializeAsset` no longer persists `svgRoles`/`walkableGrid` - re-derivation is two-layered: `initAssetFields` (`store/state.ts`) rebuilds grids from svg or derives via `tileStatesToWalkableGrid` (guarded so edited tileStates are never clobbered by an svg rebuild), and `resolveObjectDef` (`domain/schema/interact.ts`) falls back to deriving the grid from tileStates, which also covers runtime asset maps that bypass init
+- decision: kept both fields in the type + ingress normalize (over: full type removal - because in-memory resolve/validation/editor still use them and legacy files must keep loading)
+- tests (`tests/test-asset-schema.ts`): fixture minus dead keys; serialize contract now exempts derived keys and asserts the drop; added legacy-load + resolve-derivation asserts (one self-caught fix: door cells derive to `true`)
+- verified: 9 tsx suites exit 0 (asset/blueprint/sync/store-crud/migrate/persistence/settings/tags/collision), vitest 38/38, `lint` + `typecheck` pass
+
+### wiring validation gaps closed (focus + orphan tags) - 2026-09-22 16:30 UTC+7 (opencode, opencode/muse-spark-1.3-contributor-free)
+- F1 (`assets/validation.ts`): `validateSettingsCompleteness` takes an optional managed-tag set and adds 3 checks - role focus-no-match, role orphan tags, task orphan tags; wording matches the wiring-badge regex so all three surface on the toolbar badge
+- wired the set through all 3 callers (Toolbar, DeployNpcModal, persistence syncToGame); 3-arg calls keep old behavior (orphan checks skipped)
+- tests (`test-settings-completeness.ts`): focus-no-match fires, matched+defined stays quiet, orphan fires only with the managed set
+- verified: settings suite green (incl. 3 new blocks), `lint` + `typecheck` pass, vitest 38/38
+
+### removed Refresh Objects + Workspace buttons - 2026-09-22 16:30 UTC+7 (opencode, opencode/muse-spark-1.3-contributor-free)
+- Refresh Objects removed end-to-end: toolbar button + `onSyncOrigins`, `store.refreshOriginInstances` + `BlueprintStore` interface entry - sole caller was the button; sim half was already covered by the deep-watcher auto-refresh, data half by fan-out/normalize paths
+- Manage-group Workspace button removed; modal + `showWorkspace` state kept because the no-floors bootstrap block still opens it for Import
+- tests (`tests/test-store-crud.ts`): the 2 ex-refresh cases now trigger through `updateAsset` (size re-derive + color preserve on an unrelated edit)
+- verified: `test-store-crud` 46/46, sync/migrate/persistence/asset/blueprint exit 0, vitest 38/38, `lint` + `typecheck` pass
+
+### truthful tile guide for draw/zone drag - 2026-09-22 16:45 UTC+7 (opencode, opencode/muse-spark-1.3-contributor-free)
+- user asked why Draw Object shows no tile guide: the drag rect rendered raw pointer pixels while commit snaps to tiles, and the 4px display threshold differed from the commit threshold - guide lied about the outcome
+- fix (`EditorCanvas.vue`): `tileGuideRect` computed reuses the exact commit math per mode (round for draw, floor/ceil for zone) with a tile-count label, shown only when the drag passes the commit threshold; object marquee untouched, no new classes
+- verified: `lint:bem` + `lint:css` pass, `typecheck` exit 0
+
+### asset list reorder buttons - 2026-09-22 17:00 UTC+7 (opencode, opencode/muse-spark-1.3-contributor-free)
+- sidebar Origin Assets list gets per-row up/down buttons (`AssetToolbar.vue`, no new classes): registry-index based, disabled at the ends and while searching; mousedown/click/keydown stopped so row drag-select never fires
+- `store.reorderAssets(fromIndex, toIndex)` mirrors `reorderFloors` (bounds-checked splice + save) + `BlueprintStore` interface entry
+- test (`test-store-crud.ts`): move-to-end, move-back, and 3 rejected moves leaving order untouched
+- verified: `test-store-crud` 47/47, `lint:bem` + `lint:css` + `lint` + `typecheck` pass
+
+### IDE-like resizable sidebars - 2026-09-22 17:20 UTC+7 (opencode, opencode/muse-spark-1.3-contributor-free)
+- both sidebars (assets left, properties right) get an edge drag handle: shared `usePanelResize` composable (drag 200-480px, arrow keys, dblclick/Home reset, localStorage `blueprint-panel-width-*`) + `.sidebar__resizer` styles in the shared `layout.css` layer (no scoped redefinition)
+- decision: one composable + shared CSS over per-panel copies (over: native CSS `resize` - handle sits bottom-right only, not the IDE edge-drag asked for)
+- verified: `lint:bem` + `lint:css` + `lint` + `typecheck` pass
+
+### dead code cleared (syncToGame) - 2026-09-22 17:30 UTC+7 (opencode, opencode/muse-spark-1.3-contributor-free)
+- removed `syncToGame` (store command + `BlueprintStore` interface entry) - sole dead item from the freshness audit: no caller, no UI trigger since the Sync Game button removal; dragged-out unused imports (`editorLog`/`validateSettingsCompleteness`/`buildSyncedPayload`) and the dead `assetMap` closure
+- decision: kept `syncedPayload.buildSyncedPayload` (test-covered single egress module) and the wired `SyncPort` - dormant infra, not dead; `docs/skill/data-flow.md` line updated to state nothing currently emits
+- verified: persistence/sync/store-crud exit 0, vitest 38/38, `lint` + `typecheck` pass
+
+### move landing guide + selection color answer - 2026-09-22 17:45 UTC+7 (opencode, opencode/muse-spark-1.3-contributor-free)
+- `moveGuideRect` (`EditorCanvas.vue`): while dragging a selection, a green dashed landing rect shows the selection's true bounds (linked members included) snapped to the tile grid and clamped to the building area - the exact `commitMove` math (`clamp(snap(minX), snap(minY), w, h)`); appears only after the drag threshold (`_dragHasMoved`), multi-select aware, no new classes
+- selection-color answer (read-only): NOT one setting - canvas selection + highlight share `--accent-gold` (`editor__overlay--selected`/`--highlight`), UI active states + links use `--accent-blue`, focus outlines `--accent-primary`; all are theme token references, no user-facing color setting exists
+- verified: `lint` + `typecheck` (fixed floor shadowing + missing import mid-task), `lint:bem` + `lint:css` pass

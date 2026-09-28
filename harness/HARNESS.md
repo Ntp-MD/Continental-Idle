@@ -63,7 +63,7 @@ Applies whenever work fans out (research, migration, audit, multi-file generatio
 
 ## Report format
 
-Full template + rules live in `skills/report-gaps/SKILL.md` (read at Done time). Shape: verdict headline `<task> - DONE|PARTIAL|BLOCKED (<n>/<total>)`, then fixed headings Changed / Decisions (veto-able) / Gaps (mandatory, `(none)` when empty) / Verify (exact commands + result). No tables; <2-file tasks collapse to Changed + Verify; opinion/question answers use Evidence + Options instead; audits are read-only (Findings replaces Changed, verdict says "read-only").
+Full template + rules live in `skills/report-gaps/SKILL.md` (read at Done time). Shape: verdict headline `<task> - DONE|PARTIAL|BLOCKED (<n>/<total>)`, then fixed headings Changed / Decisions (veto-able) / Gaps (mandatory, `(none)` when empty) / Verify (exact commands + result). Every item carries an explicit status tag (`[fixed]`/`[partial]`/`[not-fixed]`/`[untouched]`/`[decided]`/`[rejected]`/`[blocked]`) so "did it change?" is never inferred. No tables; <2-file tasks collapse to Changed + Verify; opinion/question answers use Evidence + Options instead; audits are read-only (Findings replaces Changed, verdict says "read-only").
 
 ## History pattern
 
