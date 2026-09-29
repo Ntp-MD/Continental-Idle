@@ -6,6 +6,7 @@ import { useConfirm } from '@/composables/useConfirm'
 import { useAsyncAction } from '../../composables/useAsyncAction'
 import { useClipboardCopy } from '../../composables/useClipboardCopy'
 import { assetIsSvg } from '../../assets/assetUtils'
+import { collapsedCause } from '../../domain/collision'
 import { useAssetPreview } from '../../composables/useAssetPreview'
 import ErrorBoundary from '@/components/overlays/ErrorBoundary.vue'
 import type { AssetDef } from '../../domain/types'
@@ -47,6 +48,30 @@ const collapsedCount = computed(() => {
   }
   return count
 })
+/**
+ * `collapsed` means two different things, and the badge has to say which. One flag, one red style,
+ * two causes - so the counts come from the same decision the flag does, not from a second reading.
+ */
+const clashBreakdown = computed(() => {
+  const assetMap = new Map(store.state.assetRegistry.map(asset => [asset.id, asset]))
+  const tileSize = store.state.layout.canvas.tileSize
+  let inWall = 0
+  let onBody = 0
+  for (const floor of store.state.layout.floors) {
+    for (const obj of floor.objects) {
+      if (obj.type !== props.asset.id || !obj.collapsed) continue
+      if (collapsedCause(floor, obj, assetMap, tileSize) === 'wall') inWall++
+      else onBody++
+    }
+  }
+  return { inWall, onBody }
+})
+const clashHint = computed(() =>
+  [
+    clashBreakdown.value.inWall ? `${clashBreakdown.value.inWall} inside a wall` : '',
+    clashBreakdown.value.onBody ? `${clashBreakdown.value.onBody} overlapping another object` : '',
+  ].filter(Boolean).join(', '),
+)
 
 const placedInstanceCount = computed(() => {
   let count = 0
@@ -151,7 +176,7 @@ async function duplicateAsset() {
     </div>
 
     <div v-if="collapsedCount > 0" class="card">
-      <span>{{ collapsedCount }} object(s) collapsed - overlapping! Shown in red on canvas.</span>
+      <span :title="clashHint">{{ collapsedCount }} object(s) clash - shown in red on canvas.</span>
     </div>
     <div class="form__row">
       <button class="flag--warning" :disabled="pending" @click="duplicateAsset">Duplicate</button>

@@ -47,6 +47,11 @@ export interface WalletRecord {
 	perMinuteCents: number
 	/** Best rate the lobby has ever demonstrated; absent on records written before this existed. */
 	readonly demonstratedPerMinuteCents?: number
+	/**
+	 * The standing the room was left with. Absent on older records, which is what the recovery curve
+	 * is for: a room with no saved reputation starts neutral, not trusted.
+	 */
+	readonly standingScore?: number
 	savedAtMs: number
 }
 
@@ -61,15 +66,18 @@ export function creditableRate(record: WalletRecord): number {
 /** Storage is an untrusted boundary: a tampered record must not mint money or produce NaN. */
 export function parseWalletRecord(raw: unknown): WalletRecord | null {
 	if (typeof raw !== 'object' || raw === null) return null
-	const { bankCents, perMinuteCents, demonstratedPerMinuteCents, savedAtMs } = raw as Record<string, unknown>
+	const { bankCents, perMinuteCents, demonstratedPerMinuteCents, standingScore, savedAtMs } = raw as Record<string, unknown>
 	// A fractional cent is a rewritten record, not a rounding artefact - the ledger only ever writes integers.
 	if (!isWholeNonNegative(bankCents) || !isFiniteNumber(perMinuteCents) || perMinuteCents < 0) return null
 	if (demonstratedPerMinuteCents !== undefined && (!isFiniteNumber(demonstratedPerMinuteCents) || demonstratedPerMinuteCents < 0)) return null
+	// Standing is a 0-100 score; anything else is a rewritten record, and a saved 500 would pay forever.
+	if (standingScore !== undefined && (!isFiniteNumber(standingScore) || !Number.isInteger(standingScore) || standingScore < 0 || standingScore > 100)) return null
 	if (typeof savedAtMs !== 'number' || !Number.isFinite(savedAtMs)) return null
 	return {
 		bankCents,
 		perMinuteCents,
 		...(demonstratedPerMinuteCents === undefined ? {} : { demonstratedPerMinuteCents }),
+		...(standingScore === undefined ? {} : { standingScore }),
 		savedAtMs,
 	}
 }

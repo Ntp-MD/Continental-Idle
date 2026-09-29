@@ -25,6 +25,7 @@ const state = store.state
 const {
 	addFloor, deleteFloor, duplicateFloor, paintFloorTiles,
 	addObject, deleteSelected, moveSelectedTo, rotateSelected,
+	beginMoveGesture, cancelMoveGesture, endMoveGesture,
 	linkObjects, unlinkObject,
 	copySelected, pasteObjects, removeTag, clamp, setStreetWidth,
 	addSvgAsset, resizeCanvas, flattenToSvgAsset, deleteAsset, deleteAllAssets,
@@ -272,6 +273,41 @@ test('an object cannot land on painted wall or door cells', async () => {
 	selectObjects([placed!.id])
 	moveSelectedTo(col * t, row * t)
 	assert.equal(floor.objects[0]!.x, open, 'a drag into wall geometry stops dead')
+})
+
+test('cancelMoveGesture() puts the whole group back where the drag found it', async () => {
+	restore(baseline)
+	installTestAsset()
+	const t = state.layout.canvas.tileSize
+	const floor = state.layout.floors[0]
+	floor.objects = []
+	resetWalkable(floor)
+	state.currentFloorId = floor.id
+	const area = resolveBuildingArea(state.layout)
+	const a = await addObject('grill-asset', area.x + t * 2, area.y + t * 2)
+	const b = await addObject('grill-asset', area.x + t * 6, area.y + t * 2)
+	assert.ok(a && b)
+	selectObjects([a!.id, b!.id])
+	const before = floor.objects.map(object => ({ id: object.id, x: object.x, y: object.y }))
+
+	beginMoveGesture()
+	// Two mousemove frames of the kind a drag really produces: the store mutates live positions and
+	// commits nothing until the release.
+	assert.equal(moveSelectedTo(a!.x + t * 4, a!.y + t * 3), 'moved')
+	assert.equal(moveSelectedTo(a!.x + t * 6, a!.y + t * 5), 'moved')
+	assert.notEqual(floor.objects[0]!.x, before[0]!.x, 'the drag did not move anything to begin with')
+
+	assert.equal(cancelMoveGesture(), true)
+	assert.deepEqual(floor.objects.map(object => ({ id: object.id, x: object.x, y: object.y })), before,
+		'Escape rolled back the grabbed object but not the group')
+	assert.equal(cancelMoveGesture(), false, 'the snapshot survived the cancel it served')
+
+	// A release ends the gesture, so the next Escape cannot reach back into a committed drag.
+	beginMoveGesture()
+	moveSelectedTo(a!.x + t * 3, a!.y)
+	endMoveGesture()
+	assert.equal(cancelMoveGesture(), false)
+	assert.equal(floor.objects[0]!.x, before[0]!.x + t * 3, 'the release position was reverted too')
 })
 
 test('an object lands on exactly the rect the placement gate validated', async () => {

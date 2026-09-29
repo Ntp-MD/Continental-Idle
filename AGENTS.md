@@ -8,16 +8,17 @@ Project instructions for AI agents. Full rules (operating mode, loop, report for
 - Decide, don't stall: reversible in-repo choices (scope growth, dependencies, interface picks) are decided + logged as veto-able decisions. STOP + ask ONLY for: secrets/auth, irreversible actions outside the repo, missing information. Asking is the last resort, never the default.
 - Claim then impact: verify user-reported issues against code first. Keep scope; user correction persists for the session.
 - Delegation (full text: `harness/HARNESS.md` - Delegation): deliverable first - the subagent creates its file early and folds evidence in as it researches; bounded retrieval with checkpoints; continue existing work, never restart it; never stop an agent whose identity or state is uncertain; verify the fan-out mechanically after the last agent lands.
-- Report in the HARNESS.md Report format (Changed / Decisions / Gaps / Verify under a verdict headline, every item carrying an explicit status tag `[fixed]`/`[partial]`/`[not-fixed]`/`[untouched]`/`[decided]`/`[rejected]`/`[blocked]`) - audits and question answers have their own variants there.
+- Report format: see `harness/HARNESS.md` - Report format.
 - Direction-level decisions -> `harness/state/history.md` `- decision:` bullets. Routine fixes are not recorded.
 
 ## Read chain
 
-1. `harness/HARNESS.md` - full rules, loop, report format.
-2. `harness/state/task-context.md` - live state, read first (RESUME). `harness/state/history.md` is human reference - read only on explicit user order.
-3. `skill.md` (domain router) then the matching `docs/skill/*.md`, only when the task touches that domain.
-4. `harness/state/context.md` - shared language (glossary), when domain terms or wording matter.
-5. `harness/LANE.md` - ONLY for multi-step feature/PRD/multi-ticket work.
+Full chain: `harness/HARNESS.md` - Read chain. Project overrides:
+
+1. `harness/state/task-context.md` - live state, read first (RESUME). `harness/state/history.md` is human reference - read only on explicit user order.
+2. `skill.md` (domain router) then the matching `docs/skill/*.md`, only when the task touches that domain.
+3. `harness/state/context.md` - shared language (glossary), when domain terms or wording matter.
+4. `harness/LANE.md` - ONLY for multi-step feature/PRD/multi-ticket work.
 
 ## Project notes
 

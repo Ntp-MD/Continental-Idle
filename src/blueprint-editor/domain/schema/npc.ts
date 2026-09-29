@@ -227,6 +227,41 @@ function isValidPoolEntry(p: unknown): p is NpcDeploymentPool {
 		|| (Array.isArray(p.floorIds) && p.floorIds.length <= MAX_NPC_ENTRIES && p.floorIds.every((id: unknown) => !!normalizeIdentifier(id)))
 }
 
+/**
+ * One deployment entry per role. A hand-written or partially-migrated file can name the same role
+ * twice, which used to deploy it twice the count in silence; the counts add, the pool ceiling still
+ * caps the total, and an entry with no floor filter wins over a filtered duplicate because "no
+ * filter" already means every floor that role is allowed on.
+ */
+function mergeDeploymentPool(pool: readonly NpcDeploymentPool[]): NpcDeploymentPool[] {
+	const order: string[] = []
+	const merged = new Map<string, { roleId: string; count: number; floorIds?: string[]; everywhere: boolean }>()
+	for (const entry of pool) {
+		const roleId = entry.roleId.trim()
+		const count = clampInt(entry.count, 0, 1000)
+		const floorIds = entry.floorIds?.length
+			? [...new Set(entry.floorIds.map(id => id.trim()).filter(Boolean))]
+			: undefined
+		const existing = merged.get(roleId)
+		if (!existing) {
+			merged.set(roleId, { roleId, count, floorIds, everywhere: !floorIds?.length })
+			order.push(roleId)
+			continue
+		}
+		existing.count = clampInt(existing.count + count, 0, 1000)
+		if (!floorIds?.length) existing.everywhere = true
+		else if (!existing.everywhere) existing.floorIds = [...new Set([...(existing.floorIds ?? []), ...floorIds])]
+	}
+	return order.map(roleId => {
+		const entry = merged.get(roleId)!
+		return {
+			roleId: entry.roleId,
+			count: entry.count,
+			...(entry.everywhere || !entry.floorIds?.length ? {} : { floorIds: entry.floorIds }),
+		}
+	})
+}
+
 export function normalizeNpcConfig(value: unknown): NpcSimulationConfig | undefined {
 	if (!isRecord(value)) return undefined
 	const c = value
@@ -285,11 +320,7 @@ export function normalizeNpcConfig(value: unknown): NpcSimulationConfig | undefi
 				...(post ? { post } : {}),
 			}
 		}),
-		pool: pool.map(entry => ({
-			roleId: entry.roleId.trim(),
-			count: clampInt(entry.count, 0, 1000),
-			...(entry.floorIds?.length ? { floorIds: [...new Set(entry.floorIds.map(id => id.trim()).filter(Boolean))] } : {}),
-		})),
+		pool: mergeDeploymentPool(pool),
 		crossFloorCooldownSeconds: positiveNumber(c.crossFloorCooldownSeconds, NPC_OPTION_DEFAULTS.crossFloorCooldownSeconds),
 		progressWatchdogTicks: positiveInt(c.progressWatchdogTicks, NPC_OPTION_DEFAULTS.progressWatchdogTicks),
 		maxRepathAttempts: positiveInt(c.maxRepathAttempts, NPC_OPTION_DEFAULTS.maxRepathAttempts),

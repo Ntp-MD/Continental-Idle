@@ -10,8 +10,11 @@ import {
 } from '@/blueprint-editor/blueprintStore'
 
 const BlueprintEditor = defineAsyncComponent(() => import('@/blueprint-editor/BlueprintEditor.vue'))
-const UiShowcase = defineAsyncComponent(() => import('@/dev/UiShowcase.vue'))
-const DesignExplore = defineAsyncComponent(() => import('@/dev/DesignExplore.vue'))
+// The `import.meta.env.DEV` test has to sit outside the dynamic import: Rollup folds it to `false`
+// for a build, which is what keeps the dev-only chunks out of `dist/`. The fallback is never
+// rendered - `isShowcase`/`isDesign` are false without DEV - it only keeps the bindings components.
+const UiShowcase = import.meta.env.DEV ? defineAsyncComponent(() => import('@/dev/UiShowcase.vue')) : BlueprintEditor
+const DesignExplore = import.meta.env.DEV ? defineAsyncComponent(() => import('@/dev/DesignExplore.vue')) : BlueprintEditor
 
 const bootError = ref('')
 let store: ReturnType<typeof createBlueprintStore> | null = null

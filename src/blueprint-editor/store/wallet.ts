@@ -15,7 +15,7 @@ export interface WalletRestore {
 
 export interface WalletStore {
 	restore(nowMs?: number): Promise<WalletRestore>
-	commit(bankCents: number, perMinuteCents: number, nowMs?: number): Promise<void>
+	commit(bankCents: number, perMinuteCents: number, nowMs?: number, standingScore?: number): Promise<void>
 	clear(): Promise<void>
 }
 
@@ -53,12 +53,16 @@ export function createWalletStore(storage: BlueprintStorage): WalletStore {
 		 * The demonstrated rate is a high-water mark, so a quiet session cannot erase what the lobby
 		 * proved it could do - but it is never read as money, only as the speed of trading.
 		 */
-		async commit(bankCents, perMinuteCents, nowMs = Date.now()) {
+		async commit(bankCents, perMinuteCents, nowMs = Date.now(), standingScore?: number) {
 			const previous = await readRecord()
+			const carriedStanding = standingScore ?? previous?.standingScore
 			const record: WalletRecord = {
 				bankCents,
 				perMinuteCents,
 				demonstratedPerMinuteCents: Math.max(previous ? creditableRate(previous) : 0, perMinuteCents),
+				// A session that never judged the room leaves the saved standing where it was; only a
+				// reading the simulation actually holds can overwrite it.
+				...(carriedStanding === undefined ? {} : { standingScore: carriedStanding }),
 				savedAtMs: nowMs,
 			}
 			await storage.write(JSON.stringify(record))

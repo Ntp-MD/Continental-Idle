@@ -1,25 +1,33 @@
 import type { NpcEngineEvent } from '@/engine/npc'
+import { settleDayIncidents } from './incidents'
 
 /**
- * Guest spending read straight off the simulation's event stream: money exists only
- * where a visitor actually completed a service, so a plan that cannot circulate
- * earns less without any rule having to say so.
+ * The Continental's business: money exists only where a visitor completed a service, so a plan that
+ * cannot circulate earns less without any rule having to say so.
+ *
+ * The tariff is priced off the world, not off a hotel rate card. A room here is a place to disappear
+ * in, a contract is the actual product, and the bar is the only trade that never touches the High
+ * Table. Every figure is a declared balance: there is no corpus source for what an assassin is worth.
  */
 
 /** Declared balance figures - game economy, not a building code. No source in the corpus. */
 export const TAKING_RATES_CENTS: Readonly<Record<string, number>> = {
-	living: 2400,
-	'front-desk': 1800,
-	treatment: 1500,
-	business: 1200,
-	meeting: 900,
-	dining: 850,
-	wellness: 700,
-	retail: 620,
-	laundry: 450,
-	bar: 380,
-	pool: 300,
-	fitness: 250,
+	// Accepting a contract books a retainer. It is the floor of the business, not the prize.
+	'contract-board': 2400,
+	// Closing one is the whole product: the room's real product is a finished contract.
+	'contract-closed': 4800,
+	// The chamberlain is where a mark becomes a client. A name is worth more than a drink.
+	'chamberlain': 1800,
+	// The bar is the one service with no contract behind it, and the smallest reliable earner.
+	'bar': 850,
+	// The kitchen that keeps the staff on their feet for a night that may run long.
+	'kitchen': 450,
+	// A guest in a back room is out of the world: they spend, and they do not cause a scene.
+	'chambers': 300,
+	// A table where people are negotiated with rather than served.
+	'back-room': 1200,
+	// Medical: a Continental that cannot patch its own people cannot hold a contract.
+	'infirmary': 700,
 }
 
 /** Rolling window the income rate is measured over, in simulation seconds. */
@@ -66,6 +74,12 @@ export interface TakingsLedgerOptions {
 	isVisitor(roleId: string): boolean
 	/** What one closed hotel day costs the operator - payroll, charged when the day book rolls. */
 	readonly dailyChargeCents?: () => number
+	/**
+	 * Called once per closed hotel day, with the counted outcomes so far. Standing is not money, so the
+	 * ledger does not own it - but the day boundary is the ledger's, and both surfaces (app and arch
+	 * tool) must recover on the same boundary or their readings cannot be compared.
+	 */
+	readonly onDayClose?: (day: { day: number; served: number; walkOuts: number; incidents: number }) => void
 	readonly rates?: Readonly<Record<string, number>>
 	readonly rateWindowSeconds?: number
 	readonly daySeconds?: number
@@ -93,6 +107,9 @@ export interface TakingsSnapshot {
 	/** Hotel days closed since the run started, and what the last one earned. */
 	readonly daysCompleted: number
 	readonly lastDayCents: number
+	/** The payroll the last closed day billed, and the part of it the bank did not cover. */
+	readonly lastDayPayrollCents: number
+	readonly lastDayUnpaidCents: number
 	readonly todayCents: number
 	/** Live rate projected onto a full day, not a measured day total. */
 	readonly perDayCents: number
@@ -140,14 +157,25 @@ export function formatTakings(cents: number): string {
 }
 
 export interface TakingsLedger {
-	/** Feed one drained batch of engine events, stamped with the engine's current tick. */
-	ingest(events: readonly NpcEngineEvent[], tick: number, resolve: TakingsResolver): void
+	/**
+	 * Feed one drained batch of engine events, stamped with the engine's current tick. `present` is
+	 * how many agents were in the house, which is the denominator a scene is measured against.
+	 */
+	ingest(events: readonly NpcEngineEvent[], tick: number, resolve: TakingsResolver, present?: number): void
 	/**
 	 * Money that no served interaction produced - a restored balance, earnings from an absent period.
 	 * Moves the bank only: it is not a service, so it must not raise the live rate, the day book, or
 	 * the served count, and a rate that counted it would compound the next away credit off itself.
 	 */
 	deposit(cents: number): void
+	/**
+	 * Money the player spent - a fixture, a hire. The mirror of `deposit` and the same rule: the bank
+	 * only, never the rate window, the day book or the served count. It clamps `carriedCents` down
+	 * with the bank, because `reset()` restores the bank *from* carried, so an unclamped purchase
+	 * would mint the money straight back on the next re-deploy. A price the bank cannot cover is
+	 * refused outright: no part-payment, no debt.
+	 */
+	withdraw(cents: number): boolean
 	snapshot(): TakingsSnapshot
 	reset(): void
 }
@@ -158,6 +186,7 @@ export function createTakingsLedger(options: TakingsLedgerOptions): TakingsLedge
 	const daySeconds = Math.max(1, Math.floor(options.daySeconds ?? TAKINGS_DAY_SECONDS))
 	const ticksPerSecond = Math.max(1, Math.floor(options.ticksPerSecond))
 	const chargeCents = options.dailyChargeCents
+	const onDayClose = options.onDayClose
 	const centsBuckets = new Array<number>(windowSeconds).fill(0)
 	const servedBuckets = new Array<number>(windowSeconds).fill(0)
 	const tally = new Map<string, { cents: number; count: number }>()
@@ -167,17 +196,35 @@ export function createTakingsLedger(options: TakingsLedgerOptions): TakingsLedge
 	let dayCents = 0
 	let lastDayCents = 0
 	let daysCompleted = 0
+	let lastDayPayrollCents = 0
+	let lastDayUnpaidCents = 0
 	let carriedCents = 0
 	let bankCents = 0
 	let served = 0
 	let walkOuts = 0
 	let queueAbandons = 0
+	/**
+	 * Agents that lost their path since the last close, and how many were in the house while it
+	 * happened. The ledger is the one place every drained event batch already passes through, so the
+	 * evidence a scene is measured from is collected here rather than by a second reader of the same
+	 * stream - two readers of one stream is how a count and a day boundary drift apart.
+	 */
+	let blockedThisDay = 0
+	let presentAgentTicks = 0
 
 	function clearWindow(): void {
 		centsBuckets.fill(0)
 		servedBuckets.fill(0)
 		windowCents = 0
 		windowServed = 0
+	}
+
+	/**
+	 * Carried money can never exceed the bank, or `reset()` - which restores the bank *from* carried -
+	 * would mint back money a withdrawal already took. One rule, shared by payroll and purchases.
+	 */
+	function clampCarriedToBank(): void {
+		carriedCents = Math.min(carriedCents, bankCents)
 	}
 
 	/** Buckets are a ring over sim seconds, so the rate stays exact instead of decayed. */
@@ -202,17 +249,30 @@ export function createTakingsLedger(options: TakingsLedgerOptions): TakingsLedge
 		// Days close on the clock, not on payment: an idle day must read as 0, not as missing.
 		const day = Math.floor(second / daySeconds)
 		for (; daysCompleted < day; daysCompleted++) {
+			// The stamp is the day being closed, taken BEFORE the counter rolls: the ledger's own
+			// `daysCompleted` is only incremented by the loop below, so a listener reading the
+			// snapshot during the close would otherwise see the previous day and skip this one.
+			const closedDay = daysCompleted + 1
 			lastDayCents = dayCents
 			dayCents = 0
 			// A closed day bills the staff it deployed. The bank floors at zero rather than going
-			// negative: unpaid payroll is written off until insolvency is a state the game has.
+			// negative: unpaid payroll is written off - the game has no debt to carry - but it is
+			// recorded, because a day that could not be paid is now a state the player can see.
 			const charge = chargeCents?.() ?? 0
+			lastDayPayrollCents = charge
+			lastDayUnpaidCents = Math.max(0, charge - bankCents)
 			if (charge > 0) {
 				bankCents = Math.max(0, bankCents - charge)
-				// Carried money can never exceed the bank, or reset() would mint back what payroll
-				// already took.
-				carriedCents = Math.min(carriedCents, bankCents)
+				clampCarriedToBank()
 			}
+			// The day boundary is the ledger's, whatever else closes on it: standing recovers here in
+			// the app and in the arch tool alike, from the same counted outcomes, and the world is
+			// handed the night it just closed. The two counters clear *after* the callback, so a
+			// listener reading the snapshot during the close still sees the day that is ending.
+			const closedIncidents = settleDayIncidents({ blockedThisDay, presentAgentTicks })
+			blockedThisDay = 0
+			presentAgentTicks = 0
+			onDayClose?.({ day: closedDay, served, walkOuts, incidents: closedIncidents })
 		}
 	}
 
@@ -235,9 +295,22 @@ export function createTakingsLedger(options: TakingsLedgerOptions): TakingsLedge
 	}
 
 	return {
-		ingest(events, tick, resolve) {
-			advanceTo(Math.floor(tick / ticksPerSecond))
+		ingest(events, tick, resolve, present = 0) {
+			const second = Math.floor(tick / ticksPerSecond)
+			// Every event this batch covers is a second of the same crowd, so one tick of presence is
+			// credited per event: a batch of 8 steps in a house of 100 is 800 agent-ticks, which is
+			// what makes the scene rate a rate and not a count.
+			presentAgentTicks += Math.max(0, present) * events.length
+			// Counted BEFORE the clock moves, all of it. A close settles the day that is ending, so a
+			// batch that crosses midnight has to be charged to the day it happened in - counting any of
+			// it afterwards would file the walk-outs and the takings that ended a day into the next
+			// morning's tally, and the night that cost the house a client and its neutrality would be
+			// charged to a day that was quiet.
 			for (const event of events) {
+				if (event.type === 'blocked') blockedThisDay += 1
+			}
+			for (const event of events) {
+				if (event.type === 'blocked') continue
 				if (event.type === 'interaction-end') {
 					const source = resolve(event)
 					if (!source || !options.isVisitor(source.roleId)) continue
@@ -252,10 +325,20 @@ export function createTakingsLedger(options: TakingsLedgerOptions): TakingsLedge
 					else queueAbandons += 1
 				}
 			}
+			advanceTo(second)
 		},
 		deposit(cents) {
-			bankCents += cents
-			carriedCents += cents
+			const amount = Math.floor(cents)
+			if (!(amount > 0)) return
+			bankCents += amount
+			carriedCents += amount
+		},
+		withdraw(cents) {
+			const amount = Math.floor(cents)
+			if (!(amount > 0) || amount > bankCents) return false
+			bankCents -= amount
+			clampCarriedToBank()
+			return true
 		},
 		snapshot() {
 			const byTag = [...tally.entries()]
@@ -267,14 +350,16 @@ export function createTakingsLedger(options: TakingsLedgerOptions): TakingsLedge
 				served,
 				walkOuts,
 				queueAbandons,
-				perMinuteCents: Math.round((windowCents * 60) / windowSeconds),
+				perMinuteCents: Math.floor((windowCents * 60) / windowSeconds),
 				simSeconds: currentSecond,
 				byTag,
 				daysCompleted,
 				lastDayCents,
+				lastDayPayrollCents,
+				lastDayUnpaidCents,
 				todayCents: dayCents,
-				perDayCents: Math.round((windowCents * daySeconds) / windowSeconds),
-				servicesPerDay: Math.round((windowServed * daySeconds) / windowSeconds),
+				perDayCents: Math.floor((windowCents * daySeconds) / windowSeconds),
+				servicesPerDay: Math.floor((windowServed * daySeconds) / windowSeconds),
 			}
 		},
 		reset() {
@@ -283,6 +368,8 @@ export function createTakingsLedger(options: TakingsLedgerOptions): TakingsLedge
 			currentSecond = 0
 			dayCents = 0
 			lastDayCents = 0
+			lastDayPayrollCents = 0
+			lastDayUnpaidCents = 0
 			daysCompleted = 0
 			// A re-deploy re-measures the lobby; it does not un-earn money that already arrived.
 			bankCents = carriedCents

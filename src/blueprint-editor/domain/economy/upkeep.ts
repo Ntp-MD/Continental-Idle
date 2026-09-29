@@ -9,6 +9,10 @@ export const STAFF_DAY_WAGE_CENTS = 6_000
 export interface DailySettlement {
 	readonly staffHeadcount: number
 	readonly payrollCents: number
+	/** Wages the bank could not cover. Written off as money, kept as a state - see `insolvency.ts`. */
+	readonly unpaidWagesCents: number
+	/** False only while every head deployed that day was actually paid for. */
+	readonly insolvent: boolean
 	/** Income minus payroll. Negative means the lobby is paying for its own crowd. */
 	readonly profitCents: number
 	readonly selfFunding: boolean
@@ -48,11 +52,14 @@ export function settleDay(input: {
 }): DailySettlement {
 	const staff = Math.max(0, Math.floor(input.staffHeadcount))
 	const payroll = payrollCents(staff)
+	const paidCents = Math.min(Math.max(0, Math.floor(input.bankCents)), payroll)
 	const profitCents = Math.round(input.incomePerDayCents) - payroll
 	const selfFunding = profitCents >= 0
 	return {
 		staffHeadcount: staff,
 		payrollCents: payroll,
+		unpaidWagesCents: payroll - paidCents,
+		insolvent: payroll - paidCents > 0,
 		profitCents,
 		selfFunding,
 		// Floor, not round: "one day of runway" that is really 0.4 days is still bankrupt tomorrow.

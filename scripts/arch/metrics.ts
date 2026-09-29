@@ -258,11 +258,15 @@ export interface FloorMetrics {
 	furnitureShare: number
 	roomCount: number
 	typedRoomCount: number
+	/** The sample size behind the room rows: 0 means the plan types no rooms, so nothing is measured. */
+	programmeRoomSamples: number
 	untaggedRoomCount: number
 	/** Hall regions called circulation by door count alone - the judgement calls behind this classifier. */
 	circulationInferred: number
 	serviceShare: number
 	corridorMinWidth: number
+	/** Route tiles actually width-sampled; the share rows below are unread at 0. */
+	corridorWidthSamples: number
 	corridorP50Width: number
 	corridorSingleFileShare: number
 	decisionPoints: number

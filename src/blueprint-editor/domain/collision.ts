@@ -47,6 +47,28 @@ export function objectOverlapsAny(
 
 // `collapsed` is the canvas's only persistent clash state, so it carries both halves of
 // the rule: another object's body, and painted wall or door cells under the object.
+// The cause is decided in one place and read two ways - the flag here, the badge breakdown below.
+export type ClashCause = 'wall' | 'body' | 'none'
+
+export function collapsedCause(
+	floor: { objects: ObjectData[]; walkable?: FloorWalkable },
+	obj: ObjectData,
+	assetMap: Map<string, AssetDef>,
+	tileSize: number,
+): ClashCause {
+	if (rectHitsStructure(floor, obj, tileSize)) return 'wall'
+	const asset = findAssetCached(assetMap, obj.type)
+	// Decorative art may lie on a body by standing policy - but never inside a wall, which the
+	// check above already answered.
+	if (!assetIsStructural(asset) && assetIsSvg(asset)) return 'none'
+	const overlapped = floor.objects.some(other => {
+		if (other.id === obj.id) return false
+		if (!aabbOverlap(obj, other)) return false
+		return placementCollides(asset, findAssetCached(assetMap, other.type))
+	})
+	return overlapped ? 'body' : 'none'
+}
+
 export function recalcCollapsed(
 	floor: { objects: ObjectData[]; walkable?: FloorWalkable },
 	assetMap: Map<string, AssetDef>,
@@ -55,26 +77,11 @@ export function recalcCollapsed(
 ): void {
 	const objCount = floor.objects.length
 	if (objCount === 0) return
-	function getAsset(type: string): AssetDef | undefined {
-		return findAssetCached(assetMap, type)
-	}
-	const buried = (o: ObjectData) => rectHitsStructure(floor, o, tileSize)
-	if (objCount === 1) {
-		floor.objects[0].collapsed = buried(floor.objects[0])
-		return
-	}
 	const candidates = changedRect
 		? floor.objects.filter(o => aabbOverlap(o, changedRect))
 		: floor.objects
 	for (const obj of candidates) {
-		if (buried(obj)) { obj.collapsed = true; continue }
-		const asset = getAsset(obj.type)
-		if (!assetIsStructural(asset) && assetIsSvg(asset)) { obj.collapsed = false; continue }
-		obj.collapsed = floor.objects.some(o => {
-			if (o.id === obj.id) return false
-			if (!aabbOverlap(obj, o)) return false
-			return placementCollides(asset, getAsset(o.type))
-		})
+		obj.collapsed = collapsedCause(floor, obj, assetMap, tileSize) !== 'none'
 	}
 }
 

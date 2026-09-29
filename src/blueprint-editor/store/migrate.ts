@@ -67,7 +67,29 @@ export function migrate(data: unknown, availableAssets: readonly AssetDef[], npc
 		migrated.editorSettings = normalizeEditorSettings(d.editorSettings)
 	}
 	const migratedAssetMap = buildAssetMap(availableAssets)
+	const deployedRoleIds = new Set((migrated.npcConfig ?? emptyNpcConfig()).roles.map(role => role.id))
 	for (const floor of migrated.floors) {
+		// A zone can only admit roles this workspace carries: one that lists roles nobody deploys (or
+		// none at all) could never spawn a guest, so it is pruned and, when nothing is left, dropped.
+		// Decided here because this is the one place the zones and the role list are both in hand.
+		const zones = floor.spawnZones
+		if (zones?.length) {
+			const kept: typeof zones = []
+			let pruned = 0
+			let dropped = 0
+			for (const zone of zones) {
+				if (!zone.roleIds?.length) { kept.push(zone); continue }
+				const known = zone.roleIds.filter(roleId => deployedRoleIds.has(roleId))
+				if (!known.length) { dropped++; continue }
+				if (known.length !== zone.roleIds.length) { pruned++; kept.push({ ...zone, roleIds: known }) }
+				else kept.push(zone)
+			}
+			floor.spawnZones = kept.length ? kept : undefined
+			if (dropped > 0 || pruned > 0) {
+				editorLog.warn('Migration', `spawn zones on "${floor.label}": ${dropped} dropped (no listed role is deployed), ${pruned} pruned of unknown roles`)
+			}
+		}
+
 		const beforeCount = floor.objects.length
 		floor.objects = floor.objects.filter(o => findAssetCached(migratedAssetMap, o.type))
 		const removedCount = beforeCount - floor.objects.length

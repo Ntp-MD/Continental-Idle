@@ -672,28 +672,527 @@ Carried: placement/collision hardening (loops 1-18) is complete and uncommitted.
 - [x] Test written, run green, then **falsified** against the unguarded store: removing the guard flips it to `1 failed`, restoring flips it back. "a degenerate building area refuses placement instead of creating a zero-size object".
 - [x] Unit 273, e2e 20, typecheck 0, lint 0, tree clean.
 
+### Loop 35 - `arch compare` ranks candidates by profit, not by gross takings
+
+- [x] `scripts/arch/compare.ts`: `OptionEconomy` (income net of standing, payroll, profit, runway) +
+  `economyKpis()` + `economyFromReport()`; `measureOption(name, path, economy?)`; `profitPerDay` added
+  to `RANKED_KEYS` and to all four `WEIGHT_PROFILES` (efficiency 4, operations 3, experience 1, safety 1).
+  Money enters as KPI rows so the existing per-metric normalisation is the only ranking machinery.
+- [x] Gross stays published, never ranked, and the report says so: the Economy section prints the gross
+  order and the profit order and calls out when they disagree ("the busier room is paying more staff
+  than it feeds"). Pareto only gains the profit objective when **every** option was priced.
+- [x] `rankOptions` now skips any metric a candidate does not report. Without that, an option nobody
+  ran a crowd over scored a real 0 and could **win** on an absent measurement - falsified: replacing
+  the filter with `.filter(() => true)` flips `an option nobody priced is never scored as if it earned
+  nothing` red.
+- [x] `scripts/arch/takings.ts` gained `netPerDayCents` (the same number `settleDay` is fed), so the
+  comparison reads the ledger's own output instead of re-deriving a multiplier at the edge.
+- [x] CLI: `arch compare --economy` runs the identical crowd config over every positional payload
+  (`--ticks/--agents/--stay/--patience/--footfall`, or `--standing` for a resident population);
+  `--in` resolves once per option so no plan can be measured on a different canvas.
+- [x] New `tests/unit/archCompareProfit.test.ts` (3): same geometry on both sides so only money can
+  move the order; the absent-measurement guard; and the mapping read off a real `measureTakings` run
+  with gross and net separated on the same report object. **Falsified**: zeroing the `profitPerDay`
+  weights flips test 1, removing the presence filter flips test 2.
+- [x] Manifest 53 -> **56 guards**: `arch-rank-on-profit-not-gross`, `arch-income-read-from-net`,
+  `arch-unpriced-option-not-scored` - each verified killed by `mutate --only arch-` (a full pass over
+  all 56 was not re-run this session).
+- [x] Pre-existing breakage found while verifying: `scripts/arch/metrics.ts` used
+  `programmeRoomSamples` and `corridorWidthSamples` without declaring them on `FloorMetrics`, so
+  `npm run typecheck` was already red at HEAD (5 errors) before anything in this loop was written.
+  Both fields declared; typecheck 0 again.
+
+### Loop 36 - insolvency is a state: a day the bank cannot pay takes staff off the floor
+
+- [x] `src/blueprint-editor/domain/economy/insolvency.ts` - the crew rule, in one place:
+  `staffOnDuty(bank, heads, wage)` = whole heads the bank covers, **capped at the deployment** and
+  **floored at `STAFF_MIN_CREW = 2`**. The floor is not softening: without it an unpaid day is
+  unrecoverable, because no staff means no service, no service means no takings, and the next day
+  cannot be paid either.
+- [x] `strikeFromClose(...)` reads the crew off the **closed day**, not off what is left: a shortfall
+  means the bank went entirely into wages, so the funded count is `payroll - unpaid`. On the measured
+  designed lobby (633.00/day against 1,920.00/day for 32 staff) that is **10 on shift, 22 sent home**.
+- [x] The ledger records the evidence it used to throw away: `lastDayPayrollCents` and
+  `lastDayUnpaidCents` in the snapshot, cleared by `reset()`. The money itself still floors at zero -
+  the game has no debt to carry - but the shortfall is now observable by anyone.
+- [x] `useNpcSimulationCore`: `applyPayrollStrike(state)` runs once per closed day from the frame loop,
+  removes the surplus staff agents (`removeAgent`, saving id/role/floor/x/y/speed) and re-adds them
+  when a later day pays in full. `clearStrike` on deploy and reset, so a fresh deployment inherits
+  nobody's arrears; `getStrike()` exposed through `useNpcSimulation` and read on the existing 300 ms
+  panel poll (one timer, plus `lastDayUnpaidCents` in the change-detection predicate).
+- [x] HUD: "Wages unpaid X" when the day fell short and "Staff off duty N / M still on shift - the
+  bank could not pay the rest of the crowd". Also fixed a real readout bug found next to it: the
+  runway row was gated on `!payroll.selfFunding`, which is truthy for a **solvent** lobby, so
+  "Days of bank left 0" printed on every working plan.
+- [x] `settleDay` gained `unpaidWagesCents` + `insolvent` - the projection and the strike now read one
+  wage rule instead of two.
+- [x] New `tests/unit/insolvencyStrike.test.ts` (6): minimum crew at an empty bank, cap at the
+  deployment, exact break-even, whole heads not fractions, the closed-day shortfall path, the ledger's
+  unpaid/paid/reset behaviour, and `settleDay` reporting unpaid wages rather than hiding them.
+- [x] Manifest 56 -> **61 guards** (5 new: min-crew floor, crew cap, shortfall read, ledger record,
+  upkeep report), each verified killed by `mutate --only insolvency` / `--only unpaid`. The gate caught
+  two of my own defects while running: the `strikeFromClose` shortfall branch was not on disk at all
+  (guard reported `anchor not found`, and the test then failed for real), and my cap assertion passed
+  with the cap deleted - both fixed.
+- [x] Gates: unit 37 files / 361 tests, typecheck 0, lint 0, BEM + CSS pass, `clean:check` clean,
+  `verify.mjs check` pass.
+- [ ] Gap - the **five time-sensitive suites** (`takingsSimulationWiring`, `archCompareProfit`'s real
+  run, plus the three that intermittently fail to collect) pass in isolation and fail under full-suite
+  parallel load (`snapshot.bankCents === served * rate` off by one frame's worth). Pre-existing shape,
+  not caused here; needs a serial or budgeted run before it can be called stable.
+- [ ] Gap - the frame-loop strike wiring itself has no test: the domain rule, the ledger evidence and
+  the panel wiring are covered, but no test advances a day close inside the simulation and asserts a
+  staff agent left the engine. Needs a fake-timer harness - a real-clock one takes ~40 s per day.
+- [ ] Gap - `--economy` is not exercised by `arch selftest` (14 fixtures, spatial stages only), and no
+  e2e drives the panel's money rows (in-browser surface is 0x0, rAF never fires).
+
+### Loop 37 - the bank can be spent: fixtures and heads, through the writes that already exist
+
+- [x] `src/blueprint-editor/domain/economy/purchases.ts` - the outflow is priced off the two declared
+  balances the loop already has, so no second price list exists: `fixturePriceCents = FIXTURE_COST_DAYS
+  (3) x rateForTags(tags)` - the *same* best-rate rule that bills the thing - and
+  `staffHirePriceCents = STAFF_HIRE_COST_DAYS (5) x STAFF_DAY_WAGE_CENTS`, a head priced against the
+  wage it will draw on every closed day. An asset the tariff table does not price (`lounge` seating)
+  returns null: **what earns nothing cannot be bought**.
+- [x] `TakingsLedger.withdraw(cents)` - the mirror of `deposit`, and the reason loop 33's "no public
+  withdraw" decision is now revisited: something finally needed it. Refuses a price the bank cannot
+  cover (no part-payment, no debt), moves the bank only - never the window, the day book or `served` -
+  and clamps carried down through a new single `clampCarriedToBank()`, which the payroll charge used to
+  inline. One clamp rule, two callers, so a future withdrawal cannot forget it.
+- [x] `composables/useShopPurchases.ts` - money follows the write, never precedes it. A fixture goes in
+  through `store.addObject` at the nearest candidate the store's own `canPlaceObject` accepts (bounded
+  scan, 200 candidates), and the bank is charged only after it lands; a hire writes through
+  `store.updateNpcConfig` and the charge is confirmed against the **stored** pool count, not the
+  requested one. One purchase at a time via `useAsyncAction`, because the affordability check and the
+  charge are separated by an await on the save.
+- [x] HUD: "Buy {asset} for {price}" for the selected origin (disabled when the bank cannot cover it,
+  with the bank printed next to it) and "Hire {role} for {price}" for each staff role in the deployment
+  - `hireableRoles` filters through `visitorRoleIds`, so a guest can never be hired. A hire calls
+  `refresh()`: the preview watcher keys on the **floor** signature, and a pool edit changes no floor,
+  so without it the player would pay for a head that never appeared.
+- [x] 9 tests `tests/unit/purchasesShop.test.ts`: prices and the free-seating refusal, the affordability
+  boundary, `withdraw` refusing/moving-only-the-bank/clamping carried past a `reset()`, and the app-level
+  orderings against the **real store**: an unaffordable fixture writes nothing, an asset that bills
+  nothing writes nothing, a floor that cannot take the object leaves the bank untouched, a hire lands in
+  the stored deployment and charges, a hire the normalizer rejects (pool entry past 1000) charges nothing.
+- [x] Manifest 61 -> **67 guards**, the 6 new ones killed: withdraw-refuses-short, free-seating-not-buyable,
+  price-is-days-of-earnings, hire-price-is-days-of-wage, hire-charged-only-on-stored-count,
+  purchase-charges-only-after-placement. All 67 anchors verified present after the runs.
+- [x] Gates: unit **38 files / 370 tests** green (the two load-flaky files passed this run), typecheck 0,
+  lint 0, BEM + CSS pass, `clean:check` clean.
+- [ ] Gap - the HUD rows are typechecked and linted, not browser-exercised (0x0 surface, rAF never fires);
+  the composable is tested against the real store instead.
+- [ ] Gap - no sell-back and no price decay: money leaves, but a purchase is irreversible and the price
+  never reacts to how many of a thing the lobby already holds.
+
+### Loop 38 - standing is a resource: it lags the record, recovers a day at a time, and can be bought back
+
+- [x] `domain/economy/reputation.ts` kept its evidence function (`readReputation`) and gained the state
+  half: `advanceStanding(score, evidence)` closes `REPUTATION_RECOVERY_FRACTION` (0.4) of the gap per
+  closed day, `repairStanding(score)` lifts `STANDING_REPAIR_POINTS` (10) **toward neutral and never
+  above it**, `standingReading()` gives readers the same `ReputationReading` shape they already
+  multiplied money by, and one `clampStanding` is the only band clamp.
+- [x] The recovery boundary is the **ledger's**, not each surface's: `createTakingsLedger({ onDayClose })`
+  fires once per closed day (a three-day jump closes three days, so an idle stretch cannot skip
+  recovery). The app folds standing there, `scripts/arch/takings.ts` folds it there, so a measured plan
+  and a played lobby cannot drift apart - the project's two-surfaces-one-implementation rule again.
+- [x] Standing persists with the bank: `WalletRecord.standingScore` is optional (an older record still
+  reads, it just starts neutral), `parseWalletRecord` rejects a non-integer or out-of-band score as the
+  tampered record it is, and `commit` carries the saved standing over when the caller has no reading -
+  a commit says nothing about reputation, so it must not delete one.
+- [x] Shop: `buyStandingRepair` prices at `STANDING_REPAIR_COST_CENTS` (450.00, `purchases.ts` owns
+  prices, `reputation.ts` owns the rule), refuses at or above neutral *before* touching money, and
+  charges before applying the lift because a repair has no external write that can refuse it.
+- [x] HUD: Reputation now reads the state (polled on the same 300 ms tick, no second timer) and
+  "Repair standing for 450.00" appears only while it can help.
+- [x] 5 tests `tests/unit/reputationRecovery.test.ts`: the fraction step and its convergence (settles at
+  the record, whole points, never past it), band clamps, unproven drift toward neutral, repair cap and
+  refusal, the ledger folding every jumped-over day, and the wallet round-trip with tampering.
+  Two of my own wrong assumptions were caught by running them: rounding settles one point above the
+  record (not on it), and `commit` without a reading dropped the saved standing.
+- [x] Repair purchases also covered in `purchasesShop.test.ts` (bought while below neutral, refused at
+  neutral, money untouched on refusal).
+- [x] Manifest 67 -> **73 guards**, the 6 new ones killed: recovers-by-fraction, repair-capped-at-neutral,
+  repair-refused-at-neutral, day-close folds standing, wallet carries standing, wallet validates the band.
+  All 73 find-strings verified present after the runs.
+- [x] Gates: unit **39 files / 376 tests**, typecheck 0, lint 0 warnings, BEM + CSS pass, `clean:check` clean.
+- [ ] Gap - the arch tool's fold is proven by construction (same `onDayClose`, same function) but no test
+  asserts it, so a future edit could drop the arch `onDayClose` and stay green.
+- [ ] Gap - standing is device state per workspace: two floors on one device share one reputation. That
+  is a design decision I have not written down as intentional; if the game later holds multiple live
+  hotels, the key has to carry it.
+
+### Loop 39 - the import/export round trip is now a behavioural surface with guards, and its dead audit is measured
+
+- [x] New `tests/unit/workspaceRoundTrip.test.ts` (11): export -> `serializeWorkspace` ->
+  `parseWorkspace` -> `importWorkspace` -> export again keeps placements; imported state comes back
+  **sized** (the file carries no `w`/`h` by design, `normalizeObject` re-derives them on load - loop 4's
+  note, now tested rather than remembered); an import whose file does not contain the current floor
+  repairs it and stays authorable (the F9 class, on the import path); a stale selection and a selected
+  asset are cleared; junk (`not json`, `{}`, `[]`) is refused by `parseWorkspace`; a failed save throws
+  rather than being reported as a clean import; and the synced boundary is exercised end to end -
+  `buildSyncedPayload` -> `loadSyncedPayload` keeps size and floor count, refuses a foreign `version`,
+  drops a degenerate placement without losing its floor, and will not carry a `streetFloorId` that
+  names no floor.
+- [x] **Measured, not assumed: the import "losses" audit cannot fire.** Thirteen hostile files were
+  probed through `readBlueprintDataFile` -> `migrate`; eleven are refused at the schema (orphan object,
+  unknown type, non-numeric placement, pool entry naming no role, count past the ceiling, role field
+  missing/out-of-range/over-long, empty task label), and the two that pass reduce nothing. So
+  `droppedObjects/roles/tasks/pool` in `persistence.ts:20-29` is unreachable today. `[decided]` keep the
+  branches as the ingress-loosening safety net (loop 6's reasoning) and pin the **refusals** instead of
+  guarding dead code (loop 29/30's "an unobservable guard is not a rule"):
+  `ingress refuses every workspace the import would otherwise have to shorten` flips the moment any of
+  those inputs starts loading. Two survivors of that probe are now written down: a duplicate pool entry
+  for one role loads and double-counts, and a spawn zone naming another floor loads unchanged.
+- [x] Manifest 73 -> **83 guards**, all 10 new ones killed: import stale-floor repair, import clears
+  selection, import clears selected asset, `parseWorkspace` validates, sync version gate, sync street
+  floor must exist, sync object size from the placement, sync filters degenerate objects, sync keys
+  ordered by id, sync `F0` is the ground floor.
+- [x] The gate caught three of my own weak tests on the first run: my reorder test could not see
+  position (labelled floors take their key from the label, so only an **unlabelled** pair exposes it),
+  nothing covered `F0 -> G`, and a mutant written as `const size = false` survived because the ternary
+  still fell through to `assetSizeFor` - the guard was rewritten to strike the branch that actually
+  differs (`? { w: o.w, h: o.h }`).
+- [x] `docs/skill/data-flow.md`: the measured ingress ordering, the "assert sizes against state, not
+  against the exported file" rule, and the fact that a failed save inside an import throws.
+- [x] Gates: unit **40 files / 387 tests**, typecheck 0, lint 0 warnings, BEM + CSS pass,
+  `clean:check` clean, `verify.mjs check` pass, all 83 guard anchors present in the tree.
+- [ ] Gap - `serializeWorkspace`'s own shape (indent, trailing newline) is not asserted anywhere; only
+  its parseability is.
+- [ ] Gap - the sync egress has no UI trigger (the Sync Game button was removed), so the boundary is
+  proven as a pure function, not as a user-reachable action.
+
+### Loop 40 - the two new states are proven inside a running simulation, and a real rule bug fell out of it
+
+- [x] **Defect found by designing the test, then fixed**: `strikeFromClose` read the crew's funding off
+  the *leftover balance* when a day paid in full. Paying 48,000 from a 60,000 bank leaves 12,000, which
+  covers 2 heads - so a solvent day kept 6 of 8 staff off the floor for good. The funded amount is
+  `payroll - unpaid` in every case: a paid day funds the whole deployment and brings everyone back.
+  `bankCents` is no longer an input to the rule at all.
+- [x] New `tests/unit/payrollStrikeSimulation.test.ts` (2, real frames through `useNpcSimulationCore`):
+  8 staff deploy → an unpaid close takes the engine down to `STAFF_MIN_CREW` with
+  `getStrike().offDuty === 6` and folds standing from 70 to the recorded 42 on the same boundary →
+  a paid close returns all 8; and a re-deploy restores the full crowd and clears the day book, so
+  re-deploying is not a way to keep half a crew and forget the arrears. The log line the strike writes
+  ("6 of 8 staff unpaid") appears in the run, which is the engine-side evidence the loop-36 gap asked for.
+- [x] New public readout `countStaffOnDuty()` (core + `useNpcSimulation`): staff-role agents actually in
+  the engine, as opposed to `getStaffHeadcount()` which is the deployment. The test asserts against the
+  engine, not the config.
+- [x] New `archBuildIngress` test: `measureTakings` over one authored day of footfall at 0.2 s patience
+  closes ≥ 1 day, produces walk-outs, and reports a standing strictly between its record and neutral -
+  proving the offline runner ages standing on the same `onDayClose` boundary as the app (18.5 s).
+- [x] Manifest 83 -> **87 guards**: strike removes staff from the engine, strike restores the crew on a
+  paid day, standing folds on the app's close, the arch runner folds standing; the repointed
+  `insolvency-shortfall-read-from-payroll` now strikes `payroll - unpaid` (its old anchor had vanished
+  with the fix - caught by the find-string integrity check). All 4 killed, all 87 anchors present.
+- [x] Gates: unit **41 files / 390 tests** (this run: no flakes), typecheck 0, lint 0 warnings,
+  BEM + CSS pass, `clean:check` clean, `verify.mjs check` pass.
+- [ ] Gap - the strike's once-per-close stamp is not guarded: neutralising the comparison still leaves
+  every test green, because the strike is idempotent once the crew matches the funding. Harmless today,
+  worth knowing before a third state is hung off the same boundary.
+- [ ] Gap - the sim tests spend 0.9 s of real animation frames each and the arch-fold test 18.5 s; that
+  is what the load-flaky tail of the suite is made of.
+
+### Loop 41 - the parked canvas decisions were answered, and the one that changes behaviour is implemented
+
+- [x] Asked and settled (recorded in `harness/state/history.md`): street-band-wider-than-canvas =
+  **reject, no repair** (today's behaviour, confirmed); locked member in a group = **refuse the whole
+  group** (confirmed, not changed); `usePx` = **stay import-only** (confirmed, not changed);
+  Escape mid-drag = **roll the whole gesture back** (the only one that needed code).
+- [x] Escape rollback implemented at the store, not in the pointer handler: `beginMoveGesture()`
+  snapshots the member positions at mousedown, `cancelMoveGesture()` restores every member (not just
+  the grabbed one) on Escape, `endMoveGesture()` clears the snapshot on release. It has to be a
+  snapshot because `moveMembersTo` mutates live positions per animation frame and commits nothing until
+  the release, so there is no undo entry to roll back to and nothing was ever written to disk.
+  `dragMembers()` is now the single definition of "who is in this drag", shared by the gesture, the
+  release and `commitMove` (which had its own copy of the ternary).
+- [x] `tests/e2e/groupDrag.spec.ts`: the loop-15 Escape test rewritten to assert the stronger contract
+  (the object returns to where the gesture started, and a later release stays inert), plus a new group
+  test that shift-selects two, drags, presses Escape mid-move and asserts **both** return to their
+  recorded positions. 21/21 e2e green - the mousedown/mouseup path every drag uses did not regress.
+- [x] `tests/unit/storeCrud.test.ts` +72: the gesture restores the whole group, a second cancel is a
+  no-op, and a release clears the snapshot so the next Escape cannot reach back into a committed drag.
+- [x] Manifest 87 -> **89 guards**, both new ones killed: `gesture-cancel-restores-every-member`,
+  `gesture-snapshot-cleared-on-release`. All 89 anchors present.
+- [x] Gates: unit **41 files / 391 tests**, e2e 21/21, typecheck 0, lint 0, BEM + CSS pass,
+  `clean:check` clean.
+- [ ] Gap - the badge wording for `collapsed` is the last parked decision (it now means two things:
+  overlaps another object, and is inside a wall). Asked, unanswered so far.
+- [ ] Gap - `beginMoveGesture` is called on every object mousedown even when the gesture turns out to
+  be a click; the snapshot is one array of `{id,x,y}` per member, so the cost is a small allocation per
+  click rather than per frame. Deliberate, not measured.
+
+### Loop 42 - the last parked decision (badge wording) landed, and the two halves of `collapsed` got one decider
+
+- [x] `domain/collision.ts` gained `collapsedCause()` returning
+  `'wall' | 'body' | 'none'` - structure first, then the standing art exemption, then body overlap - and
+  `recalcCollapsed()` now only asks it and sets the flag. The flag and the wording are therefore one
+  decision; previously the second half of the rule was readable only by re-implementing the order.
+- [x] Wording, per the user's call: `AssetProperties` reads "N object(s) clash - shown in red on
+  canvas" with a tooltip breaking the causes (`2 inside a wall, 1 overlapping another object`), and
+  `store/assets.ts` no longer says "collapsed due to overlap" for a wall burial. One flag, one red
+  style, as loop 2 decided - only the language changed.
+- [x] `tests/unit/collision.test.ts` +1 test (8): names the cause in all four shapes (body, wall,
+  both-at-once -> wall so the badge cannot double-count, art-on-body exempt, art-in-wall still flagged)
+  and then asserts `recalcCollapsed` agrees on each, which is the refactor's whole contract.
+- [x] Manifest 89 -> **91 guards**, both killed (`clash-cause-structure-first`,
+  `clash-cause-art-exemption`); all 91 anchors present.
+- [x] Gates: unit **41 files / 392 tests**, e2e **21/21**, typecheck 0, lint 0, BEM + CSS pass,
+  `clean:check` clean, `verify.mjs check` pass.
+- [ ] Note - `npm run test:unit` recreates `scripts/arch/out` (the probe builds), so `clean` has to run
+  after the suite, as loop 33 already recorded.
+
+### Loop 43 - the load-flaky suites are gone: waits became conditions
+
+- [x] `tests/unit/frameWaits.ts` - `framesUntil(check, { deadlineMs })` polls a condition across real
+  animation frames and returns how long it took (-1 when the deadline passes), plus `frameDeadline(label,
+  waited)` which fails with the *reason* rather than a bare boolean. The reason a fixed sleep was wrong
+  here: the engine only advances inside `requestAnimationFrame`, so `framesRunning(3000)` measured how
+  busy the machine was, not what the code does - and a fully loaded `test:unit` run starves those frames.
+- [x] Converted all five fixed waits: `takingsSimulationWiring` (both tests), `payrollStrikeSimulation`
+  (all three phases: crew present, unpaid day furloughs, paid day restores). An idle run now finishes in
+  well under its old fixed sleep instead of paying for it.
+- [x] One real finding from the conversion, not a flake: the footfall test's "every guest is an arrival"
+  assertion read `core.npcs.value`, the **250 ms throttled view list**, so as soon as the poll returned
+  early it could still hold the pre-toggle crowd. It now waits for the view refresh it is asserting on -
+  the loop-25 note about `frameDots` being the immediate truth, applied to the list that was not.
+- [x] `tests/unit/archCompareProfit.test.ts` (the other file that "flaked") was a plain **timeout**: the
+  evaluator and one real engine run need more than the default under contention. 60 000 ms on each test;
+  the arch-fold test in `archBuildIngress` took 29.7 s in a loaded run against 18.5 s alone, which is the
+  same effect measured rather than guessed.
+- [x] Evidence, not vibes: **4 consecutive full `npm run test:unit` runs green** (41 files / 392 tests).
+  Before this loop, 2 of the last runs failed the same two files.
+- [x] Gates: typecheck 0, lint 0 warnings, `clean:check` clean.
+- [ ] Note - the queue's "stabilise the time-sensitive suites" item is closed; nothing here changed
+  production code, so the guard manifest is untouched (91).
+
+### Loop 44 - the two round-trip survivors got their decisions, and one claim of mine turned out wrong
+
+- [x] `normalizeNpcConfig` merges duplicate deployment rows per role (`mergeDeploymentPool`): counts add,
+  the 1000 pool ceiling still caps the total, an unscoped row wins over a scoped duplicate (it already
+  means "everywhere"), two scoped rows union their floors. One entry per role is now the stored shape at
+  every ingress, authoring included.
+- [x] `migrate()` drops a spawn zone whose `roleIds` name no deployed role, and prunes the dead references
+  out of a zone that keeps living ones. A zone with **no** role filter is never judged, because "admits
+  whoever is deployed" is still true after every current role is deleted.
+- [x] **Retracted my own loop-39 finding**: I wrote that both shapes "are schema-legal and load
+  unchanged". Probed again against `readBlueprintDataFile`, the schema **refuses** a file with duplicate
+  pool rows or a zone role reference it cannot resolve - so neither ever reached `migrate` through
+  import. The rules are still the right ones, for the paths where the shape does occur: a role deleted
+  in the NPC Manager (zones keep the stale id until the next load), the sync-payload ingress, and any
+  config written through `updateNpcConfig`. What I had measured was only that `migrate` reduced nothing.
+- [x] Because ingress refuses them, the import "losses" lines I first added for merges and dropped zones
+  were **removed again** in the same loop - an unreachable report is the same defect class as an
+  unobservable guard. Kept one fix from that region: `importWorkspace` no longer overwrites
+  `state.layout.npcConfig` with the raw incoming config, which had been restoring exactly what the lines
+  above it reported as dropped, so state and report disagreed about what the workspace now holds.
+- [x] 4 tests in `tests/unit/migrate.test.ts` (18 in file): mixed/dead/open zones, no-roles workspace
+  keeping an unfiltered zone, and the pool merge across count, ceiling, unscoped-wins and scoped-union.
+- [x] Manifest 91 -> **93 guards**, both killed (`zone-roles-must-be-deployed`,
+  `deployment-pool-merges-by-role`); all 93 anchors present.
+- [x] Gates: unit **41 files / 395 tests**, typecheck 0, lint 0 warnings, `clean:check` clean.
+- [ ] Gap - the merge and the zone rule are unit-tested at `migrate`/`normalizeNpcConfig`; no test walks
+  the "delete a role in the modal, reload, zone is gone" path end to end, which is the case that
+  motivated them.
+
+### Loop 45 - the world the project was actually for
+
+- [x] **The project had drifted off its own purpose, and the drift was measurable**: the repo name is
+  Continental-Idle and nothing in it - code, docs, or data - mentioned the world it was named after.
+  The tariff was a hotel rate card (`living` 2400, `front-desk` 1800, `dining` 850, `bar` 380), the
+  chat lines were *"Table six needs water"*, and the world had exactly two kinds of person: a
+  customer and an employee. The economy was complete and the thing it was an economy *of* was absent.
+- [x] `[decided]` Replace the tariff rather than add a second one. The four world rules the user
+  picked all move the same numbers the hotel ones did, so keeping both would mean two price lists
+  read by one HUD - the duplication the project already forbids. `TAKING_RATES_CENTS` is now
+  `contract-closed` 4800 > `contract-board` 2400 > `chamberlain` 1800 > `back-room` 1200 > `bar` 850 >
+  `infirmary` 700 > `kitchen` 450 > `chambers` 300. The mutation guards needed no rewrite: they are
+  anchored on the *rules* (`rateForTags`, `visitorRoleIds`, the day rollover), never on tag names -
+  which is why the swap was a 3-line change rather than a 93-guard edit.
+- [x] `domain/economy/continuity.ts` - neutrality as a ladder of its own, deliberately NOT folded into
+  `reputation.ts`: a bad queue, a breach of peace and a lost client are three diagnoses, and a player
+  who fixes one has not fixed the others. A breach costs standing at once and compounds logarithmically
+  within a day (five scenes are one bad night counted five times, not five times the damage).
+- [x] **A real defect the test caught, in the first draft**: recovery was gated on the countdown
+  running out, so a house that had recovered its *score* stopped climbing and stranded at 92 with no
+  way back - one incident permanently cost a slice of income no careful play could repair. Recovery is
+  now unconditional and the countdown is a readout. Falsified: restoring the gate fails the test at 92.
+- [x] `domain/economy/standing-world.ts` - the reason the world had no factions or memory is
+  mechanical, not conceptual: `idFor` hands out `t0, t1, t2...`, so every arrival was the same
+  interchangeable agent and there was no identity for a rule to act on. A bounded roster
+  (`WORLD_MEMORY_CAPACITY` 24) now holds named regulars with a faction; `creditService` moves a
+  faction one step for a good night and two for a bad one, so a bad room is hard to leave.
+- [x] `domain/economy/highTable.ts` - the institution that connects the two. A house under notice is
+  fined daily and the fine buys back less than it costs, so standing still loses ground; returning to
+  good standing clears the balance entirely. Two bugs the tests caught, both the same class as loop 18:
+  `pressurePenalty` returned **1.05** for a negative balance (a penalty that paid a bonus), and
+  `HIGH_TABLE_AUDIT_ABOVE` was a free-standing 5 000 that a 1 200/day fine could not reach in 12 days -
+  two declared numbers that could not be made to agree. The threshold is now derived, not declared.
+- [x] Two of the four rules are unreachable in play and that is recorded rather than papered over:
+  **nothing creates the state** (`useNpcSimulationCore` has no continuity/pressure/world fields, no
+  day close calls them, the HUD does not read them) and **nothing produces an incident**
+  (`recordBreach(state, count)` takes a count; the engine's `blocked` event is a crowd failing to
+  pass, and counting it would read a busy lobby as a massacre). Both are queued as tasks #6 and #7.
+- [x] `[rejected]` The four tool tasks queued last loop (fan-out, `--economy` in selftest, sell-back,
+  the deleted-role e2e) are **not** what the project needs next, and I am recording that rather than
+  quietly re-ranking them: all four are worth doing, and all four make the *harness* better while the
+  *game* still has no world in it. Task #2 is kept - it is a real coverage gap and cheap.
+- [x] Gates: 421 unit / 44 files (up from 395/41), typecheck 0, lint 0 warnings, `clean:check` clean
+  after `npm run clean` removed `scripts/arch/out` (the probe build, as loop 42 recorded).
+- [ ] Gap - the `scripts/arch` fixtures are still a hotel's worth of `dining`/`bar` tags, which now
+  bill nothing. `arch takings` on those plans will report a lobby that earns zero, and that is the
+  correct reading of a plan built for a different world - but it means the offline tool has no
+  Continental plan to measure until one is authored.
+
+### Loop 46 - the world stops being a module and starts being a game
+
+- [x] Both loop-45 gaps are closed. `useNpcSimulationCore` owns `continuity` / `pressure` / `world`,
+  the frame loop feeds it, `getWorld()` is one settled read, and the HUD shows Neutrality, Scenes
+  today, the High Table's outstanding balance, an audit, and any faction the house has lost - on the
+  **existing** 300 ms poll, with no second timer.
+- [x] `domain/economy/incidents.ts` gives neutrality a source it can honestly measure. The engine does
+  not simulate violence and inventing an event for it would be a rule nothing enforces, so a scene is
+  a **rate**: blocked agents over agent-ticks, above `INCIDENT_RATE_THRESHOLD`. A busy lobby is
+  punished for its size no more than a small one - the rate is per person, and a test pins that two
+  rooms of very different size at the same behaviour are charged identically.
+- [x] **The incident evidence is collected by the ledger, not a second reader of the event stream.**
+  My first version kept its own tally in the core; the test could not reach it (the frame loop is the
+  only caller), which is a signal the design was wrong rather than the test. `ingest` now takes
+  `present` and counts `blocked` itself, and hands the result over on `onDayClose` - one reader, one
+  day boundary, and `arch takings` gets the same number the app does.
+- [x] **Two ordering defects, both found by probe rather than by a failing assertion** - the class this
+  project keeps hitting. (1) `advanceTo` ran *before* the batch was counted, so every jam that ended
+  a day was filed into the next morning's tally. (2) The world read `daysCompleted` back from the
+  snapshot *during* the close, where the day book has not rolled yet, so `worldDay` matched the stamp
+  and **the world silently skipped a whole day** - the day still closed, it simply settled nothing,
+  and no assertion caught it. Fixed by counting before the clock moves and by passing the closed
+  day's own stamp in the payload (`onDayClose({ day, served, walkOuts, incidents })`).
+- [x] A third defect the probe caught: `deploy()` reset the ledger but not the world, so a re-deployed
+  plan inherited yesterday's neutrality. `clearWorld` is now shared by `deploy` and `reset` - one
+  function, not two copies that can drift.
+- [x] A fourth, in `incidents.ts`: a quiet second close returned `0` instead of the charge already
+  made, which erased the night's scenes the moment anything settled them twice. It returns the charge.
+- [x] `tests/unit/worldWiringSimulation.test.ts` (6, real frames through the core): a fresh house is
+  neutral and welcome everywhere; an orderly night closes a day and changes nothing; a night of
+  scenes costs neutrality and the House answers; a run of bad nights stacks fines; a re-deploy clears
+  the world; and a closed day settles **once**, not on every frame after it. Measured on the way:
+  one jammed night takes neutrality 100 -> 25 and puts the house under notice.
+- [x] Two of my own test bugs, both the loop-27 class: a `pressurePenalty(-500) === 1` assertion that
+  would have pinned a bonus, and a "one bad night is not yet fined" expectation that was simply wrong -
+  ten scenes is 250 points, which is under the house by design, so the House *does* answer.
+- [x] Gates: **435 unit / 46 files** (up from 421/44), typecheck 0, lint 0 warnings, BEM + CSS pass,
+  `clean:check` clean after `npm run clean`.
+- [ ] Gap - **the world does not reach the money.** `continuity.multiplier` and
+  `pressure.demandPenalty` are read by the HUD and by nothing that moves cents: a breached house
+  still bills face value. The price of a bad night is designed and displayed but not charged.
+- [ ] Gap - **factions are not attached to guests.** `releasePerson` runs per arrival so the roster
+  fills, but no agent's faction reaches the ledger, so a served client is credited to *every* faction
+  on the day. Per-agent identity is the next slice, and it needs the roster id to travel with the
+  agent rather than beside it.
+- [ ] Gap - the `scripts/arch` fixtures are still a hotel's worth of `dining`/`bar` tags, which now
+  bill nothing. `arch takings` on those plans correctly reports a house that cannot earn, but that
+  means the offline tool has no Continental plan to measure until one is authored.
+
+### Loop 47 - the world stops being a readout and starts turning the street
+
+- [x] **`readWorld().expectedWalkIns` finally reaches money.** It was written to be the world in
+  walk-ins and had no consumer outside its own tests, so a house could lose every faction and still
+  be sent its full authored crowd. `createArrivalFlow` now takes `arrivalsPerDay` as a **function**,
+  reads it live, and clamps it (negative closes the door, non-finite means a config that never
+  loaded). `useNpcSimulationCore` hands it `() => worldTrafficPerDay(state)`.
+- [x] **The owed fraction survives a rate that moves.** Arrivals are banked against elapsed time
+  rather than recomputed from a rate captured at deploy, so a faction lost mid-run thins the street
+  instead of finishing the night at the old rate - and a recovered faction pays the new rate forward.
+  The fraction is never recalled: nobody who walked in is sent back out.
+- [x] **A day that divides 300 seconds is still exact.** Measured across 2000 declared rates: 250/day
+  and 1000/day land on the number they promised. A 500/day house delivers **499** in a whole day -
+  the thousandth-of-an-arrival fraction never quite carries to the next whole one. **Decided, not
+  accidental**: the same ledger cannot deliver 500 exactly *and* re-read its rate 60 times a second,
+  and the user chose the live rate over the exact day. `arrivalFlow.test.ts` states it and pins both
+  halves.
+- [x] `tests/unit/takingsSimulationWiring.test.ts` gains **a house the world turns against thins its
+  own footfall** - sixteen bad nights (twenty walk-outs each) drop every faction below
+  `FACTION_HOSTILE_BELOW`, and the assertion is on `getTrafficSummary().spawned`, not on the reading
+  the panel shows. **Falsified**: with `arrivalsPerDay` reverted to a captured number the test fails
+  on `a house with no walk-ins owed still opened its door`, and passes again when restored.
+- [x] **A real defect fell out of the probe, in the ledger itself.** `advanceTo()` ran *before* the
+  batch counted `impatient` / `queue-left`, so the last day's walk-outs were filed into the next
+  morning's tally every single day - loop 46 fixed this for `blocked` and missed the other two.
+  `advanceTo` now runs after the whole batch is counted. 41 tests across the six ledger-dependent
+  files stayed green.
+- [x] `getWorld()` measured `expectedWalkIns` against `trafficState.spawned` - the number that has
+  *already walked in* - so the HUD reported one walk-in on the morning the first guest arrived. It
+  reads `visitorTrafficPerDay` now, the same number the flow acts on.
+- [x] Gates: **456 unit / 47 files** (up from 445/46), typecheck 0, lint 0 warnings, BEM + CSS pass,
+  93 mutation guards all anchored.
+- [x] Gap - the abandonment signal loop 19 named is **already closed**: `abandonQueue` emits
+  `waiting/impatient` (`npcEngine.ts:1013`), the ledger counts it as a walk-out, and
+  `npcImpatience.test.ts` proves the emit is load-bearing. The task-context gap that said otherwise
+  was stale; do not re-chase it.
+- [x] Gap - **closed by loop 48's e2e.** The board and the HUD are proven on a screen; the import
+  path that gets a production build to a running preview is now a test, not a manual step.
+
+### Loop 48 - a reason to come back: objectives on the counters the house already keeps
+
+- [x] Verified first: **there was no progression anywhere.** No level, unlock, milestone or goal in
+  `domain/schema/` or `domain/economy/` - the game had a scoreboard and nothing to do with it.
+- [x] `domain/economy/objectives.ts` - five goals read off counters that already exist (`served`,
+  `walkOuts`, `lastDayCents`, `DailySettlement`, neutrality, pressure). **No new state**: an objective
+  is a question asked of the day book, not a second machine that has to be kept in step with it.
+- [x] **The verdict is three-valued**, the way the rest of the project decides: `met` / `unmet` /
+  `unknown`. A run that has not closed a day cannot be judged on what a night looked like, so an
+  idle lobby reads unproven rather than failed. `arch takeings`' own three-valued verdicts are the
+  precedent.
+- [x] **Streaks fold once per closed day**, in `settleWorldDay`, not by whatever polls the board: a
+  streak a 250 ms timer could advance thirty times is not a streak. The panel reads it on the poll
+  it already had.
+- [x] `useNpcSimulationCore.getObjectives()` reads the board off the *same* settlement the world
+  uses, so a goal and a profit verdict cannot disagree about whether the day was good.
+- [x] 7 unit tests (`objectives.test.ts`) and one in the running simulation. **Falsified twice**:
+  `unmet` forced to `met` fails 4, and unbinding the streak fold fails the simulation test on
+  `two closed days, one of them met, is a streak of one`.
+- [x] HUD: a `form__row` of the five goals at `PropertiesPanel.vue:373`, inside `previewActive`,
+  with the same `form__hint` / `flag--warning` vocabulary as the world block above it.
+- [x] **CLOSED - the board is on a screen.** `tests/e2e/objectivesBoard.spec.ts` (2) gets a running
+  house the way a player does: Workspace -> Import the authored `blueprint-data.json`, then Deploy.
+  That is the only way in, because `App.vue:25` boots `emptySeed()` and a production build keeps the
+  workspace in IndexedDB. Two things it now proves that 456 jsdom tests could not: the five chips
+  render, and they are **stable across 4 seconds of polls** while no day has closed - a board a
+  250 ms timer could advance thirty times is not a board. **Falsified**: `v-if="false"` on the row
+  fails both. **Falsified** the harness too - the first four attempts failed on the confirm layer
+  being a top-layer `#modal-confirm` shell, not on the objectives.
+- [x] Gates: **e2e 23 / 23** (21 -> 23), typecheck 0, lint 0, BEM + CSS pass, **456 unit / 47 files**,
+  93 mutation guards all anchored.
+- [ ] Gap - **a goal is worth nothing yet.** `purchases.ts` takes money for fixtures, heads and
+  standing; nothing pays for a streak, so the board is a readout with no economy behind it. The
+  outflow needs a second state before objectives are a reason to return (the queue's item 3).
+
+
 ### Next in the free-token window (queue, ordered by value per machine-hour)
 
 Every item below is machine-gated (a suite, a guard, or a measured command), because unattended tokens
 are only worth spending where a script can say "wrong" afterwards.
 
-1. **Profit as the plan score** - print payroll + profit/day in `arch takings` and make `arch eval`
-   rank by profit, not gross. Closes the loop-32 gap; turns the A/B the user already runs into an
-   economic verdict.
-2. **Insolvency as a state, not a number** - staff walk off when the bank cannot pay the day. One
-   engine-visible consequence of the money the sim already counts; do not raise the wage constant
-   instead.
-3. **Spend the bank on the floor** - buy a fixture or a role from the HUD, placed through the existing
-   store write (`addObject` / pool edit), so money leaves as well as arrives. Needs the placement gate
-   to be the one that runs, never a second path.
-4. **Reputation as a resource** - recovery per closed day toward the evidence, and a purchase that
-   repairs it (the loop-26 gap). Pairs naturally with 3.
-5. **Persist the demonstrated rate** - the wallet currently saves the *instantaneous* rate, so a
-   session that served nobody pays nothing next time it reopens (loop 31 gap).
-6. **Lobby candidate fan-out** - generate N plans, score each with `arch takings --arrivals --patience`
-   + `arch eval`, render the top few for the user's eye. Bulk, parallel, zero judgement required.
-7. **Grow the manifest toward the sync/import-export surface** - `payload.ts` round-trip fields are the
-   one ingress class still covered only by unit tests (the loop-18 hand-off note).
+1. **Lobby candidate fan-out** - generate N plans, score each with `arch compare --economy` (profit,
+   after payroll) and render the top few for the user's eye. Bulk, parallel, zero judgement required.
+2. **Exercise `--economy` in `arch selftest`** - the money stage is not part of the 14-fixture run.
+3. **Make a streak worth money** - loops 47-48 gave the house goals and none of them pay. The outflow
+   has one buy per fixture/head/standing repair at a fixed price, so the queue's "sell-back or price
+   decay" and loop 48's gap are the same slice: a second state on the money that leaves.
+4. **Guard the strike's once-per-close stamp only if it stops being idempotent** - today no test can
+   observe it, so the manifest correctly does not claim it (loops 29/30's rule).
+5. **Walk the deleted-role path end to end** - delete a role in the NPC Manager, reload, and assert the
+   zone that named it is gone (loop 44's unit-only rule). `objectivesBoard.spec.ts` has just written
+   the import + deploy steps this needs, so it is cheaper than it was.
+
+Closed since this list was written: **profit as the plan score** (loop 35), **insolvency as a state**
+(loop 36), **spend the bank** (loop 37), **reputation as a resource** (loop 38), **sync / import-export
+round-trip guards** (loop 39), **the strike and standing wiring proven in the simulation + the arch
+fold** (loop 40), **the parked canvas decisions, Escape rollback included** (loop 41), **`collapsedCause`
+and the "clash" wording** (loop 42), **the load-flaky suites** (loop 43), **the pool-duplicate and
+unreachable-zone decisions, implemented** (loop 44), **persist the demonstrated rate** (loop 34),
+**faction relations thinning real footfall, and the ledger's day-close ordering** (loop 47),
+**objectives as a day-book reading with a three-valued verdict** (loop 48).
 
 ## Blockers
 

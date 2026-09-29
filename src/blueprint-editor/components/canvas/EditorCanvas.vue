@@ -792,6 +792,9 @@ function onObjectMouseDown(e: MouseEvent, id: string) {
   }
   dragHasMoved.value = false
   dragWarned.value = false
+  // Snapshot after the selection is settled, so the gesture records exactly the objects the drag
+  // will move - and Escape can put all of them back, not just the one under the cursor.
+  store.beginMoveGesture()
   window.addEventListener('mousemove', onMoveMouseMove)
   window.addEventListener('mouseup', onMoveMouseUp)
 }
@@ -819,6 +822,9 @@ function cancelObjectDrag(): void {
     _moveRafId = null
   }
   _movePending = null
+  // Escape means "I did not mean that": the part already applied by the mousemove frames goes back
+  // too, not just the tracking. Nothing was committed, so no undo entry and no write are involved.
+  store.cancelMoveGesture()
   dragHasMoved.value = false
   dragWarned.value = false
   moving.value = null
@@ -862,6 +868,9 @@ async function onMoveMouseUp() {
   if (moving.value) {
     if (dragHasMoved.value) await store.commitMove()
   }
+  // The gesture is finished either way: a release commits (or is refused and reverted by the store),
+  // and the snapshot must not outlive it and be applied to the next gesture.
+  store.endMoveGesture()
   dragHasMoved.value = false
   dragWarned.value = false
   moving.value = null

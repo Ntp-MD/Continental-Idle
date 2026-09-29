@@ -2,10 +2,12 @@ import { onUnmounted, ref, watch, type Ref, type ShallowRef } from 'vue'
 import type { NpcCanvasBounds, NpcEngineEvent } from '@/engine/npc'
 import type { AssetDef, FloorData, NpcSimDot, NpcSimulationConfig } from '../domain/types'
 import type { TakingsLedger } from '../domain/economy/takings'
+import type { ReputationReading } from '../domain/economy/reputation'
+import type { Objective } from '../domain/economy/objectives'
 import { WALLET_AUTOSAVE_MS } from '../domain/economy/wallet'
 import { editorLog } from '../domain/logger'
 import type { WalletStore } from '../store/wallet'
-import { useNpcSimulationCore, type NpcSimulationCore } from './useNpcSimulationCore'
+import { useNpcSimulationCore, type NpcSimulationCore, type WorldReading } from './useNpcSimulationCore'
 
 /** What the lobby earned with nobody watching, as credited at boot. */
 export interface WalletReport {
@@ -74,6 +76,13 @@ export function useNpcSimulation(sources: NpcSimulationSources = {}): {
 	trafficOn: Ref<boolean>
 	getTrafficSummary: () => { spawned: number; departed: number; inside: number; entrances: number }
 	getStaffHeadcount: () => number
+	countStaffOnDuty: () => number
+	getStrike: () => { onDuty: number; offDuty: number; insolvent: boolean; unpaidCents: number }
+	getStanding: () => ReputationReading
+	getStandingScore: () => number
+	getWorld: () => WorldReading
+	getObjectives: () => readonly Objective[]
+	setStanding: (score: number) => void
 	setTraffic: (on: boolean) => void
 	deploy: (floorId?: string, spawnFloorId?: string) => void
 	start: () => void
@@ -113,6 +122,8 @@ export function useNpcSimulation(sources: NpcSimulationSources = {}): {
 		if (!restored.record) return
 		const carriedCents = restored.record.bankCents + restored.earnedCents
 		if (carriedCents > 0) core.takings.deposit(carriedCents)
+		// Standing is device state too: a room remembered as trusted reopens as trusted.
+		if (restored.record.standingScore !== undefined) core.setStanding(restored.record.standingScore)
 		walletReport.value = {
 			carriedCents,
 			earnedCents: restored.earnedCents,
@@ -125,7 +136,7 @@ export function useNpcSimulation(sources: NpcSimulationSources = {}): {
 		const wallet = sources.wallet
 		if (!wallet) return
 		const tally = core.takings.snapshot()
-		wallet.commit(tally.bankCents, tally.perMinuteCents).catch(error => editorLog.warn('wallet.commit', error))
+		wallet.commit(tally.bankCents, tally.perMinuteCents, undefined, core.getStandingScore()).catch(error => editorLog.warn('wallet.commit', error))
 	}
 
 	if (sources.wallet) {
@@ -187,6 +198,13 @@ export function useNpcSimulation(sources: NpcSimulationSources = {}): {
 		trafficOn: core.trafficOn,
 		getTrafficSummary: () => core.getTrafficSummary(),
 		getStaffHeadcount: () => core.getStaffHeadcount(),
+		countStaffOnDuty: () => core.countStaffOnDuty(),
+		getStrike: () => core.getStrike(),
+		getStanding: () => core.getStanding(),
+		getStandingScore: () => core.getStandingScore(),
+		getWorld: () => core.getWorld(),
+		getObjectives: () => core.getObjectives(),
+		setStanding: (score: number) => core.setStanding(score),
 		setTraffic: (on: boolean) => core.setTraffic(on),
 		deploy(floorId?: string, spawnFloorId?: string) {
 			const view = floorId ?? sources.getFloor?.()?.id

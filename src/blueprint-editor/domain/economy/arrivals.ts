@@ -10,6 +10,13 @@ import { TAKINGS_DAY_SECONDS } from './takings'
  */
 
 /**
+ * Declared fallback for a canvas that carries no street width. One number, because the running
+ * simulation reads `canvas.streetTiles` and the offline tool reads `layout.streetWidthTiles` - two
+ * fields that must agree, and a second literal to keep them agreeing is one more thing to forget.
+ */
+export const STREET_TILES_DEFAULT = 5
+
+/**
  * Street doors only: an arrival that appears inside a room has not entered the building. A door tile
  * counts when it sits on the facade ring the street width defines, which is the same ring the plan
  * builder opens. One implementation, shared by the running simulation and the offline measurement.
@@ -86,8 +93,12 @@ export function stepTraffic(input: {
 }
 
 export interface ArrivalFlowOptions {
-	/** Walk-ins per hotel day, from the declared arrival demand (a minimum, not a point estimate). */
-	arrivalsPerDay: number
+	/**
+	 * Walk-ins per hotel day, from the declared arrival demand (a minimum, not a point estimate). A
+	 * function reads it live, so a house that loses a faction thins its own footfall instead of
+	 * finishing the run at the rate it was deployed with.
+	 */
+	arrivalsPerDay: number | (() => number)
 	/** Simulation seconds in one hotel day. */
 	daySeconds?: number
 	ticksPerSecond: number
@@ -127,15 +138,29 @@ export function createArrivalFlow(options: ArrivalFlowOptions): ArrivalFlow {
 	const staySeconds = Math.max(1, Math.floor(options.staySeconds ?? daySeconds))
 	const ticksPerSecond = Math.max(1, Math.floor(options.ticksPerSecond))
 	const stayTicks = Math.max(1, Math.round(staySeconds * ticksPerSecond))
-	const arrivalsPerTick = Math.max(0, options.arrivalsPerDay) / (daySeconds * ticksPerSecond)
+	// Read live and clamped at both ends: a negative rate is a house that has closed its door and a
+	// non-finite one is a config that never loaded, and neither may open the street.
+	const rateOf = (): number => {
+		const raw = typeof options.arrivalsPerDay === 'function' ? options.arrivalsPerDay() : options.arrivalsPerDay
+		return Number.isFinite(raw) ? Math.max(0, raw) : 0
+	}
+	// Arrivals are owed against elapsed time, so a rate that falls thins the street rather than
+	// recalling a crowd already through the door, and one that rises pays the new rate forward.
+	let owed = 0
+	let lastTick = 0
 	let spawnedSoFar = 0
 
 	return {
 		step(tick, live) {
-			// Whole arrivals only, and always the difference against the cumulative count: a floor per
-			// tick would silently drop the fraction and a day would never deliver its declared 500.
-			const due = Math.floor(tick * arrivalsPerTick)
-			const spawns = Math.max(0, due - spawnedSoFar)
+			const elapsed = Math.max(0, tick - lastTick)
+			if (elapsed > 0) {
+				// Whole arrivals only, and always the difference against the accumulated debt: a floor
+				// per tick would silently drop the fraction and a day would never deliver its declared 500.
+				owed += (elapsed * rateOf()) / (daySeconds * ticksPerSecond)
+				lastTick = tick
+			}
+			const spawns = Math.max(0, Math.floor(owed))
+			owed -= spawns
 			spawnedSoFar += spawns
 			const departures = live.filter(entry => tick - entry.bornTick >= stayTicks).map(entry => entry.id)
 			return { spawns, departures }
@@ -144,7 +169,7 @@ export function createArrivalFlow(options: ArrivalFlowOptions): ArrivalFlow {
 			return spawnedSoFar
 		},
 		get expectedPresent() {
-			return presentFromFlow(options.arrivalsPerDay, staySeconds, daySeconds)
+			return presentFromFlow(rateOf(), staySeconds, daySeconds)
 		},
 		get staySeconds() {
 			return staySeconds

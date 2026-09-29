@@ -30,17 +30,60 @@ import {
 	visitorRoleIds,
 	TAKINGS_DAY_SECONDS,
 	type TakingsLedger,
+	type TakingsSnapshot,
 	type TakingsResolver,
 } from '@/blueprint-editor/domain/economy/takings'
-import { payrollCents, staffHeadcount } from '@/blueprint-editor/domain/economy/upkeep'
+import { payrollCents, settleDay, staffHeadcount, STAFF_DAY_WAGE_CENTS } from '@/blueprint-editor/domain/economy/upkeep'
+import {
+	advanceObjectiveStreaks,
+	readObjectives,
+	type Objective,
+	type ObjectiveId,
+} from '@/blueprint-editor/domain/economy/objectives'
+import { strikeFromClose, type StaffStrike } from '@/blueprint-editor/domain/economy/insolvency'
+import {
+	advanceStanding,
+	clampStanding,
+	readReputation,
+	standingReading,
+	REPUTATION_NEUTRAL,
+	type ReputationReading,
+} from '@/blueprint-editor/domain/economy/reputation'
 import {
 	createArrivalFlow,
 	createTrafficState,
 	stepTraffic,
 	streetEntrances,
+	STREET_TILES_DEFAULT,
 	type ArrivalFlow,
 	type TrafficState,
 } from '@/blueprint-editor/domain/economy/arrivals'
+import {
+	advanceContinuity,
+	continuityReading,
+	createContinuityState,
+	NEUTRALITY_RECOVERY_FRACTION,
+	recordBreach,
+	type ContinuityReading,
+	type ContinuityState,
+} from '@/blueprint-editor/domain/economy/continuity'
+import {
+	createPressureState,
+	dailyFineCents,
+	pressureReading,
+	settlePressure,
+	type PressureReading,
+	type PressureState,
+} from '@/blueprint-editor/domain/economy/highTable'
+import {
+	creditService,
+	createWorldState,
+	readWorld,
+	releasePerson,
+	type Faction,
+	type WorldReading as FactionWorldReading,
+	type WorldState,
+} from '@/blueprint-editor/domain/economy/standing-world'
 import { updateSimDot, pruneStaleDots, pruneWaitReasons, filterDotsForFloor, type NpcSimLook } from './npcSimProjection'
 
 // Matches the pool-count ceiling the ingress normalizer accepts (domain/schema/npc.ts), so a pool
@@ -123,6 +166,26 @@ interface NpcSimCoreState {
 	trafficFlow: ArrivalFlow | null
 	trafficState: TrafficState
 	entrances: { floorId: string; x: number; y: number }[]
+	/** Staff sent home by a day the bank could not pay, held so a later paid day can bring them back. */
+	strippedStaff: { id: string; roleId: string; floorId: string; x: number; y: number; speed: number }[]
+	/** The day-book stamp the last strike decision was made on, so one close decides once. */
+	strikeDay: number
+	strike: StaffStrike
+	/** Standing is a state now: it lags the counted evidence and recovers one closed day at a time. */
+	standingScore: number
+	/** The world layer: neutrality, the House of Peace's pressure, and who the house still welcomes. */
+	continuity: ContinuityState
+	pressure: PressureState
+	world: WorldState
+	/** Incidents the last closed day charged, handed over by the ledger on the same boundary. */
+	incidentsToday: number
+	/** The day-book stamp the world last settled on, so one close settles the world once. */
+	worldDay: number
+	/**
+	 * What the house is being asked to do, and how many closed days in a row it has done it. Folded
+	 * on the same close as the world, so a goal can never be met by a day the house did not live.
+	 */
+	objectiveStreaks: Readonly<Record<ObjectiveId, number>>
 }
 
 function getAssetTagsSafe(host: NpcSimulationCoreHost): ((type: string) => string[] | undefined) | undefined {
@@ -187,9 +250,22 @@ function guestRoleIdFor(state: NpcSimCoreState): string {
 	return state.config.value.pool.find(entry => state.visitorRoleIds.has(entry.roleId))?.roleId ?? state.config.value.defaultRoleId
 }
 
-function agentSpeedFor(state: NpcSimCoreState, floorId: string): number {
-	const speed = Math.max(0.01, state.config.value.speed || 1 / 30)
-	return speed * NPC_ENGINE_TICKS_PER_SECOND / (state.floorMaps.get(floorId)?.cellSize ?? 1)
+function configAgentSpeed(state: NpcSimCoreState): number {
+	return Math.max(0.01, state.config.value.speed || 1 / 30)
+}
+
+/** Tiles per tick, from the one speed rule. `speed` is overridable so a jittered spawn stays on it. */
+function agentSpeedFor(state: NpcSimCoreState, floorId: string, speed = configAgentSpeed(state)): number {
+	return speed * NPC_ENGINE_TICKS_PER_SECOND / Math.max(1, state.floorMaps.get(floorId)?.cellSize ?? 1)
+}
+
+/**
+ * Walk-ins the world would send today: the authored crowd, weighted by the factions still willing to
+ * come. Read live rather than captured at deploy, because a house that loses a faction has to feel it
+ * in the footfall the same day, not the next time the plan is re-deployed.
+ */
+function worldTrafficPerDay(state: NpcSimCoreState): number {
+	return readWorld(state.world, visitorTrafficPerDay(state)).expectedWalkIns
 }
 
 function armTraffic(state: NpcSimCoreState): void {
@@ -204,7 +280,7 @@ function armTraffic(state: NpcSimCoreState): void {
 		return
 	}
 	state.trafficFlow = createArrivalFlow({
-		arrivalsPerDay: perDay,
+		arrivalsPerDay: () => worldTrafficPerDay(state),
 		daySeconds: TAKINGS_DAY_SECONDS,
 		ticksPerSecond: NPC_ENGINE_TICKS_PER_SECOND,
 	})
@@ -212,6 +288,145 @@ function armTraffic(state: NpcSimCoreState): void {
 	// crowd twice measures itself twice.
 	for (const agent of state.engine?.listAgents() ?? []) {
 		if (agent.roleId && state.visitorRoleIds.has(agent.roleId)) state.engine?.removeAgent(agent.id)
+	}
+}
+
+/** A fresh deployment is a fresh ledger: nobody is off duty and the day book starts again. */
+function clearStrike(state: NpcSimCoreState): void {
+	state.strippedStaff = []
+	state.strikeDay = 0
+	state.strike = { onDuty: 0, offDuty: 0, insolvent: false }
+}
+
+/**
+ * An unpaid day takes staff off the floor, and a later paid day brings them back. The ledger owns
+ * the money and `insolvency.ts` owns the crew rule; this only moves agents, once per closed day.
+ */
+function applyPayrollStrike(state: NpcSimCoreState): void {
+	const engine = state.engine
+	if (!engine) return
+	const close = state.takings.snapshot()
+	if (close.daysCompleted === state.strikeDay) return
+	state.strikeDay = close.daysCompleted
+	const present = engine.listAgents().filter(agent => agent.roleId && !state.visitorRoleIds.has(agent.roleId))
+	const strike = strikeFromClose({
+		payrollCents: close.lastDayPayrollCents,
+		unpaidCents: close.lastDayUnpaidCents,
+		staffHeadcount: present.length + state.strippedStaff.length,
+		wageCents: STAFF_DAY_WAGE_CENTS,
+	})
+	state.strike = strike
+	const surplus = present.length - strike.onDuty
+	if (surplus > 0) {
+		// The last-deployed staff are the ones sent home, so the crew that stays is the crew the
+		// role's own spawn cells were armed with.
+		for (const agent of present.slice(present.length - surplus)) {
+			if (!agent.roleId) continue
+			state.strippedStaff.push({ id: agent.id, roleId: agent.roleId, floorId: agent.floorId, x: agent.x, y: agent.y, speed: agent.speed })
+			engine.removeAgent(agent.id)
+		}
+		editorLog.warn('NpcPayroll', `${strike.offDuty} of ${strike.onDuty + strike.offDuty} staff unpaid - the day could not be paid, so they are off duty`)
+		return
+	}
+	for (let i = 0; i < -surplus && state.strippedStaff.length > 0; i++) {
+		const saved = state.strippedStaff.pop()!
+		engine.addAgent({
+			id: saved.id,
+			roleId: saved.roleId,
+			floorId: saved.floorId,
+			x: saved.x,
+			y: saved.y,
+			targetX: saved.x,
+			targetY: saved.y,
+			speed: saved.speed,
+		})
+	}
+}
+
+/**
+ * The world settles on the same boundary the payroll and the standing use, and once per closed day.
+ *
+ * The order matters and is the whole story: what the night cost (incidents) is charged to neutrality
+ * first, the house then recovers a step toward safety, and only what is left of the day buys the
+ * High Table off. Settling the House before the night was counted would forgive a scene the player
+ * could see, and the two would disagree about the same day.
+ */
+/**
+ * A fresh deployment is a fresh house. The world owes a newly opened Continental nothing, and
+ * inheriting yesterday's breaches would punish a player who re-deployed the same plan - so this is
+ * shared by `deploy` and `reset` rather than written twice and drifting.
+ */
+function clearWorld(state: NpcSimCoreState): void {
+	state.continuity = createContinuityState()
+	state.pressure = createPressureState()
+	state.world = createWorldState()
+	state.incidentsToday = 0
+	state.worldDay = 0
+	state.objectiveStreaks = ZERO_OBJECTIVE_STREAKS
+}
+
+const ZERO_OBJECTIVE_STREAKS: Readonly<Record<ObjectiveId, number>> = {
+	'pay-the-bill': 0,
+	'full-room': 0,
+	'no-one-walks': 0,
+	'keep-the-peace': 0,
+	'earn-the-day': 0,
+}
+
+/**
+ * The board for the day that has just closed, read off the same counters the rest of the house
+ * settles on. One function so a goal can never be judged against a number the settlement did not
+ * see - the payroll here is the payroll that was charged, not a fresh estimate of it.
+ */
+function objectiveBoardFor(state: NpcSimCoreState, close: TakingsSnapshot): readonly Objective[] {
+	return readObjectives(
+		{
+			daysCompleted: close.daysCompleted,
+			served: close.served,
+			walkOuts: close.walkOuts,
+			lastDayCents: close.lastDayCents,
+			settlement: settleDay({
+				bankCents: close.bankCents,
+				// Net of standing, the same line the HUD and `arch takings` price a day on, so a goal
+				// and a profit verdict can never disagree about whether the day was a good one.
+				incomePerDayCents: Math.floor((close.perDayCents * standingReading(state.standingScore, readReputation(close.served, close.walkOuts)).multiplier)),
+				staffHeadcount: staffHeadcount(state.config.value.pool, roleId => state.visitorRoleIds.has(roleId)),
+			}),
+			neutralityScore: continuityReading(state.continuity).score,
+			pressureOutstandingCents: state.pressure.outstandingCents,
+		},
+		state.objectiveStreaks,
+	)
+}
+
+function settleWorldDay(state: NpcSimCoreState, closedDay: number, incidents: number, close: TakingsSnapshot): void {
+	// The stamp comes from the ledger's own close, not from a snapshot read here: during the close
+	// the day book has not rolled yet, so reading it back skipped a whole day. Found by the probe -
+	// the day still closed, it simply settled nothing, and no assertion caught it.
+	if (closedDay === state.worldDay) return
+	state.worldDay = closedDay
+
+	state.incidentsToday = incidents
+	state.continuity = recordBreach(state.continuity, incidents)
+	state.continuity = advanceContinuity(state.continuity, NEUTRALITY_RECOVERY_FRACTION)
+	const underNotice = continuityReading(state.continuity).underPressure
+	// The fine is a transfer, not a tally: `outstandingCents` is declared as money the House has
+	// already taken, so the day it is charged is the day it leaves the ledger.
+	const fine = underNotice ? dailyFineCents(close.bankCents) : 0
+	state.pressure = settlePressure(state.pressure, { underNotice, bankCents: close.bankCents })
+	if (fine > 0) state.takings.withdraw(fine)
+	// A goal is judged on the night that just closed, and folded once here rather than by whatever
+	// polls the board: a streak that a 250 ms timer could advance thirty times is not a streak.
+	state.objectiveStreaks = advanceObjectiveStreaks(state.objectiveStreaks, objectiveBoardFor(state, close))
+	// The world is told what the day's service was worth on the same day, so a client who was
+	// turned away is remembered by the faction that sent them rather than only by the ledger.
+	if (close.served + close.walkOuts > 0) {
+		for (const id of Object.keys(state.world.factions) as Faction[]) {
+			state.world = creditService(state.world, id, close.served >= close.walkOuts)
+		}
+	}
+	if (incidents > 0) {
+		editorLog.warn('NpcContinuity', `${incidents} scene(s) in the house - neutrality is down to ${continuityReading(state.continuity).score}`)
 	}
 }
 
@@ -296,8 +511,8 @@ function spawnAgents(state: NpcSimCoreState, host: NpcSimulationCoreHost, floors
 				occupiedSpawnKeys.add(`${floor.id}:${role.id}:${spawnKey}`)
 				const [x, y] = spawnKey.split(',').map(Number)
 				const id = `${host.idPrefix}${state.nextId++}`
-				const speed = Math.max(0.01, state.config.value.speed || 1 / 30) + (rand() - 0.5) * 0.02
-				state.engine.addAgent({ id, roleId: role.id, floorId: floor.id, x, y, targetX: x, targetY: y, speed: speed * NPC_ENGINE_TICKS_PER_SECOND / map.cellSize })
+				const speed = configAgentSpeed(state) + (rand() - 0.5) * 0.02
+				state.engine.addAgent({ id, roleId: role.id, floorId: floor.id, x, y, targetX: x, targetY: y, speed: agentSpeedFor(state, floor.id, speed) })
 				spawned++
 			}
 			spawnCursor = (spawnCursor + count) % keys.length
@@ -315,7 +530,7 @@ function buildEngine(state: NpcSimCoreState, host: NpcSimulationCoreHost, floors
 	state.floorMaps = built.floorMaps
 	state.floorDataMap = built.floorDataMap
 	state.targetTagsByKey = new Map(built.layout.interactionTargets.map(target => [interactionTargetKey(target), target.tags]))
-	state.entrances = streetEntrances(floors, canvas.streetTiles ?? 5)
+	state.entrances = streetEntrances(floors, canvas.streetTiles ?? STREET_TILES_DEFAULT)
 
 	const policy = createNpcEnginePolicy({
 		getConfig: () => state.config.value,
@@ -378,8 +593,12 @@ function frame(state: NpcSimCoreState, host: NpcSimulationCoreHost): void {
 			state.tickCostEma = state.tickCostEma === 0 ? (performance.now() - t0) / steps : state.tickCostEma * 0.85 + ((performance.now() - t0) / steps) * 0.15
 			syncAgents(state)
 			const events = state.engine.drainEvents()
-			state.takings.ingest(events, state.engine.tickNumber, takingsResolverFor(state))
+			// `present` is the denominator a scene is measured against, so the ledger gets it with the
+			// batch rather than reaching back into the engine for it.
+			state.takings.ingest(events, state.engine.tickNumber, takingsResolverFor(state), state.frameDots.size)
+			applyPayrollStrike(state)
 			if (state.trafficFlow) {
+				const before = state.trafficState.spawned
 				stepTraffic({
 					engine: state.engine,
 					flow: state.trafficFlow,
@@ -390,6 +609,12 @@ function frame(state: NpcSimCoreState, host: NpcSimulationCoreHost): void {
 					state: state.trafficState,
 					idFor: index => `${host.idPrefix}t${index}`,
 				})
+				// Every arrival the world released becomes someone the house can remember. Without
+				// this the roster would only ever be written by a test, and a repeat visitor would be
+				// an identical agent in a new body - the exact state this module exists to remove.
+				for (let i = before; i < state.trafficState.spawned; i++) {
+					state.world = releasePerson(state.world, i)
+				}
 			}
 			pruneArrivalMarks(state.arrivalMarks, state.engine.tickNumber)
 			if (events.length > 0) {
@@ -415,10 +640,9 @@ function frame(state: NpcSimCoreState, host: NpcSimulationCoreHost): void {
 }
 
 function applyConfigSpeedToAgents(state: NpcSimCoreState): void {
-	const speed = Math.max(0.01, state.config.value.speed || 1 / 30)
 	if (!state.engine) return
 	for (const agent of state.engine.listAgents()) {
-		agent.speed = speed * NPC_ENGINE_TICKS_PER_SECOND / Math.max(1, state.floorMaps.get(agent.floorId)?.cellSize ?? 1)
+		agent.speed = agentSpeedFor(state, agent.floorId)
 	}
 }
 
@@ -474,12 +698,29 @@ export function useNpcSimulationCore(host: NpcSimulationCoreHost) {
 			isVisitor: roleId => visitorRoleIds.has(roleId),
 			// Every closed hotel day pays the staff that day deployed - the deployment is the bill.
 			dailyChargeCents: () => payrollCents(staffHeadcount(state.config.value.pool, roleId => visitorRoleIds.has(roleId))),
+			// One boundary settles everything that a closed day settles. Standing chases the counted
+			// record, the world is handed the night it just lived, and both read the ledger's own
+			// counters - so a played lobby and an `arch takings` run cannot disagree about a day.
+			onDayClose: day => {
+				state.standingScore = advanceStanding(state.standingScore, readReputation(day.served, day.walkOuts))
+				settleWorldDay(state, day.day, day.incidents, state.takings.snapshot())
+			},
 		}),
 		takingsResolver: null,
 		trafficOn: ref(false),
 		trafficFlow: null,
 		trafficState: createTrafficState(),
 		entrances: [],
+		strippedStaff: [],
+		strikeDay: 0,
+		strike: { onDuty: 0, offDuty: 0, insolvent: false },
+		standingScore: REPUTATION_NEUTRAL,
+		continuity: createContinuityState(),
+		pressure: createPressureState(),
+		world: createWorldState(),
+		incidentsToday: 0,
+		worldDay: 0,
+		objectiveStreaks: ZERO_OBJECTIVE_STREAKS,
 	}
 
 	function startLoop(): void {
@@ -513,6 +754,12 @@ export function useNpcSimulationCore(host: NpcSimulationCoreHost) {
 			state.arrived.clear()
 			state.arrivalMarks.clear()
 			state.takings.reset()
+			clearStrike(state)
+			// The world's day stamp has to move with the ledger's day book. `reset()` puts
+			// `daysCompleted` back to 0 while `worldDay` still held the old count, so the next close
+			// matched the stamp and the world silently skipped a whole day - found by the probe, not
+			// by a failing assertion, because the day still closed and simply settled nothing.
+			clearWorld(state)
 			state.viewFloorId = newViewFloorId
 			buildEngine(state, host, floors, canvas)
 			startLoop()
@@ -547,6 +794,10 @@ export function useNpcSimulationCore(host: NpcSimulationCoreHost) {
 			state.npcs.value = []
 			state.socialEvents.value = []
 			state.takings.reset()
+			clearStrike(state)
+			// A fresh deployment is a fresh house: the world owes a newly opened Continental nothing,
+			// and inheriting yesterday's breaches would punish a player who re-deployed the same plan.
+			clearWorld(state)
 			state.trafficFlow = null
 			state.trafficState = createTrafficState()
 			state.trafficOn.value = false
@@ -564,6 +815,45 @@ export function useNpcSimulationCore(host: NpcSimulationCoreHost) {
 		},
 		getStaffHeadcount(): number {
 			return staffHeadcount(state.config.value.pool, roleId => state.visitorRoleIds.has(roleId))
+		},
+		/** Staff-role agents actually in the engine - the crew on shift, not the crew deployed. */
+		countStaffOnDuty(): number {
+			return (state.engine?.listAgents() ?? []).filter(agent => agent.roleId && !state.visitorRoleIds.has(agent.roleId)).length
+		},
+		/** Who is on shift after the last closed day's payroll, and what of it went unpaid. */
+		getStrike(): { onDuty: number; offDuty: number; insolvent: boolean; unpaidCents: number } {
+			return { ...state.strike, unpaidCents: state.takings.snapshot().lastDayUnpaidCents }
+		},
+		/** What money is multiplied by now: the standing the room holds, judged against its record. */
+		getStanding(): ReputationReading {
+			const close = state.takings.snapshot()
+			return standingReading(state.standingScore, readReputation(close.served, close.walkOuts))
+		},
+		getStandingScore(): number {
+			return state.standingScore
+		},
+		/**
+		 * Everything the world outside knows about this house, in one reading: how safe it is, what
+		 * the High Table has outstanding, and who still sends people. One call, so the panel cannot
+		 * read a half-settled day across three getters.
+		 */
+		getWorld(): WorldReading {
+			return {
+				continuity: continuityReading(state.continuity),
+				pressure: pressureReading(state.pressure),
+				// The authored crowd, not the count that has walked through the door so far: a reading
+				// measured against its own history would report one walk-in on the morning the first
+				// guest arrived, and the flow that has to act on it reads the same number.
+				world: readWorld(state.world, visitorTrafficPerDay(state)),
+				incidentsToday: state.incidentsToday,
+			}
+		},
+		/** The board, judged on the last closed day and folded once per close. */
+		getObjectives(): readonly Objective[] {
+			return objectiveBoardFor(state, state.takings.snapshot())
+		},
+		setStanding(score: number): void {
+			state.standingScore = clampStanding(score)
 		},
 		setTraffic(on: boolean): void {
 			if (state.trafficOn.value === on) return
@@ -585,3 +875,11 @@ export function useNpcSimulationCore(host: NpcSimulationCoreHost) {
 }
 
 export type NpcSimulationCore = ReturnType<typeof useNpcSimulationCore>
+
+/** One settled read of the world outside the house, so a panel cannot read a half-settled day. */
+export type WorldReading = {
+	continuity: ContinuityReading
+	pressure: PressureReading
+	world: FactionWorldReading
+	incidentsToday: number
+}

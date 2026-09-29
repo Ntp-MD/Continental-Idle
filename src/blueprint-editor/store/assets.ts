@@ -169,7 +169,7 @@ export function createAssetCommands(store: BlueprintStore) {
 			const collapsedIds = state.layout.floors.flatMap(floor => floor.objects.filter(o => o.type === id && o.collapsed).map(o => o.id))
 
 			if (collapsedIds.length > 0) {
-				toast.error(`${collapsedIds.length} object(s) collapsed due to overlap - shown in red`)
+				toast.error(`${collapsedIds.length} object(s) clash with the layout - shown in red`)
 			}
 			await saveBlueprintData()
 		})

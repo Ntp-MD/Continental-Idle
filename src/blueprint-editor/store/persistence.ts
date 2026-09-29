@@ -25,10 +25,10 @@ export function createPersistenceCommands(store: BlueprintStore) {
 			if (droppedRoles > 0) losses.push(`${droppedRoles} role(s)`)
 			const droppedTasks = normalized.npcConfig.tasks.length - (migrated.layout.npcConfig?.tasks.length ?? 0)
 			if (droppedTasks > 0) losses.push(`${droppedTasks} task(s)`)
-			const droppedPool = normalized.npcConfig.pool.length - (migrated.layout.npcConfig?.pool.length ?? 0)
-			if (droppedPool > 0) losses.push(`${droppedPool} pool entr(y/ies)`)
 			state.layout = migrated.layout
-			state.layout.npcConfig = cloneDeepRaw(normalized.npcConfig)
+			// migrate() already put the normalized config in the layout: writing the raw one back here
+			// restored exactly what the lines above reported as merged or dropped, so state and report
+			// disagreed about what the workspace now contains.
 			state.assetRegistry = normalized.originAssets.map(asset => cloneDeepRaw(asset))
 			for (const asset of state.assetRegistry) store.initAssetFields(asset)
 			state.tagDefinitions = normalized.tags.map(tag => ({ ...tag }))

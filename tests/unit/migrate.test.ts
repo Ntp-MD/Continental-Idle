@@ -316,3 +316,61 @@ test('a street band outside the persisted range is dropped, not carried into the
 	assert.equal(migrate(makeLayout({ streetWidthTiles: 3 }), originAssets).layout.streetWidthTiles, undefined, 'narrower than the minimum')
 	assert.equal(migrate(makeLayout({ streetWidthTiles: 8 }), originAssets).layout.streetWidthTiles, 8, 'an in-range band survives')
 })
+
+test('a spawn zone is kept only while some role it lists is still deployed', () => {
+	const { layout } = migrate(makeLayout({
+		floors: [makeFloor({
+			spawnZones: [
+				{ id: 'z-mixed', label: 'Mixed', x: 0, y: 0, w: 50, h: 50, roleIds: ['role-1', 'role-deleted'] },
+				{ id: 'z-dead', label: 'Dead', x: 60, y: 0, w: 50, h: 50, roleIds: ['role-deleted'] },
+				{ id: 'z-open', label: 'Open', x: 120, y: 0, w: 50, h: 50 },
+			],
+		})],
+	}), originAssets)
+	const zones = layout.floors[0].spawnZones ?? []
+	assert.deepEqual(zones.map(zone => zone.id), ['z-mixed', 'z-open'], 'a zone that can admit nobody survived')
+	assert.deepEqual(zones[0].roleIds, ['role-1'], 'the reference to the deleted role was kept as a live one')
+})
+
+test('a zone that admits every role is never judged by role names', () => {
+	const { layout } = migrate(makeLayout({
+		floors: [makeFloor({ spawnZones: [{ id: 'z-all', label: 'All', x: 0, y: 0, w: 50, h: 50 }] })],
+		npcConfig: { speed: 0.2, defaultRoleId: '', roles: [], tasks: [], pool: [] },
+	}), originAssets)
+	// A workspace with no roles at all is a real state (roles are authored after the plan), and a zone
+	// with no role filter admits whoever is deployed later - so it must not be judged unreachable.
+	assert.deepEqual((layout.floors[0].spawnZones ?? []).map(zone => zone.id), ['z-all'])
+})
+
+test('duplicate deployment rows for one role merge instead of deploying it twice', () => {
+	const config = {
+		speed: 0.2,
+		defaultRoleId: 'role-1',
+		roles: [{ id: 'role-1', label: 'Guest', color: '#3794ff', focusTags: [], restrictedTags: [], taskIds: [], focusChance: 100 }],
+		tasks: [],
+		pool: [{ roleId: 'role-1', count: 2 }, { roleId: 'role-1', count: 5 }],
+	}
+	const merged = normalizeNpcConfig(config)
+	assert.equal(merged?.pool.length, 1, 'the same role was deployed from two rows')
+	assert.equal(merged?.pool[0].count, 7, 'merging the rows lost heads')
+
+	// The pool ceiling still caps the total: two rows of 600 are not 1200 agents.
+	const capped = normalizeNpcConfig({ ...config, pool: [{ roleId: 'role-1', count: 600 }, { roleId: 'role-1', count: 600 }] })
+	assert.equal(capped?.pool[0].count, 1000)
+
+	// A row with no floor filter already means "everywhere", so it wins over a scoped duplicate
+	// rather than narrowing the union to the scoped row's floors.
+	const everywhere = normalizeNpcConfig({
+		...config,
+		pool: [{ roleId: 'role-1', count: 1 }, { roleId: 'role-1', count: 1, floorIds: ['floor-1'] }],
+	})
+	assert.equal(everywhere?.pool[0].floorIds, undefined, 'the unscoped row lost to the scoped duplicate')
+	const scoped = normalizeNpcConfig({
+		...config,
+		pool: [
+			{ roleId: 'role-1', count: 1, floorIds: ['floor-1'] },
+			{ roleId: 'role-1', count: 1, floorIds: ['floor-2'] },
+		],
+	})
+	assert.deepEqual(scoped?.pool[0].floorIds, ['floor-1', 'floor-2'], 'two scoped rows did not union their floors')
+})

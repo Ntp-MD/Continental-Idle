@@ -1,6 +1,7 @@
 # Architecture Agent Harness
 
-The execution layer under `architecture-skill/SKILL.md`. The skill says what good architecture is;
+The execution layer under `architecture-skill/research/` - the rule corpus the numbers are drawn
+from. The skill says what good architecture is;
 this harness makes an agent **see** what it just drew, **measure** it against the host engine, and
 **re-measure** after every repair.
 
@@ -21,7 +22,7 @@ rooms, room typing and portals - the harness calls it, it never re-implements it
 | `render`  | draw a floor - `--ascii` for the inner loop, `--png` for the real look, `--svg` for reports |
 | `metrics` | the measured KPI vector, every value with its band and the band's source      |
 | `eval`    | run the independent validators, emit findings; **exit 1 when a critical or major finding blocks "done"** |
-| `compare` | A/B/C on the identical metric list, ranked under four weight profiles. Two things are removed before any ranking happens: options with a **critical** finding (the model does not hold, so it is not a candidate), and **variants** - options agreeing with another on all but one diff component. Fewer than two distinct alternatives left means it refuses to rank |
+| `compare` | A/B/C on the identical metric list, ranked under four weight profiles. Two things are removed before any ranking happens: options with a **critical** finding (the model does not hold, so it is not a candidate), and **variants** - options agreeing with another on all but one diff component. Fewer than two distinct alternatives left means it refuses to rank. `--economy` runs the real crowd over every option with one identical config (`--ticks` `--agents` `--stay` `--patience` `--footfall`, or `--standing` for a resident population) and ranks on **profit/day after payroll**, never on gross takings; an option with no crowd run is excluded from the money ranking instead of being scored zero |
 | `revise`  | apply a patch, rebuild, re-measure, report cleared / still-open / introduced  |
 | `loop`    | `revise` over authored `pass-N.json` patches with a before/after contact sheet |
 | `selftest`| regenerate `architecture-skill/failure-library.md` from measured results      |

@@ -19,7 +19,7 @@ import { findFloor, loadWorld, METRES_PER_TILE, type WorldBundle } from './world
 import { renderAscii, renderContactSheet, renderPng, renderSvg, type RenderOptions } from './render'
 import { buildingKpis, floorKpis, formatRegressions, kpiTable, regressions } from './metrics'
 import { evaluate, formatReport } from './evaluate'
-import { formatComparison, measureOption } from './compare'
+import { economyFromReport, formatComparison, measureOption } from './compare'
 import { formatMinimality, formatRevision, metricDiff, probeMinimality, revise, type Patch } from './revise'
 import { runSelfTest } from './selftest'
 import { buildLobby } from './build-lobby'
@@ -256,7 +256,23 @@ function cmdCompare(args: Args): number {
 		console.error('compare needs at least two payloads: arch compare a.json b.json [c.json]')
 		return 2
 	}
-	const options = args.positionals.map((file, i) => measureOption(String.fromCharCode(65 + i), path.resolve(file)))
+	// --economy runs the real crowd over EVERY option with one identical config, so the money columns
+	// are comparable; without it no option is priced and the ranking stays purely spatial.
+	const priced = args.booleans.has('economy')
+	const takings = priced
+		? {
+			ticks: Number(args.flags.get('ticks') ?? 18000),
+			agents: args.flags.has('agents') ? Number(args.flags.get('agents')) : undefined,
+			arrivals: !args.booleans.has('standing'),
+			staySeconds: args.flags.has('stay') ? Number(args.flags.get('stay')) : undefined,
+			patienceSeconds: args.flags.has('patience') ? Number(args.flags.get('patience')) : undefined,
+			arrivalsPerDay: args.flags.has('footfall') ? Number(args.flags.get('footfall')) : undefined,
+		}
+		: null
+	const options = args.positionals.map((file, i) => {
+		const resolved = path.resolve(file)
+		return measureOption(String.fromCharCode(65 + i), resolved, takings ? economyFromReport(measureTakings(resolved, takings)) : null)
+	})
 	const markdown = formatComparison(options)
 	const out = args.flags.get('md')
 	if (out) {
@@ -418,6 +434,10 @@ commands:
                                                          major finding blocks "done")
   compare   A/B/C same-metric comparison                 <a.json> <b.json> [c.json ...]
                                                          [--md out.md] [--png sheet.png] [--floor id]
+                                                         [--economy] runs the real crowd over each and
+                                                         ranks on profit/day, not gross: [--ticks n]
+                                                         [--agents n] [--stay s] [--patience s]
+                                                         [--footfall n] [--standing]
   revise    apply a repair, re-render, re-evaluate       --patch patch.json [--out path]
                                                          [--md out.md] [--png sheet.png] [--floor id]
                                                          [--challenge]  search for a cheaper rung that

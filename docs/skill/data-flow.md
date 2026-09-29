@@ -83,6 +83,21 @@ If no boundary is touched, report "No data boundaries touched" and exit. Always 
 - Normalization happens at ingress: accepts unknown input, returns canonical data or rejects; idempotent; context-free.
 - Resolution happens before consumption: derives runtime values from canonical data + context; deterministic; the single path.
 - Never combine normalization and resolution in one helper.
+
+**Measured on the workspace round trip (2026-09-29), so it is not re-derived from the code's shape:**
+
+- `importWorkspace` is `readBlueprintDataFile` (schema) then `migrate` (normalizers). The schema gate is
+  strict enough that nothing reaches migrate's reductions: an orphan object, an unknown object type, a
+  non-numeric placement, a pool entry naming no role, a count past the ceiling, a role missing a field,
+  a chance out of range, an empty task label and an over-long name are each **refused as a whole file**.
+  The "imported with losses" accounting in `persistence.ts` is therefore unreachable today; it is kept
+  as the safety net for the day ingress loosens, and `tests/unit/workspaceRoundTrip.test.ts` pins the
+  refusals so a loosening shows up as a test flip rather than as a silently shorter workspace.
+- A placement's `w`/`h` never enter the file and are re-derived on load: assert sizes against
+  `store.state`, never against `exportWorkspace()` output.
+- A failed save inside an import **throws** (`store.save()` does not return false), so the caller cannot
+  mistake it for a clean import - and the state is already replaced when it throws. That is the store's
+  convention on every command, not an import-specific defect.
 - Canonical helpers are the single entry point for their shapes.
 - No inline defaults where a resolver exists. No raw casts bypassing migration. No untrusted patches without re-normalizing. No persisted fields without a validation path.
 
@@ -97,7 +112,7 @@ If no boundary is touched, report "No data boundaries touched" and exit. Always 
 
 ### Sync payload (editor <-> game)
 
-- Egress is `buildSyncedPayload` and ingress is `loadSyncedPayload`, both in `src/blueprint-editor/syncedPayload.ts` (pure - no store/DOM imports, so it runs headless). The runtime boot loader uses the ingress loader; the egress builder is covered by `tests/test-sync-payload.ts` and awaits a future sync caller - never re-inline the payload conversion at a caller (the old `scripts/observe-hotel.ts` inline was the anti-pattern). The old `syncToGame` store command and its toolbar button were removed; nothing in the app currently emits a synced payload (the `SyncPort` stays wired for when that returns).
+- Egress is `buildSyncedPayload` and ingress is `loadSyncedPayload`, both in `src/blueprint-editor/syncedPayload.ts` (pure - no store/DOM imports, so it runs headless). The runtime boot loader uses the ingress loader; the egress builder is covered by `tests/unit/syncPayload.test.ts` and awaits a future sync caller - never re-inline the payload conversion at a caller (the old `scripts/observe-hotel.ts` inline was the anti-pattern). The old `syncToGame` store command and its toolbar button were removed; nothing in the app currently emits a synced payload (the `SyncPort` stays wired for when that returns).
 - Floor sync keys are a stable function of each floor's identity (`assignSyncKeys`): a canonical `label` (`G`/`F<n>` -> `G`/`<n>`) wins, otherwise the floor `id` order decides the ordinal and the `_N` collision suffix. Never derive a key from array position - reordering floors must not change any key.
 - `loadSyncedPayload` normalizes at ingress (`normalizeFloorWalkable`, `normalizeNpcSpawnZones`, `normalizeAllowedRoleIds`) and orders floors `G` first then numeric (`compareFloorKeys`). Asset definitions stay a caller concern - the runtime passes its asset map into the engine, the loader returns only `FloorData[]` + canvas.
 
@@ -123,7 +138,7 @@ If no boundary is touched, report "No data boundaries touched" and exit. Always 
 Same change must update all of the following:
 
 1. `ASSET_DEF_FIELD_COVERAGE` (`assets/assetUtils.ts`)
-2. `sample` fixture (`tests/test-asset-schema.ts`)
+2. `sample` fixture (`tests/unit/assetSchema.test.ts`)
 3. `serializeAsset` whitelist
 4. `updateAsset` patch union (`store/assets.ts`)
 5. `OriginSettingPanel.vue` / `AssetProperties.vue` wiring if user-editable
@@ -135,7 +150,7 @@ Same change must update all of the following:
 1. `CANVAS_FIELD_SPECS`
 2. Canvas Settings row (`components/modals/SettingsModal.vue`) + setter (`store/mode.ts`) if user-editable
 3. `SyncedCanvas` + `syncedPayload.ts` mirror if the game needs it (never editor-only fields)
-4. Round-trip cases in `tests/test-blueprint-schema.ts`
+4. Round-trip cases in `tests/unit/blueprintSchema.test.ts`
 
 ## Domain engines
 

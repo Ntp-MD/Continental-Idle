@@ -108,6 +108,12 @@ export interface BlueprintStore {
 	deleteSelected(): Promise<void>
 	moveSelectedTo(x: number, y: number): MoveAttempt
 	commitMove(): Promise<void>
+	/** Snapshot the member positions when a drag gesture starts. */
+	beginMoveGesture(): void
+	/** Escape mid-drag: put the whole gesture back. False when there is nothing to undo. */
+	cancelMoveGesture(): boolean
+	/** The release took the gesture; the snapshot is no longer a thing to return to. */
+	endMoveGesture(): void
 	rotateSelected(): Promise<void>
 	linkObjects(ids: string[]): Promise<boolean>
 	unlinkObject(id: string): Promise<boolean>

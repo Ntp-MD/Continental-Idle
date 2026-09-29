@@ -9,13 +9,51 @@
 import { CAPABILITY_MANIFEST, CLOSURE_RIGHTS, evaluate } from './evaluate'
 import { buildingKpis, floorKpis, measureFloor } from './metrics'
 import { loadWorld, type WorldBundle } from './world'
+import { formatTakings } from '../../src/blueprint-editor/domain/economy/takings'
+import type { TakingsReport } from './takings'
 import type { Kpi } from './types'
+
+/**
+ * What a plan earns and what it costs over one authored hotel day, taken off a `measureTakings`
+ * report. Income here is already net of standing: a jammed plan must not pay the payroll penalty on
+ * top of the reputation penalty it has already been charged.
+ */
+export interface OptionEconomy {
+	readonly incomePerDayCents: number
+	readonly payrollPerDayCents: number
+	readonly profitPerDayCents: number
+	readonly runwayDays: number | null
+}
+
+/** The money columns, as KPIs, so the ranking normalises them like every other metric. */
+export function economyKpis(economy: OptionEconomy): Kpi[] {
+	return [
+		{ key: 'incomePerDay', label: 'takings/day (net of standing)', value: economy.incomePerDayCents, unit: 'c/day', band: 'declared tariff table', bandSource: 'src/blueprint-editor/domain/economy/takings.ts', direction: 'up', gate: false },
+		{ key: 'payrollPerDay', label: 'payroll/day', value: economy.payrollPerDayCents, unit: 'c/day', band: 'declared day wage x deployed staff', bandSource: 'src/blueprint-editor/domain/economy/upkeep.ts', direction: 'down', gate: false },
+		{ key: 'profitPerDay', label: 'profit/day', value: economy.profitPerDayCents, unit: 'c/day', band: 'self-funding at >= 0', bandSource: 'src/blueprint-editor/domain/economy/upkeep.ts', direction: 'up', gate: false },
+	]
+}
+
+/**
+ * Read the economy off a takings report in one place, so the comparison cannot rank a plan on
+ * figures that mean something else at the source.
+ */
+export function economyFromReport(report: TakingsReport): OptionEconomy {
+	return {
+		incomePerDayCents: report.netPerDayCents,
+		payrollPerDayCents: report.payrollCents,
+		profitPerDayCents: report.profitPerDayCents,
+		runwayDays: report.runwayDays,
+	}
+}
 
 export interface OptionMeasurement {
 	name: string
 	path: string
 	bundle: WorldBundle
 	kpis: Kpi[]
+	/** Measured money for this plan, or null when the crowd was never run over it. */
+	economy: OptionEconomy | null
 	findings: { critical: number; major: number; moderate: number; minor: number }
 	/** A critical finding means the model does not hold together, so the option is not a candidate.
 	 * Majors are real design defects: they stay rankable, because weighing defects is the point. */
@@ -35,16 +73,19 @@ export interface OptionMeasurement {
 }
 
 export const WEIGHT_PROFILES: Record<string, Record<string, number>> = {
-	efficiency: { netToGross: 3, circulationShare: -3, structureShare: -1, decisionPoints: 0, worstFreeRun: 1, roomsBeyondDaylight: 0, serviceShare: 0, deadEnds: -1 },
-	experience: { netToGross: 0, circulationShare: -1, structureShare: 0, decisionPoints: -2, worstFreeRun: 2, roomsBeyondDaylight: -3, serviceShare: 0, deadEnds: -1 },
-	operations: { netToGross: 0, circulationShare: -2, structureShare: 0, decisionPoints: -1, worstFreeRun: 1, roomsBeyondDaylight: -1, serviceShare: 2, deadEnds: -2 },
-	safety: { netToGross: 0, circulationShare: -1, structureShare: 0, decisionPoints: -1, worstFreeRun: 2, roomsBeyondDaylight: -1, serviceShare: 0, deadEnds: -3 },
+	efficiency: { netToGross: 3, circulationShare: -3, structureShare: -1, decisionPoints: 0, worstFreeRun: 1, roomsBeyondDaylight: 0, serviceShare: 0, deadEnds: -1, profitPerDay: 4 },
+	experience: { netToGross: 0, circulationShare: -1, structureShare: 0, decisionPoints: -2, worstFreeRun: 2, roomsBeyondDaylight: -3, serviceShare: 0, deadEnds: -1, profitPerDay: 1 },
+	operations: { netToGross: 0, circulationShare: -2, structureShare: 0, decisionPoints: -1, worstFreeRun: 1, roomsBeyondDaylight: -1, serviceShare: 2, deadEnds: -2, profitPerDay: 3 },
+	safety: { netToGross: 0, circulationShare: -1, structureShare: 0, decisionPoints: -1, worstFreeRun: 2, roomsBeyondDaylight: -1, serviceShare: 0, deadEnds: -3, profitPerDay: 1 },
 }
 
 /** KPIs used for ranking. Named once so every option is scored on the identical list. */
-export const RANKED_KEYS = ['netToGross', 'circulationShare', 'structureShare', 'decisionPoints', 'worstFreeRun', 'roomsBeyondDaylight', 'serviceShare', 'deadEnds']
+export const RANKED_KEYS = ['netToGross', 'circulationShare', 'structureShare', 'decisionPoints', 'worstFreeRun', 'roomsBeyondDaylight', 'serviceShare', 'deadEnds', 'profitPerDay']
 
-export function measureOption(name: string, path: string): OptionMeasurement {
+/** The ranked money metric: profit after payroll, never gross takings - an over-staffed room can out-earn a lean one and still be the worse business. */
+export const PROFIT_KEY = 'profitPerDay'
+
+export function measureOption(name: string, path: string, economy: OptionEconomy | null = null): OptionMeasurement {
 	const bundle = loadWorld(path)
 	const report = evaluate(bundle)
 	const perFloor = bundle.world.floors.map(floor => measureFloor(bundle.world, floor))
@@ -53,7 +94,7 @@ export function measureOption(name: string, path: string): OptionMeasurement {
 	const plate = aggregate(m => m.plateTiles) || 1
 
 	const floorKpiList = bundle.world.floors.flatMap(floor => floorKpis(bundle.world, floor))
-	const kpis = [...floorKpiList, ...buildingKpis(bundle.world)]
+	const kpis = [...floorKpiList, ...buildingKpis(bundle.world), ...(economy ? economyKpis(economy) : [])]
 
 	const portalCells = bundle.world.floors.flatMap(floor => floor.portals.flatMap(portal => portal.cells))
 	const portalCentroid = portalCells.length
@@ -65,6 +106,7 @@ export function measureOption(name: string, path: string): OptionMeasurement {
 		path,
 		bundle,
 		kpis,
+		economy,
 		findings: report.counts,
 		disqualified: report.counts.critical > 0,
 		blockers: [...report.floors.flatMap(floor => floor.findings), ...report.building.findings]
@@ -110,12 +152,16 @@ export function rankOptions(options: readonly OptionMeasurement[], profileName: 
 	const profile = WEIGHT_PROFILES[profileName] ?? WEIGHT_PROFILES.efficiency
 	const candidates = options.filter(option => !option.disqualified)
 	if (!candidates.length) return { profile: profileName, order: [] }
-	const ranges = RANKED_KEYS.map(key => {
-		const values = candidates.map(option => valueFor(option, key))
-		const min = Math.min(...values)
-		const max = Math.max(...values)
-		return { key, min, span: max - min }
-	})
+	const ranges = RANKED_KEYS
+		// A metric that only some options carry must not be scored at all: the options nobody measured
+		// would read as a real 0 and lose points for a run they were never asked to make.
+		.filter(key => candidates.every(option => option.kpis.some(kpi => kpi.key === key)))
+		.map(key => {
+			const values = candidates.map(option => valueFor(option, key))
+			const min = Math.min(...values)
+			const max = Math.max(...values)
+			return { key, min, span: max - min }
+		})
 	const scored = candidates.map(option => {
 		let score = 0
 		for (const range of ranges) {
@@ -131,14 +177,20 @@ export function rankOptions(options: readonly OptionMeasurement[], profileName: 
 
 /** Same gates as the ranking: a broken plan and a redrawn one are never frontier points. */
 export function paretoSet(options: readonly OptionMeasurement[]): string[] {
-	const points = distinctAlternatives(options.filter(option => !option.disqualified)).map(option => ({
+	const ranked = distinctAlternatives(options.filter(option => !option.disqualified))
+	// Profit only enters the frontier once every option has been run through the crowd; a half-priced
+	// set would call the unmeasured plans un-beatable for having never been measured.
+	const priced = ranked.length > 0 && ranked.every(option => option.economy !== null)
+	const points = ranked.map(option => ({
 		name: option.name,
-		// Objectives, all minimised: circulation cost, daylight failure, tight clearance, findings.
+		// Objectives, all minimised: circulation cost, daylight failure, tight clearance, findings,
+		// and - when priced - the loss-making side of the business.
 		vector: [
 			option.diff.circulationSharePct,
 			-option.diff.meanRoomDepthFromFacade,
 			-option.diff.worstFurnishedClearanceTiles,
 			option.findings.critical * 100 + option.findings.major * 10 + option.findings.moderate,
+			...(priced && option.economy ? [-option.economy.profitPerDayCents] : []),
 		],
 	}))
 	return points.filter(candidate =>
@@ -212,6 +264,27 @@ export function formatComparison(options: readonly OptionMeasurement[]): string 
 	// only trustworthy once the reader knows it is the worst storey rather than the average of them.
 	lines.push(`Per-storey folding: gate metrics show the **worst floor**, every other metric shows the mean across floors.` +
 		` Options with one storey are unaffected.`, '')
+
+	const priced = options.filter(option => option.economy)
+	if (priced.length) {
+		lines.push('## Economy - what the crowd that uses this plan actually costs')
+		for (const option of options) {
+			if (!option.economy) { lines.push(`- ${option.name}: no crowd run, so no money`); continue }
+			const { incomePerDayCents, payrollPerDayCents, profitPerDayCents, runwayDays } = option.economy
+			lines.push(`- ${option.name}: takings/day ${formatTakings(incomePerDayCents)}  payroll/day ${formatTakings(payrollPerDayCents)}  ` +
+				`profit/day ${formatTakings(profitPerDayCents)}  ${runwayDays === null ? 'self-funding' : `${runwayDays} day(s) of bank left`}`)
+		}
+		if (priced.length === options.length && priced.length > 1) {
+			const byGross = [...priced].sort((a, b) => b.economy!.incomePerDayCents - a.economy!.incomePerDayCents).map(option => option.name)
+			const byProfit = [...priced].sort((a, b) => b.economy!.profitPerDayCents - a.economy!.profitPerDayCents).map(option => option.name)
+			lines.push(byGross[0] === byProfit[0]
+				? `- ranked on ${PROFIT_KEY}, not gross. Gross order (${byGross.join(' > ')}) and profit order (${byProfit.join(' > ')}) agree on the top option.`
+				: `- ranked on ${PROFIT_KEY}, not gross: gross would put ${byGross[0]} first, profit puts ${byProfit[0]} first - the busier room is paying more staff than it feeds.`)
+		} else {
+			lines.push(`- ${PROFIT_KEY} is NOT ranked: ${options.length - priced.length} of ${options.length} option(s) have no crowd measurement, so a money ranking would score an absent run as a zero.`)
+		}
+		lines.push('')
+	}
 
 	lines.push(`## Diff vector (>= ${MIN_DIFF_COMPONENTS} differing components required for a real alternative)`)
 	for (let i = 0; i < options.length; i++) {

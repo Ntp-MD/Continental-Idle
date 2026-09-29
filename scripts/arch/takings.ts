@@ -28,8 +28,22 @@ import {
 	visitorRoleIds,
 	TAKINGS_DAY_SECONDS,
 } from '../../src/blueprint-editor/domain/economy/takings'
-import { createArrivalFlow, createTrafficState, stepTraffic, streetEntrances } from '../../src/blueprint-editor/domain/economy/arrivals'
-import { netOf, readReputation } from '../../src/blueprint-editor/domain/economy/reputation'
+import { createArrivalFlow, createTrafficState, stepTraffic, streetEntrances, STREET_TILES_DEFAULT } from '../../src/blueprint-editor/domain/economy/arrivals'
+import { advanceStanding, readReputation, standingReading, REPUTATION_NEUTRAL } from '../../src/blueprint-editor/domain/economy/reputation'
+import {
+	advanceContinuity,
+	continuityReading,
+	createContinuityState,
+	houseMultiplier,
+	NEUTRALITY_RECOVERY_FRACTION,
+	recordBreach,
+} from '../../src/blueprint-editor/domain/economy/continuity'
+import {
+	createPressureState,
+	dailyFineCents,
+	pressureReading,
+	settlePressure,
+} from '../../src/blueprint-editor/domain/economy/highTable'
 import { settleDay, staffHeadcount } from '../../src/blueprint-editor/domain/economy/upkeep'
 import { readBlueprintDataFile } from '../../src/blueprint-editor/store/schemaMigration'
 import { readOccupancy } from './world'
@@ -87,14 +101,23 @@ export interface TakingsReport {
 	readonly served: number
 	readonly walkOuts: number
 	readonly queueAbandons: number
-	/** Standing read from served against lost, and what the gross takings are worth at it. */
+	/** Standing the run ended on, and the raw record it is recovering toward. */
 	readonly reputation: { readonly score: number; readonly multiplier: number; readonly unproven: boolean }
+	readonly evidenceScore: number
+	/** The world outside: neutrality, what the High Table holds, and the scenes the last day charged. */
+	readonly continuity: { readonly score: number; readonly underPressure: boolean; readonly breaches: number }
+	readonly pressure: { readonly outstandingCents: number; readonly underAudit: boolean; readonly daysUnderPressure: number }
+	readonly incidents: number
+	/** What every ladder together says the house is worth, as a multiplier on face value. */
+	readonly houseWorth: number
 	readonly netCents: number
 	/** The authored day length, and what the live rate projects onto it. */
 	readonly daySeconds: number
 	readonly daysCompleted: number
 	readonly lastDayCents: number
 	readonly perDayCents: number
+	/** The per-day projection after the standing multiplier - the number payroll is charged against. */
+	readonly netPerDayCents: number
 	/** The crowd the plan deploys is also a cost: payroll, profit and runway are ranked here. */
 	readonly staffHeadcount: number
 	readonly payrollCents: number
@@ -182,9 +205,29 @@ export function measureTakings(payloadPath: string, options: TakingsOptions = {}
 	})
 
 	const visitors = visitorRoleIds(config.roles)
+	// Standing is a state, and the arch tool folds it on the same day boundary the app does, so a plan
+	// measured offline and a plan playing live cannot drift apart. The world settles on that same
+	// boundary for the same reason - a plan ranked by profit has to be worth what the played house
+	// would have been worth, or the tool quietly measures a different game than the one being built.
+	let standingScore = REPUTATION_NEUTRAL
+	let continuity = createContinuityState()
+	let pressure = createPressureState()
+	let incidents = 0
 	const ledger = createTakingsLedger({
 		ticksPerSecond: NPC_ENGINE_TICKS_PER_SECOND,
 		isVisitor: roleId => visitors.has(roleId),
+		onDayClose: day => {
+			standingScore = advanceStanding(standingScore, readReputation(day.served, day.walkOuts))
+			incidents = day.incidents
+			continuity = advanceContinuity(recordBreach(continuity, day.incidents), NEUTRALITY_RECOVERY_FRACTION)
+			const underNotice = continuityReading(continuity).underPressure
+			const bankCents = ledger.snapshot().bankCents
+			// The fine leaves the bank here exactly as it does in a played house
+			// (`useNpcSimulationCore`), or the tool ranks a plan on money the player never keeps.
+			const fine = underNotice ? dailyFineCents(bankCents) : 0
+			pressure = settlePressure(pressure, { underNotice, bankCents })
+			if (fine > 0) ledger.withdraw(fine)
+		},
 	})
 	const tagsByKey = new Map(built.layout.interactionTargets.map(target => [interactionTargetKey(target), target.tags]))
 	const resolver = createTakingsResolver({
@@ -205,7 +248,7 @@ export function measureTakings(payloadPath: string, options: TakingsOptions = {}
 			staySeconds: options.staySeconds,
 		})
 		: null
-	const entrances = flow ? streetEntrances(floors, data.layout.streetWidthTiles ?? 5) : []
+	const entrances = flow ? streetEntrances(floors, data.layout.streetWidthTiles ?? STREET_TILES_DEFAULT) : []
 	const guestRoleId = config.pool.find(entry => visitors.has(entry.roleId))?.roleId ?? config.defaultRoleId
 	const traffic = createTrafficState()
 	const speedFor = (floorId: string) => {
@@ -285,16 +328,31 @@ export function measureTakings(payloadPath: string, options: TakingsOptions = {}
 			if (rateForTags(source.tags)) continue
 			bump(unbilled, source.tags.join('+') || '(no tags)')
 		}
-		ledger.ingest(events, engine.tickNumber, resolver)
+		// `present` is the denominator a scene is measured against, and the live sim hands the ledger
+		// the crowd it is drawing. Offline the engine's own agent list is that same crowd; without it
+		// every run reads as a silent house and no plan can ever be charged a scene.
+		ledger.ingest(events, engine.tickNumber, resolver, engine.listAgents().length)
 	}
 	const msPerTick = (performance.now() - clock) / ticks
 	const snapshot = ledger.snapshot()
-	const reputation = readReputation(snapshot.served, snapshot.walkOuts)
-	// Income is net of standing, the same way the HUD reads it, so a jammed plan cannot look
-	// self-funding at the gross line and insolvent at the bank.
+	const evidence = readReputation(snapshot.served, snapshot.walkOuts)
+	const reputation = standingReading(standingScore, evidence)
+	const continuityNow = continuityReading(continuity)
+	const pressureNow = pressureReading(pressure)
+	// One multiplier for all three ladders, the same function the panel reads. A plan that cannot
+	// hold its neutrality is worth less, and the tool has to price that the way the game does or it
+	// would rank a house the player cannot actually run.
+	const worth = houseMultiplier({
+		standing: reputation.multiplier,
+		continuity: continuityNow,
+		pressurePenalty: pressureNow.demandPenalty,
+	})
+	// Income is net of everything the house is worth tonight, the same way the HUD reads it, so a
+	// jammed plan cannot look self-funding at the gross line and insolvent at the bank.
+	const netPerDayCents = Math.round(snapshot.perDayCents * worth)
 	const day = settleDay({
 		bankCents: snapshot.bankCents,
-		incomePerDayCents: netOf(snapshot.perDayCents, reputation),
+		incomePerDayCents: netPerDayCents,
 		staffHeadcount: staffHeadcount(config.pool ?? [], roleId => visitors.has(roleId)),
 	})
 
@@ -314,6 +372,7 @@ export function measureTakings(payloadPath: string, options: TakingsOptions = {}
 		daysCompleted: snapshot.daysCompleted,
 		lastDayCents: snapshot.lastDayCents,
 		perDayCents: snapshot.perDayCents,
+		netPerDayCents,
 		staffHeadcount: day.staffHeadcount,
 		payrollCents: day.payrollCents,
 		profitPerDayCents: day.profitCents,
@@ -338,7 +397,13 @@ export function measureTakings(payloadPath: string, options: TakingsOptions = {}
 		walkOuts: snapshot.walkOuts,
 		queueAbandons: snapshot.queueAbandons,
 		reputation,
-		netCents: netOf(snapshot.bankCents, reputation),
+		evidenceScore: evidence.score,
+		/** What the world outside says about this house, priced the same way the panel prices it. */
+		continuity: continuityNow,
+		pressure: pressureNow,
+		incidents,
+		houseWorth: worth,
+		netCents: Math.round(snapshot.bankCents * worth),
 		byTag: rows(
 			snapshot.byTag.reduce((map, entry) => {
 				map.set(`${entry.tag} (${entry.count}x)`, entry.cents)
@@ -360,10 +425,17 @@ export function formatTakingsReport(report: TakingsReport): string {
 		`takings - ${report.source}`,
 		`  floors ${report.floors}  agents ${report.agents}  targets ${report.targets}  queues ${report.queues}  ticks ${report.ticks} (${report.simSeconds} sim-s, ${report.msPerTick.toFixed(2)} ms/tick)`,
 		`  bank ${money(report.bankCents)}   per minute ${money(report.perMinuteCents)}   served ${report.served}   walk-outs ${report.walkOuts}   abandoned lines ${report.queueAbandons}`,
-		`  reputation ${report.reputation.score}/100${report.reputation.unproven ? ' (unproven - nothing served or lost yet)' : ''}` +
+		`  reputation ${report.reputation.score}/100${report.reputation.unproven ? ' (unproven - nothing served or lost yet)' : ` (recovering toward a ${report.evidenceScore}/100 record)`}` +
 			`   x${report.reputation.multiplier.toFixed(2)} standing   net ${money(report.netCents)} of ${money(report.bankCents)} gross`,
+		`  neutrality ${report.continuity.score}/100   scenes ${report.incidents}   breaches ${report.continuity.breaches}` +
+			`${report.continuity.underPressure ? '   the High Table has taken notice' : ''}` +
+			`${report.pressure.outstandingCents > 0 ? `   outstanding ${money(report.pressure.outstandingCents)} over ${report.pressure.daysUnderPressure} day(s)` : ''}` +
+			`${report.pressure.underAudit ? '   UNDER AUDIT' : ''}` +
+			`   house worth x${report.houseWorth.toFixed(2)}`,
 		`  services started ${report.started}, completed ${report.completed}${report.started > report.completed ? ` - ${report.started - report.completed} never released` : ''}`,
-		`  per day (est. over ${report.daySeconds} sim-s) ${money(report.perDayCents)}   services/day (est.) ${report.servicesPerDay}` +
+		`  per day (est. over ${report.daySeconds} sim-s) ${money(report.perDayCents)}` +
+			(report.netPerDayCents !== report.perDayCents ? ` gross, ${money(report.netPerDayCents)} net of standing` : '') +
+			`   services/day (est.) ${report.servicesPerDay}` +
 			(report.daysCompleted > 0 ? `   days closed ${report.daysCompleted}, last ${money(report.lastDayCents)}` : ''),
 		`  payroll ${money(report.payrollCents)}/day for ${report.staffHeadcount} staff   ` +
 			`profit ${money(report.profitPerDayCents)}/day` +

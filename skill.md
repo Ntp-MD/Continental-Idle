@@ -16,4 +16,4 @@ This project only. Never ships with the harness. `AGENTS.md` states the rules; t
 
 Cross-cutting: labels use player vocabulary only, and the glossary lives in `harness/state/context.md` - never a second glossary file.
 
-**Load rule for the architecture domain.** Read `architecture-skill/SKILL.md` §Hard rules (eleven lines) and nothing else by default. The rest of `SKILL.md` and all of `architecture-skill/research/` are an **oracle, not a preamble**: open a file at the moment you are about to write down a number, a dimension or a compliance claim, to attach its source - not before deciding. Deciding is cheap and mostly does not need it; asserting a figure without a source is the one thing this domain forbids.
+**Load rule for the architecture domain.** `architecture-skill/` is an **oracle, not a preamble**: open a file under `research/` at the moment you are about to write down a number, a dimension or a compliance claim, to attach its source - not before deciding. Deciding is cheap and mostly does not need it; asserting a figure without a source is the one thing this domain forbids.

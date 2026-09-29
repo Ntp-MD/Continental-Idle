@@ -8,6 +8,7 @@ import { buildLobby } from '../../scripts/arch/build-lobby'
 import { measureTakings } from '../../scripts/arch/takings'
 import { NPC_ENGINE_TICKS_PER_SECOND } from '../../src/engine/npc'
 import { TAKINGS_DAY_SECONDS } from '../../src/blueprint-editor/domain/economy/takings'
+import { REPUTATION_NEUTRAL } from '../../src/blueprint-editor/domain/economy/reputation'
 import { readBlueprintDataFile } from '../../src/blueprint-editor/store/schemaMigration'
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
@@ -88,3 +89,31 @@ test('footfall mode runs the declared arrival count through the street doors', (
 		fs.rmSync(path.dirname(file), { recursive: true, force: true })
 	}
 }, 30_000)
+
+test('the offline runner ages standing on the days it closes, not only the live app', () => {
+	const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'arch-standing-')), 'payload.json')
+	const plan = path.join(ROOT, 'scripts/arch/lobby/services-probe.txt')
+	try {
+		const raw = JSON.parse(fs.readFileSync(STORE, 'utf8'))
+		fs.writeFileSync(file, `${JSON.stringify(raw, null, 2)}\n`)
+		buildLobby(file, plan, true)
+		// One authored hotel day, with a clientele that will not wait: the record must be bad, and the
+		// standing the report prices against must still be climbing toward it, not equal to it.
+		const report = measureTakings(file, {
+			ticks: TAKINGS_DAY_SECONDS * NPC_ENGINE_TICKS_PER_SECOND,
+			arrivals: true,
+			arrivalsPerDay: 200,
+			patienceSeconds: 0.2,
+		})
+		assert.ok(report.daysCompleted >= 1, `no hotel day closed, so the fold had nothing to age: ${report.daysCompleted}`)
+		assert.ok(report.walkOuts > 0, 'nothing was lost at a fifth of a second of patience, so the evidence is vacuous')
+		assert.ok(report.evidenceScore < REPUTATION_NEUTRAL, `the record reads ${report.evidenceScore}, which is not a failure`)
+		assert.ok(
+			report.reputation.score > report.evidenceScore,
+			`standing ${report.reputation.score} equals the record ${report.evidenceScore}: the runner is reporting the evidence, not an aged standing`,
+		)
+		assert.ok(report.reputation.score < REPUTATION_NEUTRAL, 'standing did not move off neutral at all')
+	} finally {
+		fs.rmSync(path.dirname(file), { recursive: true, force: true })
+	}
+}, 120_000)

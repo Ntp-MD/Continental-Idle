@@ -1,6 +1,6 @@
 import { test } from 'vitest'
 import assert from 'node:assert/strict'
-import { aabbOverlap, unionRects, objectOverlapsAny, placementCollides, rectHitsStructure, recalcCollapsed } from '../../src/blueprint-editor/domain/collision'
+import { aabbOverlap, unionRects, objectOverlapsAny, placementCollides, rectHitsStructure, recalcCollapsed, collapsedCause } from '../../src/blueprint-editor/domain/collision'
 import type { AssetDef, ObjectData, Rect, SvgRole, TileState } from '../../src/blueprint-editor/domain/types'
 
 const rect = (x: number, y: number, w: number, h: number): Rect => ({ x, y, w, h })
@@ -141,4 +141,42 @@ test('recalcCollapsed', () => {
 	recalcCollapsed(artOnDoor, assetMap, 20)
 	assert.equal(artOnDoor.objects[0].collapsed, true, 'the door reports the clash')
 	assert.equal(artOnDoor.objects[1].collapsed, false, 'decorative art is never collapsed')
+})
+
+test('collapsedCause names which half of the rule fired, and recalcCollapsed agrees', () => {
+	const t = 20
+	// One blocked cell at col 1 / row 0 covers x 20..40, y 0..20 at this tile size.
+	const buriedCell: TileState[][] = [['walkable', 'blocked', 'walkable']]
+	const onBodies = { objects: [obj('o1', 'a', 0, 0), obj('o2', 'a', 5, 5)] }
+	assert.equal(collapsedCause(onBodies, onBodies.objects[0], assetMap, t), 'body')
+
+	const painted = {
+		walkable: { tileStates: buriedCell },
+		objects: [obj('in-wall', 'a', 25, 5)],
+	}
+	assert.equal(collapsedCause(painted, painted.objects[0], assetMap, t), 'wall')
+
+	// Structure wins the naming, so a clash that is both is counted once, not twice.
+	const both = {
+		walkable: { tileStates: buriedCell },
+		objects: [obj('in-wall', 'a', 25, 5), obj('over-it', 'a', 28, 8)],
+	}
+	assert.equal(collapsedCause(both, both.objects[0], assetMap, t), 'wall')
+
+	// The art exemption is about bodies, not about being inside a wall (loop 3's point).
+	const artOnBody = { objects: [obj('desk', 'a', 0, 0), obj('art', 'svg', 5, 5)] }
+	assert.equal(collapsedCause(artOnBody, artOnBody.objects[1], assetMap, t), 'none')
+	const artInWall = {
+		walkable: { tileStates: buriedCell },
+		objects: [obj('art', 'svg', 25, 5)],
+	}
+	assert.equal(collapsedCause(artInWall, artInWall.objects[0], assetMap, t), 'wall')
+
+	// The flag and the cause are one decision, not two readings that can drift.
+	recalcCollapsed(artInWall, assetMap, t)
+	assert.equal(artInWall.objects[0].collapsed, true, 'the refactored flag no longer covers painted burial')
+	recalcCollapsed(artOnBody, assetMap, t)
+	assert.equal(artOnBody.objects[1].collapsed, false, 'the refactored flag lost the art exemption')
+	recalcCollapsed(onBodies, assetMap, t)
+	assert.equal(onBodies.objects[0].collapsed, true, 'the refactored flag no longer covers body overlap')
 })

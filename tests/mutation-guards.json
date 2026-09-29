@@ -36,8 +36,8 @@
 		{
 			"id": "arrivals-cumulative-count",
 			"file": "src/blueprint-editor/domain/economy/arrivals.ts",
-			"find": "const spawns = Math.max(0, due - spawnedSoFar)",
-			"replace": "const spawns = due",
+			"find": "const spawns = Math.max(0, Math.floor(owed))",
+			"replace": "const spawns = Math.max(0, Math.round(owed))",
 			"test": "tests/unit/arrivalFlow.test.ts",
 			"why": "arrivals are released against the cumulative total, so a day delivers exactly its number"
 		},
@@ -332,7 +332,7 @@
 		{
 			"id": "ledger-deposit-is-not-a-service",
 			"file": "src/blueprint-editor/domain/economy/takings.ts",
-			"find": "carriedCents += cents",
+			"find": "carriedCents += amount",
 			"replace": "carriedCents += 0",
 			"test": "tests/unit/walletOffline.test.ts",
 			"why": "an away credit is not a served guest"
@@ -424,6 +424,326 @@
 			"replace": "record.demonstratedPerMinuteCents ?? 0",
 			"test": "tests/unit/walletStore.test.ts",
 			"why": "a record predating the high-water mark still accrues"
+		},
+		{
+			"id": "arch-rank-on-profit-not-gross",
+			"file": "scripts/arch/compare.ts",
+			"find": "deadEnds: -1, profitPerDay: 4 }",
+			"replace": "deadEnds: -1 }",
+			"test": "tests/unit/archCompareProfit.test.ts",
+			"why": "the efficiency profile must rank on profit after payroll, not on gross takings"
+		},
+		{
+			"id": "arch-income-read-from-net",
+			"file": "scripts/arch/compare.ts",
+			"find": "incomePerDayCents: report.netPerDayCents",
+			"replace": "incomePerDayCents: report.perDayCents",
+			"test": "tests/unit/archCompareProfit.test.ts",
+			"why": "the money column is the income payroll was charged against, not gross"
+		},
+		{
+			"id": "arch-unpriced-option-not-scored",
+			"file": "scripts/arch/compare.ts",
+			"find": ".filter(key => candidates.every(option => option.kpis.some(kpi => kpi.key === key)))",
+			"replace": ".filter(() => true)",
+			"test": "tests/unit/archCompareProfit.test.ts",
+			"why": "an option with no crowd run must not be scored as if it earned nothing"
+		},
+		{
+			"id": "insolvency-min-crew-floor",
+			"file": "src/blueprint-editor/domain/economy/insolvency.ts",
+			"find": "Math.min(STAFF_MIN_CREW, heads)",
+			"replace": "0",
+			"test": "tests/unit/insolvencyStrike.test.ts",
+			"why": "an unpaid day must still leave the lobby open, or it can never recover"
+		},
+		{
+			"id": "insolvency-crew-capped-at-deployment",
+			"file": "src/blueprint-editor/domain/economy/insolvency.ts",
+			"find": "Math.min(heads, Math.max(payable, Math.min(STAFF_MIN_CREW, heads)))",
+			"replace": "Math.max(payable, Math.min(STAFF_MIN_CREW, heads))",
+			"test": "tests/unit/insolvencyStrike.test.ts",
+			"why": "a rich bank cannot draft more staff than the deployment holds"
+		},
+		{
+			"id": "insolvency-shortfall-read-from-payroll",
+			"file": "src/blueprint-editor/domain/economy/insolvency.ts",
+			"find": "const funded = Math.max(0, close.payrollCents - close.unpaidCents)",
+			"replace": "const funded = close.payrollCents",
+			"test": "tests/unit/insolvencyStrike.test.ts",
+			"why": "the crew is funded by the wages actually paid, not by the whole bill"
+		},
+		{
+			"id": "ledger-unpaid-payroll-recorded",
+			"file": "src/blueprint-editor/domain/economy/takings.ts",
+			"find": "lastDayUnpaidCents = Math.max(0, charge - bankCents)",
+			"replace": "lastDayUnpaidCents = 0",
+			"test": "tests/unit/insolvencyStrike.test.ts",
+			"why": "the shortfall is the only evidence the strike has"
+		},
+		{
+			"id": "upkeep-unpaid-wages-reported",
+			"file": "src/blueprint-editor/domain/economy/upkeep.ts",
+			"find": "unpaidWagesCents: payroll - paidCents",
+			"replace": "unpaidWagesCents: 0",
+			"test": "tests/unit/insolvencyStrike.test.ts",
+			"why": "a settlement must not report a crowd as paid when the bank could not cover it"
+		},
+		{
+			"id": "ledger-withdraw-refuses-short",
+			"file": "src/blueprint-editor/domain/economy/takings.ts",
+			"find": "if (!(amount > 0) || amount > bankCents) return false",
+			"replace": "if (!(amount > 0)) return false",
+			"test": "tests/unit/purchasesShop.test.ts",
+			"why": "a purchase the bank cannot cover is refused outright, never part-paid"
+		},
+		{
+			"id": "purchase-free-seating-not-buyable",
+			"file": "src/blueprint-editor/domain/economy/purchases.ts",
+			"find": "return rate ? rate.cents * FIXTURE_COST_DAYS : null",
+			"replace": "return (rate?.cents ?? 0) * FIXTURE_COST_DAYS",
+			"test": "tests/unit/purchasesShop.test.ts",
+			"why": "an asset that bills nothing is not something the player can buy more of"
+		},
+		{
+			"id": "purchase-price-is-days-of-earnings",
+			"file": "src/blueprint-editor/domain/economy/purchases.ts",
+			"find": "return rate ? rate.cents * FIXTURE_COST_DAYS : null",
+			"replace": "return rate ? rate.cents : null",
+			"test": "tests/unit/purchasesShop.test.ts",
+			"why": "the price is a declared number of days of what the fixture itself bills"
+		},
+		{
+			"id": "hire-price-is-days-of-wage",
+			"file": "src/blueprint-editor/domain/economy/purchases.ts",
+			"find": "return STAFF_DAY_WAGE_CENTS * STAFF_HIRE_COST_DAYS",
+			"replace": "return STAFF_DAY_WAGE_CENTS",
+			"test": "tests/unit/purchasesShop.test.ts",
+			"why": "a hire is priced against the wage it will draw on every closed day"
+		},
+		{
+			"id": "hire-charged-only-on-stored-count",
+			"file": "src/blueprint-editor/composables/useShopPurchases.ts",
+			"find": "if (after <= before) {",
+			"replace": "if (false) {",
+			"test": "tests/unit/purchasesShop.test.ts",
+			"why": "money follows the deployment that was actually stored, not the one that was requested"
+		},
+		{
+			"id": "purchase-charges-only-after-placement",
+			"file": "src/blueprint-editor/composables/useShopPurchases.ts",
+			"find": "if (!placed) return { ok: false, priceCents: price }",
+			"replace": "if (false) return { ok: false, priceCents: price }",
+			"test": "tests/unit/purchasesShop.test.ts",
+			"why": "a refusal by the placement gate is a refusal to sell, so the bank must not move"
+		},
+		{
+			"id": "reputation-recovers-by-fraction",
+			"file": "src/blueprint-editor/domain/economy/reputation.ts",
+			"find": "from + (evidence.score - from) * fraction",
+			"replace": "evidence.score",
+			"test": "tests/unit/reputationRecovery.test.ts",
+			"why": "standing must lag the record and heal a day at a time, not snap to it"
+		},
+		{
+			"id": "reputation-repair-capped-at-neutral",
+			"file": "src/blueprint-editor/domain/economy/reputation.ts",
+			"find": "Math.min(REPUTATION_NEUTRAL, from + STANDING_REPAIR_POINTS)",
+			"replace": "from + STANDING_REPAIR_POINTS",
+			"test": "tests/unit/reputationRecovery.test.ts",
+			"why": "bought goodwill stops at neutral; it cannot overshoot the band money is allowed to reach"
+		},
+		{
+			"id": "reputation-repair-refused-at-neutral",
+			"file": "src/blueprint-editor/domain/economy/reputation.ts",
+			"find": "if (from >= REPUTATION_NEUTRAL) return { score: from, repaired: false }",
+			"replace": "if (false) return { score: from, repaired: false }",
+			"test": "tests/unit/reputationRecovery.test.ts",
+			"why": "money cannot buy a reputation the crowd did not give"
+		},
+		{
+			"id": "ledger-day-close-folds-standing",
+			"file": "src/blueprint-editor/domain/economy/takings.ts",
+			"find": "onDayClose?.({ day: closedDay, served, walkOuts, incidents: closedIncidents })",
+			"replace": "void onDayClose",
+			"test": "tests/unit/reputationRecovery.test.ts",
+			"why": "every day a run jumps over must close, or recovery is skipped"
+		},
+		{
+			"id": "wallet-standing-carried-over",
+			"file": "src/blueprint-editor/store/wallet.ts",
+			"find": "standingScore ?? previous?.standingScore",
+			"replace": "standingScore",
+			"test": "tests/unit/reputationRecovery.test.ts",
+			"why": "a commit that says nothing about standing must not delete it"
+		},
+		{
+			"id": "wallet-standing-band-validated",
+			"file": "src/blueprint-editor/domain/economy/wallet.ts",
+			"find": "standingScore < 0 || standingScore > 100",
+			"replace": "false",
+			"test": "tests/unit/reputationRecovery.test.ts",
+			"why": "a saved 500 is a rewritten record, not a trusted lobby"
+		},
+		{
+			"id": "import-stale-floor-repaired",
+			"file": "src/blueprint-editor/store/persistence.ts",
+			"find": "if (!state.layout.floors.some(floor => floor.id === state.currentFloorId)) {",
+			"replace": "if (false) {",
+			"test": "tests/unit/workspaceRoundTrip.test.ts",
+			"why": "an import that leaves no floor current makes the workspace unauthorable"
+		},
+		{
+			"id": "import-clears-selection",
+			"file": "src/blueprint-editor/store/persistence.ts",
+			"find": "store.clearSelection()",
+			"replace": "void store",
+			"test": "tests/unit/workspaceRoundTrip.test.ts",
+			"why": "a selection pointing at an object the imported file does not contain is a phantom"
+		},
+		{
+			"id": "import-clears-selected-asset",
+			"file": "src/blueprint-editor/store/persistence.ts",
+			"find": "state.selectedAssetId = null",
+			"replace": "state.selectedAssetId = state.selectedAssetId",
+			"test": "tests/unit/workspaceRoundTrip.test.ts",
+			"why": "the selected asset panel must not survive an import that dropped that asset"
+		},
+		{
+			"id": "workspace-parse-validated",
+			"file": "src/blueprint-editor/store/workspaceFile.ts",
+			"find": "return readBlueprintDataFile(parsed)",
+			"replace": "return parsed as BlueprintDataFile",
+			"test": "tests/unit/workspaceRoundTrip.test.ts",
+			"why": "a file read from disk is an untrusted boundary, not already-validated data"
+		},
+		{
+			"id": "sync-version-gate",
+			"file": "src/blueprint-editor/syncedPayload.ts",
+			"find": "if (payload.version !== SYNCED_PAYLOAD_VERSION) {",
+			"replace": "if (false) {",
+			"test": "tests/unit/workspaceRoundTrip.test.ts",
+			"why": "a payload of another shape must not be read as this one"
+		},
+		{
+			"id": "sync-street-floor-must-exist",
+			"file": "src/blueprint-editor/syncedPayload.ts",
+			"find": "if (payload.canvas.streetFloorId && payload.floors[payload.canvas.streetFloorId]) {",
+			"replace": "if (payload.canvas.streetFloorId) {",
+			"test": "tests/unit/workspaceRoundTrip.test.ts",
+			"why": "a street floor id that names no floor would strand every spawn on the street"
+		},
+		{
+			"id": "sync-object-size-taken-from-placement-when-present",
+			"file": "src/blueprint-editor/syncedPayload.ts",
+			"find": "? { w: o.w, h: o.h }",
+			"replace": "? { w: 0, h: 0 }",
+			"test": "tests/unit/workspaceRoundTrip.test.ts",
+			"why": "a placement that carries its own size must not be re-derived off the origin asset"
+		},
+		{
+			"id": "sync-degenerate-objects-filtered",
+			"file": "src/blueprint-editor/syncedPayload.ts",
+			"find": "=> object !== null)",
+			"replace": "=> true)",
+			"test": "tests/unit/workspaceRoundTrip.test.ts",
+			"why": "one unreadable placement must not enter the runtime as a null object"
+		},
+		{
+			"id": "sync-label-f0-is-ground-floor",
+			"file": "src/blueprint-editor/syncedPayload.ts",
+			"find": "floorNumber === 0 ? 'G' : String(floorNumber)",
+			"replace": "String(floorNumber)",
+			"test": "tests/unit/workspaceRoundTrip.test.ts",
+			"why": "a floor labelled F0 is the ground floor, not a numeric key that sorts after it"
+		},
+		{
+			"id": "sync-keys-ordered-by-id-not-list",
+			"file": "src/blueprint-editor/syncedPayload.ts",
+			"find": "const ordered = [...floors].sort((a, b) => compareFloorIds(a.id, b.id))",
+			"replace": "const ordered = [...floors]",
+			"test": "tests/unit/workspaceRoundTrip.test.ts",
+			"why": "an unlabelled floor is keyed by its place in the id order, never by editor position"
+		},
+		{
+			"id": "strike-removes-unpaid-staff-from-engine",
+			"file": "src/blueprint-editor/composables/useNpcSimulationCore.ts",
+			"find": "engine.removeAgent(agent.id)",
+			"replace": "void agent.id",
+			"test": "tests/unit/payrollStrikeSimulation.test.ts",
+			"why": "an unpaid day has to empty the floor, not just report a number"
+		},
+		{
+			"id": "strike-restores-crew-when-a-day-pays",
+			"file": "src/blueprint-editor/composables/useNpcSimulationCore.ts",
+			"find": "for (let i = 0; i < -surplus && state.strippedStaff.length > 0; i++) {",
+			"replace": "for (let i = 0; false && state.strippedStaff.length > 0; i++) {",
+			"test": "tests/unit/payrollStrikeSimulation.test.ts",
+			"why": "a paid day must bring the crew back, or the strike is a one-way door"
+		},
+		{
+			"id": "standing-folds-on-the-apps-day-close",
+			"file": "src/blueprint-editor/composables/useNpcSimulationCore.ts",
+			"find": "state.standingScore = advanceStanding(state.standingScore, readReputation(day.served, day.walkOuts))",
+			"replace": "void day",
+			"test": "tests/unit/payrollStrikeSimulation.test.ts",
+			"why": "the running lobby has to age its standing, not only the offline measurement"
+		},
+		{
+			"id": "arch-runner-folds-standing-at-close",
+			"file": "scripts/arch/takings.ts",
+			"find": "standingScore = advanceStanding(standingScore, readReputation(day.served, day.walkOuts))",
+			"replace": "void day",
+			"test": "tests/unit/archBuildIngress.test.ts",
+			"why": "a plan measured offline must be priced at the same aged standing the app shows"
+		},
+		{
+			"id": "gesture-cancel-restores-every-member",
+			"file": "src/blueprint-editor/store/objects.ts",
+			"find": "for (const before of moveGesture) {",
+			"replace": "for (const before of []) {",
+			"test": "tests/unit/storeCrud.test.ts",
+			"why": "Escape has to roll back the whole group, not only the object under the cursor"
+		},
+		{
+			"id": "gesture-snapshot-cleared-on-release",
+			"file": "src/blueprint-editor/store/objects.ts",
+			"find": "\tfunction endMoveGesture(): void {\n\t\tmoveGesture = null\n\t}",
+			"replace": "\tfunction endMoveGesture(): void {}\n\t//",
+			"test": "tests/unit/storeCrud.test.ts",
+			"why": "a snapshot that outlives its release lets the next Escape revert a committed drag"
+		},
+		{
+			"id": "clash-cause-structure-first",
+			"file": "src/blueprint-editor/domain/collision.ts",
+			"find": "if (rectHitsStructure(floor, obj, tileSize)) return 'wall'",
+			"replace": "if (false) return 'wall'",
+			"test": "tests/unit/collision.test.ts",
+			"why": "painted burial is the half of the rule the badge would otherwise never mention"
+		},
+		{
+			"id": "clash-cause-art-exemption",
+			"file": "src/blueprint-editor/domain/collision.ts",
+			"find": "if (!assetIsStructural(asset) && assetIsSvg(asset)) return 'none'",
+			"replace": "if (false) return 'none'",
+			"test": "tests/unit/collision.test.ts",
+			"why": "decorative art may lie on a body; the exemption belongs to the side already on the floor"
+		},
+		{
+			"id": "zone-roles-must-be-deployed",
+			"file": "src/blueprint-editor/store/migrate.ts",
+			"find": "const known = zone.roleIds.filter(roleId => deployedRoleIds.has(roleId))",
+			"replace": "const known = zone.roleIds",
+			"test": "tests/unit/migrate.test.ts",
+			"why": "a zone that lists only undeployed roles can never admit a guest, so it is not a zone"
+		},
+		{
+			"id": "deployment-pool-merges-by-role",
+			"file": "src/blueprint-editor/domain/schema/npc.ts",
+			"find": "const existing = merged.get(roleId)",
+			"replace": "const existing = merged.get('-no-such-role-')",
+			"test": "tests/unit/migrate.test.ts",
+			"why": "two rows for one role used to deploy it twice the count in silence"
 		}
 	]
 }

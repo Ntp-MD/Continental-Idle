@@ -179,9 +179,52 @@ test('Escape during a drag releases the object instead of leaving it grabbed', a
 	await expect(obj).not.toHaveClass(/editor__object--dragging/)
 	await expect(selectionRects(page)).toHaveCount(0)
 
+	// Escape means "I did not mean that": whatever the mousemove frames already applied goes back to
+	// where the gesture started, not to wherever the cursor happened to be when the key landed.
+	const startX = placed!.x
+	await expect.poll(async () => (await placedObjects(page))[0]!.x).toBe(startX)
+
 	// The pointer is still down and the listeners are gone, so releasing must be inert.
 	await page.mouse.move(start.x, start.y, { steps: 4 })
-	const afterRelease = await placedObjects(page)
 	await page.mouse.up()
-	await expect.poll(async () => (await placedObjects(page))[0]!.x).toBe(afterRelease[0]!.x)
+	await expect.poll(async () => (await placedObjects(page))[0]!.x).toBe(startX)
+})
+
+test('Escape mid-drag rolls the whole group back, not just the grabbed member', async ({ page }) => {
+	const geo = await canvasGeometry(page)
+	const t = geo.tileSize
+
+	await dragPaletteTo(page, { x: geo.cx - t * 6, y: geo.cy - t * 3 })
+	await dragPaletteTo(page, { x: geo.cx + t * 2, y: geo.cy - t * 3 })
+	const before = await placedObjects(page)
+	expect(before).toHaveLength(2)
+
+	// Click the first, shift-click the second, then grab the first again: the gesture belongs to the
+	// group, not to whatever is under the cursor when Escape lands.
+	const a = await userToPage(page, before[0]!.x + t, before[0]!.y + t)
+	await page.mouse.click(a.x, a.y)
+	await expect(selectionRects(page)).toHaveCount(1)
+	const b = await userToPage(page, before[1]!.x + t, before[1]!.y + t)
+	await page.keyboard.down('Shift')
+	await page.mouse.click(b.x, b.y)
+	await page.keyboard.up('Shift')
+	await expect(selectionRects(page)).toHaveCount(2)
+
+	await page.mouse.move(a.x, a.y)
+	await page.mouse.down()
+	await page.waitForTimeout(80)
+	await expect(selectionRects(page)).toHaveCount(2)
+	const target = await userToPage(page, before[0]!.x + t * 7, before[0]!.y + t * 5)
+	await page.mouse.move(target.x, target.y, { steps: 10 })
+	await expect.poll(async () => {
+		const mid = await placedObjects(page)
+		return mid[0]!.x > before[0]!.x && mid[1]!.x > before[1]!.x
+	}).toBe(true)
+
+	await page.keyboard.press('Escape')
+	await page.mouse.up()
+	await expect.poll(async () => {
+		const after = await placedObjects(page)
+		return after.every((object, index) => object.x === before[index]!.x && object.y === before[index]!.y)
+	}).toBe(true)
 })

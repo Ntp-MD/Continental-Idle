@@ -44,6 +44,7 @@ export const CAPABILITY_MANIFEST = {
 		'real time - the host floor list has no vertical dimension at all',
 		'code compliance - a jurisdiction and edition are inputs this host does not carry, so code checks report UNKNOWN',
 		'cost - no rates are supplied; money cells are parameters needing a region and a year, never inventions (CM-*)',
+		'a market revenue verdict - the money columns in arch compare rank on the declared tariff table and day wage in src/blueprint-editor/domain/economy, so profit here is a balance-sheet shape, not a price',
 		'an occupant-load area factor for a lobby, lounge, bar, gym, spa or pool - the corpus carries none, so capacity is judged against the declared population and never against an invented density (SP-04, HO-26)',
 		'desks or seats per key - HO-22 retrieved none; PP-08 station counts are computed only from the arrival rate declared in scripts/arch/spec.json, and the walk-in to walk-out split in that file is an assumption, not a measurement',
 		'sightlines and drag lines - C-values cannot be measured on this grid and the 1.1-1.3 drag band is a tuning knob, not a threshold (human-scale.md:474, PP-13)',

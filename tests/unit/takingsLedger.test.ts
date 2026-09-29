@@ -87,15 +87,15 @@ test('starting an interaction never pays; only completing one does', () => {
 test('one interaction bills at the best qualifying rate, never twice', () => {
 	// The expensive tag must NOT come first: taken in list order, `bar` would look correct and the
 	// rule would go untested. Found by `npm run test:mutation`, which caught exactly that.
-	const best = rateForTags(['lounge', 'bar', 'dining'])
+	const best = rateForTags(['lounge', 'bar', 'contract-board'])
 	assert.ok(best)
-	assert.equal(best.tag, 'dining')
-	assert.equal(best.cents, TAKING_RATES_CENTS.dining)
-	assert.equal(rateForTags(['bar', 'dining'])?.cents, TAKING_RATES_CENTS.dining)
-	assert.equal(rateForTags(['dining', 'living'])?.cents, TAKING_RATES_CENTS.living)
+	assert.equal(best.tag, 'contract-board')
+	assert.equal(best.cents, TAKING_RATES_CENTS['contract-board'])
+	assert.equal(rateForTags(['bar', 'contract-board'])?.cents, TAKING_RATES_CENTS['contract-board'])
+	assert.equal(rateForTags(['contract-board', 'contract-closed'])?.cents, TAKING_RATES_CENTS['contract-closed'])
 	const ledger = ledgerFor()
-	ledger.ingest([endAt('a1', 'object:table-1', 'spot-1')], 5, resolver({ 'f1:object:table-1:spot-1': ['lounge', 'bar', 'dining'] }, { a1: GUEST }))
-	assert.equal(ledger.snapshot().bankCents, TAKING_RATES_CENTS.dining)
+	ledger.ingest([endAt('a1', 'object:table-1', 'spot-1')], 5, resolver({ 'f1:object:table-1:spot-1': ['lounge', 'bar', 'contract-board'] }, { a1: GUEST }))
+	assert.equal(ledger.snapshot().bankCents, TAKING_RATES_CENTS['contract-board'])
 })
 
 test('an unresolved agent is ignored instead of throwing', () => {
@@ -219,7 +219,7 @@ test('reset closes the day book too', () => {
 test('sources rank by what they earned, not by how often they were used', () => {
 	const ledger = ledgerFor()
 	const resolve = resolver(
-		{ 'f1:object:bar-1:spot-1': ['bar'], 'f1:object:table-1:spot-1': ['dining'] },
+		{ 'f1:object:bar-1:spot-1': ['bar'], 'f1:object:table-1:spot-1': ['contract-board'] },
 		{ a1: GUEST },
 	)
 	ledger.ingest(
@@ -234,7 +234,7 @@ test('sources rank by what they earned, not by how often they were used', () => 
 	)
 	assert.deepEqual(
 		ledger.snapshot().byTag.map(entry => entry.tag),
-		['bar', 'dining'],
+		['bar', 'contract-board'],
 	)
 })
 

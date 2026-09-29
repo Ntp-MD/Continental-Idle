@@ -268,13 +268,52 @@ export function createObjectCommands(store: BlueprintStore) {
 		return moveMembersTo(objectMoveMembers(obj), obj, x, y) ? 'moved' : 'blocked'
 	}
 
+	/**
+	 * The objects a grab on the current selection would move. One definition, because the gesture,
+	 * the release and the commit must not disagree about who is part of a drag.
+	 */
+	function dragMembers(floor: { objects: ObjectData[] }): ObjectData[] {
+		return state.selectionState.items.length > 1
+			? multiSelectionMembers(floor)
+			: selectedObject() ? objectMoveMembers(selectedObject()!) : []
+	}
+
+	// `moveMembersTo` mutates live objects on every animation frame and nothing is committed until the
+	// release, so an aborted gesture can only be undone from a snapshot - the undo history has no entry
+	// for it yet, and the file was never written mid-drag.
+	let moveGesture: { id: string; x: number; y: number }[] | null = null
+
+	function beginMoveGesture(): void {
+		const floor = currentFloor.value
+		moveGesture = floor ? dragMembers(floor).map(member => ({ id: member.id, x: member.x, y: member.y })) : null
+	}
+
+	/** Put the pre-gesture positions back. False when there is no gesture to undo. */
+	function cancelMoveGesture(): boolean {
+		const floor = currentFloor.value
+		if (!floor || !moveGesture) return false
+		const members = dragMembers(floor)
+		for (const before of moveGesture) {
+			const member = members.find(candidate => candidate.id === before.id)
+			if (member) {
+				member.x = before.x
+				member.y = before.y
+			}
+		}
+		moveGesture = null
+		return true
+	}
+
+	/** The release owns the gesture now: whatever is on the floor is what the user asked for. */
+	function endMoveGesture(): void {
+		moveGesture = null
+	}
+
 	async function commitMove(): Promise<void> {
 		return withStateLock(async () => {
 			const floor = currentFloor.value
 			if (!floor) return
-			const members = state.selectionState.items.length > 1
-				? multiSelectionMembers(floor)
-				: selectedObject() ? objectMoveMembers(selectedObject()!) : []
+			const members = dragMembers(floor)
 			if (members.length === 0 || members.some(member => member.locked)) return
 			const minX = Math.min(...members.map(member => member.x))
 			const minY = Math.min(...members.map(member => member.y))
@@ -421,6 +460,7 @@ export function createObjectCommands(store: BlueprintStore) {
 	return {
 		getLinkedObjects, dissolveGroupsIfSmall, beginDrawnObject, addObject, canPlaceObject,
 		placementBlocked, placementRect, deleteSelected, moveSelectedTo, commitMove, rotateSelected,
+		beginMoveGesture, cancelMoveGesture, endMoveGesture,
 		linkObjects, unlinkObject, toggleObjectLock,
 	}
 }

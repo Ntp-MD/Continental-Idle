@@ -11,7 +11,8 @@ const BASE_URL = `http://127.0.0.1:${PORT}`
  * Every artifact lands inside this repo (never the runner's tmp):
  * - test output, traces, videos: ./test-results (outputDir)
  * - HTML report: ./playwright-report
- * - visual baselines (toMatchSnapshot, committed): ./tests/e2e/__snapshots__
+ * - visual baselines (toMatchSnapshot, committed): ./tests/e2e/__snapshots__ - no spec takes one
+ *   yet, so the directory appears with the first
  * - manual captures (page.screenshot, git-ignored): ./tests/e2e/__screenshots__
  */
 export default defineConfig({
