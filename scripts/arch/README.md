@@ -25,6 +25,7 @@ rooms, room typing and portals - the harness calls it, it never re-implements it
 | `revise`  | apply a patch, rebuild, re-measure, report cleared / still-open / introduced  |
 | `loop`    | `revise` over authored `pass-N.json` patches with a before/after contact sheet |
 | `selftest`| regenerate `architecture-skill/failure-library.md` from measured results      |
+| `takings` | run the real NPC crowd over the payload and report what the plan **earns** - `--plan lobby/services-probe.txt [--ticks n] [--agents n] [--arrivals] [--stay s] [--patience s]`. Only a service a visitor completes bills, so income is a circulation measurement, not an opinion; `--arrivals` runs declared footfall through the street doors, `--patience` is the lever that makes reputation and net income fall together. **Exit 1 when nothing is served** |
 
 Default payload: `src/blueprint-editor/data/blueprint-data.json`.
 Output: `scripts/arch/out/` - git-ignored, regenerable, never committed.

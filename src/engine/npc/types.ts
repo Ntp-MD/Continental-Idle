@@ -97,20 +97,28 @@ export type NpcEngineEventType =
 	| 'repath-failed'
 	| 'floor-transition'
 
-export type NpcEngineWaitReason =
-	| 'yielded'
-	| 'repath-failed'
-	| 'repath-blocked'
-	| 'no-floor'
-	| 'queue-left'
-	| 'no-wander'
-	| 'no-target'
-	| 'wrong-floor'
-	| 'reserve-raced'
-	| 'no-path'
-	| 'portal-busy'
-	| 'spot-busy'
-	| 'queued'
+/**
+ * One runtime source for the wait reasons, so the overlay's mood table and the tests can iterate
+ * the real list instead of a hand-copied one (a new reason used to fall silently into 'unknown').
+ */
+export const NPC_ENGINE_WAIT_REASONS = [
+	'yielded',
+	'repath-failed',
+	'repath-blocked',
+	'no-floor',
+	'queue-left',
+	'no-wander',
+	'no-target',
+	'wrong-floor',
+	'reserve-raced',
+	'no-path',
+	'portal-busy',
+	'spot-busy',
+	'queued',
+	'impatient',
+] as const
+
+export type NpcEngineWaitReason = typeof NPC_ENGINE_WAIT_REASONS[number]
 
 export interface NpcEngineEvent {
 	type: NpcEngineEventType

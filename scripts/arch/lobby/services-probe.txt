@@ -1,0 +1,61 @@
+# services-probe.txt - the income fixture for `npm run arch takings --plan`.
+# Not a design candidate: it is the smallest arrangement that puts one of every billable
+# facility in front of the crowd, so "the plan earns nothing" can be told apart from
+# "the economy does not work". 90 x 60 tiles, street ring 8, plate interior x 9..80 y 9..50.
+
+%%envelope
+street 8
+
+# the street entry: without a facade door the ring seals the plate and the engine refuses
+# the plan - the arrival is what makes the interior one connected space
+%%facade-doors
+south 24 27
+
+%%furniture
+# arrival: the desk, off the entry axis, with its own queue line
+put reception-desk desk-1 20 14 0
+
+# bar: counter plus a stool row in front of it
+put bar-counter bar-1 50 12 0
+grid bar-stool-1 stool 50 13 4 1 1 1 0
+put high-table-1 ht-1 30 44 0
+put bar-stool-1 ht-1-a 29 44 0
+put bar-stool-1 ht-1-b 31 44 0
+
+# brasserie: three four-top sets, chairs on all four sides
+put dining-table-4 dt-1 20 30 0
+put dining-chair-1 dt-1-n 20 29 0
+put dining-chair-1 dt-1-s 20 32 0
+put dining-chair-1 dt-1-w 19 30 0
+put dining-chair-1 dt-1-e 22 30 0
+put dining-table-4 dt-2 30 30 0
+put dining-chair-1 dt-2-n 30 29 0
+put dining-chair-1 dt-2-s 30 32 0
+put dining-chair-1 dt-2-w 29 30 0
+put dining-chair-1 dt-2-e 32 30 0
+put dining-table-4 dt-3 40 30 0
+put dining-chair-1 dt-3-n 40 29 0
+put dining-chair-1 dt-3-s 40 32 0
+put dining-chair-1 dt-3-w 39 30 0
+put dining-chair-1 dt-3-e 42 30 0
+
+# great room: clover clusters and a sofa group, the free seating that must NOT bill
+clover 60 30
+clover 68 30
+clover 76 30
+sofa-group 12 22
+sofa-group 12 40
+
+# lounge edge: a seated row facing the plate
+grid theatre-seat-1 theatre 55 44 8 1 1 1 0
+
+# structure and softening, all unbilled by design
+put hedge-3 hedge-1 60 20 0
+put rug-4 rug-1 58 27 0
+put potted-plant-1 pl-1 10 10 0
+put potted-plant-1 pl-2 79 10 0
+put potted-plant-1 pl-3 10 49 0
+put potted-plant-1 pl-4 79 49 0
+put painting-2 art-1 40 9 0
+put sculpture-2 art-2 45 20 0
+put side-table-1 st-1 35 20 0

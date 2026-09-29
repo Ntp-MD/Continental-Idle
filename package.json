@@ -13,6 +13,7 @@
     "test:npc-perf": "tsx tests/perf-npc-engine.ts",
     "test:npc-scale": "tsx tests/perf-npc-scale.ts",
     "test:unit": "vitest run",
+    "test:mutation": "node scripts/mutate.mjs",
     "test:e2e": "playwright test",
     "test:e2e:install": "playwright install chromium",
     "verify": "npm run typecheck && npm run lint && npm run lint:bem && npm run lint:css && npm run test:unit && npm run verify:assets",

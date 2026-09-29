@@ -1,9 +1,23 @@
-import { onUnmounted, watch, type Ref, type ShallowRef } from 'vue'
+import { onUnmounted, ref, watch, type Ref, type ShallowRef } from 'vue'
 import type { NpcCanvasBounds, NpcEngineEvent } from '@/engine/npc'
 import type { AssetDef, FloorData, NpcSimDot, NpcSimulationConfig } from '../domain/types'
+import type { TakingsLedger } from '../domain/economy/takings'
+import { WALLET_AUTOSAVE_MS } from '../domain/economy/wallet'
+import { editorLog } from '../domain/logger'
+import type { WalletStore } from '../store/wallet'
 import { useNpcSimulationCore, type NpcSimulationCore } from './useNpcSimulationCore'
 
+/** What the lobby earned with nobody watching, as credited at boot. */
+export interface WalletReport {
+	/** Balance the ledger started with: past sessions plus the away credit. */
+	carriedCents: number
+	earnedCents: number
+	creditedMinutes: number
+	capped: boolean
+}
+
 export interface NpcSimulationSources {
+	wallet?: WalletStore
 	getConfig?: () => NpcSimulationConfig | undefined
 	getFloor?: () => FloorData | undefined
 	getCanvas?: () => NpcCanvasBounds
@@ -54,6 +68,13 @@ export function useNpcSimulation(sources: NpcSimulationSources = {}): {
 	waitReasons: ReadonlyMap<string, string>
 	arrivalMarks: ReadonlyMap<string, number>
 	socialEvents: ShallowRef<NpcEngineEvent[]>
+	takings: TakingsLedger
+	walletReport: Ref<WalletReport | null>
+	commitWallet: () => void
+	trafficOn: Ref<boolean>
+	getTrafficSummary: () => { spawned: number; departed: number; inside: number; entrances: number }
+	getStaffHeadcount: () => number
+	setTraffic: (on: boolean) => void
 	deploy: (floorId?: string, spawnFloorId?: string) => void
 	start: () => void
 	stop: () => void
@@ -76,7 +97,53 @@ export function useNpcSimulation(sources: NpcSimulationSources = {}): {
 	})
 
 	core.ingestConfig(sources.getConfig?.())
-	onUnmounted(core.stopLoop)
+
+	const walletReport = ref<WalletReport | null>(null)
+	let walletSettled = false
+
+	/**
+	 * Credit the absent period once, at boot: the ledger keeps the balance from then on, so a
+	 * re-deploy cannot pay the same away time twice.
+	 */
+	async function settleWallet(): Promise<void> {
+		const wallet = sources.wallet
+		if (!wallet || walletSettled) return
+		walletSettled = true
+		const restored = await wallet.restore()
+		if (!restored.record) return
+		const carriedCents = restored.record.bankCents + restored.earnedCents
+		if (carriedCents > 0) core.takings.deposit(carriedCents)
+		walletReport.value = {
+			carriedCents,
+			earnedCents: restored.earnedCents,
+			creditedMinutes: restored.creditedMinutes,
+			capped: restored.capped,
+		}
+	}
+
+	function commitWallet(): void {
+		const wallet = sources.wallet
+		if (!wallet) return
+		const tally = core.takings.snapshot()
+		wallet.commit(tally.bankCents, tally.perMinuteCents).catch(error => editorLog.warn('wallet.commit', error))
+	}
+
+	if (sources.wallet) {
+		void settleWallet()
+		const autosave = setInterval(commitWallet, WALLET_AUTOSAVE_MS)
+		const onHide = (): void => {
+			if (document.visibilityState === 'hidden') commitWallet()
+		}
+		document.addEventListener('visibilitychange', onHide)
+		onUnmounted(() => {
+			clearInterval(autosave)
+			document.removeEventListener('visibilitychange', onHide)
+			commitWallet()
+			core.stopLoop()
+		})
+	} else {
+		onUnmounted(core.stopLoop)
+	}
 
 	let lastFloorSig = ''
 
@@ -114,6 +181,13 @@ export function useNpcSimulation(sources: NpcSimulationSources = {}): {
 		waitReasons: core.waitReasons,
 		arrivalMarks: core.arrivalMarks,
 		socialEvents: core.socialEvents,
+		takings: core.takings,
+		walletReport,
+		commitWallet,
+		trafficOn: core.trafficOn,
+		getTrafficSummary: () => core.getTrafficSummary(),
+		getStaffHeadcount: () => core.getStaffHeadcount(),
+		setTraffic: (on: boolean) => core.setTraffic(on),
 		deploy(floorId?: string, spawnFloorId?: string) {
 			const view = floorId ?? sources.getFloor?.()?.id
 			const floors = sources.getAllFloors?.() ?? []

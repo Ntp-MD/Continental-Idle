@@ -23,6 +23,7 @@ import { formatComparison, measureOption } from './compare'
 import { formatMinimality, formatRevision, metricDiff, probeMinimality, revise, type Patch } from './revise'
 import { runSelfTest } from './selftest'
 import { buildLobby } from './build-lobby'
+import { formatTakingsReport, measureTakings } from './takings'
 import type { Cell, Finding } from './types'
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
@@ -427,9 +428,49 @@ commands:
             fire their findings, good fixtures must not
   build     draw floor-g from scripts/arch/lobby/plan-g  [--dry] [--plan path]
             txt (1 char = 1 tile) into the payload
+  takings   run the real NPC sim over the payload and     [--ticks n] [--plan path]
+            report what the plan earns (services only a    [--agents n] [--arrivals]
+            visitor completes - a circulation scoreboard)  [--stay s] [--patience s]
+            (exit 1 when nothing is served)
 
 default payload: src/blueprint-editor/data/blueprint-data.json
 renders and reports land in scripts/arch/out/ (git-ignored, regenerable)`
+
+function cmdTakings(args: Args): number {
+	const payload = inputPath(args)
+	let measured = payload
+	let note = ''
+	const plan = args.flags.get('plan')
+	if (plan) {
+		// Build into a probe copy: measuring a plan must never overwrite the authored store.
+		fs.mkdirSync(DEFAULT_OUT, { recursive: true })
+		const probe = path.join(DEFAULT_OUT, 'takings-probe.json')
+		const canvasSpec = args.flags.get('canvas')
+		if (canvasSpec) {
+			const match = /^(\d+)x(\d+)@(\d+)$/.exec(canvasSpec)
+			if (!match) throw new Error(`--canvas wants "cols x rows @ tileSize", e.g. 116x76@25 (got "${canvasSpec}")`)
+			const raw = JSON.parse(fs.readFileSync(payload, 'utf8'))
+			raw.layout.canvas.width = Number(match[1]) * Number(match[3])
+			raw.layout.canvas.height = Number(match[2]) * Number(match[3])
+			raw.layout.canvas.tileSize = Number(match[3])
+			fs.writeFileSync(probe, `${JSON.stringify(raw, null, 2)}\n`)
+		} else {
+			fs.copyFileSync(payload, probe)
+		}
+		const built = buildLobby(probe, path.resolve(ROOT, plan), true)
+		note = `plan ${path.relative(ROOT, plan)}: ${built.fixtures} fixtures, ${built.doors} door tiles, ~${built.seats} seats\n`
+		measured = probe
+	}
+	const report = measureTakings(measured, {
+		ticks: Number(args.flags.get('ticks') ?? 6000),
+		agents: args.flags.has('agents') ? Number(args.flags.get('agents')) : undefined,
+		arrivals: args.booleans.has('arrivals'),
+		staySeconds: args.flags.has('stay') ? Number(args.flags.get('stay')) : undefined,
+		patienceSeconds: args.flags.has('patience') ? Number(args.flags.get('patience')) : undefined,
+	})
+	console.info(`${note}${formatTakingsReport(report)}`)
+	return report.served > 0 ? 0 : 1
+}
 
 function cmdBuild(args: Args): number {
 	const plan = args.flags.get('plan') ?? path.join(HERE, 'lobby', 'plan-g.txt')
@@ -453,6 +494,7 @@ export function main(argv: readonly string[]): number {
 		case 'revise': return cmdRevise(args)
 		case 'loop': return cmdLoop(args)
 		case 'build': return cmdBuild(args)
+		case 'takings': return cmdTakings(args)
 		case 'selftest': return runSelfTest()
 		case 'help':
 		case undefined:

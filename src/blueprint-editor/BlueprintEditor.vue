@@ -9,6 +9,7 @@ import ConfirmDialog from './components/shell/ConfirmDialog.vue'
 import { useAssetsStore } from './blueprintStore'
 import { useNpcSimulation } from './composables/useNpcSimulation'
 import { resolveStreetTiles } from './domain/types'
+import { createDeviceWallet } from './store/persistenceFactory'
 import { seedVersionError } from './store/seed'
 
 const store = useAssetsStore()
@@ -37,6 +38,7 @@ onMounted(async () => {
 })
 
 const npcSimulation = useNpcSimulation({
+  wallet: createDeviceWallet(),
   getConfig: () => store.state.layout.npcConfig,
   getFloor: () => store.currentFloor.value,
   getCanvas: () => ({

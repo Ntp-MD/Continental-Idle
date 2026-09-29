@@ -1,0 +1,429 @@
+{
+	"_note": "Guard mutations. Each entry neutralises ONE rule in the source and names the suite that must fail because of it. A rule with no surviving test is a rule nobody can break. `find` is replaced everywhere it occurs in `file`, so write a snippet that means the whole rule. Extend this list with `npm run test:mutation` as the gate.",
+	"guards": [
+		{
+			"id": "takings-post-tag",
+			"file": "src/blueprint-editor/domain/economy/takings.ts",
+			"find": "if (tags.some(isPostTag)) return null",
+			"replace": "if (false) return null",
+			"test": "tests/unit/takingsLedger.test.ts",
+			"why": "a duty station must never bill, whoever stands there"
+		},
+		{
+			"id": "takings-best-rate",
+			"file": "src/blueprint-editor/domain/economy/takings.ts",
+			"find": "if (!best || cents > best.cents) best = { tag, cents }",
+			"replace": "if (!best) best = { tag, cents }",
+			"test": "tests/unit/takingsLedger.test.ts",
+			"why": "one interaction bills once, at the best qualifying rate"
+		},
+		{
+			"id": "takings-visitor-only",
+			"file": "src/blueprint-editor/domain/economy/takings.ts",
+			"find": "!options.isVisitor(source.roleId)",
+			"replace": "false",
+			"test": "tests/unit/takingsLedger.test.ts",
+			"why": "staff complete work, not sales"
+		},
+		{
+			"id": "takings-day-rollover",
+			"file": "src/blueprint-editor/domain/economy/takings.ts",
+			"find": "lastDayCents = dayCents",
+			"replace": "lastDayCents = 0",
+			"test": "tests/unit/takingsLedger.test.ts",
+			"why": "the closed day must report what it actually earned"
+		},
+		{
+			"id": "arrivals-cumulative-count",
+			"file": "src/blueprint-editor/domain/economy/arrivals.ts",
+			"find": "const spawns = Math.max(0, due - spawnedSoFar)",
+			"replace": "const spawns = due",
+			"test": "tests/unit/arrivalFlow.test.ts",
+			"why": "arrivals are released against the cumulative total, so a day delivers exactly its number"
+		},
+		{
+			"id": "arrivals-stay-bound",
+			"file": "src/blueprint-editor/domain/economy/arrivals.ts",
+			"find": "tick - entry.bornTick >= stayTicks",
+			"replace": "false",
+			"test": "tests/unit/arrivalFlow.test.ts",
+			"why": "an arrival that never leaves turns traffic into a standing crowd again"
+		},
+		{
+			"id": "reputation-band-closed",
+			"file": "src/blueprint-editor/domain/economy/reputation.ts",
+			"find": "const clamped = Math.min(100, Math.max(REPUTATION_FLOOR, score))",
+			"replace": "const clamped = score",
+			"test": "tests/unit/reputationReading.test.ts",
+			"why": "a score cannot pay more than face value, nor less than the floor"
+		},
+		{
+			"id": "reputation-unproven-neutral",
+			"file": "src/blueprint-editor/domain/economy/reputation.ts",
+			"find": "if (attempts <= 0) {",
+			"replace": "if (false) {",
+			"test": "tests/unit/reputationReading.test.ts",
+			"why": "with no evidence the room reads neutral, not 0 or 100"
+		},
+		{
+			"id": "engine-impatient-emits",
+			"file": "src/engine/npc/npcEngine.ts",
+			"find": "reason: 'impatient'",
+			"replace": "reason: 'queued'",
+			"test": "tests/unit/npcImpatience.test.ts",
+			"why": "a walk-out has to be distinguishable from simply standing in a line"
+		},
+		{
+			"id": "engine-queue-patience",
+			"file": "src/engine/npc/npcEngine.ts",
+			"find": "this.tickCount - joined >= patience",
+			"replace": "false",
+			"test": "tests/unit/npcImpatience.test.ts",
+			"why": "an endless queue would otherwise hold guests forever"
+		},
+		{
+			"id": "collision-painted-geometry",
+			"file": "src/blueprint-editor/domain/collision.ts",
+			"find": "if (state ? state !== 'walkable' : walkableGrid?.[row]?.[col] === false) return true",
+			"replace": "if (false) return true",
+			"test": "tests/unit/collision.test.ts",
+			"why": "painted wall and door cells are geometry an object cannot sit in"
+		},
+		{
+			"id": "collision-art-exemption",
+			"file": "src/blueprint-editor/domain/collision.ts",
+			"find": "if (assetIsStructural(moving) || assetIsStructural(placed)) return true",
+			"replace": "if (false) return true",
+			"test": "tests/unit/collision.test.ts",
+			"why": "role assets count as geometry on both sides of the comparison"
+		},
+		{
+			"id": "objects-zero-size-rect",
+			"file": "src/blueprint-editor/store/objects.ts",
+			"find": "if (rect.w <= 0 || rect.h <= 0) {",
+			"replace": "if (false) {",
+			"test": "tests/unit/storeCrud.test.ts",
+			"why": "a degenerate building area must refuse placement, not create an invisible zero-size object"
+		},
+		{
+			"id": "objects-add-placement-gate",
+			"file": "src/blueprint-editor/store/objects.ts",
+			"find": "if (!rect || placementBlocked(rect, asset.id)) {",
+			"replace": "if (!rect) {",
+			"test": "tests/unit/storeCrud.test.ts",
+			"why": "the single placement gate is what stops an object landing on another body or on wall geometry"
+		},
+		{
+			"id": "objects-locked-group-bail",
+			"file": "src/blueprint-editor/store/objects.ts",
+			"find": "if (members.some(member => member.locked)) return false",
+			"replace": "if (false) return false",
+			"test": "tests/unit/storeCrud.test.ts",
+			"why": "a locked member holds the group, and the refusal has to be reportable"
+		},
+		{
+			"id": "paste-orphan-origin-guard",
+			"file": "src/blueprint-editor/store/metadata.ts",
+			"find": "if (!findAssetCached(assetMap(), c.type)) {",
+			"replace": "if (false) {",
+			"test": "tests/unit/storeCrud.test.ts",
+			"why": "a clipboard can outlive its origin; pasting it would create an object migrate then drops silently"
+		},
+		{
+			"id": "paste-placement-gate",
+			"file": "src/blueprint-editor/store/metadata.ts",
+			"find": "if (store.placementBlocked(rect, c.type)) {",
+			"replace": "if (false) {",
+			"test": "tests/unit/storeCrud.test.ts",
+			"why": "each pasted copy is gated against the copies already accepted"
+		},
+		{
+			"id": "resize-building-area-guard",
+			"file": "src/blueprint-editor/store/mode.ts",
+			"find": "if (!canvasLeavesBuildingArea({ width: w, height: h, tileSize: t }, resolveStreetTiles(state.layout))) return false",
+			"replace": "if (false) return false",
+			"test": "tests/unit/storeCrud.test.ts",
+			"why": "resizing to a canvas the street band swallows must be refused"
+		},
+		{
+			"id": "street-width-building-area-guard",
+			"file": "src/blueprint-editor/store/mode.ts",
+			"find": "if (tiles !== null && !canvasLeavesBuildingArea(state.layout.canvas, tiles)) return false",
+			"replace": "if (false) return false",
+			"test": "tests/unit/storeCrud.test.ts",
+			"why": "the same rule from the other direction: widening the band cannot eat the plate"
+		},
+		{
+			"id": "add-floor-current-id-repair",
+			"file": "src/blueprint-editor/store/floors.ts",
+			"find": "if (!state.layout.floors.some(f => f.id === state.currentFloorId)) {",
+			"replace": "if (false) {",
+			"test": "tests/unit/storeCrud.test.ts",
+			"why": "F9: a cold workspace with no current floor can place or paint nothing, silently"
+		},
+		{
+			"id": "floor-count-cap",
+			"file": "src/blueprint-editor/store/floors.ts",
+			"find": "state.layout.floors.length >= MAX_FLOORS",
+			"replace": "false",
+			"test": "tests/unit/storeCrud.test.ts",
+			"why": "past MAX_FLOORS every later save would fail, so the cap is a persistence guard"
+		},
+		{
+			"id": "asset-update-floor-skip",
+			"file": "src/blueprint-editor/store/assets.ts",
+			"find": "if (instances.length === 0) continue",
+			"replace": "if (false) continue",
+			"test": "tests/unit/storeCrud.test.ts",
+			"why": "recomputing floors that hold none of the edited origin is the O(n^2) cost this scoping removed"
+		},
+		{
+			"id": "asset-delete-removed-skip",
+			"file": "src/blueprint-editor/store/assets.ts",
+			"find": "if (removed.length === 0) continue",
+			"replace": "if (false) continue",
+			"test": "tests/unit/storeCrud.test.ts",
+			"why": "delete scoping must recompute only where instances actually were"
+		},
+		{
+			"id": "migrate-unknown-type-filter",
+			"file": "src/blueprint-editor/store/migrate.ts",
+			"find": "floor.objects.filter(o => findAssetCached(migratedAssetMap, o.type))",
+			"replace": "floor.objects.filter(() => true)",
+			"test": "tests/unit/migrate.test.ts",
+			"why": "an object with no origin cannot render, so load drops it rather than keeping a ghost"
+		},
+		{
+			"id": "grid-cap-check",
+			"file": "src/blueprint-editor/domain/schema/layout.ts",
+			"find": "return cols <= MAX_GRID_COLUMNS && rows <= MAX_GRID_ROWS",
+			"replace": "return true",
+			"test": "tests/unit/blueprintSchema.test.ts",
+			"why": "one oversized grid makes every later whole-file save fail, so ingress has to refuse it"
+		},
+		{
+			"id": "building-area-predicate",
+			"file": "src/blueprint-editor/domain/schema/layout.ts",
+			"find": "return cols > streetTiles * 2 && rows > streetTiles * 2",
+			"replace": "return true",
+			"test": "tests/unit/storeCrud.test.ts",
+			"why": "the predicate behind both authoring guards, mirroring the engine's own street condition"
+		},
+		{
+			"id": "validation-placed-floors-index",
+			"file": "src/blueprint-editor/assets/validation.ts",
+			"find": "const placedFloors = floorsByPlacedType.get(asset.id) ?? []",
+			"replace": "const placedFloors: FloorData[] = []",
+			"test": "tests/unit/settingsCompleteness.test.ts",
+			"why": "the posting hint must fire only for an origin that is genuinely unplaced"
+		},
+		{
+			"id": "engine-reservation-item-full",
+			"file": "src/engine/npc/npcEngine.ts",
+			"find": "const itemFull = (holders?.size ?? 0) >= capacity",
+			"replace": "const itemFull = false",
+			"test": "tests/unit/engineInvariants.test.ts",
+			"why": "a facility with no free holder is not offered and not committed - one rule, both callers"
+		},
+		{
+			"id": "engine-reservation-spot-taken",
+			"file": "src/engine/npc/npcEngine.ts",
+			"find": "const spotTaken = this.interactSpotReservations.has(interactionTargetKey(target))",
+			"replace": "const spotTaken = false",
+			"test": "tests/unit/npcEngine.test.ts",
+			"why": "one agent per interact spot, or two stand in the same cell"
+		},
+		{
+			"id": "policy-open-targets-filter",
+			"file": "src/engine/npc/policy.ts",
+			"find": "const openTargets = targets.filter(target => !hasPostTag(target.tags))",
+			"replace": "const openTargets = [...targets]",
+			"test": "tests/unit/engineInvariants.test.ts",
+			"why": "guests must not stand on a staffed duty post"
+		},
+		{
+			"id": "queue-line-capacity",
+			"file": "src/engine/npc/queueBuild.ts",
+			"find": "return Math.min(Math.max(0, Math.floor(queue.maxMembers)), queue.slots.length)",
+			"replace": "return queue.slots.length",
+			"test": "tests/unit/engineInvariants.test.ts",
+			"why": "a line is never longer than the slots it physically has"
+		},
+		{
+			"id": "rooms-door-cell-separation",
+			"file": "src/engine/npc/rooms.ts",
+			"find": "if (roomIdByCell.has(seed) || doorCells.has(seed) || !map.tiles.has(seed)) continue",
+			"replace": "if (roomIdByCell.has(seed) || !map.tiles.has(seed)) continue",
+			"test": "tests/unit/engineInvariants.test.ts",
+			"why": "a doorway is the seam between rooms; seeding through it merges two rooms into one"
+		},
+		{
+			"id": "placement-rect-clamp",
+			"file": "src/blueprint-editor/store/objects.ts",
+			"find": "return clamp({ x: probe.x, y: probe.y, w: probe.w, h: probe.h })",
+			"replace": "return { x: probe.x, y: probe.y, w: probe.w, h: probe.h }",
+			"test": "tests/unit/storeCrud.test.ts",
+			"why": "the gate must see the rect that actually lands, near an edge or not"
+		},
+		{
+			"id": "datafile-street-width-range",
+			"file": "src/blueprint-editor/domain/schema/dataFile.ts",
+			"find": "if (!isFiniteNumber(value.streetWidthTiles) || !Number.isInteger(value.streetWidthTiles) || value.streetWidthTiles < MIN_STREET_WIDTH_TILES || value.streetWidthTiles > MAX_STREET_WIDTH_TILES) return undefined",
+			"replace": "if (false) return undefined",
+			"test": "tests/unit/blueprintSchema.test.ts",
+			"why": "an out-of-range band on load would put every later save past the layout validator"
+		},
+		{
+			"id": "migrate-street-width-range",
+			"file": "src/blueprint-editor/store/migrate.ts",
+			"find": "d.streetWidthTiles >= MIN_STREET_WIDTH_TILES && d.streetWidthTiles <= MAX_STREET_WIDTH_TILES",
+			"replace": "true",
+			"test": "tests/unit/migrate.test.ts",
+			"why": "the same bound on the other ingress - one checked path and one unchecked is this repo's recurring defect class"
+		},
+		{
+			"id": "wallet-cap-bound",
+			"file": "src/blueprint-editor/domain/economy/wallet.ts",
+			"find": "const creditedMinutes = Math.min(elapsedMinutes, capMinutes)",
+			"replace": "const creditedMinutes = elapsedMinutes",
+			"test": "tests/unit/walletOffline.test.ts",
+			"why": "an absent lobby cannot earn forever"
+		},
+		{
+			"id": "wallet-no-evidence-no-money",
+			"file": "src/blueprint-editor/domain/economy/wallet.ts",
+			"find": "!(input.perMinuteCents > 0)",
+			"replace": "false",
+			"test": "tests/unit/walletOffline.test.ts",
+			"why": "a rate that was never measured pays nothing"
+		},
+		{
+			"id": "wallet-whole-cents",
+			"file": "src/blueprint-editor/domain/economy/wallet.ts",
+			"find": "Math.floor(input.perMinuteCents * creditedMinutes)",
+			"replace": "input.perMinuteCents * creditedMinutes",
+			"test": "tests/unit/walletOffline.test.ts",
+			"why": "money is whole cents even after a long night"
+		},
+		{
+			"id": "wallet-backwards-clock",
+			"file": "src/blueprint-editor/domain/economy/wallet.ts",
+			"find": "!(elapsedMinutes > 0)",
+			"replace": "false",
+			"test": "tests/unit/walletOffline.test.ts",
+			"why": "a save from the future must not become a debt"
+		},
+		{
+			"id": "wallet-record-whole-cents",
+			"file": "src/blueprint-editor/domain/economy/wallet.ts",
+			"find": "Number.isInteger(value) && value >= 0",
+			"replace": "Number.isFinite(value) && value >= 0",
+			"test": "tests/unit/walletOffline.test.ts",
+			"why": "a fractional bank is a rewritten record, not rounding"
+		},
+		{
+			"id": "wallet-corrupt-record-refused",
+			"file": "src/blueprint-editor/store/wallet.ts",
+			"find": "if (!record) return NOTHING_SAVED",
+			"replace": "if (false) return NOTHING_SAVED",
+			"test": "tests/unit/walletStore.test.ts",
+			"why": "junk in storage must not be paid out"
+		},
+		{
+			"id": "ledger-deposit-is-not-a-service",
+			"file": "src/blueprint-editor/domain/economy/takings.ts",
+			"find": "carriedCents += cents",
+			"replace": "carriedCents += 0",
+			"test": "tests/unit/walletOffline.test.ts",
+			"why": "an away credit is not a served guest"
+		},
+		{
+			"id": "ledger-reset-keeps-carried",
+			"file": "src/blueprint-editor/domain/economy/takings.ts",
+			"find": "bankCents = carriedCents",
+			"replace": "bankCents = 0",
+			"test": "tests/unit/walletOffline.test.ts",
+			"why": "re-deploying the crowd does not un-earn money"
+		},
+		{
+			"id": "upkeep-visitors-are-not-payroll",
+			"file": "src/blueprint-editor/domain/economy/upkeep.ts",
+			"find": "if (isVisitor(entry.roleId)) continue",
+			"replace": "if (false) continue",
+			"test": "tests/unit/upkeepPayroll.test.ts",
+			"why": "the customer crowd must not be priced as staff"
+		},
+		{
+			"id": "upkeep-runway-whole-days",
+			"file": "src/blueprint-editor/domain/economy/upkeep.ts",
+			"find": "Math.floor(Math.max(0, input.bankCents) / -profitCents)",
+			"replace": "Math.round(Math.max(0, input.bankCents) / -profitCents)",
+			"test": "tests/unit/upkeepPayroll.test.ts",
+			"why": "two of three wages is not a day of runway"
+		},
+		{
+			"id": "upkeep-break-even-self-funding",
+			"file": "src/blueprint-editor/domain/economy/upkeep.ts",
+			"find": "const selfFunding = profitCents >= 0",
+			"replace": "const selfFunding = profitCents > 0",
+			"test": "tests/unit/upkeepPayroll.test.ts",
+			"why": "covering payroll exactly must not divide the bank by zero"
+		},
+		{
+			"id": "upkeep-staff-clamped-to-zero",
+			"file": "src/blueprint-editor/domain/economy/upkeep.ts",
+			"find": "const staff = Math.max(0, Math.floor(input.staffHeadcount))",
+			"replace": "const staff = Math.floor(input.staffHeadcount)",
+			"test": "tests/unit/upkeepPayroll.test.ts",
+			"why": "a broken deployment cannot pay the player"
+		},
+		{
+			"id": "takings-negative-format",
+			"file": "src/blueprint-editor/domain/economy/takings.ts",
+			"find": "const sign = cents < 0",
+			"replace": "const sign = false && cents < 0",
+			"test": "tests/unit/upkeepPayroll.test.ts",
+			"why": "a loss must not print a second sign in the cents"
+		},
+		{
+			"id": "ledger-payroll-on-day-close",
+			"file": "src/blueprint-editor/domain/economy/takings.ts",
+			"find": "const charge = chargeCents?.() ?? 0",
+			"replace": "const charge = 0",
+			"test": "tests/unit/upkeepPayroll.test.ts",
+			"why": "a closed day must pay the staff it deployed"
+		},
+		{
+			"id": "ledger-charge-clamps-carried",
+			"file": "src/blueprint-editor/domain/economy/takings.ts",
+			"find": "carriedCents = Math.min(carriedCents, bankCents)",
+			"replace": "carriedCents = carriedCents",
+			"test": "tests/unit/upkeepPayroll.test.ts",
+			"why": "otherwise reset() mints back money payroll already took"
+		},
+		{
+			"id": "upkeep-headcount-entry-clamp",
+			"file": "src/blueprint-editor/domain/economy/upkeep.ts",
+			"find": "total += Math.max(0, Math.floor(entry.count))",
+			"replace": "total += Math.floor(entry.count)",
+			"test": "tests/unit/upkeepPayroll.test.ts",
+			"why": "a negative pool entry must not shrink the payroll"
+		},
+		{
+			"id": "wallet-demonstrated-rate-mark",
+			"file": "src/blueprint-editor/store/wallet.ts",
+			"find": "demonstratedPerMinuteCents: Math.max(previous ? creditableRate(previous) : 0, perMinuteCents)",
+			"replace": "demonstratedPerMinuteCents: perMinuteCents",
+			"test": "tests/unit/walletStore.test.ts",
+			"why": "a quiet session must not erase what the lobby proved"
+		},
+		{
+			"id": "wallet-legacy-rate-fallback",
+			"file": "src/blueprint-editor/domain/economy/wallet.ts",
+			"find": "record.demonstratedPerMinuteCents ?? record.perMinuteCents",
+			"replace": "record.demonstratedPerMinuteCents ?? 0",
+			"test": "tests/unit/walletStore.test.ts",
+			"why": "a record predating the high-water mark still accrues"
+		}
+	]
+}

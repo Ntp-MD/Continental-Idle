@@ -1008,6 +1008,9 @@ export class NpcEngine {
 			this.blockedTargets.set(agent.id, blocked)
 		}
 		agent.status = 'idle'
+		// The line lost this customer. Nothing else in the event stream says a wait was abandoned,
+		// so a service that is too slow was previously invisible to any consumer, including the takings.
+		this.emit({ type: 'waiting', agentId: agent.id, floorId: agent.floorId, reason: 'impatient' })
 		this.chooseTarget(agent)
 	}
 
@@ -1366,27 +1369,41 @@ export class NpcEngine {
 		return false
 	}
 
+	/**
+	 * The three reasons a target cannot take this agent, stated once. `canReserve` asks it before
+	 * offering a target and `reserve` asks it before committing; as two inline copies the commit-side
+	 * rules were unreachable through any public flow, so no test could tell whether they still held.
+	 */
+	private reservationBlocked(target: NpcEngineInteractionTarget, agentId: string): boolean {
+		const holders = this.reservations.get(reservationItemKey(target))
+		const capacity = Math.max(1, Math.floor(target.capacity ?? 1))
+		const spotTaken = this.interactSpotReservations.has(interactionTargetKey(target))
+		const itemFull = (holders?.size ?? 0) >= capacity
+		// No caller can reach this today - `chooseTarget` asks `canReserve` and reserves in the same
+		// step, so no agent is here already holding one. Kept as the commit-side check so a future
+		// caller cannot leak the reservation it already holds; that is defence, not a covered rule,
+		// which is why `tests/mutation-guards.json` carries no entry for it.
+		const agentHolding = this.reservationKeyByAgent.has(agentId)
+		return spotTaken || itemFull || agentHolding
+	}
+
 	private canReserve(target: NpcEngineInteractionTarget, agentId: string): boolean {
-		const key = reservationItemKey(target)
-		const interactSpotKey = interactionTargetKey(target)
-		const holders = this.reservations.get(key)
+		const holders = this.reservations.get(reservationItemKey(target))
 		if (holders?.has(agentId)) return true
-		if (this.interactSpotReservations.has(interactSpotKey) || (holders?.size ?? 0) >= Math.max(1, Math.floor(target.capacity ?? 1))) return false
+		if (this.reservationBlocked(target, agentId)) return false
 		if (target.roomPrivate && target.roomId) {
 			const holder = this.claimedRooms.get(`${target.floorId}:${target.roomId}`)
 			if (holder !== undefined && holder !== agentId) return false
 		}
-		return !this.reservationKeyByAgent.has(agentId)
+		return true
 	}
 
 	private reserve(target: NpcEngineInteractionTarget, agentId: string): boolean {
 		const key = reservationItemKey(target)
 		const interactSpotKey = interactionTargetKey(target)
 		const holders = this.reservations.get(key) ?? new Set<string>()
-		const capacity = Math.max(1, Math.floor(target.capacity ?? 1))
 		if (holders.has(agentId)) return true
-		if (this.interactSpotReservations.has(interactSpotKey) || holders.size >= capacity) return false
-		if (this.reservationKeyByAgent.has(agentId)) return false
+		if (this.reservationBlocked(target, agentId)) return false
 		holders.add(agentId)
 		this.reservations.set(key, holders)
 		this.reservationKeyByAgent.set(agentId, key)

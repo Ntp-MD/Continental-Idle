@@ -8,6 +8,7 @@ import {
 	buildRoleWalkableMap,
 	filterNpcSpawnTiles,
 	createNpcEnginePolicy,
+	interactionTargetKey,
 	floorMatchesTargetTags,
 	type NpcCanvasBounds,
 	type NpcWalkableMap,
@@ -23,6 +24,23 @@ import {
 } from '@/blueprint-editor/domain/types'
 import { mergeNpcConfig, cloneDeepRaw } from '@/blueprint-editor/blueprintStore'
 import { editorLog } from '@/blueprint-editor/domain/logger'
+import {
+	createTakingsLedger,
+	createTakingsResolver,
+	visitorRoleIds,
+	TAKINGS_DAY_SECONDS,
+	type TakingsLedger,
+	type TakingsResolver,
+} from '@/blueprint-editor/domain/economy/takings'
+import { payrollCents, staffHeadcount } from '@/blueprint-editor/domain/economy/upkeep'
+import {
+	createArrivalFlow,
+	createTrafficState,
+	stepTraffic,
+	streetEntrances,
+	type ArrivalFlow,
+	type TrafficState,
+} from '@/blueprint-editor/domain/economy/arrivals'
 import { updateSimDot, pruneStaleDots, pruneWaitReasons, filterDotsForFloor, type NpcSimLook } from './npcSimProjection'
 
 // Matches the pool-count ceiling the ingress normalizer accepts (domain/schema/npc.ts), so a pool
@@ -97,6 +115,14 @@ interface NpcSimCoreState {
 	seenAgentIds: Set<string>
 	dotRoleColors: Map<string, string>
 	dotRoleLooks: Map<string, NpcSimLook>
+	targetTagsByKey: Map<string, readonly string[]>
+	visitorRoleIds: Set<string>
+	takings: TakingsLedger
+	takingsResolver: TakingsResolver | null
+	trafficOn: Ref<boolean>
+	trafficFlow: ArrivalFlow | null
+	trafficState: TrafficState
+	entrances: { floorId: string; x: number; y: number }[]
 }
 
 function getAssetTagsSafe(host: NpcSimulationCoreHost): ((type: string) => string[] | undefined) | undefined {
@@ -130,6 +156,63 @@ function dotLookFor(state: NpcSimCoreState, requestedRoleId: string): NpcSimLook
 		state.dotRoleLooks.set(requestedRoleId, look)
 	}
 	return look
+}
+
+function takingsSourceIndex(state: NpcSimCoreState) {
+	return {
+		roleOf: (agentId: string) => state.engine?.getAgent(agentId)?.roleId,
+		// The engine owns the target-key format, so the lookup goes through its helper.
+		tagsFor: (floorId: string, itemId: string, interactSpotId: string) =>
+			state.targetTagsByKey.get(interactionTargetKey({ floorId, itemId, interactSpotId })),
+	}
+}
+
+// Built once per simulation: it closes over `state`, whose engine and target index it reads later.
+function takingsResolverFor(state: NpcSimCoreState): TakingsResolver {
+	state.takingsResolver ??= createTakingsResolver(takingsSourceIndex(state))
+	return state.takingsResolver
+}
+
+/**
+ * The deployed visitor crowd becomes traffic instead of a standing number: the same count that was
+ * authored to be present now walks in per day, so presence and footfall stay one fact (L = lambda x W).
+ */
+function visitorTrafficPerDay(state: NpcSimCoreState): number {
+	return state.config.value.pool
+		.filter(entry => state.visitorRoleIds.has(entry.roleId))
+		.reduce((sum, entry) => sum + entry.count, 0)
+}
+
+function guestRoleIdFor(state: NpcSimCoreState): string {
+	return state.config.value.pool.find(entry => state.visitorRoleIds.has(entry.roleId))?.roleId ?? state.config.value.defaultRoleId
+}
+
+function agentSpeedFor(state: NpcSimCoreState, floorId: string): number {
+	const speed = Math.max(0.01, state.config.value.speed || 1 / 30)
+	return speed * NPC_ENGINE_TICKS_PER_SECOND / (state.floorMaps.get(floorId)?.cellSize ?? 1)
+}
+
+function armTraffic(state: NpcSimCoreState): void {
+	state.trafficState = createTrafficState()
+	if (!state.trafficOn.value) {
+		state.trafficFlow = null
+		return
+	}
+	const perDay = visitorTrafficPerDay(state)
+	if (perDay <= 0) {
+		state.trafficOn.value = false
+		return
+	}
+	state.trafficFlow = createArrivalFlow({
+		arrivalsPerDay: perDay,
+		daySeconds: TAKINGS_DAY_SECONDS,
+		ticksPerSecond: NPC_ENGINE_TICKS_PER_SECOND,
+	})
+	// Replacing the resident visitors, not stacking arrivals on top of them: a room that holds the
+	// crowd twice measures itself twice.
+	for (const agent of state.engine?.listAgents() ?? []) {
+		if (agent.roleId && state.visitorRoleIds.has(agent.roleId)) state.engine?.removeAgent(agent.id)
+	}
 }
 
 function syncAgents(state: NpcSimCoreState): void {
@@ -231,6 +314,8 @@ function buildEngine(state: NpcSimCoreState, host: NpcSimulationCoreHost, floors
 	const built = buildNpcEngineLayout(floors, canvas, getAssetDefSafe(host), getAssetTagsSafe(host))
 	state.floorMaps = built.floorMaps
 	state.floorDataMap = built.floorDataMap
+	state.targetTagsByKey = new Map(built.layout.interactionTargets.map(target => [interactionTargetKey(target), target.tags]))
+	state.entrances = streetEntrances(floors, canvas.streetTiles ?? 5)
 
 	const policy = createNpcEnginePolicy({
 		getConfig: () => state.config.value,
@@ -272,6 +357,9 @@ function buildEngine(state: NpcSimCoreState, host: NpcSimulationCoreHost, floors
 
 	spawnAgents(state, host, floors, canvas)
 	syncAgents(state)
+	// Deploy and refresh both rebuild the crowd, so traffic re-arms the same way both times:
+	// an edit must not quietly restore the standing visitors it had replaced.
+	armTraffic(state)
 }
 
 function frame(state: NpcSimCoreState, host: NpcSimulationCoreHost): void {
@@ -290,6 +378,19 @@ function frame(state: NpcSimCoreState, host: NpcSimulationCoreHost): void {
 			state.tickCostEma = state.tickCostEma === 0 ? (performance.now() - t0) / steps : state.tickCostEma * 0.85 + ((performance.now() - t0) / steps) * 0.15
 			syncAgents(state)
 			const events = state.engine.drainEvents()
+			state.takings.ingest(events, state.engine.tickNumber, takingsResolverFor(state))
+			if (state.trafficFlow) {
+				stepTraffic({
+					engine: state.engine,
+					flow: state.trafficFlow,
+					entrances: state.entrances,
+					guestRoleId: guestRoleIdFor(state),
+					speedFor: floorId => agentSpeedFor(state, floorId),
+					tick: state.engine.tickNumber,
+					state: state.trafficState,
+					idFor: index => `${host.idPrefix}t${index}`,
+				})
+			}
 			pruneArrivalMarks(state.arrivalMarks, state.engine.tickNumber)
 			if (events.length > 0) {
 				const chatEvents = events.filter(e => e.type === 'chatting-start' || e.type === 'chatting-end')
@@ -326,11 +427,14 @@ function ingestConfig(state: NpcSimCoreState, raw: NpcSimulationConfig | undefin
 	state.config.value = mergeNpcConfig(cloneDeepRaw(raw))
 	state.dotRoleColors.clear()
 	state.dotRoleLooks.clear()
+	state.visitorRoleIds.clear()
+	for (const roleId of visitorRoleIds(state.config.value.roles)) state.visitorRoleIds.add(roleId)
 	applyConfigSpeedToAgents(state)
 	return true
 }
 
 export function useNpcSimulationCore(host: NpcSimulationCoreHost) {
+	const visitorRoleIds = new Set<string>()
 	const state: NpcSimCoreState = {
 		npcs: shallowRef<NpcSimDot[]>([]),
 		socialEvents: shallowRef<NpcEngineEvent[]>([]),
@@ -363,6 +467,19 @@ export function useNpcSimulationCore(host: NpcSimulationCoreHost) {
 		seenAgentIds: new Set(),
 		dotRoleColors: new Map(),
 		dotRoleLooks: new Map(),
+		targetTagsByKey: new Map(),
+		visitorRoleIds,
+		takings: createTakingsLedger({
+			ticksPerSecond: NPC_ENGINE_TICKS_PER_SECOND,
+			isVisitor: roleId => visitorRoleIds.has(roleId),
+			// Every closed hotel day pays the staff that day deployed - the deployment is the bill.
+			dailyChargeCents: () => payrollCents(staffHeadcount(state.config.value.pool, roleId => visitorRoleIds.has(roleId))),
+		}),
+		takingsResolver: null,
+		trafficOn: ref(false),
+		trafficFlow: null,
+		trafficState: createTrafficState(),
+		entrances: [],
 	}
 
 	function startLoop(): void {
@@ -381,6 +498,7 @@ export function useNpcSimulationCore(host: NpcSimulationCoreHost) {
 		waitReasons: state.waitReasons,
 		arrivalMarks: state.arrivalMarks,
 		socialEvents: state.socialEvents,
+		takings: state.takings,
 		isPaused: state.isPaused,
 		simSpeed: state.simSpeed,
 		config: state.config,
@@ -394,6 +512,7 @@ export function useNpcSimulationCore(host: NpcSimulationCoreHost) {
 			state.waitReasons.clear()
 			state.arrived.clear()
 			state.arrivalMarks.clear()
+			state.takings.reset()
 			state.viewFloorId = newViewFloorId
 			buildEngine(state, host, floors, canvas)
 			startLoop()
@@ -419,6 +538,7 @@ export function useNpcSimulationCore(host: NpcSimulationCoreHost) {
 			state.arrivalMarks.clear()
 			state.dotRoleColors.clear()
 			state.dotRoleLooks.clear()
+			state.targetTagsByKey.clear()
 			state.currentCanvas = null
 			state.viewFloorId = null
 			state.deploymentActive = false
@@ -426,8 +546,34 @@ export function useNpcSimulationCore(host: NpcSimulationCoreHost) {
 			state.tickCostEma = 0
 			state.npcs.value = []
 			state.socialEvents.value = []
+			state.takings.reset()
+			state.trafficFlow = null
+			state.trafficState = createTrafficState()
+			state.trafficOn.value = false
+			state.entrances = []
 		},
 		start: startLoop,
+		trafficOn: state.trafficOn,
+		getTrafficSummary(): { spawned: number; departed: number; inside: number; entrances: number } {
+			return {
+				spawned: state.trafficState.spawned,
+				departed: state.trafficState.departed,
+				inside: state.trafficState.live.length,
+				entrances: state.entrances.length,
+			}
+		},
+		getStaffHeadcount(): number {
+			return staffHeadcount(state.config.value.pool, roleId => state.visitorRoleIds.has(roleId))
+		},
+		setTraffic(on: boolean): void {
+			if (state.trafficOn.value === on) return
+			if (!on) {
+				for (const entry of state.trafficState.live) state.engine?.removeAgent(entry.id)
+			}
+			state.trafficOn.value = on
+			armTraffic(state)
+			syncAgents(state)
+		},
 		stopLoop,
 		isDeploymentActive(): boolean {
 			return state.deploymentActive

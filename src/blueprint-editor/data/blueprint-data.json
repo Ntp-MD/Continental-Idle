@@ -1468,6 +1468,1251 @@
         "maxMembers": 2,
         "admissionDepth": 2
       }
+    },
+    {
+      "walkable": true,
+      "defaultFillColor": "#ffffff",
+      "origin": "svg-import",
+      "svgViewBox": {
+        "w": 25,
+        "h": 25
+      },
+      "tileStates": [
+        [
+          "walkable"
+        ]
+      ],
+      "svg": "<rect x=\"3\" y=\"3\" width=\"19\" height=\"6\" rx=\"2\" fill=\"var(--obj-fill,#ffffff)\" stroke=\"var(--obj-stroke,#ffffff)\" stroke-width=\"1\"/><rect x=\"5\" y=\"9\" width=\"15\" height=\"12\" rx=\"1.5\" fill=\"var(--obj-fill,#ffffff)\" stroke=\"var(--obj-stroke,#ffffff)\" stroke-width=\"0.8\"/><rect x=\"2.5\" y=\"8\" width=\"3\" height=\"13\" rx=\"1.2\" fill=\"var(--obj-fill,#ffffff)\" stroke=\"var(--obj-stroke,#ffffff)\" stroke-width=\"0.7\"/><rect x=\"19.5\" y=\"8\" width=\"3\" height=\"13\" rx=\"1.2\" fill=\"var(--obj-fill,#ffffff)\" stroke=\"var(--obj-stroke,#ffffff)\" stroke-width=\"0.7\"/>",
+      "interactSpots": [
+        {
+          "kind": "stand",
+          "x": 12,
+          "y": 16
+        }
+      ],
+      "interact": {
+        "capacity": 1,
+        "durationMin": 8,
+        "durationMax": 20
+      },
+      "queue": {
+        "maxMembers": 2,
+        "admissionDepth": 2
+      },
+      "id": "armchair-1",
+      "name": "Armchair",
+      "w": 1,
+      "h": 1,
+      "tags": [
+        "lounge",
+        "seating"
+      ]
+    },
+    {
+      "walkable": true,
+      "defaultFillColor": "#ffffff",
+      "origin": "svg-import",
+      "svgViewBox": {
+        "w": 25,
+        "h": 25
+      },
+      "tileStates": [
+        [
+          "walkable"
+        ]
+      ],
+      "svg": "<rect x=\"6\" y=\"4\" width=\"13\" height=\"4\" rx=\"1\" fill=\"var(--obj-fill,#ffffff)\" stroke=\"var(--obj-stroke,#ffffff)\" stroke-width=\"0.9\"/><rect x=\"5\" y=\"9\" width=\"15\" height=\"11\" rx=\"1\" fill=\"none\" stroke=\"var(--obj-stroke,#ffffff)\" stroke-width=\"0.9\"/><path d=\"M 5 9 L 20 20 M 20 9 L 5 20\" fill=\"none\" stroke=\"var(--text-secondary)\" stroke-width=\"0.5\"/>",
+      "interactSpots": [
+        {
+          "kind": "stand",
+          "x": 12,
+          "y": 19
+        }
+      ],
+      "interact": {
+        "capacity": 1,
+        "durationMin": 20,
+        "durationMax": 45
+      },
+      "queue": {
+        "maxMembers": 2,
+        "admissionDepth": 2
+      },
+      "id": "dining-chair-1",
+      "name": "Dining Chair",
+      "w": 1,
+      "h": 1,
+      "tags": [
+        "dining",
+        "seating"
+      ]
+    },
+    {
+      "walkable": false,
+      "defaultFillColor": "#ffffff",
+      "origin": "svg-import",
+      "svgViewBox": {
+        "w": 25,
+        "h": 25
+      },
+      "tileStates": [
+        [
+          "blocked"
+        ]
+      ],
+      "svg": "<circle cx=\"12.5\" cy=\"12.5\" r=\"8\" fill=\"var(--obj-fill,#ffffff)\" stroke=\"var(--obj-stroke,#ffffff)\" stroke-width=\"1\"/><circle cx=\"12.5\" cy=\"12.5\" r=\"4.5\" fill=\"none\" stroke=\"var(--text-secondary)\" stroke-width=\"0.6\"/>",
+      "id": "side-table-1",
+      "name": "Side Table",
+      "w": 1,
+      "h": 1,
+      "tags": [
+        "table",
+        "lounge"
+      ]
+    },
+    {
+      "walkable": true,
+      "defaultFillColor": "#ffffff",
+      "origin": "svg-import",
+      "svgViewBox": {
+        "w": 25,
+        "h": 25
+      },
+      "tileStates": [
+        [
+          "walkable"
+        ]
+      ],
+      "svg": "<circle cx=\"12.5\" cy=\"12.5\" r=\"7\" fill=\"var(--obj-fill,#ffffff)\" stroke=\"var(--obj-stroke,#ffffff)\" stroke-width=\"1\"/><path d=\"M 12.5 19.5 L 7 23 M 12.5 19.5 L 18 23 M 12.5 19.5 V 24\" fill=\"none\" stroke=\"var(--text-secondary)\" stroke-width=\"0.6\"/>",
+      "interactSpots": [
+        {
+          "kind": "stand",
+          "x": 12,
+          "y": 13
+        }
+      ],
+      "interact": {
+        "capacity": 1,
+        "durationMin": 4,
+        "durationMax": 12
+      },
+      "queue": {
+        "maxMembers": 2,
+        "admissionDepth": 2
+      },
+      "id": "bar-stool-1",
+      "name": "Bar Stool",
+      "w": 1,
+      "h": 1,
+      "tags": [
+        "bar",
+        "seating"
+      ]
+    },
+    {
+      "walkable": true,
+      "defaultFillColor": "#ffffff",
+      "origin": "svg-import",
+      "svgViewBox": {
+        "w": 25,
+        "h": 25
+      },
+      "tileStates": [
+        [
+          "walkable"
+        ]
+      ],
+      "svg": "<path d=\"M 4 5 Q 12.5 1 21 5 L 21 11 L 4 11 Z\" fill=\"var(--obj-fill,#ffffff)\" stroke=\"var(--obj-stroke,#ffffff)\" stroke-width=\"0.9\"/><rect x=\"5\" y=\"11\" width=\"15\" height=\"9\" rx=\"1\" fill=\"var(--obj-fill,#ffffff)\" stroke=\"var(--obj-stroke,#ffffff)\" stroke-width=\"0.8\"/><rect x=\"3\" y=\"20\" width=\"19\" height=\"2.5\" rx=\"1\" fill=\"none\" stroke=\"var(--text-secondary)\" stroke-width=\"0.6\"/>",
+      "interactSpots": [
+        {
+          "kind": "stand",
+          "x": 12,
+          "y": 16
+        }
+      ],
+      "interact": {
+        "capacity": 1,
+        "durationMin": 30,
+        "durationMax": 90
+      },
+      "queue": {
+        "maxMembers": 3,
+        "admissionDepth": 2
+      },
+      "id": "theatre-seat-1",
+      "name": "Theatre Seat",
+      "w": 1,
+      "h": 1,
+      "tags": [
+        "entertainment",
+        "seating"
+      ]
+    },
+    {
+      "walkable": false,
+      "defaultFillColor": "#ffffff",
+      "origin": "svg-import",
+      "svgViewBox": {
+        "w": 50,
+        "h": 50
+      },
+      "tileStates": [
+        [
+          "blocked",
+          "blocked"
+        ],
+        [
+          "blocked",
+          "blocked"
+        ]
+      ],
+      "svg": "<rect x=\"4\" y=\"4\" width=\"42\" height=\"42\" rx=\"3\" fill=\"var(--obj-fill,#ffffff)\" stroke=\"var(--obj-stroke,#ffffff)\" stroke-width=\"1.1\"/><line x1=\"25\" y1=\"4\" x2=\"25\" y2=\"46\" stroke=\"var(--text-secondary)\" stroke-width=\"0.6\"/><rect x=\"10\" y=\"10\" width=\"30\" height=\"30\" rx=\"2\" fill=\"none\" stroke=\"var(--text-secondary)\" stroke-width=\"0.5\"/>",
+      "interactSpots": [
+        {
+          "kind": "stand",
+          "x": 25,
+          "y": 8
+        },
+        {
+          "kind": "stand",
+          "x": 25,
+          "y": 42
+        },
+        {
+          "kind": "stand",
+          "x": 8,
+          "y": 25
+        },
+        {
+          "kind": "stand",
+          "x": 42,
+          "y": 25
+        }
+      ],
+      "interact": {
+        "capacity": 4,
+        "durationMin": 20,
+        "durationMax": 45
+      },
+      "queue": {
+        "maxMembers": 4,
+        "admissionDepth": 3
+      },
+      "id": "dining-table-4",
+      "name": "Dining Table for Four",
+      "w": 2,
+      "h": 2,
+      "tags": [
+        "dining",
+        "table"
+      ]
+    },
+    {
+      "walkable": false,
+      "defaultFillColor": "#ffffff",
+      "origin": "svg-import",
+      "svgViewBox": {
+        "w": 25,
+        "h": 25
+      },
+      "tileStates": [
+        [
+          "blocked"
+        ]
+      ],
+      "svg": "<circle cx=\"12.5\" cy=\"12.5\" r=\"9\" fill=\"var(--obj-fill,#ffffff)\" stroke=\"var(--obj-stroke,#ffffff)\" stroke-width=\"1\"/><circle cx=\"12.5\" cy=\"12.5\" r=\"2\" fill=\"none\" stroke=\"var(--text-secondary)\" stroke-width=\"0.7\"/><path d=\"M 12.5 3.5 V 21.5\" fill=\"none\" stroke=\"var(--text-secondary)\" stroke-width=\"0.5\"/>",
+      "interactSpots": [
+        {
+          "kind": "stand",
+          "x": 12,
+          "y": 3
+        },
+        {
+          "kind": "stand",
+          "x": 12,
+          "y": 22
+        }
+      ],
+      "interact": {
+        "capacity": 2,
+        "durationMin": 10,
+        "durationMax": 30
+      },
+      "queue": {
+        "maxMembers": 3,
+        "admissionDepth": 2
+      },
+      "id": "high-table-1",
+      "name": "High Table",
+      "w": 1,
+      "h": 1,
+      "tags": [
+        "bar",
+        "dining",
+        "table"
+      ]
+    },
+    {
+      "walkable": false,
+      "defaultFillColor": "#ffffff",
+      "origin": "svg-import",
+      "svgViewBox": {
+        "w": 25,
+        "h": 25
+      },
+      "tileStates": [
+        [
+          "blocked"
+        ]
+      ],
+      "svg": "<path d=\"M 8 22 L 10 15 L 15 15 L 17 22 Z\" fill=\"var(--obj-fill,#ffffff)\" stroke=\"var(--obj-stroke,#ffffff)\" stroke-width=\"0.9\"/><circle cx=\"12.5\" cy=\"10\" r=\"5\" fill=\"none\" stroke=\"var(--obj-stroke,#ffffff)\" stroke-width=\"0.9\"/><circle cx=\"8\" cy=\"12\" r=\"3\" fill=\"none\" stroke=\"var(--text-secondary)\" stroke-width=\"0.6\"/><circle cx=\"17\" cy=\"12\" r=\"3\" fill=\"none\" stroke=\"var(--text-secondary)\" stroke-width=\"0.6\"/>",
+      "id": "potted-plant-1",
+      "name": "Potted Plant",
+      "w": 1,
+      "h": 1,
+      "tags": [
+        "plant",
+        "decoration"
+      ]
+    },
+    {
+      "walkable": false,
+      "defaultFillColor": "#ffffff",
+      "origin": "svg-import",
+      "svgViewBox": {
+        "w": 50,
+        "h": 25
+      },
+      "tileStates": [
+        [
+          "blocked",
+          "blocked"
+        ]
+      ],
+      "svg": "<rect x=\"6\" y=\"4\" width=\"38\" height=\"17\" rx=\"1\" fill=\"var(--obj-fill,#ffffff)\" stroke=\"var(--obj-stroke,#ffffff)\" stroke-width=\"1\"/><rect x=\"10\" y=\"7.5\" width=\"30\" height=\"10\" fill=\"none\" stroke=\"var(--text-secondary)\" stroke-width=\"0.6\"/><path d=\"M 10 14 Q 18 10 24 13 T 40 12\" fill=\"none\" stroke=\"var(--text-secondary)\" stroke-width=\"0.5\"/>",
+      "id": "painting-2",
+      "name": "Framed Painting",
+      "w": 2,
+      "h": 1,
+      "tags": [
+        "art",
+        "decoration"
+      ]
+    },
+    {
+      "walkable": false,
+      "defaultFillColor": "#ffffff",
+      "origin": "svg-import",
+      "svgViewBox": {
+        "w": 25,
+        "h": 25
+      },
+      "tileStates": [
+        [
+          "blocked"
+        ]
+      ],
+      "svg": "<rect x=\"8\" y=\"17\" width=\"9\" height=\"5\" rx=\"0.8\" fill=\"var(--obj-fill,#ffffff)\" stroke=\"var(--obj-stroke,#ffffff)\" stroke-width=\"0.9\"/><polygon points=\"12.5,3 17,12 12.5,17 8,12\" fill=\"none\" stroke=\"var(--obj-stroke,#ffffff)\" stroke-width=\"0.9\"/><line x1=\"12.5\" y1=\"3\" x2=\"12.5\" y2=\"17\" stroke=\"var(--text-secondary)\" stroke-width=\"0.5\"/>",
+      "id": "sculpture-2",
+      "name": "Sculpture on Plinth",
+      "w": 1,
+      "h": 1,
+      "tags": [
+        "art",
+        "decoration"
+      ]
+    },
+    {
+      "walkable": false,
+      "defaultFillColor": "#ffffff",
+      "origin": "svg-import",
+      "svgViewBox": {
+        "w": 75,
+        "h": 25
+      },
+      "tileStates": [
+        [
+          "blocked",
+          "blocked",
+          "blocked"
+        ]
+      ],
+      "svg": "<path d=\"M 2 20 Q 8 6 14 20 Q 20 6 26 20 Q 32 6 38 20 Q 44 6 50 20 Q 56 6 62 20 Q 68 6 73 20 L 73 23 L 2 23 Z\" fill=\"var(--obj-fill,#ffffff)\" stroke=\"var(--obj-stroke,#ffffff)\" stroke-width=\"0.9\"/><path d=\"M 8 20 Q 14 12 20 20 M 34 20 Q 40 12 46 20 M 60 20 Q 66 12 71 20\" fill=\"none\" stroke=\"var(--text-secondary)\" stroke-width=\"0.5\"/>",
+      "id": "hedge-3",
+      "name": "Hedge Run",
+      "w": 3,
+      "h": 1,
+      "tags": [
+        "plant",
+        "structure"
+      ]
+    },
+    {
+      "walkable": true,
+      "defaultFillColor": "#ffffff",
+      "origin": "svg-import",
+      "svgViewBox": {
+        "w": 100,
+        "h": 75
+      },
+      "tileStates": [
+        [
+          "walkable",
+          "walkable",
+          "walkable",
+          "walkable"
+        ],
+        [
+          "walkable",
+          "walkable",
+          "walkable",
+          "walkable"
+        ],
+        [
+          "walkable",
+          "walkable",
+          "walkable",
+          "walkable"
+        ]
+      ],
+      "svg": "<rect x=\"3\" y=\"3\" width=\"94\" height=\"69\" rx=\"2\" fill=\"none\" stroke=\"var(--obj-stroke,#ffffff)\" stroke-width=\"1\"/><rect x=\"9\" y=\"9\" width=\"82\" height=\"57\" rx=\"1\" fill=\"none\" stroke=\"var(--text-secondary)\" stroke-width=\"0.6\"/><path d=\"M 9 9 L 91 66 M 91 9 L 9 66\" fill=\"none\" stroke=\"var(--text-secondary)\" stroke-width=\"0.4\"/>",
+      "id": "rug-4",
+      "name": "Lounge Rug",
+      "w": 4,
+      "h": 3,
+      "tags": [
+        "decoration",
+        "comfort"
+      ]
+    },
+    {
+      "w": 3,
+      "h": 1,
+      "walkable": false,
+      "defaultFillColor": "#ffffff",
+      "origin": "svg-import",
+      "svgViewBox": {
+        "w": 75,
+        "h": 25
+      },
+      "tileStates": [
+        [
+          "blocked",
+          "blocked",
+          "blocked"
+        ]
+      ],
+      "svg": "<path d=\"M 4 12 Q 37.5 -2 71 12 L 71 21 L 4 21 Z\" fill=\"var(--obj-fill,#ffffff)\" stroke=\"var(--obj-stroke,#ffffff)\" stroke-width=\"1\"/><path d=\"M 12 9 Q 24 5 36 9 T 62 9\" fill=\"none\" stroke=\"var(--text-secondary)\" stroke-width=\"0.6\"/><circle cx=\"37.5\" cy=\"14\" r=\"2.5\" fill=\"none\" stroke=\"var(--text-secondary)\" stroke-width=\"0.6\"/>",
+      "tags": [
+        "water",
+        "decoration",
+        "plant"
+      ],
+      "id": "water-feature-3",
+      "name": "Water Feature"
+    },
+    {
+      "w": 1,
+      "h": 1,
+      "walkable": false,
+      "defaultFillColor": "#ffffff",
+      "origin": "svg-import",
+      "svgViewBox": {
+        "w": 25,
+        "h": 25
+      },
+      "tileStates": [
+        [
+          "blocked"
+        ]
+      ],
+      "svg": "<rect x=\"3\" y=\"8\" width=\"19\" height=\"9\" rx=\"1.5\" fill=\"var(--obj-fill,#ffffff)\" stroke=\"var(--obj-stroke,#ffffff)\" stroke-width=\"1\"/><path d=\"M 7 12.5 H 13 M 13 12.5 L 11 10.5 M 13 12.5 L 11 14.5\" fill=\"none\" stroke=\"var(--text-secondary)\" stroke-width=\"0.8\"/><rect x=\"15\" y=\"10.5\" width=\"4\" height=\"4\" fill=\"none\" stroke=\"var(--text-secondary)\" stroke-width=\"0.6\"/>",
+      "tags": [
+        "signage",
+        "safety"
+      ],
+      "id": "exit-sign-1",
+      "name": "Exit Sign"
+    },
+    {
+      "w": 3,
+      "h": 1,
+      "walkable": false,
+      "defaultFillColor": "#ffffff",
+      "origin": "svg-import",
+      "svgViewBox": {
+        "w": 75,
+        "h": 25
+      },
+      "tileStates": [
+        [
+          "blocked",
+          "blocked",
+          "blocked"
+        ]
+      ],
+      "svg": "<rect x=\"3\" y=\"4\" width=\"69\" height=\"17\" rx=\"1.5\" fill=\"none\" stroke=\"var(--obj-stroke,#ffffff)\" stroke-width=\"1\"/><rect x=\"3\" y=\"4\" width=\"69\" height=\"17\" rx=\"1.5\" fill=\"var(--obj-fill,#ffffff)\" stroke=\"var(--obj-stroke,#ffffff)\" stroke-width=\"0.8\" opacity=\"0.25\"/><line x1=\"26\" y1=\"4\" x2=\"26\" y2=\"21\" stroke=\"var(--text-secondary)\" stroke-width=\"0.6\"/><line x1=\"49\" y1=\"4\" x2=\"49\" y2=\"21\" stroke=\"var(--text-secondary)\" stroke-width=\"0.6\"/><circle cx=\"14.5\" cy=\"14\" r=\"3\" fill=\"none\" stroke=\"var(--text-secondary)\" stroke-width=\"0.6\"/><rect x=\"33\" y=\"11\" width=\"9\" height=\"6\" fill=\"none\" stroke=\"var(--text-secondary)\" stroke-width=\"0.6\"/><polygon points=\"60,17 64,9 68,17\" fill=\"none\" stroke=\"var(--text-secondary)\" stroke-width=\"0.6\"/>",
+      "tags": [
+        "retail"
+      ],
+      "interactSpots": [
+        {
+          "kind": "stand",
+          "x": 14,
+          "y": 28
+        },
+        {
+          "kind": "stand",
+          "x": 37,
+          "y": 28
+        },
+        {
+          "kind": "stand",
+          "x": 61,
+          "y": 28
+        }
+      ],
+      "interact": {
+        "capacity": 3,
+        "durationMin": 3,
+        "durationMax": 8
+      },
+      "queue": {
+        "maxMembers": 4,
+        "admissionDepth": 3
+      },
+      "id": "display-case-3",
+      "name": "Display Case"
+    },
+    {
+      "w": 3,
+      "h": 1,
+      "walkable": false,
+      "defaultFillColor": "#ffffff",
+      "origin": "svg-import",
+      "svgViewBox": {
+        "w": 75,
+        "h": 25
+      },
+      "tileStates": [
+        [
+          "blocked",
+          "blocked",
+          "blocked"
+        ]
+      ],
+      "svg": "<rect x=\"2\" y=\"3\" width=\"71\" height=\"19\" rx=\"1\" fill=\"var(--obj-fill,#ffffff)\" stroke=\"var(--obj-stroke,#ffffff)\" stroke-width=\"1\"/><line x1=\"2\" y1=\"9.5\" x2=\"73\" y2=\"9.5\" stroke=\"var(--text-secondary)\" stroke-width=\"0.7\"/><line x1=\"2\" y1=\"16\" x2=\"73\" y2=\"16\" stroke=\"var(--text-secondary)\" stroke-width=\"0.7\"/><rect x=\"8\" y=\"4.5\" width=\"6\" height=\"4.5\" fill=\"none\" stroke=\"var(--text-secondary)\" stroke-width=\"0.5\"/><rect x=\"22\" y=\"11\" width=\"8\" height=\"4.5\" fill=\"none\" stroke=\"var(--text-secondary)\" stroke-width=\"0.5\"/><rect x=\"44\" y=\"17\" width=\"10\" height=\"4\" fill=\"none\" stroke=\"var(--text-secondary)\" stroke-width=\"0.5\"/>",
+      "tags": [
+        "retail",
+        "storage"
+      ],
+      "interactSpots": [
+        {
+          "kind": "stand",
+          "x": 14,
+          "y": 28
+        },
+        {
+          "kind": "stand",
+          "x": 37,
+          "y": 28
+        },
+        {
+          "kind": "stand",
+          "x": 61,
+          "y": 28
+        }
+      ],
+      "interact": {
+        "capacity": 3,
+        "durationMin": 5,
+        "durationMax": 15
+      },
+      "queue": {
+        "maxMembers": 4,
+        "admissionDepth": 3
+      },
+      "id": "shop-shelf-3",
+      "name": "Shop Shelf"
+    },
+    {
+      "w": 3,
+      "h": 1,
+      "walkable": false,
+      "defaultFillColor": "#ffffff",
+      "origin": "svg-import",
+      "svgViewBox": {
+        "w": 75,
+        "h": 25
+      },
+      "tileStates": [
+        [
+          "blocked",
+          "blocked",
+          "blocked"
+        ]
+      ],
+      "svg": "<rect x=\"2\" y=\"4\" width=\"71\" height=\"18\" rx=\"1\" fill=\"var(--obj-fill,#ffffff)\" stroke=\"var(--obj-stroke,#ffffff)\" stroke-width=\"0.9\"/><line x1=\"2\" y1=\"10\" x2=\"73\" y2=\"10\" stroke=\"var(--text-secondary)\" stroke-width=\"0.6\"/><line x1=\"2\" y1=\"16\" x2=\"73\" y2=\"16\" stroke=\"var(--text-secondary)\" stroke-width=\"0.6\"/><path d=\"M 10 5.5 h 12 v 3 h -12 z M 40 11.5 h 14 v 3.5 h -14 z\" fill=\"none\" stroke=\"var(--text-secondary)\" stroke-width=\"0.5\"/>",
+      "tags": [
+        "housekeeping",
+        "storage",
+        "back-of-house"
+      ],
+      "interactSpots": [
+        {
+          "kind": "stand",
+          "x": 37,
+          "y": 28
+        }
+      ],
+      "interact": {
+        "capacity": 1,
+        "durationMin": 4,
+        "durationMax": 12
+      },
+      "id": "linen-shelf-3",
+      "name": "Linen Shelf"
+    },
+    {
+      "w": 1,
+      "h": 1,
+      "walkable": false,
+      "defaultFillColor": "#ffffff",
+      "origin": "svg-import",
+      "svgViewBox": {
+        "w": 25,
+        "h": 25
+      },
+      "tileStates": [
+        [
+          "blocked"
+        ]
+      ],
+      "svg": "<path d=\"M 8 3 L 17 3 L 16 17 Q 12.5 21 9 17 Z\" fill=\"var(--obj-fill,#ffffff)\" stroke=\"var(--obj-stroke,#ffffff)\" stroke-width=\"0.9\"/><ellipse cx=\"12.5\" cy=\"6\" rx=\"3.5\" ry=\"2\" fill=\"none\" stroke=\"var(--text-secondary)\" stroke-width=\"0.6\"/>",
+      "tags": [
+        "hygiene",
+        "sanitary"
+      ],
+      "interactSpots": [
+        {
+          "kind": "stand",
+          "x": 12,
+          "y": 27
+        }
+      ],
+      "interact": {
+        "capacity": 1,
+        "durationMin": 1,
+        "durationMax": 4
+      },
+      "queue": {
+        "maxMembers": 2,
+        "admissionDepth": 2
+      },
+      "id": "urinal-1",
+      "name": "Urinal"
+    },
+    {
+      "w": 2,
+      "h": 1,
+      "walkable": false,
+      "defaultFillColor": "#ffffff",
+      "origin": "svg-import",
+      "svgViewBox": {
+        "w": 50,
+        "h": 25
+      },
+      "tileStates": [
+        [
+          "blocked",
+          "blocked"
+        ]
+      ],
+      "svg": "<rect x=\"4\" y=\"6\" width=\"42\" height=\"13\" rx=\"2\" fill=\"var(--obj-fill,#ffffff)\" stroke=\"var(--obj-stroke,#ffffff)\" stroke-width=\"1\"/><rect x=\"9\" y=\"9\" width=\"32\" height=\"7\" rx=\"1\" fill=\"none\" stroke=\"var(--text-secondary)\" stroke-width=\"0.6\"/><line x1=\"25\" y1=\"9\" x2=\"25\" y2=\"16\" stroke=\"var(--text-secondary)\" stroke-width=\"0.5\"/>",
+      "tags": [
+        "hygiene",
+        "accessibility"
+      ],
+      "interactSpots": [
+        {
+          "kind": "stand",
+          "x": 25,
+          "y": 27
+        }
+      ],
+      "interact": {
+        "capacity": 1,
+        "durationMin": 5,
+        "durationMax": 15
+      },
+      "queue": {
+        "maxMembers": 2,
+        "admissionDepth": 2
+      },
+      "id": "baby-change-1",
+      "name": "Baby Change Station"
+    },
+    {
+      "w": 2,
+      "h": 1,
+      "walkable": false,
+      "defaultFillColor": "#ffffff",
+      "origin": "svg-import",
+      "svgViewBox": {
+        "w": 50,
+        "h": 25
+      },
+      "tileStates": [
+        [
+          "blocked",
+          "blocked"
+        ]
+      ],
+      "svg": "<rect x=\"3\" y=\"4\" width=\"44\" height=\"17\" rx=\"1.5\" fill=\"var(--obj-fill,#ffffff)\" stroke=\"var(--obj-stroke,#ffffff)\" stroke-width=\"1\"/><rect x=\"8\" y=\"8\" width=\"12\" height=\"9\" rx=\"1\" fill=\"none\" stroke=\"var(--text-secondary)\" stroke-width=\"0.7\"/><rect x=\"26\" y=\"8\" width=\"12\" height=\"9\" rx=\"1\" fill=\"none\" stroke=\"var(--text-secondary)\" stroke-width=\"0.7\"/><circle cx=\"14\" cy=\"12.5\" r=\"1.4\" fill=\"none\" stroke=\"var(--text-secondary)\" stroke-width=\"0.6\"/><circle cx=\"32\" cy=\"12.5\" r=\"1.4\" fill=\"none\" stroke=\"var(--text-secondary)\" stroke-width=\"0.6\"/>",
+      "tags": [
+        "front-desk",
+        "business"
+      ],
+      "interactSpots": [
+        {
+          "kind": "stand",
+          "x": 14,
+          "y": 27
+        },
+        {
+          "kind": "stand",
+          "x": 36,
+          "y": 27
+        }
+      ],
+      "interact": {
+        "capacity": 2,
+        "durationMin": 2,
+        "durationMax": 6
+      },
+      "queue": {
+        "maxMembers": 3,
+        "admissionDepth": 3
+      },
+      "id": "safe-deposit-2",
+      "name": "Safe Deposit Row"
+    },
+    {
+      "w": 1,
+      "h": 1,
+      "walkable": false,
+      "defaultFillColor": "#ffffff",
+      "origin": "svg-import",
+      "svgViewBox": {
+        "w": 25,
+        "h": 25
+      },
+      "tileStates": [
+        [
+          "blocked"
+        ]
+      ],
+      "svg": "<rect x=\"5\" y=\"9\" width=\"15\" height=\"9\" rx=\"1.5\" fill=\"var(--obj-fill,#ffffff)\" stroke=\"var(--obj-stroke,#ffffff)\" stroke-width=\"0.9\"/><path d=\"M 7.5 9 V 5 H 17.5 V 9\" fill=\"none\" stroke=\"var(--text-secondary)\" stroke-width=\"0.6\"/><line x1=\"7.5\" y1=\"14\" x2=\"17.5\" y2=\"14\" stroke=\"var(--text-secondary)\" stroke-width=\"0.5\"/>",
+      "tags": [
+        "business",
+        "equipment"
+      ],
+      "interactSpots": [
+        {
+          "kind": "stand",
+          "x": 12,
+          "y": 27
+        }
+      ],
+      "interact": {
+        "capacity": 1,
+        "durationMin": 3,
+        "durationMax": 10
+      },
+      "queue": {
+        "maxMembers": 2,
+        "admissionDepth": 2
+      },
+      "id": "printer-1",
+      "name": "Business Printer"
+    },
+    {
+      "w": 1,
+      "h": 1,
+      "walkable": false,
+      "defaultFillColor": "#ffffff",
+      "origin": "svg-import",
+      "svgViewBox": {
+        "w": 25,
+        "h": 25
+      },
+      "tileStates": [
+        [
+          "blocked"
+        ]
+      ],
+      "svg": "<rect x=\"9\" y=\"2\" width=\"7\" height=\"21\" rx=\"1.2\" fill=\"var(--obj-fill,#ffffff)\" stroke=\"var(--obj-stroke,#ffffff)\" stroke-width=\"0.9\"/><path d=\"M 11 6 H 14 M 11 10 H 14 M 11 14 H 14\" fill=\"none\" stroke=\"var(--text-secondary)\" stroke-width=\"0.6\"/><polygon points=\"12.5,18 10.5,21 14.5,21\" fill=\"none\" stroke=\"var(--text-secondary)\" stroke-width=\"0.6\"/>",
+      "tags": [
+        "signage"
+      ],
+      "id": "wayfinding-totem-1",
+      "name": "Wayfinding Totem"
+    },
+    {
+      "w": 1,
+      "h": 1,
+      "walkable": false,
+      "defaultFillColor": "#ffffff",
+      "origin": "svg-import",
+      "svgViewBox": {
+        "w": 25,
+        "h": 25
+      },
+      "tileStates": [
+        [
+          "blocked"
+        ]
+      ],
+      "svg": "<circle cx=\"12.5\" cy=\"12.5\" r=\"8.5\" fill=\"var(--obj-fill,#ffffff)\" stroke=\"var(--obj-stroke,#ffffff)\" stroke-width=\"1\"/><path d=\"M 12.5 12.5 V 7 M 12.5 12.5 L 16 15\" fill=\"none\" stroke=\"var(--text-secondary)\" stroke-width=\"0.7\"/><path d=\"M 12.5 4.5 v 1.5 M 20.5 12.5 h -1.5 M 12.5 20.5 v -1.5 M 4.5 12.5 h 1.5\" fill=\"none\" stroke=\"var(--text-secondary)\" stroke-width=\"0.5\"/>",
+      "tags": [
+        "signage"
+      ],
+      "id": "clock-1",
+      "name": "Wall Clock"
+    },
+    {
+      "w": 2,
+      "h": 1,
+      "walkable": false,
+      "defaultFillColor": "#ffffff",
+      "origin": "svg-import",
+      "svgViewBox": {
+        "w": 50,
+        "h": 25
+      },
+      "tileStates": [
+        [
+          "blocked",
+          "blocked"
+        ]
+      ],
+      "svg": "<path d=\"M 4 22 L 8 6 L 42 6 L 46 22 Z\" fill=\"var(--obj-fill,#ffffff)\" stroke=\"var(--obj-stroke,#ffffff)\" stroke-width=\"1\"/><rect x=\"12\" y=\"9\" width=\"26\" height=\"8\" rx=\"1\" fill=\"none\" stroke=\"var(--text-secondary)\" stroke-width=\"0.7\"/><line x1=\"25\" y1=\"6\" x2=\"25\" y2=\"22\" stroke=\"var(--text-secondary)\" stroke-width=\"0.5\"/>",
+      "tags": [
+        "retail",
+        "service"
+      ],
+      "interactSpots": [
+        {
+          "kind": "stand",
+          "x": 14,
+          "y": 27
+        },
+        {
+          "kind": "stand",
+          "x": 36,
+          "y": 27
+        }
+      ],
+      "interact": {
+        "capacity": 2,
+        "durationMin": 4,
+        "durationMax": 12
+      },
+      "queue": {
+        "maxMembers": 3,
+        "admissionDepth": 3
+      },
+      "id": "kiosk-2",
+      "name": "Retail Kiosk"
+    },
+    {
+      "w": 1,
+      "h": 1,
+      "walkable": false,
+      "defaultFillColor": "#ffffff",
+      "origin": "svg-import",
+      "svgViewBox": {
+        "w": 25,
+        "h": 25
+      },
+      "tileStates": [
+        [
+          "blocked"
+        ]
+      ],
+      "svg": "<rect x=\"6\" y=\"2\" width=\"13\" height=\"21\" rx=\"1\" fill=\"var(--obj-fill,#ffffff)\" stroke=\"var(--obj-stroke,#ffffff)\" stroke-width=\"1\"/><line x1=\"6\" y1=\"9\" x2=\"19\" y2=\"9\" stroke=\"var(--text-secondary)\" stroke-width=\"0.6\"/><rect x=\"14.5\" y=\"4.5\" width=\"2.5\" height=\"1.5\" fill=\"none\" stroke=\"var(--text-secondary)\" stroke-width=\"0.5\"/><rect x=\"14.5\" y=\"11.5\" width=\"2.5\" height=\"1.5\" fill=\"none\" stroke=\"var(--text-secondary)\" stroke-width=\"0.5\"/>",
+      "tags": [
+        "staff",
+        "back-of-house",
+        "storage"
+      ],
+      "interactSpots": [
+        {
+          "kind": "stand",
+          "x": 12,
+          "y": 27
+        }
+      ],
+      "interact": {
+        "capacity": 1,
+        "durationMin": 3,
+        "durationMax": 10
+      },
+      "id": "staff-locker-1",
+      "name": "Staff Locker"
+    },
+    {
+      "w": 4,
+      "h": 2,
+      "walkable": false,
+      "defaultFillColor": "#ffffff",
+      "origin": "svg-import",
+      "svgViewBox": {
+        "w": 100,
+        "h": 50
+      },
+      "tileStates": [
+        [
+          "blocked",
+          "blocked",
+          "blocked",
+          "blocked"
+        ],
+        [
+          "blocked",
+          "blocked",
+          "blocked",
+          "blocked"
+        ]
+      ],
+      "svg": "<path d=\"M 2 48 H 14 V 40 H 26 V 32 H 38 V 24 H 50 V 16 H 62 V 8 H 74 V 2 H 98\" fill=\"none\" stroke=\"var(--obj-stroke,#ffffff)\" stroke-width=\"1\"/><path d=\"M 14 48 V 40 H 26 V 32 H 38 V 24 H 50 V 16 H 62 V 8 H 74 V 2\" fill=\"var(--obj-fill,#ffffff)\" stroke=\"var(--obj-stroke,#ffffff)\" stroke-width=\"0.8\"/><line x1=\"20\" y1=\"44\" x2=\"92\" y2=\"6\" stroke=\"var(--text-secondary)\" stroke-width=\"0.6\"/>",
+      "tags": [
+        "structure"
+      ],
+      "id": "stair-flight-4",
+      "name": "Stair Flight"
+    },
+    {
+      "w": 2,
+      "h": 1,
+      "walkable": true,
+      "defaultFillColor": "#ffffff",
+      "origin": "svg-import",
+      "svgViewBox": {
+        "w": 50,
+        "h": 25
+      },
+      "tileStates": [
+        [
+          "walkable",
+          "walkable"
+        ]
+      ],
+      "svg": "<rect x=\"3\" y=\"3\" width=\"44\" height=\"19\" rx=\"1.5\" fill=\"none\" stroke=\"var(--obj-stroke,#ffffff)\" stroke-width=\"0.9\"/><path d=\"M 9 18 h 12 v -9 h 8\" fill=\"none\" stroke=\"var(--text-secondary)\" stroke-width=\"0.7\"/><circle cx=\"15\" cy=\"9\" r=\"3\" fill=\"none\" stroke=\"var(--text-secondary)\" stroke-width=\"0.7\"/>",
+      "tags": [
+        "accessibility",
+        "seating"
+      ],
+      "interactSpots": [
+        {
+          "kind": "stand",
+          "x": 25,
+          "y": 12
+        }
+      ],
+      "interact": {
+        "capacity": 1,
+        "durationMin": 5,
+        "durationMax": 20
+      },
+      "id": "wheelchair-space-2",
+      "name": "Wheelchair Space"
+    },
+    {
+      "w": 2,
+      "h": 1,
+      "walkable": false,
+      "defaultFillColor": "#ffffff",
+      "origin": "svg-import",
+      "svgViewBox": {
+        "w": 50,
+        "h": 25
+      },
+      "tileStates": [
+        [
+          "blocked",
+          "blocked"
+        ]
+      ],
+      "svg": "<ellipse cx=\"18\" cy=\"13\" rx=\"12\" ry=\"7\" fill=\"var(--obj-fill,#ffffff)\" stroke=\"var(--obj-stroke,#ffffff)\" stroke-width=\"1\"/><ellipse cx=\"18\" cy=\"13\" rx=\"7\" ry=\"4\" fill=\"none\" stroke=\"var(--text-secondary)\" stroke-width=\"0.6\"/><path d=\"M 32 8 q 6 4 0 9\" fill=\"none\" stroke=\"var(--text-secondary)\" stroke-width=\"0.6\"/>",
+      "tags": [
+        "hygiene",
+        "back-of-house",
+        "sanitary"
+      ],
+      "interactSpots": [
+        {
+          "kind": "stand",
+          "x": 18,
+          "y": 27
+        }
+      ],
+      "interact": {
+        "capacity": 1,
+        "durationMin": 3,
+        "durationMax": 10
+      },
+      "id": "mop-sink-2",
+      "name": "Mop Sink"
+    },
+    {
+      "w": 2,
+      "h": 1,
+      "walkable": false,
+      "defaultFillColor": "#ffffff",
+      "origin": "svg-import",
+      "svgViewBox": {
+        "w": 50,
+        "h": 25
+      },
+      "tileStates": [
+        [
+          "blocked",
+          "blocked"
+        ]
+      ],
+      "svg": "<rect x=\"4\" y=\"5\" width=\"18\" height=\"15\" rx=\"1\" fill=\"var(--obj-fill,#ffffff)\" stroke=\"var(--obj-stroke,#ffffff)\" stroke-width=\"0.9\"/><rect x=\"26\" y=\"5\" width=\"18\" height=\"15\" rx=\"1\" fill=\"var(--obj-fill,#ffffff)\" stroke=\"var(--obj-stroke,#ffffff)\" stroke-width=\"0.9\"/><path d=\"M 8 5 v -2 h 10 v 2 M 30 5 v -2 h 10 v 2\" fill=\"none\" stroke=\"var(--text-secondary)\" stroke-width=\"0.6\"/>",
+      "tags": [
+        "back-of-house",
+        "storage"
+      ],
+      "id": "bin-store-2",
+      "name": "Bin Store"
+    },
+    {
+      "w": 4,
+      "h": 1,
+      "walkable": false,
+      "defaultFillColor": "#ffffff",
+      "origin": "svg-import",
+      "svgViewBox": {
+        "w": 100,
+        "h": 25
+      },
+      "tileStates": [
+        [
+          "blocked",
+          "blocked",
+          "blocked",
+          "blocked"
+        ]
+      ],
+      "svg": "<rect x=\"2\" y=\"10\" width=\"96\" height=\"9\" rx=\"1.5\" fill=\"var(--obj-fill,#ffffff)\" stroke=\"var(--obj-stroke,#ffffff)\" stroke-width=\"1\"/><rect x=\"2\" y=\"4\" width=\"96\" height=\"6\" rx=\"1.5\" fill=\"var(--obj-fill,#ffffff)\" stroke=\"var(--obj-stroke,#ffffff)\" stroke-width=\"0.8\"/><path d=\"M 20 10 V 19 M 50 10 V 19 M 80 10 V 19\" fill=\"none\" stroke=\"var(--text-secondary)\" stroke-width=\"0.6\"/><circle cx=\"88\" cy=\"7\" r=\"2\" fill=\"none\" stroke=\"var(--text-secondary)\" stroke-width=\"0.7\"/>",
+      "tags": [
+        "front-desk",
+        "service"
+      ],
+      "interactSpots": [
+        {
+          "kind": "stand",
+          "x": 18,
+          "y": 28
+        },
+        {
+          "kind": "stand",
+          "x": 50,
+          "y": 28
+        },
+        {
+          "kind": "stand",
+          "x": 82,
+          "y": 28
+        }
+      ],
+      "interact": {
+        "capacity": 3,
+        "durationMin": 3,
+        "durationMax": 10
+      },
+      "queue": {
+        "maxMembers": 4,
+        "admissionDepth": 4
+      },
+      "id": "concierge-desk-4",
+      "name": "Concierge Desk"
+    },
+    {
+      "w": 1,
+      "h": 1,
+      "walkable": false,
+      "defaultFillColor": "#ffffff",
+      "origin": "svg-import",
+      "svgViewBox": {
+        "w": 25,
+        "h": 25
+      },
+      "tileStates": [
+        [
+          "blocked"
+        ]
+      ],
+      "svg": "<path d=\"M 12.5 3 L 12.5 8\" fill=\"none\" stroke=\"var(--text-secondary)\" stroke-width=\"0.7\"/><path d=\"M 6 18 Q 12.5 8 19 18 Z\" fill=\"var(--obj-fill,#ffffff)\" stroke=\"var(--obj-stroke,#ffffff)\" stroke-width=\"0.9\"/><line x1=\"5\" y1=\"19\" x2=\"20\" y2=\"19\" stroke=\"var(--obj-stroke,#ffffff)\" stroke-width=\"0.8\"/><circle cx=\"12.5\" cy=\"21\" r=\"1.2\" fill=\"none\" stroke=\"var(--text-secondary)\" stroke-width=\"0.6\"/>",
+      "tags": [
+        "luggage",
+        "service"
+      ],
+      "interactSpots": [
+        {
+          "kind": "stand",
+          "x": 12,
+          "y": 27
+        }
+      ],
+      "interact": {
+        "capacity": 1,
+        "durationMin": 1,
+        "durationMax": 4
+      },
+      "id": "bell-stand-1",
+      "name": "Bell Stand"
+    },
+    {
+      "w": 2,
+      "h": 1,
+      "walkable": false,
+      "defaultFillColor": "#ffffff",
+      "origin": "svg-import",
+      "svgViewBox": {
+        "w": 50,
+        "h": 25
+      },
+      "tileStates": [
+        [
+          "blocked",
+          "blocked"
+        ]
+      ],
+      "svg": "<rect x=\"5\" y=\"6\" width=\"36\" height=\"12\" rx=\"1.5\" fill=\"var(--obj-fill,#ffffff)\" stroke=\"var(--obj-stroke,#ffffff)\" stroke-width=\"1\"/><path d=\"M 41 8 L 46 4 V 18\" fill=\"none\" stroke=\"var(--text-secondary)\" stroke-width=\"0.7\"/><circle cx=\"12\" cy=\"21\" r=\"2.2\" fill=\"none\" stroke=\"var(--text-secondary)\" stroke-width=\"0.7\"/><circle cx=\"34\" cy=\"21\" r=\"2.2\" fill=\"none\" stroke=\"var(--text-secondary)\" stroke-width=\"0.7\"/>",
+      "tags": [
+        "luggage"
+      ],
+      "id": "luggage-cart-2",
+      "name": "Luggage Cart"
+    },
+    {
+      "w": 1,
+      "h": 1,
+      "walkable": true,
+      "defaultFillColor": "#ffffff",
+      "origin": "svg-import",
+      "svgViewBox": {
+        "w": 25,
+        "h": 25
+      },
+      "tileStates": [
+        [
+          "walkable"
+        ]
+      ],
+      "svg": "<path d=\"M 4 4 H 21 V 21 H 4 Z\" fill=\"none\" stroke=\"var(--obj-stroke,#ffffff)\" stroke-width=\"0.8\"/><circle cx=\"8.5\" cy=\"8.5\" r=\"1.4\" fill=\"var(--obj-fill,#ffffff)\" stroke=\"var(--obj-stroke,#ffffff)\" stroke-width=\"0.5\"/><circle cx=\"16.5\" cy=\"8.5\" r=\"1.4\" fill=\"var(--obj-fill,#ffffff)\" stroke=\"var(--obj-stroke,#ffffff)\" stroke-width=\"0.5\"/><circle cx=\"8.5\" cy=\"16.5\" r=\"1.4\" fill=\"var(--obj-fill,#ffffff)\" stroke=\"var(--obj-stroke,#ffffff)\" stroke-width=\"0.5\"/><circle cx=\"16.5\" cy=\"16.5\" r=\"1.4\" fill=\"var(--obj-fill,#ffffff)\" stroke=\"var(--obj-stroke,#ffffff)\" stroke-width=\"0.5\"/>",
+      "tags": [
+        "accessibility",
+        "signage"
+      ],
+      "id": "tactile-path-1",
+      "name": "Tactile Path Tile"
+    },
+    {
+      "w": 1,
+      "h": 1,
+      "walkable": false,
+      "defaultFillColor": "#ffffff",
+      "origin": "svg-import",
+      "svgViewBox": {
+        "w": 25,
+        "h": 25
+      },
+      "tileStates": [
+        [
+          "blocked"
+        ]
+      ],
+      "svg": "<rect x=\"9\" y=\"5\" width=\"7\" height=\"15\" rx=\"3.5\" fill=\"var(--obj-fill,#ffffff)\" stroke=\"var(--obj-stroke,#ffffff)\" stroke-width=\"0.9\"/><path d=\"M 9.5 8 H 15.5\" fill=\"none\" stroke=\"var(--text-secondary)\" stroke-width=\"0.6\"/><rect x=\"10.5\" y=\"2\" width=\"4\" height=\"3\" rx=\"0.8\" fill=\"none\" stroke=\"var(--text-secondary)\" stroke-width=\"0.6\"/>",
+      "tags": [
+        "safety",
+        "equipment"
+      ],
+      "id": "fire-extinguisher-1",
+      "name": "Fire Extinguisher"
+    },
+    {
+      "w": 1,
+      "h": 1,
+      "walkable": false,
+      "defaultFillColor": "#ffffff",
+      "origin": "svg-import",
+      "svgViewBox": {
+        "w": 25,
+        "h": 25
+      },
+      "tileStates": [
+        [
+          "blocked"
+        ]
+      ],
+      "svg": "<rect x=\"4\" y=\"4\" width=\"17\" height=\"17\" rx=\"1.5\" fill=\"var(--obj-fill,#ffffff)\" stroke=\"var(--obj-stroke,#ffffff)\" stroke-width=\"1\"/><path d=\"M 12.5 8 V 17 M 8 12.5 H 17\" fill=\"none\" stroke=\"var(--text-secondary)\" stroke-width=\"1.4\"/>",
+      "tags": [
+        "safety"
+      ],
+      "id": "first-aid-1",
+      "name": "First Aid Cabinet"
+    },
+    {
+      "w": 3,
+      "h": 2,
+      "walkable": false,
+      "defaultFillColor": "#ffffff",
+      "origin": "svg-import",
+      "svgViewBox": {
+        "w": 75,
+        "h": 50
+      },
+      "tileStates": [
+        [
+          "blocked",
+          "blocked",
+          "blocked"
+        ],
+        [
+          "blocked",
+          "blocked",
+          "blocked"
+        ]
+      ],
+      "svg": "<path d=\"M 6 44 Q 2 20 20 8 Q 40 -2 62 6 Q 74 12 72 30 L 60 30 Q 62 14 46 12 Q 22 12 20 34 L 20 44 Z\" fill=\"var(--obj-fill,#ffffff)\" stroke=\"var(--obj-stroke,#ffffff)\" stroke-width=\"1\"/><path d=\"M 20 44 H 72\" fill=\"none\" stroke=\"var(--text-secondary)\" stroke-width=\"0.7\"/><path d=\"M 24 40 h 44\" fill=\"none\" stroke=\"var(--text-secondary)\" stroke-width=\"0.5\"/><line x1=\"26\" y1=\"44\" x2=\"26\" y2=\"50\" stroke=\"var(--obj-stroke,#ffffff)\" stroke-width=\"0.8\"/><line x1=\"66\" y1=\"44\" x2=\"66\" y2=\"50\" stroke=\"var(--obj-stroke,#ffffff)\" stroke-width=\"0.8\"/>",
+      "tags": [
+        "entertainment",
+        "art"
+      ],
+      "interactSpots": [
+        {
+          "kind": "stand",
+          "x": 24,
+          "y": 52
+        },
+        {
+          "kind": "stand",
+          "x": 48,
+          "y": 52
+        }
+      ],
+      "interact": {
+        "capacity": 2,
+        "durationMin": 10,
+        "durationMax": 30
+      },
+      "id": "grand-piano-3",
+      "name": "Grand Piano"
     }
   ],
   "layout": {

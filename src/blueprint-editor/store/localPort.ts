@@ -29,7 +29,7 @@ function openDatabase(): Promise<IDBDatabase> {
 	})
 }
 
-export function createIndexedDbStorage(): BlueprintStorage {
+export function createIndexedDbStorage(key: string = WORKSPACE_KEY): BlueprintStorage {
 	let dbPromise: Promise<IDBDatabase> | null = null
 	const database = () => (dbPromise ??= openDatabase())
 
@@ -37,7 +37,7 @@ export function createIndexedDbStorage(): BlueprintStorage {
 		async read(): Promise<string | null> {
 			const db = await database()
 			return new Promise((resolve, reject) => {
-				const request = db.transaction(STORE_NAME, 'readonly').objectStore(STORE_NAME).get(WORKSPACE_KEY)
+				const request = db.transaction(STORE_NAME, 'readonly').objectStore(STORE_NAME).get(key)
 				request.onsuccess = () => resolve(typeof request.result === 'string' ? request.result : null)
 				request.onerror = () => reject(request.error ?? new Error('IndexedDB read failed'))
 			})
@@ -46,7 +46,7 @@ export function createIndexedDbStorage(): BlueprintStorage {
 			const db = await database()
 			return new Promise((resolve, reject) => {
 				const tx = db.transaction(STORE_NAME, 'readwrite')
-				tx.objectStore(STORE_NAME).put(value, WORKSPACE_KEY)
+				tx.objectStore(STORE_NAME).put(value, key)
 				tx.oncomplete = () => resolve()
 				tx.onerror = () => reject(tx.error ?? new Error('IndexedDB write failed'))
 				tx.onabort = () => reject(tx.error ?? new Error('IndexedDB write aborted'))
@@ -56,7 +56,7 @@ export function createIndexedDbStorage(): BlueprintStorage {
 			const db = await database()
 			return new Promise((resolve, reject) => {
 				const tx = db.transaction(STORE_NAME, 'readwrite')
-				tx.objectStore(STORE_NAME).delete(WORKSPACE_KEY)
+				tx.objectStore(STORE_NAME).delete(key)
 				tx.oncomplete = () => resolve()
 				tx.onerror = () => reject(tx.error ?? new Error('IndexedDB delete failed'))
 				tx.onabort = () => reject(tx.error ?? new Error('IndexedDB delete aborted'))

@@ -310,3 +310,9 @@ test('persisted w:0/h:0 objects re-derive size from the live asset on ingress', 
 	assert.equal(enriched.w, expectedSize!.w, 'persisted w:0 is re-derived from the live asset on ingress')
 	assert.equal(enriched.h, expectedSize!.h, 'persisted h:0 is re-derived from the live asset on ingress')
 })
+
+test('a street band outside the persisted range is dropped, not carried into the workspace', () => {
+	assert.equal(migrate(makeLayout({ streetWidthTiles: 999 }), originAssets).layout.streetWidthTiles, undefined, 'far wider than the cap')
+	assert.equal(migrate(makeLayout({ streetWidthTiles: 3 }), originAssets).layout.streetWidthTiles, undefined, 'narrower than the minimum')
+	assert.equal(migrate(makeLayout({ streetWidthTiles: 8 }), originAssets).layout.streetWidthTiles, 8, 'an in-range band survives')
+})

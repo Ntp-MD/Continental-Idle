@@ -4,6 +4,9 @@ import { useAssetsStore } from '../../blueprintStore'
 import { useConfirm } from '@/composables/useConfirm'
 import { useNpcSimulation } from '../../composables/useNpcSimulation'
 import { NPC_MOOD_LEGEND } from '../../composables/useNpcOverlayDraw'
+import { formatTakings, type TakingsSnapshot } from '../../domain/economy/takings'
+import { settleDay } from '../../domain/economy/upkeep'
+import { netOf, readReputation } from '../../domain/economy/reputation'
 import ObjectPropertiesForm from './ObjectPropertiesForm.vue'
 import AssetProperties from './AssetProperties.vue'
 import { usePanelResize } from '../../composables/usePanelResize'
@@ -28,7 +31,7 @@ const flattenName = ref('')
 
 const previewActive = computed(() => store.isNpcPreview.value)
 const npcSimulation = inject('npcSimulation') as ReturnType<typeof useNpcSimulation>
-const { npcs, isPaused, pause, resume, reset, stop, simSpeed } = npcSimulation
+const { npcs, isPaused, pause, resume, reset, stop, simSpeed, trafficOn, setTraffic, walletReport } = npcSimulation
 const total = computed(() => npcs.value.length)
 const currentFloorLabel = computed(() => store.currentFloor.value?.label ?? '-')
 const countsByRole = computed(() => {
@@ -53,6 +56,27 @@ const NPC_STATUS_LABELS: Record<NpcStatusKey, string> = {
   idle: 'Idle',
 }
 const statusCounts = ref<{ key: NpcStatusKey; label: string; count: number }[]>([])
+const takings = ref<TakingsSnapshot | null>(null)
+const traffic = ref({ spawned: 0, departed: 0, inside: 0, entrances: 0 })
+function toggleTraffic() {
+  setTraffic(!trafficOn.value)
+}
+const takingsSources = computed(() => (takings.value?.byTag ?? []).slice(0, 4))
+const standing = computed(() => {
+  const tally = takings.value
+  return tally ? readReputation(tally.served, tally.walkOuts) : null
+})
+/** The day settled against payroll: the crowd is half of the deployment, and it is not free. */
+const payroll = computed(() => {
+  const tally = takings.value
+  const reading = standing.value
+  if (!tally || !reading) return null
+  return settleDay({
+    bankCents: tally.bankCents,
+    incomePerDayCents: netOf(tally.perDayCents, reading),
+    staffHeadcount: npcSimulation.getStaffHeadcount(),
+  })
+})
 const statusTimer = window.setInterval(() => {
   if (!previewActive.value) return
   const counts = new Map<string, number>()
@@ -63,8 +87,28 @@ const statusTimer = window.setInterval(() => {
     count: counts.get(status)!,
   }))
   const prev = statusCounts.value
-  if (prev.length === next.length && prev.every((p, i) => p.key === next[i].key && p.count === next[i].count)) return
-  statusCounts.value = next
+  const statusChanged = !(prev.length === next.length && prev.every((p, i) => p.key === next[i].key && p.count === next[i].count))
+  if (statusChanged) statusCounts.value = next
+  const tally = npcSimulation.takings.snapshot()
+  const prevTally = takings.value
+  const tallyChanged =
+    !prevTally ||
+    prevTally.bankCents !== tally.bankCents ||
+    prevTally.served !== tally.served ||
+    prevTally.walkOuts !== tally.walkOuts ||
+    prevTally.queueAbandons !== tally.queueAbandons ||
+    prevTally.perMinuteCents !== tally.perMinuteCents ||
+    prevTally.perDayCents !== tally.perDayCents ||
+    prevTally.daysCompleted !== tally.daysCompleted
+  if (tallyChanged) takings.value = tally
+  const summary = npcSimulation.getTrafficSummary()
+  const prevTraffic = traffic.value
+  const trafficChanged =
+    prevTraffic.spawned !== summary.spawned ||
+    prevTraffic.departed !== summary.departed ||
+    prevTraffic.inside !== summary.inside ||
+    prevTraffic.entrances !== summary.entrances
+  if (trafficChanged) traffic.value = summary
 }, 300)
 onUnmounted(() => window.clearInterval(statusTimer))
 
@@ -163,6 +207,60 @@ async function doFlatten() {
             <span v-for="s in statusCounts" :key="s.key" class="form__hint">
               {{ s.label }} <b>{{ s.count }}</b>
             </span>
+          </div>
+          <div v-if="takings" class="takings">
+            <div class="form__row form--wrap">
+              <span class="form__hint">Takings <b>{{ formatTakings(takings.bankCents) }}</b></span>
+              <span v-if="takings.carriedCents > 0" class="form__hint">Carried in <b>{{ formatTakings(takings.carriedCents) }}</b></span>
+              <span v-if="walletReport && walletReport.earnedCents > 0" class="form__hint">
+                While away <b>+{{ formatTakings(walletReport.earnedCents) }}</b> for {{ Math.round(walletReport.creditedMinutes) }} min{{ walletReport.capped ? ' (capped)' : '' }}
+              </span>
+              <span class="form__hint">Per minute <b>{{ formatTakings(takings.perMinuteCents) }}</b></span>
+              <span class="form__hint">Per day est. <b>{{ formatTakings(takings.perDayCents) }}</b></span>
+              <span class="form__hint">Services/day est. <b>{{ takings.servicesPerDay }}</b></span>
+              <span class="form__hint">Served <b>{{ takings.served }}</b></span>
+              <span class="form__hint">Walk-outs <b>{{ takings.walkOuts }}</b></span>
+              <span class="form__hint">Abandoned lines <b>{{ takings.queueAbandons }}</b></span>
+            </div>
+            <div v-if="standing" class="form__row form--wrap">
+              <span class="form__hint">
+                Reputation <b>{{ standing.score }}/100</b>
+                <template v-if="standing.unproven"> (no evidence yet)</template>
+              </span>
+              <span class="form__hint">Net after standing <b>{{ formatTakings(netOf(takings.bankCents, standing)) }}</b></span>
+              <span v-if="payroll" class="form__hint">Staff paid <b>{{ payroll.staffHeadcount }}</b></span>
+              <span v-if="payroll" class="form__hint">Payroll per day <b>{{ formatTakings(payroll.payrollCents) }}</b></span>
+              <span v-if="payroll" class="form__hint">Profit per day <b>{{ formatTakings(payroll.profitCents) }}</b></span>
+              <span v-if="payroll && !payroll.selfFunding" class="form__hint">
+                Days of bank left <b>{{ payroll.runwayDays }}</b>
+              </span>
+            </div>
+            <ul v-if="takingsSources.length" class="takings__sources">
+              <li v-for="source in takingsSources" :key="source.tag" class="takings__source">
+                <span>{{ source.tag }}</span>
+                <b>{{ formatTakings(source.cents) }}</b>
+                <span>{{ source.count }}x</span>
+              </li>
+            </ul>
+          </div>
+          <div class="form__row form--wrap">
+            <button
+              type="button"
+              :class="{ 'flag--active': trafficOn }"
+              :aria-pressed="trafficOn"
+              title="Replace the standing guests with arrivals that walk in through the street doors and leave again"
+              @click="toggleTraffic"
+            >
+              {{ trafficOn ? 'Footfall on' : 'Footfall off' }}
+            </button>
+            <template v-if="trafficOn">
+              <span class="form__hint">Walked in <b>{{ traffic.spawned }}</b></span>
+              <span class="form__hint">In the room <b>{{ traffic.inside }}</b></span>
+              <span class="form__hint">Left again <b>{{ traffic.departed }}</b></span>
+              <span v-if="traffic.entrances === 0" class="form__hint flag--warning">
+                No street door - nobody can enter
+              </span>
+            </template>
           </div>
           <div class="form__row form--wrap">
             <span class="form__hint">Moods</span>
@@ -283,5 +381,35 @@ async function doFlatten() {
 
 .npc__role b {
   color: var(--accent-blue);
+}
+
+.takings {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-xs);
+}
+
+.takings__sources {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--gap-xs);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.takings__source {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--gap-xs);
+  padding: var(--gap-xxs) var(--gap-xs);
+  color: var(--text-secondary);
+  background: var(--bg-primary);
+  border: 1px solid var(--border-dim);
+  border-radius: var(--radius-sm);
+}
+
+.takings__source b {
+  color: var(--accent-gold);
 }
 </style>

@@ -1,6 +1,7 @@
 import { EDITOR_CONFIG } from '../editorConfig'
 import { createHttpPersistencePort } from './httpPorts'
-import { createIndexedDbStorage, createLocalPersistencePort, isIndexedDbAvailable } from './localPort'
+import { createIndexedDbStorage, createLocalPersistencePort, createMemoryStorage, isIndexedDbAvailable } from './localPort'
+import { createWalletStore, WALLET_STORAGE_KEY, type WalletStore } from './wallet'
 import type { PersistencePort } from './ports'
 
 export type PersistenceMode = 'http' | 'local'
@@ -31,4 +32,15 @@ export function createPersistencePort(): PersistencePort {
 		)
 	}
 	return createLocalPersistencePort(createIndexedDbStorage())
+}
+
+/**
+ * The bank rides beside the blueprint and is deliberately not fatal without IndexedDB: an absent
+ * balance is a lost session, while the workspace port above has nothing to fall back to.
+ */
+export function createDeviceWallet(): WalletStore {
+	const storage = isIndexedDbAvailable()
+		? createIndexedDbStorage(WALLET_STORAGE_KEY)
+		: createMemoryStorage()
+	return createWalletStore(storage)
 }

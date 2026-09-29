@@ -9,6 +9,8 @@ import { cloneDeepRaw, floorHasContent } from '../../src/blueprint-editor/store/
 import { resolveBuildingArea, assetSizeFor, roundedRectPath } from '../../src/blueprint-editor/domain/geometry'
 import { resolveFloorTileStates } from '../../src/blueprint-editor/domain/types'
 import { aabbOverlap } from '../../src/blueprint-editor/domain/collision'
+import { canvasLeavesBuildingArea } from '../../src/blueprint-editor/domain/types'
+import { MAX_FLOORS } from '../../src/blueprint-editor/limits'
 import type { AssetDef, BlueprintDataFile, FloorData, FloorWalkable, ObjectData } from '../../src/blueprint-editor/domain/types'
 
 // ── Harness: in-memory ports + state snapshot/restore ──
@@ -1177,4 +1179,93 @@ test('floorHasContent: walkable-only paint is not content (canvas resize stays u
 	floor.walkable = undefined
 	floor.spawnZones = [{ id: 'z', label: 'Z', x: 0, y: 0, w: 10, h: 10, roleIds: ['role-guest'] }]
 	assert.equal(floorHasContent(floor), true, 'a spawn zone is content')
+})
+
+// ── Rules `npm run test:mutation` found had no test behind them ──
+
+test('beginDrawnObject gates the rect it actually lands, like addObject does', async () => {
+	restore(baseline)
+	installTestAsset()
+	const floor = state.layout.floors[0]
+	floor.objects = []
+	state.currentFloorId = floor.id
+	const t = state.layout.canvas.tileSize
+	const area = resolveBuildingArea(state.layout)
+	const x = (Math.ceil(area.x / t) + 2) * t
+	const y = (Math.ceil(area.y / t) + 2) * t
+	assert.ok(await addObject('grill-asset', x, y), 'the reference object lands first')
+	const drawn = await store.beginDrawnObject('Drawn Square', 2, 2, x, y)
+	assert.equal(drawn, null, 'a drawn asset cannot be placed on an occupied rect')
+	assert.equal(floor.objects.length, 1, 'the rejected draft added nothing')
+	assert.ok(!state.assetRegistry.some(a => a.name === 'Drawn Square'), 'a rejected draft leaves no asset behind')
+})
+
+test('a group holding one locked member refuses to move, and says so', () => {
+	restore(baseline)
+	installTestAsset()
+	const floor = state.layout.floors[0]
+	state.currentFloorId = floor.id
+	floor.objects = [makeObject('grp-a', 400, 400), makeObject('grp-b', 600, 400, { locked: true })]
+	selectObjects(['grp-a', 'grp-b'])
+	// A legal target: an out-of-area or blocked target is refused by another guard, which would
+	// leave this one looking protected while never running.
+	const attempt = moveSelectedTo(460, 460)
+	assert.notEqual(attempt, 'moved', 'the group must not move while one member is locked')
+	assert.equal(floor.objects[0].x, 400, 'the unlocked member does not go either')
+	assert.equal(floor.objects[1].x, 600)
+	assert.equal(floor.objects[1].locked, true, 'the lock is still the lock')
+})
+
+test('grabbing one half of a link group refuses when the other half is locked', () => {
+	restore(baseline)
+	installTestAsset()
+	const floor = state.layout.floors[0]
+	state.currentFloorId = floor.id
+	floor.objects = [makeObject('lk-a', 400, 400, { linkGroupId: 'lg1' }), makeObject('lk-b', 600, 400, { linkGroupId: 'lg1', locked: true })]
+	// Single selection: `moveSelectedTo` only pre-checks locks on the multi path, so the guard
+	// inside `moveMembersTo` is the one standing between a user and a dragged-locked object.
+	selectObjects(['lk-a'])
+	const attempt = moveSelectedTo(460, 460)
+	assert.notEqual(attempt, 'moved', 'the linked pair must not move while its other half is locked')
+	assert.equal(floor.objects[0].x, 400)
+	assert.equal(floor.objects[1].x, 600, 'a locked object cannot be dragged by its partner')
+})
+
+test('addFloor stops at MAX_FLOORS rather than writing a workspace no save can carry', async () => {
+	restore(baseline)
+	const seed = state.layout.floors[0]
+	while (state.layout.floors.length < MAX_FLOORS) {
+		state.layout.floors.push({ ...seed, id: `floor-pad-${state.layout.floors.length}`, name: 'pad', label: 'pad', objects: [] })
+	}
+	assert.equal(state.layout.floors.length, MAX_FLOORS)
+	assert.equal(await addFloor(), null, 'the cap refuses another floor')
+	assert.equal(state.layout.floors.length, MAX_FLOORS, 'and nothing is appended')
+	assert.equal(await duplicateFloor(state.layout.floors[0].id), false, 'duplicate obeys the same cap')
+})
+
+test('deleteAsset recomputes clash flags only on the floors that held the origin', async () => {
+	restore(baseline)
+	const origin = installTestAsset()
+	const other: AssetDef = { id: 'other-asset', name: 'Other', w: 2, h: 2, walkable: false, defaultFillColor: '#ffffff' }
+	state.assetRegistry.push(other)
+	const holder = state.layout.floors[0]
+	const untouched: FloorData = { id: 'floor-untouched', name: 'Untouched', label: 'UT', objects: [], defaultWalkable: true }
+	state.layout.floors.push(untouched)
+	// Two overlapping instances of the deleted origin on one floor, and an unrelated lone object
+	// on another. The lone object is the point: a floor holding no instance of the deleted origin
+	// is skipped entirely, so its flag stays unset rather than being recomputed to false.
+	holder.objects = [makeObject('del-a', 400, 400), makeObject('del-b', 420, 400)]
+	untouched.objects = [makeObject('far-a', 500, 500, { type: other.id })]
+	state.currentFloorId = holder.id
+	assert.equal(untouched.objects[0].collapsed, undefined, 'starts untouched')
+	assert.ok(await deleteAsset(origin.id), 'the origin is deleted')
+	assert.equal(holder.objects.length, 0, 'its instances are gone')
+	assert.equal(untouched.objects[0].collapsed, undefined, 'a floor that never held it is left alone')
+})
+
+test('the building-area predicate is judged on both axes and on a broken tile size', () => {
+	assert.equal(canvasLeavesBuildingArea({ width: 100, height: 100, tileSize: 25 }, 2), false, 'a 4x4 grid with a 2-tile band on every edge has no interior')
+	assert.equal(canvasLeavesBuildingArea({ width: 125, height: 100, tileSize: 25 }, 2), false, 'one axis short is already degenerate')
+	assert.equal(canvasLeavesBuildingArea({ width: 150, height: 150, tileSize: 25 }, 2), true, 'a 5x5 grid keeps its centre cell')
+	assert.equal(canvasLeavesBuildingArea({ width: 100, height: 100, tileSize: 0 }, 2), false, 'a zero tile size is not a grid')
 })

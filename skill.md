@@ -8,6 +8,7 @@ This project only. Never ships with the harness. `AGENTS.md` states the rules; t
 | -------- | ---- |
 | Data flow (migration, loaders, persistence, sync, validation, engine adapters, UI saves), definitions/instances, tags, canonical helpers, field-change checklists | `docs/skill/data-flow.md` |
 | Domain engines (editor preview + runtime simulation, adapters) | `docs/skill/data-flow.md` (Domain engines) |
+| Money, takings, income rate, arrivals/footfall, reputation, away earnings, payroll (`src/blueprint-editor/domain/economy/`, `store/wallet.ts`, `npm run arch -- takings`) | `docs/skill/economy.md` |
 | Editor UI (`src/blueprint-editor/`): markup, CSS, classes, component patterns, BEM, cascade | `AGENTS.md` (UI conventions) |
 | Designing, generating, inspecting, critiquing or improving a building/layout on the tile grid (adjacency, zoning, circulation, corridor/room widths, service flow, plant/risers, wayfinding, layout evaluation, "this hotel layout is wrong") | `architecture-skill/research/` - the rule corpus; `scripts/arch/README.md` for the commands |
 | Running the design loop on a layout: render it, measure it, evaluate it, repair it, compare A/B/C (`npm run arch`) | `scripts/arch/README.md` (commands, patch shape, evaluator order) |

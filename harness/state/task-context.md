@@ -1,8 +1,511 @@
 ## Mission
 
-Stop placed objects and assets from sharing space with each other and with painted wall/door geometry, and keep the asset browser usable for repeated deletes.
+Mode: autopilot through the free-token window (until 2026-09-30). Grow Continental Idle into an idle
+game: a takings economy read off the live simulation, then content and progression on top of it.
+Carried: placement/collision hardening (loops 1-18) is complete and uncommitted.
 
 ## Plan
+
+### Loop 19 - takings ledger (the first economy layer)
+
+- [x] `src/blueprint-editor/domain/economy/takings.ts` - pure ledger over the engine's own event stream:
+  integer cents, `TAKING_RATES_CENTS` per tag (declared, no corpus source), one payment per completed
+  visitor interaction at the best-qualifying tag, 30-sim-second ring bucket for the live income rate.
+- [x] `createTakingsResolver(index)` - the one event -> `{roleId, tags}` lookup, shared by the app and
+  the tests; the app supplies it from `engine.getAgent` and the built target index keyed by
+  `interactionTargetKey` (the engine keeps the key format).
+- [x] Visitor rule: a role with no `taskIds` consumes, every other role works - staff never bill.
+- [x] Wired in `useNpcSimulationCore`: `frame()` feeds the drained batch to the ledger, `deploy`/`reset`
+  clear it, `targetTagsByKey` built in `buildEngine`, resolver memoised per simulation.
+- [x] HUD block in `PropertiesPanel.vue` under the NPC preview stats (one poll timer, not two).
+- [x] Tests: `takingsLedger.test.ts` (13 rule cases), `takingsFromEngine.test.ts` (3 - real
+  `buildNpcEngineLayout` + real engine run, recurring income proven: 1 guest served a bar 9x in 40
+  sim-seconds), `takingsSimulationWiring.test.ts` (1 - the rAF frame loop pays the ledger with no
+  caller wiring).
+- [x] Falsified: inverting the visitor guard fails 9 tests including both engine-integration
+  directions; the rate-window test caught a real off-by-one in the ring (it evicted the oldest second
+  the moment it was written).
+- [x] Measured on the authored `floor-g` (502 agents, 10 roles, 6000 ticks = 100 sim-seconds, headless):
+  **0 interactions, bank 0.00** - `builtTargets: 6`, every one of them `front-desk` +
+  `post:reception-station`, and 24,222 `no-wander` waits. The 264 placed fixtures carry almost no
+  `interactSpots`, so guests have nowhere to be served. Not a ledger defect: the first honest readout
+  of the plan as an earning room.
+- [x] Gap from loop 19 **CLOSED as a misdiagnosis in loop 22** - "the ledger cannot bill check-in" is
+  false: `reception-desk` carries 3 guest-side spots with no `post` tag and they do bill. What is real is
+  coverage (8% of declared arrivals), which is a game-feel question, recorded below.
+- [ ] Gap found, NOT fixed - an agent that gives up after `queuePatienceSeconds` (`abandonQueue`) emits
+  nothing, so impatience is invisible and `walkOuts` only counts `queue-left` (targets went away).
+  Needs a new `NpcEngineWaitReason`, which the overlay switch and the type union both enumerate.
+
+### Loop 20 - the economy is measurable: `arch takings`
+
+- [x] `visitorRoleIds(roles)` extracted to `domain/economy/takings.ts` - the customer/staff rule now
+  lives once, read by both the running simulation (`useNpcSimulationCore`) and the offline measurement
+  (`scripts/arch/takings.ts`). Test: "a role that holds a duty post is staff".
+- [x] New command `npm run arch -- takings [--in payload] [--ticks n] [--agents n] [--plan path]`:
+  drives the real `NpcEngine` + `createNpcEnginePolicy` + the ledger, prints bank, per-minute, served,
+  walk-outs, earned-by-facility, **completed-but-unbilled**, staff completions, started-vs-completed
+  (jam signal) and wait reasons. `--plan` builds into `out/takings-probe.json`, never into the authored
+  store. Exit 1 when nothing is served, so a plan that cannot earn fails.
+- [x] `scripts/arch/lobby/services-probe.txt` - the income fixture (66 fixtures, 75 targets, ~42 seats).
+  The engine pocket guard refused it until it had a `%%facade-doors` entry: an interior with no street
+  door is one sealed region. Documented in the file.
+- [x] Library drift measured, not assumed: `plan-g.txt` needs **50 distinct asset types / 315
+  placements**, the store carried 29 - **36 types missing (~230 instances)**, which is why the designed
+  lobby could not be built at all (`arch build` throws on the first unknown id).
+- [x] Authored the top 12 of those (armchair-1, dining-chair-1, side-table-1, bar-stool-1,
+  theatre-seat-1, dining-table-4, high-table-1, potted-plant-1, painting-2, sculpture-2, hedge-3,
+  rug-4 = 206 of the 230 instances), each with its own silhouette; `verify:assets` 41 assets / 0 errors /
+  0 warnings. Remaining 24 types are 1-2 instances each (signage, safety, back-of-house).
+- [x] Measured: 502 agents, 66 fixtures, 30 000 ticks (500 sim-s = 8.3 min) -
+  **bank 711.10, 155.20/min, 78 served** (dining 55 = 467.50, front-desk 11 = 198.00, bar 12 = 45.60);
+  unbilled `lounge+seating` 21 and `lounge` 11 (free seating earns nothing, by design);
+  120 started / 110 completed (10 jammed); 51 862 `repath-blocked` waits.
+- [x] Root cause of the first 0.00 readings, measured not guessed: at `speed 0.2` an agent crosses one
+  tile per second, so a 35 m plate costs ~110 s per trip. Income needs a long horizon (or a faster
+  clock), not a tariff change. Reproduced at 5 agents: 1 completion per 2000 ticks.
+- [ ] Gap - 24 asset types still missing, so `plan-g.txt` remains unbuildable. Bulk work, gated by
+  `arch build` + `verify:assets`.
+- [ ] Gap - no game-time scale: 500 sim-seconds is 8 real minutes at 1x. An idle game needs an authored
+  day, and `scripts/arch/spec.json` has no clock field to put it in.
+- [ ] Carried from loop 19 - check-in bills only when a guest itself completes a non-post spot;
+  `abandonQueue` still emits nothing, so `walkOuts` read 0 across all of loop 20.
+
+### Loop 21 - library refilled, and the build path was writing an unloadable file
+
+- [x] **Defect found and fixed at the cause**: `buildLobby`'s `apply()` set
+  `floor.walkable.tileStates` and left the previous `walkableGrid` in place.
+  `normalizeFloorWalkable` rejects a floor whose two grid fields disagree, so **every `arch build`
+  wrote a payload the app itself could not load** (`InvalidBlueprintDataError`), and the editor falls
+  back to an empty workspace when ingress throws - which is very likely why floor-g read as one object.
+  Fix mirrors the store's own paint write (`src/blueprint-editor/store/floors.ts:222`): `{ tileStates, walkableGrid:
+  tileStatesToWalkableGrid(grid) }`. No second helper - the canonical one is reused.
+- [x] Regression tests `tests/unit/archBuildIngress.test.ts` (2): build a probe copy of the real store
+  at the plan's own 116x76@25 canvas through `buildLobby`, then require that `readBlueprintDataFile`
+  accepts it and that both grid fields agree cell for cell; second test is the library-drift guard
+  (`buildLobby` throws on the first unknown asset id, so a green build proves `plan-g.txt` is covered).
+  **Falsified**: restoring the old two-line writer flips test 1 to
+  `InvalidBlueprintDataError: failed validation against blueprint-data.v2.json`, and back to green.
+- [x] `--canvas cols x rows @ tileSize` on `arch takings`: a plan is measured on its own grid, in the
+  probe copy only, never by resizing the authored workspace.
+- [x] Library refilled to the plan's needs: 24 more defs (`urinal-1`, `baby-change-1`, `display-case-3`,
+  `shop-shelf-3`, `kiosk-2`, `concierge-desk-4`, `safe-deposit-2`, `printer-1`, `bell-stand-1`,
+  `grand-piano-3`, `water-feature-3`, `hedge`-family extras, signage/accessibility/safety/BOH items),
+  each with its own silhouette and only repo-managed tags. `verify:assets` 65 assets / 0 errors /
+  0 warnings. Combined with loop 20 the plan's 50 types are now all present.
+- [x] First A/B on the designed lobby vs the open probe, 502 agents, 20 000 ticks (333 sim-s):
+  **`plan-g.txt` builds - 315 fixtures, 56 door tiles, ~191 seats, 322 targets, 844 queues - and earns
+  58.60/min (27 served: dining 12, bar 15, bank 159.00) against `services-probe.txt`'s 155.20/min
+  (78 served) with a quarter of the fixtures.** The designed plan is denser and slower: 32 592
+  `repath-blocked`, 20 474 `no-wander`, 13 services started but never released.
+- [x] `front-desk` earning 0 on `plan-g` was read by me as proof of the loop-19 rule gap. Both halves
+  were wrong: the rule is fine and the desk's guest spots are reachable (walkable, queued, and they bill
+  3x on the probe). See loop 22.
+- [ ] Gap - the designed lobby now needs an income verdict from you: `arch takings --plan plan-g.txt
+  --canvas 116x76@25` vs the probe is a measured 2.6x gap, and `arch eval` is the other half.
+- [ ] Gap - no walk-out signal yet, so the density cost above shows up only as slow service, never as
+  lost money.
+
+### Loop 22 - authored day clock, and a retracted A/B
+
+- [x] `TAKINGS_DAY_SECONDS = 300` (declared game tempo, one source in `domain/economy/takings.ts`,
+  imported by the arch tool - **not** put in `spec.json`, whose own note says the game never reads it,
+  so a second copy there would be two sources for one number). The ledger now keeps a day book:
+  `daysCompleted`, `lastDayCents`, `todayCents`, and rate projections `perDayCents` / `servicesPerDay`
+  off the same live 30 s window. Days close on the clock, so an idle day reads 0 rather than missing.
+- [x] HUD gains "Per day est." and "Services/day est."; `arch takings` prints per-day figures, the last
+  closed day's actual total, and the yardstick line: brief arrivals/day (read through the canonical
+  `readOccupancy` -> `spec.json`) vs services/day this plan turns over, as a percentage.
+- [x] 4 new ledger tests (open day projection, day closes on the clock, idle day closes at zero,
+  reset clears the day book) - 17 in that file, 296 unit total green, typecheck/lint/bem/css clean.
+- [x] **RETRACTED my own loop 21 conclusion.** "The designed lobby earns 2.6x LESS than the open probe"
+  was measured while `arch build` still wrote mismatched grid fields, so the crowd ran on the store's
+  stale `walkableGrid` instead of the plan's `tileStates`. On the fixed writer the sign flips:
+  **`plan-g` 58.60/min (27 served, est. 293/day, 40 services/day) vs `services-probe` 34.00/min
+  (14 served)**. The designed plan is the better earner of the two.
+- [x] Check-in re-checked and **cleared as a rule problem**: `reception-desk` already carries 3
+  guest-side spots (`y=31`, no `post`) and 3 staff post spots (`y=-6`); on the probe plan `front-desk`
+  billed 3x. Loops 19/20 gaps claiming "arrivals cannot bill" were wrong and are deleted. What is
+  actually true, measured: `plan-g` covers only ~8% of the declared 500 arrivals/day.
+- [ ] Gap - whether income should follow simulated completions (honest, 8% coverage) or bill arrivals
+  at the door (abstraction, full coverage) is game feel, not tuning. Needs the user's call.
+- [ ] Gap - `abandonQueue` still emits nothing, so `walkOuts` remains 0 across every measurement.
+
+### Loop 23 - a slow line now costs money: the impatience signal
+
+- [x] `NPC_ENGINE_WAIT_REASONS` (runtime tuple in `src/engine/npc/types.ts`) now **is** the source of
+  `NpcEngineWaitReason`, and a new reason `'impatient'` is emitted by `abandonQueue` as
+  `waiting/impatient`. The reason list used to be a hand-written union nothing could iterate, which is
+  exactly why a walk-out had no signal at all.
+- [x] Coverage guard added to `tests/unit/npcMood.test.ts`: it iterates the real tuple and fails if any
+  reason has no row in the mood table - a future reason can no longer fall silently into `'unknown'`.
+- [x] `impatient` renders as a new mood `'frustrated'` (red ring, legend "Left a line"), so a designer
+  sees the abandoned customer on the canvas, not only in a number. `PropertiesPanel` legend is
+  generated from `NPC_MOOD_LEGEND`, so it picked the new entry up with no markup change.
+- [x] Ledger splits the two causes it previously conflated: `walkOuts` = gave up waiting, and the new
+  `queueAbandons` = the line's facility became unavailable; both visitor-only. HUD, `arch takings` and the
+  change-detection predicate all carry the new field.
+- [x] New engine test `tests/unit/npcImpatience.test.ts`: two agents contest one capacity-1 counter, the
+  loser queues, patience 0.5 s, asserts `waiting:impatient` fires and the agent actually leaves the line.
+  The reservation is earned through the engine, because hand-setting `reservationItemId` never registers
+  it in the engine's own maps (found while writing it). **Falsified**: with the emit removed the test
+  fails, and its event log reads `waiting:queued, waiting:no-wander...` - direct proof that the whole
+  walk-out was previously invisible to every consumer.
+- [x] Re-measured `plan-g` (502 agents, 20 000 ticks): **walk-outs 3** (was 0), everything else
+  unchanged - bank 159.00, 58.60/min, 27 served, est. 293/day, 40 services/day vs the brief's
+  500 arrivals/day. No regression in service throughput from the new emit.
+- [x] Gates: 298 unit / 29 files, typecheck 0, lint 0 warnings, BEM/CSS pass, `clean:check` clean.
+- [ ] Gap - walk-outs are counted but still cost nothing: no tariff is lost and no reputation falls, so
+  the number has no teeth in the economy yet. That needs the arrival-flow slice, not a penalty constant.
+- [ ] Gap - arrivals themselves are still not simulated (population is resident, nobody enters or exits
+  through the street doors), which is why coverage sits at 8% of the declared 500/day.
+
+### Loop 24 - footfall: the lobby now earns against the brief
+
+- [x] `src/blueprint-editor/domain/economy/arrivals.ts` - pure arrival flow: `createArrivalFlow(...)`
+  releases whole arrivals from a cumulative floor (a per-tick fraction would silently never deliver the
+  declared 500), and `presentFromFlow` states Little's law once (L = lambda x W) so the runner and the
+  tool cannot disagree. 5 tests, including exact accounting stepping one tick at a time for a whole day.
+- [x] `arch takings --arrivals [--stay <sec>]` - arrivals walk in through **street door** cells only
+  (`entranceCells`: a `door` tile on the street ring), leave when their stay is up, and the standing
+  visitor pool entry is replaced (`replaced-by-arrivals`) while staff still deploy. Report gains the
+  footfall line: per day, walked in, left, inside now, doors found, and the implied present.
+- [x] Measured on the designed lobby (502 present target, 20 000 ticks = 333 sim-s, 12 street doors):
+  **bank 2,640.40 · 840.40/min · served 250 · est. 4,202/day · 410 services/day = 82% of the brief's
+  500 arrivals** - against **8%** for the same plan with a standing crowd and no traffic. Top earner is
+  **front-desk (78 check-ins, 1,404.00)**, then dining 124 and bar 48; free `lounge` seating stays
+  unbilled (107 + 91 completions) exactly as designed. Flow says 500 present, measured 532 including
+  32 staff, and the run had not yet reached steady state at 555 in / 55 out.
+- [x] Guard `footfall mode runs the declared arrival count through the street doors`
+  (`tests/unit/archBuildIngress.test.ts`) asserts the arithmetic through the real runner, not a sample.
+- [x] Two things I had wrong and fixed while building this: `NPC_ENGINE_TICKS_PER_SECOND` is **60**, not
+  10 (a day is 18 000 ticks, so every "per second" claim needed re-deriving), and the **policy owns the
+  pathfinder** - passing `pathfinder` before `...policy` was dead code that typecheck flagged.
+- [x] `arrivalsPerDay` is injectable on `measureTakings`, because `readOccupancy` resolves `spec.json` by
+  module URL and that does not survive a bundled runner: the CLI reads the spec, a test passes the number.
+- [ ] Gap - the app itself still runs a standing population: only the arch runner has footfall. Wiring it
+  into `useNpcSimulationCore` (spawn at the street door, despawn on stay) is the next feature slice.
+- [ ] Gap - walk-outs cost nothing yet: an arrival that gives up loses only its own potential spend, so
+  the tariff has no congestion penalty.
+
+### Loop 25 - footfall runs in the app, not only in the measurement tool
+
+- [x] `streetEntrances(floors, streetTiles)` and `stepTraffic(...)` moved into
+  `domain/economy/arrivals.ts` as the single implementation; `scripts/arch/takings.ts` dropped its
+  private copy and now calls the same code the app calls. Post-refactor the CLI reproduces the earlier
+  numbers exactly (6000 ticks -> bank 166.50, served 19), so the move is behaviour-preserving.
+- [x] `useNpcSimulationCore`: new traffic state (`trafficOn`, flow, entrances armed inside `buildEngine`,
+  so a deploy *and* a layout refresh both re-arm - an edit must not silently restore the crowd it had
+  replaced), `setTraffic(on)`, `getTrafficSummary()`, cleared on `reset()`.
+- [x] `[decided]` Where the app's arrival rate comes from, with no schema change: **the deployed visitor
+  pool becomes the traffic** (600 guests present -> 600 arrivals/day, stay one day), which is Little's
+  law read the other way. A user-editable rate would need `npcConfig` + normalizer + NPC Manager field,
+  and the project's own lesson is that an unauthorable persisted field (`usePx`) is worse than none.
+- [x] HUD: "Footfall on/off" toggle (aria-pressed) with Walked in / In the room / Left again, and an
+  explicit warning row when the plan has **no street door** - the failure mode the plan builder already
+  refuses to write, now visible in the editor.
+- [x] App-level proof `footfall turns the deployed crowd into arrivals that come in the street door and
+  leave`: fixtures a 20x20 floor with two ring door tiles and a bar, deploys, switches traffic on,
+  asserts the visitors are gone from the engine, then that arrivals spawn and stay, then that switching
+  off leaves nobody behind. Found while writing it: `state.npcs` refreshes on a 250 ms throttle, so the
+  immediate truth is `frameDots`, not the view list.
+- [x] Gates: 305 unit / 30 files, typecheck 0, lint 0 warnings, BEM/CSS pass, `arch:selftest` PASSED
+  (14 fixtures), `clean:check` clean.
+- [ ] Gap - the panel's new markup is typechecked and linted but not exercised in a browser: the in-app
+  browser surface is 0x0, where rAF never fires, so a live NPC preview run there cannot advance. The same
+  behaviour is proven at the composable level.
+
+### Loop 26 - bad service now costs money: reputation
+
+- [x] `src/blueprint-editor/domain/economy/reputation.ts` - standing derived from **counted outcomes
+  only** (`served` against `walkOuts`, both already in the ledger snapshot), so there is no hidden state
+  to drift and no per-event valuation to invent (a `walk-out` event carries no target, so it cannot be
+  priced facility by facility). Declared band: `REPUTATION_NEUTRAL = 70` when nothing has happened yet,
+  multiplier `0.5 + score/200`, closed at both ends - a congested room shrinks income, it never flatlines.
+- [x] Wired into both readers, never into the ledger itself: `arch takings` prints
+  `reputation x/100 · xMultiplier · net of gross`, and the HUD shows Reputation + "Net after standing".
+  Money accounting stays the ledger's alone (`[decided]`), which is why the multiplier lives at the edges.
+- [x] `--patience <s>` on `arch takings` - the design lever that was missing. Without it the mechanic
+  looked dead: `plan-g` at 12 000 ticks produced **1 walk-out, reputation 99, net 872.02 of 876.40**.
+  Measured sweep on the same plan, same footfall:
+  - patience 30 s -> walk-outs 1, rep 99, net 872.02 / 876.40
+  - patience 3 s  -> walk-outs 70, rep 52, net 613.40 / 807.10  (-24%)
+  - patience 0.5 s -> walk-outs 114, rep 39, net 482.05 / 693.60 (-30%)
+  Both penalties land together, which is the point: fewer completions **and** a worse multiplier.
+- [x] 5 tests `tests/unit/reputationReading.test.ts`: unproven reads neutral, all-served is 1.0, all-lost
+  is the floor, half-lost is the middle, monotonicity swept over 21 cases, and the band is closed so a
+  score cannot pay more than face value. `[decided]` Also corrected my own draft here: `NpcSimulationConfig`
+  carries no `queuePatienceSeconds`, so the override reads from the flag or the engine default only.
+- [x] Gates: 310 unit / 30 files, typecheck 0, lint 0 warnings, BEM/CSS pass, `verify:assets` 65/0/0,
+  `arch:selftest` PASSED (14 fixtures), `clean:check` clean, slot check pass.
+- [ ] Gap - reputation is read-only: nothing spends it or recovers it over time, so it is a scoreboard
+  today, not a resource. A recovery curve (per-day drift toward the evidence) is the next design step.
+- [ ] Gap - the HUD markup is still not browser-exercised (0x0 surface); behaviour proven at composable
+  and domain level.
+
+### Loop 27 - `npm run test:mutation`: guards must have tests that break without them
+
+- [x] `scripts/mutate.mjs` + `tests/mutation-guards.json` + npm script `test:mutation`. Each manifest
+  entry neutralises ONE rule in the source (`find` → `replace`), names the suite that must go red, and
+  restores the file per guard. Three verdicts: `killed` (protected), `survived` (rule has no test),
+  `inconclusive` (the tool could not judge - never reported as safety). Exit 1 unless everything was
+  killed, so it is a gate, not a report. `--only <id>` to subset, `--list` to read the manifest.
+- [x] Result: **12/12 killed** across the economy (`post:` never bills, best-rate-only, visitor-only,
+  day rollover), arrival flow (cumulative release, stay bound), reputation (band closed, neutral when
+  unproven), engine (`impatient` emits, patience bound) and collision (painted geometry, structural
+  assets both sides).
+- [x] **The gate found a real hole in a test I wrote this session**: "bills at the best qualifying rate"
+  used tags `['dining','bar','lounge']` - already in descending price, so a mutant that takes the FIRST
+  rated tag still passed. Rewritten with the expensive tag last plus two more orderings, and the mutant
+  now fails it. A test that agrees with a broken rule by luck is exactly what this tool is for.
+- [x] Three tool bugs found and fixed while building it, all of which could have produced a confident
+  wrong answer: (a) verdicts parsed from vitest's *prose* summary silently missed the failure line under
+  escape codes, so every guard read "survived" - now the JSON reporter decides, with the exit code as
+  the documented fallback; (b) `originals.set` overwrote the pristine copy with an already-mutated one
+  and the final restore wrote mutants back into the tree - now first writer wins and each guard
+  restores before the next; (c) `spawnSync('npx')` is ENOENT on Windows, which looked like an untested
+  rule - vitest is now launched through `process.execPath`.
+- [x] `[rejected]` Damage the first buggy run left behind was found and repaired, not assumed fixed:
+  six live mutations were grep-found in `takings.ts`, `arrivals.ts`, `reputation.ts`, `npcEngine.ts`
+  (`reason:'impatient'` reverted to `'queued'`) and `collision.ts`, each restored to its real source,
+  then the whole suite re-run green (310/31) before any verdict was trusted. A residual-difference check
+  now runs at the end of every mutation pass as defence in depth.
+- [x] Gates: 310 unit / 31 files, typecheck 0, lint 0 warnings, BEM pass, `clean:check` clean,
+  `verify.mjs check` pass.
+- [ ] Next use of the window: grow `tests/mutation-guards.json` over the store and schema guards (the
+  82 quotes in `harness/state/verify.mjs audit` territory) - each entry is a small, machine-checked
+  task, which is what free tokens are good at.
+
+### Loop 28 - the gate extended to the store, and it found 5 untested rules
+
+- [x] Manifest grown 12 → **27 guards** across `store/objects.ts`, `store/metadata.ts`, `store/mode.ts`,
+  `store/floors.ts`, `store/assets.ts`, `store/migrate.ts`, `domain/schema/layout.ts`,
+  `assets/validation.ts`. First honest run: **22 killed, 5 survived** - and every survivor was a real
+  hole, not noise.
+- [x] Tests added for all five (70 → 71 in `storeCrud.test.ts`, +5 cases):
+  - `beginDrawnObject` never gated its placement (the covered gate belongs to `addObject`; the drawn
+    path had none) - now refused and asserted to leave no orphan asset behind.
+  - `MAX_FLOORS` was unenforced by any test on both `addFloor` and `duplicateFloor`.
+  - `deleteAsset`'s floor skip: a floor that never held the origin keeps `collapsed` unset.
+  - `canvasLeavesBuildingArea` had no direct test of its own (both store guards were covered
+    individually, the predicate behind them was not).
+  - Locked-member refusal: my first attempt targeted `(900,900)`, which a *different* guard refuses,
+    so the mutant survived a passing test. Retargeted to a legal rect, then split in two.
+- [x] **The last survivor was a duplicated guard, and the fix is knowledge not code**:
+  `moveSelectedTo` pre-checks locks on the multi-selection path (`objects.ts:258`), so `moveMembersTo`'s
+  own check is only reachable from the *single-selection link-group* path (`:268`) - grabbing an
+  unlocked object whose linked partner is locked. That test is what kills it: **27/27 now**.
+- [x] Two tool bugs found in the gate itself while reading its results: a passing run reports zero
+  failed assertions, which my code conflated with "no report at all" (every survivor was mislabelled
+  inconclusive until that was separated); and a verdict parsed from vitest's coloured summary is not a
+  verdict. Both fixed with a comment each, so the tool cannot lie the same way twice.
+- [x] Gates: `npm run test:mutation` **27/27 killed**, 316 unit / 31 files, typecheck 0, lint 0
+  warnings, BEM/CSS pass, `clean:check` clean, `verify.mjs check` pass.
+
+### Loop 29 - gate extended into the engine and the ingress layer
+
+- [x] Manifest 27 → **36 guards**: engine reservation rules (`canReserve`/`reserve` capacity, one
+  reservation per agent), the policy's duty-post filter, `queueLineCapacity`, `deriveFloorRooms`
+  doorway seam, `placementRect` clamp, and the street-width bound on **both** ingresses
+  (`dataFile` and `migrate`). First run: 29 killed, **8 survived**.
+- [x] New suite `tests/unit/engineInvariants.test.ts` (4 tests) + one in `migrate.test.ts` + one in
+  `blueprintSchema.test.ts` → 6 of the 8 holes closed: capacity-of-line, doorway seam, both street-width
+  ingresses, plus the drawn-asset and drawn-rect cases from earlier. **34/36 now killed.**
+- [x] Two lessons from writing the tests, both recorded in code comments: my first rooms assertion
+  checked a split that holds *either way* (the traversal never crosses a door cell), so the mutant
+  survived a passing test - the observable consequence is that a door cell belongs to no room; and a
+  guard that cannot be observed at all is not a rule - `tileSize <= 0` in `rectHitsStructure` degrades
+  safely through `NaN` bounds without it, so that manifest entry was **removed** rather than given a
+  test that could never fail.
+- [ ] 2 guards still survive - `engine-reserve-capacity` / `engine-one-reservation-per-agent` (both
+  private to `NpcEngine`, needing a behavioural scenario where the double-book is observable) and the
+  policy duty-post filter (my selector-level test returns null either way, probably on
+  `isReachableByRole`; the behavioural route - guest, one post target, no `interaction-start` - is the
+  version to write). Next turn.
+- [x] Gates: **34/36 killed**, 322 unit / 32 files, typecheck 0, lint 0 warnings, `clean:check` clean,
+  `verify.mjs check` pass.
+
+### Loop 30 - the 3 surviving engine guards, and one of them turned out to be unreachable
+
+- [x] **Duplicated rule removed at the cause**: `canReserve` and `reserve` each re-derived capacity /
+  spot-occupied / agent-already-holding, which is why one of them had no observable test - the two
+  copies could disagree and nothing noticed. Both now call `reservationBlocked(target, agentId)`
+  (`src/engine/npc/npcEngine.ts:1377`) and each of its three lines is separately guardable:
+  `engine-reservation-item-full`, `engine-reservation-spot-taken`.
+- [x] `policy-open-targets-filter` killed by the **behavioural** version, as loop 29 predicted: one
+  guest, a desk whose only interact spot is `post:reception-station`, real policy + real engine, 600
+  ticks, assert **zero** `interaction-start`. My earlier selector-level test returned null either way
+  (an upstream reachability check refused the target first), so the filter was never the thing under
+  test.
+- [x] `engine-reservation-item-full` killed only after the fixture was fixed: the first version had 3
+  guests at `speed 0.2`, so at most 2 ever arrived and the run passed with the capacity rule deleted -
+  the exact failure mode this gate exists to catch. Now `speed 40`, 1 500 ticks, and an explicit
+  `assert.equal(holdersAtOnce, 2)` that the two-place bar is genuinely contested by three guests.
+- [x] `[rejected]` `engine-one-reservation-per-agent` **removed from the manifest instead of being
+  tested**: with the dedupe in place no caller can reach it - `chooseTarget` asks `canReserve` and
+  reserves in the same step, so no agent is ever in `reserve` while already holding one. It stays in
+  the code as the commit-side check (a future caller could otherwise leak its existing reservation)
+  and the reason is in a comment at the line, not in a test that could never fail. Loop 29's lesson
+  applied: an unobservable guard is not a rule.
+- [x] Re-learned a loop-24 lesson the hard way, via typecheck: `TS2783 'pathfinder' is specified more
+  than once` in both new engine tests - the **policy owns the pathfinder**, so passing it before
+  `...policy` is dead code. Removed; 5/5 still green, which is the proof the override was inert.
+- [ ] Gap - `reservationBlocked`'s third line (`agentHolding`) is now covered by no gate at all. Honest
+  status: unreachable, documented, and therefore unverified by construction.
+- [x] Gates: **35/35 guards killed** (`npm run test:mutation`, 17 files restored and verified), 323 unit /
+  32 files, typecheck 0, lint 0 warnings, BEM + CSS pass.
+
+### Loop 31 - the bank survives closing the tab: a wallet, and the lobby earns while you are away
+
+- [x] `src/blueprint-editor/domain/economy/wallet.ts` - away time is *projected*, not re-simulated:
+  `accrueOffline({savedAtMs, nowMs, perMinuteCents})` credits the last measured rate against elapsed
+  minutes, `Math.floor` to whole cents, capped at `WALLET_OFFLINE_CAP_MINUTES = 480` (declared balance,
+  same discipline as the tariff table). Three refusals, each with a reason: no rate measured yet earns
+  nothing (same principle as an unproven reputation reading), a negative elapsed span earns nothing
+  rather than creating a debt (device clocks move backwards), and a re-simulated absence could produce
+  no walk-outs, so it can only ever be a projection.
+- [x] `parseWalletRecord` is boundary validation, not paranoia: storage is external input, and the
+  record shape is only accepted when `bankCents` is a **whole non-negative integer** - a fractional
+  cent is a rewritten record, not a rounding artefact, and would mint money.
+- [x] `TakingsLedger.deposit(cents)` - the single-ownership call. Chose deposit over a second balance:
+  two banks means two sources for "how much do I have", and the ledger already owns the day book.
+  A deposit moves `bankCents` and `carriedCents` **only** - never `windowCents`, `dayCents` or `served`.
+  That is not tidiness: the away credit is computed *from* `perMinuteCents`, so a deposit that raised
+  the rate would compound itself across sessions. Pinned by a guard (`ledger-deposit-is-not-a-service`).
+- [x] `reset()` now restores `bankCents = carriedCents` instead of 0: re-deploying the crowd
+  re-measures the lobby, it does not un-earn money that already arrived.
+- [x] `src/blueprint-editor/store/wallet.ts` + `createDeviceWallet()` - the bank is a **second key in the
+  same IndexedDB store**, deliberately not inside `blueprint-data`: that file is design work a user
+  exports, imports and hands to someone else, while the bank is what this design earned on this device.
+  Reuses `BlueprintStorage` (no second storage layer) by giving `createIndexedDbStorage` a key
+  parameter, defaulting to the workspace key so every existing call site is untouched.
+  `[decided]` Degrades to memory instead of throwing when IndexedDB is absent - the workspace port has
+  nothing to fall back to and must fail loudly; a wallet is allowed to be forgettable.
+- [x] Wired at the Vue lifecycle edge, never in the frame loop: `useNpcSimulation` settles the wallet
+  once at boot (guarded by `walletSettled`, so a re-deploy cannot pay the same absence twice) and
+  commits on unmount, on `visibilitychange -> hidden`, and every `WALLET_AUTOSAVE_MS` (60 s of wall
+  time, so a killed tab loses at most that much of the session).
+- [x] HUD: `Carried in` when a balance arrived from an earlier session, and `While away +X for Y min
+  (capped)` when the closed lobby earned. `Takings` now reads the total, not the session.
+- [x] 14 new tests: 7 in `tests/unit/walletOffline.test.ts` (rate projection, no-evidence, backwards
+  clock, cap boundary + overrun free, whole cents over a month, record round-trip, tampered records)
+  and 5 in `tests/unit/walletStore.test.ts` (commit -> restore through the real memory port, first run,
+  four junk encodings, cap-flagged long absence, `clear()` really forgets), plus the two ledger
+  deposit/reset cases. Manifest 35 -> **43 guards**.
+- [ ] Gap - nothing can be *spent* yet: the bank grows and persists but buys no staff, no facility and
+  no reputation repair, so the loop is still earn-only. Next.
+- [ ] Gap - `commit` writes the *live* rate, so a session that never served anyone saves 0 and the next
+  absence pays nothing. Honest today; wrong once a player expects the lobby to keep trading. Needs a
+  persisted "best rate this lobby has demonstrated" instead of the instantaneous one.
+- [x] Gates: 337 unit / 34 files, typecheck 0, lint 0 warnings, BEM + CSS pass, `verify.mjs check` pass,
+  mutation **42/43**. The one survivor was my own test again: it asserted
+  `earnedCents === Math.floor(155.2 * cap)`, i.e. it re-ran the very rule the mutant removed, so it
+  agreed with the broken rule by luck - the same class that fooled the gate in loop 27. `clean:check`
+  also caught one artifact (`scripts/arch/out` from the probe builds), removed with `npm run clean`.
+
+### Loop 32 - payroll: the deployed crowd finally has a cost
+
+- [x] `src/blueprint-editor/domain/economy/upkeep.ts` - one declared balance (`STAFF_DAY_WAGE_CENTS`,
+  same standing as the tariff table), `staffHeadcount(pool, isVisitor)` reading the **existing**
+  visitor rule the other way round (a role with no `taskIds` consumes; every other role is on the
+  payroll), and `settleDay({bankCents, incomePerDayCents, staffHeadcount})` -> payroll, profit,
+  `selfFunding`, `runwayDays`.
+- [x] Two deliberate asymmetries, both reasoned: runway is **floored** (two of three wages is not a
+  day of runway, it is bankrupt tomorrow) and a break-even day reports `selfFunding` - `>= 0`, not
+  `> 0`, because the alternative divides the bank by zero and calls a solvent lobby insolvent.
+- [x] `incomePerDayCents` is fed **net of standing**: bad service shrinking income is reputation's job,
+  so charging the same failure a second time inside payroll would double-punish one walk-out. Stated
+  in the code, not left to the reader.
+- [x] `formatTakings` could not print a loss: `Math.floor(-12050) % 100` is `-50`, so the fraction
+  carried a second sign (`-120.-0`). Now sign once, absolute digits - needed the moment profit can be
+  negative, not a cosmetic fix.
+- [x] Wired where the money already is: `useNpcSimulationCore.getStaffHeadcount()` (state's own
+  `visitorRoleIds` set, no second visitor rule), passed through `useNpcSimulation`, and the panel
+  settles the day in a computed alongside `standing`. HUD rows: Staff paid / Payroll per day / Profit
+  per day / Days of bank left (only when the lobby is losing).
+- [x] 10 tests `tests/unit/upkeepPayroll.test.ts` incl. the consequence that matters for design: the
+  **same** measured income is self-funding at 8 staff and insolvent at 32 - "the surplus was only ever
+  the unpaid half of the crowd". Manifest 43 -> **48 guards** (5 new: visitor-not-payroll, floored
+  runway, break-even bound, clamped headcount, negative formatting).
+- [x] Loop 31's survivor closed: the whole-cents test now asserts the literal `74_496` plus a half-cent
+  case, so the mutant has nowhere to hide behind a re-evaluated expectation.
+- [ ] Gap - payroll is displayed, never **charged**: nothing deducts it from the bank on a day
+  boundary, so profit is still a readout rather than a consequence. Needs the day-close hook to
+  settle (the ledger already knows `daysCompleted`).
+- [ ] Gap - the arch tool does not price the crowd yet (`scripts/arch/takings.ts` prints gross only),
+  so plan A/B still ranks lobbies by income, not by profit.
+
+### Loop 33 - payroll is charged, and the gate itself failed in a way that mattered
+
+- [x] `createTakingsLedger({ dailyChargeCents })` - the charge lives **inside the day book** (`advanceTo`),
+  not at a call site: the boundary where a hotel day closes is one place, and both surfaces (app + `arch
+  takings`) pay the crowd on it automatically. `payrollCents(headcount)` is the single wage rule, used by
+  the ledger's charge and by `settleDay`, so a projection can never disagree with what was actually billed.
+- [x] Two consequences pinned by tests: the bank **floors at zero** (unpaid payroll is written off -
+  insolvency is not yet a state the game has, and inventing debt at a call site would be), and a charge
+  clamps `carriedCents` down with the bank, because `reset()` restores the bank to `carriedCents` - so a
+  withdrawal that left carried above bank would **mint money back** on the next re-deploy.
+- [x] `[decided]` Deliberately did NOT add a public `withdraw()` to the ledger: nothing needed it, and a
+  second money-moving method invites the very clamp bug above to be forgotten by its next caller.
+- [x] **Gate failure, and the damage it left**: `npm run test:mutation` crashed with
+  `Error: UNKNOWN: unknown error, open ...npcEngine.ts` (Windows file lock, errno -4094) on a *restore*
+  write - leaving `const itemFull = false` live in the tree with the runner gone. Found in 20 seconds, not
+  by re-running the suite: a script that walks `tests/mutation-guards.json` and checks every `find` string
+  is still present in its file (`every guard find-string is present in the tree`), which is now the
+  standing integrity check after any gate run. The failing engine test confirmed the same file.
+- [x] `docs/skill/economy.md` written and routed from `skill.md`: the six economy modules, the eight
+  invariants (one owner of the bank, whole cents, deposit-is-not-a-service, carried-survives-reset,
+  projection-not-resimulation, day charges payroll), the declared-balance list, and **the three
+  retracted claims** from loops 19-22 so nobody re-derives them from the code's shape.
+- [x] Manifest 48 -> **51 guards** (day-close charge, carried clamp, entry-level headcount clamp).
+  Full pass **51/51 killed**, 20 files restored and verified; 350 unit / 35 files, typecheck 0.
+- [x] `arch takings` prices the crowd (`settleDay` at the report edge, income net of standing), so a plan
+  A/B ranks by **profit**, not gross. Measured on the designed lobby (20 000 ticks, arrivals 500/day,
+  patience 3 s): income 633.00/day gross, **payroll 1,920.00/day for 32 staff**, **profit -1,524.37/day,
+  0 days of bank left**, reputation 25/100 on 77 walk-outs. The first number in this project that says
+  the authored lobby is over-staffed for the traffic it can serve - a shape claim (the wage is a declared
+  balance), not a price tag.
+- [x] Gate hardened for the failure it caused: all four writes go through `writeWithRetry` (bounded
+  backoff on Windows `UNKNOWN`/errno -4094), so a momentary lock cannot abort a run with a mutant live.
+- [x] `docs/skill/economy.md` routed from `skill.md`; the post-run integrity check is in project memory.
+
+### Loop 34 - the wallet keeps the rate the lobby *proved*, not the one it last showed
+
+- [x] Closed loop 31's gap: `WalletRecord.demonstratedPerMinuteCents` is a **high-water mark** written on
+  every commit (`Math.max(previous, current)`), and away time is credited off `creditableRate(record)`.
+  Before this, a session that served nobody saved a 0 rate and the next reopening paid nothing - the
+  lobby's earning power reset every time the player looked away, which is not an idle game.
+- [x] Backward compatible by shape, not by migration: the field is optional and `parseWalletRecord` only
+  rejects it when present and invalid, so a record written minutes ago still accrues off
+  `perMinuteCents`. Pinned by a test that stores hand-written legacy JSON.
+- [x] `readRecord()` extracted inside `createWalletStore` and used by both `restore` and `commit` - the
+  storage boundary is read one way, and the junk-tolerance is not a second copy of the parse logic.
+- [x] Manifest 51 -> **53 guards**: the repointed `wallet-corrupt-record-refused` (its old anchor
+  disappeared in the refactor - caught by the find-string check, not by a passing verdict) plus
+  `wallet-demonstrated-rate-mark` and `wallet-legacy-rate-fallback`. **53/53 killed**, tree re-verified
+  clean after the run, typecheck 0, lint 0 warnings, `clean:check` clean.
+- [x] Also in this window (loops 30-33, all verified): engine reservation dedupe and the last 3 engine
+  guards closed; the persisted wallet + `deposit`/carried semantics; payroll charged inside the day book;
+  `arch takings` printing **profit** (measured: 633.00/day income vs 1,920.00/day payroll for 32 staff =
+  **-1,524.37/day, runway 0**); `docs/skill/economy.md` routed from `skill.md`.
+- [ ] Open next, in order: (1) insolvency as a state - staff stop working when the day cannot be paid,
+  which is the only honest consequence of the number above; (2) spend the bank on a fixture or a role
+  through the existing store writes; (3) reputation as a resource (recover per closed day, buy back);
+  (4) rank `arch eval` candidates by profit; (5) sync/import-export round-trip guards.
+- [ ] Parked for your call, unchanged since loop 18: repair-or-reject a file whose street band exceeds
+  its canvas; whether Escape reverts a partial drag; whether a locked member halts a group or is moved
+  around; `usePx` - wire it or retire it (retiring changes a persisted field real workspaces can hold);
+  toolbar badge wording now that `collapsed` means two things. Nothing committed - 43 files dirty, git is yours.
+- [ ] Gap - the gate has no crash protection of its own: a locked write during restore leaves a mutant
+  in the tree and the run aborts before the residual check. Needs `try/finally` around the per-guard
+  restore plus a retry on `UNKNOWN`. Hardening queued, not yet done.
+- [ ] Gap - payroll still has no *consequence beyond money*: an insolvent lobby keeps operating. The
+  honest next step is a state (staff walk off when the bank cannot pay), not a bigger wage number.
+
+
+
+
+### Placement/collision pass - carried, complete and uncommitted
 
 - [x] Asset-browser delete: per-row `Del` stuck `disabled` after one delete (`pending` read inside the `v-memo` row) - guard moved to JS, repro test in `tests/component/assetPickerDelete.test.ts`
 - [x] Same `v-memo` freeze in the sidebar asset list (move-button guards, size label, incomplete badge) - memo deps now cover every value the row reads; `tests/component/assetToolbarRows.test.ts`
@@ -168,6 +671,29 @@ Stop placed objects and assets from sharing space with each other and with paint
 - [x] Chose to stop the harm rather than rewrite loaded data: `addObject` and `canPlaceObject` now refuse a clamped rect of non-positive size (`src/blueprint-editor/store/objects.ts:101-110`), so a corrupt layout reports `the street band leaves no floor area at this canvas size` instead of producing an **invisible zero-size object** that passes the gate because it overlaps nothing and covers no cells. Clamping `streetWidthTiles` up or silently enlarging the canvas on load would have mutated user data to fit a bad combination; that stays a decision for the same open list as `usePx`.
 - [x] Test written, run green, then **falsified** against the unguarded store: removing the guard flips it to `1 failed`, restoring flips it back. "a degenerate building area refuses placement instead of creating a zero-size object".
 - [x] Unit 273, e2e 20, typecheck 0, lint 0, tree clean.
+
+### Next in the free-token window (queue, ordered by value per machine-hour)
+
+Every item below is machine-gated (a suite, a guard, or a measured command), because unattended tokens
+are only worth spending where a script can say "wrong" afterwards.
+
+1. **Profit as the plan score** - print payroll + profit/day in `arch takings` and make `arch eval`
+   rank by profit, not gross. Closes the loop-32 gap; turns the A/B the user already runs into an
+   economic verdict.
+2. **Insolvency as a state, not a number** - staff walk off when the bank cannot pay the day. One
+   engine-visible consequence of the money the sim already counts; do not raise the wage constant
+   instead.
+3. **Spend the bank on the floor** - buy a fixture or a role from the HUD, placed through the existing
+   store write (`addObject` / pool edit), so money leaves as well as arrives. Needs the placement gate
+   to be the one that runs, never a second path.
+4. **Reputation as a resource** - recovery per closed day toward the evidence, and a purchase that
+   repairs it (the loop-26 gap). Pairs naturally with 3.
+5. **Persist the demonstrated rate** - the wallet currently saves the *instantaneous* rate, so a
+   session that served nobody pays nothing next time it reopens (loop 31 gap).
+6. **Lobby candidate fan-out** - generate N plans, score each with `arch takings --arrivals --patience`
+   + `arch eval`, render the top few for the user's eye. Bulk, parallel, zero judgement required.
+7. **Grow the manifest toward the sync/import-export surface** - `payload.ts` round-trip fields are the
+   one ingress class still covered only by unit tests (the loop-18 hand-off note).
 
 ## Blockers
 

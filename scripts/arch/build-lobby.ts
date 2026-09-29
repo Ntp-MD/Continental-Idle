@@ -15,6 +15,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { tileKey } from '../../src/engine/npc/keys'
+import { tileStatesToWalkableGrid } from '../../src/blueprint-editor/domain/schema/walkable'
 import { loadWorld } from './world'
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
@@ -344,15 +345,17 @@ export function buildLobby(payloadPath: string, planPath: string, writeInPlace: 
 /** Stamp the drawn grid and the placed fixtures onto the floor, in the host's own units. */
 interface WritableFloor {
 	id: string
-	walkable?: { tileStates?: TileState[][] }
+	walkable?: { walkableGrid?: unknown[]; tileStates?: TileState[][] }
 	objects?: unknown[]
 }
 
 function apply(raw: { layout: { floors: WritableFloor[] } }, grid: TileState[][], plan: Plan, tileSize: number): void {
 	const floor = raw.layout.floors.find(candidate => candidate.id === FLOOR_ID)
 	if (!floor) throw new PlanError(`floor "${FLOOR_ID}" not found in the payload`)
-	floor.walkable ??= {}
-	floor.walkable.tileStates = grid
+	// Both grid fields or neither. `normalizeFloorWalkable` rejects a floor whose walkableGrid
+	// disagrees with its tileStates, so replacing only one made every built payload unloadable
+	// by the app itself. This mirrors the store's own paint write (store/floors.ts).
+	floor.walkable = { tileStates: grid, walkableGrid: tileStatesToWalkableGrid(grid) }
 	floor.objects = plan.furniture.map(item => ({
 		id: item.id,
 		type: item.type,

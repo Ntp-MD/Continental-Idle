@@ -8,10 +8,11 @@ export interface ChatBubble {
 	dim: boolean
 }
 
-export type NpcMoodKind = 'patient' | 'stuck' | 'bored' | 'lost' | 'waiting' | 'detouring' | 'unknown' | null
+export type NpcMoodKind = 'patient' | 'stuck' | 'bored' | 'lost' | 'waiting' | 'detouring' | 'frustrated' | 'unknown' | null
 
 export const NPC_MOOD_LEGEND: readonly { kind: Exclude<NpcMoodKind, null>; label: string; color: string }[] = [
 	{ kind: 'stuck', label: 'Stuck (cross)', color: 'var(--accent-red)' },
+	{ kind: 'frustrated', label: 'Left a line', color: 'var(--accent-red)' },
 	{ kind: 'patient', label: 'Patient', color: 'var(--accent-blue)' },
 	{ kind: 'detouring', label: 'Detouring', color: 'var(--accent-blue)' },
 	{ kind: 'waiting', label: 'Waiting', color: 'var(--accent-gold)' },
@@ -48,6 +49,8 @@ export function resolveNpcMood(status: NpcSimDot['status'], reason: string | und
 		case 'yielded':
 		case undefined:
 			return null
+		case 'impatient':
+			return 'frustrated'
 		default:
 			return 'unknown'
 	}
@@ -270,7 +273,7 @@ export function useNpcOverlayDraw(sources: NpcOverlayDrawSources) {
 		ctx.beginPath()
 		ctx.arc(sx, sy, dotR * 1.45, 0, Math.PI * 2)
 		if (dot.status === 'interacting' || dot.status === 'chatting') ctx.strokeStyle = colGreen
-		else if (mood === 'stuck') ctx.strokeStyle = colRed
+		else if (mood === 'stuck' || mood === 'frustrated') ctx.strokeStyle = colRed
 		else if (mood === 'lost' || mood === 'waiting') ctx.strokeStyle = colGold
 		else if (mood === 'patient' || mood === 'detouring') ctx.strokeStyle = colGuide
 		else if (mood === 'bored' || mood === 'unknown') ctx.strokeStyle = colDim

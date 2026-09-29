@@ -4,6 +4,7 @@ import { applySvgColorConvention, isSafeSvgMarkup, normalizeBlueprintDataFile, n
 import { serializeAsset, serializeObject } from '../../src/blueprint-editor/assets/assetUtils'
 import { resolvePlacedObject } from '../../src/blueprint-editor/domain/geometry'
 import { buildBlueprintData } from '../../src/blueprint-editor/store/dataLoader'
+import { normalizePersistedLayoutData } from '../../src/blueprint-editor/domain/schema/dataFile'
 import { emptyNpcConfig } from '../../src/blueprint-editor/store/storeUtils'
 import type { AssetDef, CanvasConfig, FloorLayoutData, ObjectData } from '../../src/blueprint-editor/domain/types'
 
@@ -290,4 +291,16 @@ test('resolveDefaultWalkable is the single default path', () => {
 	assert.equal(resolveDefaultWalkable({}), true, 'missing field defaults to walkable')
 	assert.equal(resolveDefaultWalkable({ defaultWalkable: 'no' }), true, 'non-boolean falls back to walkable')
 	assert.equal(resolveDefaultWalkable(null), true)
+})
+
+test('a persisted layout whose street band breaks the range is refused at ingress', () => {
+	const layout = (streetWidthTiles: number) => ({
+		version: 1,
+		canvas: { width: 800, height: 600, tileSize: 25, bgColor: '#212121', labelColor: '#cfcfcf', wallColor: '#ffffff', gridColor: '#4d4d56' },
+		floors: [{ id: 'f1', name: 'Floor 1', label: 'F1', objects: [] }],
+		streetWidthTiles,
+	})
+	assert.equal(normalizePersistedLayoutData(layout(3)), undefined, 'below MIN_STREET_WIDTH_TILES')
+	assert.equal(normalizePersistedLayoutData(layout(21)), undefined, 'above MAX_STREET_WIDTH_TILES')
+	assert.ok(normalizePersistedLayoutData(layout(8)), 'an in-range band is a valid layout')
 })
