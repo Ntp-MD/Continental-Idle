@@ -12,12 +12,15 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { TAKING_RATES_CENTS } from '../../src/blueprint-editor/domain/economy/takings'
+import { buildLobby } from './build-lobby'
 import { CAPABILITY_MANIFEST, CLOSURE_RIGHTS, evaluate } from './evaluate'
-import { diffDistance, distinctAlternatives, formatComparison, measureOption, paretoSet, rankOptions, RANKED_KEYS, WEIGHT_PROFILES } from './compare'
+import { diffDistance, distinctAlternatives, economyFromReport, formatComparison, measureOption, paretoSet, rankOptions, RANKED_KEYS, WEIGHT_PROFILES, type OptionEconomy } from './compare'
 import { FIXTURE_FLOOR_ID, fixtureFloors, fixtureFloorId, FIXTURES, fixtureToDataFile, type Fixture } from './fixtures'
 import { buildingKpis, entryCell, floorKpis, regressions } from './metrics'
 import { renderAscii, renderContactSheet, renderPng, renderSvg } from './render'
 import { metricRows, probeMinimality, revise, type Patch } from './revise'
+import { measureTakings } from './takings'
 import { loadWorld } from './world'
 import type { EvaluationReport } from './types'
 
@@ -274,6 +277,16 @@ function runRepairChecks(runs: readonly FixtureRun[]): string[] {
 	return failures
 }
 
+/**
+ * A block's own money reading, so the stage ranks on the same columns `--economy` publishes. A third of
+ * a day is enough: the profit KPI is a projection of the measured rate, and the claim here is that the
+ * column exists and is finite for every option, not that the day closed. This became possible when
+ * fixture payloads started passing the strict ingress (loop 68) - `measureTakings` reads through it.
+ */
+function economyOf(planPath: string): OptionEconomy {
+	return economyFromReport(measureTakings(planPath, { ticks: Math.floor(ECONOMY_TICKS / 3), agents: 12 }))
+}
+
 /** An option with a critical finding is a broken plan, so it may never appear in a ranking at all. */
 function runCompareChecks(runs: readonly FixtureRun[]): string[] {
 	const control = runs.find(run => run.fixture.polarity === 'good')
@@ -281,7 +294,7 @@ function runCompareChecks(runs: readonly FixtureRun[]): string[] {
 	if (!control || !blocked) return [`compare fixtures missing: ${BLOCKED_FIXTURE} and/or the good control`]
 	const failures: string[] = []
 
-	const options = [measureOption('good', control.planPath), measureOption('broken', blocked.planPath)]
+	const options = [measureOption('good', control.planPath, economyOf(control.planPath)), measureOption('broken', blocked.planPath, economyOf(blocked.planPath))]
 	const broken = options[1]
 	if (options[0].disqualified) failures.push('the control option was disqualified by a critical finding')
 	if (!broken.disqualified) failures.push(`"${BLOCKED_FIXTURE}" carries a critical finding but was not disqualified`)
@@ -548,6 +561,66 @@ function runVectorChecks(runs: readonly FixtureRun[]): string[] {
 	return failures
 }
 
+/**
+ * The money stage. `--economy` ranks plans on what the crowd banks, and until this stage existed nothing
+ * proved the tool *can* bank: the tariff and the shipped content drifted apart once without anyone
+ * noticing (loop 58 found a library carrying no rate tag at all), and a ranking whose money columns are
+ * all zero still prints a winner.
+ *
+ * Two readings of one plan - the authored income fixture, drawn into a copy of the shipped workspace -
+ * that differ only in whether the fixtures it places are priced: the control swaps every billable
+ * fixture for a sofa, which the crowd still uses and the tariff still ignores. A zero bank in the
+ * control therefore means the tariff, not a broken harness.
+ */
+const STORE_FILE = path.join(ROOT, 'src/blueprint-editor/data/blueprint-data.json')
+const INCOME_PLAN = path.join(HERE, 'lobby', 'services-probe.txt')
+/** One authored day at the engine's clock, so a reading is a day and not a fragment of one. */
+const ECONOMY_TICKS = 18_000
+
+function economyPayload(name: string, unbilled: boolean): string {
+	const file = path.join(WORK, `${name}.json`)
+	fs.writeFileSync(file, fs.readFileSync(STORE_FILE, 'utf8'))
+	if (buildLobby(file, INCOME_PLAN, true).fixtures <= 0) throw new Error(`the economy probe wrote no fixtures into ${name}`)
+	if (!unbilled) return file
+	const payload = JSON.parse(fs.readFileSync(file, 'utf8')) as {
+		originAssets: { id: string; tags?: string[] }[]
+		layout: { floors: { objects: { type: string }[] }[] }
+	}
+	const bills = (type: string) =>
+		(payload.originAssets.find(asset => asset.id === type)?.tags ?? []).some(
+			tag => tag in TAKING_RATES_CENTS && !tag.startsWith('post:'),
+		)
+	for (const floor of payload.layout.floors) {
+		for (const object of floor.objects) if (bills(object.type)) object.type = 'sofa-1'
+	}
+	fs.writeFileSync(file, `${JSON.stringify(payload, null, 1)}\n`)
+	return file
+}
+
+function runEconomyChecks(): string[] {
+	const failures: string[] = []
+	const options = { ticks: ECONOMY_TICKS, agents: 20, arrivals: true, arrivalsPerDay: 150 }
+	const earning = measureTakings(economyPayload('economy-earning', false), options)
+	const unbilled = measureTakings(economyPayload('economy-unbilled', true), options)
+
+	// Both branches have to be seen. An empty bank in the control only means something when the same
+	// crowd was still served, and a full one in the probe only means something against that control.
+	if (earning.completed <= 0 || earning.served <= 0) {
+		failures.push(`the income fixture served nobody (${earning.started} started, ${earning.completed} completed, ${earning.served} billed) - the money stage is measuring a harness, not a plan`)
+	} else if (earning.bankCents <= 0) {
+		failures.push(`${earning.served} billed services at priced fixtures banked ${earning.bankCents} - the tariff and the shipped content have drifted apart`)
+	}
+	// `served` is the ledger's count of billed services, so the control's zero there is the claim itself.
+	// What it has to prove is that the crowd still worked the room - `completed` - while banking nothing;
+	// otherwise an empty bank would only show that nobody got anywhere.
+	if (unbilled.completed <= 0) {
+		failures.push(`the unpriced control completed no service (${unbilled.started} started), so its empty bank proves nothing about the tariff`)
+	} else if (unbilled.bankCents > 0 || unbilled.served > 0) {
+		failures.push(`fixtures with no tariff tag banked ${unbilled.bankCents} across ${unbilled.served} billed services - "bills nothing" is no longer something the control can show`)
+	}
+	return failures
+}
+
 export function runSelfTest(): number {
 	const runs = runFixtures()
 	const failures: string[] = []
@@ -571,13 +644,15 @@ export function runSelfTest(): number {
 	const vertical = runVerticalChecks(runs)
 	const render = runRenderChecks(runs)
 	const vector = runVectorChecks(runs)
-	failures.push(...repair, ...comparison, ...vertical, ...render, ...vector)
+	const economy = runEconomyChecks()
+	failures.push(...repair, ...comparison, ...vertical, ...render, ...vector, ...economy)
 	lines.push('')
 	lines.push(`repair stage:   ${repair.length ? 'FAILED' : 'ok'} - a no-op earns nothing, cleared/still-open/introduced and the metric deltas are reproducible, and a rung may not understate its own operations`)
-	lines.push(`compare stage:  ${comparison.length ? 'FAILED' : 'ok'} - a critical finding disqualifies an option, and a variant of one is collapsed instead of ranked`)
+	lines.push(`compare stage:  ${comparison.length ? 'FAILED' : 'ok'} - a critical finding disqualifies an option, a variant of one is collapsed instead of ranked, and every ranked column - geometry and money alike - is measured on every option`)
 	lines.push(`section stage:  ${vertical.length ? 'FAILED' : 'ok'} - drift is blamed on the storey that moved, and only that storey`)
 	lines.push(`render stage:   ${render.length ? 'FAILED' : 'ok'} - the picture is a real, non-blank, fully-composed image and an upper storey is entered through its core`)
 	lines.push(`vector stage:   ${vector.length ? 'FAILED' : 'ok'} - every published KPI is judgeable: a band, a band source, a finite value, a legal direction, unique keys per storey`)
+	lines.push(`economy stage:  ${economy.length ? 'FAILED' : 'ok'} - a tagged fixture banks money to a served crowd, and an untagged one banks nothing to the same crowd`)
 
 	if (failures.length) {
 		lines.push('', `## FAILED (${failures.length})`)

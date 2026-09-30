@@ -77,6 +77,19 @@ export function pruneStaleDots(frameDots: Map<string, NpcSimDot>, seenIds: Reado
 	}
 }
 
+/**
+ * The same sweep without the dot map's shortcut. `pruneStaleDots` skips the scan whenever the map is
+ * no larger than the agent set, which is sound only for a map that mirrors the crowd one-for-one: a
+ * per-arrival book is a strict subset of it from the first frame, so that shortcut would never delete
+ * anything and the bindings of departed clients would accumulate for a session that never ends.
+ */
+export function pruneAgentKeys<V>(byAgent: Map<string, V>, seenIds: ReadonlySet<string>): void {
+	if (!byAgent.size) return
+	for (const id of byAgent.keys()) {
+		if (!seenIds.has(id)) byAgent.delete(id)
+	}
+}
+
 export function pruneWaitReasons(waitReasons: Map<string, string>, frameDots: ReadonlyMap<string, NpcSimDot>): void {
 	for (const id of waitReasons.keys()) {
 		const dot = frameDots.get(id)

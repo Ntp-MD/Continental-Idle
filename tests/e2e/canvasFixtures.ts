@@ -1,4 +1,6 @@
 import { expect, type Page, type Locator } from '@playwright/test'
+import { readFileSync, writeFileSync } from 'node:fs'
+import path from 'node:path'
 
 /**
  * Shared browser fixtures for the canvas e2e specs. Every coordinate is derived from the
@@ -187,3 +189,47 @@ export async function beginObjectDrag(page: Page, at: { x: number; y: number }) 
 	await page.waitForTimeout(80)
 	return p
 }
+
+/** The authored house: a production build boots empty, so this file is the only way to a real lobby. */
+export const SEED_WORKSPACE = path.join(process.cwd(), 'src/blueprint-editor/data/blueprint-data.json')
+
+/** The two fields a spec rewrites, kept loose so a shape change in the seed is an error, not a skip. */
+export interface WorkspaceData {
+	layout: { floors: Array<{ objects: Array<Record<string, unknown>> }> }
+}
+
+/**
+ * Import the authored workspace through the Workspace dialog - the route a player actually takes, since
+ * stores persist to IndexedDB and a production build starts from `emptySeed()`. The confirm layer is a
+ * top-layer shell rather than a `role=dialog`, and its button carries the autofocus flag, which is the
+ * same affordance a keyboard user's Enter takes.
+ */
+export async function importWorkspace(page: Page, dir: string, rewrite?: (data: WorkspaceData) => void) {
+	const file = path.join(dir, 'blueprint-data.json')
+	const raw = readFileSync(SEED_WORKSPACE, 'utf8')
+	if (rewrite) {
+		const data = JSON.parse(raw) as WorkspaceData
+		rewrite(data)
+		writeFileSync(file, JSON.stringify(data))
+	} else {
+		writeFileSync(file, raw)
+	}
+	await page.getByRole('button', { name: 'Open workspace import and export' }).click()
+	const dialog = page.locator('[role=dialog]')
+	await expect(dialog).toBeVisible()
+	await dialog.locator('input[type=file]').setInputFiles(file)
+	await page.locator('#modal-confirm [data-autofocus]').click()
+	await page.waitForTimeout(1200)
+	await dialog.getByRole('button', { name: 'Close', exact: true }).last().click().catch(() => {})
+	await page.waitForTimeout(1000)
+}
+
+/** Deploy the imported house, and wait until no dialog is left holding the canvas. */
+export async function deployWorkspace(page: Page) {
+	await page.getByRole('button', { name: 'Deploy NPCs' }).click()
+	const dialog = page.locator('[role=dialog]')
+	await expect(dialog).toBeVisible()
+	await dialog.getByRole('button', { name: 'Deploy', exact: true }).click()
+	await expect(page.locator('[role=dialog]')).toHaveCount(0, { timeout: 10_000 })
+}
+

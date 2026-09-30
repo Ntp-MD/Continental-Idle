@@ -435,7 +435,7 @@ commands:
   compare   A/B/C same-metric comparison                 <a.json> <b.json> [c.json ...]
                                                          [--md out.md] [--png sheet.png] [--floor id]
                                                          [--economy] runs the real crowd over each and
-                                                         ranks on profit/day, not gross: [--ticks n]
+                                                         ranks on profit/day and the street owed, not gross: [--ticks n]
                                                          [--agents n] [--stay s] [--patience s]
                                                          [--footfall n] [--standing]
   revise    apply a repair, re-render, re-evaluate       --patch patch.json [--out path]

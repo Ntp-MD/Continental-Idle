@@ -6,13 +6,30 @@ import { cloneDeepRaw } from '../../src/blueprint-editor/store/storeUtils'
 import { createTakingsLedger, TAKING_RATES_CENTS, type TakingsLedger } from '../../src/blueprint-editor/domain/economy/takings'
 import {
 	FIXTURE_COST_DAYS,
+	FIXTURE_HOLDING_COST_DAYS,
+	FIXTURE_MAX_COST_DAYS,
+	OBJECTIVE_REWARD_DAY_CAP_FRACTION,
+	OBJECTIVE_REWARD_FRACTION,
+	OBJECTIVE_REWARD_STREAK_CAP,
+	FACTION_GOODWILL_COST_CENTS,
 	STAFF_HIRE_COST_DAYS,
+	FIXTURE_SALE_FRACTION,
 	affordable,
+	facilityHoldings,
 	fixturePriceCents,
+	holdingCountFor,
+	objectiveRewardCents,
 	staffHirePriceCents,
 } from '../../src/blueprint-editor/domain/economy/purchases'
 import { STAFF_DAY_WAGE_CENTS } from '../../src/blueprint-editor/domain/economy/upkeep'
 import { REPUTATION_NEUTRAL } from '../../src/blueprint-editor/domain/economy/reputation'
+import {
+	createWorldState,
+	FACTION_GOODWILL_POINTS,
+	FACTION_RELATIONS_DEFAULT,
+	type Faction,
+	type WorldState,
+} from '../../src/blueprint-editor/domain/economy/standing-world'
 import { STANDING_REPAIR_COST_CENTS } from '../../src/blueprint-editor/domain/economy/purchases'
 import { useShopPurchases } from '../../src/blueprint-editor/composables/useShopPurchases'
 import { useToast } from '@/composables/useToast'
@@ -45,6 +62,18 @@ function fundedLedger(cents: number): TakingsLedger {
 function fakeStanding(start = 30): { get(): number; set(score: number): void; current(): number } {
 	let score = start
 	return { get: () => score, set: (value: number) => { score = value }, current: () => score }
+}
+
+/** A world the shop can mend, so a message round the room is proven as a purchase and not as arithmetic. */
+function fakeWorld(start: WorldState = createWorldState()): { get(): WorldState; set(next: WorldState): void; current(): WorldState } {
+	let world = start
+	return { get: () => world, set: (value: WorldState) => { world = value }, current: () => world }
+}
+
+/** One house wronged to the given standing, every other left where a fresh world starts. */
+function wrongedWorld(faction: Faction, relations: number): WorldState {
+	const base = createWorldState()
+	return { ...base, factions: { ...base.factions, [faction]: { ...base.factions[faction], relations } } }
 }
 
 function installOrigin(id: string, tags: string[]): AssetDef {
@@ -90,7 +119,7 @@ test('buying a fixture places it through the store gate and charges exactly its 
 	reset()
 	const asset = installOrigin('bar-counter', ['bar'])
 	const ledger = fundedLedger(TAKING_RATES_CENTS.bar * FIXTURE_COST_DAYS)
-	const shop = useShopPurchases({ store, ledger, standing: fakeStanding() })
+	const shop = useShopPurchases({ store, ledger, standing: fakeStanding() , world: fakeWorld() })
 	const before = (state.layout.floors[0]?.objects ?? []).length
 
 	const verdict = await shop.buyFixture(asset)
@@ -104,7 +133,7 @@ test('a fixture the bank cannot cover is never placed', async () => {
 	reset()
 	const asset = installOrigin('contract-desk', ['contract-board'])
 	const ledger = fundedLedger(TAKING_RATES_CENTS['contract-board'] * FIXTURE_COST_DAYS - 1)
-	const shop = useShopPurchases({ store, ledger, standing: fakeStanding() })
+	const shop = useShopPurchases({ store, ledger, standing: fakeStanding() , world: fakeWorld() })
 
 	const verdict = await shop.buyFixture(asset)
 	assert.equal(verdict.ok, false)
@@ -116,7 +145,7 @@ test('an asset that bills nothing cannot be bought', async () => {
 	reset()
 	const asset = installOrigin('garden-bench', ['lounge'])
 	const ledger = fundedLedger(1_000_000)
-	const shop = useShopPurchases({ store, ledger, standing: fakeStanding() })
+	const shop = useShopPurchases({ store, ledger, standing: fakeStanding() , world: fakeWorld() })
 
 	assert.equal((await shop.buyFixture(asset)).ok, false)
 	assert.equal((state.layout.floors[0]?.objects ?? []).length, 0)
@@ -127,7 +156,7 @@ test('when the floor cannot take the object, no money moves', async () => {
 	reset()
 	const asset = installOrigin('bar-counter', ['bar'])
 	const ledger = fundedLedger(100_000)
-	const shop = useShopPurchases({ store, ledger, standing: fakeStanding() })
+	const shop = useShopPurchases({ store, ledger, standing: fakeStanding() , world: fakeWorld() })
 	// No current floor: the store's own placement gate has nothing to write into, and the purchase
 	// must read that as "not sold", not as "paid".
 	state.currentFloorId = ''
@@ -153,9 +182,11 @@ test('hiring a head goes through the deployment write path and charges the hire 
 
 	const price = staffHirePriceCents()
 	const ledger = fundedLedger(price)
-	const shop = useShopPurchases({ store, ledger, standing: fakeStanding() })
+	const shop = useShopPurchases({ store, ledger, standing: fakeStanding() , world: fakeWorld() })
 	const hireable = shop.hireableRoles(store.state.layout.npcConfig as unknown as NpcSimulationConfig)
 	assert.deepEqual(hireable.map(role => role.roleId), ['desk'], 'a guest is not staff, so it cannot be hired')
+	// The row names the duty the head fills, because that is what goes unmanned when it is released.
+	assert.deepEqual(hireable.map(role => role.duties), [['Duty']], 'the hire row does not say what the head does')
 
 	const verdict = await shop.hireStaff('desk', store.state.layout.npcConfig as unknown as NpcSimulationConfig)
 	assert.ok(verdict.ok, `the hire was refused: ${JSON.stringify(toast.toasts.value)}`)
@@ -180,7 +211,7 @@ test('a hire the deployment will not accept costs nothing', async () => {
 	await store.updateNpcConfig(config)
 
 	const ledger = fundedLedger(staffHirePriceCents())
-	const shop = useShopPurchases({ store, ledger, standing: fakeStanding() })
+	const shop = useShopPurchases({ store, ledger, standing: fakeStanding() , world: fakeWorld() })
 	const verdict = await shop.hireStaff('desk', store.state.layout.npcConfig as unknown as NpcSimulationConfig)
 	assert.equal(verdict.ok, false)
 	assert.equal(ledger.snapshot().bankCents, staffHirePriceCents(), 'a head the deployment refused was still charged')
@@ -199,18 +230,153 @@ test('a hire nobody can pay for leaves the deployment untouched', async () => {
 	await store.updateNpcConfig(config)
 
 	const ledger = fundedLedger(staffHirePriceCents() - 1)
-	const shop = useShopPurchases({ store, ledger, standing: fakeStanding() })
+	const shop = useShopPurchases({ store, ledger, standing: fakeStanding() , world: fakeWorld() })
 	const verdict = await shop.hireStaff('desk', store.state.layout.npcConfig as unknown as NpcSimulationConfig)
 	assert.equal(verdict.ok, false)
 	assert.equal((store.state.layout.npcConfig as unknown as NpcSimulationConfig).pool.find(entry => entry.roleId === 'desk')?.count, 1)
 	assert.equal(ledger.snapshot().bankCents, staffHirePriceCents() - 1)
 })
 
+const staffConfig = () => ({
+	...cloneDeepRaw(state.layout.npcConfig ?? {}),
+	speed: 0.4,
+	defaultRoleId: 'desk',
+	roles: [{ id: 'desk', label: 'Desk', color: '#fff', focusTags: [], restrictedTags: [], taskIds: ['duty-desk'], focusChance: 0 }],
+	tasks: [{ id: 'duty-desk', label: 'Duty', tags: ['front-desk'] }],
+	pool: [{ roleId: 'desk', count: 2 }],
+}) as unknown as NpcSimulationConfig
+
+test('releasing a head takes the wage off and pays nothing out', async () => {
+	reset()
+	await store.updateNpcConfig(staffConfig())
+	// An empty bank is the point: a release is the remedy a house with no money can still take.
+	const ledger = fundedLedger(0)
+	const shop = useShopPurchases({ store, ledger, standing: fakeStanding(), world: fakeWorld() })
+	const verdict = await shop.dismissStaff('desk', store.state.layout.npcConfig as unknown as NpcSimulationConfig)
+	assert.ok(verdict.ok, `the release was refused: ${JSON.stringify(toast.toasts.value)}`)
+	assert.equal(verdict.priceCents, 0, 'a release reported a price')
+	const pool = (store.state.layout.npcConfig as unknown as NpcSimulationConfig).pool
+	assert.equal(pool.find(entry => entry.roleId === 'desk')?.count, 1, 'the deployment kept the head it was told to release')
+	assert.equal(ledger.snapshot().bankCents, 0, 'a severance was paid out of a bank that had nothing')
+	assert.equal(ledger.snapshot().served, 0, 'a release is not a served client')
+})
+
+test('the last head goes to zero, and a role nobody holds is refused', async () => {
+	reset()
+	await store.updateNpcConfig({ ...staffConfig(), pool: [{ roleId: 'desk', count: 1 }] })
+	const ledger = fundedLedger(5_000)
+	const shop = useShopPurchases({ store, ledger, standing: fakeStanding(), world: fakeWorld() })
+	const config = () => store.state.layout.npcConfig as unknown as NpcSimulationConfig
+	assert.ok((await shop.dismissStaff('desk', config())).ok)
+	assert.equal(config().pool.find(entry => entry.roleId === 'desk')?.count, 0, 'the last head was kept on')
+	// A house with nobody on shift is a state the player can reach and see, not a rule the shop hides.
+	assert.equal((await shop.dismissStaff('desk', config())).ok, false, 'an empty role released again')
+	assert.equal((await shop.dismissStaff('no-such-role', config())).ok, false)
+	assert.equal(ledger.snapshot().bankCents, 5_000, 'a refused release moved money')
+	// And with no deployment at all there is no payroll to cut.
+	assert.equal((await shop.dismissStaff('desk', undefined)).ok, false)
+})
+
+test('a met night pays a share of its own takings, scaled by the streak and capped by the night', () => {
+	// One goal, one day: the declared share of what the lobby itself took.
+	assert.deepEqual(
+		objectiveRewardCents({ lastDayCents: 10_000, goals: [{ met: true, streak: 1 }] }),
+		{ cents: Math.floor(10_000 * OBJECTIVE_REWARD_FRACTION), capped: false },
+	)
+	assert.equal(
+		objectiveRewardCents({ lastDayCents: 10_000, goals: [{ met: true, streak: OBJECTIVE_REWARD_STREAK_CAP }] }).cents,
+		Math.floor(10_000 * OBJECTIVE_REWARD_FRACTION * OBJECTIVE_REWARD_STREAK_CAP),
+		'a longer streak pays further up to the cap',
+	)
+	assert.equal(
+		objectiveRewardCents({ lastDayCents: 10_000, goals: [{ met: true, streak: 99 }] }).cents,
+		objectiveRewardCents({ lastDayCents: 10_000, goals: [{ met: true, streak: OBJECTIVE_REWARD_STREAK_CAP }] }).cents,
+		'past the cap a streak pays nothing extra, so no run compounds out of the tariff',
+	)
+	assert.equal(objectiveRewardCents({ lastDayCents: 10_000, goals: [{ met: false, streak: 9 }] }).cents, 0, 'a missed goal pays nothing')
+	// The faucet cap: a perfect board wants more than the night can carry, and says so rather than printing a bigger number.
+	const perfect = objectiveRewardCents({
+		lastDayCents: 10_000,
+		goals: Array.from({ length: 5 }, () => ({ met: true, streak: OBJECTIVE_REWARD_STREAK_CAP })),
+	})
+	assert.equal(perfect.capped, true, 'a full board at full streak was not capped')
+	assert.equal(perfect.cents, Math.floor(10_000 * OBJECTIVE_REWARD_DAY_CAP_FRACTION))
+	// A day that took nothing has no share to give: the reward cannot become the income.
+	assert.equal(objectiveRewardCents({ lastDayCents: 0, goals: [{ met: true, streak: 5 }] }).cents, 0)
+	assert.equal(objectiveRewardCents({ lastDayCents: -500, goals: [{ met: true, streak: 5 }] }).cents, 0, 'a negative day is not a debt the house is paid for')
+	// Whole cents everywhere.
+	assert.equal(Number.isInteger(objectiveRewardCents({ lastDayCents: 101, goals: [{ met: true, streak: 3 }] }).cents), true)
+})
+
+test('the next fixture of a kind costs more than the last, and a kind stops getting dearer', () => {
+	const rate = TAKING_RATES_CENTS.bar
+	assert.equal(fixturePriceCents(['bar']), rate * FIXTURE_COST_DAYS, 'the first one is the base price')
+	assert.equal(fixturePriceCents(['bar'], 1), rate * (FIXTURE_COST_DAYS + FIXTURE_HOLDING_COST_DAYS))
+	assert.equal(fixturePriceCents(['bar'], 3), rate * (FIXTURE_COST_DAYS + FIXTURE_HOLDING_COST_DAYS * 3))
+	assert.equal(fixturePriceCents(['bar'], 999), rate * FIXTURE_MAX_COST_DAYS, 'the premium is bounded, or a furnished floor becomes unbuyable')
+	assert.equal(fixturePriceCents(['bar'], -4), rate * FIXTURE_COST_DAYS, 'a negative holding count is not a discount')
+	assert.equal(fixturePriceCents(['lounge'], 5), null, 'free seating is still not for sale')
+})
+
+test('holdings count a facility once, by the tag that bills it', () => {
+	const holdings = facilityHoldings([
+		['lounge', 'contract-closed'],
+		['bar'],
+		['bar'],
+		['lounge'],
+		['post:reception-station'],
+		[],
+	])
+	assert.equal(holdings.get('contract-closed'), 1, 'a table that is both lounge and contract counts as the thing it bills')
+	assert.equal(holdings.get('bar'), 2)
+	assert.equal(holdings.has('lounge'), false, 'free seating earns nothing, so owning more of it is not a reason to charge more')
+	assert.equal(holdings.has('post:reception-station'), false, 'a duty station is not a facility')
+	assert.equal(holdingCountFor(holdings, ['lounge', 'bar']), 2)
+	assert.equal(holdingCountFor(holdings, ['lounge']), 0)
+	assert.equal(holdingCountFor(holdings, undefined), 0)
+})
+
+test('a second fixture of the same kind is charged the holding premium', async () => {
+	reset()
+	const asset = installOrigin('bar-counter', ['bar'])
+	const first = TAKING_RATES_CENTS.bar * FIXTURE_COST_DAYS
+	const second = TAKING_RATES_CENTS.bar * (FIXTURE_COST_DAYS + FIXTURE_HOLDING_COST_DAYS)
+	const ledger = fundedLedger(first + second)
+	const shop = useShopPurchases({ store, ledger, standing: fakeStanding() , world: fakeWorld() })
+
+	assert.equal(shop.holdingCountOf(asset), 0)
+	assert.equal(shop.priceOf(asset), first)
+	assert.ok((await shop.buyFixture(asset)).ok, `the first buy was refused: ${JSON.stringify(toast.toasts.value)}`)
+	assert.equal(ledger.snapshot().bankCents, second)
+
+	// The floor now holds one, so the next one is dearer by the declared day - and the shop says so.
+	assert.equal(shop.holdingCountOf(asset), 1)
+	assert.equal(shop.priceOf(asset), second)
+	assert.ok((await shop.buyFixture(asset)).ok, `the second buy was refused: ${JSON.stringify(toast.toasts.value)}`)
+	assert.equal(ledger.snapshot().bankCents, 0, 'the bank paid the two prices and nothing else')
+	assert.equal((state.layout.floors[0]?.objects ?? []).length, 2)
+})
+
+test('a kind the floor already has does not make a different kind dearer', async () => {
+	reset()
+	const bar = installOrigin('bar-counter', ['bar'])
+	const chamberlain = installOrigin('chamberlain-desk', ['chamberlain'])
+	const ledger = fundedLedger(1_000_000)
+	const shop = useShopPurchases({ store, ledger, standing: fakeStanding() , world: fakeWorld() })
+
+	const chamberlainPrice = TAKING_RATES_CENTS.chamberlain * FIXTURE_COST_DAYS
+	assert.equal(shop.priceOf(chamberlain), chamberlainPrice)
+	await shop.buyFixture(bar)
+	await shop.buyFixture(bar)
+	assert.equal(shop.holdingCountOf(chamberlain), 0, 'a bar is not a chamberlain desk')
+	assert.equal(shop.priceOf(chamberlain), chamberlainPrice, 'the other kind still costs its base price')
+})
+
 test('standing is bought back only while it sits below what money can restore', async () => {
 	reset()
 	const ledger = fundedLedger(STANDING_REPAIR_COST_CENTS * 3)
 	const standing = fakeStanding(30)
-	const shop = useShopPurchases({ store, ledger, standing })
+	const shop = useShopPurchases({ store, ledger, standing , world: fakeWorld() })
 
 	assert.ok((await shop.buyStandingRepair()).ok)
 	assert.equal(standing.current(), 40, 'the repair lifted standing by the declared points')
@@ -218,8 +384,178 @@ test('standing is bought back only while it sits below what money can restore', 
 
 	// Above neutral there is nothing to buy: money cannot purchase a reputation the crowd did not give.
 	const proud = fakeStanding(REPUTATION_NEUTRAL)
-	const refused = useShopPurchases({ store, ledger: fundedLedger(1_000_000), standing: proud })
+	const refused = useShopPurchases({ store, ledger: fundedLedger(1_000_000), standing: proud , world: fakeWorld() })
 	assert.equal((await refused.buyStandingRepair()).ok, false)
 	assert.equal(proud.current(), REPUTATION_NEUTRAL)
 	assert.equal(refused.bankCents.value, 1_000_000, 'a refused repair still spent money')
+})
+
+test('a message round the room mends one house, stops at even, and cannot be bought twice', async () => {
+	reset()
+	const world = fakeWorld(wrongedWorld('rival', FACTION_RELATIONS_DEFAULT - FACTION_GOODWILL_POINTS * 2))
+	const ledger = fundedLedger(FACTION_GOODWILL_COST_CENTS * 3)
+	const shop = useShopPurchases({ store, ledger, standing: fakeStanding(), world })
+
+	const verdict = await shop.buyFactionGoodwill('rival')
+	assert.ok(verdict.ok, `the message was refused: ${JSON.stringify(toast.toasts.value)}`)
+	assert.equal(
+		world.current().factions.rival.relations,
+		FACTION_RELATIONS_DEFAULT - FACTION_GOODWILL_POINTS,
+		'the first message did not buy the declared points',
+	)
+	assert.equal(ledger.snapshot().bankCents, FACTION_GOODWILL_COST_CENTS * 2)
+	assert.equal(ledger.snapshot().served, 0, 'a message sent is not a client served')
+
+	// The second message lands on even and stops there; the third has nothing left to sell.
+	assert.ok((await shop.buyFactionGoodwill('rival')).ok)
+	assert.equal(world.current().factions.rival.relations, FACTION_RELATIONS_DEFAULT, 'the lift went past even')
+	assert.equal((await shop.buyFactionGoodwill('rival')).ok, false, 'a house already at even was sold another message')
+	assert.equal(ledger.snapshot().bankCents, FACTION_GOODWILL_COST_CENTS, 'a refused message still spent money')
+	// A house the player never wronged is not for sale either: money cannot buy a faction's loyalty.
+	assert.equal((await shop.buyFactionGoodwill('neutral')).ok, false)
+	assert.equal(ledger.snapshot().bankCents, FACTION_GOODWILL_COST_CENTS)
+})
+
+test('a message nobody can pay for is never sent', async () => {
+	reset()
+	const world = fakeWorld(wrongedWorld('underworld', 5))
+	const ledger = fundedLedger(FACTION_GOODWILL_COST_CENTS - 1)
+	const shop = useShopPurchases({ store, ledger, standing: fakeStanding(), world })
+
+	assert.equal((await shop.buyFactionGoodwill('underworld')).ok, false)
+	assert.equal(world.current().factions.underworld.relations, 5, 'the world moved on a purchase the bank refused')
+	assert.equal(ledger.snapshot().bankCents, FACTION_GOODWILL_COST_CENTS - 1)
+})
+
+test('one wronged house is bought back without touching the others', async () => {
+	reset()
+	const base = createWorldState()
+	const world = fakeWorld({
+		...base,
+		factions: {
+			...base.factions,
+			rival: { ...base.factions.rival, relations: 10 },
+			underworld: { ...base.factions.underworld, relations: 20 },
+		},
+	})
+	const ledger = fundedLedger(FACTION_GOODWILL_COST_CENTS)
+	const shop = useShopPurchases({ store, ledger, standing: fakeStanding(), world })
+
+	assert.ok((await shop.buyFactionGoodwill('rival')).ok)
+	assert.equal(world.current().factions.rival.relations, 15)
+	assert.equal(world.current().factions.underworld.relations, 20, 'a message to one house moved another')
+	assert.equal(ledger.snapshot().bankCents, 0)
+})
+
+test('a fixture trades in for half of what a first one cost, and only once the floor gives it back', async () => {
+	reset()
+	const asset = installOrigin('bar-counter', ['bar'])
+	const first = TAKING_RATES_CENTS.bar * FIXTURE_COST_DAYS
+	const ledger = fundedLedger(first * 2)
+	const shop = useShopPurchases({ store, ledger, standing: fakeStanding(), world: fakeWorld() })
+	assert.ok((await shop.buyFixture(asset)).ok)
+	const placed = state.layout.floors[0]?.objects[0]
+	assert.ok(placed, 'the purchase placed nothing')
+	// A second one costs the holding premium; trading in returns the price of the trade, not the
+	// premium - crowding was bought, and crowding is not an asset.
+	const second = TAKING_RATES_CENTS.bar * (FIXTURE_COST_DAYS + FIXTURE_HOLDING_COST_DAYS)
+	assert.equal(shop.priceOf(asset), second)
+	const refund = Math.floor(first * FIXTURE_SALE_FRACTION)
+	// The row is what the screen renders, so it must carry both prices and the object it would sell.
+	const row = shop.fixtureRows().find(entry => entry.asset.id === asset.id)
+	assert.ok(row, 'the shop did not list the fixture it just sold')
+	assert.equal(row.nextCents, second, 'the row priced the next one without the holding premium')
+	assert.equal(row.sellCents, refund)
+	assert.equal(row.sellableObjectId, placed.id)
+	assert.equal(row.held, 1)
+
+	store.select({ type: 'object', id: placed.id })
+	const bankBefore = ledger.snapshot().bankCents
+	const verdict = await shop.sellFixture(placed.id)
+	assert.ok(verdict.ok, `the trade-in was refused: ${JSON.stringify(toast.toasts.value)}`)
+	assert.equal(verdict.priceCents, refund)
+	assert.equal((state.layout.floors[0]?.objects ?? []).length, 0, 'the fixture survived its own sale')
+	assert.equal(ledger.snapshot().bankCents, bankBefore + refund, 'the refund was not the declared half')
+	assert.equal(ledger.snapshot().served, 0, 'a trade-in is not a served client')
+	assert.equal(shop.holdingCountOf(asset), 0, 'the floor still counts what it gave back')
+	assert.equal(shop.priceOf(asset), first, 'the next one is still priced for the crowding that left')
+})
+
+test('a fixture row offers a sale only for a fixture this floor can hand back', async () => {
+	reset()
+	const asset = installOrigin('bar-counter', ['bar'])
+	const ledger = fundedLedger(TAKING_RATES_CENTS.bar * FIXTURE_COST_DAYS)
+	const shop = useShopPurchases({ store, ledger, standing: fakeStanding(), world: fakeWorld() })
+	const sellableOf = () => {
+		const row = shop.fixtureRows().find(entry => entry.asset.id === asset.id)
+		assert.ok(row, 'the shop did not list a fixture it can sell')
+		return row.sellableObjectId
+	}
+	assert.equal(sellableOf(), null, 'an empty floor offered a fixture it does not hold')
+	assert.ok((await shop.buyFixture(asset)).ok, 'the harness could not buy the fixture, so this proves nothing')
+	const placed = state.layout.floors[0]!.objects[0]
+	// A locked object is one the write path will not remove, so the row must not promise its refund.
+	placed.locked = true
+	assert.equal(sellableOf(), null, 'a locked fixture was offered for sale')
+	placed.locked = false
+	assert.equal(sellableOf(), placed.id, 'the held fixture is not the one the row would sell')
+})
+
+test('a fixture the floor will not give back is not paid for', async () => {
+	reset()
+	const asset = installOrigin('bar-counter', ['bar'])
+	const first = TAKING_RATES_CENTS.bar * FIXTURE_COST_DAYS
+	const ledger = fundedLedger(first * 2)
+	const shop = useShopPurchases({ store, ledger, standing: fakeStanding(), world: fakeWorld() })
+	await shop.buyFixture(asset)
+	const placed = state.layout.floors[0]!.objects[0]
+	// A locked object is the write path refusing the removal - the same gate a purchase is checked
+	// against, read the other way: no object gone, no money in.
+	placed.locked = true
+	store.select({ type: 'object', id: placed.id })
+	const bankBefore = ledger.snapshot().bankCents
+	assert.equal((await shop.sellFixture(placed.id)).ok, false)
+	assert.equal(state.layout.floors[0]!.objects.length, 1, 'a locked fixture was deleted anyway')
+	assert.equal(ledger.snapshot().bankCents, bankBefore, 'a refused removal was still paid out')
+})
+
+test('a sale removes exactly the fixture it names, whatever else is highlighted', async () => {
+	reset()
+	const asset = installOrigin('bar-counter', ['bar'])
+	const first = TAKING_RATES_CENTS.bar * FIXTURE_COST_DAYS
+	const ledger = fundedLedger(first * 3)
+	const shop = useShopPurchases({ store, ledger, standing: fakeStanding(), world: fakeWorld() })
+	await shop.buyFixture(asset)
+	await shop.buyFixture(asset)
+	const [one, two] = state.layout.floors[0]!.objects
+	const bankBefore = ledger.snapshot().bankCents
+	// The delete path takes the whole selection, so the sale selects the one fixture it promised before
+	// it hands the floor over - two highlighted objects must still come back as one refund.
+	store.setSelection([{ type: 'object', id: one.id }, { type: 'object', id: two.id }])
+	const verdict = await shop.sellFixture(one.id)
+	assert.ok(verdict.ok, `the named sale was refused: ${JSON.stringify(toast.toasts.value)}`)
+	assert.equal(state.layout.floors[0]!.objects.length, 1, 'a sale of one fixture took more than one')
+	assert.equal(state.layout.floors[0]!.objects[0].id, two.id, 'the sale removed the wrong fixture')
+	assert.equal(ledger.snapshot().bankCents, bankBefore + Math.floor(first * FIXTURE_SALE_FRACTION))
+	// An id nobody is holding is refused, not refunded.
+	assert.equal((await shop.sellFixture('never-placed')).ok, false)
+	assert.equal(ledger.snapshot().bankCents, bankBefore + Math.floor(first * FIXTURE_SALE_FRACTION))
+})
+
+test('a seat that bills nothing cannot be traded in', async () => {
+	reset()
+	const bench = installOrigin('garden-bench', ['lounge'])
+	const ledger = fundedLedger(1_000_000)
+	const shop = useShopPurchases({ store, ledger, standing: fakeStanding(), world: fakeWorld() })
+	// Free seating is not for sale, so it is placed through the store directly - and a thing the shop
+	// never priced cannot come back as money either, or a lobby could be mined for refunds.
+	const canvas = state.layout.canvas
+	const placed = await store.addObject(bench.id, canvas.width / 2, canvas.height / 2)
+	assert.ok(placed, 'the harness could not place a bench, so this proves nothing')
+	const object = state.layout.floors[0]!.objects[0]
+	store.select({ type: 'object', id: object.id })
+	assert.equal(shop.fixtureRows().some(row => row.asset.id === bench.id), false, 'a seat that bills nothing is offered for sale')
+	assert.equal((await shop.sellFixture(object.id)).ok, false)
+	assert.equal(state.layout.floors[0]!.objects.length, 1, 'an unpriceable fixture was deleted')
+	assert.equal(ledger.snapshot().bankCents, 1_000_000)
 })

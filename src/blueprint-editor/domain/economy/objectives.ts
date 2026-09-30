@@ -7,13 +7,17 @@
  * question asked of the counters the ledger already keeps, answered on the same closed day the rest
  * of the house settles on.
  *
- * Nothing here grants anything. What an objective is *worth* is a second question, and it belongs to
- * the shop that already takes money - see `purchases.ts`. This module only says what was asked and
- * what was done, so a goal can never be satisfied by a number nobody charged for.
+ * Nothing here decides what a goal is *worth*: that price lives with the shop that takes money, in
+ * `purchases.ts` as `objectiveRewardCents`. This module only says what was asked and what was done,
+ * so a goal can never be satisfied by a number nobody charged for. What it does own is the *order*:
+ * a day has to be read before its streaks are folded, and the fold has to happen before the bonus is
+ * priced, or a house pays for yesterday's run and goes unpaid for tonight's. `settleObjectives` is
+ * the one place that order exists.
  */
 
-import { TAKINGS_DAY_SECONDS } from './takings'
-import type { DailySettlement } from './upkeep'
+import { objectiveRewardCents, type ObjectiveReward } from './purchases'
+import { TAKINGS_DAY_SECONDS, type TakingsSnapshot } from './takings'
+import { settleDay, type DailySettlement } from './upkeep'
 
 /**
  * Declared balance. How many goals are on the board at once. Small on purpose: a list the player
@@ -44,6 +48,9 @@ export type ObjectiveId =
 	| 'pay-the-bill'
 	| 'keep-the-peace'
 	| 'earn-the-day'
+
+/** How many closed days in a row each goal has been met, keyed by id so no goal can be left out. */
+export type ObjectiveStreaks = Readonly<Record<ObjectiveId, number>>
 
 /**
  * Declared balances, one per goal. These are the tuning surface: every number here is a day of the
@@ -150,7 +157,7 @@ export const OBJECTIVE_GOALS: readonly ObjectiveGoal[] = [
  */
 export function readObjectives(
 	input: ObjectiveInput,
-	streaks: Readonly<Record<ObjectiveId, number>> = ZERO_STREAKS,
+	streaks: ObjectiveStreaks = ZERO_OBJECTIVE_STREAKS,
 ): readonly Objective[] {
 	const measured = measure(input)
 	return OBJECTIVE_GOALS.map(goal => {
@@ -170,7 +177,11 @@ export function readObjectives(
 	})
 }
 
-const ZERO_STREAKS: Readonly<Record<ObjectiveId, number>> = {
+/**
+ * Every goal's streak, one entry per id so a new goal cannot be left out of a reset. The played house
+ * and `arch takings` both start a run here rather than each carrying its own copy of the id list.
+ */
+export const ZERO_OBJECTIVE_STREAKS: ObjectiveStreaks = {
 	'pay-the-bill': 0,
 	'full-room': 0,
 	'no-one-walks': 0,
@@ -183,9 +194,9 @@ const ZERO_STREAKS: Readonly<Record<ObjectiveId, number>> = {
  * that polls the board on a 250 ms timer cannot quietly bank the same day thirty times.
  */
 export function advanceObjectiveStreaks(
-	streaks: Readonly<Record<ObjectiveId, number>>,
+	streaks: ObjectiveStreaks,
 	board: readonly Objective[],
-): Readonly<Record<ObjectiveId, number>> {
+): ObjectiveStreaks {
 	const next: Record<ObjectiveId, number> = { ...streaks }
 	for (const goal of board) next[goal.id] = goal.met ? streaks[goal.id] + 1 : 0
 	return next
@@ -194,6 +205,73 @@ export function advanceObjectiveStreaks(
 /** The three that count, highest streak first, so the board is never a list of five equals. */
 export function topObjectives(board: readonly Objective[]): readonly Objective[] {
 	return [...board].sort((a, b) => b.streak - a.streak || b.progress - a.progress).slice(0, OBJECTIVE_BOARD_SIZE)
+}
+
+/**
+ * The board's input, built one way. A goal judged on a payroll a surface estimated for itself is a
+ * goal the profit verdict can quietly disagree with, so both the played house and `arch takings`
+ * hand over their own settled day book and get the same reading from here.
+ *
+ * `closedDay` is the ledger's own stamp for the day being judged, passed in rather than read back off
+ * the snapshot: during a close the day book has not rolled yet, so a surface that read
+ * `close.daysCompleted` here judged its first night as though no day had ever closed - the same class
+ * of ordering defect loop 46 found in the world.
+ */
+export function objectiveInputFor(read: {
+	readonly close: TakingsSnapshot
+	/** Which day is being judged, from the close payload or the live day count. */
+	readonly closedDay: number
+	/**
+	 * What the house is worth tonight - standing, neutrality and the High Table together, the same
+	 * number the close charges its discount against. Projecting the day's income through anything
+	 * narrower would let a goal and the bank disagree about what a night was worth.
+	 */
+	readonly moneyMultiplier: number
+	readonly staffHeadcount: number
+	readonly neutralityScore: number
+	readonly pressureOutstandingCents: number
+}): ObjectiveInput {
+	const close = read.close
+	return {
+		daysCompleted: read.closedDay,
+		served: close.served,
+		walkOuts: close.walkOuts,
+		lastDayCents: close.lastDayCents,
+		settlement: settleDay({
+			bankCents: close.bankCents,
+			incomePerDayCents: Math.floor(close.perDayCents * read.moneyMultiplier),
+			staffHeadcount: read.staffHeadcount,
+		}),
+		neutralityScore: read.neutralityScore,
+		pressureOutstandingCents: read.pressureOutstandingCents,
+	}
+}
+
+export interface ObjectiveSettlement {
+	readonly board: readonly Objective[]
+	readonly streaks: ObjectiveStreaks
+	readonly reward: ObjectiveReward
+}
+
+/**
+ * One closed day, settled: read it, fold the streaks, then price what the fold earned. The order is
+ * the rule - the bonus is paid on the streak that includes the night being judged, so the board the
+ * player sees after a close and the money the house was paid cannot describe two different nights.
+ */
+export function settleObjectives(
+	input: ObjectiveInput,
+	streaks: ObjectiveStreaks,
+): ObjectiveSettlement {
+	const board = readObjectives(input, streaks)
+	const folded = advanceObjectiveStreaks(streaks, board)
+	return {
+		board,
+		streaks: folded,
+		reward: objectiveRewardCents({
+			lastDayCents: input.lastDayCents,
+			goals: board.map(goal => ({ met: goal.met, streak: folded[goal.id] })),
+		}),
+	}
 }
 
 /** A day is the ledger's, so a goal is measured in the same unit the day book closes in. */

@@ -23,6 +23,19 @@ export interface OptionEconomy {
 	readonly payrollPerDayCents: number
 	readonly profitPerDayCents: number
 	readonly runwayDays: number | null
+	/**
+	 * What the last closed day paid for the board - carried here so the comparison can say it left it
+	 * out, never as a ranked column. A bonus scales with a streak over closed days, so folding it into
+	 * the score would rank plans on how many days the harness happened to run, not on the room.
+	 */
+	readonly goalBonusCents: number
+	/**
+	 * What the street owes this house in arrivals after the factions' verdict - the footfall the world is
+	 * willing to send, not the footfall the brief declares. Ranked, because a plan that empties the
+	 * street is a worse business even while its own ledger looks fine, and unlike the streak bonus it is
+	 * a property of the room rather than of how long the harness ran.
+	 */
+	readonly streetOwedPerDay: number
 }
 
 /** The money columns, as KPIs, so the ranking normalises them like every other metric. */
@@ -31,6 +44,7 @@ export function economyKpis(economy: OptionEconomy): Kpi[] {
 		{ key: 'incomePerDay', label: 'takings/day (net of standing)', value: economy.incomePerDayCents, unit: 'c/day', band: 'declared tariff table', bandSource: 'src/blueprint-editor/domain/economy/takings.ts', direction: 'up', gate: false },
 		{ key: 'payrollPerDay', label: 'payroll/day', value: economy.payrollPerDayCents, unit: 'c/day', band: 'declared day wage x deployed staff', bandSource: 'src/blueprint-editor/domain/economy/upkeep.ts', direction: 'down', gate: false },
 		{ key: 'profitPerDay', label: 'profit/day', value: economy.profitPerDayCents, unit: 'c/day', band: 'self-funding at >= 0', bandSource: 'src/blueprint-editor/domain/economy/upkeep.ts', direction: 'up', gate: false },
+		{ key: STREET_KEY, label: 'street owed/day', value: economy.streetOwedPerDay, unit: 'arrivals/day', band: 'the declared footfall, thinned by the factions\' verdict', bandSource: 'src/blueprint-editor/domain/economy/standing-world.ts', direction: 'up', gate: false },
 	]
 }
 
@@ -44,6 +58,8 @@ export function economyFromReport(report: TakingsReport): OptionEconomy {
 		payrollPerDayCents: report.payrollCents,
 		profitPerDayCents: report.profitPerDayCents,
 		runwayDays: report.runwayDays,
+		goalBonusCents: report.objectiveBonusCents,
+		streetOwedPerDay: report.street?.expectedWalkIns ?? 0,
 	}
 }
 
@@ -72,15 +88,23 @@ export interface OptionMeasurement {
 	}
 }
 
+/** The ranked street metric: the arrivals the factions are still willing to send this house. */
+export const STREET_KEY = 'streetOwedPerDay'
+
+/** The ranked street metric: the arrivals the factions are still willing to send this house. */
 export const WEIGHT_PROFILES: Record<string, Record<string, number>> = {
-	efficiency: { netToGross: 3, circulationShare: -3, structureShare: -1, decisionPoints: 0, worstFreeRun: 1, roomsBeyondDaylight: 0, serviceShare: 0, deadEnds: -1, profitPerDay: 4 },
-	experience: { netToGross: 0, circulationShare: -1, structureShare: 0, decisionPoints: -2, worstFreeRun: 2, roomsBeyondDaylight: -3, serviceShare: 0, deadEnds: -1, profitPerDay: 1 },
-	operations: { netToGross: 0, circulationShare: -2, structureShare: 0, decisionPoints: -1, worstFreeRun: 1, roomsBeyondDaylight: -1, serviceShare: 2, deadEnds: -2, profitPerDay: 3 },
-	safety: { netToGross: 0, circulationShare: -1, structureShare: 0, decisionPoints: -1, worstFreeRun: 2, roomsBeyondDaylight: -1, serviceShare: 0, deadEnds: -3, profitPerDay: 1 },
+	// The street is weighted where the profile is about people rather than about throughput: an
+	// operations board buys circulation it can run, an experience board buys the room people return to.
+	// A plan that empties the street is charged in every profile, but never more than the metric the
+	// profile exists to optimise.
+	efficiency: { netToGross: 3, circulationShare: -3, structureShare: -1, decisionPoints: 0, worstFreeRun: 1, roomsBeyondDaylight: 0, serviceShare: 0, deadEnds: -1, profitPerDay: 4, [STREET_KEY]: 0 },
+	experience: { netToGross: 0, circulationShare: -1, structureShare: 0, decisionPoints: -2, worstFreeRun: 2, roomsBeyondDaylight: -3, serviceShare: 0, deadEnds: -1, profitPerDay: 1, [STREET_KEY]: 3 },
+	operations: { netToGross: 0, circulationShare: -2, structureShare: 0, decisionPoints: -1, worstFreeRun: 1, roomsBeyondDaylight: -1, serviceShare: 2, deadEnds: -2, profitPerDay: 3, [STREET_KEY]: 1 },
+	safety: { netToGross: 0, circulationShare: -1, structureShare: 0, decisionPoints: -1, worstFreeRun: 2, roomsBeyondDaylight: -1, serviceShare: 0, deadEnds: -3, profitPerDay: 1, [STREET_KEY]: 2 },
 }
 
 /** KPIs used for ranking. Named once so every option is scored on the identical list. */
-export const RANKED_KEYS = ['netToGross', 'circulationShare', 'structureShare', 'decisionPoints', 'worstFreeRun', 'roomsBeyondDaylight', 'serviceShare', 'deadEnds', 'profitPerDay']
+export const RANKED_KEYS = ['netToGross', 'circulationShare', 'structureShare', 'decisionPoints', 'worstFreeRun', 'roomsBeyondDaylight', 'serviceShare', 'deadEnds', 'profitPerDay', STREET_KEY]
 
 /** The ranked money metric: profit after payroll, never gross takings - an over-staffed room can out-earn a lean one and still be the worse business. */
 export const PROFIT_KEY = 'profitPerDay'
@@ -270,9 +294,11 @@ export function formatComparison(options: readonly OptionMeasurement[]): string 
 		lines.push('## Economy - what the crowd that uses this plan actually costs')
 		for (const option of options) {
 			if (!option.economy) { lines.push(`- ${option.name}: no crowd run, so no money`); continue }
-			const { incomePerDayCents, payrollPerDayCents, profitPerDayCents, runwayDays } = option.economy
+			const { incomePerDayCents, payrollPerDayCents, profitPerDayCents, runwayDays, goalBonusCents } = option.economy
 			lines.push(`- ${option.name}: takings/day ${formatTakings(incomePerDayCents)}  payroll/day ${formatTakings(payrollPerDayCents)}  ` +
-				`profit/day ${formatTakings(profitPerDayCents)}  ${runwayDays === null ? 'self-funding' : `${runwayDays} day(s) of bank left`}`)
+				`profit/day ${formatTakings(profitPerDayCents)}  ${runwayDays === null ? 'self-funding' : `${runwayDays} day(s) of bank left`}` +
+				// Named so the omission is a stated decision rather than a number nobody thought of.
+				`${goalBonusCents > 0 ? `  (goal bonus ${formatTakings(goalBonusCents)} on the last closed day excluded: it needs a streak, and a run ranks the room)` : ''}`)
 		}
 		if (priced.length === options.length && priced.length > 1) {
 			const byGross = [...priced].sort((a, b) => b.economy!.incomePerDayCents - a.economy!.incomePerDayCents).map(option => option.name)

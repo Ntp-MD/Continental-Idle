@@ -29,12 +29,13 @@ import {
 	TAKINGS_DAY_SECONDS,
 } from '../../src/blueprint-editor/domain/economy/takings'
 import { createArrivalFlow, createTrafficState, stepTraffic, streetEntrances, STREET_TILES_DEFAULT } from '../../src/blueprint-editor/domain/economy/arrivals'
-import { advanceStanding, readReputation, standingReading, REPUTATION_NEUTRAL } from '../../src/blueprint-editor/domain/economy/reputation'
+import { advanceStanding, incomeMultiplier, readReputation, standingReading, REPUTATION_NEUTRAL } from '../../src/blueprint-editor/domain/economy/reputation'
 import {
 	advanceContinuity,
 	continuityReading,
 	createContinuityState,
 	houseMultiplier,
+	priceOfCreditCents,
 	NEUTRALITY_RECOVERY_FRACTION,
 	recordBreach,
 } from '../../src/blueprint-editor/domain/economy/continuity'
@@ -44,7 +45,18 @@ import {
 	pressureReading,
 	settlePressure,
 } from '../../src/blueprint-editor/domain/economy/highTable'
-import { settleDay, staffHeadcount } from '../../src/blueprint-editor/domain/economy/upkeep'
+import {
+	createWorldState,
+	latestReleased,
+	readWorld,
+	releasePerson,
+	settleWorldNight,
+	type Faction,
+	type WorldReading as FactionWorldReading,
+} from '../../src/blueprint-editor/domain/economy/standing-world'
+import { payrollCents, settleDay, staffHeadcount } from '../../src/blueprint-editor/domain/economy/upkeep'
+import { objectiveInputFor, settleObjectives, ZERO_OBJECTIVE_STREAKS, type ObjectiveStreaks } from '../../src/blueprint-editor/domain/economy/objectives'
+import type { ObjectiveReward } from '../../src/blueprint-editor/domain/economy/purchases'
 import { readBlueprintDataFile } from '../../src/blueprint-editor/store/schemaMigration'
 import { readOccupancy } from './world'
 import type { AssetDef, FloorData, NpcRole } from '../../src/blueprint-editor/domain/types'
@@ -108,9 +120,20 @@ export interface TakingsReport {
 	readonly continuity: { readonly score: number; readonly underPressure: boolean; readonly breaches: number }
 	readonly pressure: { readonly outstandingCents: number; readonly underAudit: boolean; readonly daysUnderPressure: number }
 	readonly incidents: number
+	/** What the last closed day's board paid on top of its takings, and whether the day cap cut it. */
+	readonly objectiveBonusCents: number
+	readonly objectiveBonusCapped: boolean
+	readonly objectiveStreaks: ObjectiveStreaks
+	/** The street the plan ends on: who still sends people, and what the house is owed for it. */
+	readonly street: (FactionWorldReading & { readonly declaredPerDay: number; readonly released: number }) | null
+	/** Whose clients the plan actually served, from the ledger's own per-faction book. */
+	readonly clientsByFaction: readonly { readonly faction: string; readonly served: number; readonly lost: number }[]
 	/** What every ladder together says the house is worth, as a multiplier on face value. */
 	readonly houseWorth: number
-	readonly netCents: number
+	/** The bank after the close took what it takes in play: wages and the price of the credit. */
+	readonly keptCents: number
+	/** What the last closed day's credit cost, taken off the bank at the close. */
+	readonly creditCostCents: number
 	/** The authored day length, and what the live rate projects onto it. */
 	readonly daySeconds: number
 	readonly daysCompleted: number
@@ -209,40 +232,97 @@ export function measureTakings(payloadPath: string, options: TakingsOptions = {}
 	// measured offline and a plan playing live cannot drift apart. The world settles on that same
 	// boundary for the same reason - a plan ranked by profit has to be worth what the played house
 	// would have been worth, or the tool quietly measures a different game than the one being built.
+	// The world the plan is measured in: released people, the factions they belong to, and the grudge
+	// each one holds. Offline it used to be nobody's client but `neutral`'s, so a plan could be ranked
+	// on a street that no played house would ever have walked.
+	let world = createWorldState()
+	const factionOfAgent = new Map<string, Faction>()
 	let standingScore = REPUTATION_NEUTRAL
 	let continuity = createContinuityState()
 	let pressure = createPressureState()
 	let incidents = 0
+	/** The board is folded and paid offline exactly as a played house folds it - one close, one bonus. */
+	let objectiveStreaks: ObjectiveStreaks = ZERO_OBJECTIVE_STREAKS
+	let objectiveBonus: ObjectiveReward = { cents: 0, capped: false }
+	/**
+	 * What the house is worth right now, from the readings the close has already settled. The discount
+	 * the ledger takes and the profit this tool ranks on are both priced through this one call, so an
+	 * offline run cannot rank a plan on money a played house would never have kept.
+	 */
+	const currentWorth = () => houseMultiplier({
+		standing: incomeMultiplier(standingScore),
+		continuity: continuityReading(continuity),
+		pressurePenalty: pressureReading(pressure).demandPenalty,
+	})
+	/** Who the plan actually pleased, counted by the ledger from the same events the app bills. */
+	const factionTotals = new Map<string, { served: number; lost: number }>()
 	const ledger = createTakingsLedger({
 		ticksPerSecond: NPC_ENGINE_TICKS_PER_SECOND,
 		isVisitor: roleId => visitors.has(roleId),
+		// The bank a plan is measured on is the bank a player would hold: the wage bill and the price
+		// of its own credit both leave on the same close they leave in the app. The profit column used
+		// to project payroll without ever taking it out, so the reported balance was money nobody kept.
+		dailyChargeCents: () => payrollCents(staffHeadcount(config.pool ?? [], roleId => visitors.has(roleId))),
+		dailyDiscountCents: dayCents => priceOfCreditCents(dayCents, currentWorth()),
 		onDayClose: day => {
+			// The day book as the close sees it, read BEFORE the fine moves: the app hands its board the
+			// same moment (`useNpcSimulationCore`), and a board judged after the transfer would call a
+			// day it could not pay a different verdict from the one the player got.
+			const close = ledger.snapshot()
+			for (const [faction, counted] of Object.entries(day.byFaction)) {
+				const total = factionTotals.get(faction) ?? { served: 0, lost: 0 }
+				total.served += counted.served
+				total.lost += counted.lost
+				factionTotals.set(faction, total)
+			}
 			standingScore = advanceStanding(standingScore, readReputation(day.served, day.walkOuts))
 			incidents = day.incidents
 			continuity = advanceContinuity(recordBreach(continuity, day.incidents), NEUTRALITY_RECOVERY_FRACTION)
 			const underNotice = continuityReading(continuity).underPressure
-			const bankCents = ledger.snapshot().bankCents
+			const bankCents = close.bankCents
 			// The fine leaves the bank here exactly as it does in a played house
 			// (`useNpcSimulationCore`), or the tool ranks a plan on money the player never keeps.
 			const fine = underNotice ? dailyFineCents(bankCents) : 0
 			pressure = settlePressure(pressure, { underNotice, bankCents })
 			if (fine > 0) ledger.withdraw(fine)
+			// The board settles and pays on the same boundary, through the same domain calls, so a plan
+			// ranked offline is ranked on the money a played house would actually have kept.
+			const settled = settleObjectives(
+				objectiveInputFor({
+					close,
+					closedDay: day.day,
+					moneyMultiplier: currentWorth(),
+					staffHeadcount: staffHeadcount(config.pool ?? [], roleId => visitors.has(roleId)),
+					neutralityScore: continuityReading(continuity).score,
+					pressureOutstandingCents: pressure.outstandingCents,
+				}),
+				objectiveStreaks,
+			)
+			objectiveStreaks = settled.streaks
+			objectiveBonus = settled.reward
+			if (settled.reward.cents > 0) ledger.deposit(settled.reward.cents)
+			// The street is told about the night too, through the same call the played house makes:
+			// judged for the houses whose clients were here, faded for the ones it was not reminded of.
+			world = settleWorldNight(world, day.byFaction)
 		},
 	})
 	const tagsByKey = new Map(built.layout.interactionTargets.map(target => [interactionTargetKey(target), target.tags]))
 	const resolver = createTakingsResolver({
 		roleOf: agentId => engine.getAgent(agentId)?.roleId,
 		tagsFor: (floorId, itemId, interactSpotId) => tagsByKey.get(interactionTargetKey({ floorId, itemId, interactSpotId })),
+		factionOf: agentId => factionOfAgent.get(agentId),
 	})
 
 	// The same primitives the editor deploy uses - the role's walkable set filtered to its
 	// spawn tiles - without the editor's anti-overlap cursor, which no measurement needs.
 	const arrivalSpec = readOccupancy(config, data.layout as never).arrival
 	const declaredPerDay = options.arrivalsPerDay ?? arrivalSpec?.walkInsPerDay ?? 0
+	/** The number the flow reads live: lose a house and the offline crowd thins by the same rule. */
+	const worldTrafficPerDay = () => readWorld(world, declaredPerDay).expectedWalkIns
 	const arrivalsPerDay = options.arrivals ? declaredPerDay : 0
 	const flow = options.arrivals
 		? createArrivalFlow({
-			arrivalsPerDay,
+			arrivalsPerDay: worldTrafficPerDay,
 			daySeconds: TAKINGS_DAY_SECONDS,
 			ticksPerSecond: NPC_ENGINE_TICKS_PER_SECOND,
 			staySeconds: options.staySeconds,
@@ -255,6 +335,9 @@ export function measureTakings(payloadPath: string, options: TakingsOptions = {}
 		const cellSize = built.floorMaps.get(floorId)?.cellSize ?? 1
 		return (Math.max(0.01, config.speed || 1 / 30) * NPC_ENGINE_TICKS_PER_SECOND) / cellSize
 	}
+	// One id function for the door and for the binding below, so an agent the ledger can price is
+	// always the same agent the world has a face for.
+	const arrivalId = (index: number) => `arr-${index}`
 	const skipped = new Map<string, number>()
 	let deployed = 0
 	const maxAgents = options.agents === undefined ? undefined : Math.max(0, Math.floor(options.agents))
@@ -299,6 +382,7 @@ export function measureTakings(payloadPath: string, options: TakingsOptions = {}
 	for (let tick = 0; tick < ticks; tick++) {
 		engine.tick(1)
 		if (flow) {
+			const before = traffic.spawned
 			stepTraffic({
 				engine,
 				flow,
@@ -307,8 +391,16 @@ export function measureTakings(payloadPath: string, options: TakingsOptions = {}
 				speedFor,
 				tick: engine.tickNumber,
 				state: traffic,
-				idFor: index => `arr-${index}`,
+				idFor: arrivalId,
 			})
+			// Every arrival the world released is somebody's client, bound to the id the door handed
+			// it. Without this the offline run sees a lobby of strangers and cannot tell the plan that
+			// keeps the peace from the one that loses a house over it.
+			for (let i = before; i < traffic.spawned; i++) {
+				world = releasePerson(world, i)
+				const person = latestReleased(world)
+				if (person) factionOfAgent.set(arrivalId(i), person.faction)
+			}
 		}
 		const events = engine.drainEvents()
 		for (const event of events) {
@@ -379,10 +471,18 @@ export function measureTakings(payloadPath: string, options: TakingsOptions = {}
 		runwayDays: day.runwayDays,
 		servicesPerDay: snapshot.servicesPerDay,
 		arrivalsPerDay: flow ? arrivalsPerDay : (arrivalSpec?.walkInsPerDay ?? null),
+		/** The street as the run left it: who still sends people, and what the house is owed now. */
+		street: flow
+			? {
+				declaredPerDay: arrivalsPerDay,
+				released: world.arrivals,
+				...readWorld(world, declaredPerDay),
+			}
+			: null,
 		/** The flow run, when it was asked for: what walked in, what left, and what should be inside. */
 		flow: flow
 			? {
-				perDay: arrivalsPerDay,
+				perDay: worldTrafficPerDay(),
 				spawned: traffic.spawned,
 				departed: traffic.departed,
 				entrances: entrances.length,
@@ -402,8 +502,17 @@ export function measureTakings(payloadPath: string, options: TakingsOptions = {}
 		continuity: continuityNow,
 		pressure: pressureNow,
 		incidents,
+		/** The board as the last close settled and paid it, so the offline run says what a played house got. */
+		objectiveBonusCents: objectiveBonus.cents,
+		objectiveBonusCapped: objectiveBonus.capped,
+		objectiveStreaks,
+		clientsByFaction: [...factionTotals.entries()]
+			.map(([faction, counted]) => ({ faction, served: counted.served, lost: counted.lost }))
+			.sort((a, b) => b.served + b.lost - (a.served + a.lost) || a.faction.localeCompare(b.faction)),
 		houseWorth: worth,
-		netCents: Math.round(snapshot.bankCents * worth),
+		/** The bank after the close took what it takes in play: wages and the price of the credit. */
+		keptCents: snapshot.bankCents,
+		creditCostCents: snapshot.lastDayDiscountCents,
 		byTag: rows(
 			snapshot.byTag.reduce((map, entry) => {
 				map.set(`${entry.tag} (${entry.count}x)`, entry.cents)
@@ -426,7 +535,7 @@ export function formatTakingsReport(report: TakingsReport): string {
 		`  floors ${report.floors}  agents ${report.agents}  targets ${report.targets}  queues ${report.queues}  ticks ${report.ticks} (${report.simSeconds} sim-s, ${report.msPerTick.toFixed(2)} ms/tick)`,
 		`  bank ${money(report.bankCents)}   per minute ${money(report.perMinuteCents)}   served ${report.served}   walk-outs ${report.walkOuts}   abandoned lines ${report.queueAbandons}`,
 		`  reputation ${report.reputation.score}/100${report.reputation.unproven ? ' (unproven - nothing served or lost yet)' : ` (recovering toward a ${report.evidenceScore}/100 record)`}` +
-			`   x${report.reputation.multiplier.toFixed(2)} standing   net ${money(report.netCents)} of ${money(report.bankCents)} gross`,
+			`   x${report.reputation.multiplier.toFixed(2)} standing   kept ${money(report.keptCents)} after wages and ${money(report.creditCostCents)} of credit cost on the last closed day`,
 		`  neutrality ${report.continuity.score}/100   scenes ${report.incidents}   breaches ${report.continuity.breaches}` +
 			`${report.continuity.underPressure ? '   the High Table has taken notice' : ''}` +
 			`${report.pressure.outstandingCents > 0 ? `   outstanding ${money(report.pressure.outstandingCents)} over ${report.pressure.daysUnderPressure} day(s)` : ''}` +
@@ -440,12 +549,24 @@ export function formatTakingsReport(report: TakingsReport): string {
 		`  payroll ${money(report.payrollCents)}/day for ${report.staffHeadcount} staff   ` +
 			`profit ${money(report.profitPerDayCents)}/day` +
 			(report.runwayDays === null ? '   self-funding' : `   ${report.runwayDays} day(s) of bank left`) + '\n' +
+			`  goals: last closed day paid ${money(report.objectiveBonusCents)} on top of its takings` +
+			`${report.objectiveBonusCapped ? ' (capped at its share of the night)' : ''}` +
+			`   best streak ${Math.max(0, ...Object.values(report.objectiveStreaks))} day(s)` + '\n' +
+			`  clients by faction: ${report.clientsByFaction.length ? report.clientsByFaction.map(row => `${row.faction} ${row.served} served/${row.lost} walked out`).join(', ') : 'nobody the house could place'}` + '\n' +
 		`  brief declares ${report.arrivalsPerDay ?? 'no'} arrivals/day - this plan turns over ${report.servicesPerDay} billed services/day est.` +
 			(report.arrivalsPerDay ? ` (${Math.round((report.servicesPerDay / report.arrivalsPerDay) * 100)}% of them)` : ''),
 	]
 	if (report.flow) {
 		lines.push(`  footfall ${report.flow.perDay}/day through ${report.flow.entrances} street door(s): ${report.flow.spawned} walked in, ${report.flow.departed} left, ${report.flow.present} inside now - the flow implies ${report.flow.expectedPresent} present for a ${report.flow.staySeconds}-sim-s stay`)
 		if (!report.flow.entrances) lines.push('    no street door in this plan, so arrivals cannot enter at all')
+	}
+	if (report.street) {
+		const street = report.street
+		lines.push(`  the street: ${street.declaredPerDay}/day declared, ${street.expectedWalkIns}/day owed after the factions' verdict - ${street.released} released, ${street.returningShare ? Math.round(street.returningShare * 100) : 0}% of the roster is a regular` +
+			`${street.estranged.length ? `   ESTRANGED: ${street.estranged.join(', ')}` : '   welcome everywhere'}`)
+		// `served` and `lost` on a faction are nights judged well or ill, not clients: `creditService`
+		// runs once per close. Printed as nights so nobody reads it against the client count above.
+		lines.push(`    standings (nights judged): ${street.standings.map(entry => `${entry.id} ${entry.relations}/100 (${entry.served} good, ${entry.lost} bad)`).join('  ')}`)
 	}
 	const section = (title: string, list: readonly TakingsRow[]) => {
 		lines.push(`  ${title}${list.length ? '' : '  (none)'}`)

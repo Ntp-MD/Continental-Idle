@@ -29,6 +29,13 @@ export async function seedVersionError(): Promise<Error | undefined> {
 
 export const seedTagDefinitions = async () => (await file()).tags
 
+/**
+ * The house that ships with the game, as a workspace file: the same validated document the seed loader
+ * already parsed, handed to the store's one import path. A first run has no floors and no assets, so this
+ * is what turns "open the editor and author a lobby before playing" into a single click.
+ */
+export const seedWorkspaceFile = async () => (await file())
+
 export const seedLayout = async (): Promise<BlueprintLayoutFile> => ({ $schema: 'blueprint-layout.v1.json', ...(await file()).layout })
 
 export const seedNpcConfig = async () => (await file()).npcConfig

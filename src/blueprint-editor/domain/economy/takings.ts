@@ -1,5 +1,6 @@
 import type { NpcEngineEvent } from '@/engine/npc'
 import { settleDayIncidents } from './incidents'
+import { ANONYMOUS_FACTION, type Faction } from './standing-world'
 
 /**
  * The Continental's business: money exists only where a visitor completed a service, so a plan that
@@ -45,6 +46,13 @@ const POST_TAG_PREFIX = 'post:'
 export interface TakingsSource {
 	readonly roleId: string
 	readonly tags: readonly string[]
+	/**
+	 * Whose client this is, when the house knows. An arrival the world released carries the faction it
+	 * was released with; a guest deployed from the standing pool was never released by anyone, so it
+	 * has none and is booked to `ANONYMOUS_FACTION`. Optional on purpose: a resolver that cannot say
+	 * must not be forced to invent one.
+	 */
+	readonly faction?: Faction
 }
 
 /** Resolves what an event's agent was actually standing at. Undefined = agent unknown. */
@@ -54,6 +62,8 @@ export type TakingsResolver = (event: NpcEngineEvent) => TakingsSource | undefin
 export interface TakingsSourceIndex {
 	roleOf(agentId: string): string | undefined
 	tagsFor(floorId: string, itemId: string, interactSpotId: string): readonly string[] | undefined
+	/** Supplied only by a runner that binds arrivals to the world that released them. */
+	factionOf?(agentId: string): Faction | undefined
 }
 
 export function createTakingsResolver(index: TakingsSourceIndex): TakingsResolver {
@@ -64,8 +74,14 @@ export function createTakingsResolver(index: TakingsSourceIndex): TakingsResolve
 			event.itemId !== undefined && event.interactSpotId !== undefined
 				? index.tagsFor(event.floorId, event.itemId, event.interactSpotId) ?? []
 				: []
-		return { roleId, tags }
+		return { roleId, tags, faction: index.factionOf?.(event.agentId) }
 	}
+}
+
+/** What one faction's clients did on one closed day: served, and turned away by a line too slow. */
+export interface FactionDay {
+	readonly served: number
+	readonly lost: number
 }
 
 export interface TakingsLedgerOptions {
@@ -75,11 +91,31 @@ export interface TakingsLedgerOptions {
 	/** What one closed hotel day costs the operator - payroll, charged when the day book rolls. */
 	readonly dailyChargeCents?: () => number
 	/**
+	 * What the house's name costs it on one closed day, handed the day's own takings so the caller never
+	 * has to read a snapshot mid-close. A Continental with a bad credit is paid less for the same
+	 * service: the tariff still bills face value at the counter (the ledger owns whole cents and the
+	 * rate window stays what the crowd earned), and the difference leaves on the close, beside payroll
+	 * and the High Table's fine. It is clamped to the bank - a house that has nothing left to lose
+	 * loses nothing - and it is never recorded as a debt.
+	 */
+	readonly dailyDiscountCents?: (dayCents: number) => number
+	/**
 	 * Called once per closed hotel day, with the counted outcomes so far. Standing is not money, so the
 	 * ledger does not own it - but the day boundary is the ledger's, and both surfaces (app and arch
 	 * tool) must recover on the same boundary or their readings cannot be compared.
+	 *
+	 * `byFaction` is the same night counted per client-group rather than once in total, because the
+	 * world has to be able to tell which faction it just pleased. A client the house cannot place is
+	 * booked to `ANONYMOUS_FACTION`, and `lost` is a walk-out only: a line whose facility went away is
+	 * the house's fault, not the client's family's.
 	 */
-	readonly onDayClose?: (day: { day: number; served: number; walkOuts: number; incidents: number }) => void
+	readonly onDayClose?: (day: {
+		day: number
+		served: number
+		walkOuts: number
+		incidents: number
+		byFaction: Readonly<Partial<Record<Faction, FactionDay>>>
+	}) => void
 	readonly rates?: Readonly<Record<string, number>>
 	readonly rateWindowSeconds?: number
 	readonly daySeconds?: number
@@ -110,6 +146,11 @@ export interface TakingsSnapshot {
 	/** The payroll the last closed day billed, and the part of it the bank did not cover. */
 	readonly lastDayPayrollCents: number
 	readonly lastDayUnpaidCents: number
+	/**
+	 * What the house's name cost the last closed day, taken off its takings at the close. Zero while the
+	 * credit is good; it never exceeds the balance, and it is never a debt.
+	 */
+	readonly lastDayDiscountCents: number
 	readonly todayCents: number
 	/** Live rate projected onto a full day, not a measured day total. */
 	readonly perDayCents: number
@@ -186,6 +227,7 @@ export function createTakingsLedger(options: TakingsLedgerOptions): TakingsLedge
 	const daySeconds = Math.max(1, Math.floor(options.daySeconds ?? TAKINGS_DAY_SECONDS))
 	const ticksPerSecond = Math.max(1, Math.floor(options.ticksPerSecond))
 	const chargeCents = options.dailyChargeCents
+	const discountCents = options.dailyDiscountCents
 	const onDayClose = options.onDayClose
 	const centsBuckets = new Array<number>(windowSeconds).fill(0)
 	const servedBuckets = new Array<number>(windowSeconds).fill(0)
@@ -198,6 +240,7 @@ export function createTakingsLedger(options: TakingsLedgerOptions): TakingsLedge
 	let daysCompleted = 0
 	let lastDayPayrollCents = 0
 	let lastDayUnpaidCents = 0
+	let lastDayDiscountCents = 0
 	let carriedCents = 0
 	let bankCents = 0
 	let served = 0
@@ -211,6 +254,19 @@ export function createTakingsLedger(options: TakingsLedgerOptions): TakingsLedge
 	 */
 	let blockedThisDay = 0
 	let presentAgentTicks = 0
+	/**
+	 * The same night, kept apart by whose clients they were. Counted here because this is the one place
+	 * the event stream is read: a second reader would settle the world on a different night's numbers,
+	 * which is the defect class this ledger has already been caught producing twice.
+	 */
+	const factionBook = new Map<Faction, { served: number; lost: number }>()
+
+	function bookFaction(faction: Faction | undefined, kind: 'served' | 'lost'): void {
+		const id = faction ?? ANONYMOUS_FACTION
+		const entry = factionBook.get(id)
+		if (entry) entry[kind] += 1
+		else factionBook.set(id, { served: kind === 'served' ? 1 : 0, lost: kind === 'lost' ? 1 : 0 })
+	}
 
 	function clearWindow(): void {
 		centsBuckets.fill(0)
@@ -265,6 +321,15 @@ export function createTakingsLedger(options: TakingsLedgerOptions): TakingsLedge
 				bankCents = Math.max(0, bankCents - charge)
 				clampCarriedToBank()
 			}
+			// What the name costs, taken off what the night took. The callback is handed the closing
+			// day's own total rather than reading a snapshot: mid-close the day book has not rolled,
+			// which is how two earlier rules in this file settled yesterday's night instead.
+			const wanted = Math.max(0, Math.floor(discountCents?.(lastDayCents) ?? 0))
+			lastDayDiscountCents = Math.min(wanted, bankCents)
+			if (lastDayDiscountCents > 0) {
+				bankCents -= lastDayDiscountCents
+				clampCarriedToBank()
+			}
 			// The day boundary is the ledger's, whatever else closes on it: standing recovers here in
 			// the app and in the arch tool alike, from the same counted outcomes, and the world is
 			// handed the night it just closed. The two counters clear *after* the callback, so a
@@ -272,12 +337,19 @@ export function createTakingsLedger(options: TakingsLedgerOptions): TakingsLedge
 			const closedIncidents = settleDayIncidents({ blockedThisDay, presentAgentTicks })
 			blockedThisDay = 0
 			presentAgentTicks = 0
-			onDayClose?.({ day: closedDay, served, walkOuts, incidents: closedIncidents })
+			const byFaction: Partial<Record<Faction, FactionDay>> = {}
+			for (const [id, entry] of factionBook) byFaction[id] = { ...entry }
+			factionBook.clear()
+			onDayClose?.({ day: closedDay, served, walkOuts, incidents: closedIncidents, byFaction })
 		}
 	}
 
 	function pay(tag: string, cents: number): void {
 		bankCents += cents
+		// Money that arrived is money the house keeps: `reset()` restores the bank *from* carried, so a
+		// service that only raised the bank was un-earned by the next deploy - and the autosave then
+		// wrote the smaller balance over the saved one. Two clicks, and a session's takings were gone.
+		carriedCents += cents
 		dayCents += cents
 		windowCents += cents
 		windowServed += 1
@@ -315,14 +387,19 @@ export function createTakingsLedger(options: TakingsLedgerOptions): TakingsLedge
 					const source = resolve(event)
 					if (!source || !options.isVisitor(source.roleId)) continue
 					const rate = rateForTags(source.tags, rates)
-					if (rate) pay(rate.tag, rate.cents)
+					if (rate) {
+						pay(rate.tag, rate.cents)
+						bookFaction(source.faction, 'served')
+					}
 					continue
 				}
 				if (event.type === 'waiting' && (event.reason === 'impatient' || event.reason === 'queue-left')) {
 					const source = resolve(event)
 					if (!source || !options.isVisitor(source.roleId)) continue
-					if (event.reason === 'impatient') walkOuts += 1
-					else queueAbandons += 1
+					if (event.reason === 'impatient') {
+						walkOuts += 1
+						bookFaction(source.faction, 'lost')
+					} else queueAbandons += 1
 				}
 			}
 			advanceTo(second)
@@ -357,6 +434,7 @@ export function createTakingsLedger(options: TakingsLedgerOptions): TakingsLedge
 				lastDayCents,
 				lastDayPayrollCents,
 				lastDayUnpaidCents,
+				lastDayDiscountCents,
 				todayCents: dayCents,
 				perDayCents: Math.floor((windowCents * daySeconds) / windowSeconds),
 				servicesPerDay: Math.floor((windowServed * daySeconds) / windowSeconds),
@@ -365,11 +443,13 @@ export function createTakingsLedger(options: TakingsLedgerOptions): TakingsLedge
 		reset() {
 			clearWindow()
 			tally.clear()
+			factionBook.clear()
 			currentSecond = 0
 			dayCents = 0
 			lastDayCents = 0
 			lastDayPayrollCents = 0
 			lastDayUnpaidCents = 0
+			lastDayDiscountCents = 0
 			daysCompleted = 0
 			// A re-deploy re-measures the lobby; it does not un-earn money that already arrived.
 			bankCents = carriedCents

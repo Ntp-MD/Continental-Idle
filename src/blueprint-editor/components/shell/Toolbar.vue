@@ -12,6 +12,7 @@ const SettingsModal = defineAsyncComponent(() => import('../modals/SettingsModal
 const WorkspaceModal = defineAsyncComponent(() => import('../modals/WorkspaceModal.vue'))
 const ShortcutsModal = defineAsyncComponent(() => import('./ShortcutsModal.vue'))
 import { useNpcSimulation } from '../../composables/useNpcSimulation'
+import { seedWorkspaceFile } from '../../store/seed'
 
 const store = useAssetsStore()
 const toast = useToast()
@@ -95,6 +96,22 @@ async function onCreateFirstFloor() {
     else toast.error('Failed to create a floor')
   } catch {
     toast.error('Failed to create a floor')
+  }
+}
+
+/**
+ * The lobby that ships with the game, loaded through the store's one validated import path. A cold boot
+ * has no floors and no assets, so the alternative to this button is authoring a room before being able
+ * to play one.
+ */
+async function onOpenStarterHouse() {
+  try {
+    const file = await seedWorkspaceFile()
+    const imported = await run(() => store.importWorkspace(file))
+    if (imported) toast.success('The starter lobby is on the floor - Deploy to open it')
+    else toast.error('The starter lobby would not load')
+  } catch {
+    toast.error('The starter lobby would not load')
   }
 }
 
@@ -253,6 +270,15 @@ onUnmounted(() => window.removeEventListener('keydown', onUndoKey))
 
     <div v-if="!store.state.layout.floors.length" class="form__row right--border" role="status">
       <span class="form__hint">No floors yet</span>
+      <button
+        class="flag--active"
+        :disabled="pending || previewActive"
+        aria-label="Open the starter lobby"
+        title="Load the lobby that ships with the game - furnished, staffed and ready to deploy"
+        @click="onOpenStarterHouse"
+      >
+        Open starter lobby
+      </button>
       <button
         class="flag--active"
         :disabled="pending || previewActive"

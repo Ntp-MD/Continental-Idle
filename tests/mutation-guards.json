@@ -428,8 +428,8 @@
 		{
 			"id": "arch-rank-on-profit-not-gross",
 			"file": "scripts/arch/compare.ts",
-			"find": "deadEnds: -1, profitPerDay: 4 }",
-			"replace": "deadEnds: -1 }",
+			"find": "profitPerDay: 4, [STREET_KEY]: 0 }",
+			"replace": "[STREET_KEY]: 0 }",
 			"test": "tests/unit/archCompareProfit.test.ts",
 			"why": "the efficiency profile must rank on profit after payroll, not on gross takings"
 		},
@@ -500,16 +500,16 @@
 		{
 			"id": "purchase-free-seating-not-buyable",
 			"file": "src/blueprint-editor/domain/economy/purchases.ts",
-			"find": "return rate ? rate.cents * FIXTURE_COST_DAYS : null",
-			"replace": "return (rate?.cents ?? 0) * FIXTURE_COST_DAYS",
+			"find": "if (!rate) return null",
+			"replace": "if (!rate) return 1",
 			"test": "tests/unit/purchasesShop.test.ts",
 			"why": "an asset that bills nothing is not something the player can buy more of"
 		},
 		{
 			"id": "purchase-price-is-days-of-earnings",
 			"file": "src/blueprint-editor/domain/economy/purchases.ts",
-			"find": "return rate ? rate.cents * FIXTURE_COST_DAYS : null",
-			"replace": "return rate ? rate.cents : null",
+			"find": "return rate.cents * days",
+			"replace": "return rate.cents",
 			"test": "tests/unit/purchasesShop.test.ts",
 			"why": "the price is a declared number of days of what the fixture itself bills"
 		},
@@ -564,7 +564,7 @@
 		{
 			"id": "ledger-day-close-folds-standing",
 			"file": "src/blueprint-editor/domain/economy/takings.ts",
-			"find": "onDayClose?.({ day: closedDay, served, walkOuts, incidents: closedIncidents })",
+			"find": "onDayClose?.({ day: closedDay, served, walkOuts, incidents: closedIncidents, byFaction })",
 			"replace": "void onDayClose",
 			"test": "tests/unit/reputationRecovery.test.ts",
 			"why": "every day a run jumps over must close, or recovery is skipped"
@@ -744,6 +744,350 @@
 			"replace": "const existing = merged.get('-no-such-role-')",
 			"test": "tests/unit/migrate.test.ts",
 			"why": "two rows for one role used to deploy it twice the count in silence"
+		},
+		{
+			"id": "objective-reward-day-cap",
+			"file": "src/blueprint-editor/domain/economy/purchases.ts",
+			"find": "Math.min(wanted, ceiling)",
+			"replace": "wanted",
+			"test": "tests/unit/purchasesShop.test.ts",
+			"why": "a full board at full streak would pay half the night's takings, so the bonus, not the lobby, would be the income"
+		},
+		{
+			"id": "objective-reward-streak-cap",
+			"file": "src/blueprint-editor/domain/economy/purchases.ts",
+			"find": "Math.min(Math.max(0, goal.streak), OBJECTIVE_REWARD_STREAK_CAP)",
+			"replace": "Math.max(0, goal.streak)",
+			"test": "tests/unit/purchasesShop.test.ts",
+			"why": "a streak has to stop paying extra, or an old run compounds past the tariff that funds it"
+		},
+		{
+			"id": "objective-reward-met-goals-only",
+			"file": "src/blueprint-editor/domain/economy/purchases.ts",
+			"find": "if (!goal.met) continue",
+			"replace": "if (false) continue",
+			"test": "tests/unit/purchasesShop.test.ts",
+			"why": "a goal the house missed is not a reason to pay it"
+		},
+		{
+			"id": "objective-reward-is-a-share-of-the-night",
+			"file": "src/blueprint-editor/domain/economy/purchases.ts",
+			"find": "const day = Math.max(0, Math.floor(input.lastDayCents))",
+			"replace": "const day = 10_000",
+			"test": "tests/unit/purchasesShop.test.ts",
+			"why": "the bonus is a share of what the lobby took: a day that earned nothing has nothing to share out"
+		},
+		{
+			"id": "fixture-holding-premium",
+			"file": "src/blueprint-editor/domain/economy/purchases.ts",
+			"find": "FIXTURE_COST_DAYS + FIXTURE_HOLDING_COST_DAYS * Math.max(0, Math.floor(ownedCount))",
+			"replace": "FIXTURE_COST_DAYS",
+			"test": "tests/unit/purchasesShop.test.ts",
+			"why": "a second fixture of a kind the floor already has is a different purchase and has to cost differently"
+		},
+		{
+			"id": "holdings-counted-by-the-billed-tag",
+			"file": "src/blueprint-editor/domain/economy/purchases.ts",
+			"find": "return rate ? holdings.get(rate.tag) ?? 0 : 0",
+			"replace": "return 0",
+			"test": "tests/unit/purchasesShop.test.ts",
+			"why": "holdings are counted by the rule that bills a fixture, so a lounge never makes a bar dearer"
+		},
+		{
+			"id": "objective-settlement-prices-the-fold",
+			"file": "src/blueprint-editor/domain/economy/objectives.ts",
+			"find": "streak: folded[goal.id]",
+			"replace": "streak: goal.streak",
+			"test": "tests/unit/objectives.test.ts",
+			"why": "a night has to be paid on the streak it itself earned, or the first good night pays nothing"
+		},
+		{
+			"id": "objective-board-uses-the-close-stamp",
+			"file": "src/blueprint-editor/domain/economy/objectives.ts",
+			"find": "daysCompleted: read.closedDay,",
+			"replace": "daysCompleted: close.daysCompleted,",
+			"test": "tests/unit/worldWiringSimulation.test.ts",
+			"why": "during a close the day book has not rolled, so reading it back judged every first night unproven"
+		},
+		{
+			"id": "objective-bonus-reaches-the-bank",
+			"file": "src/blueprint-editor/composables/useNpcSimulationCore.ts",
+			"find": "if (objectives.reward.cents > 0) state.takings.deposit(objectives.reward.cents)",
+			"replace": "",
+			"test": "tests/unit/worldWiringSimulation.test.ts",
+			"why": "a bonus the panel reports and the ledger never received is a readout, not a reward"
+		},
+		{
+			"id": "faction-served-charged-to-its-own-house",
+			"file": "src/blueprint-editor/domain/economy/takings.ts",
+			"find": "bookFaction(source.faction, 'served')",
+			"replace": "bookFaction(undefined, 'served')",
+			"test": "tests/unit/takingsLedger.test.ts",
+			"why": "a satisfied client belongs to one house; charging it to nobody makes every stranger neutral"
+		},
+		{
+			"id": "faction-walkout-charged-to-its-own-house",
+			"file": "src/blueprint-editor/domain/economy/takings.ts",
+			"find": "bookFaction(source.faction, 'lost')",
+			"replace": "bookFaction(undefined, 'lost')",
+			"test": "tests/unit/takingsSimulationWiring.test.ts",
+			"why": "the faction whose client gave up on the line is the one that takes offence"
+		},
+		{
+			"id": "anonymous-client-is-a-neutral-one",
+			"file": "src/blueprint-editor/domain/economy/takings.ts",
+			"find": "const id = faction ?? ANONYMOUS_FACTION",
+			"replace": "const id = faction ?? 'rival'",
+			"test": "tests/unit/takingsLedger.test.ts",
+			"why": "a standing guest the world never released is nobody's client, and must not be filed against a house that was not there"
+		},
+		{
+			"id": "faction-book-closes-with-the-day",
+			"file": "src/blueprint-editor/domain/economy/takings.ts",
+			"find": "factionBook.clear()",
+			"replace": "",
+			"test": "tests/unit/takingsLedger.test.ts",
+			"why": "the world is told about tonight, not about every night since the deploy"
+		},
+		{
+			"id": "arrival-carries-the-face-released-for-it",
+			"file": "src/blueprint-editor/composables/useNpcSimulationCore.ts",
+			"find": "if (person) state.factionOfAgent.set(arrivalId(i), person.faction)",
+			"replace": "",
+			"test": "tests/unit/takingsSimulationWiring.test.ts",
+			"why": "an agent that carries no face cannot be attributed, which is the whole reason the roster exists"
+		},
+		{
+			"id": "newest-face-is-the-last-in-the-roster",
+			"file": "src/blueprint-editor/domain/economy/standing-world.ts",
+			"find": "return state.people.length ? state.people[state.people.length - 1] : null",
+			"replace": "return state.people[0] ?? null",
+			"test": "tests/unit/standingWorld.test.ts",
+			"why": "the cap forgets from the front, so the person just released is the newest entry, not the oldest"
+		},
+		{
+			"id": "closed-line-is-not-the-clients-family-fault",
+			"file": "src/blueprint-editor/domain/economy/takings.ts",
+			"find": "else queueAbandons += 1",
+			"replace": "else { queueAbandons += 1; bookFaction(source.faction, 'lost') }",
+			"test": "tests/unit/takingsLedger.test.ts",
+			"why": "a facility that went away is the house failing, not a faction being offended"
+		},
+		{
+			"id": "world-reading-publishes-each-faction-book",
+			"file": "src/blueprint-editor/domain/economy/standing-world.ts",
+			"find": "standings: ids.map(id => state.factions[id])",
+			"replace": "standings: []",
+			"test": "tests/unit/standingWorld.test.ts",
+			"why": "attribution that no surface can read is a number nobody can check"
+		},
+		{
+			"id": "faction-forgiven-on-the-night-it-was-wronged",
+			"file": "src/blueprint-editor/domain/economy/standing-world.ts",
+			"find": "if (justJudged.has(id)) continue",
+			"replace": "if (false) continue",
+			"test": "tests/unit/standingWorld.test.ts",
+			"why": "a grudge healed on the same close it was earned means no faction can ever be written off"
+		},
+		{
+			"id": "faction-recovery-closes-a-share-of-the-gap",
+			"file": "src/blueprint-editor/domain/economy/standing-world.ts",
+			"find": "const gained = (FACTION_RELATIONS_DEFAULT - relations) * Math.min(1, Math.max(0, FACTION_RECOVERY_FRACTION))",
+			"replace": "const gained = FACTION_RELATIONS_DEFAULT - relations",
+			"test": "tests/unit/standingWorld.test.ts",
+			"why": "one quiet night does not undo a war; the street forgets a share of the gap, not all of it"
+		},
+		{
+			"id": "faction-recovery-closes-the-last-point",
+			"file": "src/blueprint-editor/domain/economy/standing-world.ts",
+			"find": "relations + (gained > 0 && gained < 1 ? 1 : gained)",
+			"replace": "relations + gained",
+			"test": "tests/unit/standingWorld.test.ts",
+			"why": "whole-point scores strand a house one point short of even forever, the same trap continuity fell into at 99"
+		},
+		{
+			"id": "faction-goodwill-stops-at-even",
+			"file": "src/blueprint-editor/domain/economy/standing-world.ts",
+			"find": "Math.min(FACTION_RELATIONS_DEFAULT, from.relations + FACTION_GOODWILL_POINTS)",
+			"replace": "from.relations + FACTION_GOODWILL_POINTS",
+			"test": "tests/unit/standingWorld.test.ts",
+			"why": "money ends a grudge; it does not buy loyalty the faction did not give"
+		},
+		{
+			"id": "faction-goodwill-refused-at-even",
+			"file": "src/blueprint-editor/domain/economy/standing-world.ts",
+			"find": "if (!from || from.relations >= FACTION_RELATIONS_DEFAULT)",
+			"replace": "if (false)",
+			"test": "tests/unit/standingWorld.test.ts",
+			"why": "a house already at even has nothing for sale, and a proud one even less"
+		},
+		{
+			"id": "faction-goodwill-writes-the-world",
+			"file": "src/blueprint-editor/composables/useShopPurchases.ts",
+			"find": "world.set(result.state)",
+			"replace": "",
+			"test": "tests/unit/purchasesShop.test.ts",
+			"why": "a purchase that took the money and never moved the world is a fee, not a favour"
+		},
+		{
+			"id": "faction-recovery-skips-the-judged",
+			"file": "src/blueprint-editor/composables/useNpcSimulationCore.ts",
+			"find": "state.world = settleWorldNight(state.world, byFaction)",
+			"replace": "state.world = settleWorldNight(state.world, {})",
+			"test": "tests/unit/worldWiringSimulation.test.ts",
+			"why": "the close that charges a faction must not also be the close that forgives it"
+		},
+		{
+			"id": "arch-door-releases-somebody",
+			"file": "scripts/arch/takings.ts",
+			"find": "world = releasePerson(world, i)",
+			"replace": "",
+			"test": "tests/unit/archWorldStreet.test.ts",
+			"why": "an arrival the world never released has no face to bill, and the offline street would be a number rather than a crowd"
+		},
+		{
+			"id": "arch-reports-the-street-it-ran",
+			"file": "scripts/arch/takings.ts",
+			"find": "street: flow",
+			"replace": "street: null //",
+			"test": "tests/unit/archWorldStreet.test.ts",
+			"why": "a footfall run that reports no street cannot be checked against the played house it claims to measure"
+		},
+		{
+			"id": "credit-cost-is-charged-at-the-close",
+			"file": "src/blueprint-editor/domain/economy/takings.ts",
+			"find": "lastDayDiscountCents = Math.min(wanted, bankCents)",
+			"replace": "lastDayDiscountCents = 0",
+			"test": "tests/unit/takingsLedger.test.ts",
+			"why": "a name the close does not charge is a readout, not a price"
+		},
+		{
+			"id": "credit-cost-clamped-to-the-bank",
+			"file": "src/blueprint-editor/domain/economy/takings.ts",
+			"find": "Math.min(wanted, bankCents)",
+			"replace": "wanted",
+			"test": "tests/unit/takingsLedger.test.ts",
+			"why": "the game carries no debt: a discount larger than the balance must not overdraw it"
+		},
+		{
+			"id": "takings-are-money-that-arrived",
+			"file": "src/blueprint-editor/domain/economy/takings.ts",
+			"find": "carriedCents += cents",
+			"replace": "",
+			"test": "tests/unit/takingsLedger.test.ts",
+			"why": "a re-deploy that drops the bank takes back money a crowd already paid for"
+		},
+		{
+			"id": "credit-price-is-the-unkept-share",
+			"file": "src/blueprint-editor/domain/economy/continuity.ts",
+			"find": "return Math.max(0, taken - kept)",
+			"replace": "return 0",
+			"test": "tests/unit/continuity.test.ts",
+			"why": "the price of the credit is exactly the share of the night the reading says is not kept"
+		},
+		{
+			"id": "credit-price-fails-safe-on-a-broken-reading",
+			"file": "src/blueprint-editor/domain/economy/continuity.ts",
+			"find": "const kept = Number.isFinite(worth) ? Math.floor(taken * Math.min(1, Math.max(0, worth))) : taken",
+			"replace": "const kept = Math.floor(taken * Math.min(1, Math.max(0, worth)))",
+			"test": "tests/unit/continuity.test.ts",
+			"why": "a NaN reading must not take a night whole from a balance the player cannot see"
+		},
+		{
+			"id": "played-house-charges-its-credit",
+			"file": "src/blueprint-editor/composables/useNpcSimulationCore.ts",
+			"find": "dailyDiscountCents: dayCents => priceOfCreditCents(dayCents, houseWorthOf(state)),",
+			"replace": "",
+			"test": "tests/unit/worldWiringSimulation.test.ts",
+			"why": "the bank has to feel the same price the panel explains"
+		},
+		{
+			"id": "fixture-sale-is-half-the-first-price",
+			"file": "src/blueprint-editor/domain/economy/purchases.ts",
+			"find": "Math.floor(full * FIXTURE_SALE_FRACTION)",
+			"replace": "full",
+			"test": "tests/unit/purchasesShop.test.ts",
+			"why": "a trade-in that returns the whole price is a way to farm the bank by placing and removing"
+		},
+		{
+			"id": "fixture-sale-prices-the-billing-rule",
+			"file": "src/blueprint-editor/domain/economy/purchases.ts",
+			"find": "const full = fixturePriceCents(tags, 0)",
+			"replace": "const full = tags && tags.length ? 10_000 : null",
+			"test": "tests/unit/purchasesShop.test.ts",
+			"why": "the refund is the same tariff the fixture bills, at the same days - not a second price list"
+		},
+		{
+			"id": "sale-pays-only-after-the-object-is-gone",
+			"file": "src/blueprint-editor/composables/useShopPurchases.ts",
+			"find": "if (findPlacedObject(objectId)) {",
+			"replace": "if (false) {",
+			"test": "tests/unit/purchasesShop.test.ts",
+			"why": "a removal the floor refused must not have been paid out"
+		},
+		{
+			"id": "sale-takes-exactly-the-fixture-it-names",
+			"file": "src/blueprint-editor/composables/useShopPurchases.ts",
+			"find": "store.select({ type: 'object', id: objectId })",
+			"replace": "store.setSelection(store.state.selectionState.items.slice())",
+			"test": "tests/unit/purchasesShop.test.ts",
+			"why": "the store deletes the whole selection, so a sale of one named fixture must not run on five highlighted ones"
+		},
+		{
+			"id": "fixture-row-sells-only-what-the-floor-can-hand-back",
+			"file": "src/blueprint-editor/composables/useShopPurchases.ts",
+			"find": "object.type === asset.id && !object.locked",
+			"replace": "object.type === asset.id",
+			"test": "tests/unit/purchasesShop.test.ts",
+			"why": "a locked fixture cannot be deleted, so a row that offers to sell it promises a refund that will never be paid"
+		},
+		{
+			"id": "fixture-list-excludes-what-bills-nothing",
+			"file": "src/blueprint-editor/composables/useShopPurchases.ts",
+			"find": "if (nextCents === null) return []",
+			"replace": "if (false) return []",
+			"test": "tests/unit/purchasesShop.test.ts",
+			"why": "free seating was never priced, so it cannot be offered for sale - or a lobby could be mined for refunds"
+		},
+		{
+			"id": "starter-lobby-holds-a-billable-fixture",
+			"file": "src/blueprint-editor/data/blueprint-data.json",
+			"find": "\"type\": \"bar-counter\"",
+			"replace": "\"type\": \"sofa-1\"",
+			"test": "tests/unit/starterHouse.test.ts",
+			"why": "a starter house that bills nothing is an empty room with a price list: the crowd deploys, the payroll is charged, and no money ever arrives"
+		},
+		{
+			"id": "dismiss-releases-the-head-it-names",
+			"file": "src/blueprint-editor/composables/useShopPurchases.ts",
+			"find": "entry.roleId === roleId ? { ...entry, count: Math.max(0, Math.floor(entry.count) - 1) } : entry",
+			"replace": "entry",
+			"test": "tests/unit/purchasesShop.test.ts",
+			"why": "a release that leaves the pool alone must not report a saving - the payroll readout would claim a head came off the floor who never did"
+		},
+		{
+			"id": "hire-row-names-the-duty-it-fills",
+			"file": "src/blueprint-editor/composables/useShopPurchases.ts",
+			"find": ".filter(task => (role.taskIds ?? []).includes(task.id))",
+			"replace": ".filter(() => false)",
+			"test": "tests/unit/purchasesShop.test.ts",
+			"why": "a head is a cost against a post; a hire row that cannot say which duty goes unmanned is selling the wage without the service"
+		},
+		{
+			"id": "away-rate-is-net-of-what-the-house-is-worth",
+			"file": "src/blueprint-editor/composables/useNpcSimulation.ts",
+			"find": "wallet.commit(tally.bankCents, Math.floor(tally.perMinuteCents * core.getHouseWorth())",
+			"replace": "wallet.commit(tally.bankCents, Math.floor(tally.perMinuteCents)",
+			"test": "tests/unit/simulationWalletCommit.test.ts",
+			"why": "a name that costs 20% on the close must not earn at face value while nobody is watching - that is the compounding the away credit exists to avoid"
+		},
+		{
+			"id": "wallet-autosave-runs-on-the-declared-clock",
+			"file": "src/blueprint-editor/composables/useNpcSimulation.ts",
+			"find": "setInterval(commitWallet, WALLET_AUTOSAVE_MS)",
+			"replace": "setInterval(commitWallet, WALLET_AUTOSAVE_MS * 12)",
+			"test": "tests/unit/simulationWalletCommit.test.ts",
+			"why": "the autosave bounds what a killed tab can lose; a different cadence silently changes the worst-case loss the balance declares"
 		}
 	]
 }

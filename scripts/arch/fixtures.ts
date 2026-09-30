@@ -11,6 +11,8 @@
  * buildNpcEngineLayout path as authored content. Nothing here bypasses the engine.
  */
 import type { AssetDef } from '../../src/blueprint-editor/domain/types'
+import { NPC_DEFAULT_SPEED } from '../../src/blueprint-editor/domain/schema/npc'
+import { emptyNpcConfig } from '../../src/blueprint-editor/store/storeUtils'
 
 export const FIXTURE_TILE_SIZE = 20
 
@@ -196,9 +198,25 @@ export function fixtureToDataFile(fixture: Fixture): unknown {
 				spawnZones: [],
 			})),
 		},
-		npcConfig: fixture.npcConfig && {
+		// A fixture that declares no population still writes a *config*, not `false`: the old
+		// `fixture.npcConfig && {…}` put the literal `false` into a file the editor is meant to open,
+		// which is invalid on its face and was thirteen of the fourteen ingress failures.
+		npcConfig: fixture.npcConfig ? {
+			// The full declared shape, not a sketch of it: `readBlueprintDataFile` - the ingress the
+			// editor itself uses - drops a role it cannot validate, and a config that loses its roles
+			// fails outright. A fixture that only its own tool can read is a one-way door, and it is the
+			// reason `arch compare` cannot rank a fixture on money.
+			speed: NPC_DEFAULT_SPEED,
 			defaultRoleId: fixture.npcConfig.roles[0]?.id ?? '',
-			roles: fixture.npcConfig.roles.map(role => ({ id: role.id, label: role.label, taskIds: role.taskIds ?? [] })),
+			roles: fixture.npcConfig.roles.map(role => ({
+				id: role.id,
+				label: role.label,
+				color: '#ffffff',
+				focusTags: [],
+				restrictedTags: [],
+				focusChance: 100,
+				taskIds: role.taskIds ?? [],
+			})),
 			tasks: fixture.npcConfig.tasks.map(task => ({
 				id: task.id,
 				label: task.label,
@@ -206,7 +224,7 @@ export function fixtureToDataFile(fixture: Fixture): unknown {
 				...(task.assetId ? { post: { assetId: task.assetId, post: 'station' } } : {}),
 			})),
 			pool: fixture.npcConfig.pool,
-		},
+		} : emptyNpcConfig(),
 	}
 }
 

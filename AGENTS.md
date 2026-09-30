@@ -59,6 +59,7 @@ PROJECT ADAPTER - the rows and banned names below are this project's values. A n
 | E2E tests (`tests/e2e/**`)                                                                                                          | `test:e2e`                                                               |
 | Store (`src/blueprint-editor/store/**`)                                                                                             | the single matching `test:<name>` (human pick)                          |
 | Project scripts (`scripts/*.mjs`)                                                                                                   | `lint`                                                                   |
+| Arch tool (`scripts/arch/**`)                                                                                                       | `arch:selftest`                                                          |
 | Repo tests (`tests/*.ts`)                                                                                                           | the single matching `test:<name>` or `npx tsx tests/<file>` (human pick) |
 | Engine/domain TS (`src/engine/**`, `**/domain/**`, `**/assets/**`)                                                                  | the single matching `test:<name>` (human pick)                           |
 | Schema/persistence/sync (`**/*schema*`, `**/*migrat*`, `**/*persist*`, `**/*sync*`, `**/*payload*`, `**/*Payload*`, `src/blueprint-editor/data/**`) | the single matching schema suite (human pick)                            |

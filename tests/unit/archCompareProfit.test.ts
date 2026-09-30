@@ -4,7 +4,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { economyFromReport, economyKpis, measureOption, PROFIT_KEY, rankOptions, RANKED_KEYS, WEIGHT_PROFILES } from '../../scripts/arch/compare'
+import { economyFromReport, economyKpis, measureOption, PROFIT_KEY, rankOptions, RANKED_KEYS, STREET_KEY, WEIGHT_PROFILES } from '../../scripts/arch/compare'
 import { FIXTURES, fixtureToDataFile } from '../../scripts/arch/fixtures'
 import { measureTakings } from '../../scripts/arch/takings'
 import { TAKINGS_DAY_SECONDS } from '../../src/blueprint-editor/domain/economy/takings'
@@ -26,8 +26,8 @@ function goodPlanPath(dir: string): string {
 	return file
 }
 
-const BUSY_BUT_STAFFED = { incomePerDayCents: 90_000, payrollPerDayCents: 120_000, profitPerDayCents: -30_000, runwayDays: 3 }
-const QUIET_AND_CHEAP = { incomePerDayCents: 60_000, payrollPerDayCents: 20_000, profitPerDayCents: 40_000, runwayDays: null }
+const BUSY_BUT_STAFFED = { incomePerDayCents: 90_000, payrollPerDayCents: 120_000, profitPerDayCents: -30_000, runwayDays: 3, goalBonusCents: 5_000, streetOwedPerDay: 400 }
+const QUIET_AND_CHEAP = { incomePerDayCents: 60_000, payrollPerDayCents: 20_000, profitPerDayCents: 40_000, runwayDays: null, goalBonusCents: 9_000, streetOwedPerDay: 20 }
 
 test('candidates are ranked on profit per day, not on gross takings', () => {
 	const dir = tmpDir('arch-compare-profit-')
@@ -38,12 +38,17 @@ test('candidates are ranked on profit per day, not on gross takings', () => {
 		const options = [measureOption('A', plan, BUSY_BUT_STAFFED), measureOption('B', plan, QUIET_AND_CHEAP)]
 		for (const option of options) assert.ok(!option.disqualified, `${option.name} blocked by a critical finding`)
 
+		// Profit still decides where the profile is about the balance sheet; the street decides where
+		// the profile is about the room people come back to. Both are ranked, and the weights say which
+		// one the board is optimising - which is the decision this pair of fixtures exists to show.
+		const leads: Record<string, string> = { efficiency: 'B', operations: 'B', experience: 'A', safety: 'A' }
 		for (const profile of Object.keys(WEIGHT_PROFILES)) {
 			const order = rankOptions(options, profile)
-			assert.equal(order.order[0]?.name, 'B', `${profile}: the plan that keeps more must lead`)
+			assert.equal(order.order[0]?.name, leads[profile], `${profile}: the ranked weights moved to a different winner than the profiles declare`)
 			assert.ok(options.some(o => o.kpis.some(k => k.key === PROFIT_KEY)), 'profit is not a metric at all')
 		}
 		assert.ok(RANKED_KEYS.includes(PROFIT_KEY), `${PROFIT_KEY} is not in the ranked list`)
+		assert.ok(RANKED_KEYS.includes(STREET_KEY), `${STREET_KEY} is not in the ranked list`)
 	} finally {
 		fs.rmSync(dir, { recursive: true, force: true })
 	}
@@ -84,8 +89,14 @@ test('the money columns are the numbers `arch takings` printed', () => {
 		const separated = { ...report, perDayCents: 90_000, netPerDayCents: 45_000, payrollCents: 20_000, profitPerDayCents: 25_000 }
 		assert.equal(economyFromReport(separated).incomePerDayCents, 45_000, 'the ranking is fed gross takings')
 		const kpis = economyKpis(economy)
-		assert.deepEqual(kpis.map(kpi => kpi.key), ['incomePerDay', 'payrollPerDay', 'profitPerDay'])
+		assert.deepEqual(kpis.map(kpi => kpi.key), ['incomePerDay', 'payrollPerDay', 'profitPerDay', STREET_KEY])
+		assert.equal(economy.streetOwedPerDay, report.street?.expectedWalkIns ?? 0, 'the street column is not the street the run ended on')
 		assert.equal(kpis.find(kpi => kpi.key === PROFIT_KEY)?.value, report.profitPerDayCents)
+		// The goal bonus is carried to the report so the exclusion can be printed, and it is never a
+		// ranked column: a bonus needs a streak of closed days, and a comparison ranks the room.
+		assert.equal(economy.goalBonusCents, report.objectiveBonusCents)
+		assert.ok(!RANKED_KEYS.some(key => key.toLowerCase().includes('bonus')), 'the streak bonus became a ranking term')
+		assert.equal(economy.profitPerDayCents, report.profitPerDayCents, 'the ranking score silently includes the bonus')
 	} finally {
 		fs.rmSync(dir, { recursive: true, force: true })
 	}

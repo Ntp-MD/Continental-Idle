@@ -157,3 +157,17 @@ export function houseMultiplier(input: {
 
 /** Declared balance. The worst any house can be worth, so a bad month is survivable. */
 export const CONTINUITY_MONEY_FLOOR = 0.5
+
+/**
+ * What a night's credit costs the house: the part of its own takings it does not get to keep, because
+ * a Continental with a bad name is paid less for the same service. Derived from `houseMultiplier` and
+ * never a fourth multiplier - the same reading the panel shows is the one the close charges, so a
+ * displayed discount and a charged one cannot come apart.
+ */
+export function priceOfCreditCents(dayCents: number, worth: number): number {
+	const taken = Number.isFinite(dayCents) ? Math.max(0, Math.floor(dayCents)) : 0
+	// A reading that is not a number charges nothing: the discount moves money out of the player's
+	// balance, so a broken ladder fails safe toward the house rather than taking a night whole.
+	const kept = Number.isFinite(worth) ? Math.floor(taken * Math.min(1, Math.max(0, worth))) : taken
+	return Math.max(0, taken - kept)
+}

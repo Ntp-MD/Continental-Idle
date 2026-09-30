@@ -18,7 +18,6 @@ import { tileKey } from '../../src/engine/npc/keys'
 import { tileStatesToWalkableGrid } from '../../src/blueprint-editor/domain/schema/walkable'
 import { loadWorld } from './world'
 
-const HERE = path.dirname(fileURLToPath(import.meta.url))
 const FLOOR_ID = 'floor-g'
 
 type TileState = 'walkable' | 'blocked' | 'door'
@@ -325,8 +324,9 @@ export function buildLobby(payloadPath: string, planPath: string, writeInPlace: 
 
 	if (writeInPlace) {
 		apply(raw, grid, plan, canvas.tileSize)
-		const checkPath = path.join(HERE, 'out', '.plan-check.json')
-		fs.mkdirSync(path.dirname(checkPath), { recursive: true })
+		// One check file per payload, because the check reads the payload it was derived from. A fixed
+		// name under `out/` made two parallel `buildLobby` calls truncate each other's file mid-parse.
+		const checkPath = `${payloadPath}.check.json`
 		fs.writeFileSync(checkPath, `${JSON.stringify(raw, null, 1)}\n`)
 		const pockets = findPockets(checkPath, plan.furniture, assets, width, height)
 		if (pockets.length) {

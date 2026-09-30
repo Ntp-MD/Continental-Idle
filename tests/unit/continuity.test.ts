@@ -9,6 +9,7 @@ import {
 	createContinuityState,
 	CONTINUITY_MONEY_FLOOR,
 	houseMultiplier,
+	priceOfCreditCents,
 	recordBreach,
 } from '@/blueprint-editor/domain/economy/continuity'
 
@@ -144,5 +145,21 @@ describe('what the house is worth', () => {
 		const regained = houseMultiplier({ standing: 1, continuity: continuityReading(state), pressurePenalty: 1 })
 		assert.ok(regained > lost)
 		assert.equal(regained, 1)
+	})
+
+	it('the price of the credit is the share of the night the reading says is not kept', () => {
+		// Face value costs nothing, and the worst reading costs the night whole - never more, and never
+		// a refund: a worth above 1 would turn a good name into free money.
+		assert.equal(priceOfCreditCents(10_000, 1), 0)
+		assert.equal(priceOfCreditCents(10_000, 0.85), 1_500)
+		assert.equal(priceOfCreditCents(10_000, CONTINUITY_MONEY_FLOOR), 5_000)
+		assert.equal(priceOfCreditCents(10_000, 2), 0, 'a worth above face value paid the house')
+		assert.equal(priceOfCreditCents(0, 0.5), 0)
+		assert.equal(priceOfCreditCents(-100, 0.5), 0, 'a negative night became a debt')
+		assert.equal(Number.isInteger(priceOfCreditCents(1_050, 0.85)), true, 'a fractional cent left the ledger')
+		// A reading that is not a number charges nothing: this is the one place a derived figure takes
+		// money out of the balance, so it fails toward the house rather than taking a night whole.
+		assert.equal(priceOfCreditCents(10_000, Number.NaN), 0)
+		assert.equal(priceOfCreditCents(Number.NaN, 0.5), 0)
 	})
 })

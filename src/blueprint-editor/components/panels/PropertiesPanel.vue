@@ -5,11 +5,11 @@ import { useConfirm } from '@/composables/useConfirm'
 import { useNpcSimulation } from '../../composables/useNpcSimulation'
 import { NPC_MOOD_LEGEND } from '../../composables/useNpcOverlayDraw'
 import { formatTakings, type TakingsSnapshot } from '../../domain/economy/takings'
-import { settleDay } from '../../domain/economy/upkeep'
-import { staffHirePriceCents, FIXTURE_COST_DAYS } from '../../domain/economy/purchases'
-import { useShopPurchases } from '../../composables/useShopPurchases'
-import { netOf, REPUTATION_NEUTRAL, type ReputationReading } from '../../domain/economy/reputation'
-import { continuityReading, createContinuityState, houseMultiplier } from '../../domain/economy/continuity'
+import { settleDay, STAFF_DAY_WAGE_CENTS } from '../../domain/economy/upkeep'
+import { staffHirePriceCents, FIXTURE_COST_DAYS, FIXTURE_HOLDING_COST_DAYS, FIXTURE_SALE_FRACTION } from '../../domain/economy/purchases'
+import { useShopPurchases, type FixtureRow } from '../../composables/useShopPurchases'
+import { REPUTATION_NEUTRAL, type ReputationReading } from '../../domain/economy/reputation'
+import { FACTION_RELATIONS_DEFAULT, type Faction } from '../../domain/economy/standing-world'
 import ObjectPropertiesForm from './ObjectPropertiesForm.vue'
 import AssetProperties from './AssetProperties.vue'
 import { usePanelResize } from '../../composables/usePanelResize'
@@ -68,25 +68,38 @@ const shop = useShopPurchases({
   store,
   ledger: npcSimulation.takings,
   standing: { get: () => npcSimulation.getStandingScore(), set: score => npcSimulation.setStanding(score) },
+  world: { get: () => npcSimulation.getWorldState(), set: next => npcSimulation.applyWorld(next) },
 })
 const shopBusy = shop.busy
-const fixturePrice = computed(() => (asset.value ? shop.priceOf(asset.value) : null))
-const canAffordFixture = computed(
-  () => fixturePrice.value !== null && (takings.value?.bankCents ?? 0) >= fixturePrice.value,
-)
-const hirePriceCents = staffHirePriceCents()
-const canAffordHire = computed(() => (takings.value?.bankCents ?? 0) >= hirePriceCents)
-const hireOptions = computed(() => shop.hireableRoles(store.state.layout.npcConfig).slice(0, 4))
-
-async function buySelectedFixture() {
-  if (!asset.value) return
-  await shop.buyFixture(asset.value)
+const bankCents = computed(() => takings.value?.bankCents ?? 0)
+const canAfford = (cents: number) => bankCents.value >= cents
+/**
+ * The fixture trade, one row per kind the house bills for. Listed by the shop rather than read off the
+ * selection: while the lobby is running nothing can be highlighted on the floor, and a trade the player
+ * cannot reach is a trade that does not exist.
+ */
+const fixtureKinds = computed(() => shop.fixtureRows().slice(0, 6))
+async function buyFixture(row: FixtureRow) {
+  await shop.buyFixture(row.asset)
 }
+async function sellFixture(row: FixtureRow) {
+  if (row.sellableObjectId === null) return
+  await shop.sellFixture(row.sellableObjectId)
+}
+const hirePriceCents = staffHirePriceCents()
+const canAffordHire = computed(() => bankCents.value >= hirePriceCents)
+const hireOptions = computed(() => shop.hireableRoles(store.state.layout.npcConfig).slice(0, 4))
 
 async function hireAHead(role: { roleId: string }) {
   await shop.hireStaff(role.roleId, store.state.layout.npcConfig)
   // A hire changes the deployment, not the floor, so the commit watcher cannot see it: rebuild the
   // crowd the player just paid for. `refresh` is inert when no preview is running.
+  npcSimulation.refresh()
+}
+async function letAHeadGo(role: { roleId: string }) {
+  await shop.dismissStaff(role.roleId, store.state.layout.npcConfig)
+  // The same reason as a hire: releasing a head is a deployment write, and the crowd on the floor has
+  // to lose them or the readout is lying about who is walking.
   npcSimulation.refresh()
 }
 function toggleTraffic() {
@@ -101,18 +114,25 @@ const canRepairStanding = computed(() => (standing.value?.score ?? REPUTATION_NE
 const world = ref<ReturnType<typeof npcSimulation.getWorld> | null>(null)
 /** What the house was asked to do today, judged on the last day that closed. */
 const objectives = ref<ReturnType<typeof npcSimulation.getObjectives>>([])
+/** What the last closed night actually paid for that board, read off the close rather than recomputed. */
+const objectiveReward = ref<ReturnType<typeof npcSimulation.getObjectiveReward>>({ cents: 0, capped: false })
 /** A house nobody trusts still trades, at a discount - so the row is a warning, never a lockout. */
 const worldDiscounted = computed(() => (world.value?.continuity.multiplier ?? 1) < 1)
-/** What every ladder together says this house is worth tonight, shown once and priced once. */
-const houseWorth = computed(() => {
-  const reading = standing.value
-  if (!reading) return 1
-  return houseMultiplier({
-    standing: reading.multiplier,
-    continuity: world.value?.continuity ?? continuityReading(createContinuityState()),
-    pressurePenalty: world.value?.pressure.demandPenalty ?? 1,
-  })
-})
+/** Only the groups the house has actually dealt with: four rows of nothing is not a readout. */
+const servedFactions = computed(() => (world.value?.world.standings ?? []).filter(faction => faction.served + faction.lost > 0))
+/** A house below even has something money can still do for it; one at or above even has nothing to buy. */
+const repairableFactions = computed(() => (world.value?.world.standings ?? []).filter(faction => faction.relations < FACTION_RELATIONS_DEFAULT))
+const canAffordFactionRepair = computed(() => (takings.value?.bankCents ?? 0) >= shop.factionRepairPriceCents)
+
+async function sendWord(faction: Faction) {
+  await shop.buyFactionGoodwill(faction)
+}
+/**
+ * What every ladder together says this house is worth tonight. Read off the settled world rather than
+ * recomputed here: the close charges its discount through this same number, and a panel that did its own
+ * arithmetic would be free to disagree with the money that actually left.
+ */
+const houseWorth = computed(() => world.value?.worth ?? 1)
 
 async function repairStandingNow() {
   await shop.buyStandingRepair()
@@ -126,6 +146,16 @@ const payroll = computed(() => {
     incomePerDayCents: Math.round(tally.perDayCents * houseWorth.value),
     staffHeadcount: npcSimulation.getStaffHeadcount(),
   })
+})
+/**
+ * What the day's loss is worth in heads. A negative profit is already true, but the number a player can
+ * act on is the one measured in the unit they can change: one head is one day's wage, and the ceiling is
+ * the crew they actually have.
+ */
+const wageGapHeads = computed(() => {
+  const settled = payroll.value
+  if (!settled || settled.profitCents >= 0 || settled.staffHeadcount <= 0) return 0
+  return Math.min(Math.ceil(-settled.profitCents / STAFF_DAY_WAGE_CENTS), settled.staffHeadcount)
 })
 const statusTimer = window.setInterval(() => {
   if (!previewActive.value) return
@@ -150,7 +180,8 @@ const statusTimer = window.setInterval(() => {
     prevTally.perMinuteCents !== tally.perMinuteCents ||
     prevTally.perDayCents !== tally.perDayCents ||
     prevTally.daysCompleted !== tally.daysCompleted ||
-    prevTally.lastDayUnpaidCents !== tally.lastDayUnpaidCents
+    prevTally.lastDayUnpaidCents !== tally.lastDayUnpaidCents ||
+    prevTally.lastDayDiscountCents !== tally.lastDayDiscountCents
   if (tallyChanged) takings.value = tally
   const summary = npcSimulation.getTrafficSummary()
   const prevTraffic = traffic.value
@@ -185,6 +216,8 @@ const statusTimer = window.setInterval(() => {
     prevWorld.continuity.underPressure !== nextWorld.continuity.underPressure ||
     prevWorld.pressure.outstandingCents !== nextWorld.pressure.outstandingCents ||
     prevWorld.pressure.underAudit !== nextWorld.pressure.underAudit ||
+    prevWorld.creditCostCents !== nextWorld.creditCostCents ||
+    prevWorld.worth !== nextWorld.worth ||
     prevWorld.world.estranged.join() !== nextWorld.world.estranged.join() ||
     prevWorld.incidentsToday !== nextWorld.incidentsToday
   ) {
@@ -195,6 +228,10 @@ const statusTimer = window.setInterval(() => {
   const nextBoard = npcSimulation.getObjectives()
   if (nextBoard.some((goal, index) => objectives.value[index]?.verdict !== goal.verdict || objectives.value[index]?.streak !== goal.streak)) {
     objectives.value = nextBoard
+  }
+  const nextReward = npcSimulation.getObjectiveReward()
+  if (objectiveReward.value.cents !== nextReward.cents || objectiveReward.value.capped !== nextReward.capped) {
+    objectiveReward.value = nextReward
   }
 }, 300)
 onUnmounted(() => window.clearInterval(statusTimer))
@@ -323,16 +360,29 @@ async function doFlatten() {
               >
                 Repair standing for {{ formatTakings(shop.repairPriceCents) }}
               </button>
-              <span class="form__hint">Net after standing <b>{{ formatTakings(netOf(takings.bankCents, standing)) }}</b></span>
               <span v-if="payroll" class="form__hint">Staff paid <b>{{ payroll.staffHeadcount }}</b></span>
               <span v-if="payroll" class="form__hint">Payroll per day <b>{{ formatTakings(payroll.payrollCents) }}</b></span>
               <span v-if="payroll" class="form__hint">Profit per day <b>{{ formatTakings(payroll.profitCents) }}</b></span>
               <span
+                v-if="wageGapHeads > 0"
+                class="form__hint flag--warning"
+                :title="`A day's wage is ${formatTakings(STAFF_DAY_WAGE_CENTS)}, so the night is short by the pay of ${wageGapHeads} of the ${payroll?.staffHeadcount ?? 0} heads on the payroll - let one go below, or grow what the floor earns`"
+              >
+                The wage bill is <b>{{ wageGapHeads }} head{{ wageGapHeads === 1 ? '' : 's' }}</b> bigger than the night
+              </span>
+              <span
                 v-if="houseWorth < 1"
                 class="form__hint flag--warning"
-                title="What the house is worth on the night, after every ladder that has an opinion about it"
+                title="Standing with the crowd, how safe the house is and what the High Table holds, priced together - the close takes this off what the night earned"
               >
                 The house is worth <b>{{ Math.round(houseWorth * 100) }}%</b> of face value
+              </span>
+              <span
+                v-if="(world?.creditCostCents ?? 0) > 0"
+                class="form__hint flag--warning"
+                title="What the last closed night's credit cost the bank"
+              >
+                Kept back last night <b>{{ formatTakings(world?.creditCostCents ?? 0) }}</b>
               </span>
               <span v-if="payroll && !payroll.selfFunding" class="form__hint">
                 Days of bank left <b>{{ payroll.runwayDays === null ? 0 : payroll.runwayDays }}</b>
@@ -369,6 +419,17 @@ async function doFlatten() {
               <span v-if="world.world.estranged.length > 0" class="form__hint flag--warning">
                 No longer welcome: {{ world.world.estranged.join(', ') }}
               </span>
+              <span
+                v-for="faction in servedFactions"
+                :key="faction.id"
+                class="form__hint"
+                :class="{ 'flag--warning': faction.lost > 0 }"
+                :title="`Nights this house judged well or ill - one close counts once, whatever the crowd did in it`"
+              >
+                {{ faction.id }}
+                <b>{{ faction.relations }}/100</b>
+                <span>{{ faction.served }} good nights, {{ faction.lost }} bad</span>
+              </span>
             </div>
             <div v-if="objectives.length > 0" class="form__row form--wrap">
               <span
@@ -381,30 +442,76 @@ async function doFlatten() {
                 {{ goal.label }}
                 <b>{{ goal.verdict === 'unknown' ? 'not yet' : goal.verdict === 'met' ? `${goal.streak} day${goal.streak === 1 ? '' : 's'}` : 'missed' }}</b>
               </span>
-            </div>
-            <div v-if="fixturePrice !== null" class="form__row form--wrap">
-              <button
-                type="button"
-                :disabled="shopBusy || !canAffordFixture"
-                :title="`Costs ${formatTakings(fixturePrice)} - ${FIXTURE_COST_DAYS} days of what it bills`"
-                @click="buySelectedFixture"
+              <span
+                class="form__hint"
+                :class="{ 'flag--success': objectiveReward.cents > 0 }"
+                title="A share of what the night itself took, paid on top of the takings"
               >
-                Buy {{ asset?.name }} for {{ formatTakings(fixturePrice) }}
-              </button>
-              <span v-if="!canAffordFixture" class="form__hint flag--warning">
-                The bank holds {{ formatTakings(takings?.bankCents ?? 0) }}
+                Goals paid <b>{{ formatTakings(objectiveReward.cents) }}</b>
+                <template v-if="objectiveReward.capped">(capped)</template>
               </span>
             </div>
-            <div v-if="hireOptions.length" class="form__row form--wrap">
+            <div v-if="repairableFactions.length" class="form__row form--wrap">
               <button
-                v-for="role in hireOptions"
-                :key="role.roleId"
+                v-for="faction in repairableFactions"
+                :key="faction.id"
+                type="button"
+                :disabled="shopBusy || !canAffordFactionRepair"
+                :title="`Sends word to the ${faction.id} - lifts standing with them toward even, and no further`"
+                @click="sendWord(faction.id)"
+              >
+                Send word to {{ faction.id }} for {{ formatTakings(shop.factionRepairPriceCents) }}
+              </button>
+              <span v-if="!canAffordFactionRepair" class="form__hint flag--warning">
+                A message costs {{ formatTakings(shop.factionRepairPriceCents) }}
+              </span>
+            </div>
+            <div v-for="row in fixtureKinds" :key="row.asset.id" class="form__row form--wrap">
+              <span class="form__hint">
+                {{ row.asset.name }}
+                <b v-if="row.held > 0">{{ row.held }} held</b>
+              </span>
+              <button
+                type="button"
+                :disabled="shopBusy || !canAfford(row.nextCents)"
+                :title="`Costs ${formatTakings(row.nextCents)} - ${FIXTURE_COST_DAYS} days of what it bills, plus ${FIXTURE_HOLDING_COST_DAYS} for each of the ${row.held} the house already holds`"
+                @click="buyFixture(row)"
+              >
+                Buy one for {{ formatTakings(row.nextCents) }}
+              </button>
+              <button
+                v-if="row.sellableObjectId !== null"
+                type="button"
+                :disabled="shopBusy"
+                :title="`Takes one ${row.asset.name} off this floor and back ${Math.round(FIXTURE_SALE_FRACTION * 100)}% of what a first one cost - the premium for holding several is not refunded`"
+                @click="sellFixture(row)"
+              >
+                Sell one for {{ formatTakings(row.sellCents) }}
+              </button>
+              <span v-if="!canAfford(row.nextCents)" class="form__hint flag--warning">
+                The bank holds {{ formatTakings(bankCents) }}
+              </span>
+            </div>
+            <div v-for="role in hireOptions" :key="role.roleId" class="form__row form--wrap">
+              <button
                 type="button"
                 :disabled="shopBusy || !canAffordHire"
-                :title="`Adds ${role.label} to the deployment; the wage lands on every closed day`"
+                :title="`Adds one ${role.label} to the ${role.headcount} already deployed${role.duties.length ? ` - they take a ${role.duties.join(' and ')} post` : ''}; the wage lands on every closed day`"
                 @click="hireAHead(role)"
               >
-                Hire {{ role.label }} for {{ formatTakings(role.priceCents) }}
+                Hire {{ role.label }} ({{ role.headcount }} deployed<template v-if="role.duties.length"> · {{ role.duties.join(', ') }}</template>) for {{ formatTakings(role.priceCents) }}
+              </button>
+              <button
+                v-if="role.headcount > 0"
+                type="button"
+                :disabled="shopBusy"
+                :class="{ 'flag--warning': role.headcount === 1 }"
+                :title="role.headcount === 1
+                  ? `The last ${role.label} on the floor${role.duties.length ? ` - the ${role.duties.join(' and ')} post goes unmanned` : ''}. The wage stops landing on closed days, and so does the service`
+                  : 'Takes one off the payroll - the wage stops landing on closed days, and so does the service they provided'"
+                @click="letAHeadGo(role)"
+              >
+                Let one go
               </button>
               <span v-if="!canAffordHire" class="form__hint flag--warning">
                 A head costs {{ formatTakings(hirePriceCents) }}

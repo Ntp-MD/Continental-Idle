@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import { useNpcSimulationCore } from '../../src/blueprint-editor/composables/useNpcSimulationCore'
 import { TAKINGS_DAY_SECONDS, TAKING_RATES_CENTS } from '../../src/blueprint-editor/domain/economy/takings'
 import { NPC_ENGINE_TICKS_PER_SECOND, type NpcEngineEvent } from '../../src/engine/npc'
+import { FACTION_HOSTILE_BELOW, FACTION_RELATIONS_DEFAULT } from '../../src/blueprint-editor/domain/economy/standing-world'
 import { hotelModel } from './hotelFixture'
 import { frameDeadline, framesUntil } from './frameWaits'
 import type { AssetDef, NpcSimulationConfig } from '../../src/blueprint-editor/domain/types'
@@ -127,7 +128,12 @@ test('footfall turns the deployed crowd into arrivals that come in the street do
 	}
 }, 30_000)
 
-test('a house the world turns against thins its own footfall', async () => {
+/**
+ * A house on footfall: the declared crowd walks in through the street doors instead of standing there,
+ * and `arrivalId` names an agent the same way the traffic step does, so a test can file an event
+ * against a real arrival rather than an invented one.
+ */
+function trafficHouse(idPrefix: string): { core: ReturnType<typeof useNpcSimulationCore>; arrivalId: (index: number) => string } {
 	const tile = 25
 	const cols = 20
 	const rows = 20
@@ -157,41 +163,99 @@ test('a house the world turns against thins its own footfall', async () => {
 		getFloors: () => model.floors,
 		getCanvas: () => canvas,
 		getViewFloorId: () => 'F1',
-		idPrefix: 'npc-ostracized-test-',
+		idPrefix,
 		random: () => 0.5,
 		getAssetDef: type => model.assetMap.get(type),
 		getAssetTags: type => model.assetMap.get(type)?.tags,
 	})
-
 	core.ingestConfig(trafficConfig)
 	core.simSpeed.value = 8
 	core.deploy(model.floors, canvas, 'F1')
+	core.setTraffic(true)
+	return { core, arrivalId: index => `${idPrefix}t${index}` }
+}
+
+/** Every event the resolver is asked about is filed against the agent id it carries. */
+function resolveThrough(core: ReturnType<typeof useNpcSimulationCore>, event: NpcEngineEvent) {
+	return { roleId: GUEST, tags: [] as string[], faction: core.factionOf(event.agentId) }
+}
+
+test('a house the world turns against is owed a thinner street', async () => {
+	const { core, arrivalId } = trafficHouse('npc-ostracized-test-')
+	const PRESENT = 600
 	try {
-		core.setTraffic(true)
 		frameDeadline('arrivals never came through the street door', await framesUntil(() => core.getTrafficSummary().spawned > 0))
+		const declared = core.getWorld().world.expectedWalkIns
+		assert.ok(declared > 0, 'a welcome house owes itself the whole declared crowd')
 		assert.deepEqual(core.getWorld().world.estranged, [], 'a new house is welcome everywhere')
 
-		// Sixteen bad days cost each faction two points of relations, which is what carries it below
-		// FACTION_HOSTILE_BELOW - a run of nights where more clients walked out than were served.
-		const PRESENT = 600
-		const resolve = () => ({ roleId: GUEST, tags: [] as string[] })
-		for (let day = 1; day <= 16; day++) {
-			const lost: NpcEngineEvent[] = Array.from({ length: 20 }, (_, index) => ({
-				type: 'waiting', agentId: `lost-${day}-${index}`, floorId: 'F1', tick: 0, reason: 'impatient',
+		// Walk out whoever the street actually sends, night after night. A hostile faction gets no more
+		// clients, so it stops being charged and the survivors keep taking the traffic until they are
+		// hostile too - the roster thins faction by faction, which is the honest shape of a world
+		// reacting to a house rather than to a number.
+		let days = 0
+		while (days < 30 && core.getWorld().world.estranged.length === 0) {
+			days += 1
+			const newest = core.getTrafficSummary().spawned - 1
+			const clients: string[] = []
+			for (let i = newest; i >= 0 && clients.length < 20; i--) {
+				const id = arrivalId(i)
+				if (core.factionOf(id)) clients.push(id)
+			}
+			assert.ok(clients.length > 0, `day ${days}: the street delivered nobody the house could place`)
+			const lost: NpcEngineEvent[] = clients.map(agentId => ({
+				type: 'waiting', agentId, floorId: 'F1', tick: 0, reason: 'impatient',
 			}))
-			core.takings.ingest(lost, day * DAY_TICKS, resolve, PRESENT)
+			core.takings.ingest(lost, days * DAY_TICKS, event => resolveThrough(core, event), PRESENT)
 			await new Promise(done => window.setTimeout(done, 0))
 		}
 		frameDeadline('the world never turned against the house', await framesUntil(() => core.getWorld().world.estranged.length > 0))
 		const world = core.getWorld()
-		assert.equal(world.world.estranged.length, 4, 'sixteen bad nights turn every faction in the roster')
-		assert.equal(world.world.expectedWalkIns, 0, 'a house nobody will visit is owed no walk-ins at all')
-		// The reading is only half of it. The street has to actually go quiet, measured from the
-		// arrivals the flow released rather than from the number the panel is showing - otherwise this
-		// is a number the HUD moves and the simulation ignores.
-		const before = core.getTrafficSummary().spawned
-		await new Promise(done => window.setTimeout(done, 800))
-		assert.equal(core.getTrafficSummary().spawned - before, 0, 'a house with no walk-ins owed still opened its door')
+		const estranged = world.world.estranged
+		assert.ok(estranged.length > 0, `${days} bad nights offended nobody`)
+		// Attribution is the whole claim: a faction that never had a client in this house has no
+		// business being angry, and the old reading charged every one of them for one queue.
+		for (const entry of world.world.standings) {
+			if (entry.served + entry.lost > 0) {
+				assert.ok(entry.relations < FACTION_HOSTILE_BELOW, `${entry.id} had clients and was not judged for them`)
+			} else {
+				assert.equal(entry.relations, FACTION_RELATIONS_DEFAULT, `${entry.id} estranged on a night nobody from ${entry.id} came`)
+			}
+		}
+		assert.ok(world.world.expectedWalkIns < declared, 'a lost faction did not thin the crowd the street owes')
+		// The crowd the world now owes is the number the flow reads, not a copy the panel shows: this
+		// run hands `createArrivalFlow` a function (`() => worldTrafficPerDay(state)`), and
+		// `arrivalFlow.test.ts` pins what a live rate does to the arrivals owed across a day.
+	} finally {
+		core.stopLoop()
+	}
+}, 60_000)
+
+test('an arrival who walks out offends its own faction and leaves the others alone', async () => {
+	const { core, arrivalId } = trafficHouse('npc-one-line-test-')
+	try {
+		frameDeadline('arrivals never came through the street door', await framesUntil(() => core.getTrafficSummary().spawned > 0))
+		// The freshest arrival still in the house: the binding is of a live agent to a face, and an
+		// arrival that has already left takes it with it.
+		const client = arrivalId(core.getTrafficSummary().spawned - 1)
+		const offended = core.factionOf(client)
+		assert.ok(offended, 'an arrival the street just delivered carries no face, so the binding is gone')
+		core.takings.ingest(
+			[{ type: 'waiting', agentId: client, floorId: 'F1', tick: 0, reason: 'impatient' }],
+			DAY_TICKS,
+			event => resolveThrough(core, event),
+			600,
+		)
+		await new Promise(done => window.setTimeout(done, 0))
+		const standings = core.getWorld().world.standings
+		const moved = standings.filter(entry => entry.lost > 0 || entry.served > 0)
+		assert.deepEqual(moved.map(entry => entry.id), [offended], 'a client of one house was charged to others')
+		assert.equal(moved[0]?.lost, 1)
+		for (const entry of standings.filter(row => row.id !== offended)) {
+			assert.equal(entry.relations, FACTION_RELATIONS_DEFAULT, `${entry.id} moved on a queue nobody from ${entry.id} stood in`)
+		}
+		// One lost house is a thinner street, not an empty one - the ladder still has three to hear.
+		assert.ok(core.getWorld().world.expectedWalkIns > 0, 'losing one faction closed the whole street')
 	} finally {
 		core.stopLoop()
 	}

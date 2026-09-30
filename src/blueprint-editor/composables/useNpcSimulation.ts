@@ -4,6 +4,8 @@ import type { AssetDef, FloorData, NpcSimDot, NpcSimulationConfig } from '../dom
 import type { TakingsLedger } from '../domain/economy/takings'
 import type { ReputationReading } from '../domain/economy/reputation'
 import type { Objective } from '../domain/economy/objectives'
+import type { ObjectiveReward } from '../domain/economy/purchases'
+import type { WorldState } from '../domain/economy/standing-world'
 import { WALLET_AUTOSAVE_MS } from '../domain/economy/wallet'
 import { editorLog } from '../domain/logger'
 import type { WalletStore } from '../store/wallet'
@@ -82,6 +84,10 @@ export function useNpcSimulation(sources: NpcSimulationSources = {}): {
 	getStandingScore: () => number
 	getWorld: () => WorldReading
 	getObjectives: () => readonly Objective[]
+	getObjectiveReward: () => ObjectiveReward
+	getHouseWorth: () => number
+	getWorldState: () => WorldState
+	applyWorld: (next: WorldState) => void
 	setStanding: (score: number) => void
 	setTraffic: (on: boolean) => void
 	deploy: (floorId?: string, spawnFloorId?: string) => void
@@ -136,7 +142,10 @@ export function useNpcSimulation(sources: NpcSimulationSources = {}): {
 		const wallet = sources.wallet
 		if (!wallet) return
 		const tally = core.takings.snapshot()
-		wallet.commit(tally.bankCents, tally.perMinuteCents, undefined, core.getStandingScore()).catch(error => editorLog.warn('wallet.commit', error))
+		// Away time is credited at the rate the house can actually bank, not the tariff it bills:
+		// a name that costs 20% on the close would otherwise earn more with nobody watching than it
+		// does when the crowd is in the room.
+		wallet.commit(tally.bankCents, Math.floor(tally.perMinuteCents * core.getHouseWorth()), undefined, core.getStandingScore()).catch(error => editorLog.warn('wallet.commit', error))
 	}
 
 	if (sources.wallet) {
@@ -204,6 +213,10 @@ export function useNpcSimulation(sources: NpcSimulationSources = {}): {
 		getStandingScore: () => core.getStandingScore(),
 		getWorld: () => core.getWorld(),
 		getObjectives: () => core.getObjectives(),
+		getObjectiveReward: () => core.getObjectiveReward(),
+		getHouseWorth: () => core.getHouseWorth(),
+		getWorldState: () => core.getWorldState(),
+		applyWorld: next => core.applyWorld(next),
 		setStanding: (score: number) => core.setStanding(score),
 		setTraffic: (on: boolean) => core.setTraffic(on),
 		deploy(floorId?: string, spawnFloorId?: string) {
