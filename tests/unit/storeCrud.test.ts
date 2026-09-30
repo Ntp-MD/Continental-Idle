@@ -50,6 +50,21 @@ function restore(base: Snap): void {
 	state.selectionState = { primary: null, items: [] }
 }
 
+/**
+ * These tests measure the store's placement rules at coordinates a few tiles inside the first floor.
+ * That was open ground when the working seed was a lobby; the shipped house is a building now, with a
+ * lift core, room bands and a corridor painted on every floor, so a placement test clears its floor
+ * first. Otherwise the suite passes or fails on whichever wall the seed happens to stand on, which is
+ * not what any of them are testing.
+ */
+function openGround(floor: FloorData): void {
+	const t = state.layout.canvas.tileSize
+	const cols = Math.floor(state.layout.canvas.width / t)
+	const rows = Math.floor(state.layout.canvas.height / t)
+	const tileStates = Array.from({ length: rows }, () => Array.from({ length: cols }, () => 'walkable' as const))
+	floor.walkable = { tileStates, walkableGrid: tileStates.map(row => row.map(() => true)) }
+}
+
 function installTestAsset(): AssetDef {
 	const asset: AssetDef = { id: 'grill-asset', name: 'Grill', w: 2, h: 2, walkable: false, defaultFillColor: '#ffffff' }
 	state.assetRegistry.push(asset)
@@ -230,6 +245,7 @@ test('a wall or door never shares a cell with another object', async () => {
 	installRoleAsset('poster-asset', 'fixture')
 	const floor = state.layout.floors[0]
 	floor.objects = []
+	openGround(floor)
 	state.currentFloorId = floor.id
 	const t = state.layout.canvas.tileSize
 	const area = resolveBuildingArea(state.layout)
@@ -709,6 +725,7 @@ test('flattenToSvgAsset() merges into a walkable asset by default', async () => 
 	installTestAsset()
 	state.layout.canvas = { width: 1600, height: 1200, tileSize: 25 }
 	const floor = state.layout.floors[0]
+	openGround(floor)
 	floor.objects = [makeObject('fa', 300, 300), makeObject('fb', 350, 300)]
 	state.currentFloorId = floor.id
 	selectObjects(['fa', 'fb'])
@@ -727,6 +744,7 @@ test('flattenToSvgAsset() refuses a merged footprint that covers another object'
 	state.layout.canvas = { width: 1600, height: 1200, tileSize: 25 }
 	const floor = state.layout.floors[0]
 	const assetsBefore = state.assetRegistry.length
+	openGround(floor)
 	floor.objects = [makeObject('ga', 300, 300), makeObject('gb', 450, 300), makeObject('gc', 380, 310)]
 	state.currentFloorId = floor.id
 	selectObjects(['ga', 'gb'])
@@ -745,6 +763,7 @@ test('an object buried by painted wall geometry is not trapped', async () => {
 	installTestAsset()
 	const floor = state.layout.floors[0]
 	floor.objects = []
+	openGround(floor)
 	state.currentFloorId = floor.id
 	const t = state.layout.canvas.tileSize
 	const area = resolveBuildingArea(state.layout)

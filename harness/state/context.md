@@ -31,6 +31,7 @@ Rewrite the glossary on adoption (see `harness/HARNESS.md` - Adopt in a new proj
 | Spawn zone | Per-floor, role-filtered tiles where a role's NPCs spawn (`NpcSpawnZone`); sits on that role's own work area. | pool entry |
 | Interact spot | An object's stand/edge/post anchor set. | interact config |
 | Interact config | An object's interaction definition. | interact spot |
+| Need / urge | One guest's rising clock (`thirst`, `appetite`, `rest`, `cleanliness`) stored as the tick it was last served; past `NEED_ACT_AT` it is what the next decision goes after. Served by a fixture whose tags map to it; a settled guest loiters instead. | mood, AI state, schedule |
 | Engine | Pure, UI-framework-independent simulation shared by editor preview and runtime. | adapter |
 | Editor / Runtime | Authoring app vs game; adapters own lifecycle/rendering only. | game/client |
 | Editor-only field | A CanvasConfig/EditorSettings field excluded from the synced payload. | unsynced bug |

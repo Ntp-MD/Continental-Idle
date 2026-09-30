@@ -91,12 +91,13 @@ test('footfall turns the deployed crowd into arrivals that come in the street do
 	core.simSpeed.value = 8
 	core.deploy(model.floors, { w: tile * cols, h: tile * rows, tileSize: tile, streetTiles: 5 }, 'F1')
 	try {
-		assert.equal(core.trafficOn.value, false, 'footfall starts off')
+		// Deploying opens the street: this house has two doors and guests in its pool, so the player
+		// does not have to press a second control to see the house run. The toggle stays for turning
+		// it off again.
+		assert.equal(core.trafficOn.value, true, 'deploying left the street shut on a house that can take guests')
 		assert.ok(core.getTrafficSummary().entrances === 2, `expected 2 street doors, got ${core.getTrafficSummary().entrances}`)
 
 		// The guest crowd the modal deployed is replaced by traffic, not stacked under it.
-		core.setTraffic(true)
-		assert.equal(core.trafficOn.value, true)
 		// The dots, not `npcs`: the view list is refreshed on a 250 ms throttle, the dot map is the
 		// immediate truth about who is still in the engine.
 		assert.equal(core.frameDots.size, 0, 'the standing visitors should be gone the moment traffic starts')
@@ -286,6 +287,31 @@ test('the running simulation pays the ledger without any caller wiring', async (
 		assert.equal(snapshot.bankCents, snapshot.served * TAKING_RATES_CENTS.bar)
 		assert.deepEqual(snapshot.byTag.map(entry => entry.tag), ['bar'])
 		assert.ok(snapshot.perMinuteCents > 0, 'the income rate must be live while service is happening')
+	} finally {
+		core.stopLoop()
+	}
+}, 30_000)
+
+test('a house with no street door keeps its crowd instead of emptying the room', async () => {
+	// The same crowd, on a plate with no door. Footfall cannot deliver here, so arming it would
+	// delete the standing guests and put nobody in their place - the deployment would look broken.
+	// The house that cannot take arrivals keeps the people it was given.
+	const core = useNpcSimulationCore({
+		getConfig: () => config,
+		getFloors: () => model.floors,
+		getCanvas: () => ({ w: TILE * 10, h: TILE * 10, tileSize: TILE }),
+		getViewFloorId: () => 'F1',
+		idPrefix: 'npc-nodoor-test-',
+		random: () => 0.5,
+		getAssetDef: type => model.assetMap.get(type),
+		getAssetTags: type => model.assetMap.get(type)?.tags,
+	})
+	core.ingestConfig(config)
+	core.deploy(model.floors, { w: TILE * 10, h: TILE * 10, tileSize: TILE }, 'F1')
+	try {
+		assert.equal(core.getTrafficSummary().entrances, 0, 'this plate is meant to have no street door')
+		assert.equal(core.trafficOn.value, false, 'footfall cannot run with no door to deliver through')
+		frameDeadline('the deployment put nobody on the plate', await framesUntil(() => core.frameDots.size > 0))
 	} finally {
 		core.stopLoop()
 	}

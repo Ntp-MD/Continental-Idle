@@ -1,14 +1,4 @@
-import { NpcEngine, NPC_ENGINE_DEFAULT_OPTIONS, findNpcGridPath, type NpcEngineFloor, type NpcEngineInteractionTarget, type NpcEngineLayout, type NpcEnginePoint } from '../src/engine/npc'
-
-function mulberry32(seed: number): () => number {
-	return () => {
-		seed |= 0
-		seed = (seed + 0x6d2b79f5) | 0
-		let t = Math.imul(seed ^ (seed >>> 15), 1 | seed)
-		t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t
-		return ((t ^ (t >>> 14)) >>> 0) / 4294967296
-	}
-}
+import { NpcEngine, NPC_ENGINE_DEFAULT_OPTIONS, findNpcGridPath, mulberry32, type NpcEngineFloor, type NpcEngineInteractionTarget, type NpcEngineLayout, type NpcEnginePoint } from '../src/engine/npc'
 
 const GRID = 48
 const random = mulberry32(20260823)

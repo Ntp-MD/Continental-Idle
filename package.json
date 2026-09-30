@@ -24,7 +24,8 @@
     "verify:assets": "node scripts/verify-assets.mjs",
     "observe:hotel": "tsx scripts/observe-hotel.ts",
     "arch": "tsx scripts/arch/cli.ts",
-    "arch:selftest": "tsx scripts/arch/cli.ts selftest"
+    "arch:selftest": "tsx scripts/arch/cli.ts selftest",
+    "author:hotel": "tsx scripts/author-hotel.ts"
   },
   "dependencies": {
     "vue": "^3.5.38"

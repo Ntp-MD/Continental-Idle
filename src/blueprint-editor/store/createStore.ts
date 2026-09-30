@@ -5,7 +5,7 @@ import { collectWiringIssues } from '../assets/validation'
 import { snap as _snap, clamp as _clamp, resolveBuildingArea } from '../domain/geometry'
 import { buildBlueprintData } from './dataLoader'
 import { migrate } from './migrate'
-import { cloneDeepRaw, deepEqualRaw, emptyNpcConfig, layoutHasContent, pruneNpcReferences } from './storeUtils'
+import { cloneDeepRaw, deepEqualRaw, emptyNpcConfig, layoutHasContent, pruneNpcReferences, starterNpcConfig } from './storeUtils'
 import { EDITOR_CONFIG } from '../editorConfig'
 import { createEditorState, initAssetFields, type BlueprintStore, type ToastApi } from './state'
 import type { PersistencePort, SyncPort } from './ports'
@@ -40,7 +40,7 @@ export function emptySeed(): BlueprintStoreSeed {
 			version: EDITOR_CONFIG.layoutVersion,
 			canvas: { ...EDITOR_CONFIG.defaultCanvas },
 			floors: [],
-			npcConfig: emptyNpcConfig(),
+			npcConfig: starterNpcConfig(),
 		},
 		assetRegistry: [],
 		tagDefinitions: [],

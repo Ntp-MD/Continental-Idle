@@ -18,6 +18,7 @@ import {
 	createNpcEnginePolicy,
 	filterNpcSpawnTiles,
 	interactionTargetKey,
+	lcg32,
 	type NpcWalkableMap,
 } from '../../src/engine/npc'
 import {
@@ -166,14 +167,6 @@ export interface TakingsReport {
 	readonly waitReasons: readonly TakingsRow[]
 }
 
-function makeRandom(seed: number): () => number {
-	let state = seed >>> 0 || 1
-	return () => {
-		state = (state * 1664525 + 1013904223) >>> 0
-		return state / 4294967296
-	}
-}
-
 function bump(table: Map<string, number>, key: string): void {
 	table.set(key, (table.get(key) ?? 0) + 1)
 }
@@ -196,11 +189,11 @@ export function measureTakings(payloadPath: string, options: TakingsOptions = {}
 
 	const built = buildNpcEngineLayout(
 		floors,
-		{ w: canvas.width, h: canvas.height, tileSize: canvas.tileSize },
+		{ w: canvas.width, h: canvas.height, tileSize: canvas.tileSize, streetTiles: data.layout.streetWidthTiles, streetFloorId: data.layout.streetFloorId },
 		type => assetMap.get(type),
 		getAssetTags,
 	)
-	const random = makeRandom(options.seed ?? 0x9e3779b9)
+	const random = lcg32(options.seed ?? 0x9e3779b9)
 	let engine: NpcEngine
 	const policy = createNpcEnginePolicy({
 		getConfig: () => config,

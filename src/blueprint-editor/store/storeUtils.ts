@@ -1,5 +1,5 @@
 import { toRaw } from 'vue'
-import { NPC_DEFAULT_SPEED, NPC_OPTION_DEFAULTS, NPC_FRAME_DEFAULTS, type AssetDef, type FloorData, type FloorLayoutData, type NpcSimulationConfig, type NpcTask } from '../domain/types'
+import { NPC_DEFAULT_SPEED, NPC_OPTION_DEFAULTS, NPC_FRAME_DEFAULTS, type AssetDef, type FloorData, type FloorLayoutData, type NpcRole, type NpcSimulationConfig, type NpcTask } from '../domain/types'
 
 export function floorHasContent(floor: FloorData): boolean {
 	if (floor.objects.length > 0) return true
@@ -164,6 +164,39 @@ export function emptyNpcConfig(): NpcSimulationConfig {
 		pool: [],
 		...NPC_OPTION_DEFAULTS,
 		...NPC_FRAME_DEFAULTS,
+	}
+}
+
+/**
+ * The crowd a brand-new house opens with, so that placing furniture and pressing Deploy is the
+ * whole game. A workspace with no roles deploys nobody - the player would have to author a role
+ * before anything could move, which is the step this removes.
+ *
+ * It carries no focus tags on purpose: a starter house has none of the hotel's tags yet, so the
+ * guest uses whatever the player puts down rather than nothing. `taskIds` stays empty, which is the
+ * visitor rule the ledger bills with - a role with no duty post consumes, so this one earns.
+ */
+export const STARTER_GUEST_ROLE: NpcRole = {
+	id: 'role-guest',
+	label: 'Guest',
+	color: '#3794ff',
+	focusTags: [],
+	restrictedTags: [],
+	taskIds: [],
+	focusChance: 100,
+	spawnRule: { targetTags: [] },
+}
+
+/** Declared balance: how many guests a new house walks in per day before anything is tuned. */
+export const STARTER_GUEST_COUNT = 12
+
+/** `emptyNpcConfig` plus the one role that makes the first Deploy do what it says. */
+export function starterNpcConfig(): NpcSimulationConfig {
+	return {
+		...emptyNpcConfig(),
+		defaultRoleId: STARTER_GUEST_ROLE.id,
+		roles: [structuredClone(STARTER_GUEST_ROLE)],
+		pool: [{ roleId: STARTER_GUEST_ROLE.id, count: STARTER_GUEST_COUNT }],
 	}
 }
 

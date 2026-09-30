@@ -1,6 +1,6 @@
 import { test } from 'vitest'
 import assert from 'node:assert/strict'
-import { NpcEngine, NPC_ENGINE_DEFAULT_OPTIONS, buildNpcEngineLayout, createNpcEnginePolicy, findNpcGridPath, selectBestTarget, WanderMemory, type NpcEngineLayout, type NpcEngineInteractionTarget, type NpcEngineFloor, type NpcEngineAgent, type NpcEngineOptions } from '../../src/engine/npc'
+import { NpcEngine, NPC_ENGINE_DEFAULT_OPTIONS, buildNpcEngineLayout, createNpcEnginePolicy, findNpcGridPath, lcg32, selectBestTarget, WanderMemory, type NpcEngineLayout, type NpcEngineInteractionTarget, type NpcEngineFloor, type NpcEngineAgent, type NpcEngineOptions } from '../../src/engine/npc'
 import { normalizeAllowedRoleIds, normalizeNpcConfig, type TileState } from '../../src/blueprint-editor/domain/types'
 import { buildAssetMap } from '../../src/blueprint-editor/assets/assetUtils'
 import { validatePortalConfiguration } from '../../src/blueprint-editor/assets/validation'
@@ -18,15 +18,8 @@ function makeElevatorAsset(): AssetDef {
 	}
 }
 
-function makeRng(seed: number): () => number {
-	let state = seed >>> 0 || 1
-	return () => {
-		state = (state * 1664525 + 1013904223) >>> 0
-		return state / 4294967296
-	}
-}
 let rngSeqN = 0
-const rngSeq = (): (() => number) => makeRng((rngSeqN++ + 0x9e3779b9) >>> 0)
+const rngSeq = (): (() => number) => lcg32((rngSeqN++ + 0x9e3779b9) >>> 0)
 
 const layout: NpcEngineLayout = {
 	floors: [{ id: 'F1', width: 10, height: 10, tileSize: 1, walkable: [] }],
@@ -780,7 +773,7 @@ test('non-overlap: two agents never overlap after a two-stage move', () => {
 // ─── Target scoring tests ───
 
 function makeAgent(id: string, x: number, y: number): NpcEngineAgent {
-	return { id, floorId: 'F1', x, y, targetX: x, targetY: y, speed: 1, status: 'idle', path: [], pathIndex: 0, reservationItemId: null, reservationInteractSpotId: null, interactionRemainingTicks: 0, chatPartnerId: null, crossFloorCooldownUntil: 0 }
+	return { id, floorId: 'F1', x, y, targetX: x, targetY: y, speed: 1, status: 'idle', path: [], pathIndex: 0, reservationItemId: null, reservationInteractSpotId: null, interactionRemainingTicks: 0, chatPartnerId: null, crossFloorCooldownUntil: 0, needs: { thirst: 0, appetite: 0, rest: 0, cleanliness: 0 } }
 }
 
 function makeTarget(itemId: string, x: number, y: number): NpcEngineInteractionTarget {
@@ -1169,12 +1162,12 @@ test('station posts: staff holds the post spot while guests use front spots with
 		getTickNumber: () => postEngine.tickNumber,
 		listAgents: () => postEngine.listAgents(),
 		getAssetTags: () => ['lounge'],
-		random: makeRng(7),
+		random: lcg32(7),
 		interactionTargets: built.layout.interactionTargets,
 	})
 	postEngine = new NpcEngine(
 		{ floors: built.layout.floors, interactionTargets: built.layout.interactionTargets, queues: built.layout.queues },
-		{ ...NPC_ENGINE_DEFAULT_OPTIONS, ticksPerSecond: 60, agentClearance: 0.5, random: makeRng(8), ...postPolicy },
+		{ ...NPC_ENGINE_DEFAULT_OPTIONS, ticksPerSecond: 60, agentClearance: 0.5, random: lcg32(8), ...postPolicy },
 	)
 	postEngine.addAgent({ id: 'bartender', roleId: 'staff', floorId: 'F1', x: 0, y: 0, targetX: 0, targetY: 0, speed: 30 })
 	postEngine.addAgent({ id: 'patron', roleId: 'guest', floorId: 'F1', x: 11, y: 8, targetX: 11, targetY: 8, speed: 30 })

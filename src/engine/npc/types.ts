@@ -1,3 +1,5 @@
+import type { NpcNeeds } from './needs'
+
 export interface NpcEnginePoint {
 	x: number
 	y: number
@@ -84,6 +86,9 @@ export interface NpcEngineAgent {
 	queueArrivalSequence?: number | null
 
 	crossFloorCooldownUntil: number
+
+	/** The tick each urge was last served - what makes the next choice a reason and not a dice roll. */
+	needs: NpcNeeds
 }
 
 export type NpcEngineEventType =

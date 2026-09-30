@@ -27,6 +27,7 @@ export { interactionTargetKey, tileKey } from './keys'
 export { chatPairKey, resolveChatExchange } from './socialLines'
 export { createNpcEnginePolicy } from './policy'
 export type { NpcEnginePolicy, NpcPolicyContext } from './policy'
+export { lcg32, mulberry32 } from './seededRandom'
 export type {
 	NpcEngineAgent,
 	NpcEngineAgentStatus,

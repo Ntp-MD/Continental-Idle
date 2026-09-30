@@ -315,6 +315,14 @@ function armTraffic(state: NpcSimCoreState): void {
 		state.trafficOn.value = false
 		return
 	}
+	// A house with no street door cannot take arrivals, and turning footfall on there is worse than
+	// leaving it off: arming the flow removes the standing crowd and puts nobody in its place, so the
+	// room empties and the deployment looks broken. The panel reports the missing door instead, and
+	// the crowd the player authored keeps living on the plate.
+	if (!state.entrances.length) {
+		state.trafficOn.value = false
+		return
+	}
 	state.trafficFlow = createArrivalFlow({
 		arrivalsPerDay: () => worldTrafficPerDay(state),
 		daySeconds: TAKINGS_DAY_SECONDS,
@@ -620,10 +628,13 @@ function buildEngine(state: NpcSimCoreState, host: NpcSimulationCoreHost, floors
 	})
 
 	spawnAgents(state, host, floors, canvas)
-	syncAgents(state)
 	// Deploy and refresh both rebuild the crowd, so traffic re-arms the same way both times:
 	// an edit must not quietly restore the standing visitors it had replaced.
 	armTraffic(state)
+	// Synced after `armTraffic`, not before: arming footfall replaces the standing guests with
+	// arrivals, and a dot map taken before that would still list the agents it just removed - the
+	// panel reads the dots, so it would show a crowd that is no longer in the engine.
+	syncAgents(state)
 }
 
 function frame(state: NpcSimCoreState, host: NpcSimulationCoreHost): void {
@@ -817,6 +828,12 @@ export function useNpcSimulationCore(host: NpcSimulationCoreHost) {
 			state.arrivalMarks.clear()
 			state.takings.reset()
 			clearStrike(state)
+			// Deploying is the player saying they want the house to run, and footfall is what "run"
+			// means: it turns on with the deployment instead of waiting for a second press, because a
+			// house that was working and then silently stopped taking guests is the worse failure. The
+			// panel keeps the toggle - turning it off is a real decision - and turning it back on must
+			// not reset the crowd, so this sets the flag rather than calling `setTraffic`.
+			state.trafficOn.value = true
 			// The world's day stamp has to move with the ledger's day book. `reset()` puts
 			// `daysCompleted` back to 0 while `worldDay` still held the old count, so the next close
 			// matched the stamp and the world silently skipped a whole day - found by the probe, not

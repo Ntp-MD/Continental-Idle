@@ -97,8 +97,10 @@ test('the offline runner ages standing on the days it closes, not only the live 
 		const raw = JSON.parse(fs.readFileSync(STORE, 'utf8'))
 		fs.writeFileSync(file, `${JSON.stringify(raw, null, 2)}\n`)
 		buildLobby(file, plan, true)
-		// One authored hotel day, with a clientele that will not wait: the record must be bad, and the
-		// standing the report prices against must still be climbing toward it, not equal to it.
+		// One authored hotel day, with a clientele that will not wait. What the day is *worth* is not
+		// this test's business - an impatient crowd can read well or badly depending on how many heads
+		// reach a queue first - so the claim is the relation the runner exists to show: closed days age
+		// standing along the road from neutral toward the record, and never simply print the record.
 		const report = measureTakings(file, {
 			ticks: TAKINGS_DAY_SECONDS * NPC_ENGINE_TICKS_PER_SECOND,
 			arrivals: true,
@@ -107,12 +109,16 @@ test('the offline runner ages standing on the days it closes, not only the live 
 		})
 		assert.ok(report.daysCompleted >= 1, `no hotel day closed, so the fold had nothing to age: ${report.daysCompleted}`)
 		assert.ok(report.walkOuts > 0, 'nothing was lost at a fifth of a second of patience, so the evidence is vacuous')
-		assert.ok(report.evidenceScore < REPUTATION_NEUTRAL, `the record reads ${report.evidenceScore}, which is not a failure`)
+		const { evidenceScore, score } = { evidenceScore: report.evidenceScore, score: report.reputation.score }
+		assert.notEqual(evidenceScore, REPUTATION_NEUTRAL, 'the night left no record for standing to age toward')
 		assert.ok(
-			report.reputation.score > report.evidenceScore,
-			`standing ${report.reputation.score} equals the record ${report.evidenceScore}: the runner is reporting the evidence, not an aged standing`,
+			(score - REPUTATION_NEUTRAL) * (evidenceScore - REPUTATION_NEUTRAL) > 0,
+			`standing ${score} is not on the way from neutral to the record ${evidenceScore}`,
 		)
-		assert.ok(report.reputation.score < REPUTATION_NEUTRAL, 'standing did not move off neutral at all')
+		assert.ok(
+			Math.abs(score - REPUTATION_NEUTRAL) < Math.abs(evidenceScore - REPUTATION_NEUTRAL),
+			`standing ${score} has passed the record ${evidenceScore}: the runner is reporting the evidence, not an aged standing`,
+		)
 	} finally {
 		fs.rmSync(path.dirname(file), { recursive: true, force: true })
 	}

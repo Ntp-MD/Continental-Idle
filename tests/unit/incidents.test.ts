@@ -27,6 +27,20 @@ describe('scenes in the house', () => {
 		assert.equal(settleDayIncidents({ blockedThisDay: 1, presentAgentTicks: agentTicks }), 0)
 	})
 
+	it('a room below the line is not rounded up into one', () => {
+		// The gap between the two rules: the rate is below the declared line, but the severity it
+		// would be scaled by rounds to a whole scene. The line has to win, or "a rate, not a count"
+		// would be a rate that charges a single blocked agent in a quiet house. Half the threshold is
+		// where the two rules disagree most, so it is where the room is tested.
+		const rate = INCIDENT_RATE_THRESHOLD * 0.75
+		const present = 4_000
+		const blocked = Math.round(rate * present)
+		assert.ok(blocked > 0, 'the room did have blocked agents in it')
+		assert.equal(blocked / present / INCIDENT_RATE_THRESHOLD, 0.75, 'the severity rounds to a whole scene')
+		assert.equal(settleDayIncidents({ blockedThisDay: blocked, presentAgentTicks: present }), 0,
+			'a room under the line pays nothing, however many scenes its fraction rounds to')
+	})
+
 	it('a room that cannot pass anyone is charged, and more so the worse it gets', () => {
 		const gentle = settleDayIncidents({ blockedThisDay: 200, presentAgentTicks: 100_000 })
 		const brutal = settleDayIncidents({ blockedThisDay: 800, presentAgentTicks: 100_000 })

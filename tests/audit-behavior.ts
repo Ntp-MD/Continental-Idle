@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { NpcEngine, NPC_ENGINE_DEFAULT_OPTIONS } from '../src/engine/npc'
+import { NpcEngine, NPC_ENGINE_DEFAULT_OPTIONS, mulberry32 } from '../src/engine/npc'
 import { buildNpcEngineLayout } from '../src/engine/npc/layoutBuild'
 import { createNpcEnginePolicy } from '../src/engine/npc/policy'
 import type { AssetDef, FloorData, FloorWalkable, NpcSimulationConfig, ObjectData, TileState } from '../src/blueprint-editor/domain/types'
@@ -8,17 +8,6 @@ const TILE = 25
 const CANVAS = { w: 1600, h: 1000, tileSize: TILE }
 const TPS = 60
 const RUN_TICKS = 6 * 60 * TPS
-
-function mulberry32(seed: number): () => number {
-	let a = seed >>> 0
-	return () => {
-		a = (a + 0x6d2b79f5) >>> 0
-		let t = a
-		t = Math.imul(t ^ (t >>> 15), t | 1)
-		t ^= t + Math.imul(t ^ (t >>> 7), t | 61)
-		return ((t ^ (t >>> 14)) >>> 0) / 4294967296
-	}
-}
 
 const random = mulberry32(20260824)
 

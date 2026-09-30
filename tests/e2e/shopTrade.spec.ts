@@ -17,6 +17,7 @@ import { deployWorkspace, importWorkspace, type WorkspaceData } from './canvasFi
 const FIRST_PRICE = '25.50'
 const REFUND = '12.75'
 /** The kind under test: `bar-counter` is 4x1 tiles and carries the `bar` rate. */
+const FIXTURE_ID = 'bar-counter'
 const FIXTURE_NAME = 'Bar Counter'
 
 function addBarCounters(data: WorkspaceData): void {
@@ -24,11 +25,15 @@ function addBarCounters(data: WorkspaceData): void {
 	// from what this file puts down, and cannot drift when the starter lobby is re-furnished.
 	data.layout.floors[0].objects = [300, 460, 620].map(x => ({
 		id: `obj-e2e-bar-${x}`,
-		type: 'bar-counter',
+		type: FIXTURE_ID,
 		x,
 		y: 300,
 		rotation: 0,
 	}))
+	// And the same for the rest of the building: a holding is counted by the rate its tags bill at, across
+	// every floor (`holdingsOnFloor` in useShopPurchases), so one bar counter on the bar floor would move
+	// the price this spec reads. The plate is the spec's own, on every floor.
+	for (const floor of data.layout.floors.slice(1)) floor.objects = []
 }
 
 function fixtureRow(page: Page): Locator {

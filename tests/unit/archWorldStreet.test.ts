@@ -25,6 +25,12 @@ function probeCopy(): string {
 	raw.layout.canvas.width = COLS * TILE
 	raw.layout.canvas.height = ROWS * TILE
 	raw.layout.canvas.tileSize = TILE
+	// The working seed is a whole building now: eleven floors whose paint is measured on a different
+	// canvas than this probe draws, so a copy that keeps them all sends the arrivals looking at ten
+	// empty plates and the door reads as nobody's. The probe measures one floor's street, so the copy
+	// is that one floor, and its staff stand on it.
+	raw.layout.floors = [raw.layout.floors[0]]
+	raw.npcConfig.pool = raw.npcConfig.pool.map((entry: { floorIds?: string[] }) => ({ ...entry, floorIds: ['floor-g'] }))
 	fs.writeFileSync(file, `${JSON.stringify(raw, null, 2)}\n`)
 	// The probe plan, built into the copy: the authored floor bills almost nothing, so measuring the
 	// store without this proves only that an empty room has no street.

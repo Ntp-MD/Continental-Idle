@@ -238,8 +238,8 @@
 			"file": "src/engine/npc/policy.ts",
 			"find": "const openTargets = targets.filter(target => !hasPostTag(target.tags))",
 			"replace": "const openTargets = [...targets]",
-			"test": "tests/unit/engineInvariants.test.ts",
-			"why": "guests must not stand on a staffed duty post"
+			"test": "tests/unit/needs.test.ts",
+			"why": "guests must not stand on a staffed duty post - the role's walkable map hides those cells, so this filter is checked on its own, through the queue a guest may join"
 		},
 		{
 			"id": "queue-line-capacity",
@@ -1052,10 +1052,10 @@
 		{
 			"id": "starter-lobby-holds-a-billable-fixture",
 			"file": "src/blueprint-editor/data/blueprint-data.json",
-			"find": "\"type\": \"bar-counter\"",
+			"find": "\"type\": \"reception-desk\"",
 			"replace": "\"type\": \"sofa-1\"",
 			"test": "tests/unit/starterHouse.test.ts",
-			"why": "a starter house that bills nothing is an empty room with a price list: the crowd deploys, the payroll is charged, and no money ever arrives"
+			"why": "the desk is the only asset in the library carrying the chamberlain rate - swap it for a sofa and the richest thing the shipped house can bill is gone, and the plate still deploys a crowd"
 		},
 		{
 			"id": "dismiss-releases-the-head-it-names",
@@ -1088,6 +1088,174 @@
 			"replace": "setInterval(commitWallet, WALLET_AUTOSAVE_MS * 12)",
 			"test": "tests/unit/simulationWalletCommit.test.ts",
 			"why": "the autosave bounds what a killed tab can lose; a different cadence silently changes the worst-case loss the balance declares"
+		},
+		{
+			"id": "high-table-fine-never-exceeds-the-bank",
+			"file": "src/blueprint-editor/domain/economy/highTable.ts",
+			"find": "return Math.min(Math.max(0, Math.floor(bankCents)), PRESSURE_DAILY_COST_CENTS)",
+			"replace": "return PRESSURE_DAILY_COST_CENTS",
+			"test": "tests/unit/highTable.test.ts",
+			"why": "the House must not fine money the house never had; without the clamp a bankrupt lobby is fined into a debt the payroll rule never authorised"
+		},
+		{
+			"id": "high-table-penalty-never-below-half",
+			"file": "src/blueprint-editor/domain/economy/highTable.ts",
+			"find": "return Math.min(1, Math.max(0.5, 1 - Math.max(0, outstandingCents) / (HIGH_TABLE_AUDIT_ABOVE * 2)))",
+			"replace": "return Math.min(1, 1 - Math.max(0, outstandingCents) / (HIGH_TABLE_AUDIT_ABOVE * 2))",
+			"test": "tests/unit/highTable.test.ts",
+			"why": "the penalty is declared to remove at most half the walk-ins; a wider band ends the run on a bad month instead of on a real one"
+		},
+		{
+			"id": "high-table-good-standing-clears-the-house",
+			"file": "src/blueprint-editor/domain/economy/highTable.ts",
+			"find": "return { outstandingCents: 0, audits: 0, daysUnderPressure: 0 }",
+			"replace": "return { outstandingCents: state.outstandingCents, audits: state.audits, daysUnderPressure: state.daysUnderPressure }",
+			"test": "tests/unit/highTable.test.ts",
+			"why": "returning to good standing is what forgives the House; without the reset the balance is permanent and the pressure never clears"
+		},
+		{
+			"id": "incident-rate-below-the-line-charges-nothing",
+			"file": "src/blueprint-editor/domain/economy/incidents.ts",
+			"find": "if (rate < INCIDENT_RATE_THRESHOLD) return charged",
+			"replace": "if (rate < 0) return charged",
+			"test": "tests/unit/incidents.test.ts",
+			"why": "the whole design is that a scene is a RATE against how many were present; a room that is merely busy must never pay for it"
+		},
+		{
+			"id": "incident-severity-is-measured-against-the-line",
+			"file": "src/blueprint-editor/domain/economy/incidents.ts",
+			"find": "const severity = rate / INCIDENT_RATE_THRESHOLD",
+			"replace": "const severity = rate / (INCIDENT_RATE_THRESHOLD * 10)",
+			"test": "tests/unit/incidents.test.ts",
+			"why": "a room twice as bad pays twice as much rather than one more; measured against the wrong line every charge is off by a factor of ten"
+		},
+		{
+			"id": "incident-charge-is-capped-per-day",
+			"file": "src/blueprint-editor/domain/economy/incidents.ts",
+			"find": "return Math.min(INCIDENT_MAX_PER_DAY, charged + incidents)",
+			"replace": "return charged + incidents",
+			"test": "tests/unit/incidents.test.ts",
+			"why": "the cap is what stops one pathological frame from ending the house before the player has seen a single frame"
+		},
+		{
+			"id": "incident-empty-house-commits-nothing",
+			"file": "src/blueprint-editor/domain/economy/incidents.ts",
+			"find": "if (blockedThisDay <= 0 || presentAgentTicks <= 0) return charged",
+			"replace": "if (blockedThisDay <= 0) return charged",
+			"test": "tests/unit/incidents.test.ts",
+			"why": "the rate needs a denominator; without one the division is infinite and an empty house is charged the maximum for having nobody in it"
+		},
+		{
+			"id": "new-house-carries-a-deployable-crowd",
+			"file": "src/blueprint-editor/store/createStore.ts",
+			"find": "npcConfig: starterNpcConfig(),",
+			"replace": "npcConfig: emptyNpcConfig(),",
+			"test": "tests/unit/starterHouse.test.ts",
+			"why": "a house with no roles deploys nobody: the starter guest is what makes the first Deploy do what it says, and a workspace that opens with an empty crowd is the step this removes"
+		},
+		{
+			"id": "deploy-opens-the-street",
+			"file": "src/blueprint-editor/composables/useNpcSimulationCore.ts",
+			"find": "state.trafficOn.value = true",
+			"replace": "state.trafficOn.value = false",
+			"test": "tests/unit/takingsSimulationWiring.test.ts",
+			"why": "pressing Deploy is the player saying they want the house to run, and footfall is what running means - leaving it shut is the second press this removes"
+		},
+		{
+			"id": "no-door-keeps-the-crowd",
+			"file": "src/blueprint-editor/composables/useNpcSimulationCore.ts",
+			"find": "if (!state.entrances.length) {",
+			"replace": "if (false) {",
+			"test": "tests/unit/takingsSimulationWiring.test.ts",
+			"why": "arming footfall on a house with no street door deletes the standing crowd and puts nobody in its place, so the deployment looks broken instead of standing still"
+		},
+		{
+			"id": "needs-urge-steers-the-choice",
+			"file": "src/engine/npc/policy.ts",
+			"find": "if (isVisitorRole(roleContext.role)) {",
+			"replace": "if (false && isVisitorRole(roleContext.role)) {",
+			"test": "tests/unit/needs.test.ts",
+			"why": "without the urge the policy falls back to proximity and novelty, so a thirsty guest takes the nearest sofa and the room reads as particles again"
+		},
+		{
+			"id": "needs-act-threshold",
+			"file": "src/engine/npc/needs.ts",
+			"find": "export const NEED_ACT_AT = 0.5",
+			"replace": "export const NEED_ACT_AT = 0",
+			"test": "tests/unit/needs.test.ts",
+			"why": "with no threshold every agent is always after something, and the settled guest never stops to do anything else"
+		},
+		{
+			"id": "visit-settles-the-need",
+			"file": "src/engine/npc/needs.ts",
+			"find": "\t\tneeds[key] = currentTick",
+			"replace": "\t\tvoid served",
+			"test": "tests/unit/needs.test.ts",
+			"why": "a visit that settles nothing sends the guest back to the same fixture forever"
+		},
+		{
+			"id": "engine-settles-on-completion",
+			"file": "src/engine/npc/npcEngine.ts",
+			"find": "if (held) serveNeeds(agent.needs, held.tags, this.tickCount)",
+			"replace": "void held",
+			"test": "tests/unit/needs.test.ts",
+			"why": "the engine owns the agent's state; if it does not mark the visit, the need is only as real as whoever remembers to call it"
+		},
+		{
+			"id": "lift-follows-the-urge",
+			"file": "src/engine/npc/policy.ts",
+			"find": "const wanted = urge ? needTags(urge) : tags",
+			"replace": "const wanted = tags",
+			"test": "tests/unit/needs.test.ts",
+			"why": "the density of what a role likes sends the lift to the busiest floor, not to the one holding the thing the guest wants"
+		},
+		{
+			"id": "a-lounge-is-rest",
+			"file": "src/engine/npc/needs.ts",
+			"find": "\trest: ['chambers', 'lounge', 'front-desk'],",
+			"replace": "\trest: ['chambers', 'front-desk'],",
+			"test": "tests/unit/needs.test.ts",
+			"why": "the map is the only place that says what serves what; drop the lounge and a tired guest has no sofa to settle for on a floor with no desk"
+		},
+		{
+			"id": "a-post-outranks-an-urge",
+			"file": "src/engine/npc/policy.ts",
+			"find": "if (posted) return posted",
+			"replace": "if (false && posted) return posted",
+			"test": "tests/unit/needs.test.ts",
+			"why": "a need must never pull a worker off the station the house is paying them to stand at"
+		},
+		{
+			"id": "a-guest-settles-for-what-is-here",
+			"file": "src/engine/npc/policy.ts",
+			"find": "for (const urge of urges) {",
+			"replace": "for (const urge of urges.slice(0, 1)) {",
+			"test": "tests/unit/needs.test.ts",
+			"why": "acting only on the loudest urge leaves a guest standing in the corridor wanting a bath when there is a sofa two steps away"
+		},
+		{
+			"id": "a-settled-guest-loiters",
+			"file": "src/engine/npc/policy.ts",
+			"find": "which is how a settled guest kept ordering the same drink.\n\t\t\treturn null",
+			"replace": "which is how a settled guest kept ordering the same drink.\n\t\t\treturn openTargets.find(target => isReachableByRole(target, roleContext)) ?? null",
+			"test": "tests/unit/needs.test.ts",
+			"why": "a guest with nothing worth acting on goes back to the nearest till - the repetition this layer exists to stop"
+		},
+		{
+			"id": "a-desk-hands-out-the-room",
+			"file": "src/engine/npc/needs.ts",
+			"find": "\trest: ['chambers', 'lounge', 'front-desk'],",
+			"replace": "\trest: ['chambers', 'lounge'],",
+			"test": "tests/unit/needs.test.ts",
+			"why": "a guest who is tired goes to the desk that assigns the room; drop it and the chamberlain rate is out of every guest's reach"
+		},
+		{
+			"id": "shipped-house-sleeps-somebody",
+			"file": "src/blueprint-editor/data/blueprint-data.json",
+			"find": "\"type\": \"double-bed-1\"",
+			"replace": "\"type\": \"sofa-1\"",
+			"test": "tests/unit/starterHouse.test.ts",
+			"why": "the bed is the only asset carrying the chambers rate, and it is where the house makes its money - swap the rooms for lounge seating and the eleven floors are a bar with a staircase"
 		}
 	]
 }

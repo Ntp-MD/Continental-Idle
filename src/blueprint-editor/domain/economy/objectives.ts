@@ -16,14 +16,8 @@
  */
 
 import { objectiveRewardCents, type ObjectiveReward } from './purchases'
-import { TAKINGS_DAY_SECONDS, type TakingsSnapshot } from './takings'
+import { formatTakings, type TakingsSnapshot } from './takings'
 import { settleDay, type DailySettlement } from './upkeep'
-
-/**
- * Declared balance. How many goals are on the board at once. Small on purpose: a list the player
- * cannot hold in their head is a list they stop reading.
- */
-export const OBJECTIVE_BOARD_SIZE = 3
 
 /**
  * The house, read the way a goal is checked. One shape, so a new goal is a new line of reading and
@@ -147,7 +141,7 @@ export const OBJECTIVE_GOALS: readonly ObjectiveGoal[] = [
 	{ id: 'full-room', label: 'Full room', detail: `Serve ${OBJECTIVE_TARGETS['full-room']} clients in a day` },
 	{ id: 'no-one-walks', label: 'Nobody walks', detail: `Turn away ${OBJECTIVE_TARGETS['no-one-walks']} or fewer in a day` },
 	{ id: 'keep-the-peace', label: 'Keep the peace', detail: `Neutrality ${OBJECTIVE_TARGETS['keep-the-peace'].neutrality}+ and owe the House nothing` },
-	{ id: 'earn-the-day', label: 'Earn the day', detail: `Take ${Math.round(OBJECTIVE_TARGETS['earn-the-day'] / 100)} in a day` },
+	{ id: 'earn-the-day', label: 'Earn the day', detail: `Take ${formatTakings(OBJECTIVE_TARGETS['earn-the-day'])} in a day` },
 ]
 
 /**
@@ -200,11 +194,6 @@ export function advanceObjectiveStreaks(
 	const next: Record<ObjectiveId, number> = { ...streaks }
 	for (const goal of board) next[goal.id] = goal.met ? streaks[goal.id] + 1 : 0
 	return next
-}
-
-/** The three that count, highest streak first, so the board is never a list of five equals. */
-export function topObjectives(board: readonly Objective[]): readonly Objective[] {
-	return [...board].sort((a, b) => b.streak - a.streak || b.progress - a.progress).slice(0, OBJECTIVE_BOARD_SIZE)
 }
 
 /**
@@ -273,6 +262,3 @@ export function settleObjectives(
 		}),
 	}
 }
-
-/** A day is the ledger's, so a goal is measured in the same unit the day book closes in. */
-export const OBJECTIVE_DAY_SECONDS = TAKINGS_DAY_SECONDS

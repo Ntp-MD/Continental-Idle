@@ -5,6 +5,7 @@ import { queueLineCapacity } from './queueBuild'
 import { findNpcGridPath } from './pathfinding'
 import { selectBestTarget } from './targetScoring'
 import { getRoleFocusTags, hasMatchingTag, hasPostTag } from './tagMatching'
+import { dominantNeed, isVisitorRole, needTags, urgesByUrgency } from './needs'
 import { WanderMemory } from './wanderMemory'
 import type { NpcEngineAgent, NpcEngineFloor, NpcEngineInteractionTarget, NpcEngineOptions, NpcEnginePoint, NpcWalkableMap } from './types'
 
@@ -308,12 +309,30 @@ function makeTargetSelector(
 		if (!roleContext) return null
 		const posted = selectPostTarget(context, roleContext, agent, targets)
 		if (posted) return posted
+		const openTargets = targets.filter(target => !hasPostTag(target.tags))
+		const tags = resolveFocusTags(context, roleContext.role)
+		// A guest acts on an urge before they act on a dice roll, and the urge says *which* thing they
+		// are after - so the room reads as people going to do specific things. A role with posted work
+		// never gets here: `posted` above already sent them to their station.
+		if (isVisitorRole(roleContext.role)) {
+			const urges = urgesByUrgency(agent.needs, context.getTickNumber(), context.ticksPerSecond, tags.length ? tags : null)
+			// The worst urge first, then whatever else this floor can actually serve: a guest who wants a
+			// bath and finds none sits down rather than standing in the corridor wanting a bath.
+			for (const urge of urges) {
+				const wanted = needTags(urge)
+				const matching = openTargets.filter(target => hasMatchingTag(target.tags, wanted) && isReachableByRole(target, roleContext))
+				if (matching.length) return selectScoredTarget(context, state, agent, matching, random)
+			}
+			// Nothing is wanted, or nothing here would settle it, so nothing is bought: null hands the
+			// guest to the wander and the chat - the loitering that makes a room read live - and is the
+			// engine's cue to look beyond this floor. The old behaviour walked them to the nearest till,
+			// which is how a settled guest kept ordering the same drink.
+			return null
+		}
 		// A role with cross-floor business deliberately passes on the local floor sometimes,
 		// which is what puts guests and staff through the lift lobby instead of the sofa.
 		const crossFloorChance = roleContext.role.crossFloorChance ?? 0
 		if (crossFloorChance > 0 && random() * 100 < crossFloorChance) return null
-		const openTargets = targets.filter(target => !hasPostTag(target.tags))
-		const tags = resolveFocusTags(context, roleContext.role)
 		if (!tags.length) {
 			const reachable = openTargets.filter(target => isReachableByRole(target, roleContext))
 			return reachable.length ? selectScoredTarget(context, state, agent, reachable, random) : null
@@ -420,8 +439,12 @@ function makeCrossFloorSelector(context: NpcPolicyContext): NpcEnginePolicy['cro
 		const role = resolveRole(context.getConfig(), agent.roleId)
 		if (!role) return null
 		const tags = resolveFocusTags(context, role)
-		if (!tags.length) return null
-		const matching = candidates.filter(target => !hasPostTag(target.tags) && hasMatchingTag(target.tags, tags))
+		// The lift goes to wherever the urge is served, not to whichever floor has the most of anything
+		// the role likes: a guest after a bed wants the floor with the beds.
+		const urge = isVisitorRole(role) ? dominantNeed(agent.needs, context.getTickNumber(), context.ticksPerSecond, tags.length ? tags : null) : null
+		const wanted = urge ? needTags(urge) : tags
+		if (!wanted.length) return null
+		const matching = candidates.filter(target => !hasPostTag(target.tags) && hasMatchingTag(target.tags, wanted))
 		if (!matching.length) return null
 		return pickNearestFloorTarget(matching, agent.floorId, floors)
 	}

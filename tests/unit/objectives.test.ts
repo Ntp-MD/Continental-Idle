@@ -2,12 +2,10 @@ import { test } from 'vitest'
 import assert from 'node:assert/strict'
 import {
 	advanceObjectiveStreaks,
-	OBJECTIVE_BOARD_SIZE,
 	OBJECTIVE_TARGETS,
 	objectiveInputFor,
 	readObjectives,
 	settleObjectives,
-	topObjectives,
 	ZERO_OBJECTIVE_STREAKS,
 	type ObjectiveInput,
 	type ObjectiveStreaks,
@@ -97,16 +95,6 @@ test('a streak counts closed days only, and a missed day ends it', () => {
 	// A day that misses the goal ends the run of it, whatever it earned.
 	streaks = advanceObjectiveStreaks(streaks, readObjectives(input({ served: 0 }), streaks))
 	assert.equal(streaks['full-room'], 0)
-})
-
-test('the board is three goals, ranked by what the house has actually kept up', () => {
-	const streaks = { ...ZERO, 'full-room': 9, 'no-one-walks': 4, 'pay-the-bill': 7 } satisfies ObjectiveStreaks
-	const board = readObjectives(input({ served: 100, walkOuts: 0 }), streaks)
-	const top = topObjectives(board)
-	assert.equal(top.length, OBJECTIVE_BOARD_SIZE)
-	assert.equal(top[0]?.id, 'full-room', 'the longest run is the headline')
-	assert.equal(top[1]?.id, 'pay-the-bill')
-	assert.equal(top[2]?.id, 'no-one-walks')
 })
 
 test('a settled day pays on the streak the day itself earned, not the one it inherited', () => {

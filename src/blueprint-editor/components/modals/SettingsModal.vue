@@ -110,6 +110,16 @@ const applyLabelColor = (value: string | undefined) => applyCanvasColor('Failed 
 const applyWallColor = (value: string | undefined) => applyCanvasColor('Failed to set wall color', () => store.setCanvasWallColor(value))
 const applyGridColor = (value: string | undefined) => applyCanvasColor('Failed to set grid color', () => store.setCanvasGridColor(value))
 const applyStreetSidewalkColor = (value: string | undefined) => applyCanvasColor('Failed to set sidewalk color', () => store.setCanvasStreetSidewalkColor(value))
+/**
+ * The street width is refused rather than clamped when it would outgrow the canvas, so a silent
+ * no-op here would be a dropdown that looks like it worked and did not. Every other setting in this
+ * modal reports through the same path.
+ */
+async function applyStreetWidth(value: string): Promise<void> {
+	const tiles = Number(value) || null
+	const saved = await run(() => store.setStreetWidth(tiles))
+	if (!saved) toast.error('Failed to set street width - the ring would leave no building area')
+}
 const applyStreetRoadColor = (value: string | undefined) => applyCanvasColor('Failed to set road color', () => store.setCanvasStreetRoadColor(value))
 const applyStreetMarkingColor = (value: string | undefined) => applyCanvasColor('Failed to set lane marking color', () => store.setCanvasStreetMarkingColor(value))
 
@@ -337,7 +347,7 @@ async function resetEditorAll() {
               id="canvas__streetwidth"
               :value="store.state.layout.streetWidthTiles ?? ''"
               aria-label="Street ring width in tiles"
-              @change="store.setStreetWidth(Number(($event.target as HTMLSelectElement).value) || null)"
+              @change="applyStreetWidth(($event.target as HTMLSelectElement).value)"
             >
               <option value="">Default (8 tiles)</option>
               <option v-for="w in [5, 6, 7, 8, 9, 10, 11, 12]" :key="w" :value="w">{{ w }} tiles</option>

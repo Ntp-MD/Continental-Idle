@@ -343,5 +343,3 @@ export function useShopPurchases(deps: {
 		bankCents,
 	}
 }
-
-export type ShopPurchases = ReturnType<typeof useShopPurchases>

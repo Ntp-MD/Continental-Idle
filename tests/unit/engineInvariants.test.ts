@@ -100,7 +100,7 @@ test('a facility serves only its declared capacity, even when it has more spots'
 		defaultRoleId: 'role-guest',
 		roles: [{ id: 'role-guest', label: 'Guest', color: '#3794ff', focusTags: ['bar'], restrictedTags: [], taskIds: [], focusChance: 100 }],
 		tasks: [],
-		pool: [{ roleId: 'role-guest', count: 3 }],
+		pool: [{ roleId: 'role-guest', count: 6 }],
 	} as unknown as NpcSimulationConfig
 	let engine: NpcEngine
 	const policy = createNpcEnginePolicy({
@@ -125,12 +125,17 @@ test('a facility serves only its declared capacity, even when it has more spots'
 	// Start them on the near side so all three reach the counter inside the run: a fixture where
 	// only two guests arrive passes with the capacity rule removed, which is how this test first
 	// fooled the gate.
-	for (let i = 0; i < 3; i++) {
+	// Six heads for two places: a crowd big enough that some instant always has more claimants than
+	// the fixture may serve. Three was enough when a served guest went straight back to the counter;
+	// with an urge that is settled by the visit, they walk away and the third claimant never arrives.
+	for (let i = 0; i < 6; i++) {
 		const [x, y] = cells[(i * 3) % cells.length].split(',').map(Number)
 		engine.addAgent({ id: `g${i}`, roleId: 'role-guest', floorId: 'F1', x, y, targetX: x, targetY: y, speed: 40 })
 	}
 	let holdersAtOnce = 0
-	for (let tick = 0; tick < 1500; tick++) {
+	// Long enough that all three arrive *after* their thirst bites, not just after spawn: a run that
+	// ends before the third head reaches the counter passes with the capacity rule removed.
+	for (let tick = 0; tick < 4000; tick++) {
 		engine.tick(1)
 		holdersAtOnce = Math.max(holdersAtOnce, engine.listAgents().filter(agent => agent.reservationItemId === 'object:bar-1').length)
 	}

@@ -10,6 +10,7 @@ import type {
 	NpcEngineWaitReason,
 } from './types'
 import { hasPostTag } from './tagMatching'
+import { createNeeds, serveNeeds } from './needs'
 import { interactionTargetKey, reservationItemKey, tileKey } from './keys'
 import { NPC_ENGINE_DEFAULT_OPTIONS, type NpcEngineResolvedOptions } from './config'
 import { queueLineCapacity } from './queueBuild'
@@ -195,7 +196,7 @@ export class NpcEngine {
 	}
 
 	getAgents(): readonly NpcEngineAgent[] {
-		return Array.from(this.agents.values()).map(agent => ({ ...agent, path: agent.path.slice() }))
+		return Array.from(this.agents.values()).map(agent => ({ ...agent, needs: { ...agent.needs }, path: agent.path.slice() }))
 	}
 
 	listAgents(): readonly NpcEngineAgent[] {
@@ -211,7 +212,7 @@ export class NpcEngine {
 		return this.events.splice(0)
 	}
 
-	addAgent(agent: Omit<NpcEngineAgent, 'status' | 'path' | 'pathIndex' | 'reservationItemId' | 'reservationInteractSpotId' | 'interactionRemainingTicks' | 'chatPartnerId' | 'crossFloorCooldownUntil'> & Partial<Pick<NpcEngineAgent, 'status' | 'path' | 'pathIndex' | 'reservationItemId' | 'reservationInteractSpotId' | 'interactionRemainingTicks' | 'chatPartnerId' | 'crossFloorCooldownUntil'>>): void {
+	addAgent(agent: Omit<NpcEngineAgent, 'status' | 'path' | 'pathIndex' | 'reservationItemId' | 'reservationInteractSpotId' | 'interactionRemainingTicks' | 'chatPartnerId' | 'crossFloorCooldownUntil' | 'needs'> & Partial<Pick<NpcEngineAgent, 'status' | 'path' | 'pathIndex' | 'reservationItemId' | 'reservationInteractSpotId' | 'interactionRemainingTicks' | 'chatPartnerId' | 'crossFloorCooldownUntil'>>): void {
 		if (this.agents.has(agent.id)) throw new Error(`NPC agent already exists: ${agent.id}`)
 		this.agentListCache = null
 		this.agents.set(agent.id, {
@@ -228,6 +229,7 @@ export class NpcEngine {
 			queueSlotIndex: agent.queueSlotIndex ?? null,
 			queueArrivalSequence: agent.queueArrivalSequence ?? null,
 			crossFloorCooldownUntil: agent.crossFloorCooldownUntil ?? 0,
+			needs: createNeeds(this.tickCount, this.ticksPerSecond, this.random),
 		})
 		this.syncCellReservation(this.agents.get(agent.id)!)
 		const decideSpreadTicks = Math.floor(clampRandom(this.random()) * this.ticksPerSecond)
@@ -348,6 +350,9 @@ export class NpcEngine {
 					this.markBlocked(agent)
 					this.releaseReservation(agent)
 					this.releasedThisTick.add(agent.id)
+					// The visit is what the agent was after: whatever the fixture serves is settled now,
+					// which is what makes the next choice the *next* urge rather than the same one.
+					if (held) serveNeeds(agent.needs, held.tags, this.tickCount)
 					if (!this.standsOnInteractionSpot(agent) || !this.vacateSpotCell(agent)) agent.status = 'idle'
 					this.emit({ type: 'interaction-end', agentId: agent.id, floorId: agent.floorId, itemId, interactSpotId })
 				}

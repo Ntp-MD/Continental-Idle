@@ -1,8 +1,10 @@
 ## Mission
 
-Mode: autopilot through the free-token window (until 2026-09-30). Grow Continental Idle into an idle
-game: a takings economy read off the live simulation, then content and progression on top of it.
-Carried: placement/collision hardening (loops 1-18) is complete and uncommitted.
+Two user goals landed in this session: an eleven-floor hotel authored from the assets that already
+exist (loop 71), and a behaviour layer that gives each NPC a reason between decisions (loop 72).
+Mode was autopilot through the free-token window (2026-09-30). Carried: loops 1-72 are complete and
+**uncommitted** - the whole tree is dirty, including `AGENTS.md`, the economy domain, the store, the
+shipped `blueprint-data.json`, and four e2e specs.
 
 ## Plan
 
@@ -1750,6 +1752,39 @@ Carried: placement/collision hardening (loops 1-18) is complete and uncommitted.
   street's favour slowly reports less of it than one that loses it fast. Same shape as the streak problem,
   now visible rather than assumed.
 
+### Loop 70 - the loop the user actually plays: place, Deploy, watch
+
+- [x] **The ask, in the player's words**: "I just place things on each floor, release the NPCs, and watch
+  them live - that's it, right?" Measured against the code, it was five steps, not three: create a floor,
+  author a role, set a count, Deploy, and press Footfall. Two of them were never the player's business.
+- [x] **A new house opens with a crowd.** `STARTER_GUEST_ROLE` + `starterNpcConfig()` in `storeUtils.ts`,
+  wired into `emptySeed()` only - so a blank workspace is deployable out of the box while every other
+  `emptyNpcConfig()` caller (save fallback, reload, migrate) keeps meaning "nothing configured". The guest
+  carries **no focus tags**, so it uses whatever the player puts down instead of the tags of a hotel they
+  have not built, and empty `taskIds`, which is the visitor rule the ledger bills with.
+- [x] **Deploy opens the street.** `deploy()` sets `trafficOn` instead of waiting for a second press: a
+  house that was working and then silently took no guests is the worse failure. The panel keeps the
+  toggle, so turning footfall off is still a decision.
+- [x] **A house with no street door keeps its crowd.** Found by the first run of the suite, not by
+  reading: arming footfall on a doorless plate deletes the standing guests and puts nobody in their
+  place, so the room empties and the deployment looks broken. `armTraffic` now refuses to arm without an
+  entrance, and the panel says why **outside** the `trafficOn` block, because that is the state the
+  player is actually in.
+- [x] **A second defect the same change exposed**: `buildEngine` synced the dot map *before* arming
+  traffic, so the panel listed agents that had just been removed. Sync moved after `armTraffic`.
+- [x] Proof, both directions. `tests/unit/starterHouse.test.ts` +5: a blank house deploys a crowd with
+  nothing authored, the blank config deploys nobody (the A/B that makes the starter role load-bearing
+  rather than decorative), and `emptySeed()` itself is deployable. `tests/e2e/starterFlow.spec.ts` counts
+  the presses in a real browser. **Falsified**: reverting the seed to `emptyNpcConfig()` fails the e2e on
+  `Set a count above 0`, and 3 new mutation guards (`new-house-carries-a-deployable-crowd`,
+  `deploy-opens-the-street`, `no-door-keeps-the-crowd`) are all killed.
+- [ ] Gap - **the starter crowd is 12/day**, which is one arrival every 25 seconds at 1x. Enough to see
+  the house run, thin for a player who has built five floors; the number is a declared balance and a
+  single constant to move.
+- [ ] Gap - **footfall still starts empty.** With a door, Deploy replaces the standing crowd with arrivals
+  and the room fills over the day. That is the design (a room that holds the crowd twice measures itself
+  twice), but the first minute of a fresh house is emptier than the crowd the player just deployed.
+
 ### Next in the free-token window (queue, ordered by value per machine-hour)
 
 Every item below is machine-gated (a suite, a guard, or a measured command), because unattended tokens
@@ -1788,35 +1823,189 @@ in** (loop 50), **a faction the street can write back in, on the clock or for mo
 **and a head bought against a named post, with the last one warned** (loop 66),
 **the fixture payloads made editor-loadable, and the ranking given a street column** (loops 67-70).
 
+### Loop 71 - the eleven-floor house, authored from the parts that exist
+
+- [x] **The ask**: lay out an eleven-floor hotel - what each floor is and what it should hold - using
+  only assets already in the library, then test the living. `scripts/author-hotel.ts` (+
+  `npm run author:hotel`, `-- --check` to validate without writing) is the answer and the record: it
+  draws the floors, refuses to write a payload it cannot read back, and prints what each floor can bill.
+- [x] **The programme**: G arrival (two `reception-desk`s - the only `chamberlain` asset, the richest
+  rate the house can bill), 1 dining (its south end is high tables, because `dining` carries no rate and
+  `bar` does), 2 bar lounge, 3 business, 4-6 guest rooms (12 chambers each, `double-bed-1` = `chambers`),
+  7 wellness, 8 housekeeping (the washers and linen the whole building's laundry runs on), 9 kitchen,
+  10 plant. Nothing invented: the build throws if a plan asks for an asset the library does not have.
+- [x] **The geometry that makes it one building**: one plate per floor (rows 8..51, cols 8..81 of
+  90x60 at 20px), perimeter on the street ring so `streetEntrances` reads the ground floor's doors as
+  the only way in, a lift core at cols 8..13 with `door` tiles where the corridor punches through, a
+  corridor at rows 26..28, room bands north and south with a door tile per room frontage, and
+  **`elevator-1` at the same cell on every floor** - `buildNpcEngineLayout` pairs each portal with the
+  first portal on every other floor, so one stacked cell is a full mesh, and BLD-02 cannot drift because
+  the plans have no say in where the car stands.
+- [x] **Real defect found by measuring, not by reading**: `scripts/arch/takings.ts` built the layout with
+  `{w,h,tileSize}` while `world.ts` passed `streetTiles` + `streetFloorId` too. Every floor therefore
+  became a street floor, the 8-tile ring turned into walkable pavement on all eleven, and it is a
+  *separate connected component* from the plate - so ~46% of agents spawned on pavement they could never
+  leave and the whole building reported **0 services started**. Fixed: the two builders now pass the
+  same thing. Same payload, same crowd: 0 -> 703 starts.
+- [x] **The invariant the first draft broke**: furniture must not be baked into `tileStates`. Writing
+  each footprint as blocked cells made the seed fail its own two checks - "a wall or door never shares a
+  cell with another object" and "no wall is two tiles thick" - and hid the interact spots. Placement now
+  tracks occupancy in its own set and leaves the paint alone; `place()` still refuses to overlap.
+- [x] **Deployment is per role, and per floor**: `mergeDeploymentPool` folds duplicate role entries and
+  `normalizeNpcConfigForPersistence` rejects a pool whose length changed, so eleven guest entries do not
+  load - one entry of eleven floors does. `spawnAgents` releases `count` on *each* named floor, so
+  45 guests x 11 floors is the ~500 arrivals/day the brief declares. Staff floors are filtered by their
+  own posts (`task.post.assetId`): a bartender asks for the arrival floor, the arrival floor has no bar,
+  and the build says so instead of shipping an OPS-04 finding.
+- [x] **Two lifts measured worse, so the house keeps one**: the engine pairs every portal with the FIRST
+  portal on each other floor, so a second car is not a second destination - its travellers land on the
+  same endpoint and `isOccupied` jams it. portal-busy 122 -> 1,010 and billed services 40/day -> 20/day
+  with two. CIR-07 (a floor needs two ways out) stays an open finding, and the reason is in the file.
+- [x] **Test fixtures that assumed the old seed**: `storeCrud` places objects a few tiles inside
+  `floors[0]` and that floor used to be open ground - it is a building now, so four of those tests clear
+  their floor's paint first (`openGround`), and `archWorldStreet`'s probe copy trims the payload to the
+  one floor it actually builds, or arrivals spend the run looking at ten plates with no service on them.
+- [x] **The living test, offline** (`arch takings`, 30,000 ticks = 500 sim-seconds, 546 agents):
+  **703 services started, 689 completed, 106 billed clients, 240.00 gross per day** (175.20 net of
+  standing), 80 billed services/day = 16% of the declared arrivals. Earned by facility: chambers 97x,
+  chamberlain 3x, bar 6x. Against that: payroll **1,980.00/day for 33 staff**, so the house as authored
+  runs **-1,804.80/day**. That is the tariff, not the layout: four of the eight rates
+  (`contract-board`, `contract-closed`, `back-room`, `infirmary`) have **no asset that carries the tag**,
+  and `kitchen` is unreachable to a guest because `role-guest` has no `kitchen` focus tag - so the
+  biggest earners in the tariff cannot be billed with the parts that exist.
+- [x] `arch eval` blocking findings: **60 -> 31** (11x CIR-07 single portal, documented above; the rest
+  are CIR-04 travel-distance calls that name no jurisdiction, i.e. the suite's own UNKNOWN class).
+  BLD-02, CIR-03, CAP-02 and OPS-04 no longer fire.
+- [x] **The living test in the app itself**, driven in Chromium against the dev server: cold boot → the
+  eleven floors load → deploy dialog reads `Total: 78 NPCs across 10 roles`, Guest 45 with spawn floors
+  G,1..10 → Deploy. The arrival floor's crowd grows as the street releases them (8 → 14 → 17 → 20 → 24
+  NPCs over 160 s), NPCs move and interact, path guides draw, and the ledger banks: **Takings 3.00,
+  Served 1, Per day est. 30.00, Profit per day -1,954.50**. The lift carries them: 11 NPCs on the bar
+  floor, 5 on guest rooms, 8 on the kitchen floor. No console errors.
+- [x] Evidence at close: unit **516/53 files**, e2e **29/29**, `arch:selftest` **PASSED** (14 fixtures),
+  lint 0, typecheck 0, `clean:check` clean. Three e2e specs and four unit tests were re-coupled to the
+  new content, each for the reason written in the file: `storeCrud` clears its floor's paint before
+  measuring placement, `archWorldStreet`'s probe copy keeps only the floor it builds, the two shop specs
+  own the whole plate because a holding is counted by rate tag across every floor, and `starterHouse`
+  bounds the shipped floor's object count instead of pinning it to the old four-fixture lobby.
+
+### Loop 72 - the crowd gets a reason: needs, urges, and the walk to the right floor
+
+- [x] **The ask**: "improve behavior npc more reality live". Measured first: the policy had no inner life
+  at all. `makeTargetSelector` rolled `focusChance` per decision and scored candidates by distance and
+  novelty, so a guest who had just drunk a pint was exactly as likely to want another one as one who had
+  stood in the lobby for four hours. Traced on the shipped house: **37% of visits were the same kind of
+  fixture twice in a row.**
+- [x] `src/engine/npc/needs.ts` - four urges (`thirst`, `appetite`, `rest`, `cleanliness`) per agent,
+  stored as **the tick each was last served**. Urgency is derived at the moment of decision, so a
+  thousand heads cost nothing per tick and there is no decay loop to run. `NEED_TAGS` is the one place
+  that says which fixture tags settle which urge; `NEED_RISE_SECONDS` are declared, not observed, and
+  say so. `NEED_ACT_AT = 0.5` is what keeps a settled guest settled.
+- [x] **The engine owns the state**: `NpcEngineAgent.needs`, created in `addAgent`, and settled on a
+  completed non-post interaction. The visit is what moves the clock - not whoever remembers to call.
+- [x] **What the policy does with it**: a visitor (the same `taskIds.length === 0` rule the ledger bills
+  with, now shared and pinned by a test) acts on its urges in order - worst first, then whatever else
+  this floor can actually serve, and only when nothing here would settle anything does it return null,
+  which is the engine's cue for the lift. `crossFloorSelector` travels for the loudest urge, so the car
+  goes to the floor with the beds rather than the floor with the most things this role likes.
+- [x] **What it replaced**: a guest with no urge no longer goes shopping. That is the whole difference
+  between a crowd and a queue, and it is measured, not asserted - see the throughput cost below.
+- [x] Tests: `tests/unit/needs.test.ts` (11) - the clock, the stagger, the threshold, the tag map, the
+  next-best rule, the loiter, the post that outranks an urge, the engine wiring, and the visitor rule
+  agreeing with the ledger. **Nine falsifications, nine killed** (`needs-urge-steers-the-choice`,
+  `needs-act-threshold`, `visit-settles-the-need`, `engine-settles-on-completion`,
+  `lift-follows-the-urge`, `a-lounge-is-rest`, `a-desk-hands-out-the-room`,
+  `a-guest-settles-for-what-is-here`, `a-settled-guest-loiters`); the first pass left two survivors
+  which were each a real problem - one test never advanced the policy's clock, one branch was dead code.
+- [x] `archBuildIngress`'s "the record must be bad" assertion was a tuned consequence of the old dice
+  roll: with needs the impatient crowd got *better* service and the record flipped above neutral. It now
+  claims what it is for - standing ages along the road from neutral toward the record, and never simply
+  prints the record - without pinning the sign.
+
+- [x] **The cost, measured on the eleven-floor house** (`arch takings`, 30,000 ticks = 500 sim-seconds,
+  546 heads, same payload each time):
+
+  | behaviour | started | completed | billed clients | gross/day |
+  | --- | --- | --- | --- | --- |
+  | dice roll (before) | 703 | 689 | 106 | 240.00 |
+  | loudest urge only | 382 | 378 | 29 | 85.50 |
+  | urge, then next-best on the floor | 600 | 592 | 80 | 120.00 |
+  | + the desk counts as a way to a room | 615 | 604 | 72 | 175.00 |
+  | + a guest arrives already wanting something | 489 | 481 | 72 | **210.00** |
+
+  The last row is the shipped behaviour: **70 billed services a day (14% of the declared arrivals),
+  210.00 gross against the 240.00 the dice roll spent** - about a fifth less, because guests stopped
+  buying things they did not want. `NEED_RISE_SECONDS` and `NEED_ACT_AT` are the two knobs a balance
+  pass should meet with a target rather than with a dice.
+- [x] **Game feel, found in the app and not fixed here**: watched live on the arrival floor for 270 s of
+  real time, the crowd reads `Moving 26 | Interacting 1` and the bank stays at 0.00 - where the same
+  house before this loop banked its first 3.00 in about 140 s. The reason is the change itself: a guest
+  used to take the nearest thing, now they cross the room (or the building) for the thing they want, and
+  the walk is slow at the shipped 0.20 walk speed. The offline day measures fine; the first two minutes
+  of a play session are quieter than they were. Worth a look with the speed knob or an arrival-floor
+  fixture, not with the needs.
+- [x] **A guest reads as a person now** (traced head by head on the bar floor, 1200 sim-seconds):
+  `bar@307s -> lounge@434s -> bar@667s`, `bar@390s -> lounge@519s -> bar@925s -> lounge@1050s`. Errands
+  with gaps between them, alternating kinds, instead of the old 37% same-fixture-twice.
+- [x] Still open, deliberately: `focusChance` no longer steers a **visitor's** choice (the urge does),
+  so the NPC manager's slider is inert for `role-guest` while `focusTags` still decides which urges the
+  role is allowed to have. It still steers the roles that shop without a post (server, security).
+
+- [x] **Two existing mutation guards went silent under the new behaviour, and were repaired rather than
+  deleted.** `engine-reservation-item-full` had been caught by three guests crowding a two-place bar;
+  a guest whose thirst the visit settled now walks away, so the third claimant never arrived and the
+  capacity rule could be removed with the test still green - the fixture carries six heads now.
+  `policy-open-targets-filter` (guests must not stand on a staffed duty post) was only ever observable
+  through a role's walkable map hiding those cells, so it was re-pointed at the policy itself, through
+  a queue that exists only at the bartender's post. Both kill again. The manifest is at **156 guards**.
+- [x] `tests/unit/needs.test.ts` is 12 tests; the unit suite is **527/54 files**, `arch:selftest`
+  **PASSED** (14 fixtures), e2e **29/29**, lint and typecheck 0.
+
 ## Blockers
 
 - (none)
 
 ## Hand-off Note
 
-Session closed at loop 70. Sixteen loops landed (55-70), each gated as it went: the shop is now
-reachable and clicked in a browser, a cold boot is two clicks from a running house, the tariff is
-reachable in the shipped library, the cost side has a free release lever that names the post it empties,
-the opening loss is stated in heads, the away rate has a witness, the harness race in `buildLobby` is
-closed, `arch selftest` exercises money and the street, fixture payloads load in the editor again, and
-`arch compare` ranks on the street with weights that can flip a winner.
+Session closed at loop 72. Two loops landed (71-72): the shipped house is now an authored eleven-floor
+building - arrival floor with two chamberlain desks, dining with a bar end, bar lounge, business, three
+guest-room floors of twelve chambers, wellness, housekeeping with the building's laundry, kitchen, plant
+- built by `npm run author:hotel` from `scripts/author-hotel.ts`, which refuses to write a payload it
+cannot read back and prints what each floor can bill. And the crowd has a reason: four urges per head,
+rising on their own clocks, served by the fixtures whose tags match, so a guest crosses the room for the
+thing they want instead of buying whatever is nearest.
 
-Evidence at close: unit **501 / 51 files**, `arch:selftest` **PASSED** (14 fixtures, six stages), full
-e2e **28/28**, lint + BEM + CSS + typecheck + build 0, `clean:check` clean, `verify.mjs check` pass,
-mutation **136 guards**: the final full pass came back 135/136 with one anchor lost to loop 70's own edit (the efficiency-profile weights gained `[STREET_KEY]`, so the guard's `find` string no longer ended where it said). Re-anchored, re-run, **killed**; the sweep now reports **136 guards, 0 missing anchors**. Loop 66's src changes are covered by that pass.
+Evidence at close: unit **529 / 54 files**, e2e **29/29**, `arch:selftest` **PASSED** (14 fixtures),
+lint + typecheck 0. Measured on the house (`arch takings`, 30,000 ticks): **489 services started, 481
+completed, 72 billed clients, 210.00 gross/day** against the 240.00 the old dice-roll crowd spent, and
+1,980.00/day of payroll - the house still loses money, by design of the tariff, not of the layout. In the
+app the same house banks 6.00 -> 12.00 by 240-270 s of real watching, with 23-24 heads on the arrival
+floor.
+
+Mutation manifest: **157 guards**. The last full sweep reported **155/156**; the one survivor
+(`starter-lobby-holds-a-billable-fixture`) was a guard with no test that could fail - `starterHouse.test.ts`
+never asserted that the shipped plate bills anything - so the test was written, the guard re-anchored onto
+the asset that actually carries the chamberlain rate, and a twin added for the bed rate. Both kill when run
+alone; **the full 157-guard sweep has not been re-run since. That is queue item 1.**
 
 Nothing is committed; git is yours.
 
 Queue, in order of what a next session should actually do:
-1. **Click the last two purchases** - and first decide how a player *meets* a standing repair or a
-   message round the room, because neither row renders on a fresh house (standing 70, factions at even).
-2. **Decide the opening** - the shipped crew is 32 heads against 510.00/day gross. The readout now says
-   the shortfall in heads; whether to author a cheaper opening plate is a design call, not a bug.
-3. **Guard the strike's once-per-close stamp** only if it stops being idempotent (today no test can see
-   it, so the manifest correctly does not claim it).
-4. **The Continental plan for the offline tool** - the `scripts/arch` fixtures still carry hotel tags with
-   no rate, so the tool prices a world its own plans cannot earn in. Loop 63's economy stage works around
-   this by drawing the shipped workspace; a real Continental fixture plan would retire the workaround.
+1. **Re-run the full mutation sweep** (`npm run test:mutation`) - 157 guards, ~25 min, and the only gate
+   whose word the last two loops' src changes still need.
+2. **The opening is slow in real time.** First money lands ~180 s after Deploy where it used to land at
+   ~140 s, because an urge-driven guest walks further before the first purchase. Either the shipped walk
+   speed (0.20) or one billable fixture nearer the street door is the lever; do not fix it by shortening
+   the need clocks, which are the honest part.
+3. **`focusChance` is now inert for a visitor role** - the urge decides, `focusTags` still gates which
+   urges a role may have. Decide whether the NPC manager keeps showing a slider that does nothing for the
+   role most players own.
+4. **Four of the eight tariff rates have no asset that carries the tag** (`contract-board`,
+   `contract-closed`, `back-room`, `infirmary`), and `kitchen` is unreachable to a guest with no
+   `kitchen` focus tag. The biggest earners are content work, not layout work.
+5. Carried from loop 70, still open: how a player *meets* a standing repair or a message round the room;
+   the opening-headcount design call; the `scripts/arch` fixtures that price a world their own plans
+   cannot earn in.
 
 Method that kept paying: write the oracle first and let it go red (loops 67, 69, 70 each started that
 way), then read `test-results/*/error-context.md` before believing a missing locator is a missing

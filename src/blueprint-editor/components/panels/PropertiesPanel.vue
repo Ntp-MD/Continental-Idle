@@ -539,10 +539,12 @@ async function doFlatten() {
               <span class="form__hint">Walked in <b>{{ traffic.spawned }}</b></span>
               <span class="form__hint">In the room <b>{{ traffic.inside }}</b></span>
               <span class="form__hint">Left again <b>{{ traffic.departed }}</b></span>
-              <span v-if="traffic.entrances === 0" class="form__hint flag--warning">
-                No street door - nobody can enter
-              </span>
             </template>
+            <!-- Outside the `trafficOn` block on purpose: footfall stays off when it has nowhere to
+                 deliver, and the reason has to be readable in the state the player is actually in. -->
+            <span v-if="traffic.entrances === 0" class="form__hint flag--warning">
+              No street door - nobody can enter, so the crowd stands where it was deployed
+            </span>
           </div>
           <div class="form__row form--wrap">
             <span class="form__hint">Moods</span>

@@ -1,6 +1,6 @@
 import { test } from 'vitest'
 import assert from 'node:assert/strict'
-import { NpcEngine, NPC_ENGINE_DEFAULT_OPTIONS, findNpcGridPath, type NpcEngineAgent, type NpcEngineQueue, type NpcEngineFloor } from '../../src/engine/npc'
+import { NpcEngine, NPC_ENGINE_DEFAULT_OPTIONS, findNpcGridPath, mulberry32, type NpcEngineAgent, type NpcEngineQueue, type NpcEngineFloor } from '../../src/engine/npc'
 import { buildNpcQueues } from '../../src/engine/npc/queueBuild'
 import { createNpcEnginePolicy } from '../../src/engine/npc/policy'
 import type { AssetDef, FloorData } from '../../src/blueprint-editor/domain/types'
@@ -375,7 +375,7 @@ test('npc queue overflow', () => {
 		id, floorId: 'F1', x, y, targetX: x, targetY: y, speed: 1, status: 'idle',
 		path: [], pathIndex: 0, reservationItemId: null, reservationInteractSpotId: null,
 		interactionRemainingTicks: 0, chatPartnerId: null, queueKey, queuePendingKey, queueSlotIndex: null,
-		queueArrivalSequence: null, crossFloorCooldownUntil: 0,
+		queueArrivalSequence: null, crossFloorCooldownUntil: 0, needs: { thirst: 0, appetite: 0, rest: 0, cleanliness: 0 },
 	})
 	const tA = {
 		floorId: 'F1', itemId: 'object:a', interactSpotId: 'object:a:0',
@@ -672,17 +672,6 @@ test('npc admit-race', () => {
 
 // Fuzz: random join/leave/remove churn never breaks line invariants
 test('npc queue fuzz', () => {
-	function mulberry32(seed: number): () => number {
-		let a = seed
-		return () => {
-			a |= 0
-			a = (a + 0x6D2B79F5) | 0
-			let t = a
-			t = Math.imul(t ^ (t >>> 15), t | 1)
-			t ^= t + Math.imul(t ^ (t >>> 7), t | 61)
-			return ((t ^ (t >>> 14)) >>> 0) / 4294967296
-		}
-	}
 	const fuzzBedA = { ...target, itemId: 'object:deskA', interactSpotId: 'object:deskA:0', x: 3, y: 3, durationMinSeconds: 1, durationMaxSeconds: 2 }
 	const fuzzBedB = { ...target, itemId: 'object:deskB', interactSpotId: 'object:deskB:0', x: 8, y: 8, durationMinSeconds: 1, durationMaxSeconds: 2 }
 	const fuzzQueueA: NpcEngineQueue = {

@@ -11,6 +11,8 @@ import type { NpcSimDot } from '@/blueprint-editor/domain/types'
 
 function agent(over: Partial<NpcEngineAgent> = {}): NpcEngineAgent {
 	return {
+		// Every urge served at tick 0: this file projects dots, it does not decide behaviour.
+		needs: { thirst: 0, appetite: 0, rest: 0, cleanliness: 0 },
 		id: 'a1',
 		roleId: 'role-guest',
 		floorId: 'G',

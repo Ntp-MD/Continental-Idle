@@ -16,21 +16,10 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { buildNpcEngineLayout, buildRoleWalkableMap, filterNpcSpawnTiles } from '../src/engine/npc/layoutBuild'
 import { createNpcEnginePolicy } from '../src/engine/npc/policy'
-import { NPC_ENGINE_DEFAULT_OPTIONS, NpcEngine, floorMatchesTargetTags } from '../src/engine/npc'
+import { NPC_ENGINE_DEFAULT_OPTIONS, NpcEngine, floorMatchesTargetTags, mulberry32 } from '../src/engine/npc'
 import { buildAssetMap } from '../src/blueprint-editor/assets/assetUtils'
 import { migrate } from '../src/blueprint-editor/store/migrate'
 import type { AssetDef } from '../src/blueprint-editor/domain/types'
-
-function mulberry32(seed: number): () => number {
-	let a = seed >>> 0
-	return () => {
-		a = (a + 0x6d2b79f5) >>> 0
-		let t = a
-		t = Math.imul(t ^ (t >>> 15), t | 1)
-		t ^= t + Math.imul(t ^ (t >>> 7), t | (t << 16))
-		return ((t ^ (t >>> 14)) >>> 0) / 4294967296
-	}
-}
 
 const seedPath = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../src/blueprint-editor/data/blueprint-data.json')
 const seed = JSON.parse(fs.readFileSync(seedPath, 'utf8')) as { layout: unknown; originAssets: AssetDef[]; npcConfig: unknown }

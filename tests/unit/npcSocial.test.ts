@@ -187,8 +187,10 @@ test('policy taste: loners never chat, chatty picks nearest, others sometimes pa
 		speed: 1, defaultRoleId: 'plain', roles: [lonerRole, chattyRole, plainRole], tasks: [], pool: [],
 		frameSimBudgetMs: 6, maxSimulationSteps: 8,
 	}
+	// Every urge served at tick 0: these agents are here to talk, not to shop.
+	const settled = { thirst: 0, appetite: 0, rest: 0, cleanliness: 0 }
 	const mkAgent = (id: string, roleId: string, x: number, y: number): NpcEngineAgent => ({
-		id, roleId, floorId: 'F1', x, y, targetX: x, targetY: y, speed: 1, status: 'idle',
+		id, roleId, floorId: 'F1', x, y, targetX: x, targetY: y, speed: 1, status: 'idle', needs: { ...settled },
 		path: [], pathIndex: 0, reservationItemId: null, reservationInteractSpotId: null,
 		interactionRemainingTicks: 0, chatPartnerId: null, queueKey: null, queuePendingKey: null,
 		queueSlotIndex: null, queueArrivalSequence: null, crossFloorCooldownUntil: 0,

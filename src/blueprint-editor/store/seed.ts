@@ -10,11 +10,20 @@ type SeedFile = NonNullable<ReturnType<typeof readBlueprintDataFile>>
 let pending: Promise<SeedFile> | undefined
 
 function file(): Promise<SeedFile> {
-	pending ??= import('../data/blueprint-data.json').then((mod) => {
-		const parsed = readBlueprintDataFile((mod as { default: unknown }).default)
-		if (!parsed) throw new InvalidBlueprintDataError('Static blueprint data failed schema validation')
-		return parsed
-	})
+	// A rejected import is cached like a resolved one, which would make the first transient failure
+	// permanent: every later call - including the boot check, which decides what the player sees -
+	// would replay the same error for the life of the tab. A failed attempt is forgotten instead,
+	// so the next caller retries the fetch rather than inheriting a verdict it never re-made.
+	pending ??= import('../data/blueprint-data.json')
+		.then((mod) => {
+			const parsed = readBlueprintDataFile((mod as { default: unknown }).default)
+			if (!parsed) throw new InvalidBlueprintDataError('Static blueprint data failed schema validation')
+			return parsed
+		})
+		.catch((error: unknown) => {
+			pending = undefined
+			throw error
+		})
 	return pending
 }
 

@@ -16,16 +16,17 @@ test('the shipped lobby is one click from a cold boot', async ({ page }) => {
 
 	await page.getByRole('button', { name: 'Open the starter lobby' }).click()
 	await expect(page.getByText('The starter lobby is on the floor')).toBeVisible()
-	// The desk the house ships with, and the bar run that makes it able to earn.
-	await expect(page.locator('[data-obj-id]')).toHaveCount(4)
+	// A furnished arrival floor, not a desk on an empty plate. The exact count belongs to whatever the
+	// house ships with, so the claim is bounded rather than pinned: the lobby stands with its fixtures.
+	expect(await page.locator('[data-obj-id]').count()).toBeGreaterThanOrEqual(10)
 	await expect(page.getByRole('button', { name: 'Create the first floor' })).toHaveCount(0)
 
 	await deployWorkspace(page)
 	// The board only renders on a running house, so this is the proof the starter lobby is playable -
-	// 502 agents on the floor and a staff list the payroll can bill.
+	// the crowd the pool deploys and a staff list the payroll can bill.
 	await expect(page.getByText('Pay the bill', { exact: false })).toBeVisible({ timeout: 15_000 })
 	await expect(page.getByText('Staff paid')).toBeVisible()
-	await expect(page.locator('[data-obj-id]')).toHaveCount(4)
+	expect(await page.locator('[data-obj-id]').count()).toBeGreaterThanOrEqual(10)
 
 	// The opening squeeze, stated in the unit the player can change. The shipped crew costs more than the
 	// night can yet take, and the HUD says so in heads instead of leaving a minus sign to interpret.

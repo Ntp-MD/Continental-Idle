@@ -37,6 +37,9 @@ function addBarCounters(data: WorkspaceData): void {
 		objects.push({ id: `obj-e2e-bar-${i}`, type: 'bar-counter', x: 220 + col * 120, y: 220 + row * 40, rotation: 0 })
 	}
 	data.layout.floors[0].objects = objects
+	// A holding is counted by the rate its tags bill at, across every floor, so the shipped building's
+	// own bar fixtures would move the price and the payroll this spec reads. The plate is the spec's own.
+	for (const floor of data.layout.floors.slice(1)) floor.objects = []
 }
 
 /** How many heads of this role the button says are deployed - the readout the hire must move. */
